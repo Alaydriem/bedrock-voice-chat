@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import Verdict from "$radial/components/Verdict.svelte";
     import { PlateView } from "../../js/app/server/PlateView";
@@ -65,7 +66,7 @@
     class="rad-modal rad-preflight-panel {open ? 'is-open' : ''}"
     role="dialog"
     aria-modal="true"
-    aria-label="Preflight readout"
+    aria-label={I18n.t("Preflight readout")}
     aria-hidden={!open}
 >
     {#if entry && view && verdict}
@@ -75,7 +76,7 @@
                 <span class="rad-modal__title rad-preflight-panel__name">{entry.host}</span>
                 <span class="rad-preflight-panel__host">signed in as {entry.player}</span>
             </span>
-            <button class="rad-icon-btn" onclick={onclose} aria-label="Close">
+            <button class="rad-icon-btn" onclick={onclose} aria-label={I18n.t("Close")}>
                 <Icon name="close" />
             </button>
         </div>
@@ -110,42 +111,42 @@
             -->
             <div class="rad-kv-grid" style="margin-top: 22px">
                 <div class="rad-kv-group">
-                    <div class="rad-kv-group__head">Account</div>
+                    <div class="rad-kv-group__head">{I18n.t("Account")}</div>
                     <div class="rad-kv">
-                        <span class="rad-kv__key">Signed in as</span>
+                        <span class="rad-kv__key">{I18n.t("Signed in as")}</span>
                         <span class="rad-kv__value">{entry.player}</span>
                     </div>
                     <div class="rad-kv">
-                        <span class="rad-kv__key">Game</span>
+                        <span class="rad-kv__key">{I18n.t("Game")}</span>
                         <span class="rad-kv__value">{entry.game}</span>
                     </div>
                     <div class="rad-kv">
-                        <span class="rad-kv__key">Stored in</span>
-                        <span class="rad-kv__value">keyring &middot; servers</span>
+                        <span class="rad-kv__key">{I18n.t("Stored in")}</span>
+                        <span class="rad-kv__value">keyring · servers</span>
                     </div>
                 </div>
                 <div class="rad-kv-group">
-                    <div class="rad-kv-group__head">Link</div>
+                    <div class="rad-kv-group__head">{I18n.t("Link")}</div>
                     <div class="rad-kv">
-                        <span class="rad-kv__key">Round trip</span>
+                        <span class="rad-kv__key">{I18n.t("Round trip")}</span>
                         <span class="rad-kv__value">{entry.rtt ? `${entry.rtt} ms` : "—"}</span>
                     </div>
                     <div class="rad-kv">
-                        <span class="rad-kv__key">QUIC port</span>
+                        <span class="rad-kv__key">{I18n.t("QUIC port")}</span>
                         <span class="rad-kv__value">
                             {entry.quicPort}{entry.quicPort === 443 ? "" : " (fallback)"}
                         </span>
                     </div>
                     <div class="rad-kv">
-                        <span class="rad-kv__key">Protocol</span>
+                        <span class="rad-kv__key">{I18n.t("Protocol")}</span>
                         <span class="rad-kv__value">
-                            {entry.clientVersion || "—"} &middot; server {entry.serverVersion ||
+                            {entry.clientVersion || "—"} · server {entry.serverVersion ||
                                 "—"}
                         </span>
                     </div>
                     <div class="rad-kv">
-                        <span class="rad-kv__key">Transport</span>
-                        <span class="rad-kv__value">TLS 1.3 &middot; mTLS</span>
+                        <span class="rad-kv__key">{I18n.t("Transport")}</span>
+                        <span class="rad-kv__value">TLS 1.3 · mTLS</span>
                     </div>
                 </div>
             </div>
@@ -153,11 +154,11 @@
 
         <div class="rad-preflight-panel__foot">
             <button class="rad-btn rad-btn--danger" onclick={() => onremove(entry)}>
-                <Icon name="trash" /> Remove
+                <Icon name="trash" /> {I18n.t("Remove")}
             </button>
             <span class="rad-footbar__actions">
                 <button class="rad-btn" onclick={() => onrecheck(entry.server)}>
-                    <Icon name="refresh" /> Recheck
+                    <Icon name="refresh" /> {I18n.t("Recheck")}
                 </button>
                 <!--
                   A blocked server still leads somewhere from here: the update, not the

@@ -44,6 +44,15 @@ impl AppBuilder {
     ) -> anyhow::Result<()> {
         let handle = app.handle().clone();
 
+        // Absent packs are not an error: message ids are the English source strings, so a
+        // directory that does not exist leaves the app in English rather than broken.
+        let resource_dir = app
+            .path()
+            .resource_dir()
+            .map(|dir| dir.join("resources").join("i18n"))
+            .unwrap_or_default();
+        app.manage(crate::i18n::LocalizationService::new(resource_dir));
+
         // This is our audio producer and consumer
         // The producer is responsible for getting audio from the raw input device, then sending it to the consumer
         // The consumer lives in the networking thread, consumes the audio, then sends it to the server

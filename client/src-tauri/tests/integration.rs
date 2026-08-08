@@ -8,6 +8,7 @@ mod diagnostics;
 mod discord;
 mod feature_flags;
 mod harness;
+mod i18n;
 mod iap;
 mod keybinds;
 mod players;

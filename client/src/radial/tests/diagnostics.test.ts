@@ -38,13 +38,13 @@ const healthy: DiagnosticsInput = {
  */
 describe("Diagnostics.verdict", () => {
   it("says everything is fine when it is", () => {
-    const [severity, text] = Diagnostics.verdict(healthy);
+    const { severity, code } = Diagnostics.verdict(healthy);
     assert.equal(severity, "ok");
-    assert.match(text, /fine/);
+    assert.equal(code, "fine");
   });
 
   it("leads with reconnecting over everything else", () => {
-    const [severity, text] = Diagnostics.verdict({
+    const { severity, code } = Diagnostics.verdict({
       ...healthy,
       reconnecting: true,
       muted: true,
@@ -53,34 +53,34 @@ describe("Diagnostics.verdict", () => {
       inputRate: 44100,
     });
     assert.equal(severity, "bad");
-    assert.match(text, /Reconnecting/);
+    assert.equal(code, "reconnecting");
   });
 
   it("reports deafened before muted, because deafen implies mute", () => {
     // Both flags are set whenever you deafen, so reporting "you are muted" would name
     // the symptom rather than the thing the user chose.
-    const [severity, text] = Diagnostics.verdict({ ...healthy, deafened: true, muted: true });
+    const { severity, code } = Diagnostics.verdict({ ...healthy, deafened: true, muted: true });
     assert.equal(severity, "warn");
-    assert.match(text, /deafened/);
+    assert.equal(code, "deafened");
   });
 
   it("calls a muted mic a fault, not a warning", () => {
-    const [severity, text] = Diagnostics.verdict({ ...healthy, muted: true });
+    const { severity, code } = Diagnostics.verdict({ ...healthy, muted: true });
     assert.equal(severity, "bad");
-    assert.match(text, /Nobody can hear you/);
+    assert.equal(code, "muted");
   });
 
   it("explains an idle push-to-talk before blaming the hardware", () => {
-    const [, text] = Diagnostics.verdict({ ...healthy, pttIdle: true, inputRate: 44100 });
-    assert.match(text, /Push-to-talk/);
+    const { code } = Diagnostics.verdict({ ...healthy, pttIdle: true, inputRate: 44100 });
+    assert.equal(code, "ptt-idle");
   });
 
   // In push-to-talk a shut microphone is the mode at rest, not a fault. Alarming about it
   // states the same fact twice, in coral, whenever nobody is holding the button.
   it("reports push-to-talk before muted, because the mode is why it is muted", () => {
-    const [severity, text] = Diagnostics.verdict({ ...healthy, pttIdle: true, muted: true });
+    const { severity, code } = Diagnostics.verdict({ ...healthy, pttIdle: true, muted: true });
     assert.equal(severity, "warn");
-    assert.match(text, /Push-to-talk/);
+    assert.equal(code, "ptt-idle");
   });
 
   /**
@@ -96,33 +96,37 @@ describe("Diagnostics.verdict", () => {
 
   // Held, the mic is genuinely open and there is nothing to report.
   it("is quiet while the button is held", () => {
-    const [severity] = Diagnostics.verdict({ ...healthy, pttIdle: false, muted: false });
+    const { severity } = Diagnostics.verdict({ ...healthy, pttIdle: false, muted: false });
     assert.equal(severity, "ok");
   });
 
   // A mute nobody asked push-to-talk for is still a fault worth the alarm.
   it("still alarms about a mute outside push-to-talk", () => {
-    const [severity, text] = Diagnostics.verdict({ ...healthy, pttIdle: false, muted: true });
+    const { severity, code } = Diagnostics.verdict({ ...healthy, pttIdle: false, muted: true });
     assert.equal(severity, "bad");
-    assert.match(text, /Nobody can hear you/);
+    assert.equal(code, "muted");
   });
 
   it("names the actual sample rate", () => {
-    const [severity, text] = Diagnostics.verdict({ ...healthy, inputRate: 44100 });
+    const { severity, code, params } = Diagnostics.verdict({ ...healthy, inputRate: 44100 });
     assert.equal(severity, "warn");
-    assert.match(text, /44\.1 kHz/);
+    assert.equal(code, "input-rate");
+    assert.equal(params?.kHz, "44.1");
   });
 
   it("only complains about loss once it is audible", () => {
-    assert.equal(Diagnostics.verdict({ ...healthy, lossPercent: 2.9 })[0], "ok");
-    assert.equal(Diagnostics.verdict({ ...healthy, lossPercent: 3.1 })[0], "warn");
+    assert.equal(Diagnostics.verdict({ ...healthy, lossPercent: 2.9 }).severity, "ok");
+    assert.equal(Diagnostics.verdict({ ...healthy, lossPercent: 3.1 }).severity, "warn");
   });
 
   it("reminds you when you are the one who muted someone", () => {
-    const [severity, text] = Diagnostics.verdict({ ...healthy, mutedOthers: 1 });
+    // The count travels as a number now. Which plural form it needs is the reader's
+    // language's business, and English's two are not enough for Polish.
+    const { severity, code, params } = Diagnostics.verdict({ ...healthy, mutedOthers: 1 });
     assert.equal(severity, "warn");
-    assert.match(text, /1 player is muted by you/);
-    assert.match(Diagnostics.verdict({ ...healthy, mutedOthers: 2 })[1], /2 players are/);
+    assert.equal(code, "muted-others");
+    assert.equal(params?.count, 1);
+    assert.equal(Diagnostics.verdict({ ...healthy, mutedOthers: 2 }).params?.count, 2);
   });
 });
 

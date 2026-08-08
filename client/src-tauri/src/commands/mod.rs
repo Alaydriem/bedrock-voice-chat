@@ -10,6 +10,7 @@ pub(crate) mod discord;
 pub(crate) mod env;
 pub(crate) mod event;
 pub(crate) mod feature_flags;
+pub(crate) mod i18n;
 pub(crate) mod iap;
 pub(crate) mod keybinds;
 pub(crate) mod keyring;

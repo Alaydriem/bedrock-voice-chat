@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import type { GroupRowView } from "../../js/app/dashboard/GroupRowView";
     import GroupRow from "./GroupRow.svelte";
@@ -44,7 +45,7 @@
 <!-- One card holding flush rows, rather than a stack of separately-rounded ones. -->
 <div class="rad-group-list">
 <button class="rad-new-group" onclick={oncreate}>
-    <Icon name="plus" /> New group
+    <Icon name="plus" /> {I18n.t("New group")}
 </button>
 
 {#each groups as group (group.id)}

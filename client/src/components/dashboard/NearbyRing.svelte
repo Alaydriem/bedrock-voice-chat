@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Ring from "$radial/components/Ring.svelte";
     import { Handoff, type Point } from "$radial/core/controllers/Handoff";
     import type { NearbyPlayer } from "../../js/app/dashboard/NearbyPlayer";
@@ -103,7 +104,7 @@
         {#if !connected && onstatus}
             <!-- The refresh action is gone, so this is the route from noticing to diagnosing.
                  It goes to the numbers rather than retrying blind. -->
-            <button class="rad-btn rad-idle__action" onclick={onstatus}>Connection status</button>
+            <button class="rad-btn rad-idle__action" onclick={onstatus}>{I18n.t("Connection status")}</button>
         {/if}
     </span>
 </div>

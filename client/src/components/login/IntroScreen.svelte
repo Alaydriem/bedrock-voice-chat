@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import LevelMeter from "$radial/components/LevelMeter.svelte";
     import { AnimationLoop } from "$radial/core/canvas/AnimationLoop";
@@ -155,8 +156,8 @@
                         class="rad-ring--fill"
                     />
                     <span class="rad-caption">
-                        <span class="rad-label">Your range</span>
-                        <span class="rad-caption__value">80 M &middot; {audible} IN EARSHOT</span>
+                        <span class="rad-label">{I18n.t("Your range")}</span>
+                        <span class="rad-caption__value">80 M · {audible} IN EARSHOT</span>
                     </span>
                 </div>
             {:else if step === 2}
@@ -184,15 +185,15 @@
                                             </span>
                                         </div>
                                     {:else}
-                                        <div class="rad-channel__empty">&mdash; nobody here &mdash;</div>
+                                        <div class="rad-channel__empty">— nobody here —</div>
                                     {/each}
                                 </div>
                             </div>
                         {/each}
                     </div>
                     <span class="rad-caption">
-                        <span class="rad-label">Channel</span>
-                        <span class="rad-caption__value">FULL VOLUME &middot; ANY DISTANCE</span>
+                        <span class="rad-label">{I18n.t("Channel")}</span>
+                        <span class="rad-caption__value">{I18n.t("FULL VOLUME · ANY DISTANCE")}</span>
                     </span>
                 </div>
             {:else if step === 3}
@@ -200,48 +201,48 @@
                     <div class="rad-matrix">
                         <div class="rad-matrix__group">
                             <div class="rad-matrix__head">
-                                Where your world can live &mdash; the mod goes here
+                                {I18n.t("Where your world can live — the mod goes here")}
                             </div>
                             <div class="rad-matrix__row">
                                 <span class="rad-matrix__blocks"><i style="background:#8239d8"></i><i style="background:#6a50e9"></i><i style="background:#466cf3"></i></span>
-                                <span>Your own server</span><span class="rad-matrix__tag rad-matrix__tag--yes">Supported</span>
+                                <span>{I18n.t("Your own server")}</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Supported")}</span>
                             </div>
                             <div class="rad-matrix__row">
                                 <span class="rad-matrix__blocks"><i style="background:#28bae1"></i><i style="background:#21d8d8"></i><i style="background:#26ddcd"></i></span>
-                                <span>Aternos &mdash; free hosting</span><span class="rad-matrix__tag rad-matrix__tag--yes">Supported</span>
+                                <span>{I18n.t("Aternos — free hosting")}</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Supported")}</span>
                             </div>
                             <div class="rad-matrix__row">
                                 <span class="rad-matrix__blocks"><i style="background:#34d8a0"></i><i style="background:#3bd869"></i><i style="background:#6fd846"></i></span>
-                                <span>Minecraft Realms</span><span class="rad-matrix__tag rad-matrix__tag--yes">Supported</span>
+                                <span>Minecraft Realms</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Supported")}</span>
                             </div>
                             <div class="rad-matrix__row">
                                 <span class="rad-matrix__blocks"><i style="background:#aee236"></i><i style="background:#f8e433"></i><i style="background:#f9bf21"></i></span>
-                                <span>Java + Geyser &amp; Floodgate</span><span class="rad-matrix__tag rad-matrix__tag--yes">Supported</span>
+                                <span>Java + Geyser & Floodgate</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Supported")}</span>
                             </div>
                         </div>
                         <div class="rad-matrix__group">
-                            <div class="rad-matrix__head">Who can join</div>
+                            <div class="rad-matrix__head">{I18n.t("Who can join")}</div>
                             <div class="rad-matrix__row">
                                 <span class="rad-matrix__blocks"><i style="background:#8239d8"></i><i style="background:#6a50e9"></i><i style="background:#466cf3"></i></span>
-                                <span>Windows &middot; macOS &middot; Linux</span><span class="rad-matrix__tag rad-matrix__tag--yes">Ready</span>
+                                <span>Windows · macOS · Linux</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Ready")}</span>
                             </div>
                             <div class="rad-matrix__row">
                                 <span class="rad-matrix__blocks"><i style="background:#28bae1"></i><i style="background:#21d8d8"></i><i style="background:#26ddcd"></i></span>
-                                <span>Android &middot; iOS</span><span class="rad-matrix__tag rad-matrix__tag--yes">Ready</span>
+                                <span>Android · iOS</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Ready")}</span>
                             </div>
                             <div class="rad-matrix__row">
                                 <span class="rad-matrix__blocks"><i style="background:#34d8a0"></i><i style="background:#3bd869"></i><i style="background:#6fd846"></i></span>
-                                <span>Xbox &middot; PlayStation &middot; Switch</span><span class="rad-matrix__tag rad-matrix__tag--yes">Via phone</span>
+                                <span>Xbox · PlayStation · Switch</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Via phone")}</span>
                             </div>
                         </div>
                         <p class="rad-matrix__note">
-                            <span>The BVC server runs separately, on <b>any machine you control</b> &mdash;
+                            <span>{I18n.t("The BVC server runs separately, on")} <b>any machine you control</b> —
                                 your gaming PC, a VPS, or a home box.</span>
                         </p>
                     </div>
                     <span class="rad-caption">
-                        <span class="rad-label">Reach</span>
-                        <span class="rad-caption__value">YOUR WORLD STAYS WHERE IT IS</span>
+                        <span class="rad-label">{I18n.t("Reach")}</span>
+                        <span class="rad-caption__value">{I18n.t("YOUR WORLD STAYS WHERE IT IS")}</span>
                     </span>
                 </div>
             {:else}
@@ -256,8 +257,8 @@
                         <div class="rad-timeline-lanes"><canvas bind:this={timelineCanvas}></canvas></div>
                     </div>
                     <span class="rad-caption">
-                        <span class="rad-label">Session</span>
-                        <span class="rad-caption__value">3 TRACKS &middot; TIMECODED</span>
+                        <span class="rad-label">{I18n.t("Session")}</span>
+                        <span class="rad-caption__value">3 TRACKS · TIMECODED</span>
                     </span>
                 </div>
             {/if}
@@ -265,18 +266,17 @@
 
         <div class="rad-content-pane" bind:this={body}>
             {#if step === 1}
-                <span class="rad-label rad-rise" style="--d: 50">01 &middot; Proximity</span>
+                <span class="rad-label rad-rise" style="--d: 50">01 · Proximity</span>
                 <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
-                    Walk up to someone.<br /><b>You're already talking.</b>
+                    {I18n.t("Walk up to someone.")}<br /><b>{I18n.t("You're already talking.")}</b>
                 </h2>
                 <p class="rad-body rad-rise" style="--d: 210">
-                    Voices get louder as players come toward you and fade as they leave. No lobbies,
-                    no invites, and nobody shouting over a call from three biomes away.
+                    {I18n.t("Voices get louder as players come toward you and fade as they leave. No lobbies, no invites, and nobody shouting over a call from three biomes away.")}
                 </p>
                 <div class="rad-chips rad-rise" style="--d: 300">
-                    <span class="rad-chip"><i style="background: #21d8d8"></i>Positional audio</span>
-                    <span class="rad-chip"><i style="background: #3bd869"></i>Whisper &amp; shout</span>
-                    <span class="rad-chip"><i style="background: #aee236"></i>Spectator support</span>
+                    <span class="rad-chip"><i style="background: #21d8d8"></i>{I18n.t("Positional audio")}</span>
+                    <span class="rad-chip"><i style="background: #3bd869"></i>{I18n.t("Whisper & shout")}</span>
+                    <span class="rad-chip"><i style="background: #aee236"></i>{I18n.t("Spectator support")}</span>
                 </div>
                 <div class="rad-readout-list rad-rise" style="--d: 380">
                     {#each NEARBY as p, i (p.name)}
@@ -290,70 +290,66 @@
                     {/each}
                 </div>
             {:else if step === 2}
-                <span class="rad-label rad-rise" style="--d: 50">02 &middot; Channels</span>
+                <span class="rad-label rad-rise" style="--d: 50">02 · Channels</span>
                 <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
-                    Split off into<br /><b>your own channel.</b>
+                    {I18n.t("Split off into")}<br /><b>your own channel.</b>
                 </h2>
                 <p class="rad-body rad-rise" style="--d: 210">
-                    Running something across the whole map? Drop into a channel and everyone stays
-                    at full volume however far apart you get. Proximity keeps running underneath the
-                    entire time.
+                    {I18n.t("Running something across the whole map? Drop into a channel and everyone stays at full volume however far apart you get. Proximity keeps running underneath the entire time.")}
                 </p>
                 <div class="rad-chips rad-rise" style="--d: 300">
-                    <span class="rad-chip"><i style="background: #8239d8"></i>Persistent groups</span>
-                    <span class="rad-chip"><i style="background: #28bae1"></i>Join from in-game</span>
-                    <span class="rad-chip"><i style="background: #f9bf21"></i>Server-wide broadcast</span>
-                    <span class="rad-chip"><i style="background: #3bd869"></i>Per-player volume 0&ndash;150%</span>
-                    <span class="rad-chip"><i style="background: #f67414"></i>Moderator controls</span>
+                    <span class="rad-chip"><i style="background: #8239d8"></i>{I18n.t("Persistent groups")}</span>
+                    <span class="rad-chip"><i style="background: #28bae1"></i>{I18n.t("Join from in-game")}</span>
+                    <span class="rad-chip"><i style="background: #f9bf21"></i>{I18n.t("Server-wide broadcast")}</span>
+                    <span class="rad-chip"><i style="background: #3bd869"></i>{I18n.t("Per-player volume 0–150%")}</span>
+                    <span class="rad-chip"><i style="background: #f67414"></i>{I18n.t("Moderator controls")}</span>
                 </div>
             {:else if step === 3}
-                <span class="rad-label rad-rise" style="--d: 50">03 &middot; Anywhere you play</span>
+                <span class="rad-label rad-rise" style="--d: 50">03 · Anywhere you play</span>
                 <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
-                    It works with<br /><b>the world you already have.</b>
+                    {I18n.t("It works with")}<br /><b>the world you already have.</b>
                 </h2>
                 <p class="rad-body rad-rise" style="--d: 210">
-                    Your world stays exactly where it is. The mod goes on it; the BVC server runs
-                    on a machine you control.
+                    {I18n.t("Your world stays exactly where it is. The mod goes on it; the BVC server runs on a machine you control.")}
                 </p>
                 <div class="rad-steps rad-rise" style="--d: 300">
                     <div class="rad-step">
                         <span class="rad-step__n">1</span>
                         <span>
-                            <span class="rad-step__title">Run the BVC server</span>
-                            <span class="rad-step__note">Your PC, a VPS, or a home box</span>
+                            <span class="rad-step__title">{I18n.t("Run the BVC server")}</span>
+                            <span class="rad-step__note">{I18n.t("Your PC, a VPS, or a home box")}</span>
                         </span>
                     </div>
                     <div class="rad-step">
                         <span class="rad-step__n">2</span>
                         <span>
-                            <span class="rad-step__title">Add the mod to your world</span>
-                            <span class="rad-step__note">A Bedrock add-on, or the Fabric or Paper mod for Java</span>
+                            <span class="rad-step__title">{I18n.t("Add the mod to your world")}</span>
+                            <span class="rad-step__note">{I18n.t("A Bedrock add-on, or the Fabric or Paper mod for Java")}</span>
                         </span>
                     </div>
                     <div class="rad-step">
                         <span class="rad-step__n">3</span>
                         <span>
-                            <span class="rad-step__title">Share the address and talk</span>
-                            <span class="rad-step__note">Everyone signs in with the account they already play on</span>
+                            <span class="rad-step__title">{I18n.t("Share the address and talk")}</span>
+                            <span class="rad-step__note">{I18n.t("Everyone signs in with the account they already play on")}</span>
                         </span>
                     </div>
                 </div>
             {:else}
-                <span class="rad-label rad-rise" style="--d: 50">04 &middot; Record &amp; control</span>
+                <span class="rad-label rad-rise" style="--d: 50">04 · Record & control</span>
                 <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
-                    Record everyone.<br /><b>On separate tracks.</b>
+                    {I18n.t("Record everyone.")}<br /><b>{I18n.t("On separate tracks.")}</b>
                 </h2>
                 <p class="rad-body rad-rise" style="--d: 210">
-                    Every voice lands on its own timecoded track, ready to drop straight into the
-                    edit &mdash; and the controls reach the desk beside your keyboard.
+                    {I18n.t("Every voice lands on its own timecoded track, ready to drop straight into the edit — and the controls reach the desk beside your keyboard.")}
                 </p>
                 <div class="rad-chips rad-rise" style="--d: 300">
-                    <span class="rad-chip"><i style="background: #21d8d8"></i>Split-track recording</span>
-                    <span class="rad-chip"><i style="background: #aee236"></i>Stream Deck plugin</span>
-                    <span class="rad-chip"><i style="background: #f9bf21"></i>Push-to-talk &amp; hotkeys</span>
-                    <span class="rad-chip"><i style="background: #8239d8"></i>Noise gate &amp; gain</span>
-                    <span class="rad-chip"><i style="background: #f67414"></i>WebSocket API</span>
-                    <span class="rad-chip"><i style="background: #3bd869"></i>Export to WAV or MP4</span>
+                    <span class="rad-chip"><i style="background: #21d8d8"></i>{I18n.t("Split-track recording")}</span>
+                    <span class="rad-chip"><i style="background: #aee236"></i>{I18n.t("Stream Deck plugin")}</span>
+                    <span class="rad-chip"><i style="background: #f9bf21"></i>{I18n.t("Push-to-talk & hotkeys")}</span>
+                    <span class="rad-chip"><i style="background: #8239d8"></i>{I18n.t("Noise gate & gain")}</span>
+                    <span class="rad-chip"><i style="background: #f67414"></i>{I18n.t("WebSocket API")}</span>
+                    <span class="rad-chip"><i style="background: #3bd869"></i>{I18n.t("Export to WAV or MP4")}</span>
                 </div>
             {/if}
         </div>
@@ -362,9 +358,9 @@
     {#snippet footbar()}
         <span class="rad-label">{CAPTIONS[step - 1]}</span>
         <span class="rad-footbar__actions">
-            <button class="rad-btn rad-btn--lg rad-btn--quiet" onclick={onskip}>Skip</button>
+            <button class="rad-btn rad-btn--lg rad-btn--quiet" onclick={onskip}>{I18n.t("Skip")}</button>
             {#if step > 1}
-                <button class="rad-btn rad-btn--lg rad-btn--quiet" onclick={onback}>Back</button>
+                <button class="rad-btn rad-btn--lg rad-btn--quiet" onclick={onback}>{I18n.t("Back")}</button>
             {/if}
             <button class="rad-btn rad-btn--lg rad-btn--primary" onclick={onnext}>
                 {step === TOTAL ? "Continue" : "Next"}

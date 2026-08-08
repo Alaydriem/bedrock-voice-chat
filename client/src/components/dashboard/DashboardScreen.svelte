@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import ServerGlyph from "$radial/components/ServerGlyph.svelte";
@@ -259,7 +260,7 @@
 
     {#if groups}
         <div class="rad-panel">
-            <div class="rad-panel__head">Groups</div>
+            <div class="rad-panel__head">{I18n.t("Groups")}</div>
             <div class="rad-panel__body">{@render groups()}</div>
         </div>
     {/if}
@@ -273,7 +274,7 @@
                 <button
                     class="rad-header-btn rad-phone-only"
                     data-rad-sheet-open="groups"
-                    aria-label="Groups"
+                    aria-label={I18n.t("Groups")}
                 >
                     <Icon name="people" />
                 </button>
@@ -289,7 +290,7 @@
                         class="rad-header-btn"
                         class:is-on={statusOpen}
                         aria-pressed={statusOpen}
-                        aria-label="Show status"
+                        aria-label={I18n.t("Show status")}
                         onclick={() => onstatus(!statusOpen)}
                     >
                         <Icon name="field" />
@@ -298,7 +299,7 @@
                 <button
                     class="rad-header-glyph rad-phone-only"
                     data-rad-sheet-open="servers"
-                    aria-label="Servers and settings"
+                    aria-label={I18n.t("Servers and settings")}
                 >
                     <ServerGlyph name={currentHost} size={34} />
                 </button>
@@ -314,14 +315,14 @@
                     onchat?.(false);
                 }}
             >
-                In earshot
+                {I18n.t("In earshot")}
             </button>
             <button
                 class:is-on={tab === "chat"}
                 onclick={() => {
                     tab = "chat";
                     onchat?.(true);
-                }}>Chat</button
+                }}>{I18n.t("Chat")}</button
             >
         </div>
 
@@ -361,7 +362,7 @@
 
 <div class="rad-sheet" data-rad-sheet="servers">
     <span class="rad-sheet__handle"></span>
-    <h4 class="rad-sheet__title">Servers</h4>
+    <h4 class="rad-sheet__title">{I18n.t("Servers")}</h4>
     {#each servers as server (server.server)}
         <button
             class="rad-sheet-row"
@@ -403,10 +404,10 @@
 -->
 <div class="rad-sheet rad-sheet--full" data-rad-sheet="groups">
     <span class="rad-sheet__handle"></span>
-    <button class="rad-sheet__close" data-rad-sheet-close aria-label="Close groups">
+    <button class="rad-sheet__close" data-rad-sheet-close aria-label={I18n.t("Close groups")}>
         <Icon name="close" />
     </button>
-    <h4 class="rad-sheet__title">Groups</h4>
+    <h4 class="rad-sheet__title">{I18n.t("Groups")}</h4>
     <div class="rad-sheet__body">
         {#if groups}{@render groups()}{/if}
     </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import Mark from "$radial/components/Mark.svelte";
     import { PlateView } from "../../js/app/server/PlateView";
@@ -42,19 +43,19 @@
                 class="rad-icon-btn"
                 onclick={onrecheckall}
                 disabled={isRefreshing}
-                title="Recheck every server"
-                aria-label="Recheck every server"
+                title={I18n.t("Recheck every server")}
+                aria-label={I18n.t("Recheck every server")}
             >
                 <Icon name="refresh" spin={isRefreshing} />
             </button>
             <button class="rad-btn" onclick={onadd}>
-                <Icon name="plus" /> Add a server
+                <Icon name="plus" /> {I18n.t("Add a server")}
             </button>
         </span>
     </div>
 
     <div class="rad-server-head">
-        <span class="rad-label">Select a server</span>
+        <span class="rad-label">{I18n.t("Select a server")}</span>
         <span class="rad-server-head__line"></span>
         <span class="rad-server-head__count">
             {entries.length}
@@ -74,7 +75,7 @@
             -->
             <button class="rad-server-add" onclick={onadd}>
                 <Icon name="plus" />
-                <span class="rad-server-add__label">Add a server</span>
+                <span class="rad-server-add__label">{I18n.t("Add a server")}</span>
             </button>
         </div>
     </div>

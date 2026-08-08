@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import type { PreflightStep } from "../../js/app/server/preflight/PreflightStep";
     import type { PreflightStepState } from "../../js/app/server/preflight/PreflightStepState";
 
@@ -25,7 +26,7 @@
   One block per check and a total: the cheapest honest summary. You can see that something
   failed and roughly how far in without opening anything.
 -->
-<button class="rad-preflight" onclick={onopen} title="Open the preflight readout">
+<button class="rad-preflight" onclick={onopen} title={I18n.t("Open the preflight readout")}>
     <span class="rad-preflight__blocks">
         {#each steps as step (step.name)}
             <i class={BLOCK[step.state] ?? ""}></i>

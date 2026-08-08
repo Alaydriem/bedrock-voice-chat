@@ -17,6 +17,11 @@
     pending?: boolean;
     onmute?: (muted: boolean) => void;
     ongain?: (gain: number) => void;
+    /**
+     * Label for the volume slider, already naming the player. Defaults to English: the kit
+     * takes its words from the caller rather than reaching for the application's catalog.
+     */
+    volumeLabel?: string;
   }
 
   let {
@@ -29,6 +34,7 @@
     pending = false,
     onmute,
     ongain,
+    volumeLabel = `Volume for ${name}`,
   }: Props = $props();
 
   let live = $state(false);
@@ -85,7 +91,7 @@
         step="0.05"
         value={gain}
         disabled={muted}
-        aria-label="Volume for {name}"
+        aria-label={volumeLabel}
         oninput={setGain}
       />
       <span class="rad-player__percent">{Math.round(gain * 100)}%</span>

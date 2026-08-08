@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Loader from "$radial/components/Loader.svelte";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import type { PermissionFlowState } from "../../js/app/PermissionRequestManager";
@@ -23,7 +24,7 @@
     ];
 </script>
 
-<RadScreen label="Microphone">
+<RadScreen label={I18n.t("Microphone")}>
     {#snippet topbar()}
         <StepDots {step} {total} />
     {/snippet}
@@ -39,7 +40,7 @@
                         class="rad-ring--fill"
                     />
                     <span class="rad-caption">
-                        <span class="rad-label">Input</span>
+                        <span class="rad-label">{I18n.t("Input")}</span>
                         <span class="rad-caption__value">
                             {state === "denied" ? "ACCESS REFUSED" : "AWAITING PERMISSION"}
                         </span>
@@ -48,38 +49,36 @@
             {/if}
         </div>
         <div class="rad-content-pane">
-            <span class="rad-label rad-rise" style="--d: 50">01 &middot; Microphone</span>
+            <span class="rad-label rad-rise" style="--d: 50">01 · Microphone</span>
             <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px; font-size: 2rem">
-                BVC needs<br /><b>your microphone.</b>
+                {I18n.t("BVC needs")}<br /><b>your microphone.</b>
             </h2>
             <p class="rad-body rad-rise" style="--d: 210">
-                Nothing is recorded or sent anywhere until you are in a voice session, and the
-                noise gate keeps silence off the wire entirely.
+                {I18n.t("Nothing is recorded or sent anywhere until you are in a voice session, and the noise gate keeps silence off the wire entirely.")}
             </p>
 
             {#if state === "denied"}
                 <div class="rad-callout rad-rise" style="--d: 280; margin-top: 22px">
-                    <span class="rad-choice__title">Microphone access was refused</span>
+                    <span class="rad-choice__title">{I18n.t("Microphone access was refused")}</span>
                     <span class="rad-choice__note">
-                        Grant it in your system settings, then come back and try again. Voice chat
-                        cannot work without it.
+                        {I18n.t("Grant it in your system settings, then come back and try again. Voice chat cannot work without it.")}
                     </span>
                 </div>
                 <div class="rad-rise" style="--d: 340; margin-top: 18px">
                     <button class="rad-btn rad-btn--lg rad-btn--primary" onclick={onrequest}>
-                        Allow microphone access
+                        {I18n.t("Allow microphone access")}
                     </button>
                 </div>
             {:else if state !== "requesting"}
                 <div class="rad-choices rad-rise" style="--d: 300">
                     <button class="rad-choice" onclick={onrequest}>
                         <span>
-                            <span class="rad-choice__title">Allow microphone access</span>
+                            <span class="rad-choice__title">{I18n.t("Allow microphone access")}</span>
                             <span class="rad-choice__note">
-                                Your operating system will ask. BVC never listens outside a session.
+                                {I18n.t("Your operating system will ask. BVC never listens outside a session.")}
                             </span>
                         </span>
-                        <span class="rad-choice__action">Continue &rarr;</span>
+                        <span class="rad-choice__action">{I18n.t("Continue →")}</span>
                     </button>
                 </div>
             {/if}
@@ -87,7 +86,7 @@
     </div>
 
     {#snippet footbar()}
-        <span class="rad-label">Voice chat cannot work without a microphone</span>
-        <span class="rad-label">Notifications and devices come next</span>
+        <span class="rad-label">{I18n.t("Voice chat cannot work without a microphone")}</span>
+        <span class="rad-label">{I18n.t("Notifications and devices come next")}</span>
     {/snippet}
 </RadScreen>

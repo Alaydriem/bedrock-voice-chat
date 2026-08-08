@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 import { Store } from '@tauri-apps/plugin-store';
 import { invoke } from "@tauri-apps/api/core";
 import { info, error as logError } from '@tauri-apps/plugin-log';
@@ -52,7 +53,7 @@ export class AuthCallbackHandler {
         const state = parsedUrl.searchParams.get("state");
 
         if (!code || !state) {
-            throw new Error("Auth callback missing required parameters");
+            throw new Error(I18n.t("Auth callback missing required parameters"));
         }
 
         // Redemption has no page dependency: redeem wherever the link arrives and
@@ -73,7 +74,7 @@ export class AuthCallbackHandler {
          * authentication error.
          */
         if (await this.alreadyRedeemed(code)) {
-            info("AuthCallbackHandler: Authorization code already exchanged");
+            info(I18n.t("AuthCallbackHandler: Authorization code already exchanged"));
             await this.store.delete(this.PENDING_KEY);
             await this.store.save();
             // A spent code is not evidence the sign-in finished, and this branch used to assume
@@ -97,13 +98,13 @@ export class AuthCallbackHandler {
 
         if (state !== authStateToken) {
             logError(`AuthCallbackHandler: Auth state mismatch - Expected: ${authStateToken}, Got: ${state}`);
-            await this.failLogin("Authentication failed. Please try again.");
+            await this.failLogin(I18n.t("Authentication failed. Please try again."));
             return;
         }
 
         if (!authStateEndpoint) {
             logError("AuthCallbackHandler: auth_state_endpoint is undefined");
-            await this.failLogin("Login failed. Please check your server URL and try again.");
+            await this.failLogin(I18n.t("Login failed. Please check your server URL and try again."));
             return;
         }
 
@@ -127,11 +128,11 @@ export class AuthCallbackHandler {
             } else if (errorStr.includes("401")) {
                 // The sign-in did not complete. Sending someone to check their server URL
                 // for this points them at the one thing that was working.
-                await this.failLogin("That sign-in could not be completed. Please sign in again.");
+                await this.failLogin(I18n.t("That sign-in could not be completed. Please sign in again."));
             } else if (errorStr.includes("502")) {
-                await this.failLogin("Xbox Live could not be reached. Please try again in a moment.");
+                await this.failLogin(I18n.t("Xbox Live could not be reached. Please try again in a moment."));
             } else {
-                await this.failLogin("Login failed. Please check your server URL and try again.");
+                await this.failLogin(I18n.t("Login failed. Please check your server URL and try again."));
             }
         }
     }
@@ -198,7 +199,7 @@ export class AuthCallbackHandler {
             (await this.store.get<string>("current_server"));
 
         if (!endpoint) {
-            await this.failLogin("That sign-in could not be completed. Please sign in again.");
+            await this.failLogin(I18n.t("That sign-in could not be completed. Please sign in again."));
             return;
         }
 
@@ -207,12 +208,12 @@ export class AuthCallbackHandler {
             credentials = await invoke<LoginResponse>("get_credentials", { server: endpoint });
         } catch (e) {
             logError(`AuthCallbackHandler: no session for ${endpoint} after a spent code: ${e}`);
-            await this.failLogin("That sign-in could not be completed. Please sign in again.");
+            await this.failLogin(I18n.t("That sign-in could not be completed. Please sign in again."));
             return;
         }
 
         if (!credentials?.certificate) {
-            await this.failLogin("That sign-in could not be completed. Please sign in again.");
+            await this.failLogin(I18n.t("That sign-in could not be completed. Please sign in again."));
             return;
         }
 

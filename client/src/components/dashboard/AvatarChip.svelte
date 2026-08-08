@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import ServerGlyph from "$radial/components/ServerGlyph.svelte";
     import type { LevelSource } from "$radial/core/sources/LevelSource";
@@ -39,7 +40,7 @@
     class:is-pinned={open}
     style="color: {player.hue}; --level: {offVoice ? 0 : level}"
     aria-expanded={open}
-    aria-label="Adjust {player.gamertag}"
+    aria-label={I18n.tf("Adjust {gamertag}", { gamertag: player.gamertag })}
     onclick={() => onopen(player.name)}
 >
     <span class="rad-avatar-chip__face">

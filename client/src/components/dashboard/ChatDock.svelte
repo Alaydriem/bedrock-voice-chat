@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import type { ChatLine } from "../../js/app/chat/ChatLine";
     import type { ChatRejectionState, ChatTarget } from "../../js/app/chat/ChatTarget";
@@ -59,16 +60,16 @@
 
     let label = $derived(
         target.kind === "local" || target.kind === "unavailable"
-            ? "Server chat"
+            ? I18n.t("Server chat")
             : target.world.world_name,
     );
 
     let status = $derived(
         target.kind === "unavailable"
-            ? { text: "Off", cls: "rad-status-chip--warn" }
+            ? { text: I18n.t("Off"), cls: "rad-status-chip--warn" }
             : target.kind === "in-game"
-              ? { text: "In game", cls: "rad-status-chip--live" }
-              : { text: "Live", cls: "rad-status-chip--live" },
+              ? { text: I18n.t("In game"), cls: "rad-status-chip--live" }
+              : { text: I18n.t("Live"), cls: "rad-status-chip--live" },
     );
 </script>
 
@@ -81,14 +82,14 @@
                 class="rad-chat-target"
                 class:is-static={!canChoose}
                 onclick={() => canChoose && (pickerOpen = true)}
-                aria-label="Where this message goes"
+                aria-label={I18n.t("Where this message goes")}
             >
                 <span class="rad-chat-target__name">{label}</span>
                 <span class="rad-chat-target__caret"><Icon name="chev" /></span>
             </button>
             <span class="rad-status-chip {status.cls}">{status.text}</span>
             <span class="rad-spacer"></span>
-            <button class="rad-icon-btn" onclick={() => onToggle(false)} aria-label="Close chat">
+            <button class="rad-icon-btn" onclick={() => onToggle(false)} aria-label={I18n.t("Close chat")}>
                 <Icon name="close" />
             </button>
         </div>
@@ -98,7 +99,9 @@
               Said in the scrollback rather than in a privacy notice, because the person
               deciding what to type needs to know it then.
             -->
-            <div class="rad-chat__note">History starts when you connect — nothing is stored</div>
+            <div class="rad-chat__note">
+                {I18n.t("History starts when you connect — nothing is stored")}
+            </div>
             {#each lines as line, i (i)}
                 <ChatMessageRow {line} hue={hueOf(line.author ?? "")} />
             {/each}

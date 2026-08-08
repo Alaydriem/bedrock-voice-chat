@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import SettingRow from "$radial/components/SettingRow.svelte";
     import type { RelayAddress } from "../../js/app/settings/BedrockRelayAddresses";
@@ -15,8 +16,8 @@
 
 {#if addresses.length > 0}
     <SettingRow
-        label="Or go through this BVC server"
-        note="Reaches the same session without this device having to stay on the network you play from."
+        label={I18n.t("Or go through this BVC server")}
+        note={I18n.t("Reaches the same session without this device having to stay on the network you play from.")}
         stack
     >
         <div class="rad-addresses">
@@ -27,7 +28,7 @@
                     <button
                         class="rad-icon-btn"
                         onclick={() => void copy(offer.address)}
-                        aria-label="Copy {offer.address}"
+                        aria-label={I18n.tf("Copy {address}", { address: offer.address })}
                     >
                         <Icon name="copy" />
                     </button>

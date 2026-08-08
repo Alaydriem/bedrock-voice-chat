@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import RadScreen from "../shell/RadScreen.svelte";
     import type { CodeLoginInput } from "../../js/app/loginCode";
@@ -21,7 +22,7 @@
     }
 </script>
 
-<RadScreen label="Sign-in code">
+<RadScreen label={I18n.t("Sign-in code")}>
     <div class="rad-split">
         <div class="rad-visual-pane">
             <div class="rad-visual">
@@ -35,12 +36,12 @@
             </div>
         </div>
         <div class="rad-content-pane">
-            <span class="rad-label rad-rise" style="--d: 50">Sign in with a code</span>
+            <span class="rad-label rad-rise" style="--d: 50">{I18n.t("Sign in with a code")}</span>
             <h2
                 class="rad-display rad-rise"
                 style="--d: 120; margin-top: 12px; font-size: 1.8889rem"
             >
-                Enter the code<br /><b>you were given.</b>
+                {I18n.t("Enter the code")}<br /><b>you were given.</b>
             </h2>
             <!--
               One field, because the code identifies the player and the game on its own.
@@ -48,9 +49,9 @@
               only be contradicted.
             -->
             <form onsubmit={submit} class="rad-rise" style="--d: 200; margin-top: 24px; max-width: 400px">
-                <span class="rad-label">Code</span>
+                <span class="rad-label">{I18n.t("Code")}</span>
                 <div class="rad-field">
-                    <span class="rad-field__prefix">CODE</span>
+                    <span class="rad-field__prefix">{I18n.t("CODE")}</span>
                     <!-- svelte-ignore a11y_autofocus -->
                     <input
                         type="text"
@@ -60,7 +61,7 @@
                         autocorrect="off"
                         autocomplete="one-time-code"
                         autofocus
-                        aria-label="Code"
+                        aria-label={I18n.t("Code")}
                     />
                 </div>
 
@@ -77,7 +78,7 @@
                     type="submit"
                     disabled={isSubmitting}
                 >
-                    Sign in
+                    {I18n.t("Sign in")}
                 </button>
                 <button
                     class="rad-btn rad-btn--lg"
@@ -85,7 +86,7 @@
                     type="button"
                     onclick={onback}
                 >
-                    Back to sign in
+                    {I18n.t("Back to sign in")}
                 </button>
             </form>
         </div>
@@ -97,7 +98,7 @@
           chrome, so leaving is reachable from anywhere on the screen.
         -->
         <span class="rad-footbar__actions">
-            <button class="rad-btn rad-btn--quiet" onclick={onback}>&larr; Back to sign in</button>
+            <button class="rad-btn rad-btn--quiet" onclick={onback}>← Back to sign in</button>
             <span class="rad-label">{server}</span>
         </span>
         <span class="rad-label rad-num">v{appVersion}</span>

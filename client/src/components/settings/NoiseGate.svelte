@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { invoke } from "@tauri-apps/api/core";
     import { Store } from "@tauri-apps/plugin-store";
     import { onMount } from "svelte";
@@ -59,13 +60,13 @@
 </script>
 
 <SettingRow
-    label="Cut my mic when I am not speaking"
-    note="Runs on this machine. Anything it filters out is never encoded or sent."
+    label={I18n.t("Cut my mic when I am not speaking")}
+    note={I18n.t("Runs on this machine. Anything it filters out is never encoded or sent.")}
 >
     {#snippet control()}
         <Toggle
             checked={enabled}
-            label="Noise gate"
+            label={I18n.t("Noise gate")}
             onchange={(next) => void persistEnabled(next)}
         />
     {/snippet}
@@ -98,7 +99,7 @@
     </div>
 
     <SettingRow
-        label="Back to the defaults"
+        label={I18n.t("Back to the defaults")}
         note=""
     >
         {#snippet control()}
@@ -106,7 +107,7 @@
                 class="rad-btn"
                 onclick={() => void persistSettings({ ...NoiseGateModel.DEFAULTS })}
             >
-                <Icon name="reset" /> Reset
+                <Icon name="reset" /> {I18n.t("Reset")}
             </button>
         {/snippet}
     </SettingRow>

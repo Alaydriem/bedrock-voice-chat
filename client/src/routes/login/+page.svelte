@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
   import "../../css/app.css";
   import { onMount, onDestroy } from "svelte";
   import Loader from "$radial/components/Loader.svelte";
@@ -232,7 +233,7 @@
 
 <RadFrame>
   {#if loginState === "connecting"}
-    <RadScreen label="Connecting">
+    <RadScreen label={I18n.t("Connecting")}>
       <div class="rad-split">
         <div class="rad-visual-pane">
           <Loader
@@ -248,13 +249,13 @@
             -->
             {#if connectingSeconds >= RECOVERY_AFTER_SECONDS}
               <a class="rad-btn rad-btn--quiet" href="/login?logout=true">
-                Sign out and start over
+                {I18n.t("Sign out and start over")}
               </a>
             {/if}
           </Loader>
         </div>
         <div class="rad-content-pane">
-          <span class="rad-label rad-rise" style="--d: 50">Connecting</span>
+          <span class="rad-label rad-rise" style="--d: 50">{I18n.t("Connecting")}</span>
           <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px; font-size: 2rem">
             {#if isHandoff && !isFinishing}
               Continue in the window<br /><b>that just opened.</b>
@@ -263,7 +264,7 @@
             {/if}
           </h2>
           <div class="rad-rise" style="--d: 260; margin-top: 22px">
-            <button class="rad-btn rad-btn--lg" onclick={() => app?.returnToIdle()}>Cancel</button>
+            <button class="rad-btn rad-btn--lg" onclick={() => app?.returnToIdle()}>{I18n.t("Cancel")}</button>
           </div>
           {#if isHandoff && !isFinishing && authUrl}
             <div class="rad-rise" style="--d: 320; margin-top: 18px">
@@ -275,7 +276,7 @@
         </div>
       </div>
       {#snippet footbar()}
-        <span class="rad-label">Signing in with the account you play on</span>
+        <span class="rad-label">{I18n.t("Signing in with the account you play on")}</span>
         <span class="rad-label rad-num">v{appVersion}</span>
       {/snippet}
     </RadScreen>

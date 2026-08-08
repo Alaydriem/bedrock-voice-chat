@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 import type { NoiseGateSettings } from "../../bindings/NoiseGateSettings";
 
 export type { NoiseGateSettings };
@@ -38,16 +39,16 @@ export class NoiseGateModel {
     static readonly KNOBS: readonly GateKnob[] = [
         {
             id: "open_threshold",
-            label: "Opens above",
-            note: "Loud enough to count as speech.",
+            label: I18n.t("Opens above"),
+            note: I18n.t("Loud enough to count as speech."),
             unit: "dBFS",
             min: -96,
             max: 0,
         },
         {
             id: "close_threshold",
-            label: "Closes below",
-            note: "Held under the level that opens it, so a steady voice at the edge does not stutter.",
+            label: I18n.t("Closes below"),
+            note: I18n.t("Held under the level that opens it, so a steady voice at the edge does not stutter."),
             unit: "dBFS",
             min: -96,
             max: 0,
@@ -55,7 +56,7 @@ export class NoiseGateModel {
         {
             id: "attack_rate",
             label: "Attack",
-            note: "Slow enough to hear as a fade, fast enough not to clip a word.",
+            note: I18n.t("Slow enough to hear as a fade, fast enough not to clip a word."),
             unit: "ms",
             min: 0,
             max: 250,
@@ -63,7 +64,7 @@ export class NoiseGateModel {
         {
             id: "hold_time",
             label: "Hold",
-            note: "Held open through the gap between two words.",
+            note: I18n.t("Held open through the gap between two words."),
             unit: "ms",
             min: 0,
             max: 250,
@@ -71,7 +72,7 @@ export class NoiseGateModel {
         {
             id: "release_rate",
             label: "Release",
-            note: "How long it stays open after you stop talking.",
+            note: I18n.t("How long it stays open after you stop talking."),
             unit: "ms",
             min: 0,
             max: 250,

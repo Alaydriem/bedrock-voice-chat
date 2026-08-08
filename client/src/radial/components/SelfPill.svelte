@@ -20,6 +20,11 @@
     onrecord?: (e: MouseEvent) => void;
     onhold?: (down: boolean) => void;
     onidentity?: () => void;
+    /**
+     * Tooltip on the identity button. Defaults to English: the kit cannot reach the
+     * application's translation surface, so a caller that has one passes the words in.
+     */
+    identityLabel?: string;
     /** Renders the phone capsule instead of the desktop pill. */
     capsule?: boolean;
   }
@@ -36,6 +41,7 @@
     onrecord,
     onhold,
     onidentity,
+    identityLabel = "Profile and sign-out",
     capsule = false,
   }: Props = $props();
 
@@ -56,7 +62,7 @@
 <div class={capsule ? "rad-self-capsule" : "rad-self-pill"}>
   <span class="rad-self__avatar">{initials}</span>
 
-  <button class="rad-self__id" type="button" onclick={onidentity} title="Profile and sign-out">
+  <button class="rad-self__id" type="button" onclick={onidentity} title={identityLabel}>
     <span class="rad-self__name">
       <span>{name}</span>
       <span class="rad-health-dot"></span>

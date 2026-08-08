@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import StatusChip from "$radial/components/StatusChip.svelte";
@@ -36,23 +37,22 @@
 {#if open}
     <div class="rad-scrim rad-scrim--modal is-on"></div>
     <div class="rad-modal is-open">
-        <h5 class="rad-modal__title">Sign in with Microsoft</h5>
+        <h5 class="rad-modal__title">{I18n.t("Sign in with Microsoft")}</h5>
         <p>
-            Open the page below on any device and enter this code. This window updates by itself
-            once you are done.
+            {I18n.t("Open the page below on any device and enter this code. This window updates by itself once you are done.")}
         </p>
 
         <div class="rad-card" style="margin-top: 14px">
             <div class="rad-row">
-                <span class="rad-row__text"><span class="rad-row__label">Go to</span></span>
+                <span class="rad-row__text"><span class="rad-row__label">{I18n.t("Go to")}</span></span>
                 <span class="rad-row__control">
                     <span class="rad-input" style="width: 190px">
-                        <input type="text" value={url} readonly aria-label="Sign-in address" />
+                        <input type="text" value={url} readonly aria-label={I18n.t("Sign-in address")} />
                     </span>
                     <button
                         class="rad-icon-btn"
                         onclick={() => void bedrock.openLoginUrl()}
-                        aria-label="Open the sign-in page"
+                        aria-label={I18n.t("Open the sign-in page")}
                     >
                         <Icon name="ext" />
                     </button>
@@ -61,7 +61,7 @@
 
             <div class="rad-row">
                 <span class="rad-row__text">
-                    <span class="rad-row__label">Enter the code</span>
+                    <span class="rad-row__label">{I18n.t("Enter the code")}</span>
                     <span class="rad-row__note">
                         {copied ? "Copied." : "It expires after a few minutes."}
                     </span>
@@ -71,7 +71,7 @@
                     <button
                         class="rad-icon-btn"
                         onclick={() => void bedrock.copyDeviceCode()}
-                        aria-label="Copy the code"
+                        aria-label={I18n.t("Copy the code")}
                     >
                         <Icon name="copy" />
                     </button>
@@ -81,7 +81,7 @@
 
         {#if restoring}
             <div class="rad-callout" style="margin-top: 12px">
-                <span><StatusChip severity="idle">Waiting</StatusChip> Watching for your sign-in.</span>
+                <span><StatusChip severity="idle">{I18n.t("Waiting")}</StatusChip> {I18n.t("Watching for your sign-in.")}</span>
             </div>
         {/if}
 
@@ -92,9 +92,9 @@
         {/if}
 
         <div class="rad-modal__actions">
-            <button class="rad-btn" onclick={() => void bedrock.closeLoginModal()}>Cancel</button>
+            <button class="rad-btn" onclick={() => void bedrock.closeLoginModal()}>{I18n.t("Cancel")}</button>
             <button class="rad-btn rad-btn--primary" onclick={() => void bedrock.openLoginUrl()}>
-                <Icon name="ext" /> Open the page
+                <Icon name="ext" /> {I18n.t("Open the page")}
             </button>
         </div>
     </div>

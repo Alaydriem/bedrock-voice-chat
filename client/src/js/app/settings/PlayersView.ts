@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 import type { PlayerSettingsRow } from "../../bindings/PlayerSettingsRow";
 import GameNameUtils from "../utils/GameNameUtils";
 import type { PlayerRow } from "./PlayerRow";
@@ -158,22 +159,22 @@ export class PlayersView {
     static empty(scope: PlayerScope, query: string): { title: string; note: string } {
         if (query.trim()) {
             return {
-                title: "Nobody matches that",
+                title: I18n.t("Nobody matches that"),
                 note:
                     scope === "adjusted"
-                        ? "Nobody you have changed has that name."
-                        : "Nobody here has that name.",
+                        ? I18n.t("Nobody you have changed has that name.")
+                        : I18n.t("Nobody here has that name."),
             };
         }
         if (scope === "adjusted") {
             return {
-                title: "Nothing changed yet",
-                note: "Change someone's volume on the dashboard and they show up here.",
+                title: I18n.t("Nothing changed yet"),
+                note: I18n.t("Change someone's volume on the dashboard and they show up here."),
             };
         }
         return {
-            title: "Nobody yet",
-            note: "People appear here once you have been near them on this server.",
+            title: I18n.t("Nobody yet"),
+            note: I18n.t("People appear here once you have been near them on this server."),
         };
     }
 }

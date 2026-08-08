@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onDestroy } from "svelte";
+    import { I18n } from "$lib/i18n";
     import SelfPill from "$radial/components/SelfPill.svelte";
     import type { SelfSnapshot } from "$radial/core/controllers/SelfState";
     import type { LevelSource } from "$radial/core/sources/LevelSource";
@@ -67,6 +68,7 @@
 </script>
 
 <SelfPill
+    identityLabel={I18n.t("Profile and sign-out")}
     {name}
     state={selfState}
     {source}

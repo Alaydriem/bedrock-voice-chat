@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 /** One way in that the BVC server offers, rather than one this machine has. */
 export interface RelayAddress {
     readonly label: string;
@@ -34,9 +35,9 @@ export class BedrockRelayAddresses {
 
         if (offer.transferPort !== null) {
             addresses.push({
-                label: "Transfer server",
+                label: I18n.t("Transfer server"),
                 address: `${host}:${offer.transferPort}`,
-                note: "Add this in Minecraft. It sends you on to the server you picked above.",
+                note: I18n.t("Add this in Minecraft. It sends you on to the server you picked above."),
                 typed: true,
             });
         }
@@ -46,7 +47,7 @@ export class BedrockRelayAddresses {
         // server it answers for.
         if (offer.dnsOverrideHost && offer.transferPort !== null) {
             addresses.push({
-                label: "DNS override",
+                label: I18n.t("DNS override"),
                 address: offer.dnsOverrideHost,
                 note: `Point your device's DNS at ${host}, then join this from Minecraft's featured servers. Nothing to add by hand.`,
                 typed: false,

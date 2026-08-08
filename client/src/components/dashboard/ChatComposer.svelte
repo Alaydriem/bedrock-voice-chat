@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import type { ChatRejectionState, ChatTarget } from "../../js/app/chat/ChatTarget";
 
@@ -24,8 +25,8 @@
         target.kind === "unavailable"
             ? target.reason
             : target.kind === "local"
-              ? "Message the server…"
-              : `Message ${target.world.world_name}…`,
+              ? I18n.t("Message the server…")
+              : I18n.tf("Message {world}…", { world: target.world.world_name }),
     );
 
     function submit(): void {
@@ -39,15 +40,17 @@
 {#if rejection}
     <button class="rad-chat-notice" onclick={() => onDismissRejection?.()}>
         {#if rejection.kind === "moved"}
-            You moved out of {rejection.from} — that message was not sent
+            {I18n.tf("You moved out of {world} — that message was not sent", {
+                world: rejection.from,
+            })}
         {:else}
-            {rejection.reason} — that message was not sent
+            {I18n.tf("{reason} — that message was not sent", { reason: rejection.reason })}
         {/if}
     </button>
 {/if}
 
 <div class="rad-chat-bar" class:is-unavailable={unavailable}>
-    <button class="rad-chat-toggle" onclick={onToggle} aria-label="Chat">
+    <button class="rad-chat-toggle" onclick={onToggle} aria-label={I18n.t("Chat")}>
         <Icon name="chat" />
         {#if unread > 0}
             <span class="rad-chat-badge">{unread > 9 ? "9+" : unread}</span>
@@ -67,7 +70,7 @@
         class="rad-chat-send"
         class:is-ready={text.trim().length > 0}
         onclick={submit}
-        aria-label="Send"
+        aria-label={I18n.t("Send")}
     >
         <Icon name="send" />
     </button>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import "../../css/app.css";
     import Loader from "$radial/components/Loader.svelte";
     import RadScreen from "../../components/shell/RadScreen.svelte";
@@ -148,12 +149,11 @@
 </script>
 
 {#if !DEV}
-    <p style="padding: 2rem; font-family: monospace">Not available in a release build.</p>
+    <p style="padding: 2rem; font-family: monospace">{I18n.t("Not available in a release build.")}</p>
 {:else}
     <div class="gallery">
         <p class="note">
-            Container queries, so these are faithful. Scroll each frame — the footbar must
-            stay on screen at every step.
+            {I18n.t("Container queries, so these are faithful. Scroll each frame — the footbar must stay on screen at every step.")}
         </p>
 
         {#snippet pair(title: string, body: import("svelte").Snippet)}
@@ -368,11 +368,11 @@
                             class="rad-label rad-rise"
                             style="--d: 360; display: block; margin-top: 26px"
                         >
-                            Still stuck?
+                            {I18n.t("Still stuck?")}
                         </span>
                         <div class="rad-swatchrow rad-rise" style="--d: 390">
                             <button class="rad-pill-link">
-                                Wiki <span class="rad-pill-link__ext">&#8599;</span>
+                                {I18n.t("Wiki")} <span class="rad-pill-link__ext">&#8599;</span>
                             </button>
                             <button class="rad-pill-link">
                                 Discord <span class="rad-pill-link__ext">&#8599;</span>
@@ -407,7 +407,7 @@
 
         {@render pair("Launch", launchBody)}
         {#snippet launchBody()}
-            <RadScreen label="Starting up">
+            <RadScreen label={I18n.t("Starting up")}>
                 <div class="launch">
                     <Loader
                         loading={true}

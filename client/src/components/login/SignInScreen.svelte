@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import RadScreen from "../shell/RadScreen.svelte";
     import type { ResolveVerdict } from "../../js/app/login/AddressResolver";
@@ -50,29 +51,29 @@
 
 </script>
 
-<RadScreen label="Connect">
+<RadScreen label={I18n.t("Connect")}>
     <div class="rad-split">
         <div class="rad-visual-pane">
             <div class="rad-visual">
                 <ProximityRing mode={verdict.ring} class="rad-ring--fill" />
                 <span class="rad-caption">
-                    <span class="rad-label">Acquiring</span>
+                    <span class="rad-label">{I18n.t("Acquiring")}</span>
                     <span class="rad-caption__value">{verdict.caption}</span>
                 </span>
             </div>
         </div>
         <div class="rad-content-pane">
-            <span class="rad-label rad-rise" style="--d: 50">Connect</span>
+            <span class="rad-label rad-rise" style="--d: 50">{I18n.t("Connect")}</span>
             <h2
                 class="rad-display rad-rise"
                 style="--d: 120; margin-top: 12px; font-size: 2.1111rem"
             >
-                Which server are you&nbsp;joining?
+                {I18n.t("Which server are you joining?")}
             </h2>
             <div class="rad-rise" style="--d: 210; margin-top: 20px; max-width: 370px">
-                <span class="rad-label">Server address</span>
+                <span class="rad-label">{I18n.t("Server address")}</span>
                 <div class="rad-field">
-                    <span class="rad-field__prefix">ADDR</span>
+                    <span class="rad-field__prefix">{I18n.t("ADDR")}</span>
                     <input
                         type="text"
                         value={address}
@@ -80,7 +81,7 @@
                         autocapitalize="none"
                         autocorrect="off"
                         autocomplete="url"
-                        aria-label="Server address"
+                        aria-label={I18n.t("Server address")}
                         oninput={(e) => oninput((e.currentTarget as HTMLInputElement).value)}
                     />
                 </div>
@@ -91,12 +92,11 @@
                 -->
                 {#if isCode}
                     <button class="rad-btn rad-btn--lg rad-btn--primary" onclick={onconnect}>
-                        Continue with a code
+                        {I18n.t("Continue with a code")}
                     </button>
                 {:else}
                     <button class="rad-ms-signin" onclick={onconnect}>
-                        <span class="rad-ms-mark"><i></i><i></i><i></i><i></i></span>Sign in with
-                        Microsoft
+                        <span class="rad-ms-mark"><i></i><i></i><i></i><i></i></span>{I18n.t("Sign in with Microsoft")}
                     </button>
                 {/if}
             </div>
@@ -108,8 +108,8 @@
             {#if onback && backLabel}
                 <button class="rad-btn rad-btn--quiet" onclick={onback}>{backLabel}</button>
             {/if}
-            <button class="rad-btn rad-btn--quiet" onclick={onprivacy}>Privacy notice</button>
-            <button class="rad-btn rad-btn--quiet" onclick={onrevisit}>What is this?</button>
+            <button class="rad-btn rad-btn--quiet" onclick={onprivacy}>{I18n.t("Privacy notice")}</button>
+            <button class="rad-btn rad-btn--quiet" onclick={onrevisit}>{I18n.t("What is this?")}</button>
         </span>
         <span class="rad-label rad-num">v{appVersion}</span>
     {/snippet}

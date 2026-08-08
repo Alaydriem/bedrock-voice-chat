@@ -30,6 +30,8 @@ base64 = { version = "^0.22" }
 serde_json = { version = "^1" }
 log = { version = "^0.4" }
 anyhow = { version = "^1" }
+icu_plurals = { version = "^2.2" }
+icu_locale_core = { version = "^2.2" }
 spmc = { version = "^0.3" }
 rand = { version = "^0.10" }
 strum = { version = "0.26", features = ["derive"] }

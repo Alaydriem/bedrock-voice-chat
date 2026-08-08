@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 import { writable, type Readable, type Writable } from "svelte/store";
 import { Store } from "@tauri-apps/plugin-store";
 import { invoke } from "@tauri-apps/api/core";
@@ -82,7 +83,7 @@ export class AccountManager {
             const currentServer = await store.get<string>("current_server");
 
             if (!currentServer) {
-                this.linkErrorStore.set("Not connected to a server.");
+                this.linkErrorStore.set(I18n.t("Not connected to a server."));
                 this.isLinkingStore.set(false);
                 return;
             }
@@ -109,7 +110,7 @@ export class AccountManager {
                 info(`Linked Java identity: ${response.minecraft_username}`);
                 Analytics.track("JavaIdentityLinked");
             } else {
-                this.linkErrorStore.set("Could not retrieve Java username.");
+                this.linkErrorStore.set(I18n.t("Could not retrieve Java username."));
             }
         } catch (e) {
             logError(`Failed to link Java identity: ${e}`);
@@ -117,7 +118,7 @@ export class AccountManager {
             if (errorStr.includes("closed without completing")) {
                 this.linkErrorStore.set("");
             } else {
-                this.linkErrorStore.set("Failed to link Java identity.");
+                this.linkErrorStore.set(I18n.t("Failed to link Java identity."));
             }
         }
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Loader from "$radial/components/Loader.svelte";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import type { PermissionFlowState } from "../../js/app/PermissionRequestManager";
@@ -21,7 +22,7 @@
     ];
 </script>
 
-<RadScreen label="Notifications">
+<RadScreen label={I18n.t("Notifications")}>
     {#snippet topbar()}
         <StepDots {step} {total} />
     {/snippet}
@@ -37,7 +38,7 @@
                         class="rad-ring--fill"
                     />
                     <span class="rad-caption">
-                        <span class="rad-label">Alerts</span>
+                        <span class="rad-label">{I18n.t("Alerts")}</span>
                         <span class="rad-caption__value">
                             {state === "denied" ? "ACCESS REFUSED" : "AWAITING PERMISSION"}
                         </span>
@@ -46,9 +47,9 @@
             {/if}
         </div>
         <div class="rad-content-pane">
-            <span class="rad-label rad-rise" style="--d: 50">02 &middot; Notifications</span>
+            <span class="rad-label rad-rise" style="--d: 50">02 · Notifications</span>
             <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px; font-size: 2rem">
-                Voice has to keep running<br /><b>when you switch to the game.</b>
+                {I18n.t("Voice has to keep running")}<br /><b>when you switch to the game.</b>
             </h2>
             <!--
               The reason is the permission itself, not the alerts. Both platforms require
@@ -57,35 +58,31 @@
               cut the moment someone starts playing.
             -->
             <p class="rad-body rad-rise" style="--d: 210">
-                Android and iOS both require a notification to let an app hold the
-                microphone in the background. Without it your voice cuts out the moment
-                BVC leaves the screen &mdash; which is every moment you are actually playing.
+                {I18n.t("Android and iOS both require a notification to let an app hold the microphone in the background. Without it your voice cuts out the moment BVC leaves the screen — which is every moment you are actually playing.")}
             </p>
 
             {#if state === "denied"}
                 <div class="rad-callout rad-rise" style="--d: 280; margin-top: 22px">
-                    <span class="rad-choice__title">Notification access was refused</span>
+                    <span class="rad-choice__title">{I18n.t("Notification access was refused")}</span>
                     <span class="rad-choice__note">
-                        Grant it in your system settings, then come back and try again. Voice
-                        cannot survive leaving the screen without it.
+                        {I18n.t("Grant it in your system settings, then come back and try again. Voice cannot survive leaving the screen without it.")}
                     </span>
                 </div>
                 <div class="rad-rise" style="--d: 340; margin-top: 18px">
                     <button class="rad-btn rad-btn--lg rad-btn--primary" onclick={onrequest}>
-                        Allow notifications
+                        {I18n.t("Allow notifications")}
                     </button>
                 </div>
             {:else if state !== "requesting"}
                 <div class="rad-choices rad-rise" style="--d: 300">
                     <button class="rad-choice" onclick={onrequest}>
                         <span>
-                            <span class="rad-choice__title">Allow notifications</span>
+                            <span class="rad-choice__title">{I18n.t("Allow notifications")}</span>
                             <span class="rad-choice__note">
-                                One quiet ongoing notification while you are in a session, plus
-                                people arriving and channels you are part of.
+                                {I18n.t("One quiet ongoing notification while you are in a session, plus people arriving and channels you are part of.")}
                             </span>
                         </span>
-                        <span class="rad-choice__action">Continue &rarr;</span>
+                        <span class="rad-choice__action">{I18n.t("Continue →")}</span>
                     </button>
                 </div>
             {/if}
@@ -93,7 +90,7 @@
     </div>
 
     {#snippet footbar()}
-        <span class="rad-label">Required &middot; background audio depends on it</span>
-        <span class="rad-label">Devices come next</span>
+        <span class="rad-label">{I18n.t("Required · background audio depends on it")}</span>
+        <span class="rad-label">{I18n.t("Devices come next")}</span>
     {/snippet}
 </RadScreen>

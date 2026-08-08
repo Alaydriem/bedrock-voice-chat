@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import SettingRow from "$radial/components/SettingRow.svelte";
     import type { NetworkInterface } from "../../js/bindings/NetworkInterface";
@@ -51,7 +52,7 @@
                     <button
                         class="rad-icon-btn"
                         onclick={() => void copy(`${scheme}${candidate.address}`)}
-                        aria-label="Copy {scheme}{candidate.address}"
+                        aria-label={I18n.tf("Copy {scheme}{address}", { scheme, address: candidate.address })}
                     >
                         <Icon name="copy" />
                     </button>
@@ -70,7 +71,7 @@
             <button
                 class="rad-icon-btn"
                 onclick={() => void copy(single)}
-                aria-label="Copy {single}"
+                aria-label={I18n.tf("Copy {single}", { single })}
             >
                 <Icon name="copy" />
             </button>

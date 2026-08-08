@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 import type { PlayerGainSettings } from '../../../bindings/PlayerGainSettings';
 import type { PlayerSource } from '../../../bindings/PlayerSource';
 import type { GamerpicResponse } from '../../../bindings/GamerpicResponse';
@@ -98,7 +99,7 @@ export class PlayerPresenceManager {
     private async handlePresenceEvent(event: any): Promise<void> {
         const payload = event.payload;
         if (!payload) {
-            error("Player presence event received with no payload");
+            error(I18n.t("Player presence event received with no payload"));
             return;
         }
 

@@ -10,6 +10,7 @@ pub mod control;
 pub mod discord;
 pub mod events;
 pub mod game;
+pub mod i18n;
 pub mod iap;
 pub mod keybinds;
 pub mod metrics;
@@ -33,6 +34,7 @@ pub use audio::{
 pub use discord::DiscordLinkStatus;
 pub use events::DeepLink;
 pub use game::{Coordinate, Game, GameData, Orientation, Player, UploaderIdentity};
+pub use i18n::{LanguagePack, LocaleNegotiator, PackEntry};
 pub use network::ConnectionHealth;
 pub use players::PlayerSource;
 pub use server_list_entry::ServerListEntry;

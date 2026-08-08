@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { I18n } from "$lib/i18n";
     import type { ChatLine } from "../../js/app/chat/ChatLine";
 
     interface Props {
@@ -28,7 +29,7 @@
         <span class="rad-msg__text">
             <span class="rad-msg__author" style="color:{hue}">{line.author}</span>{line.text}{#if line.fromApp}<span
                     class="rad-msg__app"
-                    title="sent from the app, not in game"
+                    title={I18n.t("sent from the app, not in game")}
                 ></span>{/if}
         </span>
         <span class="rad-msg__ts">{line.timestamp}</span>

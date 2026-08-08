@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     interface Props {
         /** Play a chime through the selected output device. Resolves when it has finished. */
         ontest: () => Promise<boolean>;
@@ -36,6 +37,6 @@
 {#if failed}
     <div class="rad-resolve rad-resolve--bad" style="margin-top: 12px" role="alert">
         <span aria-hidden="true">&#10005;</span>
-        <span>Could not play through that device. Try another one.</span>
+        <span>{I18n.t("Could not play through that device. Try another one.")}</span>
     </div>
 {/if}

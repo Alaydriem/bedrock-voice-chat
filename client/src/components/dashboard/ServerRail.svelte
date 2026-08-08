@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import ServerGlyph from "$radial/components/ServerGlyph.svelte";
     import type { RailServer } from "../../js/app/dashboard/RailView";
@@ -42,13 +43,13 @@
         {/each}
     </div>
 
-    <button class="rad-rail-btn" aria-label="Add a server" onclick={onadd}>
+    <button class="rad-rail-btn" aria-label={I18n.t("Add a server")} onclick={onadd}>
         <Icon name="plus" />
     </button>
 
     <span class="rad-rail__spacer"></span>
 
-    <button class="rad-rail-btn" aria-label="Settings" onclick={onsettings}>
+    <button class="rad-rail-btn" aria-label={I18n.t("Settings")} onclick={onsettings}>
         <Icon name="gear" />
     </button>
 </div>

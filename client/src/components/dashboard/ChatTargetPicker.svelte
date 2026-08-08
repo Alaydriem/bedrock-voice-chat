@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import type { ChatWorld } from "../../js/bindings/ChatWorld";
 
@@ -11,11 +12,11 @@
     let { options, current, onPick, onClose }: Props = $props();
 
     function seen(world: ChatWorld): string {
-        if (!world.available) return "chat unavailable";
+        if (!world.available) return I18n.t("chat unavailable");
         const mins = Math.round(Date.now() / 1000 - Number(world.last_seen)) / 60;
-        if (mins < 2) return "active now";
-        if (mins < 60) return `last seen ${Math.round(mins)} min ago`;
-        return `last seen ${Math.round(mins / 60)} h ago`;
+        if (mins < 2) return I18n.t("active now");
+        if (mins < 60) return I18n.tf("last seen {n} min ago", { n: Math.round(mins) });
+        return I18n.tf("last seen {n} h ago", { n: Math.round(mins / 60) });
     }
 </script>
 
@@ -26,10 +27,10 @@
 -->
 <div class="rad-sheet is-open" data-rad-sheet="chat-worlds">
     <span class="rad-sheet__handle"></span>
-    <button class="rad-sheet__close" onclick={onClose} aria-label="Close world picker">
+    <button class="rad-sheet__close" onclick={onClose} aria-label={I18n.t("Close world picker")}>
         <Icon name="close" />
     </button>
-    <h4 class="rad-sheet__title">Post to</h4>
+    <h4 class="rad-sheet__title">{I18n.t("Post to")}</h4>
 
     {#each options as world, i (world.world_uuid)}
         <button

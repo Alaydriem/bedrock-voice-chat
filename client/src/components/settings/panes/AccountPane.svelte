@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { onDestroy, onMount } from "svelte";
     import SettingRow from "$radial/components/SettingRow.svelte";
     import { AboutManager } from "../../../js/app/managers/settings/AboutManager";
@@ -67,7 +68,7 @@
 
 <div class="rad-section">
     <div class="rad-card">
-        <div class="rad-card__head">You're signed in as</div>
+        <div class="rad-card__head">{I18n.t("You're signed in as")}</div>
         <div class="rad-account">
             {#if gamerpic}
                 <img class="rad-account__badge" src={gamerpic} alt="" />
@@ -78,22 +79,22 @@
             {/if}
             <span class="rad-account__text">
                 <span class="rad-account__name">{gamertag || "Signed out"}</span>
-                <span class="rad-account__meta">SIGNED IN WITH XBOX LIVE</span>
+                <span class="rad-account__meta">{I18n.t("SIGNED IN WITH XBOX LIVE")}</span>
             </span>
         </div>
     </div>
 
     <div class="rad-card">
-        <div class="rad-card__head">Linked Accounts</div>
+        <div class="rad-card__head">{I18n.t("Linked Accounts")}</div>
         
         <div class="rad-account">
             <span class="rad-account__badge" style="background: #5c8a3c">JA</span>
             <span class="rad-account__text">
-                <span class="rad-account__name">Minecraft Java</span>
+                <span class="rad-account__name">{I18n.t("Minecraft Java")}</span>
                 <span class="rad-account__meta">{javaMeta}</span>
             </span>
             {#if javaName}
-                <button class="rad-btn" disabled>Linked</button>
+                <button class="rad-btn" disabled>{I18n.t("Linked")}</button>
             {:else if desktop}
                 <button
                     class="rad-btn"
@@ -135,11 +136,11 @@
 
     <div class="rad-card">
         <SettingRow
-            label="Sign out of this server"
-            note="Your other servers stay signed in."
+            label={I18n.t("Sign out of this server")}
+            note={I18n.t("Your other servers stay signed in.")}
         >
             {#snippet control()}
-                <button class="rad-btn rad-btn--danger" onclick={onsignout}>Sign out</button>
+                <button class="rad-btn rad-btn--danger" onclick={onsignout}>{I18n.t("Sign out")}</button>
             {/snippet}
         </SettingRow>
     </div>
