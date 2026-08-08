@@ -17,6 +17,7 @@ import { NetControlSender, NoNetControlSender } from './control/sender';
 import type { ControlSender } from './control/sender';
 import { httpClient } from './net';
 import { serverAdminConfig } from './config';
+import { ChatProbe } from './chat/probe';
 
 const POLL_INTERVAL = 5;
 const REQUEST_TIMEOUT = 1;
@@ -77,6 +78,10 @@ chatEjectListener.register();
 
 const chatPresenceListener = new ChatPresenceListener();
 chatPresenceListener.register();
+
+// Temporary, removed in Task 13. Registers /scriptevent bvc:probe so the websocket transport
+// can be measured against the position POSTs that share @minecraft/server-net.
+ChatProbe.register();
 
 // Panel state: the !bvcs: reverse ride feeds per-player caches in no-net mode;
 // the control panel binds to the same store.

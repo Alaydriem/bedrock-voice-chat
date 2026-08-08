@@ -29,16 +29,16 @@ comment:
   layout: "condensed_header, diff, flags, files, condensed_footer"
   behavior: default
   require_changes: false
-  # Four uploads per commit: common, server, client, frontend. Codecov's default
-  # is to post and rewrite the comment after EACH one, so the first version
-  # appears ~90s into a ~40min pipeline holding only `common` — which is almost
-  # entirely ts-rs export_bindings tests, and reads as "coverage is broken".
-  # Waiting for all four means the number is right the first time it is shown.
+  # Five uploads per commit: common, server, client, frontend, e2e. Codecov's
+  # default is to post and rewrite the comment after EACH one, so the first
+  # version appears ~90s into a ~40min pipeline holding only `common` — which is
+  # almost entirely ts-rs export_bindings tests, and reads as "coverage is
+  # broken". Waiting for all five means the number is right the first time it is
+  # shown.
   #
-  # Keep this in sync with the number of Codecov uploads in tests.yml. If a
-  # fifth upload is ever added (e.g. instrumented e2e shards) and this is not
-  # raised, the comment stops appearing at all.
-  after_n_builds: 4
+  # Keep this in sync with the number of Codecov uploads in tests.yml. Set it
+  # higher than the number of uploads and the comment stops appearing at all.
+  after_n_builds: 5
 
 flag_management:
   default_rules:
@@ -59,6 +59,13 @@ flag_management:
     - name: frontend
       paths:
         - client/src/
+    # Deliberately unfiltered. One e2e run drives the client crate, the server
+    # crate (through a dlopen'd cdylib) and common together, so any path list
+    # here would either drop real coverage or overlap the flags above and make
+    # the rollup answer "which area did this PR move" twice. Codecov unions line
+    # hits across uploads for a commit, so a line this flag covers and `client`
+    # does not is counted once, not twice.
+    - name: e2e
 
 ignore:
   # ts-rs generated from the Rust types in common/; the generator is what is

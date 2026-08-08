@@ -6,6 +6,8 @@ pub enum PacketType {
     PlayerData,
     PlayerPosition,
     ChannelEvent,
+    ChatMessage,
+    ChatSend,
     Collection,
     Debug,
     PlayerPresence,

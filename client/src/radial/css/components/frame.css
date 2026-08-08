@@ -376,6 +376,15 @@
   background: var(--color-rad-warn);
 }
 
+/* A cover shares the frame and brings its own stage, so the one declaration above
+   matched two of them and the stripe was drawn across settings as well. The screen
+   underneath is the one the mute belongs to; on top of the cover it names nothing the
+   reader can act on and reads as a fault in the screen they are looking at. */
+.rad-frame.is-muted .rad-cover .rad-stage::before,
+.rad-frame.is-deafened .rad-cover .rad-stage::before {
+  content: none;
+}
+
 /* ================= phone ================= */
 
 @container rad (max-width: 560px) {

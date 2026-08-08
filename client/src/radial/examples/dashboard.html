@@ -53,6 +53,7 @@
             <button data-act="chat-target" data-target="only" aria-pressed="false">One world</button>
             <button data-act="chat-target" data-target="choose" aria-pressed="false">Several</button>
             <button data-act="chat-target" data-target="unavailable" aria-pressed="false">Off</button>
+            <button data-act="chat-target" data-target="moved" aria-pressed="false">Moved</button>
             <button data-act="reset" style="margin-left: 10px">Reset</button>
           </span>
           <span class="g-seg" data-g-device="dsh-frame">
@@ -185,6 +186,9 @@
                     </div>
                     <div class="rad-chat__body" data-chat-body></div>
                   </div>
+                  <button class="rad-chat-notice" data-chat-notice hidden>
+                    You moved out of Survival &mdash; that message was not sent
+                  </button>
                   <div class="rad-chat-bar">
                     <button class="rad-chat-toggle" data-chat-toggle aria-label="Chat">
                       <span data-rad-icon="chat"></span>

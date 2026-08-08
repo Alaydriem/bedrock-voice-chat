@@ -12,6 +12,27 @@ use std::sync::Arc;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
+// `AppHandle::exit` terminates the tao event loop without unwinding through the
+// CRT's atexit table, so the coverage runtime's writer never fires and the
+// process contributes no profile data. Flushing explicitly at each exit site is
+// what makes this bin measurable. `coverage` is set by cargo-llvm-cov.
+#[cfg(coverage)]
+unsafe extern "C" {
+    fn __llvm_profile_write_file() -> i32;
+}
+
+#[cfg(coverage)]
+struct CoverageFlush;
+
+#[cfg(coverage)]
+impl CoverageFlush {
+    fn flush() {
+        unsafe {
+            __llvm_profile_write_file();
+        }
+    }
+}
+
 use bvc_client_lib::app_builder::AppBuilder;
 use bvc_client_lib::audio::AudioBackend;
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
@@ -125,6 +146,8 @@ fn main() {
                 app.manage(Arc::clone(&harness_presence_injector));
                 app.manage(Arc::clone(&harness_announce_injector));
                 app.manage(Connector::connect_error_channel());
+                app.manage(Connector::chat_channel());
+                app.manage(Connector::chat_injector());
             }
 
             AppBuilder::build_managed_state(
@@ -306,6 +329,8 @@ fn main() {
                             });
                         }
                         Ok(InMsg::Shutdown) => {
+                            #[cfg(coverage)]
+                            CoverageFlush::flush();
                             stdin_handle.exit(0);
                             break;
                         }
@@ -391,6 +416,8 @@ fn main() {
                             });
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                            #[cfg(coverage)]
+                            CoverageFlush::flush();
                             stdin_handle.exit(0);
                             break;
                         }

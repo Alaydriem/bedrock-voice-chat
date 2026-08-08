@@ -22,6 +22,10 @@ permissions:
 #                                    --partition`. No compilation. Filtered to
 #                                    `not kind(lib)` so the unit tests, which
 #                                    `client-lib` owns, do not also run here.
+#   - `e2e-report`       (Windows) — merges every shard's profile data into one
+#                                    lcov and uploads it. Runs even when a shard
+#                                    fails, so a red suite still reports what it
+#                                    did execute.
 #
 # The cdylib and the client test suite have no build-time dependency on each other
 # (the cdylib is dlopen'd at runtime), so their two build jobs run concurrently;
@@ -30,9 +34,21 @@ permissions:
 #
 # COVERAGE: the `common`, `server`, and `client-lib` suites run under
 # cargo-llvm-cov, and `frontend` runs under v8 + node's own coverage; each
-# uploads lcov to Codecov under one flag. The e2e shards
-# do NOT — instrumenting them means covering a cdylib built in the other Cargo
-# workspace and dlopen'd at runtime, plus child processes, and it is unsolved.
+# uploads lcov to Codecov under one flag. The e2e suite is instrumented too, but
+# by a different route, because it spans three artifacts that cargo-llvm-cov
+# cannot report on together:
+#
+#   - the test binary                (root workspace)
+#   - `bvc_client_e2e.exe`           (root workspace, SPAWNED as a child process)
+#   - `bvc_server_lib.dll`           (SERVER workspace, dlopen'd at runtime)
+#
+# LLVM source-based coverage handles all three: `LLVM_PROFILE_FILE` carries `%p`
+# (per process) and `%m` (per module), so a spawned child and a loaded cdylib
+# each write their own profile. What cargo-llvm-cov cannot do is *report* on an
+# object outside its own target dir — it has no `--object` flag. So the shards
+# set `LLVM_PROFILE_FILE` and run plain `cargo nextest run`, and `e2e-report`
+# calls `llvm-cov export` directly with one `--object` per artifact.
+#
 # Coverage never gates a merge (see codecov.yml); patch coverage on changed
 # lines is the signal, reported as a PR comment.
 #
@@ -367,6 +383,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
 
       - name: Setup private cargo deps auth
         uses: ./.github/actions/setup-private-cargo-deps
@@ -378,7 +400,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./server"
-          shared-key: test-e2e-server
+          # Instrumented artifacts carry different RUSTFLAGS, so they must not
+          # share a cache entry with an uninstrumented build.
+          shared-key: test-e2e-server-cov
 
       - name: Set up LIBCLANG environment
         shell: powershell
@@ -408,11 +432,19 @@ jobs:
           rm -rf target/*/build/libz-sys-* target/*/build/libgit2-sys-* 2>/dev/null || true
           rm -rf target/*/.fingerprint/libz-sys-* target/*/.fingerprint/libgit2-sys-* 2>/dev/null || true
 
-      - name: Build server cdylib
+      - name: Build server cdylib (instrumented)
         working-directory: ./server
         shell: bash
         # The e2e harness loads this cdylib via FFI from server/target/debug/.
-        run: cargo build -p bedrock-voice-chat-server --features bedrock
+        #
+        # `show-env` is the supported way to instrument a build cargo-llvm-cov is
+        # not itself driving — which is required here, because this is a separate
+        # Cargo workspace from the one the tests live in. Only RUSTFLAGS matters
+        # at build time; the LLVM_PROFILE_FILE it also exports is set per-shard at
+        # run time instead.
+        run: |
+          eval "$(cargo llvm-cov show-env --export-prefix)"
+          cargo build -p bedrock-voice-chat-server --features bedrock
 
       - name: Stage cdylib
         shell: bash
@@ -447,11 +479,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
+          components: llvm-tools-preview
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest
+          tool: cargo-nextest,cargo-llvm-cov
 
       - name: Setup private cargo deps auth
         uses: ./.github/actions/setup-private-cargo-deps
@@ -462,7 +495,8 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: test-e2e-client
+          # See test-e2e-server-cov: instrumented artifacts get their own key.
+          shared-key: test-e2e-client-cov
 
       - name: Install JavaScript dependencies
         working-directory: ./client
@@ -491,27 +525,50 @@ jobs:
         working-directory: ./client
         run: yarn build
 
-      - name: Build e2e client harness
+      - name: Build e2e client harness (instrumented)
         shell: bash
         # Separate crate (not an app-package bin) so `tauri build` never bundles it.
         # The integration tests spawn it from target/debug/.
-        run: cargo build -p bvc-client-e2e
+        #
+        # This binary is a SPAWNED CHILD PROCESS, and it only contributes coverage
+        # because it exits through an explicit `__llvm_profile_write_file` call —
+        # see the `#[cfg(coverage)]` block in client/e2e-harness/src/main.rs.
+        # `--cfg=coverage` comes from the RUSTFLAGS below.
+        run: |
+          eval "$(cargo llvm-cov show-env --export-prefix)"
+          cargo build -p bvc-client-e2e
 
-      - name: Archive e2e test binaries
+      - name: Archive e2e test binaries (instrumented)
         shell: bash
         # Compiles the client unit + integration (e2e) test binaries ONCE and packs
-        # them so the shard jobs can run them without recompiling.
-        run: cargo nextest archive -p bedrock-voice-chat-client --features e2e --archive-file nextest-archive.tar.zst
+        # them so the shard jobs can run them without recompiling. The llvm-cov
+        # wrapper exists for exactly this split: it instruments the build, and the
+        # shards then need nothing but an env var at run time.
+        run: >
+          cargo llvm-cov nextest-archive
+          --archive-file nextest-archive.tar.zst
+          -p bedrock-voice-chat-client --features e2e
 
       - name: Stage client artifacts
         shell: bash
         # The harness bin is loaded by the tests via a path baked from
         # CARGO_MANIFEST_DIR; the shard jobs restore it to target/debug. GitHub
         # runners use a stable checkout path, so the baked path matches across jobs.
+        #
+        # The test binaries are staged UNPACKED as well. `llvm-cov export` in
+        # e2e-report needs them as `--object` inputs, and pulling them back out of
+        # a zstd archive there would need a zstd-capable tar on the runner.
+        #
+        # Newest only: a warm rust-cache can leave older integration-<hash>.exe
+        # builds in the target dir, and passing a stale one to llvm-cov produces
+        # mismatched-function warnings against profile data it never generated.
         run: |
-          mkdir -p e2e-client
+          mkdir -p e2e-client/testbins
           cp nextest-archive.tar.zst e2e-client/
           cp target/debug/bvc_client_e2e.exe e2e-client/
+          TESTBIN=$(ls -t target/llvm-cov-target/debug/deps/integration-*.exe | head -1)
+          echo "staging test binary: $TESTBIN"
+          cp "$TESTBIN" e2e-client/testbins/
 
       - name: Upload client artifacts
         uses: actions/upload-artifact@v5
@@ -536,6 +593,9 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          # llvm-profdata, to collapse this shard's profraw before upload.
+          components: llvm-tools-preview
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
@@ -573,11 +633,179 @@ jobs:
         # per-target) but the `client-lib` job already runs them under coverage,
         # so without this filter they run twice. What remains here is the
         # `integration` target — the actual e2e scenarios.
-        run: >
-          cargo nextest run
-          --archive-file e2e-client/nextest-archive.tar.zst
-          --workspace-remap .
-          --partition hash:${{ matrix.shard }}/3
-          -E 'not kind(lib)'
-          --no-fail-fast
-          -j ${{ inputs.test_jobs || '4' }}
+        #
+        # LLVM_PROFILE_FILE is the ONLY coverage-specific thing here; the binaries
+        # arrive already instrumented. `%p` separates processes so a spawned
+        # `bvc_client_e2e.exe` cannot clobber its parent, and `%m` pools by module
+        # so the dlopen'd cdylib writes alongside the test binary rather than over
+        # it. The pool width bounds the FILE COUNT, not the byte total — measured
+        # identical at `%4m` and `%32m` — so it is set low only to keep the merge
+        # input list small.
+        #
+        # Profile output is bulky: ~475 MB from a single scenario, several GB
+        # across a shard, because every process dumps a counter table for every
+        # module it loaded. Shard count is the lever that divides the peak; raise
+        # it before reaching for anything cleverer.
+        #
+        # RUNNER_TEMP, not the workspace: this must not land inside the checkout
+        # where a later step might glob it up. cygpath -m is required — the LLVM
+        # tools are native Windows binaries and cannot resolve an MSYS /c/... path.
+        run: |
+          PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
+          mkdir -p "$PROF_DIR"
+          export LLVM_PROFILE_FILE="$PROF_DIR/bvc-%p-%4m.profraw"
+          cargo nextest run \
+            --archive-file e2e-client/nextest-archive.tar.zst \
+            --workspace-remap . \
+            --partition hash:${{ matrix.shard }}/3 \
+            -E 'not kind(lib)' \
+            --no-fail-fast \
+            -j ${{ inputs.test_jobs || '4' }}
+
+      - name: Collapse shard profile data
+        # `always()`: a red shard still executed most of its code, and dropping its
+        # coverage would make the report swing with unrelated failures.
+        if: always()
+        shell: bash
+        # Thousands of profraw collapse to a single file of a few MB, which is what
+        # crosses the job boundary. Merging here rather than in e2e-report also
+        # means the raw files never leave the runner that produced them.
+        run: |
+          PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
+          LLVM_BIN="$(rustc --print sysroot)/lib/rustlib/x86_64-pc-windows-msvc/bin"
+          ls "$PROF_DIR"/*.profraw > "$PROF_DIR/inputs.txt" || {
+            echo "no profraw produced — nothing to merge"; exit 0; }
+          echo "profraw files: $(wc -l < "$PROF_DIR/inputs.txt")"
+          mkdir -p e2e-profdata
+          "$LLVM_BIN/llvm-profdata.exe" merge -sparse \
+            -f "$PROF_DIR/inputs.txt" \
+            -o "e2e-profdata/shard-${{ matrix.shard }}.profdata"
+          rm -rf "$PROF_DIR"
+          ls -la e2e-profdata/
+
+      - name: Upload shard profile data
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-profdata-${{ matrix.shard }}
+          path: e2e-profdata
+          retention-days: 1
+          if-no-files-found: ignore
+
+  e2e-report:
+    name: e2e coverage report (Windows)
+    runs-on: windows-2022
+    # `always()`: see the note on the shard merge step. This job reports coverage
+    # and must never be the reason a suite goes red, so every step is tolerant and
+    # the Codecov upload keeps fail_ci_if_error: false.
+    #
+    # continue-on-error carries that the last step of the way: when a build job
+    # fails there is no artifact to download, and without this the missing-artifact
+    # error would turn a suite red over a reporting problem.
+    if: always()
+    continue-on-error: true
+    needs: [e2e-build-server, e2e-build-client, e2e-shard]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Download every shard's profile data
+        uses: actions/download-artifact@v5
+        with:
+          pattern: e2e-profdata-*
+          path: profdata
+          merge-multiple: true
+
+      - name: Download cdylib artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-cdylib
+          path: e2e-cdylib
+
+      - name: Download client artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-client
+          path: e2e-client
+
+      - name: Export lcov across all three instrumented artifacts
+        shell: bash
+        # cargo-llvm-cov cannot do this step: it reports on objects in its own
+        # target dir and has no `--object` flag, so it can see neither the spawned
+        # harness bin nor a cdylib from the other Cargo workspace. llvm-cov takes
+        # them explicitly.
+        run: |
+          set -o pipefail
+          LLVM_BIN="$(rustc --print sysroot)/lib/rustlib/x86_64-pc-windows-msvc/bin"
+
+          if ! ls profdata/*.profdata >/dev/null 2>&1; then
+            echo "no shard produced profile data; nothing to report"
+            exit 0
+          fi
+          echo "merging $(ls profdata/*.profdata | wc -l) shard profiles"
+          "$LLVM_BIN/llvm-profdata.exe" merge -sparse profdata/*.profdata -o e2e.profdata
+
+          OBJECTS=""
+          for o in e2e-client/testbins/integration-*.exe \
+                   e2e-client/bvc_client_e2e.exe \
+                   e2e-cdylib/bvc_server_lib.dll; do
+            [ -f "$o" ] || continue
+            OBJECTS="$OBJECTS --object $o"
+            # An object built WITHOUT instrumentation contributes nothing and
+            # raises no error in the combined export — its files simply vanish
+            # from the report. That reads as "the e2e suite covers none of this
+            # area", which is indistinguishable from a real coverage drop. Probe
+            # each one alone so the failure is loud.
+            if "$LLVM_BIN/llvm-cov.exe" export --format=lcov \
+                 --instr-profile=e2e.profdata --object "$o" >/dev/null 2>&1; then
+              echo "contributed: $o"
+            else
+              echo "::warning::no profile data matched $o — was it built instrumented?"
+            fi
+          done
+
+          "$LLVM_BIN/llvm-cov.exe" export \
+            --format=lcov \
+            --instr-profile=e2e.profdata \
+            $OBJECTS \
+            --ignore-filename-regex='(registry|\.cargo|rustc|toolchains)' \
+            > lcov-e2e.raw.info
+
+      - name: Rebase absolute paths onto the repo root
+        shell: bash
+        # llvm-cov emits absolute native paths here, because these objects were
+        # built without --remap-path-prefix (two different workspaces, one of them
+        # built outside cargo-llvm-cov). Codecov matches coverage records against
+        # git paths, so both the separators and the checkout prefix must go.
+        # Stripping $GITHUB_WORKSPACE gets client/, server/ and common/ right in
+        # one pass — no per-workspace fixup like the `server` job needs.
+        run: |
+          [ -s lcov-e2e.raw.info ] || { echo "no lcov to rebase"; exit 0; }
+          WS="$(echo "$GITHUB_WORKSPACE" | tr '\\' '/')"
+          tr '\\' '/' < lcov-e2e.raw.info | sed -E "s|^SF:${WS}/|SF:|" > lcov-e2e.info
+          RECORDS=$(grep -c '^SF:' lcov-e2e.info)
+          echo "records: $RECORDS"
+          # A rebase that eats the SF: prefix, or a prefix that never matched,
+          # both yield a file Codecov accepts and then matches against nothing.
+          if [ "$RECORDS" -eq 0 ]; then
+            echo "::error::lcov has no SF: records after rebasing; not uploading"
+            rm -f lcov-e2e.info
+            exit 0
+          fi
+          grep -m 5 '^SF:' lcov-e2e.info
+
+      - name: Upload coverage to Codecov
+        if: hashFiles('lcov-e2e.info') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov-e2e.info
+          flags: e2e
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false

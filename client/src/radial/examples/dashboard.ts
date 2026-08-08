@@ -1117,6 +1117,7 @@ const chatTargetName = q("[data-chat-target-name]");
 const chatStatus = q("[data-chat-status]");
 const chatBar = q(".rad-chat-bar");
 const chatWorldRows = q("[data-sheet-chat-worlds]");
+const chatNotice = q("[data-chat-notice]");
 
 let chatTarget: ChatTarget = { kind: "in-game", world: "Survival" };
 
@@ -1184,11 +1185,16 @@ const TARGET_STATES: Record<string, ChatTarget> = {
   only: { kind: "only", world: "Survival" },
   choose: { kind: "choose", world: "Creative Flats" },
   unavailable: { kind: "unavailable", reason: "Survival is not running chat right now" },
+  // Not a target state of its own: a send the server refused because the player moved worlds
+  // while the app still held the old one. Shown here so the kit's notice has a specimen.
+  moved: { kind: "only", world: "Creative Flats" },
 };
 
 for (const button of document.querySelectorAll<HTMLElement>('[data-act="chat-target"]')) {
   button.addEventListener("click", () => {
-    chatTarget = TARGET_STATES[button.dataset.target ?? "in-game"] ?? TARGET_STATES["in-game"];
+    const key = button.dataset.target ?? "in-game";
+    chatTarget = TARGET_STATES[key] ?? TARGET_STATES["in-game"];
+    chatNotice.hidden = key !== "moved";
     for (const b of document.querySelectorAll<HTMLElement>('[data-act="chat-target"]')) {
       b.setAttribute("aria-pressed", String(b === button));
     }

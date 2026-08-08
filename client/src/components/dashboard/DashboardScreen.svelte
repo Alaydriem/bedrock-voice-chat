@@ -30,6 +30,18 @@
         main?: import("svelte").Snippet;
         /** The groups pane beside the rail, repeated inside the phone sheet. */
         groups?: import("svelte").Snippet;
+        /** The chat dock, below the stage on desktop and a peer view on a phone. */
+        chat?: import("svelte").Snippet;
+        /**
+         * Whether the scrollback is open.
+         *
+         * The kit collapses `.rad-chat-history` to zero height until the frame carries
+         * `is-chat`, so this drives that class. Without it the dock renders, the composer
+         * works, and every received line lands in a box nobody can see.
+         */
+        chatOpen?: boolean;
+        /** Raised when the phone tab switches, so the owner's open state stays in step. */
+        onchat?: (open: boolean) => void;
     }
     let {
         servers,
@@ -48,6 +60,9 @@
         onstatus,
         main,
         groups,
+        chat,
+        chatOpen = false,
+        onchat,
     }: Props = $props();
 
     let shell: HTMLElement;
@@ -112,8 +127,10 @@
         frame?.classList.toggle("is-status", statusOpen);
     });
 
+    // On a phone the tab decides; on desktop the toggle does. Either way it is one class on
+    // the frame, because that is what gives `.rad-chat-history` a height.
     $effect(() => {
-        frame?.classList.toggle("is-chat", tab === "chat");
+        frame?.classList.toggle("is-chat", chatOpen || tab === "chat");
     });
 
     /**
@@ -290,50 +307,27 @@
 
         <!-- Phone: the roster and the chat are peer views rather than a stack. -->
         <div class="rad-tabs">
-            <button class:is-on={tab === "roster"} onclick={() => (tab = "roster")}>
+            <button
+                class:is-on={tab === "roster"}
+                onclick={() => {
+                    tab = "roster";
+                    onchat?.(false);
+                }}
+            >
                 In earshot
             </button>
-            <button class:is-on={tab === "chat"} onclick={() => (tab = "chat")}>Chat</button>
+            <button
+                class:is-on={tab === "chat"}
+                onclick={() => {
+                    tab = "chat";
+                    onchat?.(true);
+                }}>Chat</button
+            >
         </div>
 
         <div class="rad-main">{@render main?.()}</div>
 
-        <!--
-          The chat dock, present and inert.
-
-          Relaying game chat needs a surface on both sides that does not exist yet, so this is
-          the affordance without the feature: a tab and a bar, so the gap is visible on the
-          screen it belongs to rather than only in a document.
-        -->
-        <div class="rad-chat-dock">
-            <div class="rad-chat-history">
-                <div class="rad-chat__head">
-                    <span class="rad-label">Server chat</span>
-                    <span class="rad-status-chip">Not connected</span>
-                    <span class="rad-spacer"></span>
-                </div>
-                <div class="rad-chat__body">
-                    <p class="rad-roster__empty">
-                        Game chat is not relayed yet. When it is, messages appear here and
-                        anything typed below goes into the server's chat.
-                    </p>
-                </div>
-            </div>
-            <div class="rad-chat-bar">
-                <button class="rad-chat-toggle" aria-label="Chat" disabled>
-                    <Icon name="chat" />
-                </button>
-                <input
-                    class="rad-chat-input"
-                    placeholder="Message the server…"
-                    aria-label="Message the server"
-                    disabled
-                />
-                <button class="rad-chat-send" aria-label="Send" disabled>
-                    <Icon name="send" />
-                </button>
-            </div>
-        </div>
+        {@render chat?.()}
 
         <!-- Phone: the capsule lives in the stage, where a thumb is. -->
         <div class="rad-self-bar">

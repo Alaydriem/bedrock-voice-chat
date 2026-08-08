@@ -243,17 +243,15 @@
     wrap-ansi "^8.1.0"
     wrap-ansi-cjs "npm:wrap-ansi@^7.0.0"
 
-"@minecraft/server-admin@1.0.0-beta.11940b24", "@minecraft/server-admin@^1.0.0-beta":
+"@minecraft/server-admin@^1.0.0-beta":
   version "1.0.0-beta.11940b24"
   resolved "https://registry.yarnpkg.com/@minecraft/server-admin/-/server-admin-1.0.0-beta.11940b24.tgz#9c37bbeb41cf6bb65e60a819f82b19ade1ae0f36"
   integrity sha512-UZ8YyB8mvF31f22+uM67gJums9d6NDgz9AQ2l4a++EHUP9uen0m3aaBaqM9RyumJpRBJbv/hslAKOyeDT01qew==
 
-"@minecraft/server-net@^1.0.0-beta":
-  version "1.0.0-beta.11940b24"
-  resolved "https://registry.yarnpkg.com/@minecraft/server-net/-/server-net-1.0.0-beta.11940b24.tgz#3e8792641a827c318a81e8288b9fd49117f3ab48"
-  integrity sha512-jiL03mGNpADCfvPDyydheEAhdi7J++nx5nB7Gyu3GImDlV5pv9uTwKCrnmILrLs4qJTtxhuRLKBKRlVyYDpKMw==
-  dependencies:
-    "@minecraft/server-admin" "1.0.0-beta.11940b24"
+"@minecraft/server-net@1.0.0-beta.1.26.40-stable":
+  version "1.0.0-beta.1.26.40-stable"
+  resolved "https://registry.yarnpkg.com/@minecraft/server-net/-/server-net-1.0.0-beta.1.26.40-stable.tgz#02252b50a7d17e29719066f236a4986821b9c91b"
+  integrity sha512-jnj5WEUKH5pJgQ45hE+1Hwij2eyi5NyjD9OHPXTsoIQzCIIbOIs4lIkEBspOqSOrjcy6hJ7jTjbJJH768Ne4mw==
 
 "@minecraft/server-ui@2.2.0-beta.1.26.40-stable":
   version "2.2.0-beta.1.26.40-stable"

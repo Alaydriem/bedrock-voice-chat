@@ -182,6 +182,12 @@ pub fn run() {
     #[cfg(feature = "bedrock-protocol")]
     let bedrock_connect_error_channel = Arc::new(crate::bedrock::BedrockConnectErrorChannel::new());
 
+    #[cfg(feature = "bedrock-protocol")]
+    let bedrock_chat_channel = Arc::new(crate::bedrock::BedrockChatChannel::new());
+
+    #[cfg(feature = "bedrock-protocol")]
+    let bedrock_chat_injector = crate::bedrock::ChatInjector::new_shared();
+
     builder
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -349,6 +355,8 @@ pub fn run() {
             // Bedrock
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_start_proxy,
+            crate::commands::bedrock::bedrock_send_chat,
+            crate::commands::chat::chat_availability,
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_stop_proxy,
             #[cfg(feature = "bedrock-protocol")]
@@ -464,6 +472,23 @@ pub fn run() {
                         match err_rx.recv().await {
                             Ok(entry) => {
                                 let _ = err_emit_handle.emit("bedrock-connect-error", &entry);
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                        }
+                    }
+                });
+
+                // Realm chat, observed by the proxy. Lagged is skipped rather than fatal: a
+                // reader that fell behind loses the oldest lines, which is the right trade for
+                // a live relay that stores nothing anyway.
+                let mut chat_rx = bedrock_chat_channel.sender().subscribe();
+                let chat_emit_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        match chat_rx.recv().await {
+                            Ok(line) => {
+                                let _ = chat_emit_handle.emit("bedrock-chat", &line);
                             }
                             Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                             Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
@@ -734,6 +759,8 @@ pub fn run() {
             app.manage(Arc::clone(&bedrock_announce_injector));
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_connect_error_channel));
+            app.manage(Arc::clone(&bedrock_chat_channel));
+            app.manage(Arc::clone(&bedrock_chat_injector));
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_log_channel));
 

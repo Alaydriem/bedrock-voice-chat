@@ -312,6 +312,35 @@
   display: none;
 }
 
+/* ---- a send that did not land ----
+
+   The player moved worlds while the app still held the old one. The message was not
+   delivered anywhere, which has to be said: silently posting it into the world they left
+   would put it in front of people they are no longer standing with.
+*/
+
+.rad-chat-notice {
+  flex: 0 0 auto;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 9px 22px;
+  border: 0;
+  border-top: 1px solid var(--color-rad-line);
+  background: rgb(255 207 77 / 0.1);
+  color: var(--color-rad-warn);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-tag);
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rad-chat-notice:hover {
+  background: rgb(255 207 77 / 0.16);
+}
+
 .rad-chat-send > [data-rad-icon] > svg {
   width: 18px;
   height: 18px;

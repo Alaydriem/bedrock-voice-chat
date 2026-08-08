@@ -18,6 +18,8 @@ use common::traits::StreamTrait;
 
 use crate::NetworkPacket;
 use crate::analytics::AnalyticsService;
+use crate::bedrock::BedrockChatChannel;
+use crate::bedrock::ChatInjector;
 use crate::bedrock::BedrockConnectErrorChannel;
 use crate::bedrock::BedrockEventEmitter;
 use crate::bedrock::BedrockProxyManager;
@@ -49,6 +51,8 @@ pub(crate) async fn bedrock_start_proxy(
     presence_injector: State<'_, Arc<PresenceInjector>>,
     announce_injector: State<'_, Arc<AnnounceInjector>>,
     error_channel: State<'_, Arc<BedrockConnectErrorChannel>>,
+    chat_channel: State<'_, Arc<BedrockChatChannel>>,
+    chat_injector: State<'_, Arc<ChatInjector>>,
 ) -> Result<(), String> {
     let mut state = state.lock().await;
 
@@ -76,6 +80,8 @@ pub(crate) async fn bedrock_start_proxy(
         gating,
         Arc::clone(beacon_cache.inner()),
         Arc::clone(error_channel.inner()),
+        Arc::clone(chat_channel.inner()),
+        Arc::clone(chat_injector.inner()),
         Arc::new(BedrockEventEmitter::new(quic_producer.inner().clone())),
         Arc::clone(eject_injector.inner()),
         Arc::clone(presence_injector.inner()),
@@ -175,6 +181,8 @@ pub(crate) async fn bedrock_start_realms(
     analytics: State<'_, Arc<AnalyticsService>>,
     beacon_cache: State<'_, Arc<JukeboxBeaconCache>>,
     error_channel: State<'_, Arc<BedrockConnectErrorChannel>>,
+    chat_channel: State<'_, Arc<BedrockChatChannel>>,
+    chat_injector: State<'_, Arc<ChatInjector>>,
     eject_injector: State<'_, Arc<JukeboxEjectInjector>>,
     presence_injector: State<'_, Arc<PresenceInjector>>,
     announce_injector: State<'_, Arc<AnnounceInjector>>,
@@ -231,6 +239,8 @@ pub(crate) async fn bedrock_start_realms(
         gating,
         Arc::clone(beacon_cache.inner()),
         Arc::clone(error_channel.inner()),
+        Arc::clone(chat_channel.inner()),
+        Arc::clone(chat_injector.inner()),
         Arc::new(BedrockEventEmitter::new(quic_producer.inner().clone())),
         Arc::clone(eject_injector.inner()),
         Arc::clone(presence_injector.inner()),
@@ -587,4 +597,39 @@ pub(crate) async fn bedrock_realms_enabled(
     flag_service: State<'_, Arc<FeatureFlagService>>,
 ) -> Result<bool, String> {
     Ok(flag_service.get(RealmsConnectEnabled).await)
+}
+
+/// Sends a line from the app into the realm the proxy is connected to.
+///
+/// No-net only. The line is queued for the session loop, which injects it as ordinary chat
+/// under the player's own name — see `BedrockProxyManager::inject_chat`.
+#[tauri::command]
+pub(crate) async fn bedrock_send_chat(
+    text: String,
+    state: State<'_, Mutex<BedrockState>>,
+    chat_injector: State<'_, Arc<ChatInjector>>,
+) -> Result<(), String> {
+    let text = text.trim().to_string();
+    if text.is_empty() {
+        return Err("Nothing to send.".to_string());
+    }
+
+    let state = state.lock().await;
+    let running = state
+        .proxy
+        .as_ref()
+        .is_some_and(|p| !p.is_stopped())
+        || state.realms.as_ref().is_some_and(|r| !r.is_stopped());
+
+    if !running {
+        return Err("Not connected to a world.".to_string());
+    }
+
+    // A full queue means the session loop is not draining. Reporting it beats a message that
+    // silently disappears.
+    if !chat_injector.enqueue(text) {
+        return Err("Chat is backed up. Try again in a moment.".to_string());
+    }
+
+    Ok(())
 }

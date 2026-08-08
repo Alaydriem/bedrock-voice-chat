@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use super::chat::{BedrockChatChannel, ChatInjector};
 use super::connect_error_channel::BedrockConnectErrorChannel;
 use super::event_emitter::BedrockEventEmitter;
 use super::jukebox::{JukeboxBeaconCache, JukeboxEjectInjector};
@@ -16,6 +17,8 @@ pub(crate) struct ProxyDeps {
     pub(crate) gating: Arc<ProtocolGatingService>,
     pub(crate) beacon_cache: Arc<JukeboxBeaconCache>,
     pub(crate) error_channel: Arc<BedrockConnectErrorChannel>,
+    pub(crate) chat_channel: Arc<BedrockChatChannel>,
+    pub(crate) chat_injector: Arc<ChatInjector>,
     pub(crate) event_emitter: Arc<BedrockEventEmitter>,
     pub(crate) eject_injector: Arc<JukeboxEjectInjector>,
     pub(crate) presence_injector: Arc<PresenceInjector>,
@@ -32,6 +35,8 @@ impl ProxyDeps {
         gating: Arc<ProtocolGatingService>,
         beacon_cache: Arc<JukeboxBeaconCache>,
         error_channel: Arc<BedrockConnectErrorChannel>,
+        chat_channel: Arc<BedrockChatChannel>,
+        chat_injector: Arc<ChatInjector>,
         event_emitter: Arc<BedrockEventEmitter>,
         eject_injector: Arc<JukeboxEjectInjector>,
         presence_injector: Arc<PresenceInjector>,
@@ -45,6 +50,8 @@ impl ProxyDeps {
             gating,
             beacon_cache,
             error_channel,
+            chat_channel,
+            chat_injector,
             event_emitter,
             eject_injector,
             presence_injector,

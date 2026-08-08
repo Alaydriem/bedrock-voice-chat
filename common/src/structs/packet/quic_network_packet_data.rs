@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use super::audio_frame_packet::AudioFramePacket;
 use super::bedrock_event_packet::BedrockEventPacket;
 use super::channel_event_packet::ChannelEventPacket;
+use super::chat_message_packet::ChatMessagePacket;
+use super::chat_send_packet::ChatSendPacket;
 use super::client_action_packet::ClientActionPacket;
 use super::player_preference_packet::PlayerPreferencePacket;
 use super::query_state_packet::QueryStatePacket;
@@ -25,6 +27,8 @@ pub enum QuicNetworkPacketData {
     PlayerData(PlayerDataPacket),
     PlayerPosition(PlayerPositionPacket),
     ChannelEvent(ChannelEventPacket),
+    ChatMessage(ChatMessagePacket),
+    ChatSend(ChatSendPacket),
     Collection(CollectionPacket),
     Debug(DebugPacket),
     PlayerPresence(PlayerPresenceEvent),

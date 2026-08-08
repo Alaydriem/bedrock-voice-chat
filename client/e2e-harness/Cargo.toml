@@ -47,3 +47,8 @@ log = { version = "^0.4" }
 [features]
 default = ["bedrock-protocol"]
 bedrock-protocol = ["bedrock-voice-chat-client/bedrock-protocol"]
+
+# `coverage` is set by cargo-llvm-cov, never by this crate, so rustc would
+# otherwise flag it as an unknown cfg on every ordinary build.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

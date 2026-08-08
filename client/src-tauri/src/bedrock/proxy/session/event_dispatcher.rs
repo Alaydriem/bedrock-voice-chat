@@ -5,9 +5,11 @@ use common::bedrock_protocol::protocol::packets::generated::misc::text::TextPack
 use common::bedrock_protocol::protocol::types::generated::TextPacketBody;
 use common::bedrock_protocol::{Direction, Event};
 
+use crate::bedrock::BedrockChatChannel;
 use crate::bedrock::BedrockEventEmitter;
 use crate::bedrock::BedrockPlayerStateCache;
 use crate::bedrock::BvcpCodec;
+use crate::bedrock::ChatCodec;
 use crate::bedrock::JukeboxBeaconCache;
 use crate::bedrock::proxy::session::BedrockSessionState;
 use crate::bedrock::proxy::session::{
@@ -22,6 +24,7 @@ pub struct BedrockSessionEventDispatcher {
     emitter: Option<Arc<BedrockEventEmitter>>,
     control_tx: crate::control::ControlActionSender,
     state_bus: crate::control::ControlStateBus,
+    chat_channel: Option<Arc<BedrockChatChannel>>,
     last_known_health: Option<i32>,
     player_auth_input_seen: bool,
 }
@@ -34,6 +37,7 @@ impl BedrockSessionEventDispatcher {
         emitter: Option<Arc<BedrockEventEmitter>>,
         control_tx: crate::control::ControlActionSender,
         state_bus: crate::control::ControlStateBus,
+        chat_channel: Option<Arc<BedrockChatChannel>>,
     ) -> Self {
         Self {
             player_name,
@@ -42,6 +46,7 @@ impl BedrockSessionEventDispatcher {
             emitter,
             control_tx,
             state_bus,
+            chat_channel,
             last_known_health: None,
             player_auth_input_seen: false,
         }
@@ -134,6 +139,13 @@ impl BedrockSessionEventDispatcher {
                     if let (Some(emitter), Some(world)) = (emitter, state.world_uuid()) {
                         emitter.try_send_announce_observed(world.to_string(), endpoint);
                     }
+                } else if let Some(chat) = self.chat_channel.as_ref() {
+                    // Everything the realm broadcasts that a person should read. The ride
+                    // arms above ran first, and ChatCodec rejects rides independently —
+                    // relying on caller ordering for a security boundary is how leaks happen.
+                    if let Some(line) = ChatCodec::decode(p) {
+                        chat.emit(line);
+                    }
                 }
                 false
             }
@@ -188,6 +200,7 @@ mod tests {
             Some(emitter),
             crate::control::ControlActionSender::channel().0,
             crate::control::ControlStateBus::new(),
+            None,
         );
         (dispatcher, rx)
     }

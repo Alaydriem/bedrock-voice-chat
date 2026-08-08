@@ -22,6 +22,7 @@ use tokio::sync::{oneshot, watch};
 use tokio::task::{AbortHandle, JoinHandle};
 
 use crate::bedrock::PendingEject;
+use crate::bedrock::proxy::chat::PendingChatSend;
 use crate::bedrock::proxy::presence::{
     BvcpCodec, PendingAnnounce, PendingInject, PendingQueryState,
 };
@@ -168,6 +169,8 @@ impl BedrockProxyManager {
         let presence_injector = Arc::clone(&self.deps.presence_injector);
         let announce_injector = Arc::clone(&self.deps.announce_injector);
         let error_channel = Arc::clone(&self.deps.error_channel);
+        let chat_channel = Arc::clone(&self.deps.chat_channel);
+        let chat_injector = Arc::clone(&self.deps.chat_injector);
         let control_tx = self.deps.control_tx.clone();
         let query_state_injector = Arc::clone(&self.deps.query_state_injector);
         let state_bus = self.deps.state_bus.clone();
@@ -391,6 +394,8 @@ impl BedrockProxyManager {
                         let child_bvcs_rx = query_state_injector.receiver();
                         let child_state_bus = state_bus.clone();
                         let child_error_channel = Arc::clone(&error_channel);
+                        let child_chat_channel = Arc::clone(&chat_channel);
+                        let child_chat_send_rx = chat_injector.receiver();
                         let mut child_cancel_rx = child_cancel_tx.subscribe();
 
                         let h = tokio::spawn(async move {
@@ -463,6 +468,7 @@ impl BedrockProxyManager {
                                 Some(Arc::clone(&child_emitter)),
                                 child_control_tx.clone(),
                                 child_state_bus.clone(),
+                                Some(Arc::clone(&child_chat_channel)),
                             );
 
                             let disconnect_reason: &'static str;
@@ -522,6 +528,15 @@ impl BedrockProxyManager {
                                                 &session,
                                                 &child_player_name,
                                                 inject,
+                                            );
+                                        }
+                                    }
+                                    send = child_chat_send_rx.recv_async() => {
+                                        if let Ok(send) = send {
+                                            Self::inject_chat(
+                                                &session,
+                                                &child_player_name,
+                                                send,
                                             );
                                         }
                                     }
@@ -739,7 +754,7 @@ impl BedrockProxyManager {
         }
     }
 
-    fn build_bvcs_chat_batch(
+    fn build_chat_batch(
         version: common::bedrock_protocol::ProtocolVersion,
         message: String,
         chat_sender_name: String,
@@ -762,7 +777,51 @@ impl BedrockProxyManager {
         text.encode_for(version, &mut pkt_buf);
 
         BatchCodec::encode(&[pkt_buf.freeze()], true, 1)
-            .map_err(|e| anyhow::anyhow!("failed to batch-encode bvcs chat: {:?}", e))
+            .map_err(|e| anyhow::anyhow!("failed to batch-encode chat: {:?}", e))
+    }
+
+    // Sends an app-composed line into the realm as ordinary chat, under the
+    // player's own name and XUID. Nothing marks it as app-sent: the packet is
+    // genuinely from their session, which is what makes it indistinguishable in
+    // game. Unlike the !bvcs: rides this needs no armed session — there is
+    // nothing for an addon to cancel, because it is a real chat message.
+    fn inject_chat(session: &Session, player_name: &str, send: PendingChatSend) {
+        if send.is_expired(std::time::Instant::now()) {
+            debug!(
+                "Bedrock: dropping expired chat send for {}: {}",
+                player_name, send.text
+            );
+            return;
+        }
+
+        let writer = session.writer().clone();
+        let version = session.protocol_version();
+        let player_xuid = session.player.xuid.clone();
+        let chat_sender_name = session.player.name.clone();
+
+        let batch = match Self::build_chat_batch(
+            version,
+            send.text.clone(),
+            chat_sender_name,
+            player_xuid,
+        ) {
+            Ok(b) => b,
+            Err(e) => {
+                warn!(
+                    "Bedrock: failed to encode chat for {}: {:?}",
+                    player_name, e
+                );
+                return;
+            }
+        };
+
+        match writer.send_to_server(batch) {
+            Ok(()) => debug!("Bedrock: injected chat for {}", player_name),
+            Err(e) => warn!(
+                "Bedrock: failed to inject chat (player {}): {:?}",
+                player_name, e
+            ),
+        }
     }
 
     // Rides an encoded !bvcs: state message serverbound into the BDS world as
@@ -782,7 +841,7 @@ impl BedrockProxyManager {
         let player_xuid = session.player.xuid.clone();
         let chat_sender_name = session.player.name.clone();
 
-        let batch = match Self::build_bvcs_chat_batch(
+        let batch = match Self::build_chat_batch(
             version,
             ride.message.clone(),
             chat_sender_name,
@@ -939,6 +998,8 @@ mod tests {
             build_gating(),
             Arc::new(JukeboxBeaconCache::new()),
             Arc::new(BedrockConnectErrorChannel::new()),
+            Arc::new(crate::bedrock::BedrockChatChannel::new()),
+            crate::bedrock::ChatInjector::new_shared(),
             Arc::new(BedrockEventEmitter::new(Arc::new(tx))),
             JukeboxEjectInjector::new_shared(),
             PresenceInjector::new_shared(),

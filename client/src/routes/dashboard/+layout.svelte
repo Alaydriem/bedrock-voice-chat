@@ -16,7 +16,12 @@
   import type { LevelSource } from "$radial/core/sources/LevelSource";
   import { ConstantLevelSource } from "$radial/core/sources/LevelSource";
   import { GroupName } from "$radial/core/naming/GroupName";
+  import { PlayerHue } from "$radial/core/sources/PlayerHue";
+  import { ChatManager } from "../../js/app/chat/ChatManager";
+  import type { ChatLine } from "../../js/app/chat/ChatLine";
+  import type { ChatRejectionState, ChatTarget } from "../../js/app/chat/ChatTarget";
   import RadFrame from "../../components/shell/RadFrame.svelte";
+  import ChatDock from "../../components/dashboard/ChatDock.svelte";
   import DashboardScreen from "../../components/dashboard/DashboardScreen.svelte";
   import GroupsPanel from "../../components/dashboard/GroupsPanel.svelte";
   import NearbyRing from "../../components/dashboard/NearbyRing.svelte";
@@ -67,6 +72,17 @@
 
   let servers = $state<readonly RailServer[]>([]);
   let player = $state("");
+
+  /**
+   * Server chat. Only the no-net Bedrock path is live: the proxy observes the realm directly,
+   * so nothing is relayed through the BVC server and nothing is stored.
+   */
+  let chatManager: ChatManager | null = null;
+  let chatLines = $state<ChatLine[]>([]);
+  let chatTarget = $state<ChatTarget>({ kind: "unavailable", reason: "Not connected" });
+  let chatRejection = $state<ChatRejectionState | null>(null);
+  let chatUnread = $state(0);
+  let chatOpen = $state(false);
   /**
    * The same client, as `game:gamertag`.
    *
@@ -244,6 +260,13 @@
 
         servers = instance.rail;
         player = instance.gamertag;
+
+        chatManager = new ChatManager(instance.gamertag);
+        unsubs.push(chatManager.lines.subscribe((v) => (chatLines = v)));
+        unsubs.push(chatManager.target.subscribe((v) => (chatTarget = v)));
+        unsubs.push(chatManager.rejection.subscribe((v) => (chatRejection = v)));
+        unsubs.push(chatManager.unread.subscribe((v) => (chatUnread = v)));
+        void chatManager.startLocal();
         identity = instance.identity;
         currentHost = instance.host();
         scope = instance.feedScope;
@@ -406,6 +429,7 @@
   }
 
   onDestroy(() => {
+    chatManager?.cleanup();
     for (const off of unsubs) off();
     presence?.cleanup();
     diagnostics.stop();
@@ -473,6 +497,11 @@
       onswitch={(server) => (window.location.href = `/dashboard?server=${encodeURIComponent(server)}`)}
       onadd={() => (window.location.href = AddServerRoute.HREF)}
       onsettings={() => void goto(SettingsRoute.href("audio"))}
+      {chatOpen}
+      onchat={(open) => {
+        chatOpen = open;
+        chatManager?.setOpen(open);
+      }}
       onsignout={signOut}
       onstatus={(open) => (statusOpen = open)}
     >
@@ -563,6 +592,23 @@
             onreset={() => void diagnostics.reset()}
             onclose={() => (statusOpen = false)}
           />
+      {/snippet}
+
+      {#snippet chat()}
+        <ChatDock
+          lines={chatLines}
+          target={chatTarget}
+          rejection={chatRejection}
+          unread={chatUnread}
+          open={chatOpen}
+          hueOf={(author) => (author ? PlayerHue.forPlayer("minecraft", author) : "#9483b6")}
+          onToggle={(open) => {
+            chatOpen = open;
+            chatManager?.setOpen(open);
+          }}
+          onSend={(text) => void chatManager?.send(text)}
+          onDismissRejection={() => chatManager?.clearRejection()}
+        />
       {/snippet}
     </DashboardScreen>
   {/if}

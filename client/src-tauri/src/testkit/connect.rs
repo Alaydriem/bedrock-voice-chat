@@ -252,6 +252,8 @@ impl Connector {
             handle.state::<Arc<crate::bedrock::PresenceInjector>>(),
             handle.state::<Arc<crate::bedrock::AnnounceInjector>>(),
             handle.state::<Arc<crate::bedrock::BedrockConnectErrorChannel>>(),
+            handle.state::<Arc<crate::bedrock::BedrockChatChannel>>(),
+            handle.state::<Arc<crate::bedrock::ChatInjector>>(),
         )
         .await
     }
@@ -306,5 +308,17 @@ impl Connector {
     #[cfg(feature = "bedrock-protocol")]
     pub fn connect_error_channel() -> Arc<crate::bedrock::BedrockConnectErrorChannel> {
         Arc::new(crate::bedrock::BedrockConnectErrorChannel::new())
+    }
+
+    // Returns a freshly-constructed `BedrockChatChannel` for state registration.
+    #[cfg(feature = "bedrock-protocol")]
+    pub fn chat_channel() -> Arc<crate::bedrock::BedrockChatChannel> {
+        Arc::new(crate::bedrock::BedrockChatChannel::new())
+    }
+
+    // Returns a freshly-constructed `ChatInjector` for state registration.
+    #[cfg(feature = "bedrock-protocol")]
+    pub fn chat_injector() -> Arc<crate::bedrock::ChatInjector> {
+        crate::bedrock::ChatInjector::new_shared()
     }
 }

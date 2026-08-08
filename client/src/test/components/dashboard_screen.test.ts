@@ -277,20 +277,44 @@ describe("DashboardScreen chat", () => {
     });
 
     /**
-     * Present and inert on purpose.
+     * The dock itself is `ChatDock`'s concern and arrives as a snippet, so this asserts the
+     * seam rather than the contents: the screen owns the phone tabs, and renders whatever chat
+     * surface it is handed.
      *
-     * Relaying game chat needs a surface on both sides that does not exist yet, so the tab and
-     * the bar are here without the feature — the gap belongs on the screen it affects rather
-     * than only in a planning document.
+     * Chat used to be present and inert here. It is now live on the no-net Bedrock path, so
+     * the old assertion that the input is disabled would encode a state the product left.
      */
-    it("shows the chat affordance and leaves it disabled", () => {
+    it("owns the phone tabs that make chat a peer view of the roster", () => {
         const { frame } = mount();
 
-        expect(frame.querySelector(".rad-chat-dock")).not.toBeNull();
-        expect(frame.querySelector<HTMLInputElement>(".rad-chat-input")?.disabled).toBe(true);
-        expect(frame.querySelector<HTMLButtonElement>(".rad-chat-send")?.disabled).toBe(true);
-
-        const tabs = [...frame.querySelectorAll(".rad-tabs button")].map((b) => b.textContent?.trim());
+        const tabs = [...frame.querySelectorAll(".rad-tabs button")].map((b) =>
+            b.textContent?.trim(),
+        );
         expect(tabs).toEqual(["In earshot", "Chat"]);
+    });
+
+    it("renders no chat surface when none is supplied", () => {
+        const { frame } = mount();
+
+        expect(frame.querySelector(".rad-chat-dock")).toBeNull();
+    });
+
+    /**
+     * The kit collapses `.rad-chat-history` to zero height until the frame carries `is-chat`.
+     *
+     * Missing this shipped a dock whose composer worked and whose scrollback was invisible:
+     * every received line rendered into a box of no height, which reads as "chat is broken"
+     * rather than "a class is missing".
+     */
+    it("gives the frame is-chat so the scrollback has a height", () => {
+        const { frame } = mount({ chatOpen: true });
+
+        expect(frame.classList.contains("is-chat")).toBe(true);
+    });
+
+    it("leaves is-chat off while the scrollback is shut", () => {
+        const { frame } = mount({ chatOpen: false });
+
+        expect(frame.classList.contains("is-chat")).toBe(false);
     });
 });
