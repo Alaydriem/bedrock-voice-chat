@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { onDestroy } from "svelte";
     import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
     import { info } from "@tauri-apps/plugin-log";
@@ -89,8 +90,8 @@
 >
     {text}
     {#if severity === "bad"}
-        <button type="button" class="rad-toast__close" aria-label="Dismiss" onclick={dismiss}>
-            &times;
+        <button type="button" class="rad-toast__close" aria-label={I18n.t("Dismiss")} onclick={dismiss}>
+            ×
         </button>
     {/if}
 </div>

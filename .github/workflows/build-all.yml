@@ -3,6 +3,9 @@ permissions:
   contents: write
   packages: write
   actions: read
+  # The tests workflow posts the translation coverage report back to the pull request. A
+  # called workflow cannot hold a permission its caller lacks, so it has to be granted here.
+  pull-requests: write
 
 on:
   push:

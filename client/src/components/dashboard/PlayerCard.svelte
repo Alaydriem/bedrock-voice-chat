@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import LevelMeter from "$radial/components/LevelMeter.svelte";
     import ServerGlyph from "$radial/components/ServerGlyph.svelte";
@@ -56,7 +57,7 @@
             <span class="rad-player__name">{player.gamertag}</span>
             <span class="rad-player__distance">{range}</span>
             {#if ondismiss}
-                <button class="rad-player__dismiss" aria-label="Close this card" onclick={ondismiss}>
+                <button class="rad-player__dismiss" aria-label={I18n.t("Close this card")} onclick={ondismiss}>
                     <Icon name="close" />
                 </button>
             {/if}
@@ -67,7 +68,7 @@
                  and a greyed slider reads as "muted", which is a different and wrong story. -->
             <div class="rad-player__note">
                 <Icon name="unlink" />
-                In range, not on voice &mdash; they will not hear you
+                {I18n.t("In range, not on voice — they will not hear you")}
             </div>
         {:else}
             <div class="rad-player__level">
@@ -90,7 +91,7 @@
                     step="0.05"
                     value={gain}
                     disabled={muted}
-                    aria-label="Volume for {player.gamertag}"
+                    aria-label={I18n.tf("Volume for {gamertag}", { gamertag: player.gamertag })}
                     oninput={(e) => ongain(player.name, Number(e.currentTarget.value))}
                 />
                 <span class="rad-player__percent">{Math.round(gain * 100)}%</span>

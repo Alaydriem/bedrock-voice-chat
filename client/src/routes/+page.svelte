@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
   import "../css/app.css";
   import { onMount, onDestroy } from "svelte";
   import { goto } from "$app/navigation";
@@ -114,7 +115,7 @@
 
   <RadConfirm
     open={forgetting !== null}
-    title="Forget this server?"
+    title={I18n.t("Forget this server?")}
     confirmLabel="Forget it"
     cancelLabel="Keep it"
     destructive={true}

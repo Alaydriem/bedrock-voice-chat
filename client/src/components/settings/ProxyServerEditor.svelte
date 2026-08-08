@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { onMount } from "svelte";
     import type { ProxyServerEntry } from "../../js/app/managers/bedrock/ProxyServerEntry";
     import type { ProtocolVersionOption } from "../../js/bindings/ProtocolVersionOption";
@@ -91,8 +92,8 @@
                 type="text"
                 bind:value={name}
                 bind:this={first}
-                placeholder="Name"
-                aria-label="Name"
+                placeholder={I18n.t("Name")}
+                aria-label={I18n.t("Name")}
             />
         </span>
 
@@ -101,7 +102,7 @@
                 type="text"
                 bind:value={address}
                 placeholder="play.example.com"
-                aria-label="Address"
+                aria-label={I18n.t("Address")}
             />
         </span>
 
@@ -109,9 +110,9 @@
             class="rad-select"
             style="margin-top: 10px; width: 100%"
             bind:value={version}
-            aria-label="Advertised version"
+            aria-label={I18n.t("Advertised version")}
         >
-            <option value={AUTO}>Auto &mdash; mirror the backend</option>
+            <option value={AUTO}>{I18n.t("Auto — mirror the backend")}</option>
             {#each versions as option (option.protocol)}
                 <option value={String(option.protocol)}>{option.label}</option>
             {/each}
@@ -124,7 +125,7 @@
         {/if}
 
         <div class="rad-modal__actions">
-            <button class="rad-btn" onclick={oncancel}>Cancel</button>
+            <button class="rad-btn" onclick={oncancel}>{I18n.t("Cancel")}</button>
             <button class="rad-btn rad-btn--primary" onclick={save}>
                 {entry ? "Save" : "Add"}
             </button>

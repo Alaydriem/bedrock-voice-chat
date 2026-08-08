@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
   import "../../css/app.css";
   import { onDestroy, onMount, setContext, type Snippet } from "svelte";
   import { get } from "svelte/store";
@@ -529,14 +530,14 @@
               >
                 {#snippet action()}
                   <button class="rad-leave-btn" onclick={() => joinGroup(inGroup.id)}>
-                    Leave
+                    {I18n.t("Leave")}
                   </button>
                 {/snippet}
               </Roster>
             {/if}
 
             <Roster
-              title="In earshot"
+              title={I18n.t("In earshot")}
               players={earshot}
               {sourceFor}
               {gainFor}

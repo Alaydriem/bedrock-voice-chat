@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { onDestroy, onMount } from "svelte";
     import Segmented from "$radial/components/Segmented.svelte";
     import SettingRow from "$radial/components/SettingRow.svelte";
@@ -49,16 +50,16 @@
 
 <div class="rad-section">
     <div class="rad-card">
-        <div class="rad-card__head">Devices</div>
+        <div class="rad-card__head">{I18n.t("Devices")}</div>
         {#if mobile}
             <!-- Android and iOS route audio themselves: the OS follows the headset, and an
                  app-level picker there is a control that either lies or fights the system. -->
             <SettingRow
-                label="Chosen by the system"
-                note="Your phone routes voice to whatever you last connected. Plug in a headset and it follows — there is nothing to pick here."
+                label={I18n.t("Chosen by the system")}
+                note={I18n.t("Your phone routes voice to whatever you last connected. Plug in a headset and it follows — there is nothing to pick here.")}
             >
                 {#snippet control()}
-                    <StatusChip severity="muted">System default</StatusChip>
+                    <StatusChip severity="muted">{I18n.t("System default")}</StatusChip>
                 {/snippet}
             </SettingRow>
         {:else}
@@ -70,19 +71,19 @@
          phone there is nothing to pick and the test is the entire value of the card: the OS
          chose the route and this is the only way to find out what it chose. -->
     <div class="rad-card">
-        <div class="rad-card__head">Test your devices</div>
+        <div class="rad-card__head">{I18n.t("Test your devices")}</div>
 
         <SettingRow
-            label="Test my microphone"
-            note="Talk for a moment. The mark fills out as it hears you."
+            label={I18n.t("Test my microphone")}
+            note={I18n.t("Talk for a moment. The mark fills out as it hears you.")}
             stack
         >
             <MicMeter level={inputLevel} speaking={gateOpen} available={meterAvailable} layout="card" />
         </SettingRow>
 
         <SettingRow
-            label="Test playback"
-            note="Plays a chime through the device you listen on, not through whatever the browser would pick."
+            label={I18n.t("Test playback")}
+            note={I18n.t("Plays a chime through the device you listen on, not through whatever the browser would pick.")}
         >
             {#snippet control()}
                 <PlaybackTest ontest={() => speaker.play()} />
@@ -91,9 +92,9 @@
     </div>
 
     <div class="rad-card">
-        <div class="rad-card__head">Voice</div>
+        <div class="rad-card__head">{I18n.t("Voice")}</div>
 
-        <SettingRow label="Voice mode">
+        <SettingRow label={I18n.t("Voice mode")}>
             {#snippet control()}
                 <Segmented
                     options={[
@@ -109,15 +110,15 @@
         {#if voiceModeError}
             <div class="rad-callout rad-callout--warn">
                 <span>
-                    <b>The voice mode did not change.</b>
+                    <b>{I18n.t("The voice mode did not change.")}</b>
                     {voiceModeError}
                 </span>
             </div>
         {/if}
 
         <SettingRow
-            label="Spatial panning"
-            note="How hard voices are pushed left and right by where their speaker is standing. At 0% everyone is centred; distance still governs volume either way."
+            label={I18n.t("Spatial panning")}
+            note={I18n.t("How hard voices are pushed left and right by where their speaker is standing. At 0% everyone is centred; distance still governs volume either way.")}
             stack
         >
             <div class="rad-knob__head">
@@ -133,7 +134,7 @@
                 max="100"
                 value={panning}
                 style="width: 100%"
-                aria-label="Spatial panning"
+                aria-label={I18n.t("Spatial panning")}
                 aria-valuetext="{panning}%"
                 oninput={(e) =>
                     void audio.handlePanningIntensityChange(
@@ -144,7 +145,7 @@
     </div>
 
     <div class="rad-card">
-        <div class="rad-card__head">Noise gate</div>
+        <div class="rad-card__head">{I18n.t("Noise gate")}</div>
         <NoiseGate />
     </div>
 </div>

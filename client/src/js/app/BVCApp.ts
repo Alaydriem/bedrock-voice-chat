@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Store } from '@tauri-apps/plugin-store';
 import { DeepLinkRouter } from './deepLinkRouter.ts';
 import { AppStore } from './services/AppStore';
+import LocaleManager from './managers/settings/LocaleManager';
 import BootOverlay from './shell/BootOverlay';
 import { BootTimeline } from './shell/BootTimeline';
 import type { DeepLink } from '../bindings/DeepLink';
@@ -36,6 +37,13 @@ export default class BVCApp {
     private connectionHealthUnlisten: UnlistenFn | null = null;
     private audioRecoveryUnlisten: UnlistenFn | null = null;
     private initialized = false;
+    /**
+     * One language pack for the whole context, for the same reason as the router above.
+     * Settings reads it to render the picker and writes it to change the language; a
+     * manager per caller would leave the screen showing a language the app is not in.
+     */
+    private static localeManagerPromise: Promise<LocaleManager> | null = null;
+
     private storeInstance: Store | null = null;
     private isCleanedUp = false;
 
@@ -83,6 +91,21 @@ export default class BVCApp {
             this.storeInstance = await AppStore.load();
         }
         return this.storeInstance;
+    }
+
+    /**
+     * The language pack, resolved before the first screen renders.
+     *
+     * Shared as a promise rather than a manager so concurrent callers during startup
+     * queue on one in-flight load instead of racing to start several.
+     */
+    static localeManager(): Promise<LocaleManager> {
+        BVCApp.localeManagerPromise ??= (async () => {
+            const manager = new LocaleManager(await AppStore.load());
+            await manager.initialize();
+            return manager;
+        })();
+        return BVCApp.localeManagerPromise;
     }
 
     /**
@@ -205,6 +228,10 @@ export default class BVCApp {
         this.initialized = true;
 
         info('BVCApp: Initializing deep links, checking for pending');
+
+        // Ahead of any navigation: a pack adopted after first paint repaints every
+        // translated string, which reads as a flash of the wrong language.
+        await BVCApp.localeManager();
 
         try {
             const router = await this.getRouter();

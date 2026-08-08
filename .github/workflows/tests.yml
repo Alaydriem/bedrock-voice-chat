@@ -300,6 +300,11 @@ jobs:
   frontend:
     name: Frontend tests (Linux)
     runs-on: ubuntu-latest
+    # The translation report is posted back to the pull request. Everything else this job
+    # does needs only `contents: read`.
+    permissions:
+      contents: read
+      pull-requests: write
     # Pure TypeScript and Svelte: vitest against happy-dom, and the radial kit's
     # node --test suite. Neither compiles Rust or needs a Tauri toolchain, so this
     # job skips every Windows/ASIO/vcpkg step the others carry and finishes in
@@ -309,6 +314,9 @@ jobs:
         uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
+          # Full history so the translation report can measure the pull request's base
+          # commit and report a delta rather than only a position.
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -322,6 +330,60 @@ jobs:
         # `prepare` runs svelte-kit sync, which generates .svelte-kit/tsconfig.json.
         # client/tsconfig.json extends it, so skipping this fails later and obscurely.
         run: yarn install --frozen-lockfile
+
+      - name: Verify translation catalog is current
+        working-directory: ./client
+        # Re-extracts from source and compares against the committed catalog. A string
+        # marked for translation but never extracted reaches no translator, and nothing
+        # else in the build notices — it renders as correct English.
+        run: yarn i18n:check
+
+      # Reporting only — never fails the build. Localization is migrated incrementally, so
+      # being at 1% is the expected state; what matters is whether a change moved it.
+      - name: Check out the base commit for comparison
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: git worktree add ../i18n-base ${{ github.event.pull_request.base.sha }}
+
+      - name: Translation coverage report
+        id: i18n_report
+        working-directory: ./client
+        continue-on-error: true
+        run: |
+          if [ -d ../../i18n-base/client ]; then
+            yarn i18n:report --baseline ../../i18n-base/client --out i18n-report.md
+          else
+            yarn i18n:report --out i18n-report.md
+          fi
+          cat i18n-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment the translation report
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- i18n-coverage -->';
+            const path = 'client/i18n-report.md';
+            if (!fs.existsSync(path)) return;
+
+            const body = `${marker}\n${fs.readFileSync(path, 'utf8')}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            // Updated in place rather than appended, so a long-lived branch carries one
+            // comment showing the current position instead of a column of stale ones.
+            const existing = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number,
+            });
+            const mine = existing.find((c) => c.body?.startsWith(marker));
+
+            if (mine) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
 
       - name: Component and unit tests (instrumented)
         working-directory: ./client

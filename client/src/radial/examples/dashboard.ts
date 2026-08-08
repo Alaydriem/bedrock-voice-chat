@@ -1286,9 +1286,32 @@ function diagnostics(): DiagnosticsInput {
   };
 }
 
+// The gallery's own copy for each verdict code. The shipped app translates these through
+// `DiagnosticsCopy`; the reference pages stay English by decision, so they carry a literal
+// table rather than reaching for the application's translation surface.
+const VERDICT_COPY: Record<string, (p: Record<string, string | number>) => string> = {
+  reconnecting: (p) =>
+    Number(p.attempt) > 0
+      ? `Reconnecting — attempt ${p.attempt}. Nobody can hear you right now.`
+      : "Reconnecting. Nobody can hear you right now.",
+  stalled: () => "Your audio is not reaching the server. Try reconnecting.",
+  deafened: () => "You are deafened. You cannot hear anyone.",
+  "ptt-idle": () => "Push-to-talk is on. Hold the mic button to speak.",
+  muted: () => "You are muted. Nobody can hear you.",
+  "input-rate": (p) => `Your input device is running at ${p.kHz} kHz. BVC expects 48 kHz.`,
+  concealment: (p) =>
+    `${p.percent}% of the worst speaker's audio had to be reconstructed. They will sound rough.`,
+  loss: (p) => `Packet loss is ${p.percent}%. Audio will break up.`,
+  "muted-others": (p) =>
+    `${p.count} ${Number(p.count) === 1 ? "player is" : "players are"} muted by you.`,
+  fine: () => "Everything looks fine.",
+};
+
 function paintStatus(): void {
   const input = diagnostics();
-  const [severity, text] = Diagnostics.verdict(input);
+  const verdict = Diagnostics.verdict(input);
+  const severity = verdict.severity;
+  const text = VERDICT_COPY[verdict.code](verdict.params ?? {});
   const className = `rad-verdict${severity === "ok" ? "" : ` rad-verdict--${severity}`}`;
   if (verdictEl.className !== className) verdictEl.className = className;
   const textEl = verdictEl.querySelector(".rad-verdict__text");

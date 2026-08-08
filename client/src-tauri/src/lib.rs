@@ -46,6 +46,7 @@ pub use feature_flags::flagsmith::FlagsmithProvider;
 // Flagsmith leaves the Realms Connect kill switch open.
 #[cfg(feature = "e2e")]
 pub use feature_flags::flags::bedrock::RealmsConnectEnabled;
+pub mod i18n;
 mod iap;
 // Re-exported for the integration test crate (a separate crate root that can
 // only reach `pub` items) to cover the store price-selection fallback.
@@ -232,6 +233,9 @@ pub fn run() {
             commands::diagnostics::get_link_diagnostics,
             commands::diagnostics::get_diagnostics_report,
             commands::diagnostics::reset_link_diagnostics,
+            // Localization
+            crate::commands::i18n::i18n_locales,
+            crate::commands::i18n::i18n_load,
             // About
             crate::commands::about::get_app_info,
             crate::commands::about::export_logs,

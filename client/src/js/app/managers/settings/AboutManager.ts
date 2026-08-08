@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 import { writable, type Readable, type Writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -54,20 +55,20 @@ export class AboutManager {
     public readonly links: AboutLink[] = [
         {
             url: "https://github.com/alaydriem/bedrock-voice-chat/issues",
-            title: "Report a Bug",
-            description: "Open a bug report on GitHub",
+            title: I18n.t("Report a Bug"),
+            description: I18n.t("Open a bug report on GitHub"),
             icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>`,
         },
         {
             url: "https://discord.gg/MAHckcEATj",
             title: "Discussions",
-            description: "Community discussions and help",
+            description: I18n.t("Community discussions and help"),
             icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/>`,
         },
         {
             url: "https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md",
-            title: "Privacy Notice",
-            description: "View privacy statement",
+            title: I18n.t("Privacy Notice"),
+            description: I18n.t("View privacy statement"),
             icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>`,
         },
     ];
@@ -208,7 +209,7 @@ export class AboutManager {
         this.refreshFlagsMessageStore.set("");
         try {
             await this.featureFlags.refresh();
-            this.refreshFlagsMessageStore.set("Feature flags refreshed.");
+            this.refreshFlagsMessageStore.set(I18n.t("Feature flags refreshed."));
         } catch (e) {
             this.refreshFlagsMessageStore.set(`Refresh failed: ${e}`);
             error(`Refresh feature flags failed: ${e}`);

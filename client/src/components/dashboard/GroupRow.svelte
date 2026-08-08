@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import { SwipeActions } from "$radial/core/controllers/SwipeActions";
     import { GroupsView } from "../../js/app/dashboard/GroupsView";
@@ -170,18 +171,18 @@
         <div class="rad-swipe__tray" bind:clientWidth={trayWidth}>
             {#if canLeave}
                 <button class="rad-swipe__action" onclick={() => onleave?.(group.id)}>
-                    <Icon name="unlink" /> Leave
+                    <Icon name="unlink" /> {I18n.t("Leave")}
                 </button>
             {/if}
             {#if canAdmin}
                 <button class="rad-swipe__action" onclick={startEdit}>
-                    <Icon name="gear" /> Edit
+                    <Icon name="gear" /> {I18n.t("Edit")}
                 </button>
                 <button
                     class="rad-swipe__action rad-swipe__action--danger"
                     onclick={() => onclosegroup?.(group.id)}
                 >
-                    <Icon name="trash" /> Close
+                    <Icon name="trash" /> {I18n.t("Close")}
                 </button>
             {/if}
         </div>
@@ -248,7 +249,7 @@
     -->
     <div class="rad-group-edit">
         <label class="rad-group-edit__row">
-            <span class="rad-label">Group name</span>
+            <span class="rad-label">{I18n.t("Group name")}</span>
             <!-- `.rad-input` is the wrapper the kit styles; the field inside it is bare. -->
             <span class="rad-input">
                 <input
@@ -257,13 +258,13 @@
                         if (e.key === "Enter") save();
                         if (e.key === "Escape") onedit?.(null);
                     }}
-                    aria-label="Group name"
+                    aria-label={I18n.t("Group name")}
                 />
             </span>
         </label>
 
         <button class="rad-group-edit__id" onclick={copyId}>
-            <span class="rad-label">Group id</span>
+            <span class="rad-label">{I18n.t("Group id")}</span>
             <code>{group.id}</code>
             <span class="rad-group-edit__copy">
                 <Icon name={copied ? "check" : "copy"} />
@@ -272,8 +273,8 @@
         </button>
 
         <div class="rad-group-edit__foot">
-            <button class="rad-btn rad-btn--quiet" onclick={() => onedit?.(null)}>Cancel</button>
-            <button class="rad-btn" onclick={save} disabled={draft.trim() === ""}>Save</button>
+            <button class="rad-btn rad-btn--quiet" onclick={() => onedit?.(null)}>{I18n.t("Cancel")}</button>
+            <button class="rad-btn" onclick={save} disabled={draft.trim() === ""}>{I18n.t("Save")}</button>
         </div>
     </div>
 {/if}

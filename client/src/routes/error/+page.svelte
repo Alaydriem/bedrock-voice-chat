@@ -1,6 +1,7 @@
 <script lang="ts">
   import "../../css/app.css";
   import BootOverlay from "../../js/app/shell/BootOverlay";
+  import { I18n } from "$lib/i18n";
   import RadFrame from "../../components/shell/RadFrame.svelte";
   import FaultScreen from "../../components/error/FaultScreen.svelte";
   import { onMount } from "svelte";
@@ -34,7 +35,21 @@
     }
   }
 
-  let currentError = $state(FaultCatalog.resolve(null));
+  /**
+   * The inputs the screen is decided by, rather than the decision itself.
+   *
+   * Holding the resolved definition would freeze its copy at the moment `onMount` ran,
+   * because the strings are read out of the catalog on access. Deriving it instead means a
+   * language change re-reads them, and the screen follows.
+   */
+  let errorCode = $state<string | null>(null);
+  let updateVersion = $state<string | null>(null);
+  let singleServer = $state(false);
+
+  const currentError = $derived(
+    FaultCatalog.forScreen(errorCode, updateVersion, singleServer),
+  );
+
   let appVersion = $state("");
 
   let isUpdating = $state(false);
@@ -68,7 +83,7 @@
     const isUpdate = FaultCatalog.isUpdate(currentError.code);
     const list = [
       {
-        label: isUpdate && isUpdating ? "Updating…" : currentError.primaryAction.label,
+        label: isUpdate && isUpdating ? I18n.t("Updating…") : currentError.primaryAction.label,
         onclick: isUpdate ? handleUpdate : () => go(currentError.primaryAction.url),
         primary: true,
         disabled: isUpdating,
@@ -92,7 +107,8 @@
     try { appVersion = await getVersion(); } catch (_) {}
 
     const urlParams = new URLSearchParams(window.location.search);
-    const errorCode = urlParams.get("code");
+    errorCode = urlParams.get("code");
+    updateVersion = urlParams.get("version");
     const isUpdate = FaultCatalog.isUpdate(errorCode);
 
     // Nothing is streaming when the splash routes here, and the update is the one screen
@@ -101,20 +117,13 @@
       await teardown();
     }
 
-    currentError = FaultCatalog.withVersion(
-      FaultCatalog.resolve(errorCode),
-      urlParams.get("version"),
-    );
-
     // "Stay on This Version" is not a server switch, so the update keeps both of its
     // actions however many servers are configured.
     if (!isUpdate) {
       const store = await AppStore.load();
       const serverList = await store.get("server_list") as Array<{ server: string; player: string }> | null;
 
-      if (serverList == null || serverList.length <= 1) {
-        currentError = FaultCatalog.withoutServerSwitch(currentError);
-      }
+      singleServer = serverList == null || serverList.length <= 1;
     }
   });
 </script>
@@ -139,15 +148,15 @@
     {#snippet footnote()}
       {#if updateError}
         <div class="rad-callout rad-callout--bad rad-rise" style="--d: 340; margin-top: 18px">
-          <span>The update could not be installed. Try again, or download the new version by hand.</span>
+          <span>{I18n.t("The update could not be installed. Try again, or download the new version by hand.")}</span>
         </div>
       {:else if currentError.severity !== 'ok'}
         <span class="rad-label rad-rise" style="--d: 360; display: block; margin-top: 26px">
-          Still stuck?
+          {I18n.t("Still stuck?")}
         </span>
         <div class="rad-swatchrow rad-rise" style="--d: 390">
           <button class="rad-pill-link" onclick={() => void HelpLinks.openWiki()}>
-            Wiki <span class="rad-pill-link__ext">&#8599;</span>
+            {I18n.t("Wiki")} <span class="rad-pill-link__ext">&#8599;</span>
           </button>
           <button class="rad-pill-link" onclick={() => void HelpLinks.openDiscord()}>
             Discord <span class="rad-pill-link__ext">&#8599;</span>

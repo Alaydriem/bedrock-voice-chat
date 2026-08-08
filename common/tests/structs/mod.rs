@@ -2,6 +2,7 @@ mod analytics;
 mod audio;
 mod bedrock;
 mod control;
+mod i18n;
 mod iap;
 mod metrics;
 mod network;

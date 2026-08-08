@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import Scope from "$radial/components/Scope.svelte";
     import Verdict from "$radial/components/Verdict.svelte";
     import { MeterProbe } from "$radial/core/canvas/MeterProbe";
     import { Diagnostics } from "$radial/core/controllers/Diagnostics";
+    import DiagnosticsCopy from "../../js/app/dashboard/DiagnosticsCopy";
     import { KvGridView } from "$radial/core/controllers/KvGridView";
     import type { LinkDiagnosticsSnapshot } from "../../js/bindings/LinkDiagnosticsSnapshot";
     import type { LinkHealth } from "../../js/app/dashboard/DiagnosticsManager";
@@ -54,6 +56,8 @@
     );
 
     const verdict = $derived(input ? Diagnostics.verdict(input) : null);
+    // Read inside the derivation rather than stored, so a language change re-renders it.
+    const verdictText = $derived(verdict ? DiagnosticsCopy.of(verdict) : "");
 
     /** Seeded once from history, then advanced one sample per snapshot. */
     let seeded = $state<readonly number[]>([]);
@@ -96,8 +100,9 @@
      */
     $effect(() => {
         if (!grid) return;
+        const labels = DiagnosticsCopy.labels();
         const link = input && snapshot
-            ? [...Diagnostics.groups(input), ...DiagnosticsView.extraGroups(snapshot)]
+            ? [...Diagnostics.groups(input, labels), ...DiagnosticsView.extraGroups(snapshot)]
             : [];
         grid.update([
             DiagnosticsView.voiceGroup(
@@ -117,7 +122,7 @@
 
 <div class="rad-status" data-status>
     <div class="rad-status__head">
-        <span class="rad-label">Status</span>
+        <span class="rad-label">{I18n.t("Status")}</span>
         <!--
           Each label is a span with the button carrying its own `aria-label`, because a phone
           drops the labels and keeps the icons. Three labelled actions plus a close button
@@ -125,18 +130,18 @@
           panel was the one pushed off the edge, leaving no way out of it at all.
         -->
         <span class="rad-status__actions">
-            <button class="rad-status__act" aria-label="Copy report" onclick={oncopy}>
+            <button class="rad-status__act" aria-label={I18n.t("Copy report")} onclick={oncopy}>
                 <Icon name="copy" />
-                <span class="rad-status__act-label">Copy report</span>
+                <span class="rad-status__act-label">{I18n.t("Copy report")}</span>
             </button>
             <button
                 class="rad-status__act"
-                aria-label="Reset stats"
-                title="Restart every counter from now"
+                aria-label={I18n.t("Reset stats")}
+                title={I18n.t("Restart every counter from now")}
                 onclick={pressReset}
             >
                 <Icon name="reset" />
-                <span class="rad-status__act-label">Reset stats</span>
+                <span class="rad-status__act-label">{I18n.t("Reset stats")}</span>
             </button>
             <button
                 class="rad-status__act"
@@ -150,7 +155,7 @@
                     {reconnecting ? "Reconnecting…" : "Reconnect"}
                 </span>
             </button>
-            <button class="rad-icon-btn rad-status__close" aria-label="Close status" onclick={onclose}>
+            <button class="rad-icon-btn rad-status__close" aria-label={I18n.t("Close status")} onclick={onclose}>
                 <Icon name="close" />
             </button>
         </span>
@@ -159,16 +164,16 @@
     <div class="rad-status__body">
         <div class="rad-status__scope">
             {#if ready}
-                <Scope bare history={seeded} sample={input?.rtt} />
+                <Scope bare history={seeded} sample={input?.rtt} unit={I18n.t("MS RTT")} />
             {:else}
-                <Scope bare />
+                <Scope bare unit={I18n.t("MS RTT")} />
             {/if}
-            <span class="rad-status__scope-cap">Round trip &middot; last 72 s</span>
+            <span class="rad-status__scope-cap">{I18n.t("Round trip · last 72 s")}</span>
         </div>
 
         <div class="rad-status__read">
             {#if verdict}
-                <Verdict severity={verdict[0]} text={verdict[1]} />
+                <Verdict severity={verdict.severity} text={verdictText} />
             {:else}
                 <!-- Absent rather than zeroed. A snapshot of zeros draws as a flawless link
                      with a 0 ms round trip, which misleads worse than saying nothing. -->

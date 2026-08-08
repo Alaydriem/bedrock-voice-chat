@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 
 import { Store } from '@tauri-apps/plugin-store';
 import { info, error, warn } from '@tauri-apps/plugin-log';
@@ -150,7 +151,7 @@ export default class Dashboard extends BVCApp {
             const wasRecording = await invoke<boolean>('is_recording');
             if (wasRecording) {
                 await invoke('stop_recording');
-                info("Stopped recording that was active before page refresh");
+                info(I18n.t("Stopped recording that was active before page refresh"));
             }
         } catch (e) {
             warn(`Failed to check/stop recording on refresh: ${e}`);
@@ -242,7 +243,7 @@ export default class Dashboard extends BVCApp {
                 // Re-fetch credentials since refresh_server_state persists updates to keyring
                 this.currentServerCredentials = await invoke<LoginResponse>("get_credentials", { server: currentServer });
             } catch (e) {
-                warn("Failed to refresh server state, using cached permissions");
+                warn(I18n.t("Failed to refresh server state, using cached permissions"));
             }
             timeline.mark("credentials x2 + refresh_server_state (NETWORK)");
 
@@ -260,18 +261,18 @@ export default class Dashboard extends BVCApp {
                 timeline.mark("shutdown (audio teardown)");
 
                 // Check audio permission first
-                info("Checking audio permission...");
+                info(I18n.t("Checking audio permission..."));
                 const audioPermission = await checkPermission({ permissionType: PermissionType.Audio });
 
                 if (!audioPermission.granted) {
-                    warn("Audio permission denied");
+                    warn(I18n.t("Audio permission denied"));
                     return this.redirect("/error?code=PERM1");
                 }
 
                 const notificationGranted = await checkPermission({ permissionType: PermissionType.Notification });
 
                 if (!notificationGranted.granted) {
-                    warn("Notification permission denied - notifications may not be visible");
+                    warn(I18n.t("Notification permission denied - notifications may not be visible"));
                     return this.redirect("/error?code=PERM2");
                 }
 
@@ -287,7 +288,7 @@ export default class Dashboard extends BVCApp {
                     });
 
                     if (!serviceResult.started) {
-                        warn("Foreground service could not be started.");
+                        warn(I18n.t("Foreground service could not be started."));
                         return this.redirect("/error?code=SERV01");
                     }
                 }
@@ -327,7 +328,7 @@ export default class Dashboard extends BVCApp {
                 // Update notification
                 await updateNotification({
                     title: "Bedrock Voice Chat",
-                    message: "In public voice chat"
+                    message: I18n.t("In public voice chat")
                 });
             }
         }
@@ -653,8 +654,8 @@ export default class Dashboard extends BVCApp {
         } catch (err) {
             const appWebview = getCurrentWebviewWindow();
             await appWebview.emit('notification', {
-                title: "Logout Failed",
-                body: "An error occurred during logout. Please try again.",
+                title: I18n.t("Logout Failed"),
+                body: I18n.t("An error occurred during logout. Please try again."),
                 level: "error"
             });
         }
@@ -783,7 +784,7 @@ export default class Dashboard extends BVCApp {
                 error(`Error updating current player: ${e}`);
             });
         } else {
-            warn("No current server found in store!");
+            warn(I18n.t("No current server found in store!"));
             await this.shutdown();
             this.redirect("/");
         }

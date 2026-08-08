@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
@@ -306,7 +307,7 @@ export default class ChannelManager {
                 if (isMobile) {
                     await updateNotification({
                         title: "Bedrock Voice Chat",
-                        message: "In public group channel"
+                        message: I18n.t("In public group channel")
                     });
                 }
                 await this.addExistingGroupMembers(channelId, actor);
@@ -347,7 +348,7 @@ export default class ChannelManager {
                 if (isMobile) {
                     await updateNotification({
                         title: "Bedrock Voice Chat",
-                        message: "In public group channel"
+                        message: I18n.t("In public group channel")
                     });
                 }
                 // Add existing group members to PlayerManager
@@ -386,7 +387,7 @@ export default class ChannelManager {
                 if (isMobile) {
                     await updateNotification({
                         title: "Bedrock Voice Chat",
-                        message: "In public voice chat"
+                        message: I18n.t("In public voice chat")
                     });
                 }
                 // Update local state optimistically
@@ -514,7 +515,7 @@ export default class ChannelManager {
     private async handleChannelEvent(event: any): Promise<void> {
         const payload = event.payload;
         if (!payload) {
-            logError("Channel event received with no payload");
+            logError(I18n.t("Channel event received with no payload"));
             return;
         }
 

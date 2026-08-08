@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { invoke } from "@tauri-apps/api/core";
     import type { UnlistenFn } from "@tauri-apps/api/event";
     import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -186,13 +187,12 @@
 
 <div class="rad-section">
     <div class="rad-section__note">
-        Turn someone down, or mute them, and it stays that way after they walk off. Only you
-        hear the difference.
+        {I18n.t("Turn someone down, or mute them, and it stays that way after they walk off. Only you hear the difference.")}
     </div>
 
     <div class="rad-swatchrow" style="margin-bottom: 4px">
         <Segmented
-            label="Which players"
+            label={I18n.t("Which players")}
             value={scope}
             options={[
                 { value: "adjusted", label: "Adjusted" },
@@ -207,8 +207,8 @@
             <Icon name="search" />
             <input
                 type="search"
-                placeholder="Search players"
-                aria-label="Search players"
+                placeholder={I18n.t("Search players")}
+                aria-label={I18n.t("Search players")}
                 bind:value={query}
                 oninput={() => (page = 0)}
             />
@@ -252,7 +252,7 @@
                             step="0.05"
                             value={row.gain}
                             disabled={row.muted}
-                            aria-label="Volume for {row.name}"
+                            aria-label={I18n.tf("Volume for {name}", { name: row.name })}
                             onpointerdown={() => (holding = row.cn)}
                             oninput={(e) => setGain(row, Number(e.currentTarget.value))}
                             onpointerup={endGain}
@@ -262,7 +262,7 @@
                         <span class="rad-player__percent">{row.readout}</span>
                         <button
                             class="rad-icon-btn"
-                            aria-label="Forget {row.name}"
+                            aria-label={I18n.tf("Forget {name}", { name: row.name })}
                             onclick={() => void forget(row)}
                         >
                             <Icon name="trash" />
@@ -277,7 +277,7 @@
                     <span class="rad-pager__pages">
                         <button
                             disabled={page === 0}
-                            aria-label="Previous page"
+                            aria-label={I18n.t("Previous page")}
                             onclick={() => goToPage(page - 1)}>‹</button
                         >
                         {#each pageSlots as slot, index (index)}
@@ -287,7 +287,7 @@
                                 <button
                                     class={slot === page ? "is-on" : ""}
                                     aria-current={slot === page ? "page" : undefined}
-                                    aria-label="Page {slot + 1}"
+                                    aria-label={I18n.tf("Page {page}", { page: slot + 1 })}
                                     onclick={() => goToPage(slot)}
                                 >
                                     {slot + 1}
@@ -296,7 +296,7 @@
                         {/each}
                         <button
                             disabled={page === pages - 1}
-                            aria-label="Next page"
+                            aria-label={I18n.t("Next page")}
                             onclick={() => goToPage(page + 1)}
                         >
                             ›
@@ -310,10 +310,9 @@
     <div class="rad-card">
         <div class="rad-row">
             <span class="rad-row__text">
-                <span class="rad-row__label">Reset everybody</span>
+                <span class="rad-row__label">{I18n.t("Reset everybody")}</span>
                 <span class="rad-row__note">
-                    Puts every player back to full volume and unmutes them all. Use this if
-                    somebody is silent and you do not remember why.
+                    {I18n.t("Puts every player back to full volume and unmutes them all. Use this if somebody is silent and you do not remember why.")}
                 </span>
             </span>
             <span class="rad-row__control">
@@ -322,7 +321,7 @@
                     disabled={adjustedCount === 0}
                     onclick={() => (resetting = true)}
                 >
-                    Reset everybody…
+                    {I18n.t("Reset everybody…")}
                 </button>
             </span>
         </div>
@@ -332,14 +331,14 @@
 {#if resetting}
     <div class="rad-scrim rad-scrim--modal is-on"></div>
     <div class="rad-modal is-open">
-        <h5 class="rad-modal__title">Reset everybody?</h5>
+        <h5 class="rad-modal__title">{I18n.t("Reset everybody?")}</h5>
         <p>
             <b>{adjustedCount} player{adjustedCount === 1 ? "" : "s"}</b> on this server go back
             to full volume, unmuted. Other servers are not affected, and nobody leaves the list.
         </p>
         <div class="rad-modal__actions">
-            <button class="rad-btn" onclick={() => (resetting = false)}>Cancel</button>
-            <button class="rad-btn rad-btn--danger" onclick={() => void resetAll()}>Reset</button>
+            <button class="rad-btn" onclick={() => (resetting = false)}>{I18n.t("Cancel")}</button>
+            <button class="rad-btn rad-btn--danger" onclick={() => void resetAll()}>{I18n.t("Reset")}</button>
         </div>
     </div>
 {/if}

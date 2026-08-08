@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import AudioDeviceSelector from "../audio/AudioDeviceSelector.svelte";
     import MicMeter from "../audio/MicMeter.svelte";
     import { LevelScale } from "$radial/core/sources/LevelScale";
@@ -33,7 +34,7 @@
     }: Props = $props();
 </script>
 
-<RadScreen label="Devices">
+<RadScreen label={I18n.t("Devices")}>
     {#snippet topbar()}
         <StepDots {step} {total} />
     {/snippet}
@@ -43,13 +44,12 @@
             <MicMeter level={LevelScale.fromRms(inputLevel)} speaking={gateOpen} {available} layout="pane" />
         </div>
         <div class="rad-content-pane rad-content-pane--top">
-            <span class="rad-label rad-rise" style="--d: 50">03 &middot; Devices</span>
+            <span class="rad-label rad-rise" style="--d: 50">03 · Devices</span>
             <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px; font-size: 2rem">
-                Pick your microphone<br /><b>and where you listen.</b>
+                {I18n.t("Pick your microphone")}<br /><b>and where you listen.</b>
             </h2>
             <p class="rad-body rad-rise" style="--d: 210">
-                Both can be changed later in settings. Talk for a moment and the mark beside this
-                fills out as your voice passes the noise gate.
+                {I18n.t("Both can be changed later in settings. Talk for a moment and the mark beside this fills out as your voice passes the noise gate.")}
             </p>
 
             <div class="rad-rise" style="--d: 300; margin-top: 24px">
@@ -65,9 +65,9 @@
     </div>
 
     {#snippet footbar()}
-        <span class="rad-label">Changeable any time in settings</span>
+        <span class="rad-label">{I18n.t("Changeable any time in settings")}</span>
         <button class="rad-btn rad-btn--lg rad-btn--primary" onclick={oncontinue}>
-            Finish setup
+            {I18n.t("Finish setup")}
         </button>
     {/snippet}
 </RadScreen>

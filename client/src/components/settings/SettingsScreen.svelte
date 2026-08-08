@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import ServerGlyph from "$radial/components/ServerGlyph.svelte";
@@ -125,13 +126,13 @@
             {/each}
         </div>
         <span class="rad-rail__spacer"></span>
-        <button class="rad-rail-btn is-on" onclick={onclose} aria-label="Close settings">
+        <button class="rad-rail-btn is-on" onclick={onclose} aria-label={I18n.t("Close settings")}>
             <Icon name="gear" />
         </button>
     </div>
 
     <div class="rad-panel">
-        <div class="rad-panel__head">Settings</div>
+        <div class="rad-panel__head">{I18n.t("Settings")}</div>
         <div class="rad-panel__body">
             <SettingsNav {groups} current={current.id} {badged} onpick={pick} />
         </div>
@@ -143,14 +144,14 @@
                 <span class="rad-dash-top__server">{current.title}</span>
             </span>
             <span class="rad-dash-top__state">
-                <button class="rad-header-btn" onclick={onclose} aria-label="Close settings">
+                <button class="rad-header-btn" onclick={onclose} aria-label={I18n.t("Close settings")}>
                     <Icon name="close" />
                 </button>
             </span>
         </div>
 
         <div class="rad-backbar">
-            <button class="rad-backbar__btn" onclick={back} aria-label="Back">
+            <button class="rad-backbar__btn" onclick={back} aria-label={I18n.t("Back")}>
                 <Icon name={level === "list" ? "close" : "back"} />
             </button>
             <span class="rad-backbar__title">
@@ -167,7 +168,7 @@
                 {#if standalone}
                     <div class="rad-callout" style="margin-bottom: 14px">
                         <span>
-                            You are in settings on its own. <b>Nothing is connected</b> — go back to
+                            {I18n.t("You are in settings on its own.")} <b>{I18n.t("Nothing is connected")}</b> — go back to
                             the dashboard when you are done here.
                         </span>
                     </div>

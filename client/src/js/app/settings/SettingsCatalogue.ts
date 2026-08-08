@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 import type { SettingsGroup, SettingsPane } from "./SettingsPane";
 
 /**
@@ -10,30 +11,43 @@ export class SettingsCatalogue {
     /** Where settings opens, and where a link to a pane this build lacks lands. */
     static readonly fallback = "account";
 
-    static readonly all: readonly SettingsPane[] = [
-        { id: "account", title: "Account", group: "", wide: false, desktopOnly: false },
-        { id: "audio", title: "Audio settings", group: "", wide: false, desktopOnly: false },
-        { id: "players", title: "Players", group: "", wide: true, desktopOnly: false },
-        { id: "recordings", title: "Recordings", group: "", wide: false, desktopOnly: true },
-        { id: "library", title: "Audio library", group: "", wide: true, desktopOnly: false },
-        { id: "keybinds", title: "Keybinds", group: "", wide: false, desktopOnly: true },
-        { id: "ws", title: "WebSocket server", group: "", wide: false, desktopOnly: false },
-        { id: "about", title: "About", group: "", wide: false, desktopOnly: false },
-        {
-            id: "proxy",
-            title: "Proxy Connect",
-            group: "Minecraft Bedrock",
-            wide: true,
-            desktopOnly: false,
-        },
-        {
-            id: "realms",
-            title: "Realms Connect",
-            group: "Minecraft Bedrock",
-            wide: true,
-            desktopOnly: false,
-        },
-    ];
+    /**
+     * A getter, not a field: the titles are read out of the catalog on access, and an
+     * array literal on the class body would capture them in English at import, before any
+     * language pack has loaded.
+     *
+     * `id` is a key — it is in the router, the deep links and the store — and is never
+     * translated. Only `title` and `group` are copy. The ungrouped panes keep a literal
+     * empty string rather than a marked one, because an empty msgid is the catalog header.
+     */
+    static get all(): readonly SettingsPane[] {
+        const bedrock = I18n.t("Minecraft Bedrock");
+
+        return [
+            { id: "account", title: I18n.t("Account"), group: "", wide: false, desktopOnly: false },
+            { id: "audio", title: I18n.t("Audio settings"), group: "", wide: false, desktopOnly: false },
+            { id: "players", title: I18n.t("Players"), group: "", wide: true, desktopOnly: false },
+            { id: "recordings", title: I18n.t("Recordings"), group: "", wide: false, desktopOnly: true },
+            { id: "library", title: I18n.t("Audio library"), group: "", wide: true, desktopOnly: false },
+            { id: "keybinds", title: I18n.t("Keybinds"), group: "", wide: false, desktopOnly: true },
+            { id: "ws", title: I18n.t("WebSocket server"), group: "", wide: false, desktopOnly: false },
+            { id: "about", title: I18n.t("About"), group: "", wide: false, desktopOnly: false },
+            {
+                id: "proxy",
+                title: I18n.t("Proxy Connect"),
+                group: bedrock,
+                wide: true,
+                desktopOnly: false,
+            },
+            {
+                id: "realms",
+                title: I18n.t("Realms Connect"),
+                group: bedrock,
+                wide: true,
+                desktopOnly: false,
+            },
+        ];
+    }
 
     static for(mobile: boolean): readonly SettingsPane[] {
         return mobile ? this.all.filter((pane) => !pane.desktopOnly) : this.all;

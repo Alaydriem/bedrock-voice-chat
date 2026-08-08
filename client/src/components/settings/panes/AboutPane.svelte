@@ -5,8 +5,11 @@
     import StatusChip from "$radial/components/StatusChip.svelte";
     import Toggle from "$radial/components/Toggle.svelte";
     import { AboutManager } from "../../../js/app/managers/settings/AboutManager";
+    import BVCApp from "../../../js/app/BVCApp";
+    import type LocaleManager from "../../../js/app/managers/settings/LocaleManager";
     import { UpdateStatus, type UpdateState } from "../../../js/app/settings/UpdateStatus";
     import type { AppInfo } from "../../../js/bindings/AppInfo";
+    import { I18n } from "$lib/i18n";
 
     interface Props {
         /** Shared with the shell, which badges the nav from the same object. */
@@ -25,8 +28,12 @@
     let refreshing = $state(false);
     let refreshMessage = $state("");
     let update = $state<UpdateState>({ kind: "idle", version: null, checkedAt: null });
+    let locales = $state<string[]>([]);
+    let activeLocale = $state("auto");
+    let locale = $state<LocaleManager | null>(null);
 
     const unsubs: Array<() => void> = [];
+    let destroyed = false;
 
     onMount(() => {
         unsubs.push(about.appInfo.subscribe((v) => (info = v)));
@@ -39,9 +46,22 @@
         unsubs.push(about.refreshFlagsMessage.subscribe((v) => (refreshMessage = v)));
         unsubs.push(updates.state.subscribe((v) => (update = v)));
         void about.initialize();
+
+        // Already resolved by the time any screen renders; awaited rather than injected so
+        // this pane works on the standalone settings route, which has no shell above it.
+        //
+        // Subscribing after a destroy would outlive the pane: the manager is owned by the
+        // app, so nothing else would ever drop the subscription.
+        void BVCApp.localeManager().then((manager) => {
+            if (destroyed) return;
+            locale = manager;
+            unsubs.push(manager.locales.subscribe((v) => (locales = v)));
+            unsubs.push(manager.active.subscribe((v) => (activeLocale = v)));
+        });
     });
 
     onDestroy(() => {
+        destroyed = true;
         for (const off of unsubs) off();
     });
 
@@ -75,32 +95,32 @@
 </script>
 
 <div class="rad-section">
-    <div class="rad-section__note">Proximity voice for Minecraft Bedrock. Source available.</div>
+    <div class="rad-section__note">{I18n.t("Proximity voice for Minecraft Bedrock. Source available.")}</div>
 
     <div class="rad-card">
         <SettingRow label={headline} note={detail}>
             {#snippet control()}
                 {#if update.kind === "checking"}
-                    <StatusChip severity="idle">Checking</StatusChip>
+                    <StatusChip severity="idle">{I18n.t("Checking")}</StatusChip>
                 {:else if update.kind === "available"}
                     <button class="rad-btn rad-btn--primary">
-                        <Icon name="download" /> Install
+                        <Icon name="download" /> {I18n.t("Install")}
                     </button>
                 {:else if update.kind !== "unavailable"}
-                    <button class="rad-btn" onclick={() => void updates.check()}>Check again</button>
+                    <button class="rad-btn" onclick={() => void updates.check()}>{I18n.t("Check again")}</button>
                 {/if}
             {/snippet}
         </SettingRow>
     </div>
 
     <div class="rad-card">
-        <div class="rad-card__head">Build</div>
+        <div class="rad-card__head">{I18n.t("Build")}</div>
         <dl class="rad-deflist">
-            <dt>Version</dt>
+            <dt>{I18n.t("Version")}</dt>
             <dd><span>{info?.app_version ?? "—"}</span></dd>
-            <dt>Protocol</dt>
+            <dt>{I18n.t("Protocol")}</dt>
             <dd><span>{info?.protocol_version ?? "—"}</span></dd>
-            <dt>Release</dt>
+            <dt>{I18n.t("Release")}</dt>
             <dd>
                 <!-- Three presses reveals the platform identifier. It is support's first
                      question and nobody else's business: a row that is always there
@@ -117,25 +137,25 @@
                     {info?.build_variant ?? "—"}
                 </span>
             </dd>
-            <dt>Commit</dt>
+            <dt>{I18n.t("Commit")}</dt>
             <dd>
                 <span>{info?.build_commit ?? "—"}</span>
                 <button
                     class="rad-icon-btn"
                     onclick={() => void copy(info?.build_commit ?? "")}
-                    aria-label="Copy commit"
+                    aria-label={I18n.t("Copy commit")}
                 >
                     <Icon name="copy" />
                 </button>
             </dd>
             {#if showPlatformId}
-                <dt>Platform ID</dt>
+                <dt>{I18n.t("Platform ID")}</dt>
                 <dd>
                     <span>{platformId}</span>
                     <button
                         class="rad-icon-btn"
                         onclick={() => void about.copyPlatformId()}
-                        aria-label="Copy platform ID"
+                        aria-label={I18n.t("Copy platform ID")}
                     >
                         <Icon name="copy" />
                     </button>
@@ -145,16 +165,39 @@
     </div>
 
     <div class="rad-card">
-        <div class="rad-card__head">Diagnostics and privacy</div>
+        <div class="rad-card__head">{I18n.t("Language")}</div>
 
         <SettingRow
-            label="Send anonymous usage and crash reports"
-            note="Anonymous usage statistics and crash reports help us improve the app. No personal data is sent."
+            label={I18n.t("Display language")}
+            note={I18n.t("Untranslated text stays in English.")}
+        >
+            {#snippet control()}
+                <select
+                    class="rad-select"
+                    value={activeLocale}
+                    disabled={locale === null}
+                    onchange={(event) => void locale?.choose(event.currentTarget.value)}
+                >
+                    <option value="auto">{I18n.t("Match my system")}</option>
+                    {#each locales as available (available)}
+                        <option value={available}>{available}</option>
+                    {/each}
+                </select>
+            {/snippet}
+        </SettingRow>
+    </div>
+
+    <div class="rad-card">
+        <div class="rad-card__head">{I18n.t("Diagnostics and privacy")}</div>
+
+        <SettingRow
+            label={I18n.t("Send anonymous usage and crash reports")}
+            note={I18n.t("Anonymous usage statistics and crash reports help us improve the app. No personal data is sent.")}
         >
             {#snippet control()}
                 <Toggle
                     checked={telemetry}
-                    label="Send anonymous usage and crash reports"
+                    label={I18n.t("Send anonymous usage and crash reports")}
                     onchange={() => void about.handleTelemetryToggle()}
                 />
             {/snippet}
@@ -162,8 +205,8 @@
 
         {#if !mobile}
             <SettingRow
-                label="Save the logs to a file"
-                note="For a bug report. Written to your Documents folder."
+                label={I18n.t("Save the logs to a file")}
+                note={I18n.t("For a bug report. Written to your Documents folder.")}
             >
                 {#snippet control()}
                     <button
@@ -179,7 +222,7 @@
         {/if}
 
         <SettingRow
-            label="Check for new features and entitlements"
+            label={I18n.t("Check for new features and entitlements")}
             note={refreshMessage ||
                 "Some users may have access to features or entitlements. You can manually refresh to check."}
         >
@@ -190,7 +233,7 @@
                     onclick={() => void about.handleRefreshFlags()}
                 >
                     <Icon name="refresh" spin={refreshing} />
-                    Refresh
+                    {I18n.t("Refresh")}
                 </button>
             {/snippet}
         </SettingRow>
@@ -206,7 +249,7 @@
             class="rad-link-card"
             onclick={() => void copy("https://www.bedrockvoicechat.com/wiki/")}
         >
-            Wiki <Icon name="ext" />
+            {I18n.t("Wiki")} <Icon name="ext" />
         </button>
     </div>
 </div>

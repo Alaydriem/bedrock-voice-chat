@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 import { fetch } from '@tauri-apps/plugin-http';
 import { info, error, warn } from '@tauri-apps/plugin-log';
 import { Store } from '@tauri-apps/plugin-store';
@@ -308,20 +309,20 @@ export default class Login extends BVCApp {
     const trimmed = url.trim();
 
     if (!trimmed) {
-      return { valid: false, error: "Please enter a server URL" };
+      return { valid: false, error: I18n.t("Please enter a server URL") };
     }
 
     const sanitized = this.sanitizeServerUrl(trimmed);
     try {
       const parsed = new URL(sanitized);
       if (parsed.protocol !== "https:") {
-        return { valid: false, error: "Server URL must use HTTPS" };
+        return { valid: false, error: I18n.t("Server URL must use HTTPS") };
       }
       if (!parsed.hostname || parsed.hostname.length < 3) {
-        return { valid: false, error: "Please enter a valid server URL" };
+        return { valid: false, error: I18n.t("Please enter a valid server URL") };
       }
     } catch {
-      return { valid: false, error: "Please enter a valid server URL" };
+      return { valid: false, error: I18n.t("Please enter a valid server URL") };
     }
 
     return { valid: true };
@@ -450,7 +451,7 @@ export default class Login extends BVCApp {
     // the inline error without a connecting flicker.
     const validation = this.validateServerUrl(value);
     if (!validation.valid) {
-      this.reportError(validation.error || "Please enter a valid server URL");
+      this.reportError(validation.error || I18n.t("Please enter a valid server URL"));
       this.loginStateStore.set('idle');
       return;
     }
@@ -658,7 +659,7 @@ export default class Login extends BVCApp {
 
     const validation = this.validateServerUrl(rawValue);
     if (!validation.valid) {
-      this.reportError(validation.error || "Please enter a valid server URL");
+      this.reportError(validation.error || I18n.t("Please enter a valid server URL"));
       return { status: 'invalid' };
     }
 
@@ -708,7 +709,7 @@ export default class Login extends BVCApp {
 
     const validation = this.validateServerUrl(rawValue);
     if (!validation.valid) {
-      this.reportError(validation.error || "Please enter a valid server URL");
+      this.reportError(validation.error || I18n.t("Please enter a valid server URL"));
       return { status: 'invalid' };
     }
 
@@ -723,7 +724,7 @@ export default class Login extends BVCApp {
       }
 
       if (configResponse.status !== 200) {
-        throw new Error("Server not reachable");
+        throw new Error(I18n.t("Server not reachable"));
       }
 
       const response = await invoke<HytaleDeviceFlowStartResponse>("start_hytale_device_flow", {
@@ -772,17 +773,17 @@ export default class Login extends BVCApp {
           case "Expired":
             warn("Hytale device code expired");
             this.stopHytalePolling();
-            this.reportError("Device code expired. Please try again.");
+            this.reportError(I18n.t("Device code expired. Please try again."));
             break;
           case "Denied":
             warn("Hytale authorization denied");
             this.stopHytalePolling();
-            this.reportError("Authorization denied. Please try again.");
+            this.reportError(I18n.t("Authorization denied. Please try again."));
             break;
           case "Error":
             error("Hytale auth error");
             this.stopHytalePolling();
-            this.reportError("Authentication error. Please try again.");
+            this.reportError(I18n.t("Authentication error. Please try again."));
             break;
         }
       } catch (e) {

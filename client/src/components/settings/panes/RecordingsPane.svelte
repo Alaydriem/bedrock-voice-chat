@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { invoke } from "@tauri-apps/api/core";
     import { onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
@@ -84,14 +85,13 @@
 
 <div class="rad-section">
     <div class="rad-section__note">
-        Every session is stored as one track per player, timecoded together. Export writes the mix
-        and the tracks you pick into the session's own folder.
+        {I18n.t("Every session is stored as one track per player, timecoded together. Export writes the mix and the tracks you pick into the session's own folder.")}
     </div>
 
     {#if listState === "ready" && rows.length > 0}
         <div class="rad-swatchrow" style="margin-bottom: 4px">
             <StatusChip>
-                {rows.length} session{rows.length === 1 ? "" : "s"} &middot; {total}
+                {rows.length} session{rows.length === 1 ? "" : "s"} · {total}
             </StatusChip>
         </div>
     {/if}
@@ -110,11 +110,11 @@
                 <table class="rad-table">
                     <thead>
                         <tr>
-                            <th>Session</th>
-                            <th class="rad-num">Recorded</th>
-                            <th class="rad-num">Length</th>
-                            <th class="rad-num">Tracks</th>
-                            <th class="rad-num">Size</th>
+                            <th>{I18n.t("Session")}</th>
+                            <th class="rad-num">{I18n.t("Recorded")}</th>
+                            <th class="rad-num">{I18n.t("Length")}</th>
+                            <th class="rad-num">{I18n.t("Tracks")}</th>
+                            <th class="rad-num">{I18n.t("Size")}</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -128,7 +128,7 @@
                                              whose format this one cannot read. Either
                                              way it can be named and deleted, not
                                              exported. -->
-                                        <StatusChip severity="muted">Not exportable</StatusChip>
+                                        <StatusChip severity="muted">{I18n.t("Not exportable")}</StatusChip>
                                     {/if}
                                 </td>
                                 <td class="rad-num">{row.recorded}</td>
@@ -141,7 +141,7 @@
                                             class="rad-kebab"
                                             disabled={!row.exportable}
                                             onclick={() => openExport(row)}
-                                            aria-label="Export {row.name}"
+                                            aria-label={I18n.tf("Export {name}", { name: row.name })}
                                         >
                                             <Icon name="download" />
                                         </button>
@@ -151,14 +151,14 @@
                                                 renaming = row;
                                                 renameTo = row.unnamed ? "" : row.name;
                                             }}
-                                            aria-label="Rename {row.name}"
+                                            aria-label={I18n.tf("Rename {name}", { name: row.name })}
                                         >
                                             <Icon name="field" />
                                         </button>
                                         <button
                                             class="rad-kebab"
                                             onclick={() => (deleting = row)}
-                                            aria-label="Delete {row.name}"
+                                            aria-label={I18n.tf("Delete {name}", { name: row.name })}
                                         >
                                             <Icon name="trash" />
                                         </button>
@@ -174,8 +174,7 @@
 
     <div class="rad-callout">
         <span>
-            An export is written beside the recording it came from, in that session's own folder.
-            Nothing is uploaded &mdash; <b>a recording never leaves this machine unless you move it
+            {I18n.t("An export is written beside the recording it came from, in that session's own folder. Nothing is uploaded —")} <b>a recording never leaves this machine unless you move it
             yourself.</b>
         </span>
     </div>
@@ -184,8 +183,8 @@
 {#if exporting}
     <div class="rad-scrim rad-scrim--modal is-on"></div>
     <div class="rad-modal rad-modal--wide is-open">
-        <h5 class="rad-modal__title">Export this recording</h5>
-        <p>Pick who to include. Each player is written as their own track alongside the mix.</p>
+        <h5 class="rad-modal__title">{I18n.t("Export this recording")}</h5>
+        <p>{I18n.t("Pick who to include. Each player is written as their own track alongside the mix.")}</p>
         <div class="rad-card" style="margin-top: 14px">
             <div class="rad-modal__scroll">
                 {#each exporting.players as player (player)}
@@ -204,23 +203,22 @@
         <div class="rad-card" style="margin-top: 12px">
             <div class="rad-row">
                 <span class="rad-row__text">
-                    <span class="rad-row__label">Mix in the spatial positions</span>
+                    <span class="rad-row__label">{I18n.t("Mix in the spatial positions")}</span>
                     <span class="rad-row__note">
-                        Places each voice where it was standing. Off writes every track flat and
-                        centred, which is what you want if you are going to mix it yourself.
+                        {I18n.t("Places each voice where it was standing. Off writes every track flat and centred, which is what you want if you are going to mix it yourself.")}
                     </span>
                 </span>
                 <span class="rad-row__control">
                     <Toggle
                         checked={spatial}
-                        label="Mix in the spatial positions"
+                        label={I18n.t("Mix in the spatial positions")}
                         onchange={(v) => (spatial = v)}
                     />
                 </span>
             </div>
         </div>
         <div class="rad-modal__actions">
-            <button class="rad-btn" onclick={() => (exporting = null)}>Cancel</button>
+            <button class="rad-btn" onclick={() => (exporting = null)}>{I18n.t("Cancel")}</button>
             <button
                 class="rad-btn rad-btn--primary"
                 disabled={chosen.size === 0}
@@ -235,21 +233,21 @@
 {#if renaming}
     <div class="rad-scrim rad-scrim--modal is-on"></div>
     <div class="rad-modal is-open">
-        <h5 class="rad-modal__title">Rename this recording</h5>
-        <p>Only the name changes. The recording and its tracks stay where they are.</p>
+        <h5 class="rad-modal__title">{I18n.t("Rename this recording")}</h5>
+        <p>{I18n.t("Only the name changes. The recording and its tracks stay where they are.")}</p>
         <span class="rad-input" style="margin-top: 12px; width: 100%">
             <!-- svelte-ignore a11y_autofocus -->
             <input
                 type="text"
                 bind:value={renameTo}
                 placeholder={renaming.recorded}
-                aria-label="Recording name"
+                aria-label={I18n.t("Recording name")}
                 autofocus
             />
         </span>
         <div class="rad-modal__actions">
-            <button class="rad-btn" onclick={() => (renaming = null)}>Cancel</button>
-            <button class="rad-btn rad-btn--primary" onclick={() => void runRename()}>Rename</button>
+            <button class="rad-btn" onclick={() => (renaming = null)}>{I18n.t("Cancel")}</button>
+            <button class="rad-btn rad-btn--primary" onclick={() => void runRename()}>{I18n.t("Rename")}</button>
         </div>
     </div>
 {/if}
@@ -257,15 +255,15 @@
 {#if deleting}
     <div class="rad-scrim rad-scrim--modal is-on"></div>
     <div class="rad-modal is-open">
-        <h5 class="rad-modal__title">Delete this recording?</h5>
+        <h5 class="rad-modal__title">{I18n.t("Delete this recording?")}</h5>
         <p>
             <b>{deleting.name}</b> and all of its tracks will be removed from disk. This cannot be
             undone.
         </p>
         <div class="rad-modal__actions">
-            <button class="rad-btn" onclick={() => (deleting = null)}>Keep it</button>
+            <button class="rad-btn" onclick={() => (deleting = null)}>{I18n.t("Keep it")}</button>
             <button class="rad-btn rad-btn--danger" onclick={() => void runDelete()}>
-                <Icon name="trash" /> Delete
+                <Icon name="trash" /> {I18n.t("Delete")}
             </button>
         </div>
     </div>

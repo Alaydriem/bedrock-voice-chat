@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import SettingRow from "$radial/components/SettingRow.svelte";
@@ -114,7 +115,7 @@
         <div class="rad-card">
             <div class="rad-empty" style="padding: 34px 20px">
                 <Loader loading size={72} />
-                <span class="rad-empty__note">Checking your Microsoft sign-in.</span>
+                <span class="rad-empty__note">{I18n.t("Checking your Microsoft sign-in.")}</span>
             </div>
         </div>
     {:else if !authed}
@@ -122,16 +123,16 @@
             <div class="rad-account rad-account--stack">
                 <span class="rad-account__badge" style="background: #107c10">MS</span>
                 <span class="rad-account__text">
-                    <span class="rad-account__name">Sign in with Microsoft</span>
-                    <span class="rad-account__meta">TO LIST THE REALMS YOU CAN JOIN</span>
+                    <span class="rad-account__name">{I18n.t("Sign in with Microsoft")}</span>
+                    <span class="rad-account__meta">{I18n.t("TO LIST THE REALMS YOU CAN JOIN")}</span>
                 </span>
                 <button class="rad-btn rad-btn--primary" onclick={() => void bedrock.openLoginModal()}>
-                    Sign in
+                    {I18n.t("Sign in")}
                 </button>
             </div>
         </div>
     {:else}
-        <div class="rad-section__head" style="font-size: var(--text-rad-lead)">Your Realms</div>
+        <div class="rad-section__head" style="font-size: var(--text-rad-lead)">{I18n.t("Your Realms")}</div>
         <br />
         <ListShell
             state={listState}
@@ -168,14 +169,14 @@
 
             {#if !mobile}
                 <SettingRow
-                    label="Listen on"
-                    note="Which of this machine's addresses the proxy binds. Loopback unless you play from a console or a phone on this network."
+                    label={I18n.t("Listen on")}
+                    note={I18n.t("Which of this machine's addresses the proxy binds. Loopback unless you play from a console or a phone on this network.")}
                 >
                     {#snippet control()}
                         <select
                             class="rad-select"
                             value={bind}
-                            aria-label="Listen on"
+                            aria-label={I18n.t("Listen on")}
                             onchange={(e) => (bind = (e.target as HTMLSelectElement).value)}
                         >
                             {#each choices as choice (choice.id)}
@@ -186,7 +187,7 @@
                 </SettingRow>
             {/if}
 
-            <SettingRow label="Forwarding to">
+            <SettingRow label={I18n.t("Forwarding to")}>
                 {#snippet control()}
                     <StatusChip severity={activeName ? "ok" : "muted"}>
                         {activeName || "Nothing yet"}
@@ -197,7 +198,7 @@
 
         <div class="rad-callout rad-callout--warn">
             <span>
-                Join <b>{join}</b> in Minecraft, not the Realm. Joining the Realm from the Friends
+                {I18n.t("Join")} <b>{join}</b> in Minecraft, not the Realm. Joining the Realm from the Friends
                 tab skips the proxy and voice stays non-positional.
             </span>
         </div>

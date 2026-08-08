@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { invoke } from "@tauri-apps/api/core";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
@@ -162,7 +163,7 @@
         <div class="rad-card">
             <div class="rad-empty" style="padding: 34px 20px">
                 <Loader loading size={72} />
-                <span class="rad-empty__note">Checking your Microsoft sign-in.</span>
+                <span class="rad-empty__note">{I18n.t("Checking your Microsoft sign-in.")}</span>
             </div>
         </div>
     {:else if !authed}
@@ -170,11 +171,11 @@
             <div class="rad-account rad-account--stack">
                 <span class="rad-account__badge" style="background: #107c10">MS</span>
                 <span class="rad-account__text">
-                    <span class="rad-account__name">Sign in with Microsoft</span>
-                    <span class="rad-account__meta">THE PROXY JOINS THE SERVER AS YOU</span>
+                    <span class="rad-account__name">{I18n.t("Sign in with Microsoft")}</span>
+                    <span class="rad-account__meta">{I18n.t("THE PROXY JOINS THE SERVER AS YOU")}</span>
                 </span>
                 <button class="rad-btn rad-btn--primary" onclick={() => void bedrock.openLoginModal()}>
-                    Sign in
+                    {I18n.t("Sign in")}
                 </button>
             </div>
         </div>
@@ -182,16 +183,16 @@
         {#if capability === "unknown"}
             <div class="rad-callout rad-callout--warn">
                 <span>
-                    <b>We could not reach this server to ask whether Bedrock support is on.</b>
-                    You can start the proxy anyway &mdash; if position is refused, this is why.
+                    <b>{I18n.t("We could not reach this server to ask whether Bedrock support is on.")}</b>
+                    {I18n.t("You can start the proxy anyway — if position is refused, this is why.")}
                     <button class="rad-btn rad-btn--quiet" onclick={() => void bedrock.capability.refresh()}>
-                        Check again
+                        {I18n.t("Check again")}
                     </button>
                 </span>
             </div>
         {/if}
 
-        <div class="rad-section__head" style="font-size: var(--text-rad-lead)">Where you play</div>
+        <div class="rad-section__head" style="font-size: var(--text-rad-lead)">{I18n.t("Where you play")}</div>
         <br />
         <ListShell
             state={listState}
@@ -205,7 +206,7 @@
         >
             {#snippet emptyAction()}
                 <button class="rad-btn rad-btn--primary" onclick={() => (editing = null)}>
-                    <Icon name="plus" /> Add a server
+                    <Icon name="plus" /> {I18n.t("Add a server")}
                 </button>
             {/snippet}
             <PlateGrid
@@ -237,14 +238,14 @@
 
             {#if !mobile}
                 <SettingRow
-                    label="Listen on"
-                    note="Which of this machine's addresses the proxy binds. Loopback unless you play from a console or a phone on this network."
+                    label={I18n.t("Listen on")}
+                    note={I18n.t("Which of this machine's addresses the proxy binds. Loopback unless you play from a console or a phone on this network.")}
                 >
                     {#snippet control()}
                         <select
                             class="rad-select"
                             value={bind}
-                            aria-label="Listen on"
+                            aria-label={I18n.t("Listen on")}
                             onchange={(e) => (bind = (e.target as HTMLSelectElement).value)}
                         >
                             {#each choices as choice (choice.id)}
@@ -256,7 +257,7 @@
             {/if}
 
             <SettingRow
-                label="Status"
+                label={I18n.t("Status")}
                 note={running && startedAt
                     ? `Running for ${clock(now - startedAt)}`
                     : "Pick where you play, then connect."}
@@ -267,7 +268,7 @@
                     </StatusChip>
                     {#if running}
                         <button class="rad-btn rad-btn--danger" onclick={() => void bedrock.stopProxy()}>
-                            <Icon name="stop" /> Stop
+                            <Icon name="stop" /> {I18n.t("Stop")}
                         </button>
                     {/if}
                 {/snippet}
@@ -276,7 +277,7 @@
 
         <div class="rad-callout rad-callout--warn">
             <span>
-                Join <b>{join}</b> in Minecraft, not the server itself. Joining directly skips the
+                {I18n.t("Join")} <b>{join}</b> in Minecraft, not the server itself. Joining directly skips the
                 proxy and voice stays non-positional.
             </span>
         </div>

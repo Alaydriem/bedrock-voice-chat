@@ -1,6 +1,116 @@
 export type Severity = "ok" | "warn" | "bad";
 
 /**
+ * Every word the diagnostics panel says that is not a number or a unit.
+ *
+ * The kit cannot reach the application's translation surface — it runs under `node --test`
+ * with no bundler, and the surface is built on runes the type stripper cannot evaluate — so
+ * the words arrive as an argument instead. `DIAGNOSTICS_EN` is the default, which keeps the
+ * reference gallery and the kit's own tests working with no caller changes.
+ */
+export interface DiagnosticsLabels {
+  yourMic: string;
+  whatYouHear: string;
+  link: string;
+  session: string;
+
+  device: string;
+  sampleRate: string;
+  noiseGate: string;
+  capturing: string;
+  sending: string;
+  receiving: string;
+  mutedByYou: string;
+  state: string;
+  roundTrip: string;
+  packetLoss: string;
+  jitterBuffer: string;
+  quicPort: string;
+  server: string;
+  protocol: string;
+  proximityRange: string;
+  falloff: string;
+
+  gateOff: string;
+  gateOpen: string;
+  gateClosed: string;
+  notMeasuredYet: string;
+  micStopped: string;
+  nothingGoingOut: string;
+  expectedRate: string;
+  none: string;
+  reconnecting: string;
+  connected: string;
+  stalled: string;
+  fallbackPort: string;
+  drops: string;
+}
+
+export const DIAGNOSTICS_EN: DiagnosticsLabels = {
+  yourMic: "Your mic",
+  whatYouHear: "What you hear",
+  link: "Link",
+  session: "Session",
+
+  device: "Device",
+  sampleRate: "Sample rate",
+  noiseGate: "Noise gate",
+  capturing: "Capturing",
+  sending: "Sending",
+  receiving: "Receiving",
+  mutedByYou: "Muted by you",
+  state: "State",
+  roundTrip: "Round trip",
+  packetLoss: "Packet loss",
+  jitterBuffer: "Jitter buffer",
+  quicPort: "QUIC port",
+  server: "Server",
+  protocol: "Protocol",
+  proximityRange: "Proximity range",
+  falloff: "Falloff",
+
+  gateOff: "off (not in the audio path)",
+  gateOpen: "on, open (passing audio)",
+  gateClosed: "on, closed  ← this is cutting your mic",
+  notMeasuredYet: "not measured yet",
+  micStopped: "← your microphone has stopped",
+  nothingGoingOut: "← nothing is going out",
+  expectedRate: "← expected 48.0",
+  none: "none",
+  reconnecting: "reconnecting",
+  connected: "connected",
+  stalled: "← stalled",
+  fallbackPort: "(fallback)",
+  drops: "drops",
+};
+
+/** Which verdict fired. The kit decides this; what it reads is decided elsewhere. */
+export type VerdictCode =
+  | "reconnecting"
+  | "stalled"
+  | "deafened"
+  | "ptt-idle"
+  | "muted"
+  | "input-rate"
+  | "concealment"
+  | "loss"
+  | "muted-others"
+  | "fine";
+
+/**
+ * A verdict as a code and its numbers, not as a sentence.
+ *
+ * The kit runs framework-free, under `node --test` with no bundler, so it cannot reach the
+ * application's translation surface — and it should not: deciding which check failed is its
+ * job, and wording that decision is not. Rendering lives in `DiagnosticsCopy`.
+ */
+export interface Verdict {
+  severity: Severity;
+  code: VerdictCode;
+  params?: Readonly<Record<string, string | number>>;
+}
+
+/**
  * Whether the noise gate is in the audio path, and what it is doing there.
  *
  * Three states, because a boolean cannot separate the two that matter to someone whose
@@ -99,29 +209,29 @@ export interface KvGroup {
 export class Diagnostics {
   static readonly EXPECTED_RATE = 48000;
 
-  static verdict(d: DiagnosticsInput): readonly [Severity, string] {
+  static verdict(d: DiagnosticsInput): Verdict {
     if (d.reconnecting) {
-      const attempt = d.attempt ? ` — attempt ${d.attempt}` : "";
-      return ["bad", `Reconnecting${attempt}. Nobody can hear you right now.`];
+      return { severity: "bad", code: "reconnecting", params: { attempt: d.attempt ?? 0 } };
     }
     // Above loss, because it outranks it: your microphone is fine, the link reads as up, and
     // nothing you say is arriving. Every other number on this panel looks healthy.
     if (d.stalled) {
-      return ["bad", "Your audio is not reaching the server. Try reconnecting."];
+      return { severity: "bad", code: "stalled" };
     }
-    if (d.deafened) return ["warn", "You are deafened. You cannot hear anyone."];
+    if (d.deafened) return { severity: "warn", code: "deafened" };
     // Above mute, because in push-to-talk mute is not a fault — it is the mode at rest, and
     // the two are the same fact told twice. Below it, a released button read as "You are
     // muted. Nobody can hear you." in coral, and the release tail made the panel cycle
     // through three verdicts in a third of a second: fine while held, push-to-talk for the
     // tail, then muted. Only a mute that is not push-to-talk's doing is worth alarm.
-    if (d.pttIdle) return ["warn", "Push-to-talk is on. Hold the mic button to speak."];
-    if (d.muted) return ["bad", "You are muted. Nobody can hear you."];
+    if (d.pttIdle) return { severity: "warn", code: "ptt-idle" };
+    if (d.muted) return { severity: "bad", code: "muted" };
     if (d.inputRate !== Diagnostics.EXPECTED_RATE) {
-      return [
-        "warn",
-        `Your input device is running at ${(d.inputRate / 1000).toFixed(1)} kHz. BVC expects 48 kHz.`,
-      ];
+      return {
+        severity: "warn",
+        code: "input-rate",
+        params: { kHz: (d.inputRate / 1000).toFixed(1) },
+      };
     }
     // Above loss, because this is what somebody actually heard. Loss is a cause; concealment
     // is the symptom they came to the panel about.
@@ -130,19 +240,22 @@ export class Diagnostics {
     // everybody audible. Phrased as "what you heard" it accused the whole link of something one
     // person's uplink was doing, and sent the reader looking for a fault at this end.
     if ((d.concealmentPercent ?? 0) > 5) {
-      return [
-        "warn",
-        `${d.concealmentPercent}% of the worst speaker's audio had to be reconstructed. They will sound rough.`,
-      ];
+      return {
+        severity: "warn",
+        code: "concealment",
+        params: { percent: d.concealmentPercent ?? 0 },
+      };
     }
     if (d.lossPercent > 3) {
-      return ["warn", `Packet loss is ${d.lossPercent}%. Audio will break up.`];
+      return { severity: "warn", code: "loss", params: { percent: d.lossPercent } };
     }
     if (d.mutedOthers > 0) {
-      const plural = d.mutedOthers === 1 ? "player is" : "players are";
-      return ["warn", `${d.mutedOthers} ${plural} muted by you.`];
+      // The count travels as a number rather than as a finished phrase. Choosing between
+      // "player is" and "players are" here would bake English's two-form plural into the
+      // kit, which is wrong in every language that has more than two.
+      return { severity: "warn", code: "muted-others", params: { count: d.mutedOthers } };
     }
-    return ["ok", "Everything looks fine."];
+    return { severity: "ok", code: "fine" };
   }
 
   /**
@@ -153,14 +266,14 @@ export class Diagnostics {
    * not, and someone whose mic had gone quiet had no way to rule it in or out. Only a gate
    * that is on and shut can be the cause, so only that one gets the arrow.
    */
-  static gate(status: NoiseGateStatus): string {
+  static gate(status: NoiseGateStatus, labels: DiagnosticsLabels = DIAGNOSTICS_EN): string {
     switch (status) {
       case "Disabled":
-        return "off (not in the audio path)";
+        return labels.gateOff;
       case "Open":
-        return "on, open (passing audio)";
+        return labels.gateOpen;
       case "Closed":
-        return "on, closed  ← this is cutting your mic";
+        return labels.gateClosed;
     }
   }
 
@@ -172,40 +285,44 @@ export class Diagnostics {
    * reads open and the sending figure still moves, which is the shape of the fault that was
    * previously impossible to tell apart from a quiet room.
    */
-  static capture(framesPerSecond: number | null): string {
-    if (framesPerSecond === null) return "not measured yet";
-    if (framesPerSecond === 0) return "0 frames/s  ← your microphone has stopped";
+  static capture(
+    framesPerSecond: number | null,
+    labels: DiagnosticsLabels = DIAGNOSTICS_EN,
+  ): string {
+    if (framesPerSecond === null) return labels.notMeasuredYet;
+    if (framesPerSecond === 0) return `0 frames/s  ${labels.micStopped}`;
     return `${Math.round(framesPerSecond)} frames/s`;
   }
 
-  static groups(d: DiagnosticsInput): KvGroup[] {
+  static groups(d: DiagnosticsInput, labels: DiagnosticsLabels = DIAGNOSTICS_EN): KvGroup[] {
     const rate = (hz: number) => `${(hz / 1000).toFixed(1)} kHz`;
     return [
       {
-        title: "Your mic",
+        title: labels.yourMic,
         rows: [
-          ["Device", d.inputDevice],
+          [labels.device, d.inputDevice],
           [
-            "Sample rate",
-            rate(d.inputRate) + (d.inputRate !== Diagnostics.EXPECTED_RATE ? "  ← expected 48.0" : ""),
+            labels.sampleRate,
+            rate(d.inputRate) +
+              (d.inputRate !== Diagnostics.EXPECTED_RATE ? `  ${labels.expectedRate}` : ""),
           ],
-          ["Noise gate", Diagnostics.gate(d.noiseGate)],
-          ["Capturing", Diagnostics.capture(d.capturing)],
+          [labels.noiseGate, Diagnostics.gate(d.noiseGate, labels)],
+          [labels.capturing, Diagnostics.capture(d.capturing, labels)],
           [
-            "Sending",
+            labels.sending,
             `${d.datagramsOut} audio datagrams/s` +
-              (d.datagramsOut === 0 ? "  ← nothing is going out" : ""),
+              (d.datagramsOut === 0 ? `  ${labels.nothingGoingOut}` : ""),
           ],
         ],
       },
       {
-        title: "What you hear",
+        title: labels.whatYouHear,
         rows: [
-          ["Device", d.outputDevice],
-          ["Sample rate", rate(d.outputRate)],
-          ["Receiving", `${d.datagramsIn} datagrams/s`],
+          [labels.device, d.outputDevice],
+          [labels.sampleRate, rate(d.outputRate)],
+          [labels.receiving, `${d.datagramsIn} datagrams/s`],
           [
-            "Muted by you",
+            labels.mutedByYou,
             // The denominator is dropped when it is not known rather than printed as zero:
             // "1 of 0" is arithmetic nobody can act on, and the two figures come from different
             // places — the count from this client's own mixer, the population from the position
@@ -214,34 +331,34 @@ export class Diagnostics {
               ? d.visiblePlayers > 0
                 ? `${d.mutedOthers} of ${d.visiblePlayers}`
                 : `${d.mutedOthers}`
-              : "none",
+              : labels.none,
           ],
         ],
       },
       {
-        title: "Link",
+        title: labels.link,
         rows: [
           [
-            "State",
+            labels.state,
             d.reconnecting
-              ? `reconnecting (${d.attempt ?? 1})`
+              ? `${labels.reconnecting} (${d.attempt ?? 1})`
               : d.stalled
-                ? `connected  ${Diagnostics.duration(d.uptimeSeconds)}  ← stalled`
-                : `connected  ${Diagnostics.duration(d.uptimeSeconds)}`,
+                ? `${labels.connected}  ${Diagnostics.duration(d.uptimeSeconds)}  ${labels.stalled}`
+                : `${labels.connected}  ${Diagnostics.duration(d.uptimeSeconds)}`,
           ],
-          ["Round trip", `${d.rtt} ms`],
-          ["Packet loss", `${d.lossPercent} %`],
-          ["Jitter buffer", `${d.jitterMs} ms  /  ${d.jitterDrops} drops`],
-          ["QUIC port", `${d.quicPort}${d.quicPort !== 443 ? "  (fallback)" : ""}`],
+          [labels.roundTrip, `${d.rtt} ms`],
+          [labels.packetLoss, `${d.lossPercent} %`],
+          [labels.jitterBuffer, `${d.jitterMs} ms  /  ${d.jitterDrops} ${labels.drops}`],
+          [labels.quicPort, `${d.quicPort}${d.quicPort !== 443 ? `  ${labels.fallbackPort}` : ""}`],
         ],
       },
       {
-        title: "Session",
+        title: labels.session,
         rows: [
-          ["Server", d.server],
-          ["Protocol", d.protocol],
-          ["Proximity range", `${d.rangeMetres} m`],
-          ["Falloff", d.falloff],
+          [labels.server, d.server],
+          [labels.protocol, d.protocol],
+          [labels.proximityRange, `${d.rangeMetres} m`],
+          [labels.falloff, d.falloff],
         ],
       },
     ];

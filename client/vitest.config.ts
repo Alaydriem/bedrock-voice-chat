@@ -10,6 +10,9 @@ export default defineConfig({
     // Component tests import kit code the same way app code does.
     alias: {
       $radial: fileURLToPath(new URL("./src/radial", import.meta.url)),
+      // SvelteKit resolves $lib through its own plugin, which is absent here for the
+      // same reason $app is below. Components importing I18n are unloadable without it.
+      $lib: fileURLToPath(new URL("./src/lib", import.meta.url)),
       // SvelteKit's own plugin is not in this pipeline, so its ambient modules
       // have to come from somewhere. Route components are unimportable without
       // them, coverage included.

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { onMount } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { info, error } from "@tauri-apps/plugin-log";
@@ -81,20 +82,20 @@
 
 {#if isMobile}
     <SettingRow
-        label="Chosen by the system"
-        note="Your phone routes voice to whatever you last connected. Plug in a headset and it follows."
+        label={I18n.t("Chosen by the system")}
+        note={I18n.t("Your phone routes voice to whatever you last connected. Plug in a headset and it follows.")}
     />
 {:else if isLoading}
     <div class="rad-empty" style="padding: 34px 20px">
         <Loader loading size={72} />
-        <span class="rad-empty__note">Getting your audio devices.</span>
+        <span class="rad-empty__note">{I18n.t("Getting your audio devices.")}</span>
     </div>
 {:else}
-    <SettingRow label="Input device">
+    <SettingRow label={I18n.t("Input device")}>
         {#snippet control()}
             <select
                 class="rad-select"
-                aria-label="Input device"
+                aria-label={I18n.t("Input device")}
                 value={selectedInput}
                 onchange={(e) => {
                     selectedInput = (e.target as HTMLSelectElement).value;
@@ -110,11 +111,11 @@
         {/snippet}
     </SettingRow>
 
-    <SettingRow label="Output device">
+    <SettingRow label={I18n.t("Output device")}>
         {#snippet control()}
             <select
                 class="rad-select"
-                aria-label="Output device"
+                aria-label={I18n.t("Output device")}
                 value={selectedOutput}
                 onchange={(e) => {
                     selectedOutput = (e.target as HTMLSelectElement).value;
@@ -132,7 +133,7 @@
 
     {#if failure}
         <div class="rad-callout rad-callout--warn" role="alert">
-            <span><b>The device list is incomplete.</b> {failure}</span>
+            <span><b>{I18n.t("The device list is incomplete.")}</b> {failure}</span>
         </div>
     {/if}
 {/if}

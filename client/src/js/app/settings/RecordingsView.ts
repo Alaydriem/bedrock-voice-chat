@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 import type { RecordingSession } from "../../bindings/RecordingSession";
 import type { RecordingRow } from "./RecordingRow";
 
@@ -30,7 +31,7 @@ export class RecordingsView {
 
     /** When it happened, in the reader's locale. Identifies an unnamed recording. */
     static recordedLabel(startedMs: number): string {
-        if (!Number.isFinite(startedMs) || startedMs <= 0) return "Unknown date";
+        if (!Number.isFinite(startedMs) || startedMs <= 0) return I18n.t("Unknown date");
         const at = new Date(startedMs);
         return `${at.toLocaleDateString()} ${at.toLocaleTimeString([], {
             hour: "2-digit",

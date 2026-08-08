@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import ServerGlyph from "$radial/components/ServerGlyph.svelte";
     import StatusChip from "$radial/components/StatusChip.svelte";
@@ -61,7 +62,7 @@
                         class="rad-icon-btn rad-fav"
                         aria-pressed={plate.favourite}
                         onclick={() => onfavourite(plate.id)}
-                        aria-label="Favourite {plate.name}"
+                        aria-label={I18n.tf("Favourite {name}", { name: plate.name })}
                     >
                         <Icon name="star" />
                     </button>
@@ -69,7 +70,7 @@
                         <button
                             class="rad-icon-btn"
                             onclick={() => onedit(plate.id)}
-                            aria-label="Edit {plate.name}"
+                            aria-label={I18n.tf("Edit {name}", { name: plate.name })}
                         >
                             <Icon name="field" />
                         </button>
@@ -78,7 +79,7 @@
                         <button
                             class="rad-icon-btn"
                             onclick={() => onremove(plate.id)}
-                            aria-label="Remove {plate.name}"
+                            aria-label={I18n.tf("Remove {name}", { name: plate.name })}
                         >
                             <Icon name="trash" />
                         </button>
@@ -87,7 +88,7 @@
 
                 {#if plate.active}
                     <button class="rad-btn rad-btn--danger" onclick={() => onstop(plate.id)}>
-                        Stop
+                        {I18n.t("Stop")}
                     </button>
                 {:else}
                     <button
@@ -95,7 +96,7 @@
                         disabled={!plate.reachable}
                         onclick={() => onconnect(plate.id)}
                     >
-                        Connect
+                        {I18n.t("Connect")}
                     </button>
                 {/if}
             </span>

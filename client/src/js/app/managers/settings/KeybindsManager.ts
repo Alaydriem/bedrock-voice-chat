@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 import { writable, type Readable, type Writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import { Store } from "@tauri-apps/plugin-store";
@@ -73,10 +74,10 @@ export class KeybindsManager {
     ]);
 
     public readonly rows: KeybindRow[] = [
-        { id: "toggleMute", label: "Toggle Mute" },
-        { id: "toggleDeafen", label: "Toggle Deafen" },
-        { id: "toggleRecording", label: "Toggle Recording" },
-        { id: "pushToTalk", label: "Push to Talk" },
+        { id: "toggleMute", label: I18n.t("Toggle Mute") },
+        { id: "toggleDeafen", label: I18n.t("Toggle Deafen") },
+        { id: "toggleRecording", label: I18n.t("Toggle Recording") },
+        { id: "pushToTalk", label: I18n.t("Push to Talk") },
     ];
 
     private isReadyStore: Writable<boolean>;
@@ -126,7 +127,7 @@ export class KeybindsManager {
     }
 
     displayCombo(combo: string): string {
-        if (!combo) return "Not set";
+        if (!combo) return I18n.t("Not set");
         return combo.split("+").map(part => {
             // Strip "Key" prefix for letters
             if (part.startsWith("Key") && part.length === 4) return part.charAt(3);

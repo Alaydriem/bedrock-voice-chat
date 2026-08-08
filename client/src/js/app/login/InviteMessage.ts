@@ -1,3 +1,4 @@
+import { I18n } from "$lib/i18n";
 /**
  * What "Copy message" copies.
  *
@@ -9,7 +10,7 @@ export default class InviteMessage {
     static readonly TEXT = [
         "Hey — I'd like to use proximity voice chat on our Minecraft world.",
         '',
-        "It's a one-time setup on your side: run the BVC server on any machine you control,",
+        I18n.t("It's a one-time setup on your side: run the BVC server on any machine you control,"),
         'and add a small mod to the world. The guide walks through both:',
         'https://bedrockvoicechat.com/wiki',
         '',

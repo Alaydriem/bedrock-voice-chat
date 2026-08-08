@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { I18n } from "$lib/i18n";
     import { onDestroy, onMount } from "svelte";
     import SettingRow from "$radial/components/SettingRow.svelte";
     import { KeybindsManager } from "../../../js/app/managers/settings/KeybindsManager";
@@ -38,7 +39,7 @@
 
 <div class="rad-section">
     <div class="rad-section__note">
-        Global shortcuts. They work while Minecraft has focus, which is the entire point of them.
+        {I18n.t("Global shortcuts. They work while Minecraft has focus, which is the entire point of them.")}
     </div>
 
     <div class="rad-card">
@@ -65,16 +66,16 @@
     {/if}
 
     <div class="rad-callout">
-        <span>Click a binding, then press the combination. <b>Escape cancels, Delete clears it.</b></span>
+        <span>{I18n.t("Click a binding, then press the combination.")} <b>{I18n.t("Escape cancels, Delete clears it.")}</b></span>
     </div>
 
     <div class="rad-card">
         <SettingRow
-            label="Back to the defaults"
-            note="Restores every shortcut above, not just the one you were editing."
+            label={I18n.t("Back to the defaults")}
+            note={I18n.t("Restores every shortcut above, not just the one you were editing.")}
         >
             {#snippet control()}
-                <button class="rad-btn" onclick={() => keybinds.resetAll()}>Reset all</button>
+                <button class="rad-btn" onclick={() => keybinds.resetAll()}>{I18n.t("Reset all")}</button>
             {/snippet}
         </SettingRow>
     </div>

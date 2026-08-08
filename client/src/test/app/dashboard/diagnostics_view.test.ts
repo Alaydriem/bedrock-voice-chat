@@ -114,9 +114,9 @@ describe("Diagnostics.verdict", () => {
             extra,
         );
 
-        const [severity, text] = Diagnostics.verdict(input);
-        expect(severity).toBe("bad");
-        expect(text).toContain("not reaching the server");
+        const verdict = Diagnostics.verdict(input);
+        expect(verdict.severity).toBe("bad");
+        expect(verdict.code).toBe("stalled");
     });
 
     it("still puts reconnecting above a stall", () => {
@@ -126,7 +126,7 @@ describe("Diagnostics.verdict", () => {
             attempt: 2,
         });
 
-        expect(Diagnostics.verdict(input)[1]).toContain("Reconnecting");
+        expect(Diagnostics.verdict(input).code).toBe("reconnecting");
     });
 
     // Concealment is what a listener actually experienced; loss is only its cause.
@@ -136,13 +136,13 @@ describe("Diagnostics.verdict", () => {
             extra,
         );
 
-        expect(Diagnostics.verdict(input)[1]).toContain("reconstructed");
+        expect(Diagnostics.verdict(input).code).toBe("concealment");
     });
 
     it("says everything is fine when it is", () => {
-        expect(Diagnostics.verdict(DiagnosticsView.input(snapshot(), extra))).toEqual([
-            "ok",
-            "Everything looks fine.",
-        ]);
+        expect(Diagnostics.verdict(DiagnosticsView.input(snapshot(), extra))).toEqual({
+            severity: "ok",
+            code: "fine",
+        });
     });
 });
