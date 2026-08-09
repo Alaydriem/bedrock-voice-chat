@@ -371,9 +371,13 @@ impl CacheManager {
                     );
                     return Ok(());
                 };
-                match ClientActionService::new()
-                    .route_group(&ca.action.action, author, &self.channel_collection, webhook)
-                    .await
+                match ClientActionService::route_group(
+                    &ca.action.action,
+                    author,
+                    &self.channel_collection,
+                    webhook,
+                )
+                .await
                 {
                     Ok(created) => {
                         if let Some(code) = created {

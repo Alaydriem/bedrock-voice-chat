@@ -97,6 +97,7 @@ export class SelfController {
                     // it are not the only way it changes, and one that does not arrive used
                     // to leave the button wrong for the rest of the session.
                     recording: backend.recording,
+                    recordAllowed: backend.recordingAllowed,
                 },
                 performance.now(),
             );
@@ -281,6 +282,11 @@ export class SelfController {
      */
     pressRecord(): void {
         const recording = this.state.snapshot.recording;
+        // Stopping stays available on a server that turned recording off mid-session:
+        // the refusal must never be the thing that strands an open recording.
+        if (!recording && !this.state.snapshot.recordAllowed) {
+            return;
+        }
         this.state.sync({ recording: !recording }, performance.now());
         void this.confirm(recording ? 'stop_recording' : 'start_recording');
     }

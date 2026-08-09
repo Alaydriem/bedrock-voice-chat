@@ -226,6 +226,8 @@ fn metrics_for(dir_name: &str) -> std::sync::Arc<bvc_server_lib::services::Metri
         "/nonexistent-cert.pem",
         Vec::new(),
         false,
+        true,
+        None,
     );
     svc
 }

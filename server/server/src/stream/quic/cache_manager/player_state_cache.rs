@@ -22,6 +22,15 @@ impl PlayerStateCache {
                 .build(),
         }
     }
+
+    /// Whether any player currently reports an open recording.
+    ///
+    /// An instant sample. A player who records for five minutes each hour reads as
+    /// false in most samples, so this answers whether the feature is in live use, not
+    /// how much recording happens here.
+    pub fn any_recording(&self) -> bool {
+        self.cache.iter().any(|(_, state)| state.recording)
+    }
 }
 
 impl Default for PlayerStateCache {

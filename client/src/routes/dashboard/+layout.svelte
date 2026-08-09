@@ -140,6 +140,7 @@
     mode: "activated",
     holding: false,
     transmitting: true,
+    recordAllowed: true,
   });
 
   const groupName = $derived(groupRows.find((g) => g.joined)?.name ?? "");

@@ -9,30 +9,6 @@ const NICS: NetworkInterface[] = [
     { name: "Tailscale", ip: "fd7a::1", is_ipv4: false },
 ];
 
-describe("ListenAddress.choices", () => {
-    // The proxy binds a UDP v4 socket. Offering a v6 address produces a bind that fails
-    // only after the user has chosen it.
-    it("leaves out interfaces the proxy cannot bind", () => {
-        const ips = ListenAddress.choices(NICS).map((choice) => choice.bind);
-        expect(ips).not.toContain("fd7a::1");
-    });
-
-    it("offers every interface as a last choice", () => {
-        expect(ListenAddress.choices(NICS).at(-1)?.bind).toBe("0.0.0.0");
-    });
-
-    it("names a choice by address and interface, because the address is what gets typed", () => {
-        const ethernet = ListenAddress.choices(NICS).find((c) => c.bind === "192.168.1.24");
-        expect(ethernet?.label).toBe("192.168.1.24 — Ethernet");
-    });
-
-    // Every-interface is still a real choice with nothing else present, and it is the
-    // one a phone is on.
-    it("still offers every interface when there are none to enumerate", () => {
-        expect(ListenAddress.choices([])).toHaveLength(1);
-    });
-});
-
 describe("ListenAddress.join", () => {
     it("is the bind address when the proxy is bound to one interface", () => {
         expect(ListenAddress.join("192.168.1.24", 19132)).toBe("192.168.1.24:19132");

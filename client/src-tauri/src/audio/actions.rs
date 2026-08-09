@@ -112,6 +112,17 @@ impl AudioActionsManager {
         self.voice_mode_and_hold().await.0 == VoiceMode::PushToTalk
     }
 
+    /// Adopt a server's recording policy, which the gate in `RecordingManager` reads
+    /// on every attempt to arm.
+    pub async fn set_recording_allowed(&self, allowed: bool) {
+        if let Some(manager) = self
+            .app_handle
+            .try_state::<Arc<Mutex<RecordingManager>>>()
+        {
+            manager.lock().await.set_allowed(allowed);
+        }
+    }
+
     /// Drive recording to `desired`, starting/stopping only if it differs — the
     /// check and the transition happen under a single `RecordingManager` lock.
     pub async fn set_recording(&self, desired: bool) -> Result<bool, anyhow::Error> {
@@ -149,6 +160,7 @@ impl AudioActionsManager {
             input_muted: self.is_muted(AudioDeviceType::InputDevice).await,
             output_muted: self.is_muted(AudioDeviceType::OutputDevice).await,
             recording: self.is_recording().await,
+            recording_allowed: self.recording_allowed().await,
             jukebox_playing: self.jukebox_playing().await,
         }
     }
@@ -178,6 +190,18 @@ impl AudioActionsManager {
         {
             Some(manager) => manager.lock().await.is_recording(),
             None => false,
+        }
+    }
+
+    /// Whether the connected server permits recording, or true where no recording
+    /// manager is registered — the same permissive absence as an unasked server.
+    async fn recording_allowed(&self) -> bool {
+        match self
+            .app_handle
+            .try_state::<Arc<Mutex<RecordingManager>>>()
+        {
+            Some(manager) => manager.lock().await.is_allowed(),
+            None => true,
         }
     }
 

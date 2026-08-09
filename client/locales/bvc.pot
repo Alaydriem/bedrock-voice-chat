@@ -174,11 +174,11 @@ msgstr ""
 msgid "Almost there…"
 msgstr ""
 
-#: src/js/app/dashboard.ts:658
+#: src/js/app/dashboard.ts:700
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:177
+#: src/components/settings/panes/RecordingsPane.svelte:204
 msgid "An export is written beside the recording it came from, in that session's own folder. Nothing is uploaded —"
 msgstr ""
 
@@ -212,7 +212,7 @@ msgstr ""
 msgid "Audio output"
 msgstr ""
 
-#: src/js/app/dashboard.ts:268
+#: src/js/app/dashboard.ts:310
 msgid "Audio permission denied"
 msgstr ""
 
@@ -335,8 +335,8 @@ msgstr ""
 
 #: src/components/dashboard/GroupRow.svelte:276
 #: src/components/settings/panes/PlayersPane.svelte:340
-#: src/components/settings/panes/RecordingsPane.svelte:221
-#: src/components/settings/panes/RecordingsPane.svelte:249
+#: src/components/settings/panes/RecordingsPane.svelte:248
+#: src/components/settings/panes/RecordingsPane.svelte:276
 #: src/components/settings/ProxyServerEditor.svelte:128
 #: src/components/settings/XboxSignIn.svelte:95
 #: src/routes/login/+page.svelte:267
@@ -395,12 +395,12 @@ msgstr ""
 msgid "Checking"
 msgstr ""
 
-#: src/js/app/dashboard.ts:264
+#: src/js/app/dashboard.ts:306
 msgid "Checking audio permission..."
 msgstr ""
 
 #: src/components/settings/panes/ProxyPane.svelte:166
-#: src/components/settings/panes/RealmsPane.svelte:118
+#: src/components/settings/panes/RealmsPane.svelte:119
 msgid "Checking your Microsoft sign-in."
 msgstr ""
 
@@ -621,17 +621,17 @@ msgid "Cut my mic when I am not speaking"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:350
-#: src/components/settings/panes/RecordingsPane.svelte:266
+#: src/components/settings/panes/RecordingsPane.svelte:293
 msgid "Delete"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:250
 #: src/components/settings/panes/LibraryPane.svelte:296
-#: src/components/settings/panes/RecordingsPane.svelte:161
+#: src/components/settings/panes/RecordingsPane.svelte:188
 msgid "Delete {name}"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:258
+#: src/components/settings/panes/RecordingsPane.svelte:285
 msgid "Delete this recording?"
 msgstr ""
 
@@ -729,7 +729,7 @@ msgstr ""
 msgid "Escape cancels, Delete clears it."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:88
+#: src/components/settings/panes/RecordingsPane.svelte:104
 msgid "Every session is stored as one track per player, timecoded together. Export writes the mix and the tracks you pick into the session's own folder."
 msgstr ""
 
@@ -745,11 +745,11 @@ msgstr ""
 msgid "Everything looks fine."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:144
+#: src/components/settings/panes/RecordingsPane.svelte:171
 msgid "Export {name}"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:186
+#: src/components/settings/panes/RecordingsPane.svelte:213
 msgid "Export this recording"
 msgstr ""
 
@@ -761,7 +761,7 @@ msgstr ""
 msgid "Failed to link Java identity."
 msgstr ""
 
-#: src/js/app/dashboard.ts:246
+#: src/js/app/dashboard.ts:288
 msgid "Failed to refresh server state, using cached permissions"
 msgstr ""
 
@@ -785,7 +785,7 @@ msgstr ""
 msgid "For a bug report. Written to your Documents folder."
 msgstr ""
 
-#: src/js/app/dashboard.ts:291
+#: src/js/app/dashboard.ts:333
 msgid "Foreground service could not be started."
 msgstr ""
 
@@ -801,7 +801,7 @@ msgstr ""
 msgid "FORMAT UNSUPPORTED"
 msgstr ""
 
-#: src/components/settings/panes/RealmsPane.svelte:190
+#: src/components/settings/panes/RealmsPane.svelte:171
 msgid "Forwarding to"
 msgstr ""
 
@@ -905,7 +905,7 @@ msgid "Identity"
 msgstr ""
 
 #: src/components/dashboard/DashboardScreen.svelte:322
-#: src/routes/dashboard/+layout.svelte:591
+#: src/routes/dashboard/+layout.svelte:592
 msgid "In earshot"
 msgstr ""
 
@@ -922,7 +922,7 @@ msgstr ""
 msgid "In public group channel"
 msgstr ""
 
-#: src/js/app/dashboard.ts:331
+#: src/js/app/dashboard.ts:373
 #: src/js/app/managers/ChannelManager.ts:390
 msgid "In public voice chat"
 msgstr ""
@@ -973,8 +973,8 @@ msgstr ""
 msgid "Jitter buffer"
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:280
-#: src/components/settings/panes/RealmsPane.svelte:201
+#: src/components/settings/panes/ProxyPane.svelte:260
+#: src/components/settings/panes/RealmsPane.svelte:182
 msgid "Join"
 msgstr ""
 
@@ -995,7 +995,7 @@ msgid "Jukeboxes"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:348
-#: src/components/settings/panes/RecordingsPane.svelte:264
+#: src/components/settings/panes/RecordingsPane.svelte:291
 msgid "Keep it"
 msgstr ""
 
@@ -1016,12 +1016,12 @@ msgid "last seen {n} min ago"
 msgstr ""
 
 #: src/components/dashboard/GroupRow.svelte:174
-#: src/routes/dashboard/+layout.svelte:584
+#: src/routes/dashboard/+layout.svelte:585
 msgid "Leave"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:205
-#: src/components/settings/panes/RecordingsPane.svelte:115
+#: src/components/settings/panes/RecordingsPane.svelte:142
 msgid "Length"
 msgstr ""
 
@@ -1036,13 +1036,6 @@ msgstr ""
 
 #: src/components/settings/panes/AccountPane.svelte:88
 msgid "Linked Accounts"
-msgstr ""
-
-#: src/components/settings/panes/ProxyPane.svelte:241
-#: src/components/settings/panes/ProxyPane.svelte:248
-#: src/components/settings/panes/RealmsPane.svelte:172
-#: src/components/settings/panes/RealmsPane.svelte:179
-msgid "Listen on"
 msgstr ""
 
 #: src/components/settings/panes/WebSocketPane.svelte:106
@@ -1064,7 +1057,7 @@ msgstr ""
 msgid "Login failed. Please check your server URL and try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:657
+#: src/js/app/dashboard.ts:699
 msgid "Logout Failed"
 msgstr ""
 
@@ -1108,8 +1101,8 @@ msgstr ""
 msgid "Minecraft Java"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:206
-#: src/components/settings/panes/RecordingsPane.svelte:214
+#: src/components/settings/panes/RecordingsPane.svelte:233
+#: src/components/settings/panes/RecordingsPane.svelte:241
 msgid "Mix in the spatial positions"
 msgstr ""
 
@@ -1177,7 +1170,7 @@ msgstr ""
 msgid "NO ANSWER · CONN01"
 msgstr ""
 
-#: src/js/app/dashboard.ts:787
+#: src/js/app/dashboard.ts:822
 msgid "No current server found in store!"
 msgstr ""
 
@@ -1261,7 +1254,7 @@ msgstr ""
 msgid "Not connected to a server."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:131
+#: src/components/settings/panes/RecordingsPane.svelte:158
 msgid "Not exportable"
 msgstr ""
 
@@ -1324,7 +1317,7 @@ msgstr ""
 msgid "Notification access was refused"
 msgstr ""
 
-#: src/js/app/dashboard.ts:275
+#: src/js/app/dashboard.ts:317
 msgid "Notification permission denied - notifications may not be visible"
 msgstr ""
 
@@ -1377,7 +1370,7 @@ msgstr ""
 msgid "One quiet ongoing notification while you are in a session, plus people arriving and channels you are part of."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:237
+#: src/components/settings/panes/RecordingsPane.svelte:264
 msgid "Only the name changes. The recording and its tracks stay where they are."
 msgstr ""
 
@@ -1442,7 +1435,7 @@ msgstr ""
 msgid "Persistent groups"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:187
+#: src/components/settings/panes/RecordingsPane.svelte:214
 msgid "Pick who to include. Each player is written as their own track alongside the mix."
 msgstr ""
 
@@ -1450,7 +1443,7 @@ msgstr ""
 msgid "Pick your microphone"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:208
+#: src/components/settings/panes/RecordingsPane.svelte:235
 msgid "Places each voice where it was standing. Off writes every track flat and centred, which is what you want if you are going to mix it yourself."
 msgstr ""
 
@@ -1616,11 +1609,15 @@ msgstr ""
 msgid "Record everyone."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:114
+#: src/components/settings/panes/RecordingsPane.svelte:141
 msgid "Recorded"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:244
+#: src/components/dashboard/SelfControls.svelte:72
+msgid "Recording is off on this server"
+msgstr ""
+
+#: src/components/settings/panes/RecordingsPane.svelte:271
 msgid "Recording name"
 msgstr ""
 
@@ -1652,15 +1649,15 @@ msgstr ""
 msgid "Remove {name}"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:250
+#: src/components/settings/panes/RecordingsPane.svelte:277
 msgid "Rename"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:154
+#: src/components/settings/panes/RecordingsPane.svelte:181
 msgid "Rename {name}"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:236
+#: src/components/settings/panes/RecordingsPane.svelte:263
 msgid "Rename this recording"
 msgstr ""
 
@@ -1822,7 +1819,7 @@ msgid "SERVICE STOPPED"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:260
-#: src/components/settings/panes/RecordingsPane.svelte:113
+#: src/components/settings/panes/RecordingsPane.svelte:140
 #: src/js/app/dashboard/DiagnosticsCopy.ts:24
 msgid "Session"
 msgstr ""
@@ -1854,7 +1851,7 @@ msgstr ""
 
 #: src/components/login/CodeScreen.svelte:81
 #: src/components/settings/panes/ProxyPane.svelte:178
-#: src/components/settings/panes/RealmsPane.svelte:130
+#: src/components/settings/panes/RealmsPane.svelte:131
 msgid "Sign in"
 msgstr ""
 
@@ -1872,7 +1869,7 @@ msgstr ""
 
 #: src/components/login/SignInScreen.svelte:99
 #: src/components/settings/panes/ProxyPane.svelte:174
-#: src/components/settings/panes/RealmsPane.svelte:126
+#: src/components/settings/panes/RealmsPane.svelte:127
 #: src/components/settings/XboxSignIn.svelte:40
 msgid "Sign in with Microsoft"
 msgstr ""
@@ -1914,7 +1911,7 @@ msgid "Signing in with the account you play on"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:206
-#: src/components/settings/panes/RecordingsPane.svelte:117
+#: src/components/settings/panes/RecordingsPane.svelte:144
 msgid "Size"
 msgstr ""
 
@@ -1964,7 +1961,7 @@ msgid "State"
 msgstr ""
 
 #: src/components/dashboard/StatusPanel.svelte:125
-#: src/components/settings/panes/ProxyPane.svelte:260
+#: src/components/settings/panes/ProxyPane.svelte:240
 msgid "Status"
 msgstr ""
 
@@ -1978,12 +1975,12 @@ msgstr ""
 msgid "Still stuck?"
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:271
+#: src/components/settings/panes/ProxyPane.svelte:251
 #: src/components/settings/PlateGrid.svelte:91
 msgid "Stop"
 msgstr ""
 
-#: src/js/app/dashboard.ts:154
+#: src/js/app/dashboard.ts:180
 msgid "Stopped recording that was active before page refresh"
 msgstr ""
 
@@ -2046,6 +2043,10 @@ msgstr ""
 msgid "The device list is incomplete."
 msgstr ""
 
+#: src/components/settings/panes/RecordingsPane.svelte:113
+msgid "The operator has turned voice recording off, so the record button is unavailable while you are connected here."
+msgstr ""
+
 #: src/components/settings/panes/ProxyPane.svelte:175
 msgid "THE PROXY JOINS THE SERVER AS YOU"
 msgstr ""
@@ -2082,11 +2083,15 @@ msgstr ""
 msgid "This device answers on all of them. Use whichever your other device can reach."
 msgstr ""
 
+#: src/components/settings/panes/RecordingsPane.svelte:112
+msgid "This server does not allow recording"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:223
 msgid "This server has not granted you account access. Join the Minecraft server in-game at least once so it can register you, or ask the server operator to add you."
 msgstr ""
 
-#: src/components/settings/panes/RealmsPane.svelte:127
+#: src/components/settings/panes/RealmsPane.svelte:128
 msgid "TO LIST THE REALMS YOU CAN JOIN"
 msgstr ""
 
@@ -2106,7 +2111,7 @@ msgstr ""
 msgid "Toggle Recording"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:116
+#: src/components/settings/panes/RecordingsPane.svelte:143
 msgid "Tracks"
 msgstr ""
 
@@ -2327,11 +2332,6 @@ msgstr ""
 msgid "Wherever your world is hosted, including Aternos and Realms"
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:242
-#: src/components/settings/panes/RealmsPane.svelte:173
-msgid "Which of this machine's addresses the proxy binds. Loopback unless you play from a console or a phone on this network."
-msgstr ""
-
 #: src/components/login/NoServerScreen.svelte:58
 msgid "Which one are you?"
 msgstr ""
@@ -2444,7 +2444,7 @@ msgstr ""
 msgid "Your range"
 msgstr ""
 
-#: src/components/settings/panes/RealmsPane.svelte:135
+#: src/components/settings/panes/RealmsPane.svelte:136
 msgid "Your Realms"
 msgstr ""
 

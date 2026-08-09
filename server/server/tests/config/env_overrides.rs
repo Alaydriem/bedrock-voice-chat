@@ -359,3 +359,37 @@ fn bedrock_servers_malformed_entry_is_a_hard_error() {
         .unwrap_err();
     assert!(format!("{err}").contains("BVC_BEDROCK_SERVERS"));
 }
+
+#[test]
+fn bvc_recording_false_disables_an_enabled_config() {
+    let config = ApplicationConfig::default();
+    assert!(
+        config.voice.recording.enabled,
+        "precondition: the default permits recording"
+    );
+
+    let config = apply(&[("BVC_RECORDING", "false")], config);
+
+    assert!(!config.voice.recording.enabled);
+}
+
+#[test]
+fn bvc_recording_absent_leaves_the_config_value() {
+    let mut config = ApplicationConfig::default();
+    config.voice.recording.enabled = false;
+
+    let config = apply(&[], config);
+
+    assert!(
+        !config.voice.recording.enabled,
+        "an unset variable must never resurrect a value the operator turned off"
+    );
+}
+
+#[test]
+fn bvc_recording_rejects_a_non_boolean() {
+    let err = EnvOverrides::from_vars(vars(&[("BVC_RECORDING", "sometimes")]))
+        .apply(ApplicationConfig::default())
+        .expect_err("a malformed boolean must be a hard startup error");
+    assert!(format!("{err}").contains("BVC_RECORDING"));
+}

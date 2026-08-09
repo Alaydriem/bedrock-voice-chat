@@ -13,6 +13,7 @@ function snapshot(mode: VoiceMode, over: Partial<SelfSnapshot> = {}): SelfSnapsh
         mode,
         holding: false,
         transmitting: mode === "activated",
+        recordAllowed: true,
         ...over,
     };
 }
@@ -22,16 +23,20 @@ function mount(state: SelfSnapshot) {
     document.body.append(host);
     const onmute = vi.fn();
     const onhold = vi.fn();
+    const onrecord = vi.fn();
     render(SelfPill as never, {
         target: host,
-        props: { name: "Alaydriem", state, onmute, onhold },
+        props: { name: "Alaydriem", state, onmute, onhold, onrecord },
     } as never);
     // By class, not by label: the label is one of the things under test, and finding the
     // control by the string it is asserted to have makes the assertion circular.
     const mic = host.querySelector<HTMLElement>(
         ".rad-self__btn:not(.rad-self__btn--deafen):not(.rad-self__btn--record)",
     ) as HTMLElement;
-    return { host, mic, onmute, onhold };
+    const record = host.querySelector<HTMLButtonElement>(
+        ".rad-self__btn--record",
+    ) as HTMLButtonElement;
+    return { host, mic, record, onmute, onhold, onrecord };
 }
 
 function pointer(el: Element, type: string): void {
@@ -121,5 +126,37 @@ describe("SelfPill mic button in push-to-talk", () => {
 
         const idle = mount(snapshot("ptt"));
         expect(idle.mic.classList.contains("is-holding")).toBe(false);
+    });
+});
+
+describe("SelfPill record button", () => {
+    it("disables the record button and says why where the server disallows recording", () => {
+        const { record } = mount(snapshot("activated", { recordAllowed: false }));
+
+        expect(record).not.toBeNull();
+        expect(record.disabled).toBe(true);
+        expect(record.title).toContain("Recording is off on this server");
+    });
+
+    it("leaves the record button live where the server allows recording", () => {
+        const { record } = mount(snapshot("activated", { recordAllowed: true }));
+
+        expect(record.disabled).toBe(false);
+    });
+
+    // The button stays in the layout rather than disappearing: a creator should be able
+    // to see that the feature exists and that this server is the reason it is not here.
+    it("keeps the record button present when recording is disallowed", () => {
+        const { host } = mount(snapshot("activated", { recordAllowed: false }));
+
+        expect(host.querySelector(".rad-self__btn--record")).not.toBeNull();
+    });
+
+    it("does not fire the record handler from a disabled button", () => {
+        const { record, onrecord } = mount(snapshot("activated", { recordAllowed: false }));
+
+        record.click();
+
+        expect(onrecord).not.toHaveBeenCalled();
     });
 });

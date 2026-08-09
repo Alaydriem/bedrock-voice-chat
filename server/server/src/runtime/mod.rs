@@ -264,6 +264,8 @@ impl ServerRuntime {
             &self.config.server.tls.certificate,
             features_enabled,
             ca_minted,
+            self.config.voice.recording.enabled,
+            Some(cache_manager.player_state().clone()),
         );
         connection_registry.set_metrics(metrics.clone());
 

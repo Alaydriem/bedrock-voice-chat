@@ -27,6 +27,12 @@ pub struct VoiceRuntimeState {
     /// that announce it are the only thing that told the UI. One dropped event left the
     /// button off over a backend that was recording, and nothing could ever put it right.
     pub recording: bool,
+    /// Whether the connected server permits arming a recording.
+    ///
+    /// Carried beside `recording` rather than derived from it: a session already running
+    /// is not evidence that a new one may be started, and the surfaces that draw the
+    /// record button need the answer before anyone presses it.
+    pub recording_allowed: bool,
     /// Whether jukebox frames are arriving.
     ///
     /// Read from arrivals rather than from the per-sink counters, which stop while muted. A

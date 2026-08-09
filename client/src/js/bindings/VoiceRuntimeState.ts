@@ -29,6 +29,14 @@ inputMuted: boolean, outputMuted: boolean,
  */
 recording: boolean, 
 /**
+ * Whether the connected server permits arming a recording.
+ *
+ * Carried beside `recording` rather than derived from it: a session already running
+ * is not evidence that a new one may be started, and the surfaces that draw the
+ * record button need the answer before anyone presses it.
+ */
+recordingAllowed: boolean, 
+/**
  * Whether jukebox frames are arriving.
  *
  * Read from arrivals rather than from the per-sink counters, which stop while muted. A

@@ -16,11 +16,25 @@ use crate::stream::quic::{CacheTrait, PlayerPreferenceCache, PlayerStateCache};
 /// actions go through `ChannelMembershipService`. The wire `action.id` is never
 /// trusted for routing — the authenticated actor the caller supplies is
 /// authoritative.
-pub struct ClientActionService;
+pub struct ClientActionService {
+    recording_enabled: bool,
+}
 
 impl ClientActionService {
-    pub fn new() -> Self {
-        Self
+    pub fn new(recording_enabled: bool) -> Self {
+        Self { recording_enabled }
+    }
+
+    /// Whether this action may be applied at all.
+    ///
+    /// Only arming a recording is ever refused. Stopping stays available on a server
+    /// whose operator turned recording off while someone was already recording, and
+    /// nothing else this service routes is subject to operator policy.
+    ///
+    /// The recording itself is written on the player's own machine, so a refusal here
+    /// states the server's answer rather than preventing anything.
+    pub fn permits(&self, action: &ClientActionType) -> bool {
+        !matches!(action, ClientActionType::SetRecording(true)) || self.recording_enabled
     }
 
     /// Delivers a self/preference action to the authenticated actor's own connection.
@@ -142,7 +156,6 @@ impl ClientActionService {
     /// exist (never creates phantom membership, never disturbs the current
     /// group on a bad code). Any channel left empty is closed.
     pub async fn route_group(
-        &self,
         action: &ClientActionType,
         actor_cn: &str,
         channels: &ChannelCollection,
@@ -201,8 +214,3 @@ impl ClientActionService {
     }
 }
 
-impl Default for ClientActionService {
-    fn default() -> Self {
-        Self::new()
-    }
-}

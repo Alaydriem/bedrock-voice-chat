@@ -13,6 +13,8 @@ mod gamerpic;
 
 pub use fetch_cache::FetchCache;
 
+pub(crate) use circuit_breaker::EndpointBreaker;
+
 use common::reqwest::{
     Client as ReqwestClient, StatusCode,
     header::{HeaderMap, HeaderValue},
@@ -350,6 +352,7 @@ impl Api {
                             spatial_audio: Default::default(),
                             bedrock: Default::default(),
                             age: Default::default(),
+                            recording: Default::default(),
                         });
                     }
 

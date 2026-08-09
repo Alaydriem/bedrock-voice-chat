@@ -15,4 +15,7 @@ class Voice {
     @SerializedName("spatial_audio")
     var spatialAudio: SpatialAudioConfig? = null
 
+    @SerializedName("recording")
+    var recording: RecordingConfig? = null
+
 }

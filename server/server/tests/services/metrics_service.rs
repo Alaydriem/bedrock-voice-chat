@@ -91,7 +91,7 @@ fn build_batch_maps_events_without_player_identity() {
 #[tokio::test]
 async fn render_exposes_all_metric_families_without_identity() {
     let path = ca_dir("bvc-metrics-render-ca");
-    let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false);
+    let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
 
     svc.record_connect("alice");
     svc.record_disconnect("alice", std::time::Duration::from_secs(5));
@@ -132,7 +132,7 @@ async fn render_exposes_all_metric_families_without_identity() {
 #[tokio::test]
 async fn disabled_telemetry_spawns_no_posthog_task() {
     let path = ca_dir("bvc-metrics-disabled-ca");
-    let (_svc, handle) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false);
+    let (_svc, handle) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
     assert!(handle.is_none());
 }
 
@@ -191,6 +191,8 @@ async fn posthog_client_flushes_events_over_http() {
             players_reached_mutual_proximity: 2,
             players_reached_mutual_channel: 0,
             features_enabled: vec!["telemetry".to_string()],
+            recording_enabled: true,
+            recording_active: false,
         },
     })
     .await
@@ -217,7 +219,7 @@ async fn posthog_client_flushes_events_over_http() {
 #[tokio::test]
 async fn peak_players_holds_the_high_water_mark() {
     let path = ca_dir("bvc-metrics-peak-ca");
-    let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false);
+    let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
 
     svc.set_active_players(3);
     svc.set_active_players(9);
@@ -232,7 +234,7 @@ async fn peak_players_holds_the_high_water_mark() {
 #[tokio::test]
 async fn resetting_peak_players_drops_to_the_current_count() {
     let path = ca_dir("bvc-metrics-peak-reset-ca");
-    let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false);
+    let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
 
     svc.set_active_players(9);
     svc.set_active_players(4);
@@ -255,6 +257,8 @@ async fn heartbeat_closes_the_window_and_publishes_interaction_gauges() {
         "/nonexistent-cert.pem",
         vec!["telemetry".to_string()],
         false,
+        true,
+        None,
     );
 
     svc.set_active_players(5);
@@ -287,7 +291,7 @@ async fn heartbeat_closes_the_window_and_publishes_interaction_gauges() {
 async fn heartbeat_resets_peak_on_a_new_utc_day() {
     let path = ca_dir("bvc-metrics-heartbeat-day-ca");
     let (svc, _posthog) =
-        MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false);
+        MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
 
     svc.set_active_players(9);
     svc.set_active_players(2);
@@ -306,7 +310,7 @@ async fn heartbeat_resets_peak_on_a_new_utc_day() {
 async fn a_reconnect_within_the_window_is_reported_as_a_reconnect() {
     let path = ca_dir("bvc-metrics-reconnect-ca");
     let (svc, _posthog) =
-        MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false);
+        MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
 
     assert!(!svc.saw_recent_disconnect("alice"));
 
@@ -322,7 +326,7 @@ async fn a_reconnect_within_the_window_is_reported_as_a_reconnect() {
 async fn an_unrelated_player_connecting_is_not_a_reconnect() {
     let path = ca_dir("bvc-metrics-reconnect-other-ca");
     let (svc, _posthog) =
-        MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false);
+        MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
 
     svc.record_disconnect("alice", std::time::Duration::from_secs(30));
     svc.record_connect("bob");
@@ -388,4 +392,94 @@ async fn cancelling_the_drain_does_not_discard_queued_events() {
 
     assert!(req.contains("Server::Stopped"), "request:\n{req}");
     assert!(req.contains("\"stop_reason\":\"graceful\""), "request:\n{req}");
+}
+
+#[tokio::test]
+async fn heartbeat_reports_the_recording_capability_and_no_live_recording() {
+    use bvc_server_lib::stream::quic::{CacheTrait, PlayerStateCache};
+    use common::structs::control::QueryState;
+
+    let path = ca_dir("bvc-metrics-recording-capability-ca");
+    let states = PlayerStateCache::new();
+    states
+        .set(
+            "minecraft:alice".to_string(),
+            QueryState {
+                id: "minecraft:alice".to_string(),
+                muted: false,
+                deafened: false,
+                recording: false,
+                current_group: None,
+            },
+        )
+        .await;
+
+    let (svc, _posthog) = MetricsService::new_shared(
+        false,
+        &path,
+        "/nonexistent-cert.pem",
+        Vec::new(),
+        false,
+        true,
+        Some(states.clone()),
+    );
+
+    assert!(svc.recording_enabled());
+    assert!(
+        !svc.recording_active(),
+        "nobody is recording, so the live sample must be false"
+    );
+}
+
+#[tokio::test]
+async fn heartbeat_reports_a_live_recording() {
+    use bvc_server_lib::stream::quic::{CacheTrait, PlayerStateCache};
+    use common::structs::control::QueryState;
+
+    let path = ca_dir("bvc-metrics-recording-active-ca");
+    let states = PlayerStateCache::new();
+    states
+        .set(
+            "minecraft:bob".to_string(),
+            QueryState {
+                id: "minecraft:bob".to_string(),
+                muted: false,
+                deafened: false,
+                recording: true,
+                current_group: None,
+            },
+        )
+        .await;
+
+    let (svc, _posthog) = MetricsService::new_shared(
+        false,
+        &path,
+        "/nonexistent-cert.pem",
+        Vec::new(),
+        false,
+        false,
+        Some(states.clone()),
+    );
+
+    assert!(
+        !svc.recording_enabled(),
+        "the capability and the live state are independent readings"
+    );
+    assert!(svc.recording_active());
+}
+
+#[tokio::test]
+async fn recording_active_is_false_without_a_state_cache() {
+    let path = ca_dir("bvc-metrics-recording-nocache-ca");
+    let (svc, _posthog) = MetricsService::new_shared(
+        false,
+        &path,
+        "/nonexistent-cert.pem",
+        Vec::new(),
+        false,
+        true,
+        None,
+    );
+
+    assert!(!svc.recording_active());
 }

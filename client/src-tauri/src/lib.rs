@@ -44,8 +44,6 @@ pub use feature_flags::FeatureFlagService;
 pub use feature_flags::flagsmith::FlagsmithProvider;
 // Re-exported for the integration test crate to assert that an unconfigured
 // Flagsmith leaves the Realms Connect kill switch open.
-#[cfg(feature = "e2e")]
-pub use feature_flags::flags::bedrock::RealmsConnectEnabled;
 pub mod i18n;
 mod iap;
 // Re-exported for the integration test crate (a separate crate root that can

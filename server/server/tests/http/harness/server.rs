@@ -49,10 +49,18 @@ pub struct TestServer {
 
 impl TestServer {
     pub async fn start() -> Result<Self> {
-        Self::start_with_relay(false).await
+        Self::start_with(false, true).await
     }
 
     pub async fn start_with_relay(relay_enabled: bool) -> Result<Self> {
+        Self::start_with(relay_enabled, true).await
+    }
+
+    pub async fn start_with_recording(recording_enabled: bool) -> Result<Self> {
+        Self::start_with(false, recording_enabled).await
+    }
+
+    async fn start_with(relay_enabled: bool, recording_enabled: bool) -> Result<Self> {
         // rustls crypto provider: install once per process; ignore re-install error.
         let _ =
             common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
@@ -113,6 +121,7 @@ impl TestServer {
         config.server.tls.certs_path = certs_path.to_string_lossy().into_owned();
         config.server.assets_path = assets_path.to_string_lossy().into_owned();
         config.server.minecraft.access_token = "test-mc-token".to_string();
+        config.voice.recording.enabled = recording_enabled;
 
         let identity_service =
             bvc_server_lib::services::PlayerIdentityService::new(Arc::new(db.clone()));

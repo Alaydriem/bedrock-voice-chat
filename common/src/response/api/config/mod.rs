@@ -2,11 +2,13 @@ pub mod age;
 pub mod bedrock;
 mod check;
 mod compatibility;
+pub mod recording;
 
 pub use age::ApiConfigAge;
 pub use bedrock::{ApiConfigBedrock, ApiConfigBedrockServer};
 pub use check::ApiConfigCheckResponse;
 pub use compatibility::ProtocolCompatibility;
+pub use recording::ApiConfigRecording;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -33,4 +35,6 @@ pub struct ApiConfigResponse {
     pub bedrock: ApiConfigBedrock,
     #[serde(default)]
     pub age: ApiConfigAge,
+    #[serde(default)]
+    pub recording: ApiConfigRecording,
 }

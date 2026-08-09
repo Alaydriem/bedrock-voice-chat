@@ -25,6 +25,11 @@
      * application's translation surface, so a caller that has one passes the words in.
      */
     identityLabel?: string;
+    /**
+     * Why the record button is unavailable, shown as its tooltip. Defaults to English
+     * for the same reason as `identityLabel`.
+     */
+    recordBlockedLabel?: string;
     /** Renders the phone capsule instead of the desktop pill. */
     capsule?: boolean;
   }
@@ -42,6 +47,7 @@
     onhold,
     onidentity,
     identityLabel = "Profile and sign-out",
+    recordBlockedLabel = "Recording is off on this server",
     capsule = false,
   }: Props = $props();
 
@@ -107,17 +113,23 @@
   </button>
 
   {#if !capsule}
+    <!-- Disabled rather than absent: a creator should be able to see that the feature
+         exists and that this server is why it is not available. -->
     <button
       class="rad-self__btn rad-self__btn--record"
       type="button"
+      disabled={!state.recordAllowed}
       aria-pressed={state.recording}
       aria-label={state.recording ? "Stop recording" : "Start recording"}
+      title={state.recordAllowed ? undefined : recordBlockedLabel}
       onclick={onrecord}
     >
       <!-- The glyph pulses while recording; a separate blinking dot would state the
            same fact twice. -->
       <Icon name="rec" />
-      <span class="rad-self__rec-time">{recordTime}</span>
+      {#if state.recordAllowed}
+        <span class="rad-self__rec-time">{recordTime}</span>
+      {/if}
     </button>
   {/if}
 </div>

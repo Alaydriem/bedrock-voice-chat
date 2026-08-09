@@ -62,6 +62,10 @@ pub struct RuntimeHandle {
     /// The configuration the server resolved, kept so an embedder can read the
     /// values defaults and environment overrides decided.
     resolved_config: String,
+    /// Whether the operator permits recording, taken from the config this handle
+    /// started with. Held as a flag rather than re-parsed out of `resolved_config`,
+    /// which is a JSON document read only by the embedder.
+    recording_enabled: AtomicBool,
 }
 
 // Thread-local storage for last error message
@@ -143,6 +147,8 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         }
     };
 
+    let recording_enabled = config.voice.recording.enabled;
+
     let runtime = match crate::BvcServer::new(config) {
         Ok(r) => r,
         Err(e) => {
@@ -204,6 +210,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         chat_outbound: Mutex::new(None),
         chat_rooms: Mutex::new(Vec::new()),
         resolved_config,
+        recording_enabled: AtomicBool::new(recording_enabled),
     });
 
     Box::into_raw(handle)
@@ -825,7 +832,14 @@ pub unsafe extern "C" fn bvc_client_action(
         action.id = resolved;
     }
 
-    let svc = crate::services::ClientActionService::new();
+    let svc = crate::services::ClientActionService::new(
+        handle_ref.recording_enabled.load(Ordering::Relaxed),
+    );
+
+    if !svc.permits(&action.action) {
+        set_last_error("this server does not permit recording");
+        return -1;
+    }
 
     if action.action.is_group_action() {
         let webhook = {
@@ -846,8 +860,15 @@ pub unsafe extern "C" fn bvc_client_action(
         };
         let channels = cache_manager.get_channel_collection();
         let actor_cn = action.actor_key();
-        let result = tokio_rt
-            .block_on(async { svc.route_group(&action.action, &actor_cn, &channels, &webhook).await });
+        let result = tokio_rt.block_on(async {
+            crate::services::ClientActionService::route_group(
+                &action.action,
+                &actor_cn,
+                &channels,
+                &webhook,
+            )
+            .await
+        });
         match result {
             Ok(created) => {
                 if let (Some(code), false) = (created, group_code_out.is_null()) {

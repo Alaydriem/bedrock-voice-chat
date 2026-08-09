@@ -45,6 +45,7 @@ function mount(props: Record<string, unknown> = {}) {
                 mode: "activated",
                 holding: false,
                 transmitting: true,
+                recordAllowed: true,
             },
             headline: "NOBODY IN EARSHOT",
             onswitch: () => {},
@@ -204,6 +205,7 @@ describe("DashboardScreen frame state", () => {
                 mode: "activated",
                 holding: false,
                 transmitting: false,
+                recordAllowed: true,
             },
         } as never);
 
@@ -223,6 +225,7 @@ describe("DashboardScreen frame state", () => {
                 mode: "activated",
                 holding: false,
                 transmitting: false,
+                recordAllowed: true,
             },
         } as never);
 

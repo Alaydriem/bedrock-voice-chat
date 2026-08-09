@@ -52,12 +52,15 @@ impl RocketHarness {
         let server_state = config.server.clone();
         let permissions = config.permissions.clone();
         let features = config.server.features.clone();
+        let voice = config.voice.clone();
         let (metrics, _posthog) = bvc_server_lib::services::MetricsService::new_shared(
             false,
             &config.server.tls.certs_path,
             &config.server.tls.certificate,
             Vec::new(),
             false,
+            config.voice.recording.enabled,
+            None,
         );
 
         let cache = cached::TimedCache::with_lifespan_and_refresh(
@@ -96,6 +99,7 @@ impl RocketHarness {
             .manage(identity_service)
             .manage(server_state)
             .manage(features)
+            .manage(voice)
             .manage(permissions)
             .manage(cert_service)
             .manage(cache_wrapper)

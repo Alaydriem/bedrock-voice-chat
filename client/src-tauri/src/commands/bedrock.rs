@@ -18,8 +18,6 @@ use crate::bedrock::{
     BedrockAuthService, BedrockConnector, BedrockKeyringService, BedrockState,
     ProtocolVersionCatalog, ProxyConnectRequest, RealmConnectRequest,
 };
-use crate::feature_flags::FeatureFlagService;
-use crate::feature_flags::flags::bedrock::RealmsConnectEnabled;
 
 #[tauri::command(async)]
 pub(crate) async fn bedrock_start_proxy(

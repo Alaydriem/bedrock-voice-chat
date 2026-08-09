@@ -1,3 +1,7 @@
+mod recording;
+
+pub use recording::RecordingConfig;
+
 use common::structs::SpatialAudioConfig;
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +23,8 @@ pub struct Voice {
     pub datagram_recv_capacity: usize,
     #[serde(default)]
     pub spatial_audio: SpatialAudioConfig,
+    #[serde(default)]
+    pub recording: RecordingConfig,
 }
 
 impl Default for Voice {
@@ -27,6 +33,7 @@ impl Default for Voice {
             datagram_send_capacity: default_datagram_send_capacity(),
             datagram_recv_capacity: default_datagram_recv_capacity(),
             spatial_audio: SpatialAudioConfig::default(),
+            recording: RecordingConfig::default(),
         }
     }
 }

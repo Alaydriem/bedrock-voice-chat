@@ -25,7 +25,7 @@ fn route_self_delivers_to_actor_name_ignoring_wire_id() {
     registry.register(1, "minecraft:Alice".to_string(), tx_a);
     registry.register(2, "minecraft:Bob".to_string(), tx_b);
 
-    let svc = ClientActionService::new();
+    let svc = ClientActionService::new(true);
     // The wire id says Bob, but the supplied actor is Alice — routing follows Alice.
     let action = ClientAction {
         id: "Bob".to_string(),
@@ -77,7 +77,7 @@ async fn delivered_self_action_echoes_into_reported_state() {
         .set("minecraft:Alice".to_string(), reported_state("minecraft:Alice"))
         .await;
 
-    let svc = ClientActionService::new();
+    let svc = ClientActionService::new(true);
     let delivered = svc
         .route_self_with_echo(
             &ClientAction {
@@ -109,7 +109,7 @@ async fn undelivered_self_action_leaves_reported_state_untouched() {
         .set("minecraft:Alice".to_string(), reported_state("minecraft:Alice"))
         .await;
 
-    let svc = ClientActionService::new();
+    let svc = ClientActionService::new(true);
     let delivered = svc
         .route_self_with_echo(
             &ClientAction {
@@ -140,7 +140,7 @@ async fn echo_never_fabricates_self_state_for_unreported_player() {
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
 
-    let svc = ClientActionService::new();
+    let svc = ClientActionService::new(true);
     svc.route_self_with_echo(
         &ClientAction {
             id: "Alice".into(),
@@ -169,7 +169,7 @@ async fn delivered_preference_actions_upsert_into_preference_cache() {
     registry.register(1, "minecraft:Alice".to_string(), tx);
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
-    let svc = ClientActionService::new();
+    let svc = ClientActionService::new(true);
 
     svc.route_self_with_echo(
         &ClientAction {
@@ -219,7 +219,7 @@ async fn echoed_volume_is_clamped_to_client_range() {
     registry.register(1, "minecraft:Alice".to_string(), tx);
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
-    let svc = ClientActionService::new();
+    let svc = ClientActionService::new(true);
 
     svc.route_self_with_echo(
         &ClientAction {
@@ -257,8 +257,7 @@ async fn join_group_adds_actor_and_fans_event() {
     channels.insert(ch).await;
     let (webhook, mut rx) = test_webhook();
 
-    let svc = ClientActionService::new();
-    svc.route_group(
+    ClientActionService::route_group(
         &ClientActionType::JoinGroup {
             channel: id.clone(),
         },
@@ -279,10 +278,8 @@ async fn join_group_adds_actor_and_fans_event() {
 async fn join_missing_channel_errors_and_creates_no_membership() {
     let channels = ChannelCollection::new(64);
     let (webhook, mut _rx) = test_webhook();
-    let svc = ClientActionService::new();
 
-    let res = svc
-        .route_group(
+    let res = ClientActionService::route_group(
             &ClientActionType::JoinGroup {
                 channel: "bogus".into(),
             },
@@ -306,10 +303,8 @@ async fn join_missing_channel_errors_and_creates_no_membership() {
 async fn create_group_returns_id_and_adds_creator() {
     let channels = ChannelCollection::new(64);
     let (webhook, mut _rx) = test_webhook();
-    let svc = ClientActionService::new();
 
-    let id = svc
-        .route_group(
+    let id = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
             "minecraft:Alice",
             &channels,
@@ -327,10 +322,8 @@ async fn create_group_returns_id_and_adds_creator() {
 async fn leave_group_removes_and_closes_when_empty() {
     let channels = ChannelCollection::new(64);
     let (webhook, mut _rx) = test_webhook();
-    let svc = ClientActionService::new();
 
-    let id = svc
-        .route_group(
+    let id = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
             "minecraft:Solo",
             &channels,
@@ -341,7 +334,7 @@ async fn leave_group_removes_and_closes_when_empty() {
         .unwrap();
     assert!(channels.get(&id).await.is_some());
 
-    svc.route_group(
+    ClientActionService::route_group(
         &ClientActionType::LeaveGroup,
         "minecraft:Solo",
         &channels,
@@ -361,10 +354,8 @@ async fn leave_group_removes_and_closes_when_empty() {
 async fn create_group_moves_actor_out_of_previous_group() {
     let channels = ChannelCollection::new(64);
     let (webhook, mut _rx) = test_webhook();
-    let svc = ClientActionService::new();
 
-    let first = svc
-        .route_group(
+    let first = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
             "minecraft:Alice",
             &channels,
@@ -373,8 +364,7 @@ async fn create_group_moves_actor_out_of_previous_group() {
         .await
         .unwrap()
         .unwrap();
-    let second = svc
-        .route_group(
+    let second = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
             "minecraft:Alice",
             &channels,
@@ -403,10 +393,8 @@ async fn join_group_moves_actor_out_of_previous_group() {
         .add_player_to_channel("minecraft:Owner", &target)
         .await;
     let (webhook, mut _rx) = test_webhook();
-    let svc = ClientActionService::new();
 
-    let own = svc
-        .route_group(
+    let own = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
             "minecraft:Alice",
             &channels,
@@ -415,7 +403,7 @@ async fn join_group_moves_actor_out_of_previous_group() {
         .await
         .unwrap()
         .unwrap();
-    svc.route_group(
+    ClientActionService::route_group(
         &ClientActionType::JoinGroup {
             channel: target.clone(),
         },
@@ -443,10 +431,8 @@ async fn join_group_moves_actor_out_of_previous_group() {
 async fn join_unknown_group_keeps_current_membership() {
     let channels = ChannelCollection::new(64);
     let (webhook, mut _rx) = test_webhook();
-    let svc = ClientActionService::new();
 
-    let own = svc
-        .route_group(
+    let own = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
             "minecraft:Alice",
             &channels,
@@ -455,8 +441,7 @@ async fn join_unknown_group_keeps_current_membership() {
         .await
         .unwrap()
         .unwrap();
-    let res = svc
-        .route_group(
+    let res = ClientActionService::route_group(
             &ClientActionType::JoinGroup {
                 channel: "bogus".into(),
             },
@@ -480,10 +465,8 @@ async fn join_unknown_group_keeps_current_membership() {
 async fn join_current_group_is_a_noop() {
     let channels = ChannelCollection::new(64);
     let (webhook, mut _rx) = test_webhook();
-    let svc = ClientActionService::new();
 
-    let own = svc
-        .route_group(
+    let own = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
             "minecraft:Alice",
             &channels,
@@ -492,7 +475,7 @@ async fn join_current_group_is_a_noop() {
         .await
         .unwrap()
         .unwrap();
-    svc.route_group(
+    ClientActionService::route_group(
         &ClientActionType::JoinGroup {
             channel: own.clone(),
         },
@@ -523,7 +506,7 @@ async fn one_identity_keys_both_self_delivery_and_group_membership() {
     registry.register(1, ACTOR.to_string(), tx);
     let channels = ChannelCollection::new(64);
     let (webhook, mut _wrx) = test_webhook();
-    let svc = ClientActionService::new();
+    let svc = ClientActionService::new(true);
 
     let delivered = svc.route_self(
         &ClientAction {
@@ -537,8 +520,7 @@ async fn one_identity_keys_both_self_delivery_and_group_membership() {
     assert!(delivered, "self action reaches the connection under its identity");
     assert!(rx.try_recv().is_ok());
 
-    let id = svc
-        .route_group(&ClientActionType::CreateGroup, ACTOR, &channels, &webhook)
+    let id = ClientActionService::route_group(&ClientActionType::CreateGroup, ACTOR, &channels, &webhook)
         .await
         .unwrap()
         .unwrap();

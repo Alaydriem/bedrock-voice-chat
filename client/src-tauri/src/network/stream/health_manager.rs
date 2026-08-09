@@ -13,6 +13,7 @@ use tauri::Emitter;
 use tokio::task::AbortHandle;
 
 use super::stream_manager::HealthMonitorState;
+use crate::api::EndpointBreaker;
 
 /// Result of probing the server
 enum ProbeResult {
@@ -403,6 +404,14 @@ impl ConnectionHealthManager {
         match client.get(&url).send().await {
             Ok(resp) => {
                 log::debug!("Probe response status: {}", resp.status());
+
+                // This request carried no credentials and went nowhere near the
+                // endpoint's breaker, so reaching the server here is evidence the
+                // breaker does not have. Recorded against `server_url` rather than the
+                // normalised `base_url`, because the pooled `Api` is keyed by the
+                // string the webview passes and that is the one being unblocked.
+                EndpointBreaker::note_reachable(server_url);
+
                 if !resp.status().is_success() {
                     return ProbeResult::Unavailable;
                 }

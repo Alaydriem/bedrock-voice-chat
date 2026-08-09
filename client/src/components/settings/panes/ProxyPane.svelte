@@ -26,7 +26,6 @@
 
     interface Props {
         bedrock: BedrockManager;
-        /** No interface to choose on a phone, so it binds everything. */
         mobile?: boolean;
     }
     let { bedrock, mobile = false }: Props = $props();
@@ -44,7 +43,6 @@
     let activeId = $state<string | null>(null);
     let running = $state(false);
     let interfaces = $state<readonly NetworkInterface[]>([]);
-    let bind = $state(ListenAddress.LOOPBACK);
     let listenPort = $state(19132);
     let startedAt = $state<number | null>(null);
     let now = $state(Math.floor(Date.now() / 1000));
@@ -52,9 +50,11 @@
     const relayAddresses = $derived(
         BedrockRelayAddresses.list({ host: serverHost, transferPort, dnsOverrideHost }),
     );
-    const effectiveBind = $derived(mobile ? ListenAddress.ANY : bind);
-    const join = $derived(ListenAddress.join(effectiveBind, listenPort));
-    const choices = $derived(ListenAddress.choices(interfaces));
+    // The listener binds every interface on every platform — `bedrock::proxy::manager`
+    // has no other mode — so there is nothing here to choose. The picker that stood here
+    // changed only which address this pane suggested typing into Minecraft, which made a
+    // narrower bind look selectable when none was ever applied.
+    const join = $derived(ListenAddress.join(ListenAddress.ANY, listenPort));
 
     // Capability refused outranks a list that loaded.
     const listState = $derived<ListState>(
@@ -225,7 +225,7 @@
             <ListenAddresses
                 {interfaces}
                 port={listenPort}
-                bind={effectiveBind}
+                bind={ListenAddress.ANY}
                 singleLabel="Point Minecraft here"
                 singleNote="Add this as a server in Minecraft and join it instead."
                 listLabel="Point Minecraft at one of these"
@@ -235,26 +235,6 @@
             />
 
             <RelayAddresses addresses={relayAddresses} />
-
-            {#if !mobile}
-                <SettingRow
-                    label={I18n.t("Listen on")}
-                    note={I18n.t("Which of this machine's addresses the proxy binds. Loopback unless you play from a console or a phone on this network.")}
-                >
-                    {#snippet control()}
-                        <select
-                            class="rad-select"
-                            value={bind}
-                            aria-label={I18n.t("Listen on")}
-                            onchange={(e) => (bind = (e.target as HTMLSelectElement).value)}
-                        >
-                            {#each choices as choice (choice.id)}
-                                <option value={choice.bind}>{choice.label}</option>
-                            {/each}
-                        </select>
-                    {/snippet}
-                </SettingRow>
-            {/if}
 
             <SettingRow
                 label={I18n.t("Status")}

@@ -1191,6 +1191,17 @@
     color 0.24s ease;
 }
 
+/* Dimmed and inert where the server does not permit recording. The button keeps its
+   place in the row so its absence is never what the creator has to notice. */
+.rad-self__btn--record:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rad-self__btn--record:disabled:hover {
+  background: transparent;
+}
+
 /* 106px is what the contents actually need: 18px in, a 19px glyph, a 10px gap, five
    monospaced characters of mm:ss at ~41px, and 18px out again. Anything wider is a gap
    the eye reads as the timer being off-centre. */

@@ -69,6 +69,7 @@
 
 <SelfPill
     identityLabel={I18n.t("Profile and sign-out")}
+    recordBlockedLabel={I18n.t("Recording is off on this server")}
     {name}
     state={selfState}
     {source}

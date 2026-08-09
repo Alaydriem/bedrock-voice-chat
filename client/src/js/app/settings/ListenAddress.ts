@@ -1,11 +1,5 @@
 import type { NetworkInterface } from "../../bindings/NetworkInterface";
 
-export interface ListenChoice {
-    readonly id: string;
-    readonly label: string;
-    readonly bind: string;
-}
-
 /**
  * Where the proxy listens, and what to type into Minecraft.
  *
@@ -17,16 +11,6 @@ export class ListenAddress {
     static readonly LOOPBACK = "127.0.0.1";
 
     private static readonly LINK_LOCAL = "169.254.";
-
-    static choices(interfaces: readonly NetworkInterface[]): readonly ListenChoice[] {
-        const named = interfaces
-            .filter((nic) => nic.is_ipv4)
-            .map((nic) => ({ id: nic.ip, label: `${nic.ip} — ${nic.name}`, bind: nic.ip }));
-        return [
-            ...named,
-            { id: "any", label: `${this.ANY} — every interface`, bind: this.ANY },
-        ];
-    }
 
     /** What you type into Minecraft on this machine. */
     static join(bind: string, port: number): string {

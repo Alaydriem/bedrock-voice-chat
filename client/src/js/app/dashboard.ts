@@ -12,6 +12,7 @@ import { AppStore } from "./services/AppStore";
 import SetupFlow from './setup/SetupFlow';
 import PlatformDetector from './utils/PlatformDetector';
 import AgeGateService from './services/AgeGateService';
+import { PublicServerConfig } from './services/PublicServerConfig';
 import FeatureFlagService from './services/FeatureFlagService';
 import ImageCache from './components/imageCache';
 import ImageCacheOptions from './components/imageCacheOptions';
@@ -122,6 +123,31 @@ export default class Dashboard extends BVCApp {
     }
 
     /**
+     * Is the server there at all?
+     *
+     * Asked before anything slow, and answered by the one request a BVC server serves to
+     * anybody — no credentials, no pooled client, and outside the endpoint's circuit
+     * breaker, so it reports the server rather than the state of an earlier verdict about
+     * it.
+     *
+     * A boot against a server that is down otherwise spends its whole budget finding that
+     * out one call at a time: a credential refresh, an age-gate config read and a QUIC
+     * handshake, each of which swallows the failure and carries on, and only the last of
+     * them redirects anywhere. That runs past the preloader's ten-second escape hatch, so
+     * the screen a stopped server produced was "The app may be stuck" rather than the fault
+     * page naming it.
+     */
+    private async answers(server: string): Promise<boolean> {
+        try {
+            await PublicServerConfig.read(server);
+            return true;
+        } catch (e) {
+            warn(`Server ${server} did not answer: ${e}`);
+            return false;
+        }
+    }
+
+    /**
      * Where a failure inside the boot sequence leads.
      *
      * Recorded rather than performed, because several of these are decided inside callbacks
@@ -174,6 +200,17 @@ export default class Dashboard extends BVCApp {
 
         const appWebview = getCurrentWebviewWindow();
 
+        // `?server=` is the rail's switch, and it names the server this boot is for. Applied
+        // before anything reads the store, because the connect applied it afterwards: every
+        // step from the certificate check to the dial ran against the server being switched
+        // away from, and only the boot after that one arrived anywhere new.
+        const requested = new URLSearchParams(window.location.search).get("server");
+        if (requested) {
+            await this.store.set("current_server", requested);
+            await this.store.save();
+            info(`Server changed to ${requested}`);
+        }
+
         const currentServer = await this.store.get<string>("current_server");
         timeline.mark("store.get current_server");
 
@@ -191,6 +228,11 @@ export default class Dashboard extends BVCApp {
             }
         }
         timeline.mark("is_certificate_expired");
+
+        if (currentServer && !(await this.answers(currentServer))) {
+            return this.redirect("/error?code=CONN01");
+        }
+        timeline.mark("reachability (public /api/config)");
 
         // Initialize managers with dependency injection
         await this.initializeManagers();
@@ -662,13 +704,6 @@ export default class Dashboard extends BVCApp {
     }
 
     async initializeAudioDevicesAndNetworkStream(store: Store, currentServer: string, credentials: LoginResponse | null): Promise<void> {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has("server")) {
-            await store.set("current_server", urlParams.get("server"));
-            await store.save();
-            info("Server changed to " + urlParams.get("server"));
-        }
-
         if (currentServer) {
             // Update the current player information, then we can render the dashboard views with it
             await invoke("update_stream_metadata", {

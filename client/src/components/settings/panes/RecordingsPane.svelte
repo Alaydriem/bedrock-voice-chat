@@ -6,12 +6,14 @@
     import StatusChip from "$radial/components/StatusChip.svelte";
     import Toggle from "$radial/components/Toggle.svelte";
     import type { RecordingSession } from "../../../js/bindings/RecordingSession";
+    import type { VoiceRuntimeState } from "../../../js/bindings/VoiceRuntimeState";
     import type { RecordingRow } from "../../../js/app/settings/RecordingRow";
     import { RecordingsView } from "../../../js/app/settings/RecordingsView";
     import type { ListState } from "../../../js/app/settings/ListState";
     import ListShell from "../ListShell.svelte";
 
     let listState = $state<ListState>("loading");
+    let recordAllowed = $state(true);
     let rows = $state<readonly RecordingRow[]>([]);
     let failure = $state("");
 
@@ -38,7 +40,21 @@
         }
     }
 
-    onMount(() => void load());
+    // Permissive on a failed read, the same answer an unasked server gives. A transient
+    // error must never invent a policy the operator did not state.
+    async function loadPolicy(): Promise<void> {
+        try {
+            const backend = await invoke<VoiceRuntimeState>("voice_runtime_state");
+            recordAllowed = backend.recordingAllowed;
+        } catch {
+            recordAllowed = true;
+        }
+    }
+
+    onMount(() => {
+        void load();
+        void loadPolicy();
+    });
 
     function openExport(row: RecordingRow): void {
         exporting = row;
@@ -87,6 +103,17 @@
     <div class="rad-section__note">
         {I18n.t("Every session is stored as one track per player, timecoded together. Export writes the mix and the tracks you pick into the session's own folder.")}
     </div>
+
+    <!-- A callout, not the list's failure state: recordings already on disk stay listed,
+         playable and exportable. Only new ones are barred. -->
+    {#if !recordAllowed}
+        <div class="rad-callout rad-callout--warn">
+            <span>
+                <b>{I18n.t("This server does not allow recording")}</b>
+                {I18n.t("The operator has turned voice recording off, so the record button is unavailable while you are connected here.")}
+            </span>
+        </div>
+    {/if}
 
     {#if listState === "ready" && rows.length > 0}
         <div class="rad-swatchrow" style="margin-bottom: 4px">

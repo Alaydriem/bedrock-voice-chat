@@ -40,6 +40,7 @@
                     mode: "activated",
                     holding: false,
                     transmitting: true,
+                    recordAllowed: true,
                 }}
                 headline="NOBODY IN EARSHOT"
                 {statusOpen}

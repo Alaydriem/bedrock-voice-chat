@@ -49,6 +49,10 @@ pub struct MetricsService {
     interactions: InteractionTracker,
     started_at: Instant,
     features_enabled: Vec<String>,
+    recording_enabled: bool,
+    // Sampled at beat time rather than pushed on change: the write paths that set a
+    // player's recording flag are several, and a counter hooked into each would drift.
+    player_state: Option<crate::stream::quic::PlayerStateCache>,
     // Recently disconnected players, so a return inside the window is reported as a
     // reconnect rather than a fresh session. The name is a local key and never
     // leaves the process — only the elapsed delta is emitted.
@@ -65,6 +69,8 @@ impl MetricsService {
         server_cert_path: &str,
         features_enabled: Vec<String>,
         ca_minted: bool,
+        recording_enabled: bool,
+        player_state: Option<crate::stream::quic::PlayerStateCache>,
     ) -> (Arc<Self>, Option<JoinHandle<()>>) {
         let version = env!("CARGO_PKG_VERSION");
         let prometheus = Self::global_prometheus_handle();
@@ -117,6 +123,8 @@ impl MetricsService {
             interactions: InteractionTracker::new(),
             started_at: Instant::now(),
             features_enabled,
+            recording_enabled,
+            player_state,
             recent_disconnects: moka::sync::Cache::builder()
                 .time_to_live(RECONNECT_WINDOW)
                 .max_capacity(RECONNECT_CACHE_CAPACITY)
@@ -492,8 +500,20 @@ impl MetricsService {
                 players_reached_mutual_proximity: proximity.mutual,
                 players_reached_mutual_channel: channel.mutual,
                 features_enabled: self.features_enabled.clone(),
+                recording_enabled: self.recording_enabled,
+                recording_active: self.recording_active(),
             },
         });
+    }
+
+    pub fn recording_enabled(&self) -> bool {
+        self.recording_enabled
+    }
+
+    pub fn recording_active(&self) -> bool {
+        self.player_state
+            .as_ref()
+            .is_some_and(|states| states.any_recording())
     }
 
     pub fn render(&self) -> String {

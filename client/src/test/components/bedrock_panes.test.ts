@@ -202,15 +202,16 @@ describe("ProxyPane", () => {
         expect(view.text()).toContain("Alaydriem's SMP");
     });
 
-    // Bound to one interface, the address to type is the address it bound.
+    // Minecraft is usually on this machine, so the loopback address leads whatever else
+    // the listener answers on.
     it("names the address to type into Minecraft", async () => {
         const view = mount(ProxyPane, stub());
         await waitFor(() => expect(view.text()).toContain("127.0.0.1:19132"));
     });
 
-    // A phone binds every interface, so there is no choice to offer — and `0.0.0.0` is not
-    // something anything can connect to. Every reachable address is listed instead.
-    it("lists the addresses on mobile instead of offering a choice", async () => {
+    // The listener binds every interface, so there is no choice to offer — and `0.0.0.0`
+    // is not something anything can connect to. Every reachable address is listed instead.
+    it("lists the addresses instead of offering a choice", async () => {
         const view = mount(ProxyPane, stub(), true);
         await waitFor(() => expect(view.text()).toContain("Point Minecraft at one of these"));
         expect(view.host.querySelector("select")).toBeNull();
@@ -228,9 +229,12 @@ describe("ProxyPane", () => {
         expect(rows.every((r) => r.querySelector('[aria-label^="Copy"]'))).toBe(true);
     });
 
-    it("offers the interface choice on desktop", async () => {
+    // The listener has one mode and the picker never drove it, so a desktop reader is
+    // offered the addresses it actually answers on rather than a choice with no effect.
+    it("offers no interface choice on desktop either", async () => {
         const view = mount(ProxyPane, stub());
-        await waitFor(() => expect(view.host.querySelector("select")).not.toBeNull());
+        await waitFor(() => expect(view.text()).toContain("Point Minecraft at one of these"));
+        expect(view.host.querySelector("select")).toBeNull();
     });
 });
 

@@ -17,6 +17,7 @@ function backend(over: Partial<VoiceRuntimeState> = {}): VoiceRuntimeState {
         inputMuted: false,
         outputMuted: false,
         recording: false,
+        recordingAllowed: true,
         ...over,
     };
 }

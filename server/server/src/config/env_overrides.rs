@@ -29,6 +29,7 @@ impl EnvOverrides {
 
     pub fn apply(&self, mut config: ApplicationConfig) -> Result<ApplicationConfig, anyhow::Error> {
         self.apply_server(&mut config)?;
+        self.apply_voice(&mut config)?;
         self.apply_tls(&mut config);
         self.apply_database(&mut config)?;
         self.apply_meridian(&mut config)?;
@@ -129,6 +130,13 @@ impl EnvOverrides {
         }
         if let Some(telemetry) = self.get_bool("BVC_TELEMETRY")? {
             config.server.features.telemetry = telemetry;
+        }
+        Ok(())
+    }
+
+    fn apply_voice(&self, config: &mut ApplicationConfig) -> Result<(), anyhow::Error> {
+        if let Some(recording) = self.get_bool("BVC_RECORDING")? {
+            config.voice.recording.enabled = recording;
         }
         Ok(())
     }

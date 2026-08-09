@@ -13,6 +13,10 @@ pub struct RecordingManager {
     recording_state: Arc<AtomicBool>,
     app_handle: tauri::AppHandle,
 
+    // Whether the connected server permits recording. Permissive until a connection
+    // says otherwise, so a client that has not connected yet behaves as it always did.
+    allowed: bool,
+
     // Recording channels (owned by manager)
     recording_producer: Arc<RecordingProducer>,
     recording_consumer: Arc<RecordingConsumer>,
@@ -28,6 +32,7 @@ impl RecordingManager {
             recorder: None,
             recording_state: Arc::new(AtomicBool::new(false)),
             app_handle,
+            allowed: true,
             recording_producer: Arc::new(recording_producer),
             recording_consumer: Arc::new(recording_consumer),
         }
@@ -44,8 +49,27 @@ impl RecordingManager {
         Arc::clone(&self.recording_state)
     }
 
+    /// Adopt the connected server's recording policy.
+    pub fn set_allowed(&mut self, allowed: bool) {
+        self.allowed = allowed;
+    }
+
+    /// Whether the connected server permits arming a recording.
+    pub fn is_allowed(&self) -> bool {
+        self.allowed
+    }
+
     /// Start a new recording session
+    ///
+    /// Every surface that arms a recording — the record button, the global hotkey, the
+    /// Stream Deck socket and the in-game panel — reaches this method, which is why the
+    /// operator's policy is checked here rather than at any one of them.
     pub async fn start_recording(&mut self, current_player: String) -> Result<(), anyhow::Error> {
+        if !self.allowed {
+            return Err(anyhow::anyhow!(
+                "RECORDING_DISABLED: this server does not permit recording"
+            ));
+        }
         if self.recording_state.load(Ordering::SeqCst) {
             return Err(anyhow::anyhow!("Recording already in progress"));
         }

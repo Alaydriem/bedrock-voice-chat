@@ -113,6 +113,53 @@ describe("RecordingsPane", () => {
         await waitFor(() => expect(view.text()).toContain("Couldn't read your recordings"));
         expect(view.text()).toContain("Failed to read recordings directory");
     });
+
+    function policy(recordingAllowed: boolean) {
+        return () => ({
+            voiceMode: "openMic",
+            pttActive: false,
+            inputMuted: false,
+            outputMuted: false,
+            recording: false,
+            jukeboxPlaying: false,
+            recordingAllowed,
+        });
+    }
+
+    it("explains why recording is unavailable on a server that disallows it", async () => {
+        mockInvoke({
+            get_recording_sessions: () => [session()],
+            voice_runtime_state: policy(false),
+        });
+        const view = mount(RecordingsPane);
+
+        await waitFor(() =>
+            expect(view.text()).toContain("This server does not allow recording"),
+        );
+    });
+
+    // Turning recording off must not read as losing what was already recorded.
+    it("still lists and offers to export existing sessions when recording is disallowed", async () => {
+        mockInvoke({
+            get_recording_sessions: () => [session({ name: "Nether run" })],
+            voice_runtime_state: policy(false),
+        });
+        const view = mount(RecordingsPane);
+
+        await waitFor(() => expect(view.text()).toContain("Nether run"));
+        expect(view.button("Export")?.disabled).toBe(false);
+    });
+
+    it("shows no notice where the server allows recording", async () => {
+        mockInvoke({
+            get_recording_sessions: () => [session()],
+            voice_runtime_state: policy(true),
+        });
+        const view = mount(RecordingsPane);
+
+        await waitFor(() => expect(view.text()).toContain("Recorded"));
+        expect(view.host.querySelector(".rad-callout--warn")).toBeNull();
+    });
 });
 
 describe("LibraryPane", () => {

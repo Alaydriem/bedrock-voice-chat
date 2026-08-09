@@ -27,7 +27,6 @@ use crate::bedrock::{
 };
 use crate::control::ControlActionSender;
 use crate::feature_flags::FeatureFlagService;
-use crate::feature_flags::flags::bedrock::RealmsConnectEnabled;
 use crate::structs::app_state::AppState;
 
 /// Starts a Bedrock session against a direct backend or a Realm.
@@ -167,14 +166,6 @@ impl BedrockConnector {
 
     pub async fn start_realm(&self, request: RealmConnectRequest) -> Result<(), anyhow::Error> {
         let flag_service = self.app_handle.state::<Arc<FeatureFlagService>>();
-
-        // Scope is deliberate: the switch is read once, here, so it stops new
-        // sessions from starting. A session already running is not torn down when
-        // the flag flips off — it ends when the player disconnects. Cutting live
-        // sessions would need a watcher on the flag generation, not a check here.
-        if !flag_service.get(RealmsConnectEnabled).await {
-            anyhow::bail!("Realms Connect is currently unavailable.");
-        }
 
         let state = self.app_handle.state::<Mutex<BedrockState>>();
 

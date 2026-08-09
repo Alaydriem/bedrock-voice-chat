@@ -502,4 +502,75 @@ describe("SelfController", () => {
         await vi.waitFor(() => expect(self.state.snapshot.recording).toBe(false));
         expect(invokeCalls().some((c) => c.cmd === "stop_recording")).toBe(true);
     });
+    it("adopts the server's recording policy from the backend poll", async () => {
+        mockInvoke({
+            mute_status: () => false,
+            is_recording: () => false,
+            voice_runtime_state: () => ({
+                voiceMode: "openMic",
+                pttActive: false,
+                inputMuted: false,
+                outputMuted: false,
+                recording: false,
+                jukeboxPlaying: false,
+                recordingAllowed: false,
+            }),
+        });
+
+        const self = new SelfController(store(), levels());
+        await self.start();
+
+        expect(self.state.snapshot.recordAllowed).toBe(false);
+    });
+
+    it("does not ask the backend to record where the server disallows it", async () => {
+        mockInvoke({
+            mute_status: () => false,
+            is_recording: () => false,
+            start_recording: () => "session-1",
+            voice_runtime_state: () => ({
+                voiceMode: "openMic",
+                pttActive: false,
+                inputMuted: false,
+                outputMuted: false,
+                recording: false,
+                jukeboxPlaying: false,
+                recordingAllowed: false,
+            }),
+        });
+
+        const self = new SelfController(store(), levels());
+        await self.start();
+        self.pressRecord();
+
+        expect(invokeCalls().some((c) => c.cmd === "start_recording")).toBe(false);
+        expect(self.state.snapshot.recording).toBe(false);
+    });
+
+    // An operator can turn recording off while someone is already recording. The refusal
+    // must never be the thing that strands an open session.
+    it("still stops an open recording where the server disallows recording", async () => {
+        mockInvoke({
+            mute_status: () => false,
+            is_recording: () => true,
+            stop_recording: () => null,
+            voice_runtime_state: () => ({
+                voiceMode: "openMic",
+                pttActive: false,
+                inputMuted: false,
+                outputMuted: false,
+                recording: true,
+                jukeboxPlaying: false,
+                recordingAllowed: false,
+            }),
+        });
+
+        const self = new SelfController(store(), levels());
+        await self.start();
+        self.pressRecord();
+
+        await vi.waitFor(() =>
+            expect(invokeCalls().some((c) => c.cmd === "stop_recording")).toBe(true),
+        );
+    });
 });

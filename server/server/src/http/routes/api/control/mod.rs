@@ -1,3 +1,4 @@
+use crate::config::Voice;
 use crate::http::guards::MCAccessToken;
 use crate::http::openapi::{CustomJsonResponse, RouteSpec, TagDefinition};
 use crate::services::{ClientActionService, PlayerIdentityService};
@@ -41,6 +42,7 @@ pub async fn control(
     cache_manager: &State<CacheManager>,
     webhook_receiver: &State<WebhookReceiver>,
     identity_service: &State<PlayerIdentityService>,
+    voice: &State<Voice>,
     action: Json<ClientAction>,
 ) -> CustomJsonResponse<Option<String>> {
     let mut action = action.0;
@@ -51,14 +53,23 @@ pub async fn control(
     let game = action.game.clone().unwrap_or(Game::Minecraft);
     action.id = identity_service.resolve_name(&action.id, &game).await;
 
-    let svc = ClientActionService::new();
+    let svc = ClientActionService::new(voice.recording.enabled);
+
+    if !svc.permits(&action.action) {
+        tracing::info!("control refused: this server does not permit recording");
+        return CustomJsonResponse::error(Status::Forbidden);
+    }
 
     if action.action.is_group_action() {
         let channels = cache_manager.get_channel_collection();
         let actor_cn = action.actor_key();
-        match svc
-            .route_group(&action.action, &actor_cn, &channels, webhook_receiver.inner())
-            .await
+        match ClientActionService::route_group(
+            &action.action,
+            &actor_cn,
+            &channels,
+            webhook_receiver.inner(),
+        )
+        .await
         {
             Ok(created) => CustomJsonResponse::ok(created),
             Err(e) => {

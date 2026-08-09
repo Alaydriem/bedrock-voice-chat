@@ -12,6 +12,7 @@ use tauri::async_runtime::Mutex;
 
 #[tauri::command]
 pub(crate) async fn stop_network_stream(
+    app: tauri::AppHandle,
     network_stream: State<'_, Mutex<NetworkStreamManager>>,
     analytics: State<'_, Arc<AnalyticsService>>,
 ) -> Result<(), ()> {
@@ -19,6 +20,11 @@ pub(crate) async fn stop_network_stream(
     _ = network_stream.stop().await;
     analytics.clear_connected_server();
     analytics.clear_player();
+    // Back to permissive: a disconnected client must not go on refusing under the
+    // policy of the server it just left.
+    crate::audio::AudioActionsManager::new(app)
+        .set_recording_allowed(true)
+        .await;
     Ok(())
 }
 
@@ -51,7 +57,11 @@ pub(crate) async fn change_network_stream(
 
     let advertised = match api {
         Ok(api) => match api.get_config().await {
-            Ok(config) => Some((config.quic_ports, config.quic_port)),
+            Ok(config) => Some((
+                config.quic_ports,
+                config.quic_port,
+                config.recording.enabled,
+            )),
             Err(e) => {
                 warn!("Config fetch failed for {}; using stored port: {}", server, e);
                 None
@@ -63,7 +73,17 @@ pub(crate) async fn change_network_stream(
         }
     };
 
-    let (advertised_ports, advertised_scalar) = advertised.unwrap_or((Vec::new(), 0));
+    // A config fetch that failed leaves recording permitted, the same answer an
+    // unasked server gives.
+    let (advertised_ports, advertised_scalar, recording_enabled) =
+        advertised.unwrap_or((Vec::new(), 0, true));
+
+    crate::audio::AudioActionsManager::new(app.clone())
+        .set_recording_allowed(recording_enabled)
+        .await;
+    if !recording_enabled {
+        info!("{} does not permit recording", server);
+    }
 
     let request = match ReachabilityPlanner::plan(
         &server,
