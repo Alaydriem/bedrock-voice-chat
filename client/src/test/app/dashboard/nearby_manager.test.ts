@@ -155,7 +155,9 @@ describe("NearbyManager", () => {
             // Not an error: the server closes a feed it has nothing to say on, and reconnecting
             // is how it comes back when it does.
             first!.onclose!();
-            await vi.advanceTimersByTimeAsync(3_100);
+            // Past the jittered maximum of the first backoff, not the backoff itself: the
+            // redial is deliberately spread out so a server restart is not met in lockstep.
+            await vi.advanceTimersByTimeAsync(6_100);
             expect(sockets).toHaveLength(2);
 
             sockets.at(-1)!.onmessage!({

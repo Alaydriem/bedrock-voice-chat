@@ -27,14 +27,35 @@ export type SnapshotListener = (snapshot: PositionSnapshot) => void;
 export class PositionFeed {
     private static readonly PROTOCOL = 'bvc.positions.v1';
 
-    /** Backoff between reconnects, for a socket lost to the network rather than to design. */
-    private static readonly RETRY_MS = 3_000;
+    /** First delay before redialling a socket lost to the network rather than to design. */
+    static readonly BACKOFF_MIN_MS = 3_000;
+
+    /**
+     * Ceiling on that delay.
+     *
+     * The roster is only as fresh as this feed, so the ceiling is well short of the minute a
+     * background channel would take — an outage that ends must not leave the screen empty for
+     * another one.
+     */
+    static readonly BACKOFF_MAX_MS = 30_000;
+
+    /**
+     * How long a socket may stay in CONNECTING before it is treated as dead.
+     *
+     * A link discarded mid-session — a lapsed NAT binding, a network handover — does not
+     * refuse the connection, it swallows it. The socket reports no error, no close, and no
+     * open, and the browser's own timeout is minutes away. Without this the feed sat holding
+     * that socket forever, because `connect` will not open a second one alongside it.
+     */
+    static readonly OPEN_TIMEOUT_MS = 10_000;
 
     private readonly server: string;
     private readonly onSnapshot: SnapshotListener;
 
     private socket: WebSocket | null = null;
     private retry: ReturnType<typeof setTimeout> | null = null;
+    private opening: ReturnType<typeof setTimeout> | null = null;
+    private backoff = PositionFeed.BACKOFF_MIN_MS;
     private lastSeq = -1;
     private closed = false;
 
@@ -54,6 +75,7 @@ export class PositionFeed {
 
     async start(): Promise<void> {
         this.closed = false;
+        this.backoff = PositionFeed.BACKOFF_MIN_MS;
         await this.connect();
     }
 
@@ -100,17 +122,72 @@ export class PositionFeed {
 
         this.socket = socket;
 
-        socket.onmessage = (event) => {
-            if (current()) this.receive(event.data);
-        };
-        socket.onclose = () => {
-            if (this.socket === socket) this.socket = null;
+        // One terminal path for a socket that is not going to serve. A failure reports itself
+        // as an error, or as a close, or as neither — and retrying from only one of those is
+        // what left the feed holding a socket that would never be replaced. Whichever arrives
+        // first owns the retry; the rest are already spent.
+        let settled = false;
+        const fail = (why: string, loud: boolean): void => {
+            if (settled) return;
+            settled = true;
+            PositionFeed.detach(socket);
+            socket.close();
+            // A socket the feed no longer holds was retired by `stop()` or by a newer attempt,
+            // and that owner carries the retry and the watchdog with it.
+            if (this.socket !== socket) return;
+            this.socket = null;
+            this.clearOpening();
             if (!current()) return;
-            // The server holds this open, so a close is a lost link rather than a handover.
-            debug('PositionFeed: socket closed');
+            if (loud) warn(`PositionFeed: ${why}`);
+            else debug(`PositionFeed: ${why}`);
             this.scheduleRetry();
         };
-        socket.onerror = () => warn('PositionFeed: socket error');
+
+        this.opening = setTimeout(
+            () => fail('socket never opened', true),
+            PositionFeed.OPEN_TIMEOUT_MS,
+        );
+
+        const opened = (): void => {
+            if (this.socket !== socket) return;
+            this.clearOpening();
+            // Reset by a socket that reached the server, never by one that was merely tried:
+            // a feed that keeps failing must keep slowing down.
+            this.backoff = PositionFeed.BACKOFF_MIN_MS;
+        };
+
+        socket.onopen = () => {
+            opened();
+            debug('PositionFeed: connected');
+        };
+        socket.onmessage = (event) => {
+            // A socket delivering frames has plainly opened, whether or not `onopen` was seen.
+            opened();
+            if (current()) this.receive(event.data);
+        };
+        // The server holds this open, so a close is a lost link rather than a handover.
+        socket.onclose = () => fail('socket closed', false);
+        socket.onerror = () => fail('socket error', true);
+    }
+
+    private clearOpening(): void {
+        if (this.opening) {
+            clearTimeout(this.opening);
+            this.opening = null;
+        }
+    }
+
+    /**
+     * Silence a socket the feed has finished with.
+     *
+     * All four, not just `onclose`: a retired socket that still delivers a message would be
+     * treated as proof that the attempt replacing it had reached the server.
+     */
+    private static detach(socket: WebSocket): void {
+        socket.onopen = null;
+        socket.onmessage = null;
+        socket.onclose = null;
+        socket.onerror = null;
     }
 
     private receive(data: unknown): void {
@@ -133,11 +210,18 @@ export class PositionFeed {
 
     private scheduleRetry(): void {
         if (this.closed || this.retry) return;
+
+        // Jitter is load-bearing rather than tidy: a server restart drops every client's feed
+        // in the same instant, and a fixed delay has all of them buy a ticket and redial
+        // together, against a server that has only just come up.
+        const delay = this.backoff + Math.random() * PositionFeed.BACKOFF_MIN_MS;
+        this.backoff = Math.min(this.backoff * 2, PositionFeed.BACKOFF_MAX_MS);
+
         this.retry = setTimeout(() => {
             this.retry = null;
             // A fresh ticket every time: they are single-use and expire within the minute.
             void this.connect();
-        }, PositionFeed.RETRY_MS);
+        }, delay);
     }
 
     stop(): void {
@@ -145,12 +229,13 @@ export class PositionFeed {
         // Retires any attempt still suspended on an await, so it cannot open a socket that
         // nothing owns or spend a ticket against the feed that replaces this one.
         this.generation++;
+        this.clearOpening();
         if (this.retry) {
             clearTimeout(this.retry);
             this.retry = null;
         }
         if (this.socket) {
-            this.socket.onclose = null;
+            PositionFeed.detach(this.socket);
             this.socket.close();
             this.socket = null;
         }
