@@ -1,94 +1,35 @@
 package com.alaydriem.bedrockvoicechat.paper
 
 import com.alaydriem.bedrockvoicechat.api.ConfigProvider
-import com.alaydriem.bedrockvoicechat.config.EmbeddedConfig
+import com.alaydriem.bedrockvoicechat.config.LegacyEmbeddedKeys
 import com.alaydriem.bedrockvoicechat.config.ModConfig
+import com.google.gson.Gson
+import com.google.gson.JsonObject
 import org.bukkit.plugin.java.JavaPlugin
 import java.nio.file.Path
 
 /**
- * Paper-specific configuration provider using YAML files.
+ * Paper configuration provider. The YAML document is converted whole and
+ * deserialized in one step, so every block the mod understands is read without
+ * this class knowing any key by name.
  */
 class PaperConfigProvider(private val plugin: JavaPlugin) : ConfigProvider {
+    companion object {
+        private val GSON = Gson()
+
+        @JvmStatic
+        fun fromJson(json: JsonObject): ModConfig {
+            val config = GSON.fromJson(json, ModConfig::class.java) ?: ModConfig()
+            val embedded = json.getAsJsonObject("embedded-config")
+                ?: json.getAsJsonObject("embeddedConfig")
+            config.legacyKeys = LegacyEmbeddedKeys.detect(embedded)
+            return config
+        }
+    }
 
     override fun getConfigDir(): Path = plugin.dataFolder.toPath()
 
-    override fun load(): ModConfig {
-        val yamlConfig = plugin.config
-
-        return ModConfig().apply {
-            // Support both hyphenated and camelCase keys
-            bvcServer = yamlConfig.getString("bvc-server")
-                ?: yamlConfig.getString("bvcServer", "")
-            accessToken = yamlConfig.getString("access-token")
-                ?: yamlConfig.getString("accessToken", "")
-            minimumPlayers = if (yamlConfig.contains("minimum-players"))
-                yamlConfig.getInt("minimum-players", 1)
-            else
-                yamlConfig.getInt("minimumPlayers", 1)
-
-            // Embedded server settings
-            useEmbeddedServer = yamlConfig.getBoolean("use-embedded-server", false)
-                || yamlConfig.getBoolean("useEmbeddedServer", false)
-
-            if (useEmbeddedServer) {
-                embeddedConfig = EmbeddedConfig().apply {
-                    httpPort = yamlConfig.getInt("embedded.http-port",
-                        yamlConfig.getInt("embedded.httpPort", 8444))
-                    quicPort = yamlConfig.getInt("embedded.quic-port",
-                        yamlConfig.getInt("embedded.quicPort", 8443))
-                    broadcastRange = yamlConfig.getDouble("embedded.broadcast-range",
-                        yamlConfig.getDouble("embedded.broadcastRange", 32.0)).toFloat()
-                    tlsCertificate = yamlConfig.getString("embedded.tls-certificate")
-                        ?: yamlConfig.getString("embedded.tlsCertificate", "")!!
-                    tlsKey = yamlConfig.getString("embedded.tls-key")
-                        ?: yamlConfig.getString("embedded.tlsKey", "")!!
-                    tlsNames = yamlConfig.getStringList("embedded.tls-names").ifEmpty {
-                        yamlConfig.getStringList("embedded.tlsNames").ifEmpty {
-                            listOf("localhost", "127.0.0.1")
-                        }
-                    }
-                    tlsIps = yamlConfig.getStringList("embedded.tls-ips").ifEmpty {
-                        yamlConfig.getStringList("embedded.tlsIps").ifEmpty {
-                            listOf("127.0.0.1")
-                        }
-                    }
-                    logLevel = yamlConfig.getString("embedded.log-level")
-                        ?: yamlConfig.getString("embedded.logLevel", "info")!!
-                    assetsPath = yamlConfig.getString("embedded.assets-path")
-                        ?: yamlConfig.getString("embedded.assetsPath")
-                    allowAudioUpload = yamlConfig.getBoolean("embedded.allow-audio-upload",
-                        yamlConfig.getBoolean("embedded.allowAudioUpload", false))
-                    allowAudioDelete = yamlConfig.getBoolean("embedded.allow-audio-delete",
-                        yamlConfig.getBoolean("embedded.allowAudioDelete", false))
-                }
-            }
-        }
-    }
-
-    override fun save(config: ModConfig) {
-        val yamlConfig = plugin.config
-        yamlConfig.set("bvc-server", config.bvcServer)
-        yamlConfig.set("access-token", config.accessToken)
-        yamlConfig.set("minimum-players", config.minimumPlayers)
-        yamlConfig.set("use-embedded-server", config.useEmbeddedServer)
-
-        config.embeddedConfig?.let { embedded ->
-            yamlConfig.set("embedded.http-port", embedded.httpPort)
-            yamlConfig.set("embedded.quic-port", embedded.quicPort)
-            yamlConfig.set("embedded.broadcast-range", embedded.broadcastRange)
-            yamlConfig.set("embedded.tls-certificate", embedded.tlsCertificate)
-            yamlConfig.set("embedded.tls-key", embedded.tlsKey)
-            yamlConfig.set("embedded.tls-names", embedded.tlsNames)
-            yamlConfig.set("embedded.tls-ips", embedded.tlsIps)
-            yamlConfig.set("embedded.log-level", embedded.logLevel)
-            embedded.assetsPath?.let { yamlConfig.set("embedded.assets-path", it) }
-            yamlConfig.set("embedded.allow-audio-upload", embedded.allowAudioUpload)
-            yamlConfig.set("embedded.allow-audio-delete", embedded.allowAudioDelete)
-        }
-
-        plugin.saveConfig()
-    }
+    override fun load(): ModConfig = fromJson(YamlSectionConverter.toJson(plugin.config))
 
     override fun createDefaultIfMissing() {
         plugin.saveDefaultConfig()

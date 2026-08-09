@@ -50,6 +50,18 @@ pub struct RuntimeHandle {
     audio_playback_service: Arc<RwLock<Option<Arc<AudioPlaybackService>>>>,
     /// Database connection for FFI audio operations
     db_conn: Arc<RwLock<Option<Arc<DatabaseConnection>>>>,
+    /// Chat hub, for an embedded mod driving chat without a socket
+    chat_service: Arc<RwLock<Option<Arc<crate::services::ChatService>>>>,
+    /// Outbound `say` frames awaiting `bvc_chat_drain`.
+    ///
+    /// The embedded mod is the transport here, so the queue the WebSocket route would own
+    /// lives on the handle instead and is emptied by polling rather than by a socket write.
+    chat_outbound: Mutex<Option<tokio::sync::mpsc::Receiver<String>>>,
+    /// Every world id the embedded mod registered, so shutdown can release them all.
+    chat_rooms: Mutex<Vec<String>>,
+    /// The configuration the server resolved, kept so an embedder can read the
+    /// values defaults and environment overrides decided.
+    resolved_config: String,
 }
 
 // Thread-local storage for last error message
@@ -114,10 +126,19 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         }
     };
 
-    let config: ApplicationConfig = match serde_json::from_str(config_str) {
-        Ok(c) => c,
+    let config: ApplicationConfig =
+        match ApplicationConfig::from_json_with_env(config_str, std::env::vars().collect()) {
+            Ok(c) => c,
+            Err(e) => {
+                set_last_error(&format!("Failed to parse config JSON: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+    let resolved_config = match serde_json::to_string(&config) {
+        Ok(json) => json,
         Err(e) => {
-            set_last_error(&format!("Failed to parse config JSON: {}", e));
+            set_last_error(&format!("Failed to serialize resolved config: {}", e));
             return ptr::null_mut();
         }
     };
@@ -140,6 +161,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let identity_service = runtime.get_identity_service();
     let audio_playback_service = runtime.get_audio_playback_service();
     let db_conn = runtime.get_db_conn();
+    let chat_service = runtime.get_chat_service();
 
     let mut runtime_builder = tokio::runtime::Builder::new_multi_thread();
     runtime_builder.enable_all();
@@ -178,6 +200,10 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         identity_service,
         audio_playback_service,
         db_conn,
+        chat_service,
+        chat_outbound: Mutex::new(None),
+        chat_rooms: Mutex::new(Vec::new()),
+        resolved_config,
     });
 
     Box::into_raw(handle)
@@ -1094,5 +1120,316 @@ pub unsafe extern "C" fn bvc_provision_websocket_ticket(
             ptr::null_mut()
         }
     }
+    })
+}
+
+/// Register the embedded mod as this world's chat channel.
+///
+/// The embedded mod shares this process, so it drives chat through calls rather than dialling
+/// a socket back into its own address space. It registers into the same `ChatSocketRegistry`
+/// the WebSocket route uses, which is what lets `on_app_send`, availability, the worlds route
+/// and the QUIC fan-out all work unchanged — the FFI is a transport, not a second
+/// implementation of chat.
+///
+/// `hello_json` is a `ChatFrame::Hello`, the same shape the socket sends.
+///
+/// # Returns
+/// 0 on success, -1 on error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_chat_register(
+    handle: *mut RuntimeHandle,
+    hello_json: *const c_char,
+) -> c_int {
+    ffi_guard!("bvc_chat_register", -1, {
+        if handle.is_null() || hello_json.is_null() {
+            set_last_error("handle or hello_json is null");
+            return -1;
+        }
+
+        let json = match unsafe { CStr::from_ptr(hello_json) }.to_str() {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(&format!("Invalid UTF-8 in hello_json: {}", e));
+                return -1;
+            }
+        };
+
+        let frame: common::structs::chat::ChatFrame = match serde_json::from_str(json) {
+            Ok(f) => f,
+            Err(e) => {
+                set_last_error(&format!("Invalid ChatFrame JSON: {}", e));
+                return -1;
+            }
+        };
+
+        let common::structs::chat::ChatFrame::Hello {
+            world,
+            world_name,
+            worlds,
+            ..
+        } = frame
+        else {
+            set_last_error("bvc_chat_register expects a hello frame");
+            return -1;
+        };
+
+        let handle_ref = unsafe { &*handle };
+
+        let service = match handle_ref.chat_service.read() {
+            Ok(g) => match g.as_ref() {
+                Some(s) => s.clone(),
+                None => {
+                    set_last_error("Server not started - chat service not available");
+                    return -1;
+                }
+            },
+            Err(e) => {
+                set_last_error(&format!("Failed to read chat_service: {}", e));
+                return -1;
+            }
+        };
+
+        // The canonical id first, then any extra ids the same room spans, deduplicated.
+        let mut keys = vec![world];
+        for extra in worlds {
+            if !keys.contains(&extra) {
+                keys.push(extra);
+            }
+        }
+
+        // Bounded for the same reason the socket queue is: chat that cannot be drained is
+        // dropped rather than buffered, because a backlog delivered late lands stale lines in
+        // a conversation that has already moved on.
+        let (tx, rx) = tokio::sync::mpsc::channel::<String>(64);
+
+        for previous in service.register_room(&keys, world_name, tx) {
+            drop(previous);
+        }
+
+        if let Ok(mut slot) = handle_ref.chat_outbound.lock() {
+            *slot = Some(rx);
+        }
+        if let Ok(mut rooms) = handle_ref.chat_rooms.lock() {
+            *rooms = keys;
+        }
+
+        0
+    })
+}
+
+/// Report a line a player typed in game.
+///
+/// `chat_json` is a `ChatFrame::Chat`.
+///
+/// # Returns
+/// 0 on success, -1 on error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_chat_report(
+    handle: *mut RuntimeHandle,
+    chat_json: *const c_char,
+) -> c_int {
+    ffi_guard!("bvc_chat_report", -1, {
+        if handle.is_null() || chat_json.is_null() {
+            set_last_error("handle or chat_json is null");
+            return -1;
+        }
+
+        let json = match unsafe { CStr::from_ptr(chat_json) }.to_str() {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(&format!("Invalid UTF-8 in chat_json: {}", e));
+                return -1;
+            }
+        };
+
+        let frame: common::structs::chat::ChatFrame = match serde_json::from_str(json) {
+            Ok(f) => f,
+            Err(e) => {
+                set_last_error(&format!("Invalid ChatFrame JSON: {}", e));
+                return -1;
+            }
+        };
+
+        // Both directions of "something happened in the world": a person speaking, or the
+        // server speaking. Embedded has to carry events too, or deaths and joins appear on
+        // Bedrock and vanish on Java.
+        let reported = match frame {
+            common::structs::chat::ChatFrame::Chat { author, text } => Some((Some(author), text)),
+            common::structs::chat::ChatFrame::Event { text } => Some((None, text)),
+            _ => None,
+        };
+
+        let Some((author, text)) = reported else {
+            set_last_error("bvc_chat_report expects a chat or event frame");
+            return -1;
+        };
+
+        let handle_ref = unsafe { &*handle };
+
+        let tokio_rt = match &handle_ref.tokio_runtime {
+            Some(rt) => rt,
+            None => {
+                set_last_error("Tokio runtime not available");
+                return -1;
+            }
+        };
+
+        let service = match handle_ref.chat_service.read() {
+            Ok(g) => match g.as_ref() {
+                Some(s) => s.clone(),
+                None => {
+                    set_last_error("Server not started - chat service not available");
+                    return -1;
+                }
+            },
+            Err(e) => {
+                set_last_error(&format!("Failed to read chat_service: {}", e));
+                return -1;
+            }
+        };
+
+        let rooms = match handle_ref.chat_rooms.lock() {
+            Ok(r) => r.clone(),
+            Err(e) => {
+                set_last_error(&format!("Failed to read chat_rooms: {}", e));
+                return -1;
+            }
+        };
+
+        if rooms.is_empty() {
+            set_last_error("bvc_chat_register has not been called");
+            return -1;
+        }
+
+        tokio_rt.block_on(async move {
+            match author {
+                Some(author) => service.on_game_chat(&rooms, author, text).await,
+                None => service.on_game_event(&rooms, text).await,
+            }
+        });
+
+        0
+    })
+}
+
+/// Take every `say` frame waiting for the embedded mod to broadcast.
+///
+/// Polled from the tick the mod already runs. Returns a JSON array — `[]` when there is
+/// nothing — which the caller must release with `bvc_free_string`.
+///
+/// A pull rather than a callback because the FFI has no callback mechanism at all, and adding
+/// one would mean holding a function pointer across the JNA boundary for the life of the
+/// process.
+///
+/// # Returns
+/// Pointer to a JSON array, or null on error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_chat_drain(handle: *mut RuntimeHandle) -> *mut c_char {
+    ffi_guard!("bvc_chat_drain", ptr::null_mut(), {
+        if handle.is_null() {
+            set_last_error("handle is null");
+            return ptr::null_mut();
+        }
+
+        let handle_ref = unsafe { &*handle };
+
+        let mut frames: Vec<serde_json::Value> = Vec::new();
+
+        if let Ok(mut slot) = handle_ref.chat_outbound.lock() {
+            if let Some(rx) = slot.as_mut() {
+                // Non-blocking: this runs on the game's tick thread, which must never park.
+                while let Ok(body) = rx.try_recv() {
+                    match serde_json::from_str::<serde_json::Value>(&body) {
+                        Ok(v) => frames.push(v),
+                        Err(e) => tracing::warn!("undecodable outbound chat frame: {}", e),
+                    }
+                }
+            }
+        }
+
+        let body = match serde_json::to_string(&frames) {
+            Ok(b) => b,
+            Err(e) => {
+                set_last_error(&format!("Failed to encode chat frames: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        match CString::new(body) {
+            Ok(c) => c.into_raw(),
+            Err(e) => {
+                set_last_error(&format!("Failed to build C string: {}", e));
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
+/// Release every chat room the embedded mod registered.
+///
+/// # Returns
+/// 0 on success, -1 on error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_chat_unregister(handle: *mut RuntimeHandle) -> c_int {
+    ffi_guard!("bvc_chat_unregister", -1, {
+        if handle.is_null() {
+            set_last_error("handle is null");
+            return -1;
+        }
+
+        let handle_ref = unsafe { &*handle };
+
+        let service = match handle_ref.chat_service.read() {
+            Ok(g) => g.as_ref().cloned(),
+            Err(e) => {
+                set_last_error(&format!("Failed to read chat_service: {}", e));
+                return -1;
+            }
+        };
+
+        if let (Some(service), Ok(mut rooms)) = (service, handle_ref.chat_rooms.lock()) {
+            for world in rooms.iter() {
+                service.unregister(world);
+            }
+            rooms.clear();
+        }
+
+        if let Ok(mut slot) = handle_ref.chat_outbound.lock() {
+            *slot = None;
+        }
+
+        0
+    })
+}
+
+/// Return the configuration the server resolved: the embedder's JSON with serde
+/// defaults and `BVC_*` overrides applied.
+///
+/// The embedded mod needs values it never set — the HTTP port and TLS name its
+/// own chat endpoint dials — and those are decided here rather than in the mod.
+///
+/// # Returns
+/// * Pointer to a heap-allocated JSON string (free via `bvc_free_string`)
+/// * NULL on error
+///
+/// # Safety
+/// * `handle` must be a valid pointer from `bvc_server_create()`
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_config_effective(handle: *mut RuntimeHandle) -> *mut c_char {
+    ffi_guard!("bvc_config_effective", ptr::null_mut(), {
+        if handle.is_null() {
+            set_last_error("handle is null");
+            return ptr::null_mut();
+        }
+
+        let handle_ref = unsafe { &*handle };
+
+        match CString::new(handle_ref.resolved_config.clone()) {
+            Ok(cstr) => cstr.into_raw(),
+            Err(e) => {
+                set_last_error(&format!("Failed to create CString: {}", e));
+                ptr::null_mut()
+            }
+        }
     })
 }

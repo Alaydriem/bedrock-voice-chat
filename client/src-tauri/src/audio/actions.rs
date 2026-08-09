@@ -149,7 +149,21 @@ impl AudioActionsManager {
             input_muted: self.is_muted(AudioDeviceType::InputDevice).await,
             output_muted: self.is_muted(AudioDeviceType::OutputDevice).await,
             recording: self.is_recording().await,
+            jukebox_playing: self.jukebox_playing().await,
         }
+    }
+
+    /// Whether jukebox frames are arriving, or false when no stream manager is registered.
+    ///
+    /// Absent state rather than an unwrap, for the same reason as `is_recording`: this is read on
+    /// a poll and must not panic in the loop that keeps the self-state surfaces honest.
+    async fn jukebox_playing(&self) -> bool {
+        let Some(asm) = self.app_handle.try_state::<Mutex<AudioStreamManager>>() else {
+            return false;
+        };
+        let asm = asm.lock().await;
+        asm.peer_registry()
+            .jukebox_playing(crate::diagnostics::PeerRegistry::JUKEBOX_PLAYING_WINDOW)
     }
 
     /// Whether a recording session is open, or false if nothing is holding one.
@@ -183,6 +197,10 @@ impl AudioActionsManager {
     /// push-to-talk `muted` is the resting state and only the hold clears it, so a
     /// controller that reads the flag without the mode draws a mute button that is on
     /// almost always and does nothing when pressed.
+    ///
+    /// The connected world is filled in here rather than by each caller. Sixteen surfaces
+    /// broadcast through `broadcast_state`, and one that left it unset would tell every
+    /// controller nothing is connected on the next mute or push-to-talk press.
     pub async fn query_state(&self) -> crate::websocket::StateData {
         let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
         let mut asm = asm.lock().await;
@@ -213,7 +231,27 @@ impl AudioActionsManager {
             recording,
             voice_mode,
             ptt_active,
+            connection: self.active_connection().await,
         }
+    }
+
+    /// The world a session is running against, read from the bedrock state that owns it.
+    ///
+    /// Takes the `BedrockState` lock. `tauri::async_runtime::Mutex` is not reentrant, so a
+    /// caller already holding that lock must release it before broadcasting — see
+    /// `BedrockConnector::start_proxy`.
+    #[cfg(feature = "bedrock-protocol")]
+    async fn active_connection(&self) -> Option<websocket_types::ActiveConnection> {
+        let state = self
+            .app_handle
+            .try_state::<tauri::async_runtime::Mutex<crate::bedrock::BedrockState>>()?;
+        let state = state.lock().await;
+        state.active_connection.clone()
+    }
+
+    #[cfg(not(feature = "bedrock-protocol"))]
+    async fn active_connection(&self) -> Option<websocket_types::ActiveConnection> {
+        None
     }
 
     /// Query state and broadcast to all WS clients.

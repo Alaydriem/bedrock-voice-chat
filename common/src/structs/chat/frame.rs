@@ -26,6 +26,13 @@ pub enum ChatFrame {
     /// A line a player typed in game, mod to server.
     Chat { author: String, text: String },
 
+    /// Something the server said rather than a person: a death, a join, a leave, a broadcast.
+    ///
+    /// Carries no author, which is what makes it render as a system line. On the no-net path
+    /// the proxy gets these free because it sees every `TextPacket` type; a mod has to report
+    /// them explicitly, and this is the frame it uses.
+    Event { text: String },
+
     /// A line composed in the app, server to mod, for broadcasting in game.
     Say { author: String, text: String },
 }

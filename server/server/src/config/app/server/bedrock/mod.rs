@@ -27,7 +27,7 @@ fn default_proxy_event_freshness_threshold_secs() -> u32 {
     30
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct BedrockConfig {
     #[serde(default = "default_enabled")]
     pub enabled: bool,

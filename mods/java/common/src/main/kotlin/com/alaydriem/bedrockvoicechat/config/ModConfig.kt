@@ -1,5 +1,6 @@
 package com.alaydriem.bedrockvoicechat.config
 
+import com.alaydriem.bedrockvoicechat.config.generated.EmbeddedServerConfig
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -21,7 +22,15 @@ class ModConfig {
     var useEmbeddedServer: Boolean = false
 
     @SerializedName(value = "embedded-config", alternate = ["embeddedConfig"])
-    var embeddedConfig: EmbeddedConfig? = null
+    var embeddedConfig: EmbeddedServerConfig? = null
+
+    /**
+     * Legacy embedded-config keys found on load, as `old-key -> new.path`.
+     * Populated by the config provider, which is the only place that still sees
+     * the raw document.
+     */
+    @Transient
+    var legacyKeys: List<String> = emptyList()
 
     /**
      * Check if the configuration is valid.

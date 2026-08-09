@@ -20,7 +20,7 @@ fn default_rate_limit_per_sec() -> u32 {
     100
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct BedrockDnsConfig {
     #[serde(default = "default_dns_enabled")]
     pub enabled: bool,

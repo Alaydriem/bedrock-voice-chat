@@ -1364,6 +1364,81 @@ q("[data-sheet-status]").addEventListener("click", () => {
   setStatus(true);
 });
 
+/* ---- the jukebox chip ----
+ * Always present, dim when nothing is playing, so the control can be set before walking into the
+ * music rather than only after. Two targets on the desktop: the body mutes, the caret opens the
+ * level. On the phone the whole chip opens the sheet and there is no caret — a sub-target beside
+ * a header button this small does not survive touch.
+ *
+ * `playing` is driven from the gallery bar rather than a timer, like the other states on this
+ * page: somebody comparing dim against lit needs both on demand.
+ */
+const jukebox = { gain: 1, muted: false, playing: false };
+
+const jukeboxChip = q("[data-jukebox-chip]");
+const jukeboxCaret = q("[data-jukebox-caret]");
+const jukeboxPop = q("[data-jukebox-pop]");
+
+function paintJukebox(): void {
+  jukeboxChip.classList.toggle("is-on", jukebox.playing);
+  jukeboxChip.setAttribute("aria-pressed", String(jukebox.muted));
+  jukeboxChip.setAttribute("aria-label", jukebox.muted ? "Unmute jukeboxes" : "Mute jukeboxes");
+
+  const icon = jukeboxChip.querySelector<HTMLElement>("[data-rad-icon]");
+  if (icon) new IconBinding(icon, jukebox.muted ? "noteoff" : "note");
+
+  for (const el of frame.querySelectorAll<HTMLElement>("[data-jukebox-value]")) {
+    el.textContent = `${Math.round(jukebox.gain * 100)}%`;
+  }
+  for (const el of frame.querySelectorAll<HTMLInputElement>("[data-jukebox-gain]")) {
+    el.value = String(jukebox.gain);
+    el.disabled = jukebox.muted;
+  }
+}
+
+function setJukeboxPop(open: boolean): void {
+  jukeboxPop.hidden = !open;
+  jukeboxCaret.setAttribute("aria-expanded", String(open));
+}
+
+jukeboxChip.addEventListener("click", () => {
+  if (frame.classList.contains("rad-frame--phone")) {
+    sheet.open("jukebox", jukeboxChip);
+    return;
+  }
+  jukebox.muted = !jukebox.muted;
+  paintJukebox();
+  Toast.show(jukebox.muted ? "Jukeboxes muted" : "Jukeboxes unmuted");
+});
+
+jukeboxCaret.addEventListener("click", () => setJukeboxPop(jukeboxPop.hidden));
+
+// Dismissed by pressing away from it, like the status panel. Without this the popover is a mode:
+// the only way out is the control that opened it.
+frame.addEventListener("pointerdown", (e) => {
+  if (jukeboxPop.hidden) return;
+  if ((e.target as HTMLElement).closest("[data-jukebox-pop], [data-jukebox-caret]")) return;
+  setJukeboxPop(false);
+});
+
+frame.addEventListener("input", (e) => {
+  const slider = (e.target as HTMLElement).closest<HTMLInputElement>("[data-jukebox-gain]");
+  if (!slider) return;
+  jukebox.gain = Number(slider.value);
+  for (const el of frame.querySelectorAll<HTMLElement>("[data-jukebox-value]")) {
+    el.textContent = `${Math.round(jukebox.gain * 100)}%`;
+  }
+});
+
+for (const el of frame.querySelectorAll<HTMLElement>("[data-jukebox-mute]")) {
+  el.addEventListener("click", () => {
+    jukebox.muted = !jukebox.muted;
+    paintJukebox();
+  });
+}
+
+paintJukebox();
+
 const reconnect = q("[data-reconnect]");
 reconnect.addEventListener("click", () => {
   if (link.reconnecting) return;

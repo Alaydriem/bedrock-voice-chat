@@ -12,7 +12,7 @@ fn default_tls_ips() -> Vec<String> {
     vec!["127.0.0.1".to_string()]
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Tls {
     #[serde(default)]
     pub certificate: String,

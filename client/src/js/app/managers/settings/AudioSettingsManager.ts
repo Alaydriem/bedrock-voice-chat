@@ -21,6 +21,11 @@ export class AudioSettingsManager {
     public readonly voiceMode: Readable<VoiceMode>;
     private panningIntensityStore: Writable<number>;
     public readonly panningIntensity: Readable<number>;
+    private jukeboxGainStore: Writable<number>;
+    /** Percent, 0–150. The store holds the fraction; this is what a slider shows. */
+    public readonly jukeboxGain: Readable<number>;
+    private jukeboxMutedStore: Writable<boolean>;
+    public readonly jukeboxMuted: Readable<boolean>;
     private voiceModeErrorStore: Writable<string>;
     /** Why the last mode change did not take, or empty. */
     public readonly voiceModeError: Readable<string>;
@@ -38,6 +43,10 @@ export class AudioSettingsManager {
         this.voiceMode = { subscribe: this.voiceModeStore.subscribe };
         this.panningIntensityStore = writable(80);
         this.panningIntensity = { subscribe: this.panningIntensityStore.subscribe };
+        this.jukeboxGainStore = writable(100);
+        this.jukeboxGain = { subscribe: this.jukeboxGainStore.subscribe };
+        this.jukeboxMutedStore = writable(false);
+        this.jukeboxMuted = { subscribe: this.jukeboxMutedStore.subscribe };
         this.voiceModeErrorStore = writable("");
         this.voiceModeError = { subscribe: this.voiceModeErrorStore.subscribe };
     }
@@ -51,6 +60,16 @@ export class AudioSettingsManager {
         const savedPanning = await store.get<number>("panning_intensity");
         if (savedPanning !== null && savedPanning !== undefined) {
             this.panningIntensityStore.set(Math.round(savedPanning * 100));
+        }
+
+        const savedJukeboxGain = await store.get<number>("jukebox_gain");
+        if (savedJukeboxGain !== null && savedJukeboxGain !== undefined) {
+            this.jukeboxGainStore.set(Math.round(savedJukeboxGain * 100));
+        }
+
+        const savedJukeboxMuted = await store.get<boolean>("jukebox_muted");
+        if (savedJukeboxMuted !== null && savedJukeboxMuted !== undefined) {
+            this.jukeboxMutedStore.set(savedJukeboxMuted);
         }
 
         const saved = await store.get<KeybindConfig>("keybinds");
@@ -77,6 +96,43 @@ export class AudioSettingsManager {
         await invoke("update_stream_metadata", {
             key: "panning_intensity",
             value: normalized.toString(),
+            device: "OutputDevice",
+        });
+    }
+
+    /**
+     * Set how loud jukebox music plays.
+     *
+     * The mute flag is deliberately untouched. They are separate controls on every surface, so a
+     * level set while muted is the level that comes back on unmute.
+     *
+     * `requireStore` rather than a read of the loaded store, because the pane does not await
+     * `initialize` — a change made in the first moments would otherwise move the control and do
+     * nothing else.
+     */
+    async handleJukeboxGainChange(percent: number): Promise<void> {
+        this.jukeboxGainStore.set(percent);
+
+        const store = await this.requireStore();
+        const fraction = percent / 100;
+        await store.set("jukebox_gain", fraction);
+        await store.save();
+        await invoke("update_stream_metadata", {
+            key: "jukebox_gain",
+            value: fraction.toString(),
+            device: "OutputDevice",
+        });
+    }
+
+    async handleJukeboxMutedChange(muted: boolean): Promise<void> {
+        this.jukeboxMutedStore.set(muted);
+
+        const store = await this.requireStore();
+        await store.set("jukebox_muted", muted);
+        await store.save();
+        await invoke("update_stream_metadata", {
+            key: "jukebox_muted",
+            value: muted.toString(),
             device: "OutputDevice",
         });
     }

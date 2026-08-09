@@ -43,20 +43,12 @@ pub(crate) async fn bedrock_start_proxy(
 }
 
 #[tauri::command(async)]
-pub(crate) async fn bedrock_stop_proxy(
-    state: State<'_, Mutex<BedrockState>>,
-) -> Result<(), String> {
-    let mut state = state.lock().await;
-    state.stop_keepalive().await;
-    if let Some(ref mut proxy) = state.proxy {
-        proxy.stop().await.map_err(|e| e.to_string())?;
-    }
-    state.proxy = None;
-    state.proxy_target_host = None;
-    state.proxy_target_port = None;
-    state.proxy_listen_port = None;
-    state.proxy_started_at = None;
-    Ok(())
+pub(crate) async fn bedrock_stop_proxy(app_handle: tauri::AppHandle) -> Result<(), String> {
+    BedrockConnector::new(app_handle)
+        .stop_proxy()
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
@@ -77,18 +69,12 @@ pub(crate) async fn bedrock_start_realms(
 }
 
 #[tauri::command(async)]
-pub(crate) async fn bedrock_stop_realms(
-    state: State<'_, Mutex<BedrockState>>,
-) -> Result<(), String> {
-    let mut state = state.lock().await;
-    state.stop_keepalive().await;
-    if let Some(ref mut realms) = state.realms {
-        realms.stop().await.map_err(|e| e.to_string())?;
-    }
-    state.realms = None;
-    state.active_realm_id = None;
-    state.active_realm_name = None;
-    Ok(())
+pub(crate) async fn bedrock_stop_realms(app_handle: tauri::AppHandle) -> Result<(), String> {
+    BedrockConnector::new(app_handle)
+        .stop_realm()
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
@@ -344,13 +330,6 @@ pub(crate) async fn bedrock_get_status(
         active_realm_id: state.active_realm_id,
         active_realm_name: state.active_realm_name.clone(),
     })
-}
-
-#[tauri::command(async)]
-pub(crate) async fn bedrock_realms_enabled(
-    flag_service: State<'_, Arc<FeatureFlagService>>,
-) -> Result<bool, String> {
-    Ok(flag_service.get(RealmsConnectEnabled).await)
 }
 
 /// Sends a line from the app into the realm the proxy is connected to.

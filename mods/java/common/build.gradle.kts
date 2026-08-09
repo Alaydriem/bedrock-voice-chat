@@ -27,6 +27,16 @@ dependencies {
 
     // Floodgate API for Geyser/Bedrock player detection (optional at runtime)
     compileOnly("org.geysermc.floodgate:api:2.2.5-SNAPSHOT")
+
+    // slf4j is compileOnly above because platforms provide it; tests still load
+    // classes that hold a logger, so it has to be on the test classpath.
+    testImplementation("org.slf4j:slf4j-api:2.0.9")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.0")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.0")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 // Native library bundling configuration

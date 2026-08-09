@@ -12,6 +12,9 @@
   import { UpdateStatus } from "../../js/app/settings/UpdateStatus";
   import { UpdatePoller } from "../../js/app/shell/UpdatePoller";
   import { UPDATE_STATUS_KEY } from "../../js/app/shell/UpdateStatusContext";
+  import { AUDIO_SETTINGS_KEY } from "../../js/app/shell/AudioSettingsContext";
+  import { AudioSettingsManager } from "../../js/app/managers/settings/AudioSettingsManager";
+  import JukeboxChip from "../../components/dashboard/JukeboxChip.svelte";
   import { BootTimeline } from "../../js/app/shell/BootTimeline";
   import type { SelfSnapshot } from "$radial/core/controllers/SelfState";
   import type { LevelSource } from "$radial/core/sources/LevelSource";
@@ -70,6 +73,14 @@
   const updates = new UpdateStatus();
   const updatePoller = new UpdatePoller(updates);
   setContext(UPDATE_STATUS_KEY, updates);
+
+  /**
+   * One per session, for the same reason. The jukebox chip in the header and the Audio pane
+   * behind the settings cover can both be mounted at once, and two instances would hold two sets
+   * of stores that disagree about the same setting.
+   */
+  const audioSettings = new AudioSettingsManager();
+  setContext(AUDIO_SETTINGS_KEY, audioSettings);
 
   let servers = $state<readonly RailServer[]>([]);
   let player = $state("");
@@ -246,6 +257,10 @@
     // a newer build exists, which may be the reason it could not.
     updatePoller.start();
     unsubs.push(() => updatePoller.stop());
+
+    // Outside the initialize chain too: the jukebox controls read persisted values and do not
+    // need a connection to be meaningful.
+    void audioSettings.initialize();
 
     instance
       .initialize()
@@ -481,6 +496,12 @@
   }
 </script>
 
+<!-- Lit from the same once-a-second runtime-state poll the pill already runs, rather than a
+     second timer for one boolean. -->
+{#snippet jukeboxChip()}
+  <JukeboxChip audio={audioSettings} playing={voice?.backend?.jukeboxPlaying ?? false} />
+{/snippet}
+
 <RadFrame>
   <Cover open={coverOpen} ondismiss={() => void goto("/dashboard")}>
     {#snippet under()}
@@ -498,6 +519,7 @@
       onswitch={(server) => (window.location.href = `/dashboard?server=${encodeURIComponent(server)}`)}
       onadd={() => (window.location.href = AddServerRoute.HREF)}
       onsettings={() => void goto(SettingsRoute.href("audio"))}
+      jukebox={jukeboxChip}
       {chatOpen}
       onchat={(open) => {
         chatOpen = open;

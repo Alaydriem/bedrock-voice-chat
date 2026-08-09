@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use bvc_client_lib::testkit::signal::Signal;
 
@@ -11,6 +11,12 @@ use crate::harness::server::EmbeddedServer;
 const PATH_BUDGET: u64 = 5;
 const ROTATE_EVERY: Duration = Duration::from_millis(400);
 const AUDIO_SECONDS: f32 = 20.0;
+
+// Transmission has to outlast the observation, not the other way round: see the
+// top-up loop below for why a single finite tone cannot guarantee that.
+const TOP_UP_SECONDS: f32 = 2.0;
+const TOP_UP_WINDOW: Duration = Duration::from_secs(2);
+const STALL_OBSERVATION: Duration = Duration::from_secs(30);
 
 /// `path_exhaustion.rs` proves the server stops answering once a rotating source address spends
 /// its path budget. This proves the *client notices and says so*, which is the difference between
@@ -56,7 +62,10 @@ async fn a_stalled_return_flow_is_reported_as_stalled_in_the_snapshot() {
 
     // Real audio, paced by the bin, is what keeps the client transmitting across the rotation
     // window. Without it the connection goes quiet and silence would prove nothing.
-    client.feed_tone(&Signal::chirp(48_000, AUDIO_SECONDS, 200.0, 2_000.0), 48_000);
+    client.feed_tone(
+        &Signal::chirp(48_000, AUDIO_SECONDS, 200.0, 2_000.0),
+        48_000,
+    );
 
     // Healthy first, so the later stall is a change rather than a state that never worked.
     let healthy = client
@@ -73,14 +82,38 @@ async fn a_stalled_return_flow_is_reported_as_stalled_in_the_snapshot() {
         .await
         .expect("relay rotates its source address past the path budget");
 
-    let stalled = client
-        .await_diagnostics(|(_, stalled, _)| *stalled, Duration::from_secs(20))
-        .expect(
-            "the client must report a stall once the server stops answering. If this fails, \
-             either the path limit no longer applies (check MAX_ALLOWED_PATHS after an s2n-quic \
-             bump) or the stall derivation's consecutive-tick threshold no longer matches the \
-             snapshot cadence.",
+    // The derivation sets `stalled` only after STALL_TICKS consecutive ticks of
+    // sending with nothing returning, so the client must STILL be transmitting when
+    // the window is read. A single finite tone cannot promise that: everything
+    // before this point — connect, the healthy wait, the rotations — spends from
+    // the same budget, and once the tone drains, `sent` is zero, the consecutive
+    // counter resets, and no stall can ever be reported however dead the return
+    // path is. Topping the feed up leaves whether the client NOTICES as the only
+    // variable, which is the thing under test.
+    let deadline = Instant::now() + STALL_OBSERVATION;
+    let mut last = client.diagnostics();
+    let stalled = loop {
+        client.feed_tone(
+            &Signal::chirp(48_000, TOP_UP_SECONDS, 200.0, 2_000.0),
+            48_000,
         );
+        match client.await_diagnostics(|(_, stalled, _)| *stalled, TOP_UP_WINDOW) {
+            Ok(reading) => break reading,
+            Err(_) => last = client.diagnostics(),
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the client must report a stall once the server stops answering. Last reading \
+             (connected, stalled, uptime)={last:?}; relay rebinds={}, downstream datagrams={}, \
+             client frames sent={}. Read those first: traffic still returning means the path \
+             limit no longer applies (check MAX_ALLOWED_PATHS after an s2n-quic bump), while a \
+             dead return flow that never set this means the stall derivation's consecutive-tick \
+             threshold no longer matches the snapshot cadence.",
+            relay.rebinds(),
+            relay.downstream_datagrams(),
+            client.stats().0,
+        );
+    };
 
     assert!(stalled.1, "stalled must be set");
     assert!(
@@ -128,10 +161,7 @@ async fn a_healthy_connection_never_reports_stalled() {
     client.feed_tone(&Signal::chirp(48_000, 10.0, 200.0, 2_000.0), 48_000);
 
     client
-        .await_diagnostics(
-            |(connected, _, _)| *connected,
-            Duration::from_secs(15),
-        )
+        .await_diagnostics(|(connected, _, _)| *connected, Duration::from_secs(15))
         .expect("diagnostics become available once connected");
 
     // Sample across several stall windows. Three consecutive send-with-no-return ticks would set

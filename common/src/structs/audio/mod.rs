@@ -15,5 +15,7 @@ pub use levels::{LevelSnapshot, ParticipantLevel};
 pub use mute_event::MuteEvent;
 pub use noise_gate_status::NoiseGateStatus;
 pub use voice_runtime_state::VoiceRuntimeState;
-pub use settings::{GainProjection, NoiseGateSettings, PlayerGainSettings, PlayerGainStore};
+pub use settings::{
+    GainProjection, JukeboxLevel, NoiseGateSettings, PlayerGainSettings, PlayerGainStore,
+};
 pub use stream::{StreamConfig, StreamEvent};

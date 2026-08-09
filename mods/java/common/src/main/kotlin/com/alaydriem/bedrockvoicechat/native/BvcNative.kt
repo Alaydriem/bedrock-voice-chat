@@ -29,6 +29,11 @@ object BvcNative {
         fun bvc_audio_play(handle: Pointer, playJson: String): Pointer?
         fun bvc_audio_stop(handle: Pointer, eventId: String): Int
         fun bvc_client_action(handle: Pointer, actionJson: String, groupCodeOut: PointerByReference?): Int
+        fun bvc_chat_register(handle: Pointer, helloJson: String): Int
+        fun bvc_chat_report(handle: Pointer, chatJson: String): Int
+        fun bvc_chat_drain(handle: Pointer): Pointer?
+        fun bvc_config_effective(handle: Pointer): Pointer?
+        fun bvc_chat_unregister(handle: Pointer): Int
         fun bvc_free_string(ptr: Pointer)
         fun bvc_get_last_error(): String?
         fun bvc_version(): String
@@ -297,5 +302,43 @@ object BvcNative {
      */
     fun getProtocolVersion(): String {
         return getLib().bvc_protocol_version()
+    }
+
+    /** Registers the embedded mod as this world's chat channel. */
+    fun chatRegister(handle: Pointer, helloJson: String): Boolean =
+        getLib().bvc_chat_register(handle, helloJson) == 0
+
+    /** Reports a line a player typed in game. */
+    fun chatReport(handle: Pointer, chatJson: String): Boolean =
+        getLib().bvc_chat_report(handle, chatJson) == 0
+
+    /**
+     * Takes every `say` frame waiting to be broadcast, as a JSON array.
+     *
+     * A pull rather than a callback: the FFI has no callback mechanism, and holding a function
+     * pointer across the JNA boundary for the life of the process is not worth the latency it
+     * would save on a few frames a minute.
+     */
+    fun chatDrain(handle: Pointer): String? {
+        val ptr = getLib().bvc_chat_drain(handle) ?: return null
+        return try {
+            ptr.getString(0)
+        } finally {
+            getLib().bvc_free_string(ptr)
+        }
+    }
+
+    /** Releases every chat room this mod registered. */
+    fun chatUnregister(handle: Pointer): Boolean =
+        getLib().bvc_chat_unregister(handle) == 0
+
+    /** The configuration the server resolved, as JSON, after defaults and BVC_* overrides. */
+    fun configEffective(handle: Pointer): String? {
+        val ptr = getLib().bvc_config_effective(handle) ?: return null
+        return try {
+            ptr.getString(0)
+        } finally {
+            getLib().bvc_free_string(ptr)
+        }
     }
 }

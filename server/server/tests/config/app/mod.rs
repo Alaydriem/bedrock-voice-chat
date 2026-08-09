@@ -1,4 +1,6 @@
 mod database;
+mod from_json;
+mod schema;
 mod server;
 
 use std::collections::HashMap;

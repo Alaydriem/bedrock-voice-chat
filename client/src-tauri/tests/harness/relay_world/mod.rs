@@ -9,12 +9,14 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use bedrock_client::BedrockClient;
+use bvc_client_lib::testkit::signal::Signal;
 use common::bedrock_protocol::AuthInfo;
 use common::bedrock_protocol::version::ProtocolVersion;
 use tempfile::TempDir;
 
 use crate::harness::client_proc::ClientProc;
 use crate::harness::proxy_driver::FakeBedrockUpstream;
+use crate::harness::proxy_scale::Scale;
 use crate::harness::server::EmbeddedServer;
 
 pub use actor_spec::ActorSpec;
@@ -288,27 +290,63 @@ impl RelayWorld {
         }
     }
 
-    /// Multi-link convergence: feed every `(speaker, warmup)` its tone and pump
-    /// positions/presence until EVERY `listener` has received cross-server QUIC
-    /// frames (each holds at least one live peer link), or `budget` elapses.
-    /// Returns whether all listeners converged. Used by the 3-server mesh case
-    /// where one `converge_link` would only prove a single pair.
-    pub async fn converge_mesh(
+    /// Drive positions/presence while every speaker feeds its probe tone, until every
+    /// `(listener, speaker_scale)` pair is audible inside a single probe window, or
+    /// `budget` elapses. Returns the pairs still inaudible at exit; empty means the
+    /// mesh currently carries every direction the caller is about to measure.
+    ///
+    /// Gating on `frames_from_quic` instead cannot express this. That counter is an
+    /// aggregate, so a listener sharing a server with one speaker, or holding one of
+    /// three mesh edges, satisfies it while the direction under test still carries
+    /// nothing. Each mesh direction depends on its own server having learned the far
+    /// player's presence and position, and those propagate independently — so "some
+    /// frames arrived" is true well before "this speaker reaches this listener" is.
+    /// Measuring from that point reads `Scale::hears` over a window whose early part
+    /// predates delivery, and the energy fraction lands under the threshold even
+    /// though the edge did come up.
+    pub async fn converge_audible(
         &mut self,
         speakers: &[(&str, &[f32])],
-        listeners: &[&str],
+        pairs: &[(&str, Scale)],
         positions: &[(&str, f32, f32, f32)],
         budget: Duration,
-    ) -> bool {
+    ) -> Vec<String> {
+        // One window must outlast the probe tone, or a pair is judged on a partial
+        // delivery and the loop spins without ever reading a converged mesh.
+        const PROBE_ROUNDS: u32 = 16;
+        const PROBE_GAP: Duration = Duration::from_millis(180);
+
         let deadline = std::time::Instant::now() + budget;
         loop {
+            for (listener, _) in pairs {
+                let _ = self.proc(listener).drain_captured();
+            }
             for (name, tone) in speakers {
                 self.proc(name).feed_tone(tone, 48_000);
             }
-            self.pump(positions, 8, Duration::from_millis(180)).await;
-            let all = listeners.iter().all(|l| self.proc(l).stats().1 > 0);
-            if all || std::time::Instant::now() >= deadline {
-                return all;
+            self.pump(positions, PROBE_ROUNDS, PROBE_GAP).await;
+
+            let mut captures: HashMap<&str, Vec<f32>> = HashMap::new();
+            for (listener, _) in pairs {
+                captures
+                    .entry(listener)
+                    .or_insert_with(|| Signal::to_mono(&self.proc(listener).drain_captured()));
+            }
+
+            let missing: Vec<String> = pairs
+                .iter()
+                .filter(|(listener, scale)| !Scale::hears(&captures[listener], *scale))
+                .map(|(listener, scale)| {
+                    format!(
+                        "{listener}<-{} {}",
+                        scale.name,
+                        Scale::why(&captures[listener], *scale)
+                    )
+                })
+                .collect();
+
+            if missing.is_empty() || std::time::Instant::now() >= deadline {
+                return missing;
             }
         }
     }

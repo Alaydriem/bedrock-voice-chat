@@ -7,8 +7,5 @@ import com.google.gson.annotations.SerializedName
  */
 enum class GameType(val value: String) {
     @SerializedName("minecraft")
-    MINECRAFT("minecraft"),
-
-    @SerializedName("hytale")
-    HYTALE("hytale")
+    MINECRAFT("minecraft")
 }

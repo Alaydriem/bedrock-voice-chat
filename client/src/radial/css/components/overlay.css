@@ -5,6 +5,58 @@
  * the container query every component inside it depends on.
  */
 
+/* ---- the popover ----
+ * A dropdown holds items and closes when one is pressed. This holds a live control and
+ * has to survive being dragged in, so it is a separate component rather than a variant
+ * of `.rad-menu` — same surface, different contract.
+ *
+ * Anchored to the header rather than positioned by script: it has exactly one home, and
+ * a measured position would only reproduce where it already is.
+ */
+.rad-pop {
+  position: absolute;
+  top: 60px;
+  right: 16px;
+  z-index: 60;
+  width: 252px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 14px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-lg);
+  background: rgb(37 24 68 / 0.98);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-rad-menu);
+}
+
+.rad-pop[hidden] {
+  display: none;
+}
+
+.rad-pop__head {
+  grid-column: 1 / -1;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+/* Tabular and fixed-width, so the row does not shift under the thumb mid-drag. */
+.rad-pop__value {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-dim);
+}
+
+.rad-pop > .rad-list-row {
+  grid-column: 1 / -1;
+}
+
 /* ---- the dropdown ----
  * One component, two jobs. As a select it shows tick marks against the current
  * value; as a table row menu it uses dividers and puts a single destructive item
@@ -470,6 +522,25 @@
   letter-spacing: var(--tracking-rad-label);
   text-transform: uppercase;
   color: var(--color-rad-faint);
+}
+
+/* A control and its readout on one line inside a sheet. The value is fixed-width and
+   tabular so a dragging slider does not shift the row under the thumb. */
+.rad-sheet__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 2px 14px;
+}
+
+.rad-sheet__value {
+  flex: 0 0 auto;
+  min-width: 46px;
+  text-align: right;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-dim);
 }
 
 .rad-sheet__divider {

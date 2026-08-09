@@ -33,6 +33,8 @@ pub struct ServerRuntime {
     /// Webhook receiver for sending position updates directly (populated after start)
     webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
     cache_manager: Arc<RwLock<Option<crate::stream::quic::CacheManager>>>,
+    /// Published for the FFI so an embedded mod can drive chat without a socket.
+    chat_service: Arc<RwLock<Option<Arc<crate::services::ChatService>>>>,
     /// Player registrar for handling player registration (populated after start)
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
     /// Player identity service for cross-platform name resolution (populated after start)
@@ -52,6 +54,7 @@ impl ServerRuntime {
             shutdown_notify: Arc::new(tokio::sync::Notify::new()),
             webhook_receiver: Arc::new(RwLock::new(None)),
             cache_manager: Arc::new(RwLock::new(None)),
+            chat_service: Arc::new(RwLock::new(None)),
             player_registrar: Arc::new(RwLock::new(None)),
             identity_service: Arc::new(RwLock::new(None)),
             audio_playback_service: Arc::new(RwLock::new(None)),
@@ -367,6 +370,10 @@ impl ServerRuntime {
         }
 
         quic_manager.set_chat_service(chat_service.clone());
+
+        if let Ok(mut slot) = self.chat_service.write() {
+            *slot = Some(chat_service.clone());
+        }
 
         let eject_scheduler =
             EjectScheduler::new_shared(bedrock_event_service.clone(), webhook_receiver.clone());
@@ -726,6 +733,14 @@ impl ServerRuntime {
     /// Get a clone of the cache manager Arc for external use (FFI control plane)
     pub fn get_cache_manager(&self) -> Arc<RwLock<Option<crate::stream::quic::CacheManager>>> {
         self.cache_manager.clone()
+    }
+
+    /// The chat hub, for the FFI.
+    ///
+    /// An embedded mod shares this process, so it drives chat through function calls rather
+    /// than dialling a socket back into its own address space.
+    pub fn get_chat_service(&self) -> Arc<RwLock<Option<Arc<crate::services::ChatService>>>> {
+        self.chat_service.clone()
     }
 
     /// Get a clone of the player registrar Arc for external use (FFI)

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default, schemars::JsonSchema)]
 pub struct RelayFeature {
     // Seconds between self-announce cycles (`!bvca` injection). Absent uses the
     // production default (60s). Lowered only for integration tests.

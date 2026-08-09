@@ -132,18 +132,6 @@ export class BedrockRealmsManager implements RealmsLifecycle {
         this.callbacks.clearLogs();
         this.callbacks.clearConnectionError();
 
-        // Kill-switch pre-check. bedrock_start_realms re-enforces this
-        // authoritatively; this exists to surface the modal instead of a raw
-        // error string.
-        try {
-            if (!(await invoke<boolean>('bedrock_realms_enabled'))) {
-                this.callbacks.onRealmsUnavailable();
-                return;
-            }
-        } catch (e) {
-            logError(`Realms Connect flag pre-check failed: ${e}`);
-        }
-
         try {
             try {
                 await invoke('bedrock_force_refresh');

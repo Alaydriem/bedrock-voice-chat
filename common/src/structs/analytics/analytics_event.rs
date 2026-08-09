@@ -48,6 +48,10 @@ pub enum AnalyticsEvent {
     // this client. The end of the funnel, and the only step in it no amount of UI can
     // fake — every earlier event says someone got somewhere, this one says it worked.
     Activated,
+    // The result of one connect walk: which candidate carried the session, or the outcome of
+    // every candidate that did not. Distinguishes a network that blocks UDP outright from one
+    // that reaches the server on an alternate port, which no other event can tell apart.
+    VoiceTransportOutcome,
 }
 
 impl AnalyticsEvent {
@@ -94,6 +98,7 @@ impl AnalyticsEvent {
             Self::WikiCtaClicked => "WikiCtaClicked",
             Self::HostingCtaClicked => "HostingCtaClicked",
             Self::Activated => "Activated",
+            Self::VoiceTransportOutcome => "VoiceTransportOutcome",
         }
     }
 }

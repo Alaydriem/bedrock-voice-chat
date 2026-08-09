@@ -89,7 +89,13 @@ pub fn chat(
                                 }
                                 service.on_game_chat(&registered, author, text).await;
                             }
-                            // Server-authored. A mod sending one is confused, not hostile.
+                            ChatFrame::Event { text } => {
+                                if registered.is_empty() {
+                                    break;
+                                }
+                                service.on_game_event(&registered, text).await;
+                            }
+                            // Server to mod only. A mod sending one is confused, not hostile.
                             ChatFrame::Say { .. } => continue,
                         }
                     }

@@ -1,4 +1,4 @@
-import { info } from '@tauri-apps/plugin-log';
+import { debug, info } from '@tauri-apps/plugin-log';
 
 interface BootMark {
     readonly name: string;
@@ -113,7 +113,7 @@ export class BootTimeline {
         });
 
         const total = this.marks.length ? this.marks[this.marks.length - 1].at : 0;
-        info(
+        debug(
             [
                 '',
                 '=== BOOT TIMELINE ===',

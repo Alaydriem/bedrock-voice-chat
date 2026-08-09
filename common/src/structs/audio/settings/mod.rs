@@ -1,9 +1,11 @@
 pub mod gain_projection;
+pub mod jukebox_level;
 pub mod noise_gate;
 pub mod player_gain;
 pub mod player_store;
 
 pub use gain_projection::GainProjection;
+pub use jukebox_level::JukeboxLevel;
 pub use noise_gate::NoiseGateSettings;
 pub use player_gain::PlayerGainSettings;
 pub use player_store::PlayerGainStore;

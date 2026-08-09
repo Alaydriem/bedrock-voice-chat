@@ -45,7 +45,7 @@ fn default_assets_path() -> String {
     "./assets".to_string()
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Server {
     #[serde(default = "default_listen")]
     pub listen: String,

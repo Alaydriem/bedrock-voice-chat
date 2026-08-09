@@ -115,6 +115,15 @@ impl ChatService {
         self.registry.world_name(world_uuid)
     }
 
+    /// Every room currently relaying chat, as (canonical id, world name).
+    ///
+    /// A world is reachable as soon as its mod connects, which is well before anybody joins.
+    /// Listing only worlds the player has been seen in left the composer dead on an empty
+    /// server — the mod was connected and willing, and the app had no way to know.
+    pub fn rooms(&self) -> Vec<(String, String)> {
+        self.registry.rooms()
+    }
+
     /// A line a mod reported.
     ///
     /// `worlds` is every id this chat room spans — one on BDS, one per dimension on Paper and
@@ -125,11 +134,28 @@ impl ChatService {
         let Some(canonical) = worlds.first() else {
             return;
         };
-        self.record_history(canonical, &author).await;
 
         for world_uuid in worlds {
             let packet = ChatMessagePacket::new(
                 Some(author.clone()),
+                text.clone(),
+                Some(world_uuid.clone()),
+                ChatOrigin::Game,
+            );
+            self.fan_out(world_uuid, &packet);
+        }
+
+        self.spawn_history(canonical, &author);
+    }
+
+    /// Something the server said: a death, a join, a leave, a broadcast.
+    ///
+    /// No author, so it renders as a system line — quieter, and unmistakable for a person
+    /// talking. No history is recorded: nobody was speaking.
+    pub async fn on_game_event(&self, worlds: &[String], text: String) {
+        for world_uuid in worlds {
+            let packet = ChatMessagePacket::new(
+                None,
                 text.clone(),
                 Some(world_uuid.clone()),
                 ChatOrigin::Game,
@@ -247,6 +273,45 @@ impl ChatService {
             return;
         };
 
+        let name = self
+            .world_name(world_uuid)
+            .unwrap_or_else(|| world_uuid.to_string());
+
+        Self::write_history(db, identities, world_uuid, name, author).await;
+    }
+
+    /// The same row, written without the caller waiting for it.
+    ///
+    /// Two database round trips sit behind it. A mod on the embedded server reaches this from
+    /// the game's own thread over the FFI, holding the lock the position tick also takes, so a
+    /// chat line that waited on storage would stall the server the line came from. Nothing
+    /// downstream reads the row within the lifetime of the message, and the rows are an upsert
+    /// of a timestamp, so they are order-insensitive.
+    fn spawn_history(&self, world_uuid: &str, author: &str) {
+        let (Some(db), Some(identities)) = (self.db.get(), self.identities.get()) else {
+            return;
+        };
+
+        let db = db.clone();
+        let identities = identities.clone();
+        let world_uuid = world_uuid.to_string();
+        let author = author.to_string();
+        let name = self
+            .world_name(&world_uuid)
+            .unwrap_or_else(|| world_uuid.clone());
+
+        tokio::spawn(async move {
+            Self::write_history(&db, &identities, &world_uuid, name, &author).await;
+        });
+    }
+
+    async fn write_history(
+        db: &DatabaseConnection,
+        identities: &PlayerIdentityService,
+        world_uuid: &str,
+        world_name: String,
+        author: &str,
+    ) {
         let Some(player_id) = identities
             .find_player_id_by_gamertag(author, &Game::Minecraft)
             .await
@@ -255,14 +320,11 @@ impl ChatService {
         };
 
         let now = common::ncryptflib::rocket::Utc::now().timestamp();
-        let name = self
-            .world_name(world_uuid)
-            .unwrap_or_else(|| world_uuid.to_string());
 
         let row = entity::player_world::ActiveModel {
             player_id: ActiveValue::Set(player_id),
             world_uuid: ActiveValue::Set(world_uuid.to_string()),
-            world_name: ActiveValue::Set(name),
+            world_name: ActiveValue::Set(world_name),
             last_seen: ActiveValue::Set(now),
             created_at: ActiveValue::Set(now),
             updated_at: ActiveValue::Set(now),
@@ -284,7 +346,7 @@ impl ChatService {
                 ])
                 .to_owned(),
             )
-            .exec(db.as_ref())
+            .exec(db)
             .await;
 
         if let Err(e) = result {

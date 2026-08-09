@@ -22,14 +22,18 @@ permissions:
 #                                    --partition`. No compilation. Filtered to
 #                                    `not kind(lib)` so the unit tests, which
 #                                    `client-lib` owns, do not also run here, and
-#                                    to the complement of $RELAY_FILTER.
-#   - `e2e-relay`        (Windows) — the relay-topology scenarios, alone on their
+#                                    to the complement of both filters below.
+#   - `e2e-relay`        (Windows) — the cross-server mesh scenarios, alone on their
 #                                    own runner. They are the heaviest tests in the
-#                                    suite and .config/nextest.toml caps them to 1-2
+#                                    suite and .config/nextest.toml caps them to 2
 #                                    concurrent, so hash-partitioning them across
 #                                    the shards both unbalanced the shards and left
 #                                    them competing with lighter tests for the
 #                                    headroom their exact-frame assertions need.
+#   - `e2e-relayed-path` (Windows) — the scenarios with a userspace UDP relay in the
+#                                    datagram path. Cheap, but they assert on timing,
+#                                    so they get a runner whose timing is not already
+#                                    spoken for by the mesh scenarios.
 #   - `e2e-report`       (Windows) — merges every shard's profile data into one
 #                                    lcov and uploads it. Runs even when a shard
 #                                    fails, so a red suite still reports what it
@@ -83,18 +87,24 @@ on:
         default: '4'
         type: string
 
-# The relay-topology scenarios, defined ONCE. Both jobs anchor on `not kind(lib)`
-# and then intersect / subtract this set, so together they are exactly a partition
-# of the e2e tests: nothing runs twice, nothing goes unrun, and adding a
-# `scenarios::relay_*` file moves it to the relay job with nothing else to update.
+# The two load-sensitive scenario sets, defined ONCE. Each has a job; the shards
+# subtract both. Together the three are exactly a partition of the e2e tests:
+# nothing runs twice, nothing goes unrun, and adding a `scenarios::relay_*` file
+# moves it to the mesh job with nothing else to update.
 #
-# The membership matches the two test-groups in .config/nextest.toml, which is
-# the repo's existing statement of which scenarios put a relay in the datagram
-# path and are load-sensitive because of it.
+# The membership matches the two test-groups in .config/nextest.toml, which is the
+# repo's existing statement of which scenarios put a relay in the datagram path and
+# are load-sensitive because of it. They get SEPARATE jobs rather than one, because
+# the two sets are load-sensitive in ways that compound: a mesh scenario holds three
+# server runtimes and three client procs, and a relayed-path scenario asserts on a
+# 1 s diagnostics ticker observing a 20 ms frame clock. Sharing a 4-vCPU runner, the
+# first starves the second, which is how `link_stall` failed in CI while passing
+# every run in isolation.
 env:
-  RELAY_FILTER: >-
+  MESH_FILTER: >-
     test(/scenarios::relay_/)
-    + test(/scenarios::downlink_loss::/)
+  RELAYED_PATH_FILTER: >-
+    test(/scenarios::downlink_loss::/)
     + test(/scenarios::link_stall::/)
     + test(/scenarios::path_exhaustion::/)
 
@@ -716,9 +726,10 @@ jobs:
         # `not kind(lib)` drops the client's inline #[cfg(test)] unit tests from
         # the shards. They are in the archive (it is built per-package, not
         # per-target) but the `client-lib` job already runs them under coverage,
-        # so without this filter they run twice. Subtracting $RELAY_FILTER hands
-        # the relay scenarios to `e2e-relay`. What remains here is the rest of the
-        # `integration` target, and `--partition` splits it three ways.
+        # so without this filter they run twice. Subtracting the two load-sensitive
+        # filters hands those scenarios to `e2e-relay` and `e2e-relayed-path`. What
+        # remains here is the rest of the `integration` target, and `--partition`
+        # splits it three ways.
         #
         # LLVM_PROFILE_FILE is the ONLY coverage-specific thing here; the binaries
         # arrive already instrumented. `%p` separates processes so a spawned
@@ -744,7 +755,7 @@ jobs:
             --archive-file e2e-client/nextest-archive.tar.zst \
             --workspace-remap . \
             --partition hash:${{ matrix.shard }}/3 \
-            -E "(not kind(lib)) - ($RELAY_FILTER)" \
+            -E "(not kind(lib)) - ($MESH_FILTER) - ($RELAYED_PATH_FILTER)" \
             --no-fail-fast \
             -j ${{ inputs.test_jobs || '4' }}
 
@@ -830,6 +841,21 @@ jobs:
         # are the heaviest profile producers in the suite (3 client processes and
         # 3 server runtimes per test, each dumping a counter table per module), so
         # this job's profraw peak is the one to watch if disk gets tight.
+        #
+        # `-j 2`, not the shards' 4. The two groups in .config/nextest.toml cap the
+        # relay set at 2 concurrent and the relayed-path set at 1, so `-j 4` here
+        # admitted three at once: two scenarios holding three server runtimes and
+        # three client procs each, plus a timing-sensitive relayed-path test, on a
+        # 4-vCPU runner. Every one of those procs runs a 20 ms real-time frame
+        # clock, and starving them is what turned peer-link convergence and stall
+        # detection into races. This job owns its runner, so the ceiling costs only
+        # wall time.
+        #
+        # `--retries 1` is a backstop, not a fix: the convergence gates in
+        # relay_voice.rs wait on the directed pairs they measure rather than on an
+        # aggregate frame counter. A test that needs its retry is still a defect —
+        # nextest prints it as FLAKY, and that line is the signal to investigate,
+        # not to raise the retry count.
         run: |
           PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
           mkdir -p "$PROF_DIR"
@@ -837,9 +863,10 @@ jobs:
           cargo nextest run \
             --archive-file e2e-client/nextest-archive.tar.zst \
             --workspace-remap . \
-            -E "(not kind(lib)) & ($RELAY_FILTER)" \
+            -E "(not kind(lib)) & ($MESH_FILTER)" \
             --no-fail-fast \
-            -j ${{ inputs.test_jobs || '4' }}
+            --retries 1 \
+            -j 2
 
       - name: Collapse relay profile data
         if: always()
@@ -868,6 +895,100 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
+  e2e-relayed-path:
+    name: e2e relayed-path scenarios (Windows)
+    runs-on: windows-2022
+    needs: [e2e-build-server, e2e-build-client]
+    # The scenarios that put a userspace UDP relay between one client and its
+    # server: downlink loss, link stall, path exhaustion. Small — five tests, about
+    # 25s of work — but they assert on timing rather than on content. `link_stall`
+    # waits for a 1s diagnostics ticker to observe three consecutive sends with no
+    # return, while a 20ms frame clock keeps the client transmitting; starve either
+    # and the derivation it is asserting never fires.
+    #
+    # They ran alongside the mesh scenarios and failed there while passing every
+    # run in isolation, which is the signature of contention rather than a defect.
+    # A dedicated runner is the cheapest way to give a timing assertion a machine
+    # whose timing is not already spoken for.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Download cdylib artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-cdylib
+          path: e2e-cdylib
+
+      - name: Download client artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-client
+          path: e2e-client
+
+      - name: Restore harness + cdylib to their load paths
+        shell: bash
+        run: |
+          mkdir -p target/debug server/target/debug
+          cp e2e-client/bvc_client_e2e.exe target/debug/
+          cp e2e-cdylib/bvc_server_lib.dll server/target/debug/
+
+      - name: Run relayed-path scenarios
+        shell: bash
+        # `-j 1`: .config/nextest.toml already caps this group at one, so the flag
+        # only stops a future addition to the set from quietly running two.
+        #
+        # See the mesh job on `--retries 1` — a backstop, and a FLAKY line in the
+        # summary is a defect to chase, not an acceptable steady state.
+        run: |
+          PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
+          mkdir -p "$PROF_DIR"
+          export LLVM_PROFILE_FILE="$PROF_DIR/bvc-%p-%4m.profraw"
+          cargo nextest run \
+            --archive-file e2e-client/nextest-archive.tar.zst \
+            --workspace-remap . \
+            -E "(not kind(lib)) & ($RELAYED_PATH_FILTER)" \
+            --no-fail-fast \
+            --retries 1 \
+            -j 1
+
+      - name: Collapse relayed-path profile data
+        if: always()
+        shell: bash
+        run: |
+          PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
+          LLVM_BIN="$(rustc --print sysroot)/lib/rustlib/x86_64-pc-windows-msvc/bin"
+          ls "$PROF_DIR"/*.profraw > "$PROF_DIR/inputs.txt" || {
+            echo "no profraw produced — nothing to merge"; exit 0; }
+          echo "profraw files: $(wc -l < "$PROF_DIR/inputs.txt")"
+          mkdir -p e2e-profdata
+          "$LLVM_BIN/llvm-profdata.exe" merge -sparse \
+            -f "$PROF_DIR/inputs.txt" \
+            -o "e2e-profdata/relayed-path.profdata"
+          rm -rf "$PROF_DIR"
+          ls -la e2e-profdata/
+
+      - name: Upload relayed-path profile data
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-profdata-relayed-path
+          path: e2e-profdata
+          retention-days: 1
+          if-no-files-found: ignore
+
   e2e-report:
     name: e2e coverage report (Windows)
     runs-on: windows-2022
@@ -880,7 +1001,8 @@ jobs:
     # error would turn a suite red over a reporting problem.
     if: always()
     continue-on-error: true
-    needs: [e2e-build-server, e2e-build-client, e2e-shard, e2e-relay]
+    needs:
+      [e2e-build-server, e2e-build-client, e2e-shard, e2e-relay, e2e-relayed-path]
     steps:
       - name: Checkout code
         uses: actions/checkout@v5

@@ -20,7 +20,7 @@ const DSN_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'~');
 
 /// Database configuration for PostgreSQL/MySQL/MariaDB/SQLite
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Database {
     #[serde(default = "default_db_scheme")]
     pub scheme: String,

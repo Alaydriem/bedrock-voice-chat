@@ -90,4 +90,19 @@ class ChatChannelTest {
         assertTrue(sent.first().contains("\"worlds\""), sent.first())
         assertTrue(sent.first().contains("nether"), sent.first())
     }
+
+    // Deaths, joins, leaves and /say carry no author — that is what makes them render as
+    // system lines rather than as somebody talking.
+    @Test
+    fun `a server event is an event frame with no author`() {
+        val sent = mutableListOf<String>()
+        val c = channel(sent = sent)
+
+        c.onOpen()
+        c.event("Moth was slain by Enderman")
+
+        assertTrue(sent.last().contains("\"t\":\"event\""), sent.last())
+        assertTrue(sent.last().contains("Moth was slain by Enderman"), sent.last())
+        assertTrue(!sent.last().contains("author"), sent.last())
+    }
 }

@@ -1,12 +1,47 @@
 # Bedrock Voice Chat Configuration
 
-# URL of the BVC server (required)
+# URL of the BVC server. Required in external mode.
 # Example: https://your-bvc-server.com
 bvc-server: ""
 
-# Access token for authentication (required)
+# Access token for authentication. Required in external mode.
 access-token: ""
 
-# Minimum number of players required to start sending position data
-# Default: 1
+# Minimum number of players required before position data is sent.
 minimum-players: 1
+
+# Run a BVC server inside this Minecraft server instead of connecting to one.
+use-embedded-server: false
+
+# Configuration for the embedded server. Read only when use-embedded-server is
+# true. The keys mirror the BVC server's own configuration exactly; anything
+# left out takes the server's default.
+#
+# TLS is required. Supply a certificate and key, or an acme block to obtain one
+# over DNS-01.
+#
+# Two defaults are worth setting explicitly. server.port defaults to 443, which
+# needs root on Linux. server.bedrock defaults to enabled on port 19132, which
+# Geyser normally owns on a Java server; 19139 coexists with it.
+#
+# embedded-config:
+#   server:
+#     port: 8444
+#     quic_port: 8443
+#     tls:
+#       certificate: "/path/to/fullchain.pem"
+#       key: "/path/to/privkey.pem"
+#       names:
+#         - "bvc.example.com"
+#     bedrock:
+#       enabled: true
+#       transfer_port: 19139
+#   voice:
+#     spatial_audio:
+#       broadcast_range: 32.0
+#   log:
+#     level: "info"
+#   permissions:
+#     defaults:
+#       audio_upload: false
+#       audio_delete: false

@@ -64,4 +64,38 @@ impl Scale {
     pub fn silent_of(mono: &[f32], scale: Scale) -> bool {
         NoteEnergy::all_absent(mono, &scale.freqs)
     }
+
+    /// `hears`, but a failure names the directed pair and carries the numbers that
+    /// decided it. `#[track_caller]` keeps the panic pointing at the scenario line
+    /// rather than here.
+    #[track_caller]
+    pub fn expect_hears(mono: &[f32], scale: Scale, pair: &str) {
+        assert!(
+            Scale::hears(mono, scale),
+            "{pair}: {}",
+            Scale::why(mono, scale)
+        );
+    }
+
+    /// The per-note energy fractions behind a `hears` / `silent_of` verdict, for
+    /// failure messages. Bare "Carol hears Alice" cannot separate a direction that
+    /// delivered nothing from one that delivered late and diluted under the
+    /// threshold; the three numbers do, and the two call for opposite fixes.
+    pub fn why(mono: &[f32], scale: Scale) -> String {
+        let pct: Vec<String> = scale
+            .freqs
+            .iter()
+            .map(|&f| {
+                format!(
+                    "{:.2}%",
+                    Signal::tone_energy_fraction(mono, 48_000, f) * 100.0
+                )
+            })
+            .collect();
+        format!(
+            "[{}] over {} samples (hears needs >2% each)",
+            pct.join(", "),
+            mono.len()
+        )
+    }
 }

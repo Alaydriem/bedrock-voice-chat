@@ -15,6 +15,11 @@ fn main() {
     let record_data_schema = extract_def(&success_schema_value, "RecordData");
     let state_data_schema = extract_def(&success_schema_value, "StateData");
     let response_data_schema = extract_def(&success_schema_value, "ResponseData");
+    let connect_target_schema = extract_def(&success_schema_value, "ConnectTarget");
+    let connect_target_kind_schema = extract_def(&success_schema_value, "ConnectTargetKind");
+    let active_connection_schema = extract_def(&success_schema_value, "ActiveConnection");
+    let connect_data_schema = extract_def(&success_schema_value, "ConnectData");
+    let targets_data_schema = extract_def(&success_schema_value, "TargetsData");
 
     let command_payload = remove_defs(command_schema_value.clone());
     let success_payload = remove_defs(success_schema_value.clone());
@@ -86,7 +91,7 @@ fn main() {
                     "name": "Command",
                     "title": "WebSocket Command",
                     "summary": "Commands that can be sent to the WebSocket server",
-                    "description": "Tagged union of all available commands (ping, mute, record)",
+                    "description": "Tagged union of all available commands (ping, mute, record, state, ptt, targets, connect, disconnect)",
                     "contentType": "application/json",
                     "payload": command_payload
                 },
@@ -121,7 +126,12 @@ fn main() {
                 "MuteData": mute_data_schema,
                 "RecordData": record_data_schema,
                 "StateData": state_data_schema,
-                "ResponseData": response_data_schema
+                "ResponseData": response_data_schema,
+                "ConnectTarget": connect_target_schema,
+                "ConnectTargetKind": connect_target_kind_schema,
+                "ActiveConnection": active_connection_schema,
+                "ConnectData": connect_data_schema,
+                "TargetsData": targets_data_schema
             }
         }
     });

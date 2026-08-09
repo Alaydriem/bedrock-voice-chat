@@ -1,7 +1,10 @@
 package com.alaydriem.bedrockvoicechat.fabric
 
 import com.alaydriem.bedrockvoicechat.audio.AudioEventSender
+import com.alaydriem.bedrockvoicechat.chat.AsyncChatTransport
 import com.alaydriem.bedrockvoicechat.chat.ChatChannel
+import com.alaydriem.bedrockvoicechat.chat.ChatTransport
+import com.alaydriem.bedrockvoicechat.chat.FfiChatTransport
 import com.alaydriem.bedrockvoicechat.control.ControlSender
 import com.alaydriem.bedrockvoicechat.fabric.chat.FabricChatListener
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
@@ -32,7 +35,8 @@ class FabricMod : ModInitializer {
     private lateinit var playerDataProvider: FabricPlayerDataProvider
 
     private var embeddedServer: BvcServerManager? = null
-    private var chatChannel: ChatChannel? = null
+    private var chatChannel: ChatTransport? = null
+    private var chatSocket: ChatChannel? = null
     private var positionSender: PositionSender? = null
     private var audioPlayerManager: FabricAudioPlayerManager? = null
     private var tickCounter = 0
@@ -69,8 +73,8 @@ class FabricMod : ModInitializer {
             audioPlayerManager = FabricAudioPlayerManager(audioEventSender)
             controlSender = ControlSender(null, embeddedServer)
 
-            val embedded = config.embeddedConfig
-            logger.info("Bedrock Voice Chat using embedded server (QUIC port: {})", embedded?.quicPort ?: 8443)
+            val quicPort = embeddedServer?.effectiveConfig()?.server?.quicPort
+            logger.info("Bedrock Voice Chat using embedded server (QUIC port: {})", quicPort)
         } else {
             val httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
             positionSender = PositionSender(httpHandler, null)
@@ -141,7 +145,7 @@ class FabricMod : ModInitializer {
         }
 
         ServerLifecycleEvents.SERVER_STOPPING.register { _ ->
-            chatChannel?.close()
+            chatChannel?.stop()
             chatChannel = null
             audioPlayerManager?.shutdown()
             embeddedServer?.stop()
@@ -159,38 +163,71 @@ class FabricMod : ModInitializer {
         server: net.minecraft.server.MinecraftServer,
         config: com.alaydriem.bedrockvoicechat.config.ModConfig
     ) {
-        val serverUrl = config.bvcServer
-        val token = config.accessToken
-        if (serverUrl == null || token == null) {
-            // Embedded mode has no external URL to dial.
-            logger.info("Bedrock Voice Chat chat relay not started (no external server configured)")
-            return
-        }
-
         val worlds = server.allLevels.map { playerDataProvider.getWorldUuid(it) }
         if (worlds.isEmpty()) {
             logger.warn("Bedrock Voice Chat chat relay not started (no levels loaded)")
             return
         }
+        val worldName = server.motd ?: "Minecraft server"
 
         var listener: FabricChatListener? = null
-        val channel = ChatChannel(
-            serverUrl = serverUrl,
-            accessToken = token,
-            worldUuid = worlds.first(),
-            worldName = server.motd ?: "Minecraft server",
-            worlds = worlds,
-            onSay = { author, text -> listener?.say(author, text) },
-            send = { body -> chatChannel?.sendOverSocket(body) }
-        )
-        listener = FabricChatListener(channel, server)
+        val onSay: (String, String) -> Unit = { author, text -> listener?.say(author, text) }
+
+        // Chosen by mode, exactly as ControlSender and AudioEventSender already are. Embedded
+        // shares this process, so it calls into the server rather than dialling a socket back
+        // into its own address space.
+        val base: ChatTransport = if (config.useEmbeddedServer) {
+            val embedded = embeddedServer
+            if (embedded == null) {
+                logger.warn("Bedrock Voice Chat chat relay not started (embedded server not running)")
+                return
+            }
+            FfiChatTransport(embedded, worlds.first(), worldName, worlds, onSay)
+        } else {
+            val serverUrl = config.bvcServer
+            val token = config.accessToken
+            if (serverUrl == null || token == null) {
+                logger.info("Bedrock Voice Chat chat relay not started (no server configured)")
+                return
+            }
+            val socket = ChatChannel(
+                serverUrl = serverUrl,
+                accessToken = token,
+                worldUuid = worlds.first(),
+                worldName = worldName,
+                worlds = worlds,
+                onSay = onSay,
+                send = { body -> chatSocket?.sendOverSocket(body) }
+            )
+            chatSocket = socket
+            socket
+        }
+
+        // CHAT_MESSAGE and GAME_MESSAGE both fire on the main server thread, and neither
+        // transport is safe to block it with.
+        val transport = AsyncChatTransport(base)
+
+        listener = FabricChatListener(transport, server)
 
         ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ ->
             listener.onChat(sender.name.string, message.signedContent())
         }
 
-        chatChannel = channel
-        channel.connect()
+        // Deaths, joins and leaves reach players as system messages rather than as chat, so
+        // they arrive here and not on CHAT_MESSAGE.
+        ServerMessageEvents.GAME_MESSAGE.register { _, message, _ ->
+            listener.onGameMessage(message)
+        }
+
+        // /say and /me are neither chat nor a system message: command output has its own
+        // event. The bound chat type is what renders "[Server] hello" rather than the bare
+        // argument.
+        ServerMessageEvents.COMMAND_MESSAGE.register { message, _, params ->
+            listener.onGameMessage(params.decorate(message.decoratedContent()))
+        }
+
+        chatChannel = transport
+        transport.start()
     }
 
     private fun tick() {

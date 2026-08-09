@@ -9,8 +9,9 @@ fn default_directory() -> String {
 }
 
 /// Which DNS provider fulfills the DNS-01 challenge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "String", into = "String")]
+#[schemars(with = "String")]
 pub enum AcmeProviderKind {
     Cloudflare,
     AcmeDns,
@@ -64,7 +65,7 @@ impl fmt::Display for AcmeProviderKind {
 
 /// ACME DNS-01 configuration. Mutually exclusive with manual
 /// `tls.certificate`/`tls.key` — the server refuses to start with both set.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Acme {
     #[serde(default)]
     pub email: String,

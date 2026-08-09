@@ -8,7 +8,7 @@ pub fn default_true() -> bool {
     true
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Features {
     #[serde(default = "default_false")]
     pub openapi_docs: bool,

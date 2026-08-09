@@ -46,7 +46,7 @@ data class PlayerData(
     )
 
     /**
-     * Constructor for Hytale players with world UUID for isolation.
+     * Constructor for players whose world UUID is always known, used for world isolation.
      */
     constructor(
         name: String,

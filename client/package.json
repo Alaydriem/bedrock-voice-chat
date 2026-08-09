@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "prepare": "svelte-kit sync || echo ''",
-    "dev": "yarn preloader:build && vite dev",
+    "dev": "yarn i18n:extract && yarn i18n:build && yarn preloader:build && vite dev",
     "build": "yarn i18n:build && yarn preloader:build && vite build",
     "i18n:build": "node --disable-warning=ExperimentalWarning scripts/i18n/build.mjs",
     "i18n:extract": "node --disable-warning=ExperimentalWarning scripts/i18n/extract.mjs",

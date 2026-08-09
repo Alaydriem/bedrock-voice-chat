@@ -132,6 +132,23 @@ impl QuicServerManager {
             builder.build().expect("datagram endpoint build")
         };
 
+        // Defaults negotiate a 30s idle timeout and derive the keepalive from it at 3/4,
+        // which puts a ping on the wire every 22.5s. Carrier translators routinely drop an
+        // idle UDP mapping sooner than that; the mapping is then recreated on a new source
+        // port, which the peer sees as a new path. s2n-quic allows five and reclaims none,
+        // so the fifth rebinding silently drops every datagram that follows.
+        //
+        // Ten seconds sits under the shortest carrier timeouts observed in the field. It has
+        // no effect unless `Connection::keep_alive` is enabled -- it is, below and on the
+        // client -- so removing either call reverts this with nothing failing to say so.
+        //
+        // 45s must stay under Meridian's `connection_ttl` (60s default): if the proxy reaps
+        // its socket while the connection is still live, the next datagram arrives from a new
+        // address and costs one of the same five paths this exists to protect.
+        let limits = common::s2n_quic::provider::limits::Limits::default()
+            .with_max_keep_alive_period(std::time::Duration::from_secs(10))?
+            .with_max_idle_timeout(std::time::Duration::from_secs(45))?;
+
         let builder = Server::builder()
             .with_event((
                 (
@@ -142,6 +159,7 @@ impl QuicServerManager {
             ))?
             .with_tls(provider)?
             .with_io(bind_addr)?
+            .with_limits(limits)?
             .with_datagram(dg_endpoint)?;
 
         let server = if let Some(instance_id) =

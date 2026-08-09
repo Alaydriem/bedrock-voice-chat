@@ -7,7 +7,7 @@ fn default_port() -> u16 {
 
 // One operator-curated Bedrock server from the `bedrock { servers = [...] }`
 // config list, advertised to clients through `/api/config`.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct BedrockServerEntry {
     pub name: String,
     pub host: String,

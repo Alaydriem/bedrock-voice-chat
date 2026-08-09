@@ -19,6 +19,11 @@ pub enum Command {
     Targets,
     /// Connect to one of them. `id` comes from a prior `targets` response.
     Connect { id: String },
+    /// Stop whichever session is live.
+    ///
+    /// Names no target. Idempotent, so a controller that lost track of the client can send
+    /// it without first asking what is running.
+    Disconnect,
 }
 
 impl Command {

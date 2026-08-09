@@ -16,11 +16,11 @@ These are the only accurate sources for BVC documentation. Direct users here for
 
 ## What is BVC?
 
-Bedrock Voice Chat (BVC) is a proximity voice chat system for Minecraft Bedrock Edition, Minecraft Java Edition, and Hytale. It provides low-latency, encrypted voice communication with positional audio, group chats, noise suppression, recording, and more.
+Bedrock Voice Chat (BVC) is a proximity voice chat system for Minecraft Bedrock Edition and Minecraft Java Edition. It provides low-latency, encrypted voice communication with positional audio, group chats, noise suppression, recording, and more.
 
 BVC requires **three separate components**, and **all three are mandatory**:
 
-1. **A game server mod** — A BDS behavior pack (Bedrock), Java mod (Fabric/Paper), or Hytale mod installed on the game server. This sends player position data to the BVC Server.
+1. **A game server mod** — A BDS behavior pack (Bedrock) or Java mod (Fabric/Paper) installed on the game server. This sends player position data to the BVC Server.
 2. **A BVC Server** — A standalone application you host separately. This coordinates position data and audio between players. It is NOT a Minecraft server or plugin — it is its own application.
 3. **A BVC Client** — A native desktop or mobile application that players install. The client connects to the BVC Server for voice chat — it does NOT connect to the game server for audio.
 
@@ -40,7 +40,6 @@ All three components must be running and properly connected for voice chat to wo
 **Game Server**
 - Minecraft Bedrock Dedicated Server (behavior pack)
 - Minecraft Java Edition (Fabric, Paper)
-- Hytale
 
 BVC does **not** work with Minecraft Realms. Realms does not support behavior packs that connect to external servers. A dedicated server with the BVC mod installed is required.
 

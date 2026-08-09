@@ -246,18 +246,6 @@ export class BedrockManager {
         }
     }
 
-    // Fails open on read failure, matching both the flag's own default and
-    // SettingsSidebarManager: the two must agree or the sidebar item and the
-    // page can disagree about whether the feature exists.
-    async refreshRealmsEnabled(): Promise<void> {
-        try {
-            const enabled = await invoke<boolean>('bedrock_realms_enabled');
-            this.realmsEnabledStore.set(enabled);
-        } catch (e) {
-            logError(`Realms Connect flag check failed: ${e}`);
-            this.realmsEnabledStore.set(true);
-        }
-    }
 
     dismissRealmsUnavailableModal(): void {
         this.realmsUnavailableModalStore.set(false);

@@ -27,6 +27,8 @@
         onsettings: () => void;
         onsignout: () => void;
         onstatus: (open: boolean) => void;
+        /** The jukebox chip. Rendered in the header's state group, beside the status button. */
+        jukebox?: import("svelte").Snippet;
         /** The stage's body — the ring, the roster, the status panel. */
         main?: import("svelte").Snippet;
         /** The groups pane beside the rail, repeated inside the phone sheet. */
@@ -59,6 +61,7 @@
         onsettings,
         onsignout,
         onstatus,
+        jukebox,
         main,
         groups,
         chat,
@@ -281,6 +284,7 @@
             </span>
 
             <span class="rad-dash-top__state">
+                {@render jukebox?.()}
                 <span class="rad-desk-only">
                     <span style="display: flex; align-items: center; gap: 10px">
                         <span class="rad-health-dot"></span>

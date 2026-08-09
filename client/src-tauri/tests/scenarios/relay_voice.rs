@@ -186,14 +186,23 @@ async fn relay_cross_server_in_range_fully_hear_each_other() {
 
         let positions = [("Alice", 0.0, 64.0, 0.0), ("Bob", 1.0, 64.0, 0.0)];
 
-        // Relay-established guard: drive the peer link up before measuring.
-        let warmup = ALICE.voice(1);
-        let converged = w
-            .converge_link("Alice", "Bob", &positions, &warmup, Duration::from_secs(60))
+        // Relay-established guard: BOTH directions must already be audible, because
+        // both are measured below. A frame counter is satisfied by whichever
+        // direction arrives first, which opens the window while the other one is
+        // still forming.
+        let a_warm = ALICE.voice(1);
+        let b_warm = BOB.voice(1);
+        let missing = w
+            .converge_audible(
+                &[("Alice", &a_warm), ("Bob", &b_warm)],
+                &[("Alice", BOB), ("Bob", ALICE)],
+                &positions,
+                Duration::from_secs(60),
+            )
             .await;
         assert!(
-            converged > 0,
-            "[{v}] peer link established (Bob receives relayed frames) before measuring"
+            missing.is_empty(),
+            "[{v}] peer link carries both directions before measuring; still inaudible: {missing:?}"
         );
 
         // Clear warmup audio and snapshot counters for a clean delivery delta.
@@ -234,13 +243,15 @@ async fn relay_cross_server_in_range_fully_hear_each_other() {
             a_sent_d > 0 && b_sent_d > 0,
             "[{v}] both produced measured input frames"
         );
-        assert!(
-            Scale::hears(&mono_a, BOB),
-            "[{v}] Alice fully hears Bob (A-major triad) across the relay"
+        Scale::expect_hears(
+            &mono_a,
+            BOB,
+            &format!("[{v}] Alice fully hears Bob (A-major triad) across the relay"),
         );
-        assert!(
-            Scale::hears(&mono_b, ALICE),
-            "[{v}] Bob fully hears Alice (C-major triad) across the relay"
+        Scale::expect_hears(
+            &mono_b,
+            ALICE,
+            &format!("[{v}] Bob fully hears Alice (C-major triad) across the relay"),
         );
         assert!(
             b_fq_d as f64 >= DELIVERY_FLOOR * a_sent_d as f64,
@@ -425,15 +436,23 @@ async fn relay_simultaneous_join_resolves_bidirectional() {
 
         // Both servers register with discovery and run their offer cycle on the
         // same convergence pumps, so the link establishment races regardless of
-        // which one's random port wins the `should_initiate` tiebreak. Converge on
-        // a single warmup direction (clean, no backlog) before measuring.
-        let warmup = ALICE.voice(1);
-        let converged = w
-            .converge_link("Alice", "Bob", &positions, &warmup, Duration::from_secs(45))
+        // which one's random port wins the `should_initiate` tiebreak. Whichever
+        // side wins, both directions are measured below, so both must be audible
+        // before the window opens.
+        let a_warm = ALICE.voice(1);
+        let b_warm = BOB.voice(1);
+        let missing = w
+            .converge_audible(
+                &[("Alice", &a_warm), ("Bob", &b_warm)],
+                &[("Alice", BOB), ("Bob", ALICE)],
+                &positions,
+                Duration::from_secs(60),
+            )
             .await;
         assert!(
-            converged > 0,
-            "[{v}] the single peer link establishes under a join race"
+            missing.is_empty(),
+            "[{v}] the single peer link establishes under a join race and carries both \
+             directions; still inaudible: {missing:?}"
         );
 
         let _ = w.proc("Alice").drain_captured();
@@ -471,13 +490,15 @@ async fn relay_simultaneous_join_resolves_bidirectional() {
             a_sent_d > 0 && b_sent_d > 0,
             "[{v}] both produced measured input frames"
         );
-        assert!(
-            Scale::hears(&mono_a, BOB),
-            "[{v}] Alice hears Bob after the race"
+        Scale::expect_hears(
+            &mono_a,
+            BOB,
+            &format!("[{v}] Alice hears Bob after the race"),
         );
-        assert!(
-            Scale::hears(&mono_b, ALICE),
-            "[{v}] Bob hears Alice after the race"
+        Scale::expect_hears(
+            &mono_b,
+            ALICE,
+            &format!("[{v}] Bob hears Alice after the race"),
         );
         assert!(
             b_ratio >= DELIVERY_FLOOR,
@@ -530,25 +551,33 @@ async fn relay_third_player_on_host_server_all_hear() {
             ("Bob", 1.0, 64.0, 0.0),
         ];
 
-        // One cross-server link (A↔B) carries the whole world. Bob (alone on B) only
-        // ever hears the A-side players over the relay, so convergence waits on his
-        // QUIC frames; drive all three speaking (a silent listener's side does not
-        // converge reliably) until every player has received frames.
-        let converged = w
-            .converge_mesh(
+        // One cross-server link (A↔B) carries the whole world. All three speak (a
+        // silent listener's side does not converge reliably) until every one of the
+        // six directed hearings asserted below is actually audible — Alice↔Carol is
+        // local to A and comes up first, so a frame counter would open the window
+        // while the relayed directions were still forming.
+        let a_warm = ALICE.voice(1);
+        let c_warm = CAROL.voice(1);
+        let b_warm = BOB.voice(1);
+        let missing = w
+            .converge_audible(
+                &[("Alice", &a_warm), ("Carol", &c_warm), ("Bob", &b_warm)],
                 &[
-                    ("Alice", &ALICE.voice(1)),
-                    ("Carol", &CAROL.voice(1)),
-                    ("Bob", &BOB.voice(1)),
+                    ("Alice", CAROL),
+                    ("Alice", BOB),
+                    ("Carol", ALICE),
+                    ("Carol", BOB),
+                    ("Bob", ALICE),
+                    ("Bob", CAROL),
                 ],
-                &["Alice", "Carol", "Bob"],
                 &positions,
                 Duration::from_secs(60),
             )
             .await;
         assert!(
-            converged,
-            "[{v}] A↔B peer link established (Bob receives relayed A-side frames) before measuring"
+            missing.is_empty(),
+            "[{v}] A↔B peer link carries every directed pair before measuring; still \
+             inaudible: {missing:?}"
         );
 
         let _ = w.proc("Alice").drain_captured();
@@ -566,23 +595,27 @@ async fn relay_third_player_on_host_server_all_hear() {
 
         w.shutdown();
 
-        assert!(
-            Scale::hears(&mono_a, CAROL),
-            "[{v}] Alice hears Carol (local on A)"
+        Scale::expect_hears(
+            &mono_a,
+            CAROL,
+            &format!("[{v}] Alice hears Carol (local on A)"),
         );
-        assert!(Scale::hears(&mono_a, BOB), "[{v}] Alice hears Bob (relay)");
-        assert!(
-            Scale::hears(&mono_c, ALICE),
-            "[{v}] Carol hears Alice (local on A)"
+        Scale::expect_hears(&mono_a, BOB, &format!("[{v}] Alice hears Bob (relay)"));
+        Scale::expect_hears(
+            &mono_c,
+            ALICE,
+            &format!("[{v}] Carol hears Alice (local on A)"),
         );
-        assert!(Scale::hears(&mono_c, BOB), "[{v}] Carol hears Bob (relay)");
-        assert!(
-            Scale::hears(&mono_b, ALICE),
-            "[{v}] Bob hears Alice (relay, multiplexed)"
+        Scale::expect_hears(&mono_c, BOB, &format!("[{v}] Carol hears Bob (relay)"));
+        Scale::expect_hears(
+            &mono_b,
+            ALICE,
+            &format!("[{v}] Bob hears Alice (relay, multiplexed)"),
         );
-        assert!(
-            Scale::hears(&mono_b, CAROL),
-            "[{v}] Bob hears Carol (relay, multiplexed)"
+        Scale::expect_hears(
+            &mono_b,
+            CAROL,
+            &format!("[{v}] Bob hears Carol (relay, multiplexed)"),
         );
     }
 }
@@ -626,25 +659,33 @@ async fn relay_third_player_on_joined_server_all_hear() {
             ("Carol", 2.0, 64.0, 0.0),
         ];
 
-        // The lone player on A only ever hears B-side players over the relay, so
-        // convergence must wait on Alice receiving cross-server frames. Drive all
-        // three speaking (a silent listener's side does not converge reliably) until
-        // every player has received QUIC frames.
-        let converged = w
-            .converge_mesh(
+        // Bob and Carol share server B, so their frame counters rise from each
+        // other's LOCAL audio and say nothing about the relay. Gating on frames
+        // therefore proves only that Alice received something; the A→Carol
+        // direction that this scenario exists to cover stays unobserved. Wait on
+        // the six directed hearings themselves instead.
+        let a_warm = ALICE.voice(1);
+        let b_warm = BOB.voice(1);
+        let c_warm = CAROL.voice(1);
+        let missing = w
+            .converge_audible(
+                &[("Alice", &a_warm), ("Bob", &b_warm), ("Carol", &c_warm)],
                 &[
-                    ("Alice", &ALICE.voice(1)),
-                    ("Bob", &BOB.voice(1)),
-                    ("Carol", &CAROL.voice(1)),
+                    ("Alice", BOB),
+                    ("Alice", CAROL),
+                    ("Bob", ALICE),
+                    ("Bob", CAROL),
+                    ("Carol", ALICE),
+                    ("Carol", BOB),
                 ],
-                &["Alice", "Bob", "Carol"],
                 &positions,
                 Duration::from_secs(60),
             )
             .await;
         assert!(
-            converged,
-            "[{v}] A↔B peer link established (Alice receives relayed B-side frames) before measuring"
+            missing.is_empty(),
+            "[{v}] A↔B peer link carries every directed pair before measuring; still \
+             inaudible: {missing:?}"
         );
 
         let _ = w.proc("Alice").drain_captured();
@@ -662,30 +703,24 @@ async fn relay_third_player_on_joined_server_all_hear() {
 
         w.shutdown();
 
-        assert!(
-            Scale::hears(&mono_a, BOB),
-            "[{v}] Alice hears Bob (relay, multiplexed)"
+        Scale::expect_hears(
+            &mono_a,
+            BOB,
+            &format!("[{v}] Alice hears Bob (relay, multiplexed)"),
         );
-        assert!(
-            Scale::hears(&mono_a, CAROL),
-            "[{v}] Alice hears Carol (relay, multiplexed)"
+        Scale::expect_hears(
+            &mono_a,
+            CAROL,
+            &format!("[{v}] Alice hears Carol (relay, multiplexed)"),
         );
-        assert!(
-            Scale::hears(&mono_b, ALICE),
-            "[{v}] Bob hears Alice (relay)"
+        Scale::expect_hears(&mono_b, ALICE, &format!("[{v}] Bob hears Alice (relay)"));
+        Scale::expect_hears(
+            &mono_b,
+            CAROL,
+            &format!("[{v}] Bob hears Carol (local on B)"),
         );
-        assert!(
-            Scale::hears(&mono_b, CAROL),
-            "[{v}] Bob hears Carol (local on B)"
-        );
-        assert!(
-            Scale::hears(&mono_c, ALICE),
-            "[{v}] Carol hears Alice (relay)"
-        );
-        assert!(
-            Scale::hears(&mono_c, BOB),
-            "[{v}] Carol hears Bob (local on B)"
-        );
+        Scale::expect_hears(&mono_c, ALICE, &format!("[{v}] Carol hears Alice (relay)"));
+        Scale::expect_hears(&mono_c, BOB, &format!("[{v}] Carol hears Bob (local on B)"));
     }
 }
 
@@ -693,10 +728,10 @@ async fn relay_third_player_on_joined_server_all_hear() {
 /// B↔C) and all three players hear each other across it.
 ///
 /// Each of Alice→A, Bob→B, Carol→C is alone on its server and joins no channel,
-/// so every audible pair proves a distinct peer link carried it. `converge_mesh`
-/// waits until all three have received cross-server frames (each holds ≥1 link);
-/// the six directed-hearing assertions over a shared capture window then prove all
-/// three mesh edges are live — if any edge were missing, one pair would be silent.
+/// so every audible pair proves a distinct peer link carried it. `converge_audible`
+/// waits until all six directed pairs are audible — all three edges carrying both
+/// ways; the six assertions over a shared capture window then prove that state is
+/// sustained, not a single window that happened to catch it.
 #[tokio::test(flavor = "multi_thread")]
 async fn relay_third_player_on_third_server_mesh_all_hear() {
     for v in ProtocolMatrix::last_two() {
@@ -729,21 +764,33 @@ async fn relay_third_player_on_third_server_mesh_all_hear() {
             ("Carol", 2.0, 64.0, 0.0),
         ];
 
-        let converged = w
-            .converge_mesh(
+        // Each player's frame counter rises as soon as ONE of its two mesh edges
+        // comes up, and the three edges form independently — each depends on its
+        // own pair of servers having exchanged presence and position. So "every
+        // player received cross-server frames" is true well before all three edges
+        // carry both of their directions. Wait on the six directed hearings.
+        let a_warm = ALICE.voice(1);
+        let b_warm = BOB.voice(1);
+        let c_warm = CAROL.voice(1);
+        let missing = w
+            .converge_audible(
+                &[("Alice", &a_warm), ("Bob", &b_warm), ("Carol", &c_warm)],
                 &[
-                    ("Alice", &ALICE.voice(1)),
-                    ("Bob", &BOB.voice(1)),
-                    ("Carol", &CAROL.voice(1)),
+                    ("Alice", BOB),
+                    ("Alice", CAROL),
+                    ("Bob", ALICE),
+                    ("Bob", CAROL),
+                    ("Carol", ALICE),
+                    ("Carol", BOB),
                 ],
-                &["Alice", "Bob", "Carol"],
                 &positions,
-                Duration::from_secs(60),
+                Duration::from_secs(90),
             )
             .await;
         assert!(
-            converged,
-            "[{v}] every player received cross-server frames (each holds ≥1 mesh link)"
+            missing.is_empty(),
+            "[{v}] all three mesh edges carry both directions before measuring; still \
+             inaudible: {missing:?}"
         );
 
         let _ = w.proc("Alice").drain_captured();
@@ -761,30 +808,20 @@ async fn relay_third_player_on_third_server_mesh_all_hear() {
 
         w.shutdown();
 
-        assert!(
-            Scale::hears(&mono_a, BOB),
-            "[{v}] Alice hears Bob (A↔B edge)"
+        Scale::expect_hears(&mono_a, BOB, &format!("[{v}] Alice hears Bob (A↔B edge)"));
+        Scale::expect_hears(
+            &mono_a,
+            CAROL,
+            &format!("[{v}] Alice hears Carol (A↔C edge)"),
         );
-        assert!(
-            Scale::hears(&mono_a, CAROL),
-            "[{v}] Alice hears Carol (A↔C edge)"
+        Scale::expect_hears(&mono_b, ALICE, &format!("[{v}] Bob hears Alice (A↔B edge)"));
+        Scale::expect_hears(&mono_b, CAROL, &format!("[{v}] Bob hears Carol (B↔C edge)"));
+        Scale::expect_hears(
+            &mono_c,
+            ALICE,
+            &format!("[{v}] Carol hears Alice (A↔C edge)"),
         );
-        assert!(
-            Scale::hears(&mono_b, ALICE),
-            "[{v}] Bob hears Alice (A↔B edge)"
-        );
-        assert!(
-            Scale::hears(&mono_b, CAROL),
-            "[{v}] Bob hears Carol (B↔C edge)"
-        );
-        assert!(
-            Scale::hears(&mono_c, ALICE),
-            "[{v}] Carol hears Alice (A↔C edge)"
-        );
-        assert!(
-            Scale::hears(&mono_c, BOB),
-            "[{v}] Carol hears Bob (B↔C edge)"
-        );
+        Scale::expect_hears(&mono_c, BOB, &format!("[{v}] Carol hears Bob (B↔C edge)"));
     }
 }
 

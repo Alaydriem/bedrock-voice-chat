@@ -98,6 +98,22 @@
                     </button>
                   </span>
                   <span class="rad-dash-top__state">
+                    <button
+                      class="rad-header-btn"
+                      data-jukebox-chip
+                      aria-pressed="false"
+                      aria-label="Mute jukeboxes"
+                    >
+                      <span data-rad-icon="note"></span>
+                    </button>
+                    <button
+                      class="rad-header-btn rad-header-btn--caret rad-desk-only"
+                      data-jukebox-caret
+                      aria-expanded="false"
+                      aria-label="Jukebox volume"
+                    >
+                      <span data-rad-icon="chev"></span>
+                    </button>
                     <span class="rad-desk-only">
                       <span style="display: flex; align-items: center; gap: 10px">
                         <span class="rad-health-dot"></span>
@@ -208,6 +224,24 @@
             <div data-self-pill></div>
 
             <div class="rad-menu" data-rad-menu></div>
+
+            <div class="rad-pop rad-desk-only" data-jukebox-pop hidden>
+              <div class="rad-pop__head">Jukeboxes</div>
+              <input
+                class="rad-range"
+                type="range"
+                min="0"
+                max="1.5"
+                step="0.05"
+                value="1"
+                data-jukebox-gain
+                aria-label="Jukebox volume"
+              />
+              <span class="rad-pop__value" data-jukebox-value>100%</span>
+              <button class="rad-list-row" data-jukebox-mute>
+                <span class="rad-list-row__icon" data-rad-icon="noteoff"></span> Mute jukeboxes
+              </button>
+            </div>
             <div class="rad-scrim" data-rad-sheet-scrim></div>
 
             <div class="rad-sheet" data-rad-sheet="servers">
@@ -223,6 +257,31 @@
               <div class="rad-sheet__divider"></div>
               <button class="rad-list-row rad-list-row--danger" data-rad-sheet-close>
                 <span class="rad-list-row__icon" data-rad-icon="close"></span> Sign out
+              </button>
+            </div>
+
+            <div class="rad-sheet" data-rad-sheet="jukebox">
+              <span class="rad-sheet__handle"></span>
+              <button class="rad-sheet__close" data-rad-sheet-close aria-label="Close jukeboxes">
+                <span data-rad-icon="close"></span>
+              </button>
+              <h4 class="rad-sheet__title">Jukeboxes</h4>
+              <div class="rad-sheet__row">
+                <input
+                  class="rad-range"
+                  type="range"
+                  min="0"
+                  max="1.5"
+                  step="0.05"
+                  value="1"
+                  data-jukebox-gain
+                  style="width: 100%"
+                  aria-label="Jukebox volume"
+                />
+                <span class="rad-sheet__value" data-jukebox-value>100%</span>
+              </div>
+              <button class="rad-list-row" data-jukebox-mute>
+                <span class="rad-list-row__icon" data-rad-icon="noteoff"></span> Mute jukeboxes
               </button>
             </div>
 

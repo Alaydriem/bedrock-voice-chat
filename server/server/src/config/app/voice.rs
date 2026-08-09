@@ -9,7 +9,7 @@ fn default_datagram_recv_capacity() -> usize {
     1024
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Voice {
     // Maximum number of outbound datagrams buffered per connection before backpressure / drops
     #[serde(default = "default_datagram_send_capacity")]

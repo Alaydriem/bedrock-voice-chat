@@ -1,7 +1,10 @@
 package com.alaydriem.bedrockvoicechat.paper
 
 import com.alaydriem.bedrockvoicechat.audio.AudioEventSender
+import com.alaydriem.bedrockvoicechat.chat.AsyncChatTransport
 import com.alaydriem.bedrockvoicechat.chat.ChatChannel
+import com.alaydriem.bedrockvoicechat.chat.ChatTransport
+import com.alaydriem.bedrockvoicechat.chat.FfiChatTransport
 import com.alaydriem.bedrockvoicechat.config.ModConfig
 import com.alaydriem.bedrockvoicechat.control.ControlSender
 import com.alaydriem.bedrockvoicechat.paper.chat.PaperChatListener
@@ -28,7 +31,7 @@ import org.bukkit.scheduler.BukkitTask
 
 /**
  * Paper plugin entry point for Bedrock Voice Chat.
- * Implements Listener for event-driven player tracking (like Hytale).
+ * Implements Listener for event-driven player tracking.
  */
 class PaperPlugin : JavaPlugin(), Listener {
     private val configProvider = PaperConfigProvider(this)
@@ -38,7 +41,8 @@ class PaperPlugin : JavaPlugin(), Listener {
     private var positionSender: PositionSender? = null
     private var audioEventSender: AudioEventSender? = null
     private var controlSender: ControlSender? = null
-    private var chatChannel: ChatChannel? = null
+    private var chatChannel: ChatTransport? = null
+    private var chatSocket: ChatChannel? = null
     private var audioPlayerManager: PaperAudioPlayerManager? = null
     private var tickTask: BukkitTask? = null
     private var minimumPlayers = 1
@@ -77,8 +81,8 @@ class PaperPlugin : JavaPlugin(), Listener {
             audioEventSender = AudioEventSender(null, embeddedServer)
             controlSender = ControlSender(null, embeddedServer)
 
-            val embedded = config.embeddedConfig
-            logger.info("Bedrock Voice Chat using embedded server (QUIC port: ${embedded?.quicPort ?: 8443})")
+            val quicPort = embeddedServer?.effectiveConfig()?.server?.quicPort
+            logger.info("Bedrock Voice Chat using embedded server (QUIC port: $quicPort)")
         } else {
             // External server mode: use HTTP handler
             val httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
@@ -128,42 +132,62 @@ class PaperPlugin : JavaPlugin(), Listener {
      * The primary world supplies the canonical id and the name the app's picker shows.
      */
     private fun startChatChannel(config: ModConfig) {
-        val serverUrl = config.bvcServer
-        val token = config.accessToken
-        if (serverUrl == null || token == null) {
-            // Embedded mode has no external URL to dial. Chat there is resolved separately.
-            logger.info("Bedrock Voice Chat chat relay not started (no external server configured)")
-            return
-        }
-
         val worlds = server.worlds.map { it.uid.toString() }
         if (worlds.isEmpty()) {
             logger.warning("Bedrock Voice Chat chat relay not started (no worlds loaded)")
             return
         }
+        val worldName = server.worlds.first().name
 
         var listener: PaperChatListener? = null
-        val channel = ChatChannel(
-            serverUrl = serverUrl,
-            accessToken = token,
-            worldUuid = worlds.first(),
-            worldName = server.worlds.first().name,
-            worlds = worlds,
-            onSay = { author, text ->
-                // Broadcasting has to happen on the main thread; the socket delivers on its own.
-                server.scheduler.runTask(this, Runnable { listener?.say(author, text) })
-            },
-            send = { body -> chatChannel?.sendOverSocket(body) }
-        )
-        listener = PaperChatListener(channel)
+        // Broadcasting has to happen on the main thread; both transports deliver on their own.
+        val onSay: (String, String) -> Unit = { author, text ->
+            server.scheduler.runTask(this, Runnable { listener?.say(author, text) })
+        }
+
+        // Chosen by mode, exactly as ControlSender and AudioEventSender already are. Embedded
+        // shares this process, so it calls into the server rather than dialling a socket back
+        // into its own address space.
+        val base: ChatTransport = if (config.useEmbeddedServer) {
+            val embedded = embeddedServer
+            if (embedded == null) {
+                logger.warning("Bedrock Voice Chat chat relay not started (embedded server not running)")
+                return
+            }
+            FfiChatTransport(embedded, worlds.first(), worldName, worlds, onSay)
+        } else {
+            val serverUrl = config.bvcServer
+            val token = config.accessToken
+            if (serverUrl == null || token == null) {
+                logger.info("Bedrock Voice Chat chat relay not started (no server configured)")
+                return
+            }
+            val socket = ChatChannel(
+                serverUrl = serverUrl,
+                accessToken = token,
+                worldUuid = worlds.first(),
+                worldName = worldName,
+                worlds = worlds,
+                onSay = onSay,
+                send = { body -> chatSocket?.sendOverSocket(body) }
+            )
+            chatSocket = socket
+            socket
+        }
+
+        // Every listener below reports from the main thread, and neither transport is safe to
+        // block it with.
+        val transport = AsyncChatTransport(base)
+
+        listener = PaperChatListener(transport)
         server.pluginManager.registerEvents(listener, this)
 
-        chatChannel = channel
-        channel.connect()
+        chatChannel = transport
+        transport.start()
     }
 
     override fun onDisable() {
-        chatChannel?.close()
+        chatChannel?.stop()
         chatChannel = null
         tickTask?.cancel()
         tickTask = null

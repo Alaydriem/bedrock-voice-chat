@@ -1,5 +1,8 @@
+mod connect_outcome;
 mod health_manager;
 mod stream_manager;
+
+use connect_outcome::{AttemptResult, ConnectOutcome};
 
 use crate::AudioPacket;
 use crate::NetworkPacket;
@@ -136,8 +139,15 @@ impl NetworkStreamManager {
             (client, plan)
         };
 
-        let (mut connection, winner) =
-            Self::connect_first_available(&client, &plan, &server_fqdn).await?;
+        // Reported before `?` propagates, so a walk that reached nothing is the case this
+        // measures rather than the one it loses.
+        let mut outcome = ConnectOutcome::new();
+        let attempt = Self::connect_first_available(&client, &plan, &server_fqdn, &mut outcome)
+            .await
+            .map_err(|e| e.to_string());
+        self.report_connect_outcome(&outcome, &server_url);
+
+        let (mut connection, winner) = attempt?;
         connection.keep_alive(true)?;
 
         // Family comes from the winning candidate, never from its dial address: on a
@@ -215,12 +225,26 @@ impl NetworkStreamManager {
             .build()
             .expect("build dg endpoint");
 
+        // Defaults negotiate a 30s idle timeout and derive the keepalive from it at 3/4, so a
+        // ping reaches the wire every 22.5s. Carrier translators routinely drop an idle UDP
+        // mapping sooner; it is then recreated on a new source port, which the server sees as
+        // a new path. s2n-quic allows five and reclaims none, so the fifth rebinding silently
+        // drops every datagram after it — a session that connects, works, and quietly stops
+        // carrying audio without either end reporting an error.
+        //
+        // Inert unless `Connection::keep_alive` is enabled; `restart` enables it on the
+        // connection this client produces, so removing that call reverts this silently.
+        let limits = common::s2n_quic::provider::limits::Limits::default()
+            .with_max_keep_alive_period(std::time::Duration::from_secs(10))?
+            .with_max_idle_timeout(std::time::Duration::from_secs(45))?;
+
         // The tracing subscriber stays in the tuple. `with_event` replaces the default event
         // provider outright, so dropping it here would silently remove every QUIC trace with
         // nothing failing to indicate it.
         let client = Client::builder()
             .with_tls(provider)?
             .with_io(bind)?
+            .with_limits(limits)?
             .with_datagram(dg_endpoint)?
             .with_event((
                 common::s2n_quic::provider::event::tracing::Subscriber::default(),
@@ -241,10 +265,32 @@ impl NetworkStreamManager {
     // The winning candidate is returned alongside the connection rather than recorded from
     // inside the walk, which keeps this a pure function of its inputs and leaves exactly one
     // place that decides what the current session is.
+    // Emitted whether the walk succeeded or not. A network that blocks UDP outright and one
+    // that reaches the server on an alternate port both end the walk; only the per-candidate
+    // record separates them, and neither is visible from the error code alone.
+    fn report_connect_outcome(&self, outcome: &ConnectOutcome, server_url: &str) {
+        use tauri::Manager;
+
+        if let Some(analytics) = self
+            .app_handle
+            .try_state::<std::sync::Arc<crate::analytics::AnalyticsService>>()
+        {
+            analytics.track(
+                common::structs::AnalyticsEvent::VoiceTransportOutcome,
+                Some(outcome.properties(server_url)),
+            );
+        }
+    }
+
+    // `outcome` accumulates every attempt, including the successful one, so the caller can
+    // report the whole walk rather than only its verdict. Filled on both the success and the
+    // failure path: a walk that reached the server on its third candidate is as diagnostic as
+    // one that reached nothing.
     async fn connect_first_available(
         client: &Client,
         plan: &CandidatePlan,
         server_fqdn: &str,
+        outcome: &mut ConnectOutcome,
     ) -> Result<(Connection, ConnectCandidate), Box<dyn Error>> {
         let mut last_error: Option<String> = None;
 
@@ -259,6 +305,7 @@ impl NetworkStreamManager {
                         candidate.family(),
                         candidate.port()
                     );
+                    outcome.record(*candidate, AttemptResult::Connected);
                     return Ok((connection, *candidate));
                 }
                 Ok(Err(e)) => {
@@ -268,6 +315,7 @@ impl NetworkStreamManager {
                         candidate.family(),
                         e
                     );
+                    outcome.record(*candidate, AttemptResult::Rejected);
                     last_error = Some(e.to_string());
                 }
                 Err(_) => {
@@ -277,6 +325,7 @@ impl NetworkStreamManager {
                         candidate.family(),
                         candidate.budget()
                     );
+                    outcome.record(*candidate, AttemptResult::TimedOut);
                     last_error = Some(format!("timed out after {:?}", candidate.budget()));
                 }
             }

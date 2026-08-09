@@ -27,4 +27,12 @@ inputMuted: boolean, outputMuted: boolean,
  * that announce it are the only thing that told the UI. One dropped event left the
  * button off over a backend that was recording, and nothing could ever put it right.
  */
-recording: boolean, };
+recording: boolean, 
+/**
+ * Whether jukebox frames are arriving.
+ *
+ * Read from arrivals rather than from the per-sink counters, which stop while muted. A
+ * surface that went dark on mute could not tell silence the user caused from a disc that
+ * ended.
+ */
+jukeboxPlaying: boolean, };

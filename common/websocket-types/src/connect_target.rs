@@ -10,18 +10,14 @@ pub enum ConnectTargetKind {
 
 /// One world a controller can ask the client to connect to.
 ///
-/// `host` and `port` are the proxy's backend and are absent for a realm, whose address the
-/// client resolves from Xbox Live at connect time. `protocol_version` carries the saved
-/// entry's advertised Bedrock version so a scripted connect and a click advertise the same
-/// thing; `None` means the proxy mirrors the real backend.
+/// Carries no address. A controller picks a name from this list and quotes the id back; the
+/// client is what knows where that world is. `kind` is derivable from the id's prefix and is
+/// named anyway so a picker can group without parsing.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ConnectTarget {
     pub id: String,
     pub name: String,
     pub kind: ConnectTargetKind,
-    pub host: Option<String>,
-    pub port: Option<u16>,
-    pub protocol_version: Option<u32>,
 }
 
 impl ConnectTarget {
@@ -32,12 +28,5 @@ impl ConnectTarget {
     /// they read.
     pub fn find<'a>(targets: &'a [ConnectTarget], id: &str) -> Option<&'a ConnectTarget> {
         targets.iter().find(|target| target.id == id)
-    }
-
-    pub fn is_connectable(&self) -> bool {
-        match self.kind {
-            ConnectTargetKind::Proxy => self.host.is_some() && self.port.is_some(),
-            ConnectTargetKind::Realm => true,
-        }
     }
 }

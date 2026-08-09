@@ -390,6 +390,49 @@
                           </div>
 
                           <div class="rad-card">
+                            <div class="rad-card__head">Jukeboxes</div>
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Mute jukeboxes</span>
+                                <span class="rad-row__note">
+                                  Music from jukeboxes in the world. Voices are not affected.
+                                </span>
+                              </span>
+                              <span class="rad-row__control">
+                                <button
+                                  class="rad-toggle"
+                                  role="switch"
+                                  aria-checked="false"
+                                  data-rad-toggle="jukebox-mute"
+                                  aria-label="Mute jukeboxes"
+                                ></button>
+                              </span>
+                            </div>
+                            <div class="rad-row rad-row--stack">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Jukebox volume</span>
+                                <span class="rad-row__note">
+                                  How loud jukebox music plays before distance is applied. Every
+                                  jukebox keeps its own position and its own falloff, so this
+                                  scales what distance already decided. Currently
+                                  <b style="color: var(--color-rad-tx)" data-jukebox-value>100%</b>.
+                                </span>
+                              </span>
+                              <input
+                                class="rad-range"
+                                type="range"
+                                min="0"
+                                max="1.5"
+                                step="0.05"
+                                value="1"
+                                data-jukebox-gain
+                                style="width: 100%"
+                                aria-label="Jukebox volume"
+                              />
+                            </div>
+                          </div>
+
+                          <div class="rad-card">
                             <div class="rad-card__head">Noise gate</div>
                             <div class="rad-row">
                               <span class="rad-row__text">

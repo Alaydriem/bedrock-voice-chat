@@ -374,7 +374,7 @@ msgid "Channel event received with no payload"
 msgstr ""
 
 #: src/components/dashboard/ChatComposer.svelte:53
-#: src/components/dashboard/DashboardScreen.svelte:325
+#: src/components/dashboard/DashboardScreen.svelte:329
 msgid "Chat"
 msgstr ""
 
@@ -415,7 +415,7 @@ msgid "Choose Different Server"
 msgstr ""
 
 #: src/components/audio/AudioDeviceSelector.svelte:85
-#: src/components/settings/panes/AudioPane.svelte:58
+#: src/components/settings/panes/AudioPane.svelte:71
 msgid "Chosen by the system"
 msgstr ""
 
@@ -445,7 +445,7 @@ msgstr ""
 msgid "Close chat"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:407
+#: src/components/dashboard/DashboardScreen.svelte:411
 msgid "Close groups"
 msgstr ""
 
@@ -571,11 +571,11 @@ msgstr ""
 msgid "Copy commit"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:243
+#: src/components/settings/panes/LibraryPane.svelte:241
 msgid "Copy id"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:290
+#: src/components/settings/panes/LibraryPane.svelte:288
 msgid "Copy id for {name}"
 msgstr ""
 
@@ -620,13 +620,13 @@ msgstr ""
 msgid "Cut my mic when I am not speaking"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:352
+#: src/components/settings/panes/LibraryPane.svelte:350
 #: src/components/settings/panes/RecordingsPane.svelte:266
 msgid "Delete"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:252
-#: src/components/settings/panes/LibraryPane.svelte:298
+#: src/components/settings/panes/LibraryPane.svelte:250
+#: src/components/settings/panes/LibraryPane.svelte:296
 #: src/components/settings/panes/RecordingsPane.svelte:161
 msgid "Delete {name}"
 msgstr ""
@@ -635,7 +635,7 @@ msgstr ""
 msgid "Delete this recording?"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:344
+#: src/components/settings/panes/LibraryPane.svelte:342
 msgid "Delete this sound?"
 msgstr ""
 
@@ -651,7 +651,7 @@ msgstr ""
 msgid "Device setup continues after sign-in"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:53
+#: src/components/settings/panes/AudioPane.svelte:66
 #: src/components/setup/DevicesScreen.svelte:37
 msgid "Devices"
 msgstr ""
@@ -846,9 +846,9 @@ msgstr ""
 msgid "Group name"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:263
-#: src/components/dashboard/DashboardScreen.svelte:277
-#: src/components/dashboard/DashboardScreen.svelte:410
+#: src/components/dashboard/DashboardScreen.svelte:266
+#: src/components/dashboard/DashboardScreen.svelte:280
+#: src/components/dashboard/DashboardScreen.svelte:414
 msgid "Groups"
 msgstr ""
 
@@ -868,12 +868,16 @@ msgstr ""
 msgid "How do I unlock this?"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:121
+#: src/components/settings/panes/AudioPane.svelte:134
 msgid "How hard voices are pushed left and right by where their speaker is standing. At 0% everyone is centred; distance still governs volume either way."
 msgstr ""
 
 #: src/js/app/settings/NoiseGateModel.ts:75
 msgid "How long it stays open after you stop talking."
+msgstr ""
+
+#: src/components/settings/panes/AudioPane.svelte:178
+msgid "How loud jukebox music plays before distance is applied. Every jukebox keeps its own position and its own falloff, so this scales what distance already decided."
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:178
@@ -900,8 +904,8 @@ msgstr ""
 msgid "Identity"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:318
-#: src/routes/dashboard/+layout.svelte:569
+#: src/components/dashboard/DashboardScreen.svelte:322
+#: src/routes/dashboard/+layout.svelte:591
 msgid "In earshot"
 msgstr ""
 
@@ -909,7 +913,7 @@ msgstr ""
 msgid "In game"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:336
+#: src/components/settings/panes/LibraryPane.svelte:334
 msgid "In game, run"
 msgstr ""
 
@@ -978,7 +982,19 @@ msgstr ""
 msgid "Join from in-game"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:350
+#: src/components/dashboard/JukeboxChip.svelte:52
+#: src/components/dashboard/JukeboxChip.svelte:73
+#: src/components/settings/panes/AudioPane.svelte:177
+#: src/components/settings/panes/AudioPane.svelte:196
+msgid "Jukebox volume"
+msgstr ""
+
+#: src/components/dashboard/JukeboxChip.svelte:64
+#: src/components/settings/panes/AudioPane.svelte:161
+msgid "Jukeboxes"
+msgstr ""
+
+#: src/components/settings/panes/LibraryPane.svelte:348
 #: src/components/settings/panes/RecordingsPane.svelte:264
 msgid "Keep it"
 msgstr ""
@@ -1000,7 +1016,7 @@ msgid "last seen {n} min ago"
 msgstr ""
 
 #: src/components/dashboard/GroupRow.svelte:174
-#: src/routes/dashboard/+layout.svelte:562
+#: src/routes/dashboard/+layout.svelte:584
 msgid "Leave"
 msgstr ""
 
@@ -1106,6 +1122,20 @@ msgstr ""
 msgid "MS RTT"
 msgstr ""
 
+#: src/components/settings/panes/AudioPane.svelte:165
+msgid "Music from jukeboxes in the world. Voices are not affected."
+msgstr ""
+
+#: src/components/dashboard/JukeboxChip.svelte:43
+#: src/components/settings/panes/AudioPane.svelte:164
+#: src/components/settings/panes/AudioPane.svelte:170
+msgid "Mute jukeboxes"
+msgstr ""
+
+#: src/components/settings/panes/AudioPane.svelte:183
+msgid "Muted"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsCopy.ts:32
 msgid "Muted by you"
 msgstr ""
@@ -1202,7 +1232,7 @@ msgid "Nobody you have changed has that name."
 msgstr ""
 
 #: src/components/settings/NoiseGate.svelte:69
-#: src/components/settings/panes/AudioPane.svelte:148
+#: src/components/settings/panes/AudioPane.svelte:207
 #: src/js/app/dashboard/DiagnosticsCopy.ts:28
 msgid "Noise gate"
 msgstr ""
@@ -1436,7 +1466,11 @@ msgstr ""
 msgid "Players"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:86
+#: src/components/settings/panes/AudioPane.svelte:183
+msgid "Playing"
+msgstr ""
+
+#: src/components/settings/panes/AudioPane.svelte:99
 msgid "Plays a chime through the device you listen on, not through whatever the browser would pick."
 msgstr ""
 
@@ -1775,11 +1809,11 @@ msgstr ""
 msgid "Server-wide broadcast"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:365
+#: src/components/dashboard/DashboardScreen.svelte:369
 msgid "Servers"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:302
+#: src/components/dashboard/DashboardScreen.svelte:306
 msgid "Servers and settings"
 msgstr ""
 
@@ -1814,7 +1848,7 @@ msgstr ""
 msgid "Show me how →"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:293
+#: src/components/dashboard/DashboardScreen.svelte:297
 msgid "Show status"
 msgstr ""
 
@@ -1904,8 +1938,8 @@ msgstr ""
 msgid "Sound"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:120
-#: src/components/settings/panes/AudioPane.svelte:137
+#: src/components/settings/panes/AudioPane.svelte:133
+#: src/components/settings/panes/AudioPane.svelte:150
 msgid "Spatial panning"
 msgstr ""
 
@@ -1969,7 +2003,7 @@ msgstr ""
 msgid "Supported"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:62
+#: src/components/settings/panes/AudioPane.svelte:75
 msgid "System default"
 msgstr ""
 
@@ -1977,19 +2011,19 @@ msgstr ""
 msgid "Takes about a minute on a normal connection"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:78
+#: src/components/settings/panes/AudioPane.svelte:91
 msgid "Talk for a moment. The mark fills out as it hears you."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:77
+#: src/components/settings/panes/AudioPane.svelte:90
 msgid "Test my microphone"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:85
+#: src/components/settings/panes/AudioPane.svelte:98
 msgid "Test playback"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:74
+#: src/components/settings/panes/AudioPane.svelte:87
 msgid "Test your devices"
 msgstr ""
 
@@ -2032,7 +2066,7 @@ msgstr ""
 msgid "The update could not be installed. Try again, or download the new version by hand."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:113
+#: src/components/settings/panes/AudioPane.svelte:126
 msgid "The voice mode did not change."
 msgstr ""
 
@@ -2122,6 +2156,10 @@ msgstr ""
 msgid "Unknown date"
 msgstr ""
 
+#: src/components/dashboard/JukeboxChip.svelte:43
+msgid "Unmute jukeboxes"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:169
 msgid "UNRESOLVED"
 msgstr ""
@@ -2174,7 +2212,7 @@ msgstr ""
 msgid "View privacy statement"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:95
+#: src/components/settings/panes/AudioPane.svelte:108
 msgid "Voice"
 msgstr ""
 
@@ -2198,7 +2236,7 @@ msgstr ""
 msgid "Voice has to keep running"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:97
+#: src/components/settings/panes/AudioPane.svelte:110
 msgid "Voice mode"
 msgstr ""
 
@@ -2394,7 +2432,7 @@ msgstr ""
 msgid "Your PC, a VPS, or a home box"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:59
+#: src/components/settings/panes/AudioPane.svelte:72
 msgid "Your phone routes voice to whatever you last connected. Plug in a headset and it follows — there is nothing to pick here."
 msgstr ""
 

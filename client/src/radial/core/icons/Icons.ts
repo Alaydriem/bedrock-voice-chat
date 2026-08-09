@@ -27,6 +27,16 @@ export const RAD_ICONS = {
    * there", which is the opposite problem.
    */
   wave: '<path d="M2.6 12h2.6l2-6.4 3 12.8 3-9.6 1.8 3.2h6.4"/>',
+  /**
+   * A note, for jukebox music.
+   *
+   * Deliberately not a disc. A disc is concentric circles, which is what `field` already
+   * draws for the proximity reading — put the two in the same bar and they read as one
+   * object with two states rather than as two different things.
+   */
+  note: '<circle cx="8.2" cy="17.4" r="3.3"/><path d="M11.5 17.4V5.2"/><path d="M11.5 5.2c3.6 1 5.2 3.1 4.8 6.3"/>',
+  noteoff:
+    '<circle cx="8.2" cy="17.4" r="3.3"/><path d="M11.5 17.4V5.2"/><path d="M11.5 5.2c3.6 1 5.2 3.1 4.8 6.3"/><path d="M3.6 3.4l16.8 17.2"/>',
   belloff:
     '<path d="M6.6 10.6a5.4 5.4 0 0 1 9.2-3.9"/><path d="M17.4 12.6v-2a5.4 5.4 0 0 0-.2-1.5"/><path d="M5.4 16.4s1.2-1.3 1.2-5.8"/><path d="M17.4 12.6c0 3.2 1.2 3.8 1.2 3.8H5.4"/><path d="M10 19.3a2.3 2.3 0 0 0 4 0"/><path d="M3.6 3.4l16.8 17.2"/>',
   rec: '<circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="3.6" fill="currentColor" stroke="none"/>',

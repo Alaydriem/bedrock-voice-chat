@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{ConnectTarget, VoiceMode};
+use super::{ActiveConnection, ConnectTarget, VoiceMode};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SuccessResponse {
@@ -54,6 +54,8 @@ pub struct StateData {
     pub voice_mode: VoiceMode,
     /// Whether push-to-talk is held right now. Always false in `openMic`.
     pub ptt_active: bool,
+    /// The world this client is connected to, absent when nothing is running.
+    pub connection: Option<ActiveConnection>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -61,13 +63,15 @@ pub struct TargetsData {
     pub targets: Vec<ConnectTarget>,
 }
 
-/// The outcome of a connect, so a caller can fail fast rather than poll for a state change
-/// that may never come.
+/// The outcome of a connect or a disconnect, so a caller can fail fast rather than poll for
+/// a state change that may never come.
+///
+/// `id` and `name` are absent when a disconnect found nothing running.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ConnectData {
     pub connected: bool,
-    pub id: String,
-    pub name: String,
+    pub id: Option<String>,
+    pub name: Option<String>,
 }
 
 impl SuccessResponse {
@@ -83,6 +87,17 @@ impl SuccessResponse {
             success: true,
             data: ResponseData::Connect(ConnectData {
                 connected: true,
+                id: Some(id),
+                name: Some(name),
+            }),
+        }
+    }
+
+    pub fn disconnect(id: Option<String>, name: Option<String>) -> Self {
+        Self {
+            success: true,
+            data: ResponseData::Connect(ConnectData {
+                connected: false,
                 id,
                 name,
             }),

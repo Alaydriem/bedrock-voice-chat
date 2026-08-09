@@ -5,7 +5,7 @@ fn default_permissions() -> HashMap<String, bool> {
     HashMap::new()
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Permissions {
     #[serde(default = "default_permissions")]
     pub defaults: HashMap<String, bool>,

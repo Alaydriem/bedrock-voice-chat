@@ -18,7 +18,7 @@ use crate::audio::stream::stream_manager::mono_to_panned::MonoToPanned;
 use crate::diagnostics::{PeerRegistry, PeerRoute, PlayerReceiveStats};
 use common::PlayerEnum;
 use common::structs::SpatialAudioConfig;
-use common::structs::audio::{GainProjection, PlayerGainSettings};
+use common::structs::audio::{GainProjection, JukeboxLevel, PlayerGainSettings};
 use common::traits::player_data::PlayerData;
 
 // Negate pan on platforms where the audio backend outputs channels
@@ -117,6 +117,9 @@ pub struct SinkManager {
     players: Cache<String, PlayerEnum>,
     current_player_name: String,
     gain: Arc<GainProjection>,
+    // The player's one opinion about jukebox music. Consulted per sink, so concurrent playbacks
+    // each resolve their own volume from it rather than sharing anything.
+    jukebox: Arc<JukeboxLevel>,
     // Keyed on `EncodedAudioFramePacket::sink_key` — the emitter's device id, or its
     // name when the server injected the audio.
     sinks: Cache<String, PlayerSinks>,
@@ -150,6 +153,7 @@ impl SinkManager {
         spatial_config: SpatialAudioConfig,
         panning_intensity: f32,
         peer_registry: Arc<PeerRegistry>,
+        jukebox: Arc<JukeboxLevel>,
         levels: Arc<crate::audio::stream::level_bus::LevelBus>,
     ) -> Self {
         // Create activity streaming channel
@@ -202,6 +206,7 @@ impl SinkManager {
             players,
             current_player_name,
             gain,
+            jukebox,
             sinks: Cache::builder()
                 .time_to_live(Duration::from_secs(15 * 60)) // 15 minutes TTL
                 .max_capacity(100)
@@ -314,6 +319,7 @@ impl SinkManager {
         let players = self.players.clone();
         let current_player_name = self.current_player_name.clone();
         let gain = self.gain.clone();
+        let jukebox = self.jukebox.clone();
         let sinks = self.sinks.clone();
         let mixer = self.mixer.clone();
         let global_mute = self.global_mute.clone();
@@ -332,6 +338,13 @@ impl SinkManager {
                 }
 
                 let sink_key = packet.sink_key();
+
+                // Before the mute check below, which drops the frame. Counted here, "is music
+                // playing" stays true while muted; counted after, muting would read as the disc
+                // having ended.
+                if sink_key.starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX) {
+                    peer_registry.note_jukebox_frame();
+                }
 
                 // The speaker's canonical `game:gamertag`, or the sink key when the server
                 // injected the audio and there is no player behind it. This is what the
@@ -381,11 +394,13 @@ impl SinkManager {
                 let use_spatial =
                     emitter_spatial && listener_info.is_some() && emitter_pos.is_some();
 
-                // A synthetic emitter — jukebox playback, channel API audio — has no device
-                // and so no per-player opinion to apply; its level is set where it is produced.
+                // A synthetic emitter has no device and so no per-player opinion. A jukebox takes
+                // the player's one music setting, resolved per sink so concurrent playbacks stay
+                // independent; anything else synthetic — channel API audio — takes unity, because
+                // a music control must not silence an announcement.
                 let gain_settings: PlayerGainSettings = match packet.emitter.device {
                     Some(device) => gain.settings_for(device),
-                    None => PlayerGainSettings::unity(),
+                    None => jukebox.settings_for(&sink_key),
                 };
                 if gain_settings.muted {
                     continue;

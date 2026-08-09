@@ -476,7 +476,7 @@ jobs:
             fi
           done
 
-  # Release the Redis lock so the Hytale token cron can resume
+  # Release the Redis lock held for the duration of the release
   release-lock:
     name: Release Build Lock
     needs: [prepare-release, upload-assets, upload-mod-release-assets]

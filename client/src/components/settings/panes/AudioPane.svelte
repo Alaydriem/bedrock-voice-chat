@@ -1,8 +1,10 @@
 <script lang="ts">
   import { I18n } from "$lib/i18n";
-    import { onDestroy, onMount } from "svelte";
+    import { getContext, onDestroy, onMount } from "svelte";
+    import { AUDIO_SETTINGS_KEY } from "../../../js/app/shell/AudioSettingsContext";
     import Segmented from "$radial/components/Segmented.svelte";
     import SettingRow from "$radial/components/SettingRow.svelte";
+    import Toggle from "$radial/components/Toggle.svelte";
     import StatusChip from "$radial/components/StatusChip.svelte";
     import AudioDeviceSelector from "../../audio/AudioDeviceSelector.svelte";
     import MicMeter from "../../audio/MicMeter.svelte";
@@ -18,13 +20,21 @@
     }
     let { mobile = false }: Props = $props();
 
-    const audio = new AudioSettingsManager();
+    /**
+     * The layout's instance when there is one, so the jukebox chip in the header and this pane
+     * cannot disagree about the same setting. A fresh one otherwise, so the pane still works
+     * mounted on its own.
+     */
+    const shared = getContext<AudioSettingsManager | undefined>(AUDIO_SETTINGS_KEY);
+    const audio = shared ?? new AudioSettingsManager();
     const probe = new InputLevelProbe();
     const speaker = new SpeakerTest();
 
     let voiceMode = $state<VoiceMode>("openMic");
     let voiceModeError = $state("");
     let panning = $state(100);
+    let jukeboxGain = $state(100);
+    let jukeboxMuted = $state(false);
     let inputLevel = $state(0);
     let gateOpen = $state(false);
     let meterAvailable = $state(true);
@@ -35,10 +45,13 @@
         unsubs.push(audio.voiceMode.subscribe((v) => (voiceMode = v)));
         unsubs.push(audio.voiceModeError.subscribe((v) => (voiceModeError = v)));
         unsubs.push(audio.panningIntensity.subscribe((v) => (panning = v)));
+        unsubs.push(audio.jukeboxGain.subscribe((v) => (jukeboxGain = v)));
+        unsubs.push(audio.jukeboxMuted.subscribe((v) => (jukeboxMuted = v)));
         unsubs.push(probe.rms.subscribe((v) => (inputLevel = v)));
         unsubs.push(probe.gateOpen.subscribe((v) => (gateOpen = v)));
         unsubs.push(probe.available.subscribe((v) => (meterAvailable = v)));
-        void audio.initialize();
+        // The layout initialises the shared instance; only a standalone one needs it here.
+        if (!shared) void audio.initialize();
         void probe.start();
     });
 
@@ -138,6 +151,52 @@
                 aria-valuetext="{panning}%"
                 oninput={(e) =>
                     void audio.handlePanningIntensityChange(
+                        Number((e.target as HTMLInputElement).value),
+                    )}
+            />
+        </SettingRow>
+    </div>
+
+    <div class="rad-card">
+        <div class="rad-card__head">{I18n.t("Jukeboxes")}</div>
+
+        <SettingRow
+            label={I18n.t("Mute jukeboxes")}
+            note={I18n.t("Music from jukeboxes in the world. Voices are not affected.")}
+        >
+            {#snippet control()}
+                <Toggle
+                    checked={jukeboxMuted}
+                    label={I18n.t("Mute jukeboxes")}
+                    onchange={(next) => void audio.handleJukeboxMutedChange(next)}
+                />
+            {/snippet}
+        </SettingRow>
+
+        <SettingRow
+            label={I18n.t("Jukebox volume")}
+            note={I18n.t("How loud jukebox music plays before distance is applied. Every jukebox keeps its own position and its own falloff, so this scales what distance already decided.")}
+            stack
+        >
+            <div class="rad-knob__head">
+                <span class="rad-knob__label">
+                    {jukeboxMuted ? I18n.t("Muted") : I18n.t("Playing")}
+                </span>
+                <span class="rad-knob__value">{jukeboxGain}%</span>
+            </div>
+            <input
+                class="rad-range"
+                type="range"
+                min="0"
+                max="150"
+                step="5"
+                value={jukeboxGain}
+                disabled={jukeboxMuted}
+                style="width: 100%"
+                aria-label={I18n.t("Jukebox volume")}
+                aria-valuetext="{jukeboxGain}%"
+                oninput={(e) =>
+                    void audio.handleJukeboxGainChange(
                         Number((e.target as HTMLInputElement).value),
                     )}
             />

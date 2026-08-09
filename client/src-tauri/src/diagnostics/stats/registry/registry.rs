@@ -1,5 +1,6 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use common::structs::metrics::PeerDiagnostics;
 use moka::sync::Cache;
@@ -20,6 +21,12 @@ use crate::diagnostics::PlayerReceiveStats;
 #[derive(Debug)]
 pub struct PeerRegistry {
     entries: Cache<(String, PeerRoute), Arc<PlayerReceiveStats>>,
+    // When a jukebox frame last arrived, in milliseconds since the epoch. Zero means none has.
+    //
+    // Separate from the per-sink counters because those are bumped by the jitter buffer, which a
+    // muted frame never reaches. A surface that asked them whether music was playing would go
+    // quiet the moment the user muted, leaving no way to tell a mute from a disc that ended.
+    jukebox_last_frame_ms: AtomicU64,
 }
 
 impl Default for PeerRegistry {
@@ -34,13 +41,53 @@ impl PeerRegistry {
     const TTL: Duration = Duration::from_secs(15 * 60);
     const MAX_CAPACITY: u64 = 200;
 
+    // How stale an arrival may be and still read as playing. Comfortably longer than the gap
+    // between frames, short enough that a stopped disc clears within a poll or two.
+    pub const JUKEBOX_PLAYING_WINDOW: Duration = Duration::from_secs(2);
+
     pub fn new() -> Self {
         Self {
             entries: Cache::builder()
                 .time_to_live(Self::TTL)
                 .max_capacity(Self::MAX_CAPACITY)
                 .build(),
+            jukebox_last_frame_ms: AtomicU64::new(0),
         }
+    }
+
+    /// Records that a jukebox frame arrived, whatever happens to it afterwards.
+    pub fn note_jukebox_frame(&self) {
+        self.note_jukebox_frame_at(Self::now_ms());
+    }
+
+    /// Whether a jukebox frame has arrived within `within`.
+    pub fn jukebox_playing(&self, within: Duration) -> bool {
+        self.jukebox_playing_at(Self::now_ms(), within)
+    }
+
+    /// `note_jukebox_frame` against a caller-supplied clock reading.
+    ///
+    /// The clock is a parameter so the window can be exercised across its boundary without a
+    /// test sleeping through it.
+    pub fn note_jukebox_frame_at(&self, now_ms: u64) {
+        self.jukebox_last_frame_ms.store(now_ms, Ordering::Relaxed);
+    }
+
+    /// `jukebox_playing` against a caller-supplied clock reading.
+    pub fn jukebox_playing_at(&self, now_ms: u64, within: Duration) -> bool {
+        let last = self.jukebox_last_frame_ms.load(Ordering::Relaxed);
+        if last == 0 {
+            return false;
+        }
+
+        now_ms.saturating_sub(last) <= within.as_millis() as u64
+    }
+
+    fn now_ms() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|since| since.as_millis() as u64)
+            .unwrap_or(0)
     }
 
     pub fn new_shared() -> Arc<Self> {

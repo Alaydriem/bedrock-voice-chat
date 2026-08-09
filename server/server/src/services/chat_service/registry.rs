@@ -87,6 +87,26 @@ impl ChatSocketRegistry {
         self.sockets.get(world_uuid).map(|s| Arc::clone(&s.room))
     }
 
+    /// Every registered room, as (canonical id, world name).
+    ///
+    /// Deduplicated by room rather than by entry: a room spanning three dimensions is one
+    /// place to talk, not three.
+    pub fn rooms(&self) -> Vec<(String, String)> {
+        let mut out: Vec<(String, String)> = Vec::new();
+
+        for entry in self.sockets.iter() {
+            let Some(canonical) = entry.room.first() else {
+                continue;
+            };
+            if out.iter().any(|(id, _)| id == canonical) {
+                continue;
+            }
+            out.push((canonical.clone(), entry.world_name.clone()));
+        }
+
+        out
+    }
+
     pub fn unregister(&self, world_uuid: &str) {
         self.sockets.remove(world_uuid);
     }

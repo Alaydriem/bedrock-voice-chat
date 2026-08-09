@@ -29,6 +29,9 @@ pub struct BedrockState {
     pub proxy_started_at: Option<u64>,
     pub active_realm_id: Option<u64>,
     pub active_realm_name: Option<String>,
+    /// The world a controller sees, recorded rather than inferred so a state frame names
+    /// the same entry a `targets` listing does.
+    pub active_connection: Option<websocket_types::ActiveConnection>,
 }
 
 impl BedrockState {
@@ -52,6 +55,7 @@ impl BedrockState {
             proxy_started_at: None,
             active_realm_id: None,
             active_realm_name: None,
+            active_connection: None,
         }
     }
 

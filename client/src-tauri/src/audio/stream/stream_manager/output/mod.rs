@@ -23,7 +23,9 @@ use common::{
     Coordinate, Game, GenericPlayer, Orientation, PlayerEnum,
     structs::{
         SpatialAudioConfig,
-        audio::{GainProjection, PlayerGainSettings, PlayerGainStore, StreamEvent},
+        audio::{
+            GainProjection, JukeboxLevel, PlayerGainSettings, PlayerGainStore, StreamEvent,
+        },
     },
 };
 use log::{error, info, warn};
@@ -59,6 +61,9 @@ pub(crate) struct OutputStream {
     // router observes which player each device belongs to, and the persisted store arrives as
     // a metadata write.
     gain: Arc<GainProjection>,
+    // Held here rather than only on the sink manager, because a metadata write can land before a
+    // sink manager exists and a rebuild replaces the one that does.
+    jukebox: Arc<JukeboxLevel>,
     recording_producer: Option<Arc<RecordingProducer>>,
     player_gain_cache: Arc<moka::sync::Cache<String, PlayerGainSettings>>,
     // Peer meter levels go here rather than out of the mixer directly; one publisher owns
@@ -93,6 +98,22 @@ impl common::traits::StreamTrait for OutputStream {
                     if let Some(sink_manager) = self.sink_manager.as_ref() {
                         sink_manager.update_panning_intensity(intensity);
                     }
+                }
+                let _ = self.metadata.insert(key.clone(), value.clone()).await;
+            }
+            // The level is shared with the sink manager by `Arc`, so writing it here reaches the
+            // mixing path with no second call — and a write that lands before a sink manager
+            // exists is still there when one is built. Panning needs its own setter because the
+            // sink manager owns that value outright; this one it only borrows.
+            "jukebox_gain" => {
+                if let Ok(gain) = value.parse::<f32>() {
+                    self.jukebox.set_gain(gain);
+                }
+                let _ = self.metadata.insert(key.clone(), value.clone()).await;
+            }
+            "jukebox_muted" => {
+                if let Ok(muted) = value.parse::<bool>() {
+                    self.jukebox.set_muted(muted);
                 }
                 let _ = self.metadata.insert(key.clone(), value.clone()).await;
             }
@@ -244,6 +265,7 @@ impl OutputStream {
             player_presence: Arc::new(player_presence),
             player_presence_debounce: Arc::new(player_presence_debounce),
             gain: Arc::new(GainProjection::new()),
+            jukebox: Arc::new(JukeboxLevel::new()),
             recording_producer,
             player_gain_cache: Arc::new(player_gain_cache),
             peer_registry,
@@ -406,6 +428,19 @@ impl OutputStream {
             None => 0.8,
         };
 
+        // Re-read on every build. The level survives a rebuild only because it is restored here;
+        // a fresh one would drop the player's setting for the rest of the session.
+        if let Some(value) = metadata.get("jukebox_gain").await {
+            if let Ok(gain) = value.parse::<f32>() {
+                self.jukebox.set_gain(gain);
+            }
+        }
+        if let Some(value) = metadata.get("jukebox_muted").await {
+            if let Ok(muted) = value.parse::<bool>() {
+                self.jukebox.set_muted(muted);
+            }
+        }
+
         let sink_manager = SinkManager::new(
             consumer,
             (*players).clone(),
@@ -418,6 +453,7 @@ impl OutputStream {
             spatial_config,
             panning_intensity,
             self.peer_registry.clone(),
+            self.jukebox.clone(),
             self.levels.clone(),
         );
 

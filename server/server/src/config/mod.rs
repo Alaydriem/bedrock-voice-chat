@@ -1,5 +1,10 @@
 mod app;
 mod env_overrides;
+pub mod kotlin_export;
+
+pub use kotlin_export::KotlinExporter;
+pub use kotlin_export::KotlinGeneratedFiles;
+pub use kotlin_export::KotlinType;
 
 pub use app::Acme;
 pub use app::AcmeProviderKind;

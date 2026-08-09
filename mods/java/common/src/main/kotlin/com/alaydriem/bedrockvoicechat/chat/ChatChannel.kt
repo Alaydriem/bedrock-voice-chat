@@ -35,7 +35,7 @@ class ChatChannel(
     private val worlds: List<String> = emptyList(),
     private val onSay: (String, String) -> Unit,
     private val send: (String) -> Unit
-) {
+) : ChatTransport {
     companion object {
         private val LOGGER = LoggerFactory.getLogger("BVC Chat")
         private val GSON = Gson()
@@ -77,8 +77,12 @@ class ChatChannel(
      * Nothing is queued while the socket is down. Replaying a gap drops stale lines into a
      * conversation that has moved on, and no message is ever persisted.
      */
-    fun report(author: String, text: String) {
+    override fun report(author: String, text: String) {
         send(GSON.toJson(mapOf("t" to "chat", "author" to author, "text" to text)))
+    }
+
+    override fun event(text: String) {
+        send(GSON.toJson(mapOf("t" to "event", "text" to text)))
     }
 
     /** Handles a frame from the server. Only `say` is meaningful in this direction. */
@@ -95,6 +99,10 @@ class ChatChannel(
         }
         onSay(frame.author, frame.text)
     }
+
+    override fun start() = connect()
+
+    override fun stop() = close()
 
     fun connect() {
         if (stopped) return

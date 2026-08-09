@@ -75,26 +75,43 @@ pub async fn worlds(
         chat_service.note_presence(id, world).await;
     }
 
-    let mut out = Vec::with_capacity(rows.len() + 1);
+    let mut out: Vec<ChatWorld> = Vec::with_capacity(rows.len() + 1);
+    let now = common::ncryptflib::rocket::Utc::now().timestamp().max(0) as u64;
 
-    // Listed first when it is not already in history: it is where they are.
-    if let Some(world) = live_world.as_deref() {
-        if !rows.iter().any(|r| r.world_uuid == world) && chat_service.is_available(world) {
-            let active = bedrock_event_service.is_bds_healthy(world).await;
-            out.push(ChatWorld {
-                available: true,
-                mode: if active { ChatMode::Server } else { ChatMode::Local },
-                world_name: chat_service
-                    .world_name(world)
-                    .unwrap_or_else(|| world.to_string()),
-                world_uuid: world.to_string(),
-                last_seen: common::ncryptflib::rocket::Utc::now().timestamp().max(0) as u64,
-                active,
-            });
-        }
+    // Every room currently relaying, whether or not this player has ever been in it.
+    //
+    // A world is reachable the moment its mod connects, which is well before anyone joins.
+    // Listing only worlds from history left the composer dead on an empty server: the mod was
+    // connected and willing, and the app had no way to find out. Nothing is weakened by this —
+    // `on_app_send` authorises against the sender's live world, never against history.
+    for (world_uuid, world_name) in chat_service.rooms() {
+        let active = bedrock_event_service.is_bds_healthy(&world_uuid).await;
+        let standing_here = live_world.as_deref() == Some(world_uuid.as_str());
+
+        out.push(ChatWorld {
+            available: true,
+            mode: if active { ChatMode::Server } else { ChatMode::Local },
+            world_name,
+            // Where they are now sorts above rooms they are merely able to reach.
+            last_seen: if standing_here {
+                now
+            } else {
+                rows.iter()
+                    .find(|r| r.world_uuid == world_uuid)
+                    .map(|r| r.last_seen.max(0) as u64)
+                    .unwrap_or(0)
+            },
+            world_uuid,
+            active,
+        });
     }
 
+    // History fills in worlds that are not relaying right now, so the picker still remembers
+    // them — shown unavailable rather than hidden.
     for row in rows {
+        if out.iter().any(|w| w.world_uuid == row.world_uuid) {
+            continue;
+        }
         let active = bedrock_event_service.is_bds_healthy(&row.world_uuid).await;
         out.push(ChatWorld {
             available: chat_service.is_available(&row.world_uuid),
@@ -114,6 +131,8 @@ pub async fn worlds(
             active,
         });
     }
+
+    out.sort_by(|a, b| b.last_seen.cmp(&a.last_seen));
 
     Ok(Json(out))
 }

@@ -1,8 +1,10 @@
 package com.alaydriem.bedrockvoicechat.fabric
 
 import com.alaydriem.bedrockvoicechat.api.ConfigProvider
+import com.alaydriem.bedrockvoicechat.config.LegacyEmbeddedKeys
 import com.alaydriem.bedrockvoicechat.config.ModConfig
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonParser
 import net.fabricmc.loader.api.FabricLoader
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
@@ -35,9 +37,13 @@ class FabricConfigProvider : ConfigProvider {
 
         return try {
             LOGGER.debug("Loading config from: {}", CONFIG_PATH.toAbsolutePath())
-            val config = Files.newBufferedReader(CONFIG_PATH).use { reader ->
-                GSON.fromJson(reader, ModConfig::class.java)
+            val root = Files.newBufferedReader(CONFIG_PATH).use { reader ->
+                JsonParser.parseReader(reader).asJsonObject
             }
+            val config = GSON.fromJson(root, ModConfig::class.java) ?: ModConfig()
+            val embedded = root.getAsJsonObject("embedded-config")
+                ?: root.getAsJsonObject("embeddedConfig")
+            config.legacyKeys = LegacyEmbeddedKeys.detect(embedded)
             LOGGER.debug("Loaded config - bvcServer: {}, accessToken: {}, minimumPlayers: {}",
                 config.bvcServer?.take(20) ?: "null",
                 if (config.accessToken.isNullOrBlank()) "null/blank" else "***set***",
@@ -46,16 +52,6 @@ class FabricConfigProvider : ConfigProvider {
         } catch (e: Exception) {
             LOGGER.error("Failed to load config from {}", CONFIG_PATH.toAbsolutePath(), e)
             ModConfig()
-        }
-    }
-
-    override fun save(config: ModConfig) {
-        try {
-            Files.newBufferedWriter(CONFIG_PATH).use { writer ->
-                GSON.toJson(config, writer)
-            }
-        } catch (e: Exception) {
-            LOGGER.error("Failed to save config", e)
         }
     }
 

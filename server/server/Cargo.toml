@@ -35,7 +35,7 @@ bedrock = [
 ]
 
 [dependencies]
-common = { path = "../../common", features = ["quic", "server"] }
+common = { path = "../../common", features = ["quic", "server", "openapi"] }
 entity = { path = "../entity" }
 migration = { path = "../migration" }
 sea-orm = { workspace = true }

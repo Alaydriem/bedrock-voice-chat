@@ -389,8 +389,6 @@ pub fn run() {
             crate::commands::bedrock::bedrock_restore_auth,
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_force_refresh,
-            #[cfg(feature = "bedrock-protocol")]
-            crate::commands::bedrock::bedrock_realms_enabled,
             crate::commands::iap::iap_list_offers,
             crate::commands::iap::iap_purchase,
             crate::commands::iap::iap_restore,

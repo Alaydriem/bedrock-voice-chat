@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 use tracing::Level;
 
 /// Application Configuration as described in homemaker.hcl configuration file
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct ApplicationConfig {
     #[serde(default)]
     pub database: Database,
@@ -86,6 +86,19 @@ impl ApplicationConfig {
     /// `env` object so any `${env.VAR}` reference resolves.
     pub fn from_hcl_str(content: &str) -> Result<Self, anyhow::Error> {
         Self::from_hcl_str_with_env(content, &std::env::vars().collect())
+    }
+
+    /// Parses the JSON an embedder supplies and applies environment overrides
+    /// with the same precedence the CLI uses: env > config > serde default.
+    /// The variable map is a parameter so callers can be tested without
+    /// mutating process-global environment state.
+    pub fn from_json_with_env(
+        json: &str,
+        vars: std::collections::HashMap<String, String>,
+    ) -> Result<Self, anyhow::Error> {
+        let config: Self =
+            serde_json::from_str(json).map_err(|e| anyhow!("invalid configuration: {e}"))?;
+        crate::config::EnvOverrides::from_vars(vars).apply(config)
     }
 
     /// Returns the database DSN string from the configuration.

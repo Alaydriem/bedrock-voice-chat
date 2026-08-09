@@ -1,10 +1,11 @@
 package com.alaydriem.bedrockvoicechat.server
 
 import com.alaydriem.bedrockvoicechat.api.ConfigProvider
-import com.alaydriem.bedrockvoicechat.config.EmbeddedConfig
 import com.alaydriem.bedrockvoicechat.config.ModConfig
+import com.alaydriem.bedrockvoicechat.config.generated.EmbeddedServerConfig
 import com.alaydriem.bedrockvoicechat.control.ControlSendResult
 import com.alaydriem.bedrockvoicechat.native.BvcNative
+import com.alaydriem.bedrockvoicechat.native.ChatFfi
 import com.google.gson.Gson
 import com.sun.jna.Pointer
 import org.slf4j.LoggerFactory
@@ -18,19 +19,45 @@ import java.util.UUID
 class BvcServerManager(
     private val config: ModConfig,
     private val configProvider: ConfigProvider
-) {
+) : ChatFfi {
     companion object {
         private val logger = LoggerFactory.getLogger("BVC Server")
         private val GSON = Gson()
+
+        /**
+         * Whether the embedded server has a route to a TLS certificate. Either
+         * the operator supplied one, or ACME will obtain one; the runtime
+         * refuses both at once, so this does not check for that.
+         */
+        @JvmStatic
+        fun canStart(config: EmbeddedServerConfig?): Boolean {
+            val tls = config?.server?.tls ?: return false
+            val manual = !tls.certificate.isNullOrBlank() && !tls.key.isNullOrBlank()
+            return manual || tls.acme != null
+        }
     }
 
     // @Volatile ensures visibility across threads - handle is set in start(), read in multiple places
     @Volatile
     private var handle: Pointer? = null
 
+    /**
+     * The access token this server was started with.
+     *
+     * Generated here when the config does not supply one, and retained because the embedded
+     * mod has to authenticate back to its own server — the chat channel is the first thing
+     * that needs it.
+     */
+    var accessToken: String? = null
+        private set
+
     // @Volatile for thread visibility - serverThread is set in start(), checked in isRunning/stop
     @Volatile
     private var serverThread: Thread? = null
+
+    /** The configuration the server resolved, read back after creation. */
+    @Volatile
+    private var effectiveConfig: EmbeddedServerConfig? = null
 
     val isRunning: Boolean
         get() = handle != null && serverThread?.isAlive == true
@@ -45,43 +72,49 @@ class BvcServerManager(
             return false
         }
 
+        if (config.legacyKeys.isNotEmpty()) {
+            logger.error(
+                "embedded-config uses keys from an older layout. The block now mirrors the BVC server configuration."
+            )
+            for (key in config.legacyKeys) {
+                logger.error("  {}", key)
+            }
+            return false
+        }
+
         val configDir = configProvider.getConfigDir()
         if (configDir == null) {
             logger.error("ConfigProvider does not support getConfigDir() - cannot use embedded mode")
             return false
         }
 
-        // Validate TLS certificates are configured
-        val embedded = config.embeddedConfig ?: EmbeddedConfig()
-        if (!embedded.hasTlsCertificates()) {
-            logger.error("Embedded server requires TLS certificates. Configure tls-certificate and tls-key in embedded-config.")
+        val embedded = config.embeddedConfig
+        if (!canStart(embedded)) {
+            logger.error(
+                "Embedded server needs TLS. Set server.tls.certificate and server.tls.key, or configure server.tls.acme."
+            )
             return false
         }
 
-        // Ensure data directories exist for embedded server
+        // Use absolute path to avoid issues with relative paths on Windows
+        val configDirAbsolute = configDir.toAbsolutePath().toString()
+        val builder = RuntimeConfigBuilder(configDirAbsolute)
+        val runtimeConfig = builder.build(embedded, config.accessToken)
+        accessToken = builder.resolvedAccessToken
+
         try {
             if (!Files.exists(configDir)) {
                 Files.createDirectories(configDir)
                 logger.debug("Created data directory: {}", configDir)
             }
 
-            // Create certificates directory (for QUIC mTLS CA)
-            val certsDir = configDir.resolve("certificates")
-            if (!Files.exists(certsDir)) {
-                Files.createDirectories(certsDir)
-                logger.debug("Created certificates directory: {}", certsDir)
+            runtimeConfig.server?.tls?.certsPath?.let { certsPath ->
+                Files.createDirectories(java.nio.file.Paths.get(certsPath))
             }
 
-            // Create assets and audio directories
-            val assetsBase = if (embedded.assetsPath != null) {
-                java.nio.file.Paths.get(embedded.assetsPath!!)
-            } else {
-                configDir.resolve("assets")
-            }
-            val audioDir = assetsBase.resolve("audio")
-            if (!Files.exists(audioDir)) {
-                Files.createDirectories(audioDir)
-                logger.info("Created audio assets directory: {}", audioDir.toAbsolutePath())
+            runtimeConfig.audio?.filePath?.let { audioPath ->
+                Files.createDirectories(java.nio.file.Paths.get(audioPath))
+                logger.info("Audio assets directory: {}", audioPath)
             }
         } catch (e: Exception) {
             logger.error("Failed to create data directories {}: {}", configDir, e.message)
@@ -96,14 +129,7 @@ class BvcServerManager(
             return false
         }
 
-        // Use absolute path to avoid issues with relative paths on Windows
-        val configDirAbsolute = configDir.toAbsolutePath().toString()
-        val runtimeConfig = buildRuntimeConfig(configDirAbsolute)
-        val configJson = GSON.toJson(runtimeConfig)
-
-        val resolvedAssetsPath = (runtimeConfig["audio"] as? Map<*, *>)?.get("file_path")
-        logger.info("Audio file path: {}", resolvedAssetsPath)
-        logger.info("Assets base path: {}", (runtimeConfig["server"] as? Map<*, *>)?.get("assets_path"))
+        val configJson = builder.toJson(runtimeConfig)
         logger.debug("Creating server with config: {}", configJson)
 
         val serverHandle = BvcNative.createServer(configJson)
@@ -112,6 +138,10 @@ class BvcServerManager(
             return false
         }
         handle = serverHandle
+
+        effectiveConfig = BvcNative.configEffective(serverHandle)?.let { json ->
+            GSON.fromJson(json, EmbeddedServerConfig::class.java)
+        }
 
         // Start server in dedicated thread (Java owns the thread)
         serverThread = Thread({
@@ -128,9 +158,21 @@ class BvcServerManager(
         // Brief wait for startup
         Thread.sleep(100)
 
-        logger.info("Embedded BVC server started (HTTP:{}, QUIC:{})", embedded.httpPort, embedded.quicPort)
+        logger.info(
+            "Embedded BVC server started (HTTP:{}, QUIC:{})",
+            effectiveConfig?.server?.port,
+            effectiveConfig?.server?.quicPort
+        )
         return true
     }
+
+    /**
+     * The configuration the server resolved, available once it has been created.
+     *
+     * Serde defaults and `BVC_*` overrides are applied by the server, so this is
+     * the only place a caller can read what an unset key actually became.
+     */
+    fun effectiveConfig(): EmbeddedServerConfig? = effectiveConfig
 
     /**
      * Get the server handle for direct FFI calls.
@@ -192,6 +234,7 @@ class BvcServerManager(
     fun stop() {
         val h = handle ?: return  // Early return if already stopped
         handle = null  // Clear immediately to prevent races
+        effectiveConfig = null
 
         logger.info("Stopping embedded BVC server...")
         BvcNative.stopServer(h)
@@ -213,75 +256,48 @@ class BvcServerManager(
         logger.info("Embedded BVC server stopped")
     }
 
+    @Synchronized
+    override fun chatRegister(helloJson: String): Boolean {
+        val h = handle ?: return false
+        return BvcNative.chatRegister(h, helloJson)
+    }
+
+    @Synchronized
+    override fun chatReport(chatJson: String): Boolean {
+        val h = handle ?: return false
+        return BvcNative.chatReport(h, chatJson)
+    }
+
+    @Synchronized
+    override fun chatDrain(): String? {
+        val h = handle ?: return null
+        return BvcNative.chatDrain(h)
+    }
+
+    @Synchronized
+    override fun chatUnregister(): Boolean {
+        val h = handle ?: return false
+        return BvcNative.chatUnregister(h)
+    }
+
     /**
-     * Build the runtime configuration JSON for the native server.
+     * Where the embedded server's HTTP listener can be reached, for the chat channel.
      *
-     * Two certificate systems:
-     * 1. HTTPS TLS (certificate, key) - Third-party signed certs for Rocket HTTP server
-     * 2. QUIC mTLS (certs_path) - Auto-generated CA for QUIC client authentication
+     * The name comes from the TLS names rather than an address, because the listener always
+     * serves TLS — `get_rocket_config` refuses to start without a certificate — and a
+     * certificate is issued for a name. Dialling `127.0.0.1` would present an address the
+     * certificate does not cover and fail verification.
+     *
+     * Whether that name resolves to this machine is a DNS question rather than a code one.
+     * It normally does; a hosts entry makes it literally loopback.
+     *
+     * The values come from the server's resolved configuration, so a name or port the
+     * operator never set is the one the server actually chose.
      */
-    private fun buildRuntimeConfig(configDirPath: String): Map<String, Any?> {
-        val embedded = config.embeddedConfig ?: EmbeddedConfig()
-        val certsPath = "$configDirPath/certificates"
-        val assetsPath = embedded.assetsPath ?: "$configDirPath/assets"
-
-        // Generate a random access token if not configured
-        val accessToken = config.accessToken?.takeIf { it.isNotBlank() }
-            ?: UUID.randomUUID().toString()
-
-        return mapOf(
-            "database" to mapOf(
-                "scheme" to "sqlite3",
-                "database" to "$configDirPath/bvc.sqlite3"
-            ),
-            "server" to mapOf(
-                "listen" to "0.0.0.0",
-                "port" to embedded.httpPort,
-                "quic_port" to embedded.quicPort,
-                "assets_path" to assetsPath,
-                "tls" to mapOf(
-                    "certificate" to embedded.tlsCertificate,  // Third-party signed cert for HTTPS
-                    "key" to embedded.tlsKey,                  // Private key for HTTPS
-                    "so_reuse_port" to false,
-                    "certs_path" to certsPath,                 // Auto-generated CA for QUIC mTLS
-                    "names" to embedded.tlsNames,
-                    "ips" to embedded.tlsIps
-                ),
-                "minecraft" to mapOf(
-                    "access_token" to accessToken,
-                    "client_id" to "a17f9693-f01f-4d1d-ad12-1f179478375d"
-                ),
-                "bedrock" to mapOf(
-                    "enabled" to embedded.bedrock.enabled,
-                    "transfer_port" to embedded.bedrock.transferPort,
-                    "transfer_target_port" to embedded.bedrock.transferTargetPort,
-                    "transfer_cache_ttl_secs" to embedded.bedrock.transferCacheTtlSecs,
-                    "proxy_event_freshness_threshold_secs" to embedded.bedrock.proxyEventFreshnessThresholdSecs,
-                    "dns" to mapOf(
-                        "enabled" to embedded.bedrock.dns.enabled,
-                        "port" to embedded.bedrock.dns.port,
-                        "upstream" to embedded.bedrock.dns.upstream,
-                        "override_host" to embedded.bedrock.dns.overrideHost,
-                        "rate_limit_per_sec" to embedded.bedrock.dns.rateLimitPerSec
-                    )
-                )
-            ),
-            "log" to mapOf(
-                "level" to embedded.logLevel,
-                "out" to "stdout"
-            ),
-            "voice" to mapOf(
-                "broadcast_range" to embedded.broadcastRange
-            ),
-            "audio" to mapOf(
-                "file_path" to "$assetsPath/audio"
-            ),
-            "permissions" to mapOf(
-                "defaults" to mapOf(
-                    "audio_upload" to embedded.allowAudioUpload,
-                    "audio_delete" to embedded.allowAudioDelete
-                )
-            )
-        )
+    fun chatEndpoint(): String? {
+        val server = effectiveConfig?.server ?: return null
+        val host = server.tls?.names?.firstOrNull()?.takeIf { it.isNotBlank() } ?: return null
+        val port = server.port ?: return null
+        return "https://$host:$port"
     }
 }

@@ -299,6 +299,17 @@ for (const b of document.querySelectorAll<HTMLElement>("[data-g-cap]")) {
   });
 }
 
+/* ---- jukeboxes ----
+ * The readout is repainted on its own rather than by rebuilding the row: rebuilding mid-drag
+ * takes the slider out from under the pointer.
+ */
+const jukeboxSlider = need<HTMLInputElement>("[data-jukebox-gain]");
+const jukeboxValue = need("[data-jukebox-value]");
+
+jukeboxSlider.addEventListener("input", () => {
+  jukeboxValue.textContent = `${Math.round(Number(jukeboxSlider.value) * 100)}%`;
+});
+
 /* ---------------------------------------------------------------- controls */
 
 new FormControls(frame, {
@@ -321,6 +332,13 @@ new FormControls(frame, {
         world.gate = on;
         syncWorld();
         break;
+      // Disabled rather than hidden or zeroed, so the level it will come back to stays on
+      // screen. That is what a player card does with the same pair of controls.
+      case "jukebox-mute": {
+        const slider = q<HTMLInputElement>("[data-jukebox-gain]");
+        if (slider) slider.disabled = on;
+        break;
+      }
       case "spatial":
         break;
       case "telemetry":

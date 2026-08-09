@@ -222,6 +222,23 @@
   height: 21px;
 }
 
+/* The second half of a split header control: the chip beside it carries the action,
+   this opens the detail. Narrow and tucked in, so the pair reads as one control with
+   two jobs rather than as two buttons that happen to be adjacent. */
+.rad-header-btn--caret {
+  width: 22px;
+  margin-left: -8px;
+}
+
+.rad-header-btn--caret > [data-rad-icon] > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rad-header-btn--caret[aria-expanded="true"] {
+  color: var(--color-rad-brand-lift);
+}
+
 /* Something happened in there. Ringed in the frame colour so it reads as a dot on
    the icon rather than as part of it. */
 .rad-header-btn.has-badge::after {
