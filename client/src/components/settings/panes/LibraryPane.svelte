@@ -204,7 +204,6 @@
                             <th class="rad-num">{I18n.t("Added")}</th>
                             <th class="rad-num">{I18n.t("Length")}</th>
                             <th class="rad-num">{I18n.t("Size")}</th>
-                            <th class="rad-num">ID</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -216,7 +215,6 @@
                                 <td class="rad-num">{row.added}</td>
                                 <td class="rad-num">{row.length}</td>
                                 <td class="rad-num">{row.size}</td>
-                                <td class="rad-num rad-table__id">{row.id}</td>
                                 <td class="rad-table__actions">
                                     <span class="rad-row-actions">
                                         <span

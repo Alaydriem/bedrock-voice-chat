@@ -7,7 +7,11 @@
   "scripts": {
     "dev-build": "node dev-build.js",
     "dev-build-all": "node dev-build.js --all",
-    "dev-server": "node dev-server.js"
+    "dev-server": "node dev-server.js",
+    "jukebox-test": "node --no-warnings=ExperimentalWarning jukebox-test.js"
+  },
+  "devDependencies": {
+    "ws": "^8.18.0"
   },
   "engines": {
     "node": ">=18.0.0"

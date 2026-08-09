@@ -3,14 +3,10 @@ use std::sync::Arc;
 use common::structs::chat::ChatFrame;
 use rocket::State;
 use rocket::futures::{SinkExt, StreamExt};
-use rocket_ws::{Message, WebSocket};
+use rocket_ws::{Channel, Message, WebSocket};
 
-use super::protocol_channel::ProtocolChannel;
 use crate::http::guards::MCAccessToken;
 use crate::services::ChatService;
-
-// Echoed back at the handshake so a client offering a subprotocol gets one named.
-const PROTOCOL: &str = "bvc.chat.v1";
 
 // Bounded. Chat that cannot keep up is dropped rather than buffered: a backlog delivered late
 // lands stale lines in a conversation that has already moved on, and nothing here is stored.
@@ -21,15 +17,22 @@ const OUTBOUND_CAPACITY: usize = 64;
 /// A mod can set request headers where a browser cannot, so identity is the access token on
 /// the upgrade and no ticket is involved. The first frame must be `hello`; the world it names
 /// is a property of the connection, so no later frame carries one.
+///
+/// Returns a bare `Channel`, deliberately — **not** the `ProtocolChannel` the positions feed
+/// uses. That wrapper always writes `Sec-WebSocket-Protocol`, which is right there because a
+/// browser sends its ticket as a subprotocol and demands the echo. These clients offer no
+/// subprotocol at all, and RFC 6455 requires a client to fail the connection when the server
+/// names one it did not offer. WinHTTP does exactly that, and BDS reports it as
+/// `InternalWebSocketError 0x80072f78` — an unparseable handshake rather than a rejected one.
 #[get("/websocket/chat")]
 pub fn chat(
     ws: WebSocket,
     _access_token: MCAccessToken,
     chat_service: &State<Arc<ChatService>>,
-) -> ProtocolChannel<'static> {
+) -> Channel<'static> {
     let service = Arc::clone(chat_service);
 
-    let channel = ws.channel(move |mut stream| {
+    ws.channel(move |mut stream| {
         Box::pin(async move {
             let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(OUTBOUND_CAPACITY);
             // Every id this socket is registered under. Usually one; several when a mod
@@ -107,7 +110,5 @@ pub fn chat(
             }
             Ok(())
         })
-    });
-
-    ProtocolChannel::new(channel, PROTOCOL)
+    })
 }

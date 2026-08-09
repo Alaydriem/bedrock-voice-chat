@@ -242,18 +242,6 @@ impl Connector {
             Some(listen_port),
             "127.0.0.1".to_string(),
             None,
-            handle.state::<Mutex<BedrockState>>(),
-            handle.state::<Mutex<AppState>>(),
-            handle.state::<Arc<flume::Sender<crate::NetworkPacket>>>(),
-            handle.state::<Arc<crate::feature_flags::FeatureFlagService>>(),
-            handle.state::<Arc<AnalyticsService>>(),
-            handle.state::<Arc<crate::bedrock::JukeboxBeaconCache>>(),
-            handle.state::<Arc<crate::bedrock::JukeboxEjectInjector>>(),
-            handle.state::<Arc<crate::bedrock::PresenceInjector>>(),
-            handle.state::<Arc<crate::bedrock::AnnounceInjector>>(),
-            handle.state::<Arc<crate::bedrock::BedrockConnectErrorChannel>>(),
-            handle.state::<Arc<crate::bedrock::BedrockChatChannel>>(),
-            handle.state::<Arc<crate::bedrock::ChatInjector>>(),
         )
         .await
     }

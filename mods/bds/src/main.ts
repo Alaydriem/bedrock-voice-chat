@@ -82,27 +82,6 @@ chatEjectListener.register();
 const chatPresenceListener = new ChatPresenceListener();
 chatPresenceListener.register();
 
-// Net-mode chat relay. Only starts where the network module exists; a no-net world has the
-// desktop proxy observing chat locally instead, and this would have nothing to talk to.
-void (async () => {
-  const hasNet = await httpClient.ensureLoaded();
-  if (!hasNet || !serverAdminConfig.bvcServer) {
-    return;
-  }
-
-  let chatListener: ChatListener | null = null;
-  const chatChannel = new ChatChannel(
-    serverAdminConfig.bvcServer,
-    serverAdminConfig.accessToken,
-    getWorldUuid(),
-    serverAdminConfig.worldName,
-    (author, text) => chatListener?.say(author, text),
-  );
-  chatListener = new ChatListener(chatChannel);
-  chatListener.register();
-  chatChannel.start();
-})();
-
 // Panel state: the !bvcs: reverse ride feeds per-player caches in no-net mode;
 // the control panel binds to the same store.
 const stateCacheStore = new StateCacheStore();
@@ -165,6 +144,30 @@ serverAdminConfig
     const minimumPlayers = serverAdminConfig.minimumPlayers;
 
     console.info('[BVC] Connecting to: ' + bvcServer);
+
+    // Net-mode chat relay.
+    //
+    // Deferred to a fresh tick rather than started here. `getWorldUuid` reads a world dynamic
+    // property, and native calls like that are refused during early execution — which is still
+    // in force through this promise chain, because awaiting does not end it. Every other caller
+    // of `getWorldUuid` in this file is inside a tick callback for the same reason.
+    //
+    // Started from inside this branch, not at module top level, so the config it reads has
+    // already been loaded: at top level `bvcServer` is still empty and chat would silently
+    // never start.
+    system.run(() => {
+      let chatListener: ChatListener | null = null;
+      const chatChannel = new ChatChannel(
+        bvcServer,
+        accessToken,
+        getWorldUuid(),
+        serverAdminConfig.worldName,
+        (author, text) => chatListener?.say(author, text),
+      );
+      chatListener = new ChatListener(chatChannel);
+      chatListener.register();
+      chatChannel.start();
+    });
 
     world.afterEvents.entityDie.subscribe(
       (event) => {

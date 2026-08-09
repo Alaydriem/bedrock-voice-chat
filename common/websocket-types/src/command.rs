@@ -15,6 +15,10 @@ pub enum Command {
     /// A controller holding this open is responsible for sending the release. A dropped
     /// connection does not close the mic, so a button that latches leaves it open.
     Ptt { down: bool },
+    /// The worlds this client can be asked to connect to.
+    Targets,
+    /// Connect to one of them. `id` comes from a prior `targets` response.
+    Connect { id: String },
 }
 
 impl Command {

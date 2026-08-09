@@ -9,6 +9,7 @@ pub use rejection::ChatRejection;
 pub use sink::ChatSink;
 
 use std::sync::{Arc, OnceLock, RwLock};
+use std::time::Duration;
 
 use common::{Game, PlayerEnum};
 use common::structs::chat::ChatFrame;
@@ -34,6 +35,9 @@ pub struct ChatService {
     players: OnceLock<Arc<moka::future::Cache<String, PlayerEnum>>>,
     db: OnceLock<Arc<DatabaseConnection>>,
     identities: OnceLock<Arc<PlayerIdentityService>>,
+    /// Throttles the history upsert. A player is seen in a world four times a second, and the
+    /// row only needs to be fresh enough to order a picker.
+    recently_recorded: moka::future::Cache<(String, String), ()>,
 }
 
 impl ChatService {
@@ -44,6 +48,10 @@ impl ChatService {
             players: OnceLock::new(),
             db: OnceLock::new(),
             identities: OnceLock::new(),
+            recently_recorded: moka::future::Cache::builder()
+                .time_to_live(Duration::from_secs(300))
+                .max_capacity(1024)
+                .build(),
         }
     }
 
@@ -196,6 +204,30 @@ impl ChatService {
                 sink.deliver(world_uuid, packet);
             }
         }
+    }
+
+    /// The world this identity is standing in right now, if any.
+    ///
+    /// The world list cannot come from history alone: history is written when somebody speaks,
+    /// so a player who has never typed in a world would never see it offered — and could
+    /// therefore never type there. Presence breaks that deadlock.
+    pub async fn live_world_of(&self, identity: &str) -> Option<String> {
+        self.current_world_of(identity).await
+    }
+
+    /// Records that this player is in this world, so the picker can offer it after they leave.
+    ///
+    /// Throttled: positions arrive at 4 Hz and the row only needs to be fresh enough to order
+    /// a list.
+    pub async fn note_presence(&self, identity: &str, world_uuid: &str) {
+        let key = (identity.to_string(), world_uuid.to_string());
+        if self.recently_recorded.get(&key).await.is_some() {
+            return;
+        }
+        self.recently_recorded.insert(key, ()).await;
+
+        let author = Self::display_name(identity);
+        self.record_history(world_uuid, &author).await;
     }
 
     /// `None` when the player is not in the game at all, which is the off-game case the

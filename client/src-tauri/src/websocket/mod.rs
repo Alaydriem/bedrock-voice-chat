@@ -14,9 +14,24 @@ pub mod structs;
 pub use clients::{ClientRegistration, WebSocketClients};
 pub use route::{RejectReason, WebSocketRoute};
 pub use structs::{
-    Command, CommandMessage, DeviceType, ErrorResponse, MuteData, PongData, PttData, RecordData,
-    ResponseData, StateData, SuccessResponse, VoiceMode, VoiceModeGuard,
+    Command, CommandMessage, ConnectData, ConnectTarget, ConnectTargetKind, DeviceType,
+    ErrorResponse, MuteData, PongData, PttData, RecordData, ResponseData, StateData,
+    SuccessResponse, TargetsData, VoiceMode, VoiceModeGuard,
 };
+
+/// The shape `BedrockProxyManager.ts` writes to `store.json`.
+///
+/// Read rather than re-derived, so a scripted connect and the UI's own list cannot disagree
+/// about what is saved. Only the fields a connect needs are named; the rest are ignored.
+#[derive(Deserialize)]
+struct SavedProxyEntry {
+    id: String,
+    name: String,
+    host: String,
+    port: u16,
+    #[serde(rename = "protocolVersion")]
+    protocol_version: Option<u32>,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -523,7 +538,130 @@ impl WebSocketManager {
                 let state_data = Self::query_state(app_handle).await;
                 Ok(ResponseData::State(state_data))
             }
+
+            Command::Targets => Ok(ResponseData::Targets(TargetsData {
+                targets: Self::connect_targets(app_handle).await,
+            })),
+
+            Command::Connect { id } => Self::connect_to(app_handle, &id).await,
         }
+    }
+
+    /// The worlds a controller may name.
+    ///
+    /// Saved proxies come from the same `store.json` key the UI writes, so a list here and the
+    /// UI's own list cannot disagree. Realms are appended only when Xbox authentication is
+    /// present; without it `list_worlds` would fail and take the whole response with it, when
+    /// the proxy entries alone are still perfectly usable.
+    ///
+    /// Entries the BVC server advertises are absent by design: nothing persists them, so they
+    /// exist only in the webview and are unreachable from here.
+    async fn connect_targets(app_handle: &AppHandle) -> Vec<ConnectTarget> {
+        let mut targets = Self::saved_proxy_targets(app_handle);
+
+        let state = app_handle
+            .state::<tauri::async_runtime::Mutex<crate::bedrock::BedrockState>>();
+        let api = {
+            let state = state.lock().await;
+            state.realms_api.clone()
+        };
+
+        if let Some(api) = api {
+            match api.list_worlds().await {
+                Ok(worlds) => targets.extend(worlds.into_iter().map(|world| ConnectTarget {
+                    id: world.id.to_string(),
+                    name: world.name,
+                    kind: ConnectTargetKind::Realm,
+                    host: None,
+                    port: None,
+                    protocol_version: None,
+                })),
+                Err(e) => log::warn!("WebSocket targets: realms unavailable: {}", e),
+            }
+        }
+
+        targets
+    }
+
+    fn saved_proxy_targets(app_handle: &AppHandle) -> Vec<ConnectTarget> {
+        let Ok(store) = app_handle.store("store.json") else {
+            return Vec::new();
+        };
+        let Some(raw) = store.get("bedrock_proxy_servers") else {
+            return Vec::new();
+        };
+
+        let entries: Vec<SavedProxyEntry> = match serde_json::from_value(raw) {
+            Ok(entries) => entries,
+            Err(e) => {
+                log::warn!("WebSocket targets: saved proxies unreadable: {}", e);
+                return Vec::new();
+            }
+        };
+
+        entries
+            .into_iter()
+            .map(|entry| ConnectTarget {
+                id: entry.id,
+                name: entry.name,
+                kind: ConnectTargetKind::Proxy,
+                host: Some(entry.host),
+                port: Some(entry.port),
+                protocol_version: entry.protocol_version,
+            })
+            .collect()
+    }
+
+    async fn connect_to(app_handle: &AppHandle, id: &str) -> Result<ResponseData, anyhow::Error> {
+        let targets = Self::connect_targets(app_handle).await;
+        let target = ConnectTarget::find(&targets, id)
+            .ok_or_else(|| anyhow::anyhow!("No target with id {}", id))?;
+
+        if !target.is_connectable() {
+            return Err(anyhow::anyhow!(
+                "Target {} has no host or port configured",
+                target.name
+            ));
+        }
+
+        let connector = crate::bedrock::BedrockConnector::new(app_handle.clone());
+        match target.kind {
+            ConnectTargetKind::Proxy => {
+                connector
+                    .start_proxy(crate::bedrock::ProxyConnectRequest {
+                        target_host: target.host.clone().unwrap_or_default(),
+                        target_port: target.port.unwrap_or_default(),
+                        listen_port: None,
+                        network_interface: None,
+                        advertised_protocol: target.protocol_version,
+                    })
+                    .await?;
+            }
+            ConnectTargetKind::Realm => {
+                let realm_id: u64 = target
+                    .id
+                    .parse()
+                    .map_err(|_| anyhow::anyhow!("Realm id {} is not a number", target.id))?;
+                connector
+                    .start_realm(crate::bedrock::RealmConnectRequest {
+                        realm_id,
+                        realm_name: target.name.clone(),
+                        network_interface: None,
+                    })
+                    .await?;
+            }
+        }
+
+        log::info!(
+            "WebSocket connect: started {} ({})",
+            target.name,
+            target.id
+        );
+        Ok(ResponseData::Connect(ConnectData {
+            connected: true,
+            id: target.id.clone(),
+            name: target.name.clone(),
+        }))
     }
 
     /// The mode as the protocol names it. The client's own enum is a separate type, the

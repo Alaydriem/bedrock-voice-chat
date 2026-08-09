@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::VoiceMode;
+use super::{ConnectTarget, VoiceMode};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SuccessResponse {
@@ -9,6 +9,8 @@ pub struct SuccessResponse {
     pub data: ResponseData,
 }
 
+/// An untagged enum is tried in declaration order, so a new variant goes at the end: a
+/// permissive shape placed earlier would swallow payloads meant for a later one.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum ResponseData {
@@ -17,6 +19,8 @@ pub enum ResponseData {
     Record(RecordData),
     State(StateData),
     Ptt(PttData),
+    Targets(TargetsData),
+    Connect(ConnectData),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -52,7 +56,39 @@ pub struct StateData {
     pub ptt_active: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct TargetsData {
+    pub targets: Vec<ConnectTarget>,
+}
+
+/// The outcome of a connect, so a caller can fail fast rather than poll for a state change
+/// that may never come.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ConnectData {
+    pub connected: bool,
+    pub id: String,
+    pub name: String,
+}
+
 impl SuccessResponse {
+    pub fn targets(targets: Vec<ConnectTarget>) -> Self {
+        Self {
+            success: true,
+            data: ResponseData::Targets(TargetsData { targets }),
+        }
+    }
+
+    pub fn connect(id: String, name: String) -> Self {
+        Self {
+            success: true,
+            data: ResponseData::Connect(ConnectData {
+                connected: true,
+                id,
+                name,
+            }),
+        }
+    }
+
     pub fn pong() -> Self {
         Self {
             success: true,

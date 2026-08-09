@@ -54,7 +54,46 @@ pub async fn worlds(
             Status::InternalServerError
         })?;
 
-    let mut out = Vec::with_capacity(rows.len());
+    // The world the player is standing in right now.
+    //
+    // History alone is not enough: a row is written when somebody speaks, so a player who has
+    // never typed in this world would never be offered it — and so could never type here.
+    // Presence is what breaks that deadlock, and it also keeps the list right on a first join.
+    let identity = player
+        .gamertag
+        .as_ref()
+        .map(|tag| player.game.membership_key(tag));
+
+    let live_world = match identity.as_deref() {
+        Some(id) => chat_service.live_world_of(id).await,
+        None => None,
+    };
+
+    if let (Some(id), Some(world)) = (identity.as_deref(), live_world.as_deref()) {
+        // Persisted so the picker still offers it once they are out of game. Throttled inside
+        // the service, so calling it on every poll is cheap.
+        chat_service.note_presence(id, world).await;
+    }
+
+    let mut out = Vec::with_capacity(rows.len() + 1);
+
+    // Listed first when it is not already in history: it is where they are.
+    if let Some(world) = live_world.as_deref() {
+        if !rows.iter().any(|r| r.world_uuid == world) && chat_service.is_available(world) {
+            let active = bedrock_event_service.is_bds_healthy(world).await;
+            out.push(ChatWorld {
+                available: true,
+                mode: if active { ChatMode::Server } else { ChatMode::Local },
+                world_name: chat_service
+                    .world_name(world)
+                    .unwrap_or_else(|| world.to_string()),
+                world_uuid: world.to_string(),
+                last_seen: common::ncryptflib::rocket::Utc::now().timestamp().max(0) as u64,
+                active,
+            });
+        }
+    }
+
     for row in rows {
         let active = bedrock_event_service.is_bds_healthy(&row.world_uuid).await;
         out.push(ChatWorld {
