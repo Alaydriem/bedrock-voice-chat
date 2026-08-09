@@ -6,7 +6,7 @@ sidebar:
   order: 7
 ---
 
-The BVC Addon uses beta script modules, so the world it runs in must have the **Beta APIs** experiment enabled. Without it the Addon loads and does nothing — no error, no console line, no positions.
+The BVC Addon uses beta script modules. The world it runs in must have the **Beta APIs** experiment enabled. Without it the Addon loads and does nothing. No error, no console line, no positions.
 
 This is the single most common reason a correct-looking Bedrock install produces silence.
 
@@ -27,7 +27,7 @@ Enable the experiment where there is a UI for it, then move the world to the ser
    - **BDS** — rename to `.zip`, extract into `worlds/<your world name>/`, and set `level-name` in `server.properties` to match.
    - **A host with a panel** — upload the `.mcworld` or `.zip` through their world upload.
 
-This is the same sequence the [no-net Addon](/wiki/server/nonet-addon/) guide walks through, because Realms and Aternos need it for the same reason.
+The [no-net Addon](/wiki/server/nonet-addon/) guide walks the same sequence. Realms and Aternos need it too.
 
 ## Existing worlds
 
@@ -42,7 +42,7 @@ Three options, in order of how much they can go wrong:
 **Edit `level.dat` with an NBT editor.** The experiment flags live in an `experiments` compound. The one you want corresponds to the Beta APIs toggle, and the world also has to be marked as having used experiments at all.
 
 :::caution
-The exact NBT key names have changed across Bedrock versions. Rather than trusting a key name from any guide including this one, create a throwaway world in the client with Beta APIs enabled, open both `level.dat` files side by side, and copy whatever actually differs.
+The exact NBT key names have changed across Bedrock versions. Do not trust a key name from any guide. Create a throwaway world in the client with Beta APIs enabled, open both `level.dat` files side by side, and copy whatever differs.
 :::
 
 Back up the world first. A malformed `level.dat` will not load.
@@ -53,7 +53,7 @@ Back up the world first. A malformed `level.dat` will not load.
 
 **The world is permanently marked as having used experiments.** Turning the experiment back off later does not clear the marking.
 
-**Experimental features can change between Minecraft versions.** That is what "experimental" means, and it is part of why BVC's Bedrock support tracks releases rather than leading them.
+**Experimental features can change between Minecraft versions.** This is part of why BVC's Bedrock support tracks releases instead of leading them.
 
 ## Checking it worked
 

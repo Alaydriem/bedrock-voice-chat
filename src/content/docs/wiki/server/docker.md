@@ -45,7 +45,7 @@ services:
 
 Publishing TCP only produces a server that authenticates fine and never passes audio. It is the most common container misconfiguration because everything looks healthy until someone tries to talk.
 
-Add 53/UDP if you enable the DNS responder for console players — see [console and mobile](/wiki/platforms/console-and-mobile/). Binding 53 inside a container needs `NET_BIND_SERVICE`.
+Add 53/UDP if you enable the DNS responder for console players. See [console and mobile](/wiki/platforms/console-and-mobile/). Binding 53 inside a container needs `NET_BIND_SERVICE`.
 
 ## What to persist
 
@@ -59,11 +59,11 @@ Losing the mTLS CA invalidates every client certificate already issued and force
 
 ## Running without a config file
 
-Every setting has a `BVC_*` override, so the file is optional. With no `config.hcl` the server starts from defaults plus the environment and logs that it did.
+Every setting has a `BVC_*` override, which makes the file optional. With no `config.hcl` the server starts from defaults plus the environment and logs that it did.
 
 That is usually the right approach for Kubernetes: no ConfigMap for the file, secrets as secrets, everything else as env. See [environment variables](/wiki/reference/environment-variables/).
 
-An unset or empty variable never overrides anything, so `FOO=` in a compose file will not blank out a configured value. A malformed one is a hard startup error rather than a silent fallback.
+An unset or empty variable never overrides anything. `FOO=` in a compose file will not blank out a configured value. A malformed one is a hard startup error.
 
 ## Health checks
 
@@ -86,10 +86,10 @@ readinessProbe:
 
 ## Graceful shutdown
 
-The server handles SIGTERM, so `docker stop` and pod eviction close connections cleanly rather than dropping them.
+The server handles SIGTERM. `docker stop` and pod eviction close connections cleanly.
 
 ## Scaling
 
 BVC is CPU-bound and stateful per connection. Scale a single instance up with more cores before reaching for more replicas.
 
-Do not put several instances behind an ordinary load balancer. QUIC connections are long-lived and must stay pinned to the instance that established them, so round-robin breaks voice. Sharing one address across instances needs routing by connection ID, which is what our managed hosting handles.
+Do not put several instances behind an ordinary load balancer. QUIC connections are long-lived and must stay pinned to the instance that established them. Round-robin breaks voice. Sharing one address across instances needs routing by connection ID, which our managed hosting handles.

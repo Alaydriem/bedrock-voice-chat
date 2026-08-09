@@ -8,7 +8,7 @@ sidebar:
 
 Client apps validate your certificate the way a browser does. Self-signed will not work.
 
-You have two options, and they are mutually exclusive — the server refuses to start with both configured.
+Two options. They are mutually exclusive, and the server refuses to start with both configured.
 
 | | Use when |
 |---|---|
@@ -17,7 +17,7 @@ You have two options, and they are mutually exclusive — the server refuses to 
 
 ## ACME
 
-BVC proves domain control through a DNS record rather than an HTTP request, so **port 80 never has to be open** and the host does not need to answer HTTP at all. Renewal happens without you.
+BVC proves domain control with a DNS record, not an HTTP request. **Port 80 never has to be open**, and the host does not need to answer HTTP at all. Renewal is automatic.
 
 Two providers are supported.
 
@@ -68,7 +68,7 @@ Register with the acme-dns server first. It returns the username, password, subd
 
 ### Which names end up on the certificate
 
-The DNS entries in `tls.names`. IP entries are skipped — an ACME certificate cannot carry one.
+The DNS entries in `tls.names`. IP entries are skipped. An ACME certificate cannot carry one.
 
 Override with `domains` when the certificate should differ from what clients dial:
 
@@ -78,7 +78,7 @@ acme {
 }
 ```
 
-With no DNS entries in `tls.names` and no `domains`, startup fails rather than requesting an empty certificate.
+With no DNS entries in `tls.names` and no `domains`, startup fails.
 
 ### Test against staging first
 
@@ -90,7 +90,7 @@ acme {
 }
 ```
 
-Staging certificates are signed by an untrusted root, so client apps will reject them. That is expected — you are testing whether issuance succeeds, not whether clients connect. Remove the line once it does.
+Client apps reject staging certificates. They are signed by an untrusted root. This step tests whether issuance succeeds, not whether clients connect. Remove the line once it does.
 
 ## Your own certificate
 
@@ -113,11 +113,11 @@ Renewal is yours. Restart the server after replacing the files.
 
 ## `names` and `ips`
 
-These are the SANs. Every address anyone actually dials has to appear in one of them, or the handshake fails on that address specifically — while working fine on the others.
+These are the SANs. Every address anyone dials has to appear in one of them. An address that is missing fails the handshake on that address alone, while the others keep working.
 
 Include the public hostname. Add `127.0.0.1` and your LAN IP if you test locally.
 
-## There is a second certificate, and it is not yours
+## The second certificate
 
 | | Purpose | Managed by |
 |---|---|---|
@@ -132,7 +132,7 @@ Delete or replace `ca.crt` and every client certificate ever issued becomes inva
 Nothing fails at startup when this happens. It presents as a mass authentication outage with no obvious cause.
 :::
 
-Back it up alongside your database, not separately — they have to be restored together.
+Back it up alongside your database. They have to be restored together.
 
 ## Checking it
 

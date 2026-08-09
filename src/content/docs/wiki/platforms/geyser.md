@@ -14,7 +14,7 @@ Nothing here is Geyser-specific from BVC's side. Geyser presents Bedrock players
 
 When [Floodgate](https://geysermc.org/wiki/floodgate/) is on the classpath, BVC detects it at runtime. No configuration.
 
-Bedrock players authenticated through Floodgate are matched to their raw Xbox gamertag — Floodgate's prefix character is stripped automatically — so they sign into the BVC app with the same gamertag they use in-game.
+Bedrock players authenticated through Floodgate are matched to their raw Xbox gamertag. Floodgate's prefix character is stripped automatically. They sign into the BVC app with the same gamertag they use in game.
 
 Without Floodgate the mod logs:
 
@@ -32,10 +32,10 @@ and falls back to the Java-side username. That works, but Bedrock players then n
 
 ## Which mode
 
-Both external and embedded work. External is the better choice on a Geyser server — cross-play servers tend to have more players, and embedded mode competes with the game server for CPU.
+Both external and embedded work. Use external on a Geyser server. Cross-play servers tend to have more players, and embedded mode competes with the game server for CPU.
 
 See [Java mod](/wiki/server/java-mod/) for the tradeoff.
 
 ## Players
 
-Everyone needs the BVC app, Java and Bedrock alike. Bedrock players on console use the mobile app — see [console and mobile](/wiki/platforms/console-and-mobile/).
+Everyone needs the BVC app, Java and Bedrock alike. Bedrock players on console use the mobile app. See [console and mobile](/wiki/platforms/console-and-mobile/).

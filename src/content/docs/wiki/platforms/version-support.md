@@ -6,9 +6,9 @@ sidebar:
   order: 2
 ---
 
-This matters for Realms, Aternos, and any other host using the no-net Addon or Proxy Connect. Those paths speak Bedrock's own network protocol, so BVC has to understand the exact protocol your server is running.
+This matters for Realms, Aternos, and any other host using the no-net Addon or Proxy Connect. Those paths speak Bedrock's own network protocol. BVC has to understand the exact protocol your server runs.
 
-On a normal Bedrock Dedicated Server or a Java server this page does not apply. The Addon reports positions over HTTP and the Bedrock protocol version is irrelevant.
+None of this applies to a normal Bedrock Dedicated Server or a Java server. The Addon reports positions over HTTP, and the Bedrock protocol version is irrelevant.
 
 <!-- generated:version-table start -->
 
@@ -49,7 +49,7 @@ A codec exists, but no public Bedrock release speaks these yet.
 
 ## Why support lags a Minecraft release
 
-Mojang does not publish a specification for the Bedrock packet protocol and does not commit to a schedule. Every Bedrock release changes it, and each change has to be reverse-engineered by hand before BVC can speak the new version. The work cannot start until the update ships, so there is no guaranteed day-one support.
+Mojang does not publish a specification for the Bedrock packet protocol and does not commit to a schedule. Every Bedrock release changes it, and each change has to be reverse-engineered by hand before BVC can speak the new version. The work cannot start until the update ships. There is no day-one support.
 
 Two things follow from that:
 
@@ -68,4 +68,4 @@ When connecting through Proxy Connect you can pin the protocol BVC advertises, p
 
 ---
 
-<small>The tables above are generated from the protocol matrix emitted by <code>bedrock-protocol-rs</code>, so they track the shipped build.</small>
+<small>Generated from the protocol matrix emitted by <code>bedrock-protocol-rs</code>. Tracks the shipped build.</small>

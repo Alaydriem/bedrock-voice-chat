@@ -25,11 +25,11 @@ BVC needs a server it can install an Addon onto. Real servers work. Worlds hoste
 
 BVC needs a server-side Addon to report where players are. A Bedrock Dedicated Server, a Java server, a Realm, and an Aternos instance are all servers you can upload a world and its Addon to.
 
-A LAN world or single-player world is hosted by the game client, which cannot load server-side Addons. There is nowhere to put it, so BVC never gets position data.
+A LAN world or single-player world is hosted by the game client, which cannot load server-side Addons. There is nowhere to put one, and BVC never receives position data.
 
 ## Realms and Aternos
 
-Both work by speaking Bedrock's own network protocol, which Mojang does not document and changes every release. That has consequences worth knowing before you commit:
+Both speak Bedrock's own network protocol, which Mojang does not document and changes every release. The consequences:
 
 - Support **lags each Minecraft update**, sometimes by a while. There is no guaranteed day-one support.
 - The Addon is **locked to a protocol version** — server and pack must match.

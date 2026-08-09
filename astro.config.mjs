@@ -53,6 +53,7 @@ export default defineConfig({
             'wiki/player/signing-in',
             'wiki/player/using-voice-chat',
             'wiki/player/groups',
+            'wiki/player/chat',
             {
               label: 'In-game commands',
               items: [

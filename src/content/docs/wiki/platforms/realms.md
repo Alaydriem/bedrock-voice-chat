@@ -8,7 +8,7 @@ sidebar:
 
 Realms are supported as of 1.0.0-beta.15.
 
-A Realm cannot enable `@minecraft/server-net`, so BVC uses the no-net Addon: your client becomes the Bedrock server your game connects to, proxies through to the Realm, and reads positions off the wire.
+A Realm cannot enable `@minecraft/server-net`. BVC uses the no-net Addon instead. Your client becomes the Bedrock server your game connects to, proxies through to the Realm, and reads positions off the wire.
 
 Read the [limitations](/wiki/platforms/#realms-and-aternos) before committing. Realms auto-update, and an update breaks voice until a matching BVC build ships.
 
@@ -55,7 +55,7 @@ server {
 
 See [console and mobile](/wiki/platforms/console-and-mobile/).
 
-## Do not use the Realms tab
+## Connect through Realms Connect only
 
 Joining through Minecraft's own **Realms** tab bypasses BVC completely. The game works, the app looks connected, and nobody hears anyone.
 

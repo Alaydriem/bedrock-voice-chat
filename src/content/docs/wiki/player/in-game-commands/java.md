@@ -8,14 +8,14 @@ sidebar:
 
 Java commands nest under a single `/bvc` root. Type `/bvc ` and tab-complete the rest.
 
-Requires a server running the [Java mod](/wiki/server/java-mod/), on either Fabric or PaperMC. The commands are identical on both.
+Requires a server running the [Java mod](/wiki/server/java-mod/) on Fabric or PaperMC, and the BVC app running and signed in. The commands are identical on both loaders.
 
 ## Your own audio
 
 | Command | Does |
 |---|---|
 | `/bvc mute <on\|off>` | Mute or unmute your microphone. |
-| `/bvc deafen <on\|off>` | Deafen or undeafen — mutes everyone. |
+| `/bvc deafen <on\|off>` | Deafen or undeafen. Mutes everyone. |
 | `/bvc record <on\|off>` | Start or stop recording. Desktop only. |
 
 ## Other players
@@ -25,9 +25,9 @@ Requires a server running the [Java mod](/wiki/server/java-mod/), on either Fabr
 | `/bvc volume <player> <0-100>` | Set your local volume for one player. |
 | `/bvc hear <player> <on\|off>` | Choose whether you hear them at all. |
 
-Both are local to you. Turning someone down does not change what anyone else hears, and it does not stop them hearing you.
+Both are local to you. Turning someone down does not change what anyone else hears, and does not stop them hearing you.
 
-The range is 0–100, where the app's per-player slider goes to 150%. The command covers the normal range.
+The range is 0–100. The app's per-player slider goes to 150%.
 
 ## Groups
 
@@ -47,7 +47,7 @@ See [Groups](/wiki/player/groups/).
 
 Gives you a disc bound to a clip from the [audio library](/wiki/player/audio-library/). See [using the jukebox](/wiki/player/using-the-jukebox/).
 
-Must be run by a player, since it puts an item in your inventory. From the console, use the give form instead:
+A player has to run it. From the console, use the give form:
 
 ```
 /bvc give <player> <audio_id>
@@ -55,10 +55,4 @@ Must be run by a player, since it puts an item in your inventory. From the conso
 
 ## No control panel
 
-Bedrock has `/bvc:panel`, which opens an in-game form. Java has no equivalent — that panel is built on Bedrock's server-side form API, and Java has no counterpart to it.
-
-Use the app window on Java. Everything the panel does is there.
-
-## Requirements
-
-The BVC app must be running and signed in. These commands drive the app rather than replacing it.
+`/bvc:panel` is Bedrock only. Use the app window on Java. Everything the panel does is there.

@@ -14,7 +14,7 @@ Available since beta.11.
 
 | Flag | Env | Default | Notes |
 |---|---|---|---|
-| `-c, --config-file <path>` | — | `config.hcl` | Only used by `server` and `admin *`. |
+| `-c, --config-file <path>` | — | `config.hcl` | Used by `server` and `admin *` only. |
 | `--server-url <url>` | `BVC_SERVER` | `https://127.0.0.1:3000` | Target for `login`. Other commands read it from the stored identity. |
 | `--identity <gamertag:game>` | `BVC_IDENTITY` | — | Which stored identity to act as, when more than one exists. |
 
@@ -28,8 +28,7 @@ Available since beta.11.
 
 `login` takes one flag: `--code <code>`, prompted on stdin if omitted.
 
-The code is the whole credential. It identifies the player it was issued for, so the
-server resolves the gamertag and the game and returns both.
+The code is the whole credential. It identifies the player it was issued for, and the server returns the gamertag and the game.
 
 ## Server
 
@@ -39,7 +38,7 @@ server resolves the gamertag and the game and returns both.
 
 ## Bootstrap
 
-These talk to the database directly. Run them on the server host, with `config.hcl` available. They exist because a fresh deployment has no admin yet, so there is nobody to authenticate as.
+These talk to the database directly. Run them on the server host with `config.hcl` available. A fresh deployment has no admin, and there is nobody to authenticate as.
 
 | Command | Flags | Does |
 |---|---|---|
@@ -48,11 +47,11 @@ These talk to the database directly. Run them on the server host, with `config.h
 
 `-d` defaults to 3600 and caps at 86400.
 
-`admin generate-code` creates the player if missing, which is what makes it usable before anyone exists. `admin bootstrap` requires the player to already exist.
+`admin generate-code` creates the player if missing. `admin bootstrap` requires the player to exist.
 
 ## Users
 
-Over HTTPS with mTLS. Requires an active admin identity — `whoami` should list `admin`.
+Over HTTPS with mTLS. Requires an active admin identity. `whoami` should list `admin`.
 
 | Command | Endpoint | Does |
 |---|---|---|
@@ -70,14 +69,14 @@ Requires an active admin identity. Valid strings: `audio_upload`, `audio_delete`
 |---|---|---|
 | `permission allow` | `PUT /api/admin/permission` | Record an explicit allow. |
 | `permission deny` | `PUT /api/admin/permission` | Record an explicit deny. |
-| `permission clear` | `DELETE /api/admin/permission` | Remove the override, falling back to the config default. |
+| `permission clear` | `DELETE /api/admin/permission` | Remove the override. The config default applies again. |
 | `permission list` | `GET /api/admin/permission/{game}` | List explicit overrides. |
 
 Flags: `-p, --player <name>`, `-g, --game <minecraft>`, and `--permission <name>` for all but `list`.
 
-`clear` is not `deny`. It removes the override so the server-wide default applies again.
+`clear` is not `deny`. It removes the override.
 
-Empty output from `list` means no overrides — the player is governed entirely by the defaults.
+Empty output from `list` means no overrides. The defaults govern that player entirely.
 
 ## Bootstrapping a fresh deployment
 
@@ -98,4 +97,4 @@ bvc user add -p Bob -g minecraft
 bvc user generate-code -p Bob -g minecraft
 ```
 
-See [players and permissions](/wiki/server/players-and-permissions/) for the reasoning behind this sequence.
+See [players and permissions](/wiki/server/players-and-permissions/).

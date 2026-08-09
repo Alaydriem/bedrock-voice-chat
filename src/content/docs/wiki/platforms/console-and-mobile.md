@@ -8,7 +8,7 @@ sidebar:
 
 There is no on-console BVC client and there will not be one. Console players run the mobile app on a phone or tablet next to the console.
 
-Your position comes from the game server, so the console does nothing special — the app knows where you are without being installed on it.
+Your position comes from the game server. The console does nothing special, and the app knows where you are without being installed on it.
 
 ## Get the app
 
@@ -57,8 +57,8 @@ Do not enter your Realm or Aternos address directly. That bypasses BVC — Minec
 
 ## Mobile as a player, not a console companion
 
-Everything above is about consoles. A phone or tablet playing Minecraft itself is simpler: it can enter a custom server address, so it follows the desktop instructions on the [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/) pages.
+Everything above is about consoles. A phone or tablet playing Minecraft can enter a custom server address. Follow the desktop instructions on the [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/) pages.
 
 ## Recording
 
-Not available on mobile. Phones and tablets lack the disk throughput for multi-track capture. Record on a desktop instead — see [Recording](/wiki/creator/recording/).
+Not available on mobile. Phones and tablets lack the disk throughput for multi-track capture. Record on a desktop instead. See [Recording](/wiki/creator/recording/).

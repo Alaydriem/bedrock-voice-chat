@@ -8,7 +8,7 @@ sidebar:
 
 Aternos and similar hosts are supported as of 1.0.0-beta.15.
 
-These hosts do not let you enable `@minecraft/server-net`, so BVC uses the no-net Addon: your client becomes the Bedrock server your game connects to, proxies through to the real host, and reads positions off the wire.
+These hosts do not let you enable `@minecraft/server-net`. BVC uses the no-net Addon instead. Your client becomes the Bedrock server your game connects to, proxies through to the real host, and reads positions off the wire.
 
 Read the [limitations](/wiki/platforms/#realms-and-aternos) first. Support lags every Minecraft release, and a host that auto-updates will break voice on update day.
 
@@ -66,7 +66,7 @@ server {
 
 See [console and mobile](/wiki/platforms/console-and-mobile/).
 
-## Do not enter the Aternos address directly
+## Connect through Proxy Connect only
 
 Connecting straight to your Aternos server bypasses BVC. Minecraft works, the app looks fine, and no voice passes.
 

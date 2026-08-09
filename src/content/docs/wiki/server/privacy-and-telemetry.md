@@ -24,9 +24,9 @@ server {
 
 Or set `BVC_TELEMETRY=false`.
 
-Turning it off costs you nothing functionally. It costs the project visibility into crashes and regressions across real deployments, which is the argument for leaving it on — but it is your server.
+Turning it off costs you nothing functionally. It costs the project visibility into crashes and regressions across real deployments. Your server, your call.
 
-## Your own metrics are separate
+## Your own metrics
 
 `/metrics` always serves Prometheus-format metrics regardless of the `telemetry` flag, and the health endpoints are always available. Those are local to your deployment and go nowhere.
 
@@ -57,9 +57,9 @@ BVC only asks the platform whether the signed-in user clears your minimum. It do
 
 Parent-facing explanation: [parents and age settings](/wiki/player/parents-and-age/). Worth linking from your own rules page if you run a server with younger players.
 
-## What players can do to each other
+## Player-to-player controls
 
-Players can mute each other locally. Muting is one-directional — it stops you hearing them, not them hearing you.
+Players can mute each other locally. Muting is one-directional. It stops you hearing them, not them hearing you.
 
 There is no server-side moderation tooling for voice. You can banish a player entirely with `bvc user banish`, and that is the extent of it. Anything more nuanced is a matter for your own community rules and moderators.
 

@@ -8,7 +8,7 @@ sidebar:
 
 Bedrock commands are flat and namespaced with a colon. Type `/bvc:` and the game autocompletes the list.
 
-Requires a server running the [Bedrock Addon](/wiki/server/bedrock-addon/).
+Requires a server running the [Bedrock Addon](/wiki/server/bedrock-addon/), and the BVC app running and signed in.
 
 ## The panel
 
@@ -16,12 +16,12 @@ Requires a server running the [Bedrock Addon](/wiki/server/bedrock-addon/).
 /bvc:panel
 ```
 
-Opens a form with the same controls as the app: mute, deafen, record, and per-player volume. Easier than typing, and it lists who is actually in range.
+Opens a form with the same controls as the app: mute, deafen, record, and per-player volume. It lists who is in range.
 
 <div class="shot"><span>The /bvc:panel control panel open in-game</span></div>
 
 :::tip
-On a console this is the practical way to use BVC. Everything else needs typing, and a controller makes that slow.
+On a console, use the panel. Everything else needs typing, which is slow on a controller.
 :::
 
 ## Your own audio
@@ -29,7 +29,7 @@ On a console this is the practical way to use BVC. Everything else needs typing,
 | Command | Does |
 |---|---|
 | `/bvc:mute <on\|off>` | Mute or unmute your microphone. |
-| `/bvc:deafen <on\|off>` | Deafen or undeafen — mutes everyone. |
+| `/bvc:deafen <on\|off>` | Deafen or undeafen. Mutes everyone. |
 | `/bvc:record <on\|off>` | Start or stop recording. Desktop only. |
 
 ## Other players
@@ -41,7 +41,7 @@ On a console this is the practical way to use BVC. Everything else needs typing,
 
 Both are local to you.
 
-The range here is 0–100, where the app's per-player slider goes to 150%. The command covers the normal range.
+The range is 0–100. The app's per-player slider goes to 150%.
 
 ## Groups
 
@@ -60,7 +60,3 @@ Read the share code out, or paste it in chat. See [Groups](/wiki/player/groups/)
 ```
 
 Gives you a disc bound to a clip from the [audio library](/wiki/player/audio-library/). See [using the jukebox](/wiki/player/using-the-jukebox/).
-
-## Requirements
-
-These come from the Bedrock Addon, so the server has to be running it. You also need the BVC app running and signed in — the commands drive the app rather than replacing it.

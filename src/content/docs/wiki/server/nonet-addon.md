@@ -6,11 +6,11 @@ sidebar:
   order: 6
 ---
 
-Some hosts do not let you enable `@minecraft/server-net`, so the Addon cannot make HTTP requests and cannot report positions the normal way. Realms and Aternos are both in this category.
+Some hosts do not let you enable `@minecraft/server-net`. The Addon cannot make HTTP requests there, and cannot report positions the normal way. Realms and Aternos are both in this category.
 
-The no-net Addon works differently: your BVC client becomes the Bedrock server your game connects to, proxies packets through to the real host, and reads positions off the wire.
+The no-net Addon works differently. Your BVC client becomes the Bedrock server your game connects to, proxies packets through to the real host, and reads positions off the wire.
 
-This page is the part that is identical for every such host. The host-specific steps are in [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/).
+The steps below are the same for every such host. Host-specific steps are in [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/).
 
 ## Before you start
 
@@ -20,21 +20,21 @@ Install and configure the [BVC server](/wiki/server/installation/) first.
 Bedrock Voice Chat Server is _not_ an optional component. The no-net path still needs this.
 :::
 
-Install the [client app](/wiki/start/downloads/) too, since part of this happens there.
+Install the [client app](/wiki/start/downloads/). Part of this happens there.
 
 ## Read the limitations first
 
-This approach is constrained by what Bedrock's Addon system allows, and the constraints are real:
+Bedrock's Addon system constrains this approach:
 
 - The Addon is **locked to a protocol version**. One built for a given Bedrock version will not work against another.
-- Support **lags every Minecraft release**. Mojang does not document the packet protocol and it changes each update, so the work cannot start until the update ships. There is no guaranteed day-one support.
+- Support **lags every Minecraft release**. Mojang does not document the packet protocol and changes it each update. The work cannot start until the update ships. There is no day-one support.
 - A host that auto-updates Minecraft **will break voice** on update day.
 
-Running your own Bedrock Dedicated Server avoids all of it. See [version support](/wiki/platforms/version-support/) for what currently works.
+Running your own Bedrock Dedicated Server avoids all of it. See [version support](/wiki/platforms/version-support/).
 
 ## Build the world
 
-1. Download the `no-net.mcaddon` package — GitHub Releases under the `mods-` tag, or CurseForge. It must be the `no-net` variant; the full Addon will not work here.
+1. Download the `no-net.mcaddon` package from GitHub Releases under the `mods-` tag, or from CurseForge. It must be the `no-net` variant. The full Addon does not work here.
 
 2. Double-click it to install into your local Minecraft Bedrock client.
 
@@ -54,22 +54,28 @@ Running your own Bedrock Dedicated Server avoids all of it. See [version support
 
 Save it somewhere you can find.
 
+## Chat
+
+[Chat](/wiki/player/chat/) needs no configuration on a no-net host. The proxy session reads chat off the wire the same way it reads positions. The app can read and send in-game chat as soon as you connect.
+
+The `bvc_world_name` variable on the [full Addon](/wiki/server/bedrock-addon/) does not apply here.
+
 ## Then
 
-The world you just built gets uploaded to your host, and the client gets pointed at it. That part differs:
+Upload the world to your host, then point the client at it. The steps differ per host:
 
 - **[Realms](/wiki/platforms/realms/)** — upload to the Realm, connect through Realms Connect.
 - **[Aternos and other no-net hosts](/wiki/platforms/aternos/)** — rename to `.zip`, upload, connect through Proxy Connect.
 
 ## Match the versions
 
-Whatever host you are on, its Minecraft version must match the one the Addon supports. These Addons are not backwards compatible — a mismatch fails, it does not degrade.
+Your host's Minecraft version must match the one the Addon supports. These Addons are not backwards compatible. A mismatch fails outright.
 
 Check [version support](/wiki/platforms/version-support/) before picking a server version.
 
 ## Console players
 
-Consoles cannot enter a custom server address, so they reach BVC through DNS. That needs the DNS responder enabled on your BVC server, and it is **off by default**:
+Consoles cannot enter a custom server address. They reach BVC through DNS, which needs the DNS responder on your BVC server. It is **off by default**:
 
 ```hcl
 server {

@@ -8,9 +8,9 @@ sidebar:
 
 Every configuration value has an environment override. Precedence is **environment > config file > default**.
 
-An unset or empty variable never overrides anything, so `FOO=` in a compose file will not blank out a configured value. A malformed value is a hard startup error rather than a silent fallback.
+An unset or empty variable never overrides anything. `FOO=` in a compose file will not blank out a configured value. A malformed value is a hard startup error.
 
-This makes `config.hcl` optional. With no file, the server starts from defaults plus the environment and logs that it did — which is how it is usually run under Kubernetes. See [Docker](/wiki/server/docker/).
+`config.hcl` is therefore optional. With no file, the server starts from defaults plus the environment and logs that it did. This is the usual arrangement under Kubernetes. See [Docker](/wiki/server/docker/).
 
 ## Server
 
@@ -21,6 +21,12 @@ This makes `config.hcl` optional. With no file, the server starts from defaults 
 | `BVC_ADVERTISED_QUIC_PORTS` | `server.advertised_quic_ports`. Comma-separated. |
 | `BVC_ACCESS_TOKEN` | `server.minecraft.access_token` |
 | `BVC_TELEMETRY` | `server.features.telemetry`. `true` or `false`. |
+
+## Voice
+
+| Variable | Sets |
+|---|---|
+| `BVC_RECORDING` | `voice.recording.enabled`. `true` or `false`. |
 
 ## TLS
 
@@ -34,7 +40,7 @@ This makes `config.hcl` optional. With no file, the server starts from defaults 
 
 ## ACME
 
-Setting any of these creates the `acme` block if it is not already in the config file. When creating it from scratch, `BVC_ACME_EMAIL` and `BVC_ACME_PROVIDER` are both required — startup fails naming whichever is missing.
+Setting any of these creates the `acme` block if the config file does not already have one. When creating it from scratch, `BVC_ACME_EMAIL` and `BVC_ACME_PROVIDER` are both required. Startup fails naming whichever is missing.
 
 | Variable | Sets |
 |---|---|
@@ -65,7 +71,7 @@ See [TLS](/wiki/server/tls/).
 | `BVC_DATABASE_SSL_CERT` | `database.ssl_cert` |
 | `BVC_DATABASE_SSL_KEY` | `database.ssl_key` |
 
-TLS combinations are validated at startup — see the [database section](/wiki/reference/configuration/#database) for which combinations are rejected.
+TLS combinations are validated at startup. See the [database section](/wiki/reference/configuration/#database) for which are rejected.
 
 ## Bedrock relay
 

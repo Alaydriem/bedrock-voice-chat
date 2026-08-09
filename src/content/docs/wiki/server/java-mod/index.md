@@ -6,22 +6,22 @@ sidebar:
   order: 1
 ---
 
-BVC runs on Java servers through a mod published on [Modrinth](https://modrinth.com/mod/bedrock-voice-chat) for both Fabric and PaperMC. Geyser servers work too — see [Geyser](/wiki/platforms/geyser/).
+BVC runs on Java servers through a mod published on [Modrinth](https://modrinth.com/mod/bedrock-voice-chat) for both Fabric and PaperMC. Geyser servers work. See [Geyser](/wiki/platforms/geyser/).
 
-## Pick your server
+## Pick your loader
 
 - **[Fabric](/wiki/server/java-mod/fabric/)** — `mods/` directory, JSON config.
 - **[PaperMC](/wiki/server/java-mod/papermc/)** — `plugins/` directory, YAML config.
 
-The settings are the same on both; only the file format and location differ.
+The settings are identical. Only the file format and location differ.
 
 ## Pick your mode
 
 **External** points at a standalone BVC server. Use it for production, for more than about 15 players, or when one BVC server serves several game servers.
 
-**Embedded** runs BVC inside the game server's JVM, so there is no separate service. Convenient for small servers and local development.
+**Embedded** runs BVC inside the game server's JVM. No separate service. Suits small servers and local development.
 
-Embedded needs an always-on host with adequate RAM. On low-end hosts, or anything that suspends when idle, you get audio quality and performance problems that are hard to attribute. If you hit them, move BVC to its own machine rather than tuning around it.
+Embedded needs an always-on host with adequate RAM. Low-end hosts, and anything that suspends when idle, produce audio quality and performance problems that are hard to attribute. Move BVC to its own machine if you hit them.
 
 ## Shared settings
 
@@ -35,48 +35,98 @@ Embedded needs an always-on host with adequate RAM. On low-end hosts, or anythin
 
 Keys accept both `hyphen-case` and `camelCase`.
 
-### Embedded settings
+## Embedded configuration
 
-| Key | Default | Description |
+:::caution[This changed]
+`embedded-config` used to take a short list of flat keys of its own. Those keys are gone.
+The mod refuses to start in embedded mode if it finds them. See [Migration](#migration).
+:::
+
+`embedded-config` takes the **same keys as the BVC server's own `config.hcl`**, in the same nesting, under the same names. Anything you leave out takes the server's default.
+
+The Kotlin classes are generated from the server's Rust configuration types. A key the server accepts is a key the mod accepts. Use the [configuration reference](/wiki/reference/configuration/) as the key list for this block.
+
+Four sections are unavailable: `server.meridian`, `server.cors`, `server.features.openapi_docs`, and `server.bedrock.servers`.
+
+### Defaults to set explicitly
+
+Four defaults come from the standalone server and are wrong for most Java hosts.
+
+| Key | Default | Set it to |
 |---|---|---|
-| `http-port` | `8444` | HTTP/REST and login. |
-| `quic-port` | `8443` | UDP/QUIC voice. |
-| `broadcast-range` | `32.0` | Max distance in blocks at which audio is relayed. |
-| `tls-certificate` | `""` | Fullchain TLS PEM from a public CA. |
-| `tls-key` | `""` | TLS private key PEM. |
-| `tls-names` | `["localhost", "127.0.0.1"]` | SAN hostnames clients connect to. |
-| `tls-ips` | `["127.0.0.1"]` | SAN IPs clients connect to. |
-| `log-level` | `"info"` | `trace`, `debug`, `info`, `warn`, `error`. |
-| `assets-path` | — | Override the assets directory. |
-| `allow-audio-upload` | `false` | Permit clients with `audio_upload`. |
-| `allow-audio-delete` | `false` | Permit clients with `audio_delete`. |
+| `server.port` | `443` | `8444`. Binding 443 needs root on Linux, and a failed HTTP bind stops startup. |
+| `server.quic_port` | `443` | `8443`. |
+| `server.bedrock.transfer_port` | `19132` | `19139`. Geyser normally owns 19132. A failed bind is logged and the server keeps running, and the relay then appears to do nothing. |
+| `voice.spatial_audio.broadcast_range` | `48.0` | Whatever range you want, in blocks. |
 
-Note the ports: embedded mode defaults to **8444/8443**, not 443 like the standalone
-server. `broadcast-range` also defaults to 32 here, against 48 standalone.
+Set `server.bedrock.enabled: false` to turn the relay off instead.
 
-### Embedded Bedrock relay
+`server.bedrock.dns.enabled` stays false. Port 53 is untouched unless you ask for it.
 
-Set under `bedrock` inside `embedded-config`. Off by default.
+### TLS
 
-| Key | Default | Description |
-|---|---|---|
-| `enabled` | `false` | Bedrock relay for Proxy Connect and Realms Connect. |
-| `transfer-port` | `19139` | Port players point Minecraft at. |
-| `transfer-target-port` | `19137` | Internal handoff port. |
-| `transfer-cache-ttl-secs` | `900` | How long a resolved transfer target is cached. |
+Set `server.tls.certificate` and `server.tls.key`, **or** a `server.tls.acme` block. The mod refuses to start with neither. The server refuses both at once.
 
-### Certificates in embedded mode
+Embedded mode supports ACME DNS-01:
 
-Two systems, one of which is yours:
+```yaml
+embedded-config:
+  server:
+    tls:
+      names:
+        - "bvc.example.com"
+      acme:
+        email: "ops@example.com"
+        provider: "cloudflare"
+        api_token: "..."
+```
+
+Providers: `cloudflare` and `acme-dns`. See [TLS](/wiki/server/tls/).
+
+### Environment overrides
+
+`BVC_*` variables apply to an embedded server and outrank the config file. Precedence is **environment > config file > default**. A malformed value stops startup and names the variable.
+
+See [environment variables](/wiki/reference/environment-variables/). `BVC_SERVER`, `BVC_BEDROCK_SERVERS`, and the `BVC_MERIDIAN_*` set do not apply here.
+
+## Migration
+
+The flat keys no longer work. The mod refuses to start in embedded mode and logs each one it found alongside its replacement path.
+
+| Old key | New path |
+|---|---|
+| `http-port` | `server.port` |
+| `quic-port` | `server.quic_port` |
+| `broadcast-range` | `voice.spatial_audio.broadcast_range` |
+| `tls-certificate` | `server.tls.certificate` |
+| `tls-key` | `server.tls.key` |
+| `tls-names` | `server.tls.names` |
+| `tls-ips` | `server.tls.ips` |
+| `log-level` | `log.level` |
+| `assets-path` | `server.assets_path` |
+| `allow-audio-upload` | `permissions.defaults.audio_upload` |
+| `allow-audio-delete` | `permissions.defaults.audio_delete` |
+
+Expect one behaviour change. **`broadcast-range` never worked.** The mod sent it at a path no server field matched. It was discarded, and every embedded server ran at 48 whatever you set. Under `voice.spatial_audio.broadcast_range` it now applies, and a config that set 32 will sound different.
+
+Per-format before and after examples are on the [Fabric](/wiki/server/java-mod/fabric/) and [PaperMC](/wiki/server/java-mod/papermc/) pages.
+
+## Chat sync
+
+Set `enforce-secure-profile=false` in `server.properties`. Chat sync does not work with it enabled.
+
+Everything else is automatic in both modes. See [chat](/wiki/player/chat/).
+
+## Certificates in embedded mode
+
+Two systems. One is yours.
 
 | | Purpose | Managed by |
 |---|---|---|
-| HTTPS TLS | Clients trusting the server | You — `tls-certificate` and `tls-key`, from a public CA |
+| HTTPS TLS | Clients trusting the server | You. `server.tls.certificate` and `server.tls.key` from a public CA, or `server.tls.acme` |
 | QUIC mTLS CA | Server authenticating clients | The mod, automatically |
 
-The mTLS CA is generated into the mod's data directory: `config/bedrock-voice-chat/` on Fabric, `plugins/BedrockVoiceChat/` on Paper. Leave it alone, and back it up — deleting it invalidates every client certificate already issued.
-
-Embedded mode has no ACME support. External mode does, and it is the easier path if certificate management is what is stopping you. See [TLS](/wiki/server/tls/).
+The mTLS CA is generated into the mod's data directory: `config/bedrock-voice-chat/` on Fabric, `plugins/BedrockVoiceChat/` on Paper. Leave it alone and back it up. Deleting it invalidates every client certificate already issued.
 
 ## Support
 

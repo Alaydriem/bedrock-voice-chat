@@ -6,7 +6,7 @@ sidebar:
   order: 1
 ---
 
-BVC records every player to their own track, so you can fix one person's audio in post without touching anyone else's.
+BVC records every player to their own track. Fix one person's audio in post without touching anyone else's.
 
 | Page | What it covers |
 |---|---|
@@ -14,4 +14,4 @@ BVC records every player to their own track, so you can fix one person's audio i
 | [Stream Deck](/wiki/creator/stream-deck/) | Mute, deafen, and record from an Elgato Stream Deck. |
 | [WebSocket API](/wiki/creator/websocket-api/) | Drive the same controls from your own tooling. |
 
-Recording is desktop only. Mobile devices lack the disk throughput to sustain multi-track capture.
+Recording is desktop only. Mobile devices lack the disk throughput for multi-track capture.

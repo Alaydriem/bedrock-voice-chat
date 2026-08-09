@@ -8,16 +8,16 @@ sidebar:
 
 Both editions let you drive BVC from the chat bar. Useful on a handheld, and the only practical option on a console.
 
-The commands do the same things on both, but the syntax differs because the two command systems do:
+The syntax differs between editions:
 
-- **[Bedrock](/wiki/player/in-game-commands/bedrock/)** — flat and namespaced with a colon: `/bvc:mute true`
+- **[Bedrock](/wiki/player/in-game-commands/bedrock/)** — flat, namespaced with a colon: `/bvc:mute true`
 - **[Java](/wiki/player/in-game-commands/java/)** — nested under one root: `/bvc mute true`
 
 ## Common to both
 
 Every command works for any player. None require cheats or operator status.
 
-You still need the BVC app running and signed in. These drive the app; they do not replace it.
+The BVC app must be running and signed in. These commands drive the app.
 
 | Capability | Bedrock | Java |
 |---|---|---|
@@ -33,9 +33,9 @@ You still need the BVC app running and signed in. These drive the app; they do n
 | Open a control panel | `/bvc:panel` | — |
 
 :::note
-The control panel is Bedrock only. It is built on Bedrock's server-side form API, which has no Java equivalent — Java players use the app window instead.
+The control panel is Bedrock only. It uses Bedrock's server-side form API, which Java has no counterpart to. Java players use the app window.
 :::
 
-Volume and hear are local to you. Turning someone down does not change what anyone else hears, and it does not stop them hearing you.
+Volume and hear are local to you. Turning someone down does not change what anyone else hears, and does not stop them hearing you.
 
-Recording is desktop only. The command exists on every platform and does nothing on a device that cannot record.
+Recording is desktop only. The command exists everywhere and does nothing on a device that cannot record, or on a server that has [turned recording off](/wiki/creator/recording/).

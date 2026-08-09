@@ -14,11 +14,11 @@ Every player needs one. They all sign in with the same Xbox account you play on.
 |---|---|
 | **Windows** | [Direct download](https://www.bedrockvoicechat.com/downloads/latest/windows.exe), or from [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases). |
 | **Linux** | `.deb` and AppImage on [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases). |
-| **macOS** | [TestFlight](https://testflight.apple.com/join/JSG7bVqC) — one build covers macOS and iOS. |
+| **macOS** | [TestFlight](https://testflight.apple.com/join/JSG7bVqC). One build covers macOS and iOS. |
 | **iOS / iPadOS** | [TestFlight](https://testflight.apple.com/join/JSG7bVqC). |
 | **Android** | Open beta on [Google Play](https://play.google.com/store/apps/details?id=com.alaydriem.bvc.client). |
 
-There is no on-console client. Xbox, PlayStation, and Switch players run the mobile app alongside the console — see [console and mobile](/wiki/platforms/console-and-mobile/).
+There is no on-console client. Xbox, PlayStation, and Switch players run the mobile app alongside the console. See [console and mobile](/wiki/platforms/console-and-mobile/).
 
 ## Server
 
@@ -34,10 +34,10 @@ See [Installing the BVC server](/wiki/server/installation/).
 | Type | Where |
 |---|---|
 | Bedrock Addon | [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) (the `mods-` tag) or [CurseForge](https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat) |
-| Realms / no-net Addon | Same sources — take the `no-net.mcaddon` variant |
+| Realms / no-net Addon | Same sources. Take the `no-net.mcaddon` variant |
 | Fabric and PaperMC | [Modrinth](https://modrinth.com/mod/bedrock-voice-chat) |
 
-The Bedrock download contains both Addon variants. Which one you want depends on your host — see [where BVC works](/wiki/platforms/).
+The Bedrock download contains both Addon variants. Which one you need depends on your host. See [where BVC works](/wiki/platforms/).
 
 ## Companion apps
 

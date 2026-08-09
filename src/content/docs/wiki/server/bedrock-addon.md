@@ -6,9 +6,9 @@ sidebar:
   order: 5
 ---
 
-The Addon relays player positions to the BVC server. Without it BVC has no idea where anyone is, so nothing works.
+The Addon relays player positions to the BVC server. Without it, BVC does not know where anyone is and nothing works.
 
-This page covers Bedrock Dedicated Server. For Realms, Aternos, and other hosts that cannot enable `@minecraft/server-net`, see the [no-net Addon](/wiki/server/nonet-addon/) instead.
+For Bedrock Dedicated Server. Realms, Aternos, and other hosts that cannot enable `@minecraft/server-net` use the [no-net Addon](/wiki/server/nonet-addon/).
 
 Install the [BVC server](/wiki/server/installation/) first. You need its URL and access token here.
 
@@ -26,7 +26,8 @@ Install the [BVC server](/wiki/server/installation/) first. You need its URL and
    {
        "bvc_access_token": "<MUST MATCH server.minecraft.access_token>",
        "bvc_server": "https://example.bedrockvc.stream",
-       "bvc_minimum_players": 1
+       "bvc_minimum_players": 1,
+       "bvc_world_name": "My SMP"
    }
    ```
 
@@ -35,6 +36,9 @@ Install the [BVC server](/wiki/server/installation/) first. You need its URL and
    | `bvc_access_token` | Must match `server.minecraft.access_token` in `config.hcl`. |
    | `bvc_server` | Public URL of your BVC server. No trailing slash. Include the port if it is not 443. |
    | `bvc_minimum_players` | Players who must be online before positions are relayed. Defaults to 1. |
+   | `bvc_world_name` | Display name for this world in the app's [chat](/wiki/player/chat/) picker. Defaults to "Minecraft world". |
+
+   Set `bvc_world_name`. BDS scripting cannot read your level name. This is the only label the app has.
 
 4. Grant the modules the Addon uses in `config/default/permissions.json`:
 
@@ -58,11 +62,11 @@ Install the [BVC server](/wiki/server/installation/) first. You need its URL and
    | Full | `6fb24263-357a-407c-aebe-681f50b2de50` |
    | No-net | `508a43ed-b95e-40cf-98eb-d78f2d72caa4` |
 
-   Take the version from the `manifest.json` inside the pack you downloaded. It changes every release, so a version copied off a wiki page will eventually be wrong.
+   Take the version from the `manifest.json` inside the pack you downloaded. It changes every release.
 
 7. Start or restart BDS.
 
-## Confirm it is working
+## Verify
 
 Set `content-log-console-output-enabled=true` in `server.properties`. On world load you should see:
 
@@ -82,7 +86,7 @@ An empty response means BDS is not relaying. A populated one means the whole cha
 
 ## What the Addon adds
 
-Beyond position relay, it provides the [in-game commands](/wiki/player/in-game-commands/) and the [jukebox](/wiki/player/using-the-jukebox/) block.
+Beyond position relay, it provides the [in-game commands](/wiki/player/in-game-commands/), the [jukebox](/wiki/player/using-the-jukebox/) block, and the [chat](/wiki/player/chat/) relay that lets players read and send in-game chat from the app.
 
 ## Troubleshooting
 
@@ -90,6 +94,6 @@ Beyond position relay, it provides the [in-game commands](/wiki/player/in-game-c
 
 **Connecting, but nobody hears anyone.** Whitelist your players — BVC is deny-by-default. See [players and permissions](/wiki/server/players-and-permissions/).
 
-**Nothing relays when you test alone.** `bvc_minimum_players` defaults to 1, so solo works. If you raised it, drop it back to 1 to test.
+**Nothing relays when you test alone.** `bvc_minimum_players` defaults to 1. If you raised it, drop it back to 1 to test.
 
 **`/api/config` does not respond.** The problem is the BVC server, not the Addon. Back to [installation](/wiki/server/installation/).

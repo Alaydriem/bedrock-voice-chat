@@ -11,7 +11,8 @@
     "preview": "astro preview --host",
     "check": "astro check",
     "dev:local": "npm run gen:versions && astro dev",
-    "check:links": "node scripts/check-links.mjs"
+    "check:links": "node scripts/check-links.mjs",
+    "check:prose": "node scripts/check-prose.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.6",

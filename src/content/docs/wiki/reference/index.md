@@ -6,7 +6,7 @@ sidebar:
   order: 1
 ---
 
-Lookup material. Setting a server up for the first time is better served by [Installing the BVC server](/wiki/server/installation/), which covers the same ground in the order you need it.
+Lookup material. For a first-time setup, use [Installing the BVC server](/wiki/server/installation/) instead. It covers the same ground in the order you need it.
 
 | Page | What it covers |
 |---|---|

@@ -6,38 +6,38 @@ sidebar:
   order: 4
 ---
 
-A group keeps you in constant contact with specific players. Everyone in a group hears everyone else at full volume, wherever they are in the world.
+Everyone in a group hears everyone else at full volume, wherever they are in the world.
 
 <div class="shot"><span>Group panel in the left sub-sidebar, showing members</span></div>
 
-## Creating one
+## Create a group
 
-Click **New Group +** in the left sub-sidebar, or run `/bvc:groupcreate` in-game.
+Select **New Group +** in the left sub-sidebar, or run `/bvc:groupcreate` in game.
 
-Creating a group makes you its owner. You can leave and rejoin without losing that — leaving does not hand ownership to anyone else.
+You own any group you create. Leaving does not hand ownership to anyone else, and you can rejoin.
 
 There is no limit on how many groups exist.
 
-## Joining
+## Join a group
 
-Join with the group's share code, either in the app or with `/bvc:groupjoin <code>`.
+Enter the group's share code in the app, or run `/bvc:groupjoin <code>`.
 
-Your icon in the sidebar turns from red to purple once you are in a group, so you can tell at a glance.
+Your icon in the sidebar turns from red to purple once you are in a group.
 
-## Leaving and closing
+## Leave or close a group
 
-Anyone can leave at any time. The owner can also **close** the group, which removes everyone.
+Anyone can leave at any time. The owner can also **close** a group, which removes everyone.
 
-Prefer leaving over closing when people are still talking — closing drops them all at once with no warning.
+Leave, do not close, while people are still talking. Closing drops them all with no warning.
 
-## Groups do not isolate you
+## Groups and proximity
 
-You still hear nearby players, and they still hear you. A group adds a channel; it does not mute the world.
+You still hear nearby players, and they still hear you. A group adds a channel. It does not mute the world.
 
-If you want privacy, distance is what gets you it — group audio carries, proximity audio does not.
+For privacy, use distance. Group audio carries; proximity audio does not.
 
-## Anyone in the group can hear you
+## Everyone in the group hears you
 
-Traffic is encrypted in transit, but that protects it from outsiders, not from the people you are talking to. Everyone in the group hears everything you say, and any of them can be recording.
+Traffic is encrypted in transit. That protects it from outsiders, not from the people you are talking to. Any of them can be recording.
 
-Treat a group like an open mic in a room, because that is what it is.
+Treat a group like an open mic in a room.

@@ -8,15 +8,15 @@ sidebar:
 
 You play on a server that already runs BVC and you want to hear people.
 
-## Getting going
+## Getting started
 
 1. [Install the app](/wiki/start/downloads/) for your device.
 2. [Sign in](/wiki/player/signing-in/) with the Xbox account you play on, using the server URL your operator gave you.
 3. Put headphones on and play.
 
-BVC is deny-by-default. If sign-in refuses you, you have not been whitelisted yet. That is the operator's job, not something you can fix in the app.
+BVC is deny-by-default. If sign-in refuses you, you have not been whitelisted. Ask your operator to add you.
 
-If nothing here works at all, the server may not have BVC set up. Ask the operator and point them at [Running a server](/wiki/server/).
+If nothing works at all, the server may not have BVC set up. Point your operator at [Running a server](/wiki/server/).
 
 ## Using it
 
@@ -24,6 +24,7 @@ If nothing here works at all, the server may not have BVC set up. Ask the operat
 |---|---|
 | [Using voice chat](/wiki/player/using-voice-chat/) | Proximity ranges, mute and deafen, per-player volume. |
 | [Groups](/wiki/player/groups/) | Talk to your party regardless of distance. |
+| [Chat](/wiki/player/chat/) | Read and send in-game chat from the app. |
 | [In-game commands](/wiki/player/in-game-commands/) | Control BVC from inside Minecraft with `/bvc:*`. |
 | [Using the jukebox](/wiki/player/using-the-jukebox/) | Play audio clips out of a block, positioned in the world. |
 | [Audio library](/wiki/player/audio-library/) | Upload and manage the clips discs play. |

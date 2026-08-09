@@ -12,9 +12,9 @@ Do this before installing the Addon. The Addon needs this server's address.
 
 ## Sizing
 
-BVC is CPU-bound. Add cores before memory. Two vCPUs is a reasonable start and should handle most communities without issue.
+BVC is CPU-bound. Add cores before memory. Two vCPUs handles most communities.
 
-These providers work well and the links support development:
+These providers work well, and the links support development:
 
 - [DigitalOcean](https://m.do.co/c/15e066af535c) — $200 credit after $25 spend.
 - [Hetzner](https://hetzner.cloud/?ref=StImwLqshuwn) — $25 signup credit.
@@ -28,11 +28,11 @@ docker run -d --restart=always \
   ghcr.io/alaydriem/bedrock-voice-chat/server:<version>
 ```
 
-Both protocols on 443 are required: TCP carries the HTTP API and login, UDP carries the QUIC voice transport. 8443 serves as a redundant QUIC port for networks that block QUIC over :443.
+Publish both protocols on 443. TCP carries the HTTP API and login. UDP carries the QUIC voice transport. 8443 is a redundant QUIC port for networks that block QUIC over 443.
 
 Mount your `config.hcl` and certificates into `/data`.
 
-`/health/liveness` and `/health/readiness` are there for container orchestration. `/api/ping` is a cheap reachability probe. See [Monitoring](/wiki/server/monitoring/).
+`/health/liveness` and `/health/readiness` are for container orchestration. `/api/ping` is a cheap reachability probe. See [Monitoring](/wiki/server/monitoring/).
 
 ## Minimum configuration
 
@@ -56,28 +56,43 @@ server {
 }
 ```
 
-That is all that is required. Everything else has a working default — the full surface is in the [configuration reference](/wiki/reference/configuration/).
+Nothing else is required. Every other key has a working default. The full surface is in the [configuration reference](/wiki/reference/configuration/).
 
-> **`access_token`** is a shared secret. The same value goes into your Addon or mod, and the game server sends it on every position update. Pick something long and random. If unset, BVC will generate one for you and place it in the static directory
+> **`access_token`** is a shared secret. The same value goes into your Addon or mod, and the game server sends it on every position update. Pick something long and random. Left unset, BVC generates one and writes it to the static directory.
 
-`acme` makes BVC obtain and renew its own certificate over DNS-01, so you never touch PEM files and port 80 stays closed. Full setup, including acme-dns and bring-your-own-certificate, is in [TLS certificates](/wiki/server/tls/).
+`acme` makes BVC obtain and renew its own certificate over DNS-01. You never touch PEM files, and port 80 stays closed. Full setup, including acme-dns and bring-your-own-certificate, is in [TLS certificates](/wiki/server/tls/).
 
 ### Secrets belong in the environment
 
-`${env.VAR}` is evaluated anywhere in the file. A referenced variable that is unset is a hard startup error, not an empty string — a missing token stops the server instead of booting it unsecured.
+`${env.VAR}` is evaluated anywhere in the file. An unset referenced variable is a hard startup error. A missing token stops the server instead of booting it unsecured.
 
-Every setting also has a `BVC_*` environment override, so the file is optional. If `config.hcl` is absent the server starts from defaults plus the environment, which is how it is usually run under Kubernetes. See [environment variables](/wiki/reference/environment-variables/).
+Every setting also has a `BVC_*` environment override, which makes the file optional. With no `config.hcl` the server starts from defaults plus the environment. This is the usual arrangement under Kubernetes. See [environment variables](/wiki/reference/environment-variables/).
 
-## Confirm it is up
+## Verify
 
 ```bash
 curl https://example.bedrockvc.stream/api/config
 ```
 
+## Upgrading
+
+Pull the new image and restart. Database migrations run at startup.
+
+**Server and client must speak the same protocol version.** BVC compares major and minor. Patch releases do not change the wire format. A client on a different major or minor is refused, and told which side is behind.
+
+Protocol went from **2.1.0 to 3.0.0** in this release. Every client must update. Schedule it for a time when you can tell your players.
+
+Two other things changed shape in the same release:
+
+- The Java mod's `embedded-config` no longer takes flat keys. See [Migration](/wiki/server/java-mod/#migration).
+- The recording format version changed, which makes **existing recordings no longer exportable**. Tell anyone who records to export what they want before updating the app. See [recording](/wiki/creator/recording/#format-version).
+
+The version each side runs is in the client's About pane and in `/api/config`.
+
 ## Then
 
 1. Install the Addon: [Bedrock](/wiki/server/bedrock-addon/) or [Java](/wiki/server/java-mod/). Give it this server's URL and the same `access_token`.
-2. [Whitelist your players](/wiki/server/players-and-permissions/) — BVC is deny-by-default and nobody can sign in until you do.
+2. [Whitelist your players](/wiki/server/players-and-permissions/). BVC is deny-by-default.
 3. Point players at [Downloads](/wiki/start/downloads/).
 
-Supporting Realms, Aternos, or consoles needs extra setup on top of this — see [Where BVC works](/wiki/platforms/).
+Realms, Aternos, and consoles need extra setup. See [Where BVC works](/wiki/platforms/).

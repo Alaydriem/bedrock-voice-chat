@@ -12,7 +12,7 @@ Everything here uses the server executable, which doubles as a CLI. Full referen
 
 ## Bootstrapping the first admin
 
-A fresh deployment has no admin, and the commands that create one talk to the database directly rather than over the API. Run these on the server host, where `config.hcl` is.
+A fresh deployment has no admin. The commands that create one talk to the database directly, not over the API. Run them on the server host, where `config.hcl` is.
 
 ```bash
 # On the server host
@@ -47,7 +47,7 @@ bvc user generate-code -p Bob -g minecraft
 
 Give Bob the code. He redeems it with `bvc login`, or just signs in through the app.
 
-`user add` returns 409 if the player already exists. `user generate-code` returns 404 if they do not — use `user add` first.
+`user add` returns 409 if the player already exists. `user generate-code` returns 404 if they do not. Run `user add` first.
 
 Codes default to one hour and cap at 24.
 
@@ -91,7 +91,7 @@ bvc permission clear -p Bob -g minecraft --permission audio_upload
 bvc permission list  -p Bob -g minecraft
 ```
 
-`allow` and `deny` are explicit overrides. `clear` removes the override so the config default applies again — which is not the same as `deny`.
+`allow` and `deny` are explicit overrides. `clear` removes the override, and the config default applies again. `clear` is not `deny`.
 
 Empty output from `list` means the player has no overrides and is governed entirely by the defaults.
 

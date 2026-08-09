@@ -14,15 +14,15 @@ BVC needs a server-side Addon to report where players are. Proximity chat is imp
 
 A world hosted from the Minecraft game client cannot load server-side Addons. There is nowhere to install it, on any platform.
 
-### Why proxying does not rescue it
+### Proxy Connect
 
-Realms and Aternos work through Proxy Connect, which intercepts Bedrock's network protocol. It is reasonable to ask why that does not work here.
+Realms and Aternos work through Proxy Connect, which intercepts Bedrock's network protocol. It does not help here.
 
-It works there because a Realm and an Aternos instance are real servers you can **upload a world to, Addon included**. The proxy carries the position data the Addon produces. A LAN world has no upload path, so there is no Addon, so there is nothing for a proxy to carry.
+A Realm and an Aternos instance are real servers you can **upload a world to, Addon included**. The proxy carries the position data that Addon produces. A LAN world has no upload path. No Addon, and nothing for a proxy to carry.
 
 The proxy moves data. It does not create it.
 
-## What to do instead
+## The alternative
 
 Run Bedrock Dedicated Server. It is a download and a run command, and you can run it on the same machine you were hosting the LAN world from.
 

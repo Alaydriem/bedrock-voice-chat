@@ -20,7 +20,7 @@ minecraft {
 }
 ```
 
-A referenced variable that is unset is a hard startup error, never an empty string. A missing secret stops the server rather than booting it unsecured.
+An unset referenced variable is a hard startup error. The server stops instead of booting unsecured.
 
 ## `server`
 
@@ -32,7 +32,11 @@ A referenced variable that is unset is a hard startup error, never an empty stri
 | `advertised_quic_ports` | `[]` | Additional public UDP ports clients should try, in preference order. Empty means only `quic_port`. Use when a proxy fronts the server on a different port. |
 | `assets_path` | `./assets` | Static asset directory served by the API. |
 
-The default `::` gives QUIC a dual-stack socket on every platform. Rocket's HTTP listener cannot be dual-stack on Windows, so there it falls back to `0.0.0.0` automatically and logs that it did. IPv6 HTTP is unavailable on Windows; IPv4 clients are unaffected. On Linux this follows `net.ipv6.bindv6only`, which defaults to `0`.
+The default `::` gives QUIC a dual-stack socket on every platform.
+
+On Windows, Rocket's HTTP listener cannot be dual-stack. It falls back to `0.0.0.0` and logs the fallback. IPv6 HTTP is unavailable there. IPv4 clients are unaffected.
+
+On Linux this follows `net.ipv6.bindv6only`, which defaults to `0`.
 
 ## `server.tls`
 
@@ -48,7 +52,7 @@ The default `::` gives QUIC a dual-stack socket on every platform. Rocket's HTTP
 
 ## `server.tls.acme`
 
-Obtains and renews a certificate over ACME DNS-01. The challenge is DNS-based, so port 80 never needs to be open. The server refuses to start if this is set alongside `certificate`/`key`.
+Obtains and renews a certificate over ACME DNS-01. Port 80 never needs to be open. The server refuses to start with this set alongside `certificate`/`key`.
 
 | Key | Default | Description |
 |---|---|---|
@@ -62,7 +66,7 @@ Obtains and renews a certificate over ACME DNS-01. The challenge is DNS-based, s
 | `directory` | `https://acme-v02.api.letsencrypt.org/directory` | ACME directory URL. Point at the staging directory while testing to avoid rate limits. |
 | `domains` | DNS entries of `tls.names` | Explicit certificate domains. IP entries in `tls.names` are skipped — they cannot appear on an ACME certificate. |
 
-Provider-specific fields are validated at startup and name exactly what is missing, rather than failing at first renewal.
+Provider-specific fields are validated at startup. A missing one is named in the error.
 
 ## `server.minecraft`
 
@@ -131,7 +135,7 @@ The relay behind Proxy Connect and Realms Connect. This is how BVC supports Ater
 | `override_host` | `geo.hivebedrock.network` | Hostname redirected to this server. |
 | `rate_limit_per_sec` | `100` | Per-client query rate limit. |
 
-A console cannot type a custom server address, so it reaches BVC by having its DNS point here. With `dns.enabled = false` that path does not work at all. See [console and mobile](/wiki/platforms/console-and-mobile/).
+A console cannot enter a custom server address. It reaches BVC by pointing its DNS here. With `dns.enabled = false` that path does not work. See [console and mobile](/wiki/platforms/console-and-mobile/).
 
 ### `server.bedrock.servers`
 
@@ -170,12 +174,12 @@ bedrock {
 | `ssl_cert` | — | Client certificate for database mTLS. |
 | `ssl_key` | — | Key for `ssl_cert`. |
 
-Database TLS is validated at startup rather than degrading silently:
+Database TLS is validated at startup. These combinations are rejected:
 
-- Any `ssl_*` path without `ssl_mode` is an error — sqlx would otherwise default to opportunistic TLS and fall back to plaintext.
-- `ssl_root_cert` with a mode weaker than `verify-ca` is an error, because the pinned CA would never be checked.
-- `ssl_cert` and `ssl_key` must be set together, and every referenced file must exist.
-- Any `ssl_*` option on a SQLite scheme is an error.
+- Any `ssl_*` path without `ssl_mode`. sqlx would default to opportunistic TLS and fall back to plaintext.
+- `ssl_root_cert` with a mode weaker than `verify-ca`. The pinned CA would never be checked.
+- `ssl_cert` without `ssl_key`, or either naming a file that does not exist.
+- Any `ssl_*` option on a SQLite scheme.
 
 ## `log`
 
@@ -190,6 +194,18 @@ Database TLS is validated at startup rather than degrading silently:
 |---|---|---|
 | `datagram_send_capacity` | `1024` | Outbound QUIC datagram queue per connection. |
 | `datagram_recv_capacity` | `1024` | Inbound QUIC datagram queue per connection. |
+
+### `voice.recording`
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Whether clients connected to this server may record. |
+
+This is a client policy, not a server boundary. Recordings are written on the player's own machine and never reach the server. When false, the stock client refuses to arm from the REC button, `/bvc:record`, and the WebSocket API. It does not stop a modified client.
+
+Advertised on `/api/config`. A client that cannot reach the config treats recording as permitted, the same as an older server.
+
+See [recording](/wiki/creator/recording/).
 
 ### `voice.spatial_audio`
 
@@ -227,7 +243,7 @@ permissions {
 }
 ```
 
-Server-wide defaults for the four permissions. Per-player overrides are managed with the `permission` CLI subcommands — see the [CLI reference](/wiki/reference/cli/).
+Server-wide defaults for the four permissions. Set per-player overrides with the `permission` CLI subcommands. See the [CLI reference](/wiki/reference/cli/).
 
 | Permission | Grants |
 |---|---|

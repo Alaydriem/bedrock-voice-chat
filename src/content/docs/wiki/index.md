@@ -15,9 +15,9 @@ BVC is not a single download. Three pieces have to be in place, usually installe
 | **BVC server** | Server operator | A standalone Rust executable that carries the voice traffic. Runs separately from your Minecraft server. |
 | **Client app** | Every player | Windows, macOS, Linux, iOS, Android. Connects straight to the BVC server. |
 
-The BVC server is a standalone executable, not a plugin. Most commercial Minecraft hosts will not let you run it beside your game server, so expect to run it on your own VPS, dedicated box, or cluster.
+The BVC server is a standalone executable, not a plugin. Most commercial Minecraft hosts will not let you run it beside your game server. Expect to run it on your own VPS, dedicated box, or cluster.
 
-The Java mod is the exception. It can run BVC embedded in the game server's JVM, which suits small always-on servers and does not suit low-end or suspend-prone hosts.
+The Java mod is the exception. It can run BVC embedded in the game server's JVM. That suits small always-on servers. It does not suit low-end or suspend-prone hosts.
 
 ## Where to start
 
@@ -31,9 +31,9 @@ The Java mod is the exception. It can run BVC embedded in the game server's JVM,
 
 ## Setup order
 
-The Addon needs the BVC server's address, so the server has to exist first. Running these out of order is the most common reason a first install appears to do nothing.
+Install in this order. The Addon needs the BVC server's address.
 
 1. [Run the BVC server](/wiki/server/installation/). It needs a reachable host and a TLS certificate, which BVC can obtain itself.
-2. Install the Addon — [Bedrock](/wiki/server/bedrock-addon/) or [Java](/wiki/server/java-mod/) — pointing it at that address.
-3. [Whitelist your players](/wiki/server/players-and-permissions/). BVC is deny-by-default; nobody can sign in until you add them.
+2. Install the Addon, [Bedrock](/wiki/server/bedrock-addon/) or [Java](/wiki/server/java-mod/), pointing it at that address.
+3. [Whitelist your players](/wiki/server/players-and-permissions/). BVC is deny-by-default. Nobody can sign in until you add them.
 4. Send everyone to [Downloads](/wiki/start/downloads/).

@@ -12,7 +12,7 @@ You hear two sets of people: players near you in the world, and anyone in your g
 
 ## Proximity
 
-BVC maps each player's mono audio into 3D space using your position and facing against theirs. Someone to your left sounds like they are on your left.
+BVC places each player's voice in 3D space using your position and facing against theirs. Someone to your left sounds like they are on your left.
 
 With default settings:
 
@@ -22,17 +22,17 @@ With default settings:
 | 24–48 blocks | Fading, down to 40 dB quieter at the edge |
 | Beyond 48 blocks | Nothing |
 
-Stereo panning fades in between 8 and 24 blocks, so someone standing on top of you sounds centred rather than hard left or right.
+Stereo panning fades in between 8 and 24 blocks. Someone standing on top of you sounds centred.
 
-Operators can change all of these. Yours may differ — see the `voice.spatial_audio` block in the [configuration reference](/wiki/reference/configuration/#voicespatial_audio).
+Operators can change all of these. See the `voice.spatial_audio` block in the [configuration reference](/wiki/reference/configuration/#voicespatial_audio).
 
 ## Groups
 
-In a group you hear everyone in it at full volume with no spatial positioning, wherever they are.
+In a group you hear everyone at full volume with no spatial positioning, wherever they are.
 
 Groups are not exclusive. You still hear nearby players and they still hear you. See [Groups](/wiki/player/groups/).
 
-## Muting and deafening yourself
+## Mute and deafen yourself
 
 Both controls are at the bottom left of the secondary sidebar.
 
@@ -40,10 +40,12 @@ Both controls are at the bottom left of the secondary sidebar.
 
 Both can be bound to a key, along with push-to-talk. See [Settings](/wiki/player/settings/).
 
-## Adjusting other players
+## Adjust another player
 
-Each player tile has its own controls. You can mute someone outright, or set their volume anywhere from 0% to 150%.
+Each player tile has its own controls. Mute someone outright, or set their volume between 0% and 150%.
 
-Set the volume while they are inside 24 blocks. That is their unattenuated level, and it is what distance falloff is applied to afterwards — adjusting while they are far away means guessing at a number that will change as they walk toward you.
+Set the volume while they are inside 24 blocks. That is their unattenuated level, and distance falloff applies on top of it.
 
-Muting someone only affects what **you** hear. It does not stop them hearing you.
+Muting someone affects only what **you** hear. They can still hear you.
+
+Adjustments stay after the player walks away or logs off. To find someone no longer on screen, or to undo a mute, open **Settings → Players**. It lists everyone you have heard and has a reset for all of them.

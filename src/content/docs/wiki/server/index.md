@@ -10,7 +10,7 @@ Adding BVC means running one extra service and installing one Addon. The order m
 
 ## What is Bedrock Voice Chat Server?
 
-The BVC server is a standalone Rust executable, run in a Docker container. It is not a Minecraft plugin and does not run inside your game server, so most commercial Minecraft hosts will not let you run it alongside one. Plan on a VPS, a dedicated box, or a cluster.
+The BVC server is a standalone Rust executable, run in a Docker container. It is not a Minecraft plugin and does not run inside your game server. Most commercial Minecraft hosts will not let you run it alongside one. Plan on a VPS, a dedicated box, or a cluster.
 
 On Bedrock the server side is an Addon. On Java it is a Fabric or Paper mod. Either way it reports player positions to the BVC server over HTTP.
 
@@ -18,7 +18,7 @@ The Java mod can also run BVC embedded in the game server's JVM, which removes t
 
 ## Installation Order
 
-The Addon needs the BVC server's address, so build from the bottom up. Running these out of order is the most common reason a fresh install appears to do nothing.
+Build from the bottom up. The Addon needs the BVC server's address, and running these out of order is the most common reason a fresh install appears to do nothing.
 
 1. **[Install the BVC server](/wiki/server/installation/)** — needs a reachable host and a certificate. BVC can obtain and renew the certificate itself; see [TLS](/wiki/server/tls/).
 2. **Install the Addon** — [Bedrock](/wiki/server/bedrock-addon/) or [Java](/wiki/server/java-mod/) — pointed at that address, with the same `access_token`.
