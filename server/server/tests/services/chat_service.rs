@@ -51,13 +51,70 @@ async fn a_second_registration_for_a_world_displaces_the_first() {
     let (tx_a, _rx_a) = tokio::sync::mpsc::channel(8);
     let (tx_b, _rx_b) = tokio::sync::mpsc::channel(8);
 
-    assert!(svc.register("w1".into(), "Survival".into(), tx_a).is_none());
-    let displaced = svc.register("w1".into(), "Survival".into(), tx_b);
+    assert!(
+        svc.register(svc.next_socket_id(), "w1".into(), "Survival".into(), tx_a)
+            .is_none()
+    );
+    let displaced = svc.register(svc.next_socket_id(), "w1".into(), "Survival".into(), tx_b);
 
     assert!(
         displaced.is_some(),
         "the previous socket must be handed back so the caller can close it"
     );
+}
+
+// The caller hands over its only sender, so dropping the displaced one is what ends that
+// connection. A retained clone anywhere leaves the displaced socket running unregistered and
+// still connected, which is how one world accumulated five live sockets.
+#[tokio::test]
+async fn dropping_a_displaced_sender_closes_that_sockets_outbound_channel() {
+    let svc = ChatService::new_shared();
+    let worlds = vec!["overworld".to_string(), "nether".to_string()];
+
+    let (tx_a, mut rx_a) = tokio::sync::mpsc::channel(8);
+    svc.register_room(svc.next_socket_id(), &worlds, "Survival".into(), tx_a);
+
+    let (tx_b, _rx_b) = tokio::sync::mpsc::channel(8);
+    let displaced = svc.register_room(svc.next_socket_id(), &worlds, "Survival".into(), tx_b);
+
+    for sender in displaced {
+        drop(sender);
+    }
+
+    assert!(
+        rx_a.recv().await.is_none(),
+        "the displaced socket must observe its channel close so its loop can end"
+    );
+}
+
+// A displaced socket tears down under the ids it registered, and it does so after the socket
+// that replaced it is already serving them. Releasing by world alone removed the live
+// registration: chat then stopped with nothing logged and no frame refused.
+#[tokio::test]
+async fn a_displaced_sockets_teardown_leaves_the_live_registration_alone() {
+    let svc = ChatService::new_shared();
+
+    let (tx_a, _rx_a) = tokio::sync::mpsc::channel(8);
+    let first = svc.next_socket_id();
+    svc.register(first, "w1".into(), "Survival".into(), tx_a);
+
+    let (tx_b, mut rx_b) = tokio::sync::mpsc::channel(8);
+    let second = svc.next_socket_id();
+    svc.register(second, "w1".into(), "Survival".into(), tx_b);
+
+    svc.unregister("w1", first);
+
+    assert!(
+        svc.is_available("w1"),
+        "the live socket must keep the world it registered"
+    );
+    svc.on_app_send("minecraft:Alaydriem", "w1", "still here".into())
+        .await
+        .expect("the live socket must still accept a send");
+    assert!(rx_b.recv().await.is_some(), "the live socket must receive it");
+
+    svc.unregister("w1", second);
+    assert!(!svc.is_available("w1"));
 }
 
 #[tokio::test]
@@ -66,10 +123,11 @@ async fn availability_follows_registration() {
     assert!(!svc.is_available("w1"));
 
     let (tx, _rx) = tokio::sync::mpsc::channel(8);
-    svc.register("w1".into(), "Survival".into(), tx);
+    let id = svc.next_socket_id();
+    svc.register(id, "w1".into(), "Survival".into(), tx);
     assert!(svc.is_available("w1"));
 
-    svc.unregister("w1");
+    svc.unregister("w1", id);
     assert!(!svc.is_available("w1"));
 }
 
@@ -77,7 +135,7 @@ async fn availability_follows_registration() {
 async fn the_world_name_from_hello_is_retained_for_the_picker_label() {
     let svc = ChatService::new_shared();
     let (tx, _rx) = tokio::sync::mpsc::channel(8);
-    svc.register("w1".into(), "Survival".into(), tx);
+    svc.register(svc.next_socket_id(), "w1".into(), "Survival".into(), tx);
 
     assert_eq!(svc.world_name("w1").as_deref(), Some("Survival"));
 }
@@ -97,7 +155,7 @@ async fn an_app_send_to_a_world_with_no_channel_is_rejected() {
 async fn an_app_send_reaches_the_registered_socket_as_a_say_frame() {
     let svc = ChatService::new_shared();
     let (tx, mut rx) = tokio::sync::mpsc::channel(8);
-    svc.register("w1".into(), "Survival".into(), tx);
+    svc.register(svc.next_socket_id(), "w1".into(), "Survival".into(), tx);
 
     svc.on_app_send("minecraft:Alaydriem", "w1", "hello".into())
         .await
@@ -141,7 +199,7 @@ async fn an_app_send_is_also_fanned_out_to_clients() {
     let sink = RecordingSink::new();
     svc.add_sink(sink.clone());
     let (tx, _rx) = tokio::sync::mpsc::channel(8);
-    svc.register("w1".into(), "Survival".into(), tx);
+    svc.register(svc.next_socket_id(), "w1".into(), "Survival".into(), tx);
 
     svc.on_app_send("minecraft:Alaydriem", "w1", "from the app".into())
         .await
@@ -181,7 +239,7 @@ async fn an_app_send_reaches_every_id_the_room_spans() {
 
     let (tx, _rx) = tokio::sync::mpsc::channel(8);
     let worlds = vec!["overworld".to_string(), "nether".to_string()];
-    svc.register_room(&worlds, "Survival".into(), tx);
+    svc.register_room(svc.next_socket_id(), &worlds, "Survival".into(), tx);
 
     svc.on_app_send("minecraft:Alaydriem", "overworld", "from the app".into())
         .await

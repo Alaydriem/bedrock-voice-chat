@@ -35,9 +35,15 @@ pub fn chat(
     ws.channel(move |mut stream| {
         Box::pin(async move {
             let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(OUTBOUND_CAPACITY);
+            // Handed to the registry on `hello` and not retained here, so that the registry
+            // holds the only sender. Displacing this socket then closes `rx`, which is what
+            // ends the loop below. Keeping a copy would leave the displaced socket running
+            // forever: unregistered, invisible, and still connected.
+            let mut tx = Some(tx);
             // Every id this socket is registered under. Usually one; several when a mod
             // covers a dimension-per-id server.
             let mut registered: Vec<String> = Vec::new();
+            let socket_id = service.next_socket_id();
 
             loop {
                 tokio::select! {
@@ -56,11 +62,12 @@ pub fn chat(
 
                         match frame {
                             ChatFrame::Hello { world: uuid, world_name, worlds, .. } => {
-                                if !registered.is_empty() {
-                                    // One hello per socket. A second is a confused mod, and
-                                    // honouring it would silently move the registration.
+                                // One hello per socket, enforced by the sender being taken:
+                                // a second is a confused mod, and honouring it would silently
+                                // move the registration.
+                                let Some(sender) = tx.take() else {
                                     continue;
-                                }
+                                };
 
                                 // The canonical id first, then any extra ids the same room
                                 // spans. Deduplicated so a mod listing its primary twice does
@@ -73,10 +80,11 @@ pub fn chat(
                                 }
 
                                 // Registered as one room so a lookup by any id answers for
-                                // all of them. Displaced sockets are dropped rather than left
-                                // running: two registrations for one id doubles every message.
+                                // all of them. Dropping the displaced senders closes those
+                                // sockets, because the registry holds the only one each has:
+                                // two registrations for one id doubles every message.
                                 for previous in
-                                    service.register_room(&keys, world_name, tx.clone())
+                                    service.register_room(socket_id, &keys, world_name, sender)
                                 {
                                     drop(previous);
                                 }
@@ -112,7 +120,7 @@ pub fn chat(
             }
 
             for uuid in &registered {
-                service.unregister(uuid);
+                service.unregister(uuid, socket_id);
             }
             Ok(())
         })

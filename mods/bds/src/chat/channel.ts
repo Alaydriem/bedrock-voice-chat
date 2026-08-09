@@ -25,6 +25,7 @@ export class ChatChannel {
   private stopped = false;
   private backoff = BACKOFF_MIN_TICKS;
   private liveness: number | null = null;
+  private retryPending = false;
 
   constructor(
     private readonly serverUrl: string,
@@ -43,10 +44,15 @@ export class ChatChannel {
     void this.connect();
 
     // This client exposes no ping API, so liveness is `isOpen` plus the close event.
+    //
+    // It is a backstop for a socket that died without a close event, never a second dialler:
+    // a retry already in flight owns the reconnect, and dialling alongside it is what turns
+    // one dropped connection into several live ones.
     this.liveness = system.runInterval(() => {
-      if (!this.stopped && !this.isOpen && !this.connecting) {
-        void this.connect();
+      if (this.stopped || this.connecting || this.retryPending || this.isOpen) {
+        return;
       }
+      void this.connect();
     }, LIVENESS_TICKS);
   }
 
@@ -56,10 +62,9 @@ export class ChatChannel {
       system.clearRun(this.liveness);
       this.liveness = null;
     }
-    if (this.client && this.client.isOpen) {
-      this.client.close();
-    }
+    const current = this.client;
     this.client = null;
+    this.discard(current);
   }
 
   /**
@@ -95,11 +100,27 @@ export class ChatChannel {
         new net.HttpHeader('X-MC-Access-Token', this.accessToken),
       ]);
 
+      if (this.stopped) {
+        this.discard(client);
+        return;
+      }
+
+      // Whatever was here is no longer the channel. Left open it would stay registered on the
+      // server until the server displaced it, and its eventual close would be read as this
+      // one's. Installed before the old one is closed, so that close is recognised as stale.
+      const previous = this.client;
       this.client = client;
+      this.discard(previous);
       this.backoff = BACKOFF_MIN_TICKS;
 
       client.afterEvents.message.subscribe((e) => this.receive(e.message));
       client.afterEvents.close.subscribe((e) => {
+        // A socket already replaced says nothing about the current one. Acting on its close
+        // both discards a live client and dials again, which is how one drop becomes many
+        // connections.
+        if (this.client !== client) {
+          return;
+        }
         console.warn('[BVC] chat channel closed: ' + e.reason);
         this.client = null;
         this.scheduleRetry();
@@ -144,16 +165,40 @@ export class ChatChannel {
     }
   }
 
+  /**
+   * Arranges one redial.
+   *
+   * At most one is ever outstanding. Every socket that dies asks for a retry, and a world
+   * holding several sockets therefore asks several times for the one connection it wants;
+   * honouring each request builds a socket per request and the count only climbs.
+   */
   private scheduleRetry(): void {
-    if (this.stopped) {
+    if (this.stopped || this.retryPending) {
       return;
     }
+    this.retryPending = true;
+
     // Jitter is load-bearing: without it a BVC server restart has every world's mod redial in
     // lockstep, and they all fail together again.
     const jitter = Math.floor(Math.random() * BACKOFF_MIN_TICKS);
     const delay = Math.min(this.backoff, BACKOFF_MAX_TICKS) + jitter;
     this.backoff = Math.min(this.backoff * 2, BACKOFF_MAX_TICKS);
-    system.runTimeout(() => void this.connect(), delay);
+    system.runTimeout(() => {
+      this.retryPending = false;
+      void this.connect();
+    }, delay);
+  }
+
+  /** Closes a socket this channel is done with. A closed one throws rather than reporting. */
+  private discard(client: WebSocketClient | null): void {
+    if (!client || !client.isOpen) {
+      return;
+    }
+    try {
+      client.close();
+    } catch (e) {
+      console.warn('[BVC] chat channel close failed: ' + e);
+    }
   }
 
   private async loadNet(): Promise<ServerNetModule | null> {

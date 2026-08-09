@@ -8,6 +8,7 @@ pub use registry::{ChatSocket, ChatSocketRegistry};
 pub use rejection::ChatRejection;
 pub use sink::ChatSink;
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Duration;
 
@@ -38,6 +39,7 @@ pub struct ChatService {
     /// Throttles the history upsert. A player is seen in a world four times a second, and the
     /// row only needs to be fresh enough to order a picker.
     recently_recorded: moka::future::Cache<(String, String), ()>,
+    next_socket_id: AtomicU64,
 }
 
 impl ChatService {
@@ -52,6 +54,7 @@ impl ChatService {
                 .time_to_live(Duration::from_secs(300))
                 .max_capacity(1024)
                 .build(),
+            next_socket_id: AtomicU64::new(1),
         }
     }
 
@@ -77,19 +80,29 @@ impl ChatService {
         }
     }
 
+    /// Claims an identity for one connection, before it registers.
+    ///
+    /// Held by the caller for the life of the connection and handed back at teardown, so a
+    /// socket only ever releases the registration it still owns.
+    pub fn next_socket_id(&self) -> u64 {
+        self.next_socket_id.fetch_add(1, Ordering::Relaxed)
+    }
+
     pub fn register(
         &self,
+        id: u64,
         world_uuid: String,
         world_name: String,
         tx: mpsc::Sender<String>,
     ) -> Option<mpsc::Sender<String>> {
-        tracing::info!(world = %world_uuid, name = %world_name, "chat channel registered");
-        self.registry.register(world_uuid, world_name, tx)
+        tracing::info!(world = %world_uuid, name = %world_name, socket = id, "chat channel registered");
+        self.registry.register(id, world_uuid, world_name, tx)
     }
 
     /// Registers one socket under every id its room spans.
     pub fn register_room(
         &self,
+        id: u64,
         worlds: &[String],
         world_name: String,
         tx: mpsc::Sender<String>,
@@ -97,14 +110,15 @@ impl ChatService {
         tracing::info!(
             worlds = ?worlds,
             name = %world_name,
+            socket = id,
             "chat channel registered"
         );
-        self.registry.register_room(worlds, world_name, tx)
+        self.registry.register_room(id, worlds, world_name, tx)
     }
 
-    pub fn unregister(&self, world_uuid: &str) {
-        tracing::info!(world = %world_uuid, "chat channel unregistered");
-        self.registry.unregister(world_uuid);
+    pub fn unregister(&self, world_uuid: &str, id: u64) {
+        tracing::info!(world = %world_uuid, socket = id, "chat channel unregistered");
+        self.registry.unregister(world_uuid, id);
     }
 
     pub fn is_available(&self, world_uuid: &str) -> bool {

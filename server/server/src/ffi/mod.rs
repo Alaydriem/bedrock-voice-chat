@@ -28,7 +28,7 @@ use common::traits::player_data::PlayerData;
 use sea_orm::DatabaseConnection;
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
 /// Opaque handle to a server runtime instance
@@ -59,6 +59,11 @@ pub struct RuntimeHandle {
     chat_outbound: Mutex<Option<tokio::sync::mpsc::Receiver<String>>>,
     /// Every world id the embedded mod registered, so shutdown can release them all.
     chat_rooms: Mutex<Vec<String>>,
+    /// Identity of the registration `chat_rooms` describes.
+    ///
+    /// Released against this, so a re-register followed by the older teardown cannot remove
+    /// the newer registration.
+    chat_socket_id: AtomicU64,
     /// The configuration the server resolved, kept so an embedder can read the
     /// values defaults and environment overrides decided.
     resolved_config: String,
@@ -209,6 +214,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         chat_service,
         chat_outbound: Mutex::new(None),
         chat_rooms: Mutex::new(Vec::new()),
+        chat_socket_id: AtomicU64::new(0),
         resolved_config,
         recording_enabled: AtomicBool::new(recording_enabled),
     });
@@ -1223,7 +1229,8 @@ pub unsafe extern "C" fn bvc_chat_register(
         // a conversation that has already moved on.
         let (tx, rx) = tokio::sync::mpsc::channel::<String>(64);
 
-        for previous in service.register_room(&keys, world_name, tx) {
+        let socket_id = service.next_socket_id();
+        for previous in service.register_room(socket_id, &keys, world_name, tx) {
             drop(previous);
         }
 
@@ -1233,6 +1240,7 @@ pub unsafe extern "C" fn bvc_chat_register(
         if let Ok(mut rooms) = handle_ref.chat_rooms.lock() {
             *rooms = keys;
         }
+        handle_ref.chat_socket_id.store(socket_id, Ordering::SeqCst);
 
         0
     })
@@ -1409,8 +1417,9 @@ pub unsafe extern "C" fn bvc_chat_unregister(handle: *mut RuntimeHandle) -> c_in
         };
 
         if let (Some(service), Ok(mut rooms)) = (service, handle_ref.chat_rooms.lock()) {
+            let socket_id = handle_ref.chat_socket_id.load(Ordering::SeqCst);
             for world in rooms.iter() {
-                service.unregister(world);
+                service.unregister(world, socket_id);
             }
             rooms.clear();
         }
