@@ -228,6 +228,22 @@ impl AudioInputSource {
                         None,
                     )
                 }
+                // Both formats are already normalised to [-1.0, 1.0], so the width is the
+                // only difference and the cast is the whole conversion.
+                rodio::cpal::SampleFormat::F64 => {
+                    let process = process.clone();
+                    cpal_device.build_input_stream(
+                        cfg,
+                        move |data: &[f64], _: &rodio::cpal::InputCallbackInfo| {
+                            let f32_data: Vec<f32> =
+                                data.iter().map(|&sample| sample as f32).collect();
+                            let mut pf = process.lock().unwrap_or_else(|e| e.into_inner());
+                            pf(&f32_data);
+                        },
+                        err_fn,
+                        None,
+                    )
+                }
                 rodio::cpal::SampleFormat::I32 => {
                     let process = process.clone();
                     cpal_device.build_input_stream(

@@ -5,6 +5,12 @@ use tokio::sync::mpsc;
 
 /// One mod's chat connection.
 pub struct ChatSocket {
+    /// Distinguishes this connection from any other that has held the same world id.
+    ///
+    /// Every registry write is keyed by world, so without it a socket that is displaced and
+    /// dies later removes whatever entry currently holds its key — the live socket's. Chat
+    /// then stops with nothing logged and no frame refused.
+    pub id: u64,
     pub world_name: String,
     pub tx: mpsc::Sender<String>,
     /// Every id this room spans, shared by all of its entries.
@@ -36,6 +42,7 @@ impl ChatSocketRegistry {
     /// registered for one world: every `say` pushed twice, every line reported twice.
     pub fn register(
         &self,
+        id: u64,
         world_uuid: String,
         world_name: String,
         tx: mpsc::Sender<String>,
@@ -45,6 +52,7 @@ impl ChatSocketRegistry {
             .insert(
                 world_uuid,
                 ChatSocket {
+                    id,
                     world_name,
                     tx,
                     room,
@@ -59,6 +67,7 @@ impl ChatSocketRegistry {
     /// for one id would double every message.
     pub fn register_room(
         &self,
+        id: u64,
         worlds: &[String],
         world_name: String,
         tx: mpsc::Sender<String>,
@@ -70,6 +79,7 @@ impl ChatSocketRegistry {
             if let Some(previous) = self.sockets.insert(
                 world_uuid.clone(),
                 ChatSocket {
+                    id,
                     world_name: world_name.clone(),
                     tx: tx.clone(),
                     room: Arc::clone(&room),
@@ -107,8 +117,13 @@ impl ChatSocketRegistry {
         out
     }
 
-    pub fn unregister(&self, world_uuid: &str) {
-        self.sockets.remove(world_uuid);
+    /// Releases this id only if `id` still holds it.
+    ///
+    /// A displaced socket keeps running until its own transport notices, and it tears down
+    /// under the ids it registered. Removing by id alone would take the live socket's entry
+    /// with it.
+    pub fn unregister(&self, world_uuid: &str, id: u64) {
+        self.sockets.remove_if(world_uuid, |_, socket| socket.id == id);
     }
 
     pub fn contains(&self, world_uuid: &str) -> bool {

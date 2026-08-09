@@ -105,6 +105,7 @@ impl AudioDevice {
         for c in supported_stream_configs {
             let best_sample_rate = super::stream::config::StreamConfig::best_sample_rate(&c);
             let has_valid_format = c.sample_format().eq(&rodio::cpal::SampleFormat::F32)
+                || c.sample_format().eq(&rodio::cpal::SampleFormat::F64)
                 || c.sample_format().eq(&rodio::cpal::SampleFormat::I32)
                 || c.sample_format().eq(&rodio::cpal::SampleFormat::I16);
 
@@ -121,6 +122,7 @@ impl AudioDevice {
                     sample_rate,
                     sample_format: match c.sample_format() {
                         rodio::cpal::SampleFormat::F32 => "f32",
+                        rodio::cpal::SampleFormat::F64 => "f64",
                         rodio::cpal::SampleFormat::I16 => "i16",
                         rodio::cpal::SampleFormat::I32 => "i32",
                         _ => "f32",
@@ -132,9 +134,7 @@ impl AudioDevice {
             }
         }
 
-        stream_configs.sort_by(|a, b| b.sample_rate.cmp(&a.sample_rate));
-
-        stream_configs
+        StreamConfig::preference_order(stream_configs)
     }
 
     pub fn get_stream_config(&self) -> Result<rodio::cpal::SupportedStreamConfig, anyhow::Error> {
