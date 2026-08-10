@@ -12,9 +12,6 @@ class Tls {
     @SerializedName("key")
     var key: String? = null
 
-    @SerializedName("so_reuse_port")
-    var soReusePort: Boolean? = null
-
     @SerializedName("certs_path")
     var certsPath: String? = null
 

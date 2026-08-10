@@ -5,8 +5,8 @@ use common::structs::packet::PeerPresenceInjectPacket;
 use common::structs::relay::OfferRequest;
 use rocket::{State, http::Status, serde::json::Json};
 
-use crate::http::guards::{RateLimited, RelayOfferRateLimit};
 use crate::relay::{CodeSealer, LocalInjectDelivery, ServerPeerStore};
+use crate::services::RelayRateLimiter;
 use rocket_okapi::openapi;
 
 // How long a freshly offered peer code stays redeemable.
@@ -22,12 +22,20 @@ const OFFER_CODE_TTL: Duration = Duration::from_secs(180);
 #[openapi(tag = "Relay")]
 #[post("/offer", data = "<payload>")]
 pub fn offer(
-    _rate_limit: RateLimited<'_, RelayOfferRateLimit>,
     payload: Json<OfferRequest>,
     store: &State<Arc<ServerPeerStore>>,
     inject: &State<Arc<dyn LocalInjectDelivery>>,
+    rate_limit: &State<Arc<RelayRateLimiter>>,
 ) -> Status {
     let req = payload.0;
+
+    // Bounded per world: the inject lands in one realm, so the realm is what a flood
+    // would drown. Checked here rather than in a request guard, which runs before the
+    // body this key comes from has been read.
+    if !rate_limit.allow_offer(&req.hashed_world) {
+        return Status::TooManyRequests;
+    }
+
     let code = match store.mint(
         &req.hashed_world,
         &req.asker_host,

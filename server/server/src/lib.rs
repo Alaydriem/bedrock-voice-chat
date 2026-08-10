@@ -6,6 +6,7 @@ extern crate common;
 extern crate rocket;
 
 pub mod config;
+pub mod demux;
 pub mod http;
 pub mod relay;
 pub mod services;

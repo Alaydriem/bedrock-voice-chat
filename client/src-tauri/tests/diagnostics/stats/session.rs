@@ -1,3 +1,4 @@
+use common::structs::metrics::TransportKind;
 use bvc_client_lib::diagnostics::LinkSession;
 use common::structs::reachability::AddressFamily;
 
@@ -12,7 +13,7 @@ fn the_recorded_family_and_port_are_reported_unchanged() {
     // socket — lives at the call site in `network/stream/mod.rs` and is not testable from here
     // without a live handshake. `scenarios::dual_stack` covers that end.
     let session = LinkSession::new();
-    session.set(AddressFamily::Ipv4, 443, "bvc.example.com".to_string(), CA_PEM);
+    session.set(Some(AddressFamily::Ipv4), 443, TransportKind::Quic, "bvc.example.com".to_string(), CA_PEM);
 
     assert_eq!(session.family(), Some(AddressFamily::Ipv4));
     assert_eq!(session.port(), Some(443));
@@ -21,7 +22,7 @@ fn the_recorded_family_and_port_are_reported_unchanged() {
 #[test]
 fn an_ipv6_session_reports_ipv6() {
     let session = LinkSession::new();
-    session.set(AddressFamily::Ipv6, 443, "bvc.example.com".to_string(), CA_PEM);
+    session.set(Some(AddressFamily::Ipv6), 443, TransportKind::Quic, "bvc.example.com".to_string(), CA_PEM);
 
     assert_eq!(session.family(), Some(AddressFamily::Ipv6));
 }
@@ -39,7 +40,7 @@ fn uptime_is_zero_before_a_connection_is_recorded() {
 #[test]
 fn clearing_the_session_resets_port_family_and_uptime() {
     let session = LinkSession::new();
-    session.set(AddressFamily::Ipv6, 4443, "bvc.example.com".to_string(), CA_PEM);
+    session.set(Some(AddressFamily::Ipv6), 4443, TransportKind::Quic, "bvc.example.com".to_string(), CA_PEM);
     assert!(session.is_connected());
 
     session.clear();
@@ -56,8 +57,8 @@ fn clearing_the_session_resets_port_family_and_uptime() {
 #[test]
 fn reconnecting_replaces_the_previous_session() {
     let session = LinkSession::new();
-    session.set(AddressFamily::Ipv4, 443, "old.example.com".to_string(), CA_PEM);
-    session.set(AddressFamily::Ipv6, 4443, "new.example.com".to_string(), CA_PEM);
+    session.set(Some(AddressFamily::Ipv4), 443, TransportKind::Quic, "old.example.com".to_string(), CA_PEM);
+    session.set(Some(AddressFamily::Ipv6), 4443, TransportKind::Quic, "new.example.com".to_string(), CA_PEM);
 
     assert_eq!(session.family(), Some(AddressFamily::Ipv6));
     assert_eq!(session.port(), Some(4443));

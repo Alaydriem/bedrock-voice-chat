@@ -1,6 +1,6 @@
 use crate::NetworkPacket;
 use bytes::Bytes;
-use common::s2n_quic::Connection;
+use crate::network::stream::link::DatagramLink;
 use common::structs::packet::{DebugPacket, QuicNetworkPacket};
 use log::{error, info};
 use std::sync::{
@@ -20,7 +20,7 @@ pub(crate) struct OutputStream {
     /// every other packet leaves here unattributed, because the server takes the sender
     /// from the certificate rather than from anything written here.
     pub identity: String,
-    pub connection: Option<Arc<Connection>>,
+    pub link: Option<DatagramLink>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<moka::future::Cache<String, String>>,
@@ -58,7 +58,7 @@ impl common::traits::StreamTrait for OutputStream {
 
         let mut jobs = vec![];
         let rx = self.bus.clone();
-        let connection = self.connection.clone().unwrap();
+        let link = self.link.clone().unwrap();
         let identity = self.identity.clone();
         let app_handle = self.app_handle.clone();
         let transport_stats = self.transport_stats.clone();
@@ -84,7 +84,7 @@ impl common::traits::StreamTrait for OutputStream {
                 Ok(bytes) => {
                     info!("Sent debug packet to server.");
                     let payload = Bytes::from(bytes);
-                    if let Err(e) = connection.datagram_mut(|dg: &mut common::s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone())) { error!("Debug datagram send error: {:?}", e); }
+                    if let Err(e) = link.send(payload.clone()) { error!("Debug datagram send error: {:?}", e); }
                 }
                 Err(e) => { error!("Failed to serialize DEBUG packet: {:?}", e); }
             }
@@ -105,7 +105,7 @@ impl common::traits::StreamTrait for OutputStream {
                         match quic_network_packet.to_datagram() {
                             Ok(bytes) => {
                                 let payload = Bytes::from(bytes);
-                                let send_res = connection.datagram_mut(|dg: &mut common::s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone()));
+                                let send_res = link.send(payload.clone());
                                 if let Err(e) = send_res {
                                     transport_stats.record_send_error();
                                     error_count += 1;
@@ -151,14 +151,14 @@ impl OutputStream {
     pub fn new(
         consumer: Arc<flume::Receiver<NetworkPacket>>,
         identity: String,
-        connection: Option<Arc<Connection>>,
+        link: Option<DatagramLink>,
         app_handle: tauri::AppHandle,
         transport_stats: Arc<crate::diagnostics::TransportStats>,
     ) -> Self {
         Self {
             bus: consumer.clone(),
             identity,
-            connection,
+            link,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
             metadata: Arc::new(moka::future::Cache::builder().build()),

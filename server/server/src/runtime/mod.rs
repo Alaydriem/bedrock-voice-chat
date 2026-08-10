@@ -386,9 +386,20 @@ impl ServerRuntime {
             self.config.server.bedrock.transfer_cache_ttl_secs,
         );
 
+        // The API listener moves to loopback and the TLS demultiplexer takes the public
+        // port, so one hostname and one certificate serve the API, the browser feeds and
+        // the WebSocket voice transport. Resolved once here rather than per launch: an
+        // ACME renewal relaunches Rocket, and a fresh port each time would leave the
+        // demultiplexer relaying to an address nothing is listening on.
+        let api_bind = std::net::SocketAddr::from((
+            std::net::Ipv4Addr::LOCALHOST,
+            crate::demux::LoopbackPort::reserve()?,
+        ));
+
         // Create Rocket manager
         let mut rocket_manager = RocketManager::new(
             self.config.clone(),
+            api_bind,
             webhook_receiver,
             cache_manager,
             player_registrar,
@@ -522,14 +533,58 @@ impl ServerRuntime {
             drop(acme_renewed_tx);
         }
 
-        // Main event loop: run QUIC + Rocket until one stops or shutdown is requested,
-        // with the low-cadence channel reaper as a structured arm. On exit the pinned
-        // futures drop (structured cancellation) — no detached task, no separate
-        // shutdown wiring for the periodic work.
+        // The public TLS port. A peer of QUIC and Rocket rather than an optional extra:
+        // nothing reaches the API or the voice transport if this cannot bind, so it is an
+        // arm of the loop below and its failure stops the server rather than being logged
+        // into a server that then serves nobody.
+        let public_listen_ip: std::net::IpAddr = self
+            .config
+            .server
+            .unbracketed_listen()
+            .parse()
+            .map_err(|e| {
+                anyhow!(
+                    "server.listen = \"{}\" is not an IP address: {e}",
+                    self.config.server.listen
+                )
+            })?;
+        let public_port = u16::try_from(self.config.server.port).map_err(|_| {
+            anyhow!(
+                "server.port = {} is outside the range of a TCP port",
+                self.config.server.port
+            )
+        })?;
+        // The WebSocket voice transport. Bound before the demultiplexer so the address is
+        // known when it is handed over, and so its readiness gate has something to wait
+        // for rather than a port nothing will ever answer on.
+        let (mut websocket_listener, websocket_bind) = crate::stream::session::WebSocketListener::bind(
+            &self.config.server.tls.certificate,
+            &self.config.server.tls.key,
+            &format!("{}/ca.crt", self.config.server.tls.certs_path),
+            quic_manager.session_spawner(),
+        )
+        .await?;
+        websocket_listener.set_metrics(metrics.clone());
+        tracing::info!(bind = %websocket_bind, "WebSocket voice transport bound");
+
+        let demux = crate::demux::AlpnDemux::new(
+            std::net::SocketAddr::new(public_listen_ip, public_port),
+            api_bind,
+            Some(websocket_bind),
+        );
+
+        // Main event loop: run QUIC + Rocket + the demultiplexer until one stops or
+        // shutdown is requested, with the low-cadence channel reaper as a structured arm.
+        // On exit the pinned futures drop (structured cancellation) — no detached task, no
+        // separate shutdown wiring for the periodic work.
         // Note: CTRL+C handling is done by the host process (Java/CLI), not here.
         {
         let quic = quic_manager.start();
         tokio::pin!(quic);
+        let demux = demux.start();
+        tokio::pin!(demux);
+        let websocket = websocket_listener.start();
+        tokio::pin!(websocket);
         let mut rocket = Box::pin(rocket_manager.start());
         let mut relaunch_rocket = false;
         let mut reap_interval = tokio::time::interval(std::time::Duration::from_secs(60));
@@ -539,6 +594,20 @@ impl ServerRuntime {
                     match result {
                         Ok(_) => tracing::info!("QUIC server stopped normally"),
                         Err(e) => tracing::error!("QUIC server error: {}", e),
+                    }
+                    break;
+                }
+                result = &mut demux => {
+                    match result {
+                        Ok(_) => tracing::info!("TLS demultiplexer stopped normally"),
+                        Err(e) => tracing::error!("TLS demultiplexer error: {}", e),
+                    }
+                    break;
+                }
+                result = &mut websocket => {
+                    match result {
+                        Ok(_) => tracing::info!("WebSocket voice listener stopped normally"),
+                        Err(e) => tracing::error!("WebSocket voice listener error: {}", e),
                     }
                     break;
                 }

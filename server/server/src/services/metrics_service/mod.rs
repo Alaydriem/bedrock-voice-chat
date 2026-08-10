@@ -11,6 +11,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
+use common::structs::metrics::TransportKind;
 use metrics::{counter, describe_histogram, gauge, histogram};
 use metrics_exporter_dogstatsd::DogStatsDBuilder;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
@@ -302,8 +303,12 @@ impl MetricsService {
         &self.server_id
     }
 
-    pub fn record_connect(&self, player_name: &str) {
-        counter!(Metric::PlayerConnectionsTotal.name()).increment(1);
+    /// `transport` is a label rather than a separate metric so one query answers both
+    /// "how many players are connected" and "how many of them could not use QUIC". The
+    /// second question has no client-side answer an operator can see.
+    pub fn record_connect(&self, player_name: &str, transport: TransportKind) {
+        counter!(Metric::PlayerConnectionsTotal.name(), "transport" => transport.as_str())
+            .increment(1);
         match self.recent_disconnects.get(player_name) {
             Some(left_at) => {
                 self.recent_disconnects.invalidate(player_name);
@@ -316,15 +321,25 @@ impl MetricsService {
         }
     }
 
-    pub fn record_disconnect(&self, player_name: &str, duration: Duration) {
-        counter!(Metric::PlayerDisconnectionsTotal.name()).increment(1);
-        histogram!(Metric::SessionDurationSeconds.name()).record(duration.as_secs_f64());
+    pub fn record_disconnect(&self, player_name: &str, duration: Duration, transport: TransportKind) {
+        counter!(Metric::PlayerDisconnectionsTotal.name(), "transport" => transport.as_str())
+            .increment(1);
+        histogram!(Metric::SessionDurationSeconds.name(), "transport" => transport.as_str())
+            .record(duration.as_secs_f64());
         self.recent_disconnects
             .insert(player_name.to_string(), Instant::now());
         self.emit(TelemetryEvent::PlayerDisconnected {
             at: Utc::now(),
             duration_secs: duration.as_secs(),
         });
+    }
+
+    /// A WebSocket connection that reached the listener and was refused before it became a
+    /// session — a certificate that verified but named no player, or an upgrade that never
+    /// completed. Distinct from a connect failure the client reports: this one is only
+    /// visible here.
+    pub fn record_websocket_rejection(&self) {
+        counter!(Metric::WebsocketHandshakeRejectionsTotal.name()).increment(1);
     }
 
     // Observable seam for the reconnect window, so the gating logic is testable

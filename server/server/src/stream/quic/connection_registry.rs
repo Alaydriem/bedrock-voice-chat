@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 use super::log_throttle::LogThrottle;
+use crate::stream::session::WebSocketDeviceId;
 use crate::relay::{ObservedCodeHandler, PeerManager, RelayedPacket};
 use crate::services::MetricsService;
 use crate::services::metrics_service::interaction::InteractionRoute;
@@ -281,9 +282,13 @@ impl ConnectionRegistry {
             // replaces an entry the reaper has not reached yet; close out that session
             // first so connect/disconnect counters and session durations stay balanced.
             if let Some(old) = replaced {
-                metrics.record_disconnect(&old.identity, old.connected_at.elapsed());
+                metrics.record_disconnect(
+                    &old.identity,
+                    old.connected_at.elapsed(),
+                    WebSocketDeviceId::transport_of(device),
+                );
             }
-            metrics.record_connect(&registered_name);
+            metrics.record_connect(&registered_name, WebSocketDeviceId::transport_of(device));
         }
         self.push_gauges();
     }
@@ -305,7 +310,11 @@ impl ConnectionRegistry {
                 self.player_channel.remove(&entry.identity);
             }
             if let Some(metrics) = self.metrics.get() {
-                metrics.record_disconnect(&entry.identity, entry.connected_at.elapsed());
+                metrics.record_disconnect(
+                    &entry.identity,
+                    entry.connected_at.elapsed(),
+                    WebSocketDeviceId::transport_of(device),
+                );
             }
             tracing::info!(
                 "Unregistered connection for player: {} (connections: {})",

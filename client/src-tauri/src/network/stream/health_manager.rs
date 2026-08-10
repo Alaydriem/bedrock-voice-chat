@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use common::consts::version::PROTOCOL_VERSION;
 use common::response::{ApiConfigCheckResponse, ApiConfigResponse};
-use common::s2n_quic::Connection;
+use crate::network::stream::link::DatagramLink;
 use common::structs::network::ConnectionHealth;
 use common::structs::packet::{
     HealthCheckPacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
@@ -82,6 +82,10 @@ impl Default for ReconnectConfig {
 
 /// Manages connection health monitoring and automatic reconnection
 pub struct ConnectionHealthManager {
+    /// Records a QUIC session that connected and then stopped carrying traffic — the one
+    /// failure a reachability probe cannot see, because the handshake it measures still
+    /// succeeds on exactly the networks that produce it.
+    transport_verdict: Arc<crate::network::TransportVerdict>,
     health_state: Arc<HealthMonitorState>,
     shutdown: Arc<AtomicBool>,
     task_handle: Option<AbortHandle>,
@@ -92,8 +96,12 @@ pub struct ConnectionHealthManager {
 
 impl ConnectionHealthManager {
     /// Create a new ConnectionHealthManager
-    pub fn new(app_handle: tauri::AppHandle) -> Self {
+    pub fn new(
+        app_handle: tauri::AppHandle,
+        transport_verdict: Arc<crate::network::TransportVerdict>,
+    ) -> Self {
         Self {
+            transport_verdict,
             health_state: Arc::new(HealthMonitorState::new()),
             shutdown: Arc::new(AtomicBool::new(false)),
             task_handle: None,
@@ -114,7 +122,7 @@ impl ConnectionHealthManager {
     }
 
     /// Start health monitoring for a connection
-    pub fn start(&mut self, connection: Arc<Connection>, server_url: String) {
+    pub fn start(&mut self, link: DatagramLink, server_url: String) {
         self.stop();
         self.shutdown.store(false, Ordering::Relaxed);
 
@@ -127,11 +135,13 @@ impl ConnectionHealthManager {
         let app_handle = self.app_handle.clone();
         let health_config = self.health_config.clone();
         let reconnect_config = self.reconnect_config.clone();
+        let transport_verdict = self.transport_verdict.clone();
 
         let handle = tokio::spawn(async move {
             Self::run_health_monitor(
                 health_state,
-                connection,
+                link,
+                transport_verdict,
                 shutdown,
                 app_handle,
                 server_url,
@@ -155,7 +165,8 @@ impl ConnectionHealthManager {
     /// Main health monitor loop
     async fn run_health_monitor(
         health_state: Arc<HealthMonitorState>,
-        connection: Arc<Connection>,
+        link: DatagramLink,
+        transport_verdict: Arc<crate::network::TransportVerdict>,
         shutdown: Arc<AtomicBool>,
         app_handle: tauri::AppHandle,
         server_url: String,
@@ -200,7 +211,7 @@ impl ConnectionHealthManager {
             if health_state.should_send_health_check(health_config.threshold) {
                 log::trace!("Sending health check packet");
 
-                Self::send_health_check(&connection, &health_state).await;
+                Self::send_health_check(&link, &health_state).await;
                 tokio::time::sleep(health_config.timeout).await;
 
                 let failures = health_state.on_timeout();
@@ -209,6 +220,15 @@ impl ConnectionHealthManager {
                         "Health check failed {} times, triggering reconnect",
                         failures
                     );
+
+                    // The session handshook and then stopped carrying traffic. On QUIC
+                    // that is the signature of a network which inspects or degrades UDP
+                    // rather than blocking it, and re-probing would report the server
+                    // reachable and hand back another session that dies the same way.
+                    if matches!(link, DatagramLink::Quic(_)) {
+                        transport_verdict.demote(&server_url);
+                    }
+
                     Self::probe_and_reconnect(&server_url, &app_handle, &reconnect_config).await;
                     break;
                 } else if failures > 0 {
@@ -219,7 +239,7 @@ impl ConnectionHealthManager {
     }
 
     /// Send a health check packet
-    async fn send_health_check(connection: &Connection, health_state: &HealthMonitorState) {
+    async fn send_health_check(link: &DatagramLink, health_state: &HealthMonitorState) {
         let health_packet = QuicNetworkPacket {
             packet_type: PacketType::HealthCheck,
             data: QuicNetworkPacketData::HealthCheck(HealthCheckPacket),
@@ -229,16 +249,10 @@ impl ConnectionHealthManager {
 
         health_state.set_awaiting(true);
 
-        if let Ok(bytes) = health_packet.to_datagram() {
-            let send_result = connection.datagram_mut(
-                |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
-                    dg.send_datagram(Bytes::from(bytes))
-                },
-            );
-
-            if let Err(e) = send_result {
-                log::warn!("Failed to send health check packet: {}", e);
-            }
+        if let Ok(bytes) = health_packet.to_datagram()
+            && let Err(e) = link.send(Bytes::from(bytes))
+        {
+            log::warn!("Failed to send health check packet: {}", e);
         }
     }
 

@@ -329,6 +329,16 @@ impl SinkManager {
         let recording_active = self.recording_active.clone();
         let spatial_config = self.spatial_config.clone();
         let peer_registry = self.peer_registry.clone();
+        // Read once per listener rather than per sink: a session cannot change transport
+        // while it is up, and a fresh sink mid-session must not be given a different
+        // buffer floor from the sinks beside it. A reconnect rebuilds this listener.
+        let transport = {
+            use tauri::Manager;
+            self.app_handle
+                .try_state::<std::sync::Arc<crate::diagnostics::LinkSession>>()
+                .and_then(|session| session.transport())
+                .unwrap_or(common::structs::metrics::TransportKind::Quic)
+        };
 
         // Spawn an async task; use async recv to avoid blocking
         let handle = tokio::spawn(async move {
@@ -475,6 +485,7 @@ impl SinkManager {
                             recording_producer.clone(),
                             recording_active.clone(),
                             stats,
+                            transport,
                         ) {
                             Ok((jitter_buffer, handle)) => {
                                 if let (Some(spatial_sink), Some(pan_state)) =
@@ -530,6 +541,7 @@ impl SinkManager {
                             recording_producer.clone(),
                             recording_active.clone(),
                             stats,
+                            transport,
                         ) {
                             Ok((jitter_buffer, handle)) => {
                                 if let Some(normal_sink) = &bundle.normal {

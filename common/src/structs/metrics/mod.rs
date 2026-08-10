@@ -10,6 +10,7 @@ mod server_id;
 mod session;
 mod snapshot;
 mod thresholds;
+mod transport_kind;
 
 pub use link::LinkDiagnostics;
 pub use mic::MicDiagnostics;
@@ -22,4 +23,5 @@ pub use sample::LinkSample;
 pub use server_id::ServerId;
 pub use session::SessionDiagnostics;
 pub use snapshot::LinkDiagnosticsSnapshot;
+pub use transport_kind::TransportKind;
 pub use thresholds::{LOSS_BAD_PCT, LOSS_DEGRADED_PCT, RTT_BAD_MS, RTT_DEGRADED_MS};

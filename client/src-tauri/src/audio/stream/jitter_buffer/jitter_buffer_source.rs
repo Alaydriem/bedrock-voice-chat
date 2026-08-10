@@ -94,12 +94,13 @@ impl JitterBufferSource {
         recording_producer: Option<RecordingProducer>,
         recording_active: Option<Arc<AtomicBool>>,
         receive_stats: Arc<PlayerReceiveStats>,
+        transport: common::structs::metrics::TransportKind,
     ) -> Result<Self, JitterBufferError> {
         let sample_rate = initial_packet.sample_rate as u32;
 
         let audio_processor = AudioProcessor::new(sample_rate, capacity)?;
 
-        let adaptation_engine = AdaptationEngine::new(capacity);
+        let adaptation_engine = AdaptationEngine::new(capacity, transport);
         let metrics_collector = MetricsCollector::default();
 
         let mut packet_ring = VecDeque::with_capacity(capacity);

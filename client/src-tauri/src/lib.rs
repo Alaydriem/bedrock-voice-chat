@@ -53,7 +53,10 @@ pub use crate::iap::store::StoreProvider;
 pub mod keybinds;
 mod keyring;
 mod logging;
-mod network;
+// Public for the one behavioural seam the integration tests need: `TransportVerdict`,
+// whose contract is that a demotion outlives the reconnect that produced it. That cannot
+// be observed from outside the crate any other way.
+pub mod network;
 pub mod players;
 mod structs;
 #[cfg(feature = "e2e")]

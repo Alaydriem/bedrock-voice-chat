@@ -806,12 +806,14 @@ dependencies = [
  "clap",
  "common",
  "constant_time_eq",
- "dashmap",
+ "dashmap 6.2.1",
  "deadqueue",
  "dirs",
  "dryoc",
  "entity",
  "faccess",
+ "futures-util",
+ "governor",
  "hcl-rs",
  "hex",
  "hickory-proto",
@@ -841,7 +843,6 @@ dependencies = [
  "ring",
  "ringbuf 0.4.8",
  "rocket",
- "rocket-governor",
  "rocket_cors",
  "rocket_okapi",
  "rocket_ws",
@@ -856,10 +857,13 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "socket2 0.5.10",
  "tempfile",
  "thiserror 2.0.18",
  "time",
  "tokio",
+ "tokio-rustls 0.26.4",
+ "tokio-tungstenite 0.29.0",
  "tokio-util",
  "toml",
  "tracing",
@@ -1816,6 +1820,19 @@ dependencies = [
 
 [[package]]
 name = "dashmap"
+version = "5.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "978747c1d849a7d2ee5e8adc0159961c48fb7e5db2f06af6723b80123bb53856"
+dependencies = [
+ "cfg-if",
+ "hashbrown 0.14.5",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
+]
+
+[[package]]
+name = "dashmap"
 version = "6.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6361d5c062261c78a176addb82d4c821ae42bed6089de0e12603cd25de2059c"
@@ -2623,12 +2640,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68a7f542ee6b35af73b06abc0dad1c1bae89964e4e253bc4b587b91c9637867b"
 dependencies = [
  "cfg-if",
+ "dashmap 5.5.3",
  "futures",
  "futures-timer",
  "no-std-compat",
  "nonzero_ext",
  "parking_lot",
  "portable-atomic",
+ "quanta",
+ "rand 0.8.6",
  "smallvec",
  "spinning_top",
 ]
@@ -5480,17 +5500,6 @@ dependencies = [
  "ubyte",
  "version_check",
  "yansi",
-]
-
-[[package]]
-name = "rocket-governor"
-version = "0.2.0-rc.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57cccf12e198100d5d49ce797ffcf0d7f064960624f42307851010521fe53611"
-dependencies = [
- "governor",
- "lazy_static",
- "rocket",
 ]
 
 [[package]]

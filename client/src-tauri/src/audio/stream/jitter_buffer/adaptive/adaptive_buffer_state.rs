@@ -1,3 +1,4 @@
+use common::structs::metrics::TransportKind;
 use std::time::{Duration, Instant};
 
 /// Dynamic buffer management and adaptation logic
@@ -35,9 +36,34 @@ impl Default for AdaptiveBufferState {
 }
 
 impl AdaptiveBufferState {
-    pub fn new(initial_capacity: usize) -> Self {
+    /// The smallest buffer each transport can be asked to hold, in milliseconds.
+    ///
+    /// QUIC loses a datagram and moves on, so 60 ms of headroom is enough to absorb the
+    /// jitter that remains. TCP instead retransmits, and the whole stream waits behind the
+    /// lost segment: a fast retransmit costs about one round trip, which on a link worth
+    /// using is well inside 140 ms. Below that floor the recovery arrives after the frame
+    /// was due and a recoverable hiccup becomes an audible dropout.
+    pub fn floor_ms(transport: TransportKind) -> usize {
+        match transport {
+            TransportKind::Quic => 60,
+            TransportKind::WebSocket => 140,
+        }
+    }
+
+    /// Where each transport starts before it has measured anything.
+    fn initial_ms(transport: TransportKind) -> usize {
+        match transport {
+            TransportKind::Quic => 120,
+            TransportKind::WebSocket => 180,
+        }
+    }
+
+    pub fn new(initial_capacity: usize, transport: TransportKind) -> Self {
         let mut state = Self::default();
-        state.current_capacity = initial_capacity.clamp(state.min_capacity, state.max_capacity);
+        state.min_capacity = Self::floor_ms(transport);
+        state.current_capacity = initial_capacity
+            .max(Self::initial_ms(transport))
+            .clamp(state.min_capacity, state.max_capacity);
         state
     }
 

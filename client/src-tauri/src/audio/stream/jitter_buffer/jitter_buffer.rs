@@ -52,6 +52,7 @@ impl JitterBuffer {
         recording_producer: Option<RecordingProducer>,
         recording_active: Option<Arc<AtomicBool>>,
         receive_stats: Arc<PlayerReceiveStats>,
+        transport: common::structs::metrics::TransportKind,
     ) -> Result<(Self, JitterBufferHandle), JitterBufferError> {
         let (tx, rx) = flume::unbounded::<Option<EncodedAudioFramePacket>>();
 
@@ -77,6 +78,7 @@ impl JitterBuffer {
             recording_producer,
             recording_active,
             receive_stats,
+            transport,
         )?;
 
         let jitter_buffer = Self {
