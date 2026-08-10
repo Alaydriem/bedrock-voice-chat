@@ -85,6 +85,9 @@ enum_dispatch = { version = "^0.3" }
 url = { version = "2" }
 x509-parser = { workspace = true }
 rustls = { version = "0.23" }
+rustls-pemfile = { version = "^2.0" }
+thiserror = { version = "^2" }
+webpki-roots = { version = "^0.26" }
 sha2 = { version = "0.10" }
 tar = { version = "^0.4" }
 zstd = { version = "^0.13" }

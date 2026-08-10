@@ -176,7 +176,7 @@ impl Server {
         true
     }
 
-    fn unbracketed_listen(&self) -> &str {
+    pub fn unbracketed_listen(&self) -> &str {
         self.listen.trim_start_matches('[').trim_end_matches(']')
     }
 

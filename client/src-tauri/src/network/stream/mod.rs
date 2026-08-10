@@ -1,13 +1,16 @@
 mod connect_outcome;
 mod health_manager;
+pub(crate) mod link;
 mod stream_manager;
 
 use connect_outcome::{AttemptResult, ConnectOutcome};
+use link::DatagramLink;
 
 use crate::AudioPacket;
 use crate::NetworkPacket;
 use crate::diagnostics::{LinkSession, QuicLinkStats, QuicStatsSubscriber, TransportStats};
 use common::net::CandidatePlan;
+use common::net::NetTimeouts;
 use common::net::ConnectCandidate;
 use common::s2n_quic::Client;
 use common::s2n_quic::Connection;
@@ -31,6 +34,10 @@ pub(crate) struct NetworkStreamManager {
     quic_stats_tx: watch::Sender<Arc<QuicLinkStats>>,
     link_session: Arc<LinkSession>,
     transport_stats: Arc<TransportStats>,
+    /// Which servers have already proven QUIC unusable. Lives on the manager because the
+    /// manager outlives every `restart`, which is the whole point: the verdict has to
+    /// survive the reconnect that follows the failure that produced it.
+    transport_verdict: Arc<crate::network::TransportVerdict>,
 }
 
 impl NetworkStreamManager {
@@ -45,7 +52,10 @@ impl NetworkStreamManager {
         link_session: Arc<LinkSession>,
         transport_stats: Arc<TransportStats>,
     ) -> Self {
-        let health_manager = ConnectionHealthManager::new(app_handle.clone());
+        // Built before the health manager, which records demotions into it.
+        let transport_verdict = crate::network::TransportVerdict::new_shared();
+        let health_manager =
+            ConnectionHealthManager::new(app_handle.clone(), transport_verdict.clone());
 
         Self {
             producer: producer.clone(),
@@ -70,7 +80,19 @@ impl NetworkStreamManager {
             quic_stats_tx,
             link_session,
             transport_stats,
+            transport_verdict,
         }
+    }
+
+    /// The verdict store, so the health monitor can record a session that connected and
+    /// then stopped carrying traffic.
+    ///
+    /// Public for the end-to-end harness, which pre-demotes a host to place one client on
+    /// the WebSocket transport while another stays on QUIC. That drives the real selection
+    /// branch rather than bypassing it: the state it writes is exactly the state a client
+    /// reaches in the field after QUIC degrades on it.
+    pub fn transport_verdict(&self) -> Arc<crate::network::TransportVerdict> {
+        self.transport_verdict.clone()
     }
 
     /// Initializes a new network connection to the server, and immediately begins
@@ -79,6 +101,10 @@ impl NetworkStreamManager {
         server_fqdn: String,
         server_url: String,
         plan: CandidatePlan,
+        // The reachability probe's verdict on UDP. When it is `false` the probe has
+        // already spent a full handshake budget proving nothing answers, and walking the
+        // same endpoints again would spend a second one on the player's clock.
+        quic_reachable: bool,
         identity: String,
         ca_cert: String,
         cert: String,
@@ -139,32 +165,50 @@ impl NetworkStreamManager {
             (client, plan)
         };
 
-        // Reported before `?` propagates, so a walk that reached nothing is the case this
-        // measures rather than the one it loses.
-        let mut outcome = ConnectOutcome::new();
-        let attempt = Self::connect_first_available(&client, &plan, &server_fqdn, &mut outcome)
-            .await
-            .map_err(|e| e.to_string());
-        self.report_connect_outcome(&outcome, &server_url);
+        // A host that has already degraded a QUIC session skips the walk entirely. Probing
+        // it again would say "reachable" — that is exactly the signal a degrading network
+        // defeats — and the walk would then hand back a session that stops carrying audio a
+        // minute later.
+        let link = if self.transport_verdict.is_demoted(&server_fqdn) {
+            log::info!("QUIC is demoted for {server_fqdn}; connecting over WebSocket");
+            self.connect_websocket(&server_url, &ca_cert, &cert, &key)
+                .await?
+        } else if !quic_reachable {
+            // The reachability probe already spent a full handshake budget establishing
+            // that nothing answers on UDP. Walking the same endpoints again would spend a
+            // second one rediscovering it, and the player waits through both.
+            log::info!(
+                "no QUIC endpoint answered the probe for {server_fqdn}; connecting over WebSocket"
+            );
+            self.transport_verdict.demote(&server_fqdn);
+            self.connect_websocket(&server_url, &ca_cert, &cert, &key)
+                .await?
+        } else {
+            // The probe said UDP answers, so QUIC is worth attempting — but a probe that
+            // answered is not a session that carried. The two transports race from here,
+            // and the loser costs nothing.
+            let mut outcome = ConnectOutcome::new();
+            let raced = self
+                .race_transports(
+                    &client,
+                    &plan,
+                    &server_fqdn,
+                    &server_url,
+                    &ca_cert,
+                    &cert,
+                    &key,
+                    &mut outcome,
+                )
+                .await;
+            self.report_connect_outcome(&outcome, &server_url);
+            raced?
+        };
 
-        let (mut connection, winner) = attempt?;
-        connection.keep_alive(true)?;
-
-        // Family comes from the winning candidate, never from its dial address: on a
-        // dual-stack socket an IPv4 destination is dialed as `::ffff:a.b.c.d`, so classifying
-        // the address would report every dual-stack client as IPv6.
-        self.link_session.set(
-            winner.family(),
-            winner.port(),
-            server_url.clone(),
-            &ca_cert,
-        );
-        let conn_arc = Arc::new(connection);
         self.health_manager.reset();
 
         self.input = StreamTraitType::Input(stream_manager::InputStream::new(
             self.producer.clone(),
-            Some(conn_arc.clone()),
+            Some(link.clone()),
             self.app_handle.clone(),
             self.health_manager.health_state(),
             self.transport_stats.clone(),
@@ -174,14 +218,14 @@ impl NetworkStreamManager {
         self.output = StreamTraitType::Output(stream_manager::OutputStream::new(
             self.consumer.clone(),
             identity.clone(),
-            Some(conn_arc.clone()),
+            Some(link.clone()),
             self.app_handle.clone(),
             self.transport_stats.clone(),
         ));
 
         self.input.start().await?;
         self.output.start().await?;
-        self.health_manager.start(conn_arc, server_url);
+        self.health_manager.start(link, server_url);
 
         // The control plane reports under the same identity the server authenticated this
         // connection as, because that is what the server compares every report against.
@@ -198,6 +242,180 @@ impl NetworkStreamManager {
         }
 
         Ok(())
+    }
+
+    /// Runs both transports against each other and returns whichever carried a session.
+    ///
+    /// QUIC is given a head start, so on any path where it works the WebSocket attempt is
+    /// never made: the delay expires after QUIC has already won. That matters on the
+    /// server, which would otherwise perform a TLS handshake and register a session for a
+    /// link nobody ends up using, once per connecting player.
+    ///
+    /// When the WebSocket attempt does win, QUIC keeps running for the remainder of its
+    /// handshake budget and takes the session if it lands. Preferring the faster answer
+    /// unconditionally would move a merely distant player onto TCP for being distant.
+    #[allow(clippy::too_many_arguments)]
+    async fn race_transports(
+        &self,
+        client: &Client,
+        plan: &CandidatePlan,
+        server_fqdn: &str,
+        server_url: &str,
+        ca_cert: &str,
+        cert: &str,
+        key: &str,
+        outcome: &mut ConnectOutcome,
+    ) -> Result<DatagramLink, String> {
+        // Rendered to a String at the source rather than at each use: the walk's error is a
+        // `Box<dyn Error>`, which is not Send, and the race below holds the pending result
+        // of one transport across the other's await.
+        let quic = async {
+            Self::connect_first_available(client, plan, server_fqdn, outcome)
+                .await
+                .map_err(|e| e.to_string())
+        };
+        tokio::pin!(quic);
+
+        let websocket = async {
+            tokio::time::sleep(NetTimeouts::WEBSOCKET_HEAD_START).await;
+            self.connect_websocket(server_url, ca_cert, cert, key).await
+        };
+        tokio::pin!(websocket);
+
+        tokio::select! {
+            // Biased so a QUIC handshake landing in the same instant as the WebSocket one
+            // is still preferred, rather than left to scheduler order.
+            biased;
+
+            attempt = &mut quic => {
+                match attempt {
+                    Ok((connection, winner)) => {
+                        self.adopt_quic(connection, winner, server_url, ca_cert)
+                    }
+                    // Every candidate failed inside the head start. The API answered — this
+                    // client fetched its configuration over it — so TCP reaches the server
+                    // and only UDP does not.
+                    Err(detail) => {
+                        log::warn!(
+                            "no QUIC candidate carried a session ({detail}); using WebSocket"
+                        );
+                        self.transport_verdict.demote(server_fqdn);
+                        Ok(websocket.await?)
+                    }
+                }
+            }
+
+            link = &mut websocket => {
+                let link = link?;
+                log::info!(
+                    "the WebSocket transport connected first; giving QUIC {:?} to overtake",
+                    NetTimeouts::QUIC_OVERTAKE
+                );
+
+                match tokio::time::timeout(NetTimeouts::QUIC_OVERTAKE, &mut quic).await {
+                    Ok(Ok((connection, winner))) => {
+                        log::info!("QUIC overtook the WebSocket transport; using QUIC");
+                        self.adopt_quic(connection, winner, server_url, ca_cert)
+                    }
+                    // QUIC failed outright while an alternative was already in hand. That
+                    // is evidence, so it is recorded for the rest of the run.
+                    Ok(Err(detail)) => {
+                        log::warn!(
+                            "no QUIC candidate carried a session ({detail}); using WebSocket"
+                        );
+                        self.transport_verdict.demote(server_fqdn);
+                        Ok(link)
+                    }
+                    // QUIC neither succeeded nor failed inside its budget. Slow is not the
+                    // same as broken, so this session runs on WebSocket and the next one
+                    // races again from scratch — no verdict is recorded.
+                    Err(_) => {
+                        log::warn!(
+                            "QUIC did not answer within {:?} while the WebSocket transport was ready; using WebSocket for this session",
+                            NetTimeouts::QUIC_OVERTAKE
+                        );
+                        Ok(link)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Records the winning QUIC candidate as the live session and wraps it as the link.
+    fn adopt_quic(
+        &self,
+        mut connection: Connection,
+        winner: ConnectCandidate,
+        server_url: &str,
+        ca_cert: &str,
+    ) -> Result<DatagramLink, String> {
+        connection.keep_alive(true).map_err(|e| e.to_string())?;
+
+        // Family comes from the winning candidate, never from its dial address: on a
+        // dual-stack socket an IPv4 destination is dialed as `::ffff:a.b.c.d`, so
+        // classifying the address would report every dual-stack client as IPv6.
+        self.link_session.set(
+            Some(winner.family()),
+            winner.port(),
+            common::structs::metrics::TransportKind::Quic,
+            server_url.to_string(),
+            ca_cert,
+        );
+
+        Ok(DatagramLink::Quic(Arc::new(connection)))
+    }
+
+    /// Opens the WebSocket voice transport against the same public port the API uses.
+    ///
+    /// There is no separate host, port or capability flag to fetch: the server's TLS
+    /// demultiplexer routes by ALPN, so `wss://` on the API's own authority reaches the
+    /// voice listener. A server too old to have a demultiplexer offers no such protocol
+    /// and this fails fast rather than hanging.
+    async fn connect_websocket(
+        &self,
+        server_url: &str,
+        ca_cert: &str,
+        cert: &str,
+        key: &str,
+    ) -> Result<DatagramLink, String> {
+        let authority = server_url
+            .strip_prefix("https://")
+            .or_else(|| server_url.strip_prefix("http://"))
+            .unwrap_or(server_url)
+            .trim_end_matches('/');
+        let url = format!("wss://{authority}/voice");
+
+        log::info!("Connecting the WebSocket voice transport to {url}");
+        let link = link::WsLink::connect(&url, ca_cert, cert, key)
+            .await
+            .map_err(|e| e.to_string())?;
+        log::info!("WebSocket voice transport connected");
+
+        // The family is deliberately absent: the TLS dialler picks it, and reporting a
+        // guess would be worse than reporting nothing. The port is the public one, which
+        // is the only port this transport ever uses.
+        self.link_session.set(
+            None,
+            Self::authority_port(authority),
+            common::structs::metrics::TransportKind::WebSocket,
+            server_url.to_string(),
+            ca_cert,
+        );
+
+        Ok(DatagramLink::WebSocket(link))
+    }
+
+    // The port a server authority names, or the HTTPS default when it names none.
+    fn authority_port(authority: &str) -> u16 {
+        let after_host = match authority.rfind(']') {
+            Some(end) => &authority[end + 1..],
+            None => authority,
+        };
+
+        after_host
+            .rsplit_once(':')
+            .and_then(|(_, port)| port.parse().ok())
+            .unwrap_or(443)
     }
 
     // Builds an endpoint bound to `bind`. The mTLS provider and the datagram

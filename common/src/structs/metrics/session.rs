@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::structs::metrics::TransportKind;
 use crate::structs::reachability::AddressFamilyPreference;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -14,4 +15,8 @@ pub struct SessionDiagnostics {
     // The reachability probe's verdict, which distinguishes "preferred IPv6 and IPv6 carried
     // the session" from "preferred IPv6, IPv4 carried it".
     pub family_preference: Option<AddressFamilyPreference>,
+    // Which transport carried this session. Absent when nothing is connected. Without it a
+    // latency or loss figure cannot be compared against another, because the two transports
+    // fail and recover in different ways.
+    pub transport: Option<TransportKind>,
 }

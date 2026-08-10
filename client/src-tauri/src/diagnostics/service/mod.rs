@@ -444,6 +444,7 @@ impl LinkDiagnosticsService {
                 proximity_range: self.config.proximity_range(),
                 falloff: self.config.falloff(),
                 family_preference: devices.family_preference,
+                transport: self.session.transport(),
             },
             peers,
             history: self.history(),

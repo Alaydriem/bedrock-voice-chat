@@ -358,6 +358,10 @@ fn main() {
                                     .as_ref()
                                     .map(|s| s.playback.datagrams_per_sec as u64)
                                     .unwrap_or(0),
+                                transport: snapshot
+                                    .as_ref()
+                                    .and_then(|s| s.session.transport)
+                                    .map(|t| t.as_str().to_string()),
                                 peers: snapshot
                                     .as_ref()
                                     .map(|s| {

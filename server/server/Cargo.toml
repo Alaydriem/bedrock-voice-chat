@@ -93,7 +93,6 @@ blake3 = { version = "^1.8" }
 hex = { version = "^0.4" }
 redcon = { version = "^0.1" }
 rocket_cors = { version = "^0.6" }
-rocket-governor = { version = "0.2.0-rc.4" }
 dryoc = { version = "^0.7" }
 semver = { version = "^1.0" }
 dashmap = { version = "^6" }
@@ -114,6 +113,11 @@ metrics-util = { version = "^0.20" }
 metrics-exporter-prometheus = { version = "^0.18", default-features = false }
 metrics-exporter-dogstatsd = { version = "^0.9" }
 rustls = { version = "^0.23", features = ["aws_lc_rs"] }
+socket2 = { version = "^0.5" }
+tokio-tungstenite = { version = "^0.29" }
+tokio-rustls = { version = "^0.26" }
+futures-util = { version = "^0.3", default-features = false, features = ["sink"] }
+governor = { version = "^0.6" }
 
 dirs = { version = "^5" }
 toml = { version = "^0.8" }

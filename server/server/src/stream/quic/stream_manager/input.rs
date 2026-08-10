@@ -1,54 +1,20 @@
 use crate::stream::quic::{ServerInputPacket, WebhookReceiver};
+use crate::stream::session::SessionLink;
 use anyhow::Error;
 use bytes::Bytes;
-use common::s2n_quic::Connection;
 use common::structs::packet::{
     ConnectionEventType, PacketSender, PacketType, PlayerPresenceEvent, QuicNetworkPacket,
     QuicNetworkPacketData, ServerErrorPacket, ServerErrorType,
 };
 use common::traits::StreamTrait;
-use core::{
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-};
 use moka::sync::Cache;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
-// Minimal Future wrapper to await a single datagram without external crates
-struct RecvDatagram<'c> {
-    conn: &'c Connection,
-}
-impl<'c> RecvDatagram<'c> {
-    fn new(conn: &'c Connection) -> Self {
-        Self { conn }
-    }
-}
-impl<'c> Future for RecvDatagram<'c> {
-    type Output = Result<Bytes, anyhow::Error>;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.conn.datagram_mut(
-            |r: &mut common::s2n_quic::provider::datagram::default::Receiver| {
-                r.poll_recv_datagram(cx)
-            },
-        ) {
-            Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),
-            Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(anyhow::anyhow!(e))),
-            Ok(Poll::Pending) => Poll::Pending,
-            Err(e) => Poll::Ready(Err(anyhow::anyhow!(e))),
-        }
-    }
-}
-
-async fn recv_one_datagram(conn: &Connection) -> Result<Bytes, anyhow::Error> {
-    RecvDatagram::new(conn).await
-}
-
 pub(crate) struct InputStream {
-    connection: Option<Arc<Connection>>,
+    link: Option<SessionLink>,
     // Producer to send received data to other components
     producer: Option<mpsc::UnboundedSender<ServerInputPacket>>,
     is_stopped: Arc<AtomicBool>,
@@ -76,7 +42,7 @@ impl InputStream {
     const LAST_SEEN_MAX_CAPACITY: u64 = 100_000;
 
     pub fn new(
-        connection: Option<Arc<Connection>>,
+        link: Option<SessionLink>,
         producer: Option<mpsc::UnboundedSender<ServerInputPacket>>,
     ) -> Self {
         // 15-minute idle eviction plus a hard capacity so an untrusted stream of
@@ -87,7 +53,7 @@ impl InputStream {
             .build();
 
         Self {
-            connection,
+            link,
             producer,
             is_stopped: Arc::new(AtomicBool::new(true)),
             identity: None,
@@ -166,19 +132,17 @@ impl StreamTrait for InputStream {
     }
 
     async fn start(&mut self) -> Result<(), Error> {
-        tracing::info!("Starting QUIC input stream");
+        tracing::info!("Starting session input stream");
         self.is_stopped.store(false, Ordering::Relaxed);
 
-        if let (Some(connection), Some(producer)) = (self.connection.clone(), self.producer.clone())
-        {
+        if let (Some(link), Some(producer)) = (self.link.clone(), self.producer.clone()) {
             let mut announced_presence = false;
-            // Handle incoming datagrams from this connection
+            // Handle incoming packets from this session
             loop {
                 if self.is_stopped() {
                     break;
                 }
-                // Custom future to await a single datagram without futures crate
-                let datagram = recv_one_datagram(&connection).await;
+                let datagram = link.recv().await;
                 match datagram {
                     Ok(bytes) => {
                         match QuicNetworkPacket::from_datagram(&bytes) {
@@ -258,11 +222,7 @@ impl StreamTrait for InputStream {
                                                         ..Default::default()
                                                     };
                                                     if let Ok(bytes) = error_net.to_datagram() {
-                                                        let _ = connection.datagram_mut(
-                                                            |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
-                                                                dg.send_datagram(Bytes::from(bytes))
-                                                            },
-                                                        );
+                                                        let _ = link.send(Bytes::from(bytes));
                                                     }
 
                                                     break;
@@ -273,9 +233,7 @@ impl StreamTrait for InputStream {
                                     },
                                     PacketType::HealthCheck => {
                                         if let Ok(bytes) = packet.to_datagram() {
-                                            let _ = connection.datagram_mut(|dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
-                                                dg.send_datagram(Bytes::from(bytes))
-                                            });
+                                            let _ = link.send(Bytes::from(bytes));
                                         }
                                         continue;
                                     }
@@ -320,7 +278,7 @@ impl StreamTrait for InputStream {
                                 }
                             }
                             Err(e) => {
-                                tracing::warn!("Failed to parse QUIC datagram packet: {}", e);
+                                tracing::warn!("Failed to parse session packet: {}", e);
                                 continue;
                             }
                         }
@@ -328,14 +286,12 @@ impl StreamTrait for InputStream {
                     Err(e) => {
                         let emsg = e.to_string();
                         let player = self.identity.clone().unwrap_or_else(|| "unknown".into());
-                        let device = self.device.unwrap_or_else(|| connection.id());
+                        let device = self.device.unwrap_or_else(|| link.device());
 
-                        // Treat connection-closed-like errors as fatal and close
-                        let lower = emsg.to_ascii_lowercase();
-                        let is_closed = (lower.contains("connection") && lower.contains("clos"))
-                            || lower.contains("closed")
-                            || lower.contains("reset");
-                        if is_closed {
+                        // A peer that left is the common case and must not read as a
+                        // fault. Asked of the error rather than matched out of its text,
+                        // so a transport whose wording differs still classifies correctly.
+                        if e.is_disconnect() {
                             tracing::error!(
                                 "datagram_recv_closed player={} device={} err={}",
                                 player,

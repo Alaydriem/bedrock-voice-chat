@@ -78,6 +78,32 @@ impl EmbeddedServer {
         )
     }
 
+    /// A server whose QUIC is unreachable from the client, however hard it tries.
+    ///
+    /// Advertising a dead port is not enough on its own: `QuicPortSelection::resolve`
+    /// appends the scalar `quic_port` after the advertised list, and on loopback that port
+    /// always answers — so a client "blocked" that way reaches QUIC on its second candidate
+    /// and a fallback test passes having never fallen back.
+    ///
+    /// Setting the scalar to zero closes that. Zero is how a server that predates port
+    /// advertisement reports "not known", and `resolve` drops it, so the advertised list is
+    /// the whole candidate set. The listener still binds — the operating system hands it an
+    /// ephemeral port — it is simply one no client is ever told about.
+    pub fn config_json_quic_unreachable(
+        rocket_port: u16,
+        data_dir: &Path,
+        blackhole_port: u16,
+    ) -> String {
+        Self::config_json_inner(
+            rocket_port,
+            0,
+            data_dir,
+            None,
+            "127.0.0.1",
+            &[blackhole_port],
+        )
+    }
+
     /// Like `config_json` but lowers the cross-server relay cadence so a peer link
     /// converges within a test window. Discovery is decentralized (in-realm `!bvca`
     /// announce); the relay plane builds unconditionally, so the only knobs are the

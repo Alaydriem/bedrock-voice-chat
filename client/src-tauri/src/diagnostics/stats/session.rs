@@ -1,14 +1,18 @@
 use std::sync::Mutex;
 use std::time::Instant;
 
-use common::structs::metrics::ServerId;
+use common::structs::metrics::{ServerId, TransportKind};
 use common::structs::reachability::AddressFamily;
 
 #[derive(Debug, Clone)]
 struct SessionInfo {
     connected_at: Instant,
-    family: AddressFamily,
+    // Absent on a WebSocket session: the family is chosen inside the TLS dialler rather
+    // than by a connect walk this can read it from, and reporting a guess would be worse
+    // than reporting nothing.
+    family: Option<AddressFamily>,
     port: u16,
+    transport: TransportKind,
     server: String,
     server_id: String,
 }
@@ -31,12 +35,20 @@ impl LinkSession {
     // `family` comes from the winning connect candidate, never from a socket address: a
     // dual-stack socket dials IPv4 destinations as `::ffff:a.b.c.d`, so classifying the
     // address would report every dual-stack client as IPv6.
-    pub fn set(&self, family: AddressFamily, port: u16, server: String, ca_pem: &str) {
+    pub fn set(
+        &self,
+        family: Option<AddressFamily>,
+        port: u16,
+        transport: TransportKind,
+        server: String,
+        ca_pem: &str,
+    ) {
         if let Ok(mut guard) = self.info.lock() {
             *guard = Some(SessionInfo {
                 connected_at: Instant::now(),
                 family,
                 port,
+                transport,
                 server,
                 server_id: ServerId::from_ca_pem(ca_pem.as_bytes()),
             });
@@ -61,7 +73,11 @@ impl LinkSession {
     }
 
     pub fn family(&self) -> Option<AddressFamily> {
-        self.with(|info| info.family)
+        self.with(|info| info.family).flatten()
+    }
+
+    pub fn transport(&self) -> Option<TransportKind> {
+        self.with(|info| info.transport)
     }
 
     pub fn port(&self) -> Option<u16> {

@@ -1,23 +1,22 @@
 use crate::stream::quic::connection_registry::RoutedPacket;
+use crate::stream::session::{SendOutcome, SessionLink};
 use anyhow::Error;
-use bytes::Bytes;
-use common::s2n_quic::Connection;
 use common::traits::StreamTrait;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::mpsc;
 
 pub(crate) struct OutputStream {
-    connection: Option<Arc<Connection>>,
+    link: Option<SessionLink>,
     packet_rx: Option<mpsc::Receiver<RoutedPacket>>,
     is_stopped: Arc<AtomicBool>,
     pub(crate) player_id: Arc<std::sync::OnceLock<String>>,
 }
 
 impl OutputStream {
-    pub fn new(connection: Option<Arc<Connection>>) -> Self {
+    pub fn new(link: Option<SessionLink>) -> Self {
         Self {
-            connection,
+            link,
             packet_rx: None,
             is_stopped: Arc::new(AtomicBool::new(true)),
             player_id: Arc::new(std::sync::OnceLock::new()),
@@ -32,40 +31,6 @@ impl OutputStream {
         self.player_id.get().cloned()
     }
 
-    fn send_datagram(&self, connection: &Connection, payload: Bytes) -> DatagramResult {
-        let send_res = connection.datagram_mut(
-            |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
-                dg.send_datagram(payload)
-            },
-        );
-
-        match send_res {
-            Ok(Ok(())) => DatagramResult::Ok,
-            Ok(Err(e)) => {
-                let emsg = e.to_string();
-                let lower = emsg.to_ascii_lowercase();
-                if (lower.contains("connection") && lower.contains("clos"))
-                    || lower.contains("closed")
-                    || lower.contains("reset")
-                {
-                    DatagramResult::ConnectionClosed(emsg)
-                } else if lower.contains("capacity") || lower.contains("queue") {
-                    DatagramResult::Capacity(emsg)
-                } else {
-                    DatagramResult::Other(emsg)
-                }
-            }
-            Err(e) => DatagramResult::Fatal(e.to_string()),
-        }
-    }
-}
-
-enum DatagramResult {
-    Ok,
-    ConnectionClosed(String),
-    Capacity(String),
-    Other(String),
-    Fatal(String),
 }
 
 impl StreamTrait for OutputStream {
@@ -80,12 +45,10 @@ impl StreamTrait for OutputStream {
     }
 
     async fn start(&mut self) -> Result<(), Error> {
-        tracing::info!("Starting QUIC output stream");
+        tracing::info!("Starting session output stream");
         self.is_stopped.store(false, Ordering::Relaxed);
 
-        if let (Some(connection), Some(mut packet_rx)) =
-            (self.connection.clone(), self.packet_rx.take())
-        {
+        if let (Some(link), Some(mut packet_rx)) = (self.link.clone(), self.packet_rx.take()) {
             while let Some(routed) = packet_rx.recv().await {
                 let payload = match routed {
                     RoutedPacket::Serialized(bytes) => bytes,
@@ -93,31 +56,23 @@ impl StreamTrait for OutputStream {
 
                 let player = self.get_player_id().unwrap_or_else(|| "unknown".into());
 
-                match self.send_datagram(&connection, payload) {
-                    DatagramResult::Ok => {}
-                    DatagramResult::ConnectionClosed(emsg) => {
-                        tracing::error!(
-                            "datagram_send_closed player={} err={}",
-                            player,
-                            emsg
-                        );
+                match link.send(payload) {
+                    SendOutcome::Ok => {}
+                    SendOutcome::ConnectionClosed(emsg) => {
+                        tracing::error!("datagram_send_closed player={} err={}", player, emsg);
                         break;
                     }
-                    DatagramResult::Capacity(emsg) => {
+                    SendOutcome::Capacity(emsg) => {
                         tracing::debug!(
                             "datagram send capacity issue player={} err={}",
                             player,
                             emsg
                         );
                     }
-                    DatagramResult::Other(emsg) => {
-                        tracing::debug!(
-                            "datagram send error player={} err={}",
-                            player,
-                            emsg
-                        );
+                    SendOutcome::Other(emsg) => {
+                        tracing::debug!("datagram send error player={} err={}", player, emsg);
                     }
-                    DatagramResult::Fatal(emsg) => {
+                    SendOutcome::Fatal(emsg) => {
                         tracing::error!(
                             "datagram_send_query_failed player={} err={}",
                             player,

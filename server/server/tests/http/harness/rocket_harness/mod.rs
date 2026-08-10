@@ -30,8 +30,14 @@ impl RocketHarness {
         mount_relay: bool,
         readiness: Arc<bvc_server_lib::runtime::ReadinessState>,
     ) -> Result<tokio::task::JoinHandle<()>> {
+        // Production puts the demultiplexer on the public port and Rocket on loopback.
+        // The harness dials Rocket directly, so `server.port` is where it must bind.
+        let bind = std::net::SocketAddr::from((
+            std::net::Ipv4Addr::LOCALHOST,
+            u16::try_from(config.server.port).map_err(|_| anyhow!("port out of range"))?,
+        ));
         let figment = config
-            .get_rocket_config()
+            .get_rocket_config(bind)
             .map_err(|e| anyhow!("rocket figment: {}", e))?;
         let cert_path_for_health = config.server.tls.certificate.clone();
 
@@ -128,20 +134,20 @@ impl RocketHarness {
                 bvc_server_lib::relay::ServerPeerStore::new_shared(cert_service_for_relay, ca_pem);
             let inject: std::sync::Arc<dyn bvc_server_lib::relay::LocalInjectDelivery> =
                 std::sync::Arc::new(NoopInjectDelivery);
-            rocket = rocket.manage(store).manage(inject).mount(
-                "/api/relay",
-                routes![
-                    routes::api::relay::offer::offer,
-                    routes::api::relay::peer_link::peer_link,
-                    routes::api::relay::peer_redeem::peer_redeem,
-                ],
-            );
+            rocket = rocket
+                .manage(store)
+                .manage(inject)
+                .manage(bvc_server_lib::services::RelayRateLimiter::new_shared())
+                .mount(
+                    "/api/relay",
+                    routes![
+                        routes::api::relay::offer::offer,
+                        routes::api::relay::peer_link::peer_link,
+                        routes::api::relay::peer_redeem::peer_redeem,
+                    ],
+                );
         }
 
-        let rocket = rocket.register(
-            "/",
-            rocket::catchers![rocket_governor::rocket_governor_catcher],
-        );
 
         let handle = tokio::spawn(async move {
             let ignite = match rocket.ignite().await {

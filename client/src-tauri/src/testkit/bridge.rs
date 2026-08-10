@@ -120,6 +120,10 @@ pub enum OutMsg {
         // `None` means unmeasured, which is a different claim from zero and must survive the bridge
         // as such.
         downlink_loss_pct: Option<f32>,
+        // Which transport actually carried this session, as the client reports it. A
+        // scenario that only asserts audio arrived cannot tell QUIC from WebSocket, and a
+        // fallback test that silently ran on QUIC would pass while proving nothing.
+        transport: Option<String>,
     },
     Stats {
         frames_sent: u64,

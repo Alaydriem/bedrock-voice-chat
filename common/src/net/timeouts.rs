@@ -27,6 +27,19 @@ impl NetTimeouts {
     /// which has the full budget.
     pub const NEGOTIATION: Duration = Duration::from_millis(750);
 
+    /// How long QUIC runs alone before the WebSocket alternative is also dialled.
+    ///
+    /// A head start rather than a dead heat: a WebSocket attempt that wins costs the
+    /// server a handshake and a registered session for a link nobody uses. Where QUIC
+    /// works, this expires after QUIC has already won and the alternative never opens.
+    pub const WEBSOCKET_HEAD_START: Duration = Duration::from_secs(1);
+
+    /// How long a QUIC attempt may keep running once WebSocket is connected and waiting.
+    ///
+    /// Matched to `HANDSHAKE`: anything shorter hands the session to WebSocket while a
+    /// distant QUIC handshake is still inside the budget this file grants it.
+    pub const QUIC_OVERTAKE: Duration = Self::HANDSHAKE;
+
     /// One HTTPS request, for the probe that establishes a server answers at all.
     ///
     /// Matches the handshake: this is the request that decides whether a failure is the

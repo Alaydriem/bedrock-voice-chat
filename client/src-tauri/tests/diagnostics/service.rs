@@ -1,3 +1,4 @@
+use common::structs::metrics::TransportKind;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -56,7 +57,7 @@ impl Harness {
 
     fn connect(&self) {
         self.session
-            .set(AddressFamily::Ipv4, 443, "bvc.example.com".to_string(), "ca");
+            .set(Some(AddressFamily::Ipv4), 443, TransportKind::Quic, "bvc.example.com".to_string(), "ca");
     }
 
     // Advances one interval, the way the real ticker does. `snapshot()` is read-only, so tests

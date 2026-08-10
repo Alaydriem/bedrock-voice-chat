@@ -29,6 +29,7 @@ use rocket::{
 
 use anyhow::anyhow;
 use sea_orm::{ConnectOptions, DatabaseConnection};
+use std::net::SocketAddr;
 use serde::{Deserialize, Serialize};
 use tracing::Level;
 
@@ -129,7 +130,13 @@ impl ApplicationConfig {
         }
     }
 
-    pub fn get_rocket_config(&self) -> Result<Figment, anyhow::Error> {
+    /// The Rocket configuration, bound where `bind` says rather than where `server.port`
+    /// does.
+    ///
+    /// The public port belongs to the TLS demultiplexer, which relays to this listener on
+    /// loopback. `server.port` therefore names what a client dials, never what Rocket
+    /// binds, and the two are no longer the same thing.
+    pub fn get_rocket_config(&self, bind: SocketAddr) -> Result<Figment, anyhow::Error> {
         let cert_path = std::path::Path::new(&self.server.tls.certificate);
         let key_path = std::path::Path::new(&self.server.tls.key);
 
@@ -154,8 +161,8 @@ impl ApplicationConfig {
             .merge(("profile", rocket::figment::Profile::new("release")))
             .merge(("ident", false))
             .merge(("log_level", self.get_rocket_log_level()))
-            .merge(("port", &self.server.port))
-            .merge(("address", self.server.http_listen_ip()))
+            .merge(("port", bind.port()))
+            .merge(("address", bind.ip().to_string()))
             .merge(("limits", Limits::new().limit("json", (10).megabytes())))
             .merge(("secret_key", randombytes_buf(32)))
             .merge(("tls.certs", &self.server.tls.certificate))

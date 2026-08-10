@@ -20,12 +20,14 @@ pub enum Metric {
     PositionDatagramBytes,
     PositionPlayersAdvertisedTotal,
     PositionOversizeDropsTotal,
+    WebsocketHandshakeRejectionsTotal,
     BuildInfo,
 }
 
 impl Metric {
     pub fn name(&self) -> &'static str {
         match self {
+            Metric::WebsocketHandshakeRejectionsTotal => "bvc_websocket_handshake_rejections_total",
             Metric::PlayerConnectionsTotal => "bvc_player_connections_total",
             Metric::PlayerDisconnectionsTotal => "bvc_player_disconnections_total",
             Metric::SessionDurationSeconds => "bvc_session_duration_seconds",

@@ -204,9 +204,28 @@ impl TestServer {
         Ok(())
     }
 
+    // Reserved and released, because Rocket binds its own socket and cannot be handed a
+    // listener. That leaves a window in which another test in this process wins the same
+    // ephemeral port, and the loser's Rocket then fails to bind with an error the test
+    // reports as "server did not become ready" — a port race wearing a readiness failure's
+    // clothes. A held set makes the window one per port instead of one per attempt.
     fn pick_free_port() -> Result<u16> {
-        let l = TcpListener::bind("127.0.0.1:0")?;
-        Ok(l.local_addr()?.port())
+        static TAKEN: std::sync::Mutex<Option<std::collections::HashSet<u16>>> =
+            std::sync::Mutex::new(None);
+
+        for _ in 0..64 {
+            let listener = TcpListener::bind("127.0.0.1:0")?;
+            let port = listener.local_addr()?.port();
+            drop(listener);
+
+            let mut guard = TAKEN.lock().expect("port reservation lock");
+            let taken = guard.get_or_insert_with(std::collections::HashSet::new);
+            if taken.insert(port) {
+                return Ok(port);
+            }
+        }
+
+        Err(anyhow!("could not reserve a free port for the test server"))
     }
 
     async fn wait_for_ready(client: &reqwest::Client, url: &str) -> Result<()> {

@@ -1,8 +1,10 @@
 pub mod quic_close_code;
 pub mod quic_port_selection;
+pub mod voice_protocol;
 
 pub use quic_close_code::QuicCloseCode;
 pub use quic_port_selection::QuicPortSelection;
+pub use voice_protocol::VoiceProtocol;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

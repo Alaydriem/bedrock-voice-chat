@@ -1,3 +1,4 @@
+use common::structs::metrics::TransportKind;
 use bvc_server_lib::runtime::ca_cert::CaCertManager;
 use bvc_server_lib::services::MetricsService;
 use bvc_server_lib::services::metrics_service::event::TelemetryEvent;
@@ -93,8 +94,8 @@ async fn render_exposes_all_metric_families_without_identity() {
     let path = ca_dir("bvc-metrics-render-ca");
     let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
 
-    svc.record_connect("alice");
-    svc.record_disconnect("alice", std::time::Duration::from_secs(5));
+    svc.record_connect("alice", TransportKind::Quic);
+    svc.record_disconnect("alice", std::time::Duration::from_secs(5), TransportKind::Quic);
     svc.record_channel_join();
     svc.record_channel_leave();
     svc.set_active_players(7);
@@ -314,10 +315,10 @@ async fn a_reconnect_within_the_window_is_reported_as_a_reconnect() {
 
     assert!(!svc.saw_recent_disconnect("alice"));
 
-    svc.record_disconnect("alice", std::time::Duration::from_secs(30));
+    svc.record_disconnect("alice", std::time::Duration::from_secs(30), TransportKind::Quic);
     assert!(svc.saw_recent_disconnect("alice"));
 
-    svc.record_connect("alice");
+    svc.record_connect("alice", TransportKind::Quic);
     // consumed by the reconnect, so a second connect is a fresh session
     assert!(!svc.saw_recent_disconnect("alice"));
 }
@@ -328,8 +329,8 @@ async fn an_unrelated_player_connecting_is_not_a_reconnect() {
     let (svc, _posthog) =
         MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
 
-    svc.record_disconnect("alice", std::time::Duration::from_secs(30));
-    svc.record_connect("bob");
+    svc.record_disconnect("alice", std::time::Duration::from_secs(30), TransportKind::Quic);
+    svc.record_connect("bob", TransportKind::Quic);
 
     assert!(svc.saw_recent_disconnect("alice"));
 }

@@ -11,6 +11,7 @@ mod harness;
 mod i18n;
 mod iap;
 mod keybinds;
+mod network;
 mod players;
 mod scenarios;
 mod websocket;
