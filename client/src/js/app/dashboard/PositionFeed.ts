@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { debug, warn } from '@tauri-apps/plugin-log';
+import { debug, info, warn } from '@tauri-apps/plugin-log';
 import type { PositionSnapshot } from '../../bindings/PositionSnapshot';
 import type { WebsocketTicketResponse } from '../../bindings/WebsocketTicketResponse';
 
@@ -49,6 +49,16 @@ export class PositionFeed {
      */
     static readonly OPEN_TIMEOUT_MS = 10_000;
 
+    /**
+     * Failed attempts before the feed calls itself down.
+     *
+     * A dropped socket that redials successfully is the feed working, not a fault, and saying
+     * so at warn once per attempt buries the breadcrumbs that explain a genuine error in an
+     * outage nobody noticed. Three attempts is roughly ten seconds of backoff — long enough
+     * that anything still failing is worth a reader's attention.
+     */
+    static readonly FAILURE_THRESHOLD = 3;
+
     private readonly server: string;
     private readonly onSnapshot: SnapshotListener;
 
@@ -58,6 +68,19 @@ export class PositionFeed {
     private backoff = PositionFeed.BACKOFF_MIN_MS;
     private lastSeq = -1;
     private closed = false;
+
+    /** Consecutive failed attempts. Cleared by a socket that reaches the server. */
+    private failures = 0;
+
+    /**
+     * Whether this outage has already been announced.
+     *
+     * Holds the pair together: an outage reports itself once, and the recovery that ends it
+     * reports itself once. Without it a feed that recovers says nothing, and a reader watching
+     * the log cannot tell a feed that came back from one that is still down and has simply
+     * stopped complaining.
+     */
+    private reportedDown = false;
 
     /**
      * Bumped by every attempt and by `stop()`.
@@ -76,6 +99,8 @@ export class PositionFeed {
     async start(): Promise<void> {
         this.closed = false;
         this.backoff = PositionFeed.BACKOFF_MIN_MS;
+        this.failures = 0;
+        this.reportedDown = false;
         await this.connect();
     }
 
@@ -97,8 +122,10 @@ export class PositionFeed {
                 server: this.server,
             });
         } catch (e) {
-            warn(`PositionFeed: could not get a ticket: ${e}`);
-            if (current()) this.scheduleRetry();
+            if (current()) {
+                this.report(`could not get a ticket: ${e}`);
+                this.scheduleRetry();
+            }
             return;
         }
 
@@ -115,8 +142,10 @@ export class PositionFeed {
             // response.
             socket = new WebSocket(url, [`ticket.${ticket.ticket}`, PositionFeed.PROTOCOL]);
         } catch (e) {
-            warn(`PositionFeed: could not open ${url}: ${e}`);
-            if (current()) this.scheduleRetry();
+            if (current()) {
+                this.report(`could not open ${url}: ${e}`);
+                this.scheduleRetry();
+            }
             return;
         }
 
@@ -127,7 +156,7 @@ export class PositionFeed {
         // what left the feed holding a socket that would never be replaced. Whichever arrives
         // first owns the retry; the rest are already spent.
         let settled = false;
-        const fail = (why: string, loud: boolean): void => {
+        const fail = (why: string): void => {
             if (settled) return;
             settled = true;
             PositionFeed.detach(socket);
@@ -138,15 +167,11 @@ export class PositionFeed {
             this.socket = null;
             this.clearOpening();
             if (!current()) return;
-            if (loud) warn(`PositionFeed: ${why}`);
-            else debug(`PositionFeed: ${why}`);
+            this.report(why);
             this.scheduleRetry();
         };
 
-        this.opening = setTimeout(
-            () => fail('socket never opened', true),
-            PositionFeed.OPEN_TIMEOUT_MS,
-        );
+        this.opening = setTimeout(() => fail('socket never opened'), PositionFeed.OPEN_TIMEOUT_MS);
 
         const opened = (): void => {
             if (this.socket !== socket) return;
@@ -154,6 +179,7 @@ export class PositionFeed {
             // Reset by a socket that reached the server, never by one that was merely tried:
             // a feed that keeps failing must keep slowing down.
             this.backoff = PositionFeed.BACKOFF_MIN_MS;
+            this.recovered();
         };
 
         socket.onopen = () => {
@@ -166,8 +192,44 @@ export class PositionFeed {
             if (current()) this.receive(event.data);
         };
         // The server holds this open, so a close is a lost link rather than a handover.
-        socket.onclose = () => fail('socket closed', false);
-        socket.onerror = () => fail('socket error', true);
+        socket.onclose = () => fail('socket closed');
+        socket.onerror = () => fail('socket error');
+    }
+
+    /**
+     * Records one failed attempt, and announces an outage at most once.
+     *
+     * Every attempt is kept at debug, where it costs a breadcrumb and nothing else. Only a run
+     * of them is worth a warn, because a feed that redials successfully is the feed working:
+     * reporting each attempt at warn spends the breadcrumb budget that a genuine error would
+     * have been read through, and does it during the outage least likely to matter.
+     */
+    private report(why: string): void {
+        this.failures += 1;
+        debug(`PositionFeed: ${why} (attempt ${this.failures})`);
+
+        if (this.reportedDown || this.failures < PositionFeed.FAILURE_THRESHOLD) {
+            return;
+        }
+        this.reportedDown = true;
+        warn(`PositionFeed: down after ${this.failures} attempts, still retrying`);
+    }
+
+    /**
+     * Closes out an outage that was announced.
+     *
+     * Silent unless something was reported, so an ordinary redial stays quiet — the message
+     * exists to end the warn above, and one without the other is what leaves a reader unable
+     * to tell a recovered feed from a resigned one.
+     */
+    private recovered(): void {
+        const attempts = this.failures;
+        this.failures = 0;
+        if (!this.reportedDown) {
+            return;
+        }
+        this.reportedDown = false;
+        info(`PositionFeed: reconnected after ${attempts} failed attempts`);
     }
 
     private clearOpening(): void {

@@ -7,11 +7,11 @@ use common::{Coordinate, Orientation, PlayerEnum};
 const WORLD: &str = "8f14e45f-ea8f-4b62-9f2a-1c0d7e3b4a55";
 const OTHER_WORLD: &str = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed";
 
-fn player(name: &str, x: f32, z: f32, world: &str, dimension: Dimension) -> PlayerEnum {
+fn player_at(name: &str, x: f32, z: f32, world: &str, dimension: Dimension, yaw: f32) -> PlayerEnum {
     PlayerEnum::Minecraft(MinecraftPlayer {
         name: name.to_string(),
         coordinates: Coordinate { x, y: 64.0, z },
-        orientation: Orientation { x: 0.0, y: 0.0 },
+        orientation: Orientation { x: 0.0, y: yaw },
         dimension,
         deafen: false,
         spectator: false,
@@ -20,6 +20,16 @@ fn player(name: &str, x: f32, z: f32, world: &str, dimension: Dimension) -> Play
         player_uuid: None,
         relay_world_uuid: None,
     })
+}
+
+fn player(name: &str, x: f32, z: f32, world: &str, dimension: Dimension) -> PlayerEnum {
+    player_at(name, x, z, world, dimension, 0.0)
+}
+
+/// Minecraft's own yaw convention: degrees clockwise from south, so 180 is north
+/// and -90 is east.
+fn facing(name: &str, x: f32, z: f32, yaw: f32) -> PlayerEnum {
+    player_at(name, x, z, WORLD, Dimension::Overworld, yaw)
 }
 
 /// Everyone is on voice unless a test says otherwise.
@@ -215,16 +225,46 @@ fn a_player_outside_voice_range_is_still_visible() {
     );
 }
 
-// Bearing is relative to facing, so the UI can place an entry without ever
-// learning an absolute coordinate.
-#[test]
-fn bearing_is_relative_to_observer_facing() {
+/// Bearing is relative to facing, so the UI can place an entry without ever learning an
+/// absolute coordinate. Zero is straight ahead and the sweep is clockwise, which is what
+/// makes the ring's own frame a quarter turn away rather than a mirror.
+fn bearing_toward(observer: &PlayerEnum, target: PlayerEnum) -> u16 {
     let service = PositionService::for_voice_range(48.0);
-    let alice = player("Alice", 0.0, 0.0, WORLD, Dimension::Overworld);
-    let ahead = player("Ahead", 0.0, 50.0, WORLD, Dimension::Overworld);
-
-    let positions = service.snapshot_positions(&alice, &[ahead], &all_on_voice);
+    let positions = service.snapshot_positions(observer, &[target], &all_on_voice);
 
     assert_eq!(positions.len(), 1);
-    assert!(positions[0].bearing_deg < 360);
+    positions[0].bearing_deg
+}
+
+// Somebody you are looking straight at is the reading the whole feed is judged by.
+#[test]
+fn somebody_directly_ahead_bears_zero() {
+    let facing_north = facing("Alice", 0.0, 0.0, 180.0);
+
+    assert_eq!(bearing_toward(&facing_north, facing("North", 0.0, -50.0, 0.0)), 0);
+}
+
+// The same target from the same spot, seen by an observer who turned to look at them.
+// Bearing must follow the head, not the compass.
+#[test]
+fn turning_to_face_somebody_brings_them_round_to_zero() {
+    let facing_east = facing("Alice", 0.0, 0.0, -90.0);
+
+    assert_eq!(bearing_toward(&facing_east, facing("East", 50.0, 0.0, 0.0)), 0);
+}
+
+// The half of the reading a sign error hides: mirrored bearings still put a target
+// dead ahead, and only left-versus-right catches it.
+#[test]
+fn somebody_off_your_right_shoulder_bears_ninety() {
+    let facing_north = facing("Alice", 0.0, 0.0, 180.0);
+
+    assert_eq!(bearing_toward(&facing_north, facing("East", 50.0, 0.0, 0.0)), 90);
+}
+
+#[test]
+fn somebody_off_your_left_shoulder_bears_two_hundred_and_seventy() {
+    let facing_north = facing("Alice", 0.0, 0.0, 180.0);
+
+    assert_eq!(bearing_toward(&facing_north, facing("West", -50.0, 0.0, 0.0)), 270);
 }

@@ -80,6 +80,19 @@ export class ChatChannel {
     this.send({ t: 'chat', author, text });
   }
 
+  /**
+   * Reports something the server said: a death, a join, a leave.
+   *
+   * Carries no author, which is what makes it render as a system line rather than as a player
+   * speaking. Dropped while the socket is down for the same reason a chat line is.
+   */
+  event(text: string): void {
+    if (!this.isOpen) {
+      return;
+    }
+    this.send({ t: 'event', text });
+  }
+
   private async connect(): Promise<void> {
     if (this.connecting || this.stopped) {
       return;

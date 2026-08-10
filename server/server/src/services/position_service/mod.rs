@@ -109,10 +109,11 @@ impl PositionService {
 
         let distance = (dx * dx + dz * dz).sqrt();
 
-        // Minecraft yaw is degrees clockwise from south; subtracting it turns an
-        // absolute bearing into one relative to where the observer is facing, so
-        // the client can draw the entry without ever seeing a coordinate.
-        let absolute = dx.atan2(dz).to_degrees();
+        // Minecraft yaw is degrees clockwise from south, while atan2 sweeps the other
+        // way; negating dx puts the target in yaw's own frame, so subtracting yaw leaves
+        // degrees clockwise from wherever the observer is facing and the client can draw
+        // the entry without ever seeing a coordinate.
+        let absolute = (-dx).atan2(dz).to_degrees();
         let bearing = (absolute - observer.get_orientation().y).rem_euclid(360.0);
 
         let identity = candidate.identity();

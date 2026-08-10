@@ -120,7 +120,10 @@ export class NearbyManager {
             hue: PlayerHue.of(entry.name.toLowerCase()),
             presence: entry.presence,
             distance: entry.distance,
-            bearing: (entry.bearing_deg * Math.PI) / 180,
+            // The feed measures from straight ahead; the ring and the handoff both
+            // measure from 3 o'clock. Without the quarter turn somebody in front of you
+            // is drawn to your right.
+            bearing: (entry.bearing_deg * Math.PI) / 180 - Math.PI / 2,
             elevation: entry.elevation,
             inEarshot: entry.distance <= this.range,
         };

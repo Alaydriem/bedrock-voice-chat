@@ -33,8 +33,8 @@ vi.mock("@tauri-apps/api/webviewWindow", () => ({
 
 const { NearbyManager } = await import("../../../js/app/dashboard/NearbyManager");
 
-function entry(name: string, distance: number, presence = "voice") {
-    return { name, presence, bearing_deg: 90, distance, elevation: 0 };
+function entry(name: string, distance: number, presence = "voice", bearingDeg = 90) {
+    return { name, presence, bearing_deg: bearingDeg, distance, elevation: 0 };
 }
 
 async function deliver(seq: number, positions: unknown[]): Promise<void> {
@@ -77,6 +77,25 @@ describe("NearbyManager", () => {
         // voice actually stops at rather than an approximation of it.
         expect(inEarshot.map((p) => p.name)).toEqual(["minecraft:Close"]);
         expect(approaching.map((p) => p.name)).toEqual(["minecraft:Far"]);
+        nearby.stop();
+    });
+
+    it("turns the feed's straight ahead into the ring's straight up", async () => {
+        const nearby = new NearbyManager();
+        let all: readonly { bearing: number }[] = [];
+        nearby.players.subscribe((v) => (all = v));
+
+        await nearby.start("https://voice.example.com", 48);
+        await deliver(1, [
+            entry("minecraft:Ahead", 10, "voice", 0),
+            entry("minecraft:Right", 20, "voice", 90),
+        ]);
+
+        // Two frames meet here: the feed measures clockwise from wherever the player is
+        // facing, the ring and the handoff clockwise from 3 o'clock. Skip the quarter turn
+        // and somebody you are looking at is drawn off your right shoulder.
+        expect(all[0].bearing).toBeCloseTo(-Math.PI / 2);
+        expect(all[1].bearing).toBeCloseTo(0);
         nearby.stop();
     });
 

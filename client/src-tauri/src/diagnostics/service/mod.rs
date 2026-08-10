@@ -716,7 +716,7 @@ impl LinkDiagnosticsService {
     }
 
     fn log_peer(peer: &PeerDiagnostics, rtt: &str, uplink_loss: f32, family: &str) {
-        log::info!(
+        log::debug!(
             "Receive diagnostics [{}]: underruns={} overflow_drops={} ooo_drops={} plc={} \
              silence={} decoded={} ring={}/{} warmup={} buffer={}ms quality={:.2} \
              concealment={:.1}% | link rtt={}ms uplink_loss={:.1}% family={}",
