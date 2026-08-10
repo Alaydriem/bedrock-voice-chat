@@ -235,6 +235,50 @@ export const FRIEND_TARGETS: readonly string[] = [
   'PaperMC',
 ];
 
+/* ------------------------------------------------------------------ *
+ * DISCORD ACCOUNT LINK
+ *
+ * /discord/callback is the redirect_uri registered with Discord and one of the
+ * https links the client claims as a Universal/App Link. On iOS and Android the
+ * OS usually opens the client before the page renders. On desktop the browser
+ * renders it, and the page hands the payload to the custom scheme below, where
+ * the deep-link plugin routes it to DiscordLinkService.
+ *
+ * The grant is implicit, so the access token arrives in the URL fragment and
+ * never reaches a server. Nothing on the page may print it.
+ * ------------------------------------------------------------------ */
+
+/** The custom scheme the callback hands its payload to. */
+export const DISCORD_DEEP_LINK = 'bedrock-voice-chat://discord-callback';
+
+export const DISCORD_OUTCOMES = ['linked', 'cancelled', 'failed', 'idle'] as const;
+export type DiscordOutcome = (typeof DISCORD_OUTCOMES)[number];
+
+/**
+ * The logo spectrum in mark order, violet to red. Values live in tokens.css;
+ * this is the sequence, which is a fact about the mark rather than a design
+ * decision made per component.
+ */
+export const SPECTRUM_STOPS: readonly string[] = [
+  '--sp-violet',
+  '--sp-indigo',
+  '--sp-blue',
+  '--sp-azure',
+  '--sp-cyan',
+  '--sp-teal',
+  '--sp-aqua',
+  '--sp-mint',
+  '--sp-green',
+  '--sp-grass',
+  '--sp-lime',
+  '--sp-yellow',
+  '--sp-amber',
+  '--sp-orange',
+  '--sp-ember',
+  '--sp-red',
+  '--sp-crimson',
+];
+
 /* ------------------------------------------------------------------ */
 
 export const AUDIENCES = ['player', 'operator', 'creator'] as const;

@@ -46,6 +46,11 @@ if(${JSON.stringify(AUDIENCES)}.indexOf(v)>-1)document.documentElement.dataset.a
     <meta name="twitter:card" content="summary_large_image" />
 
     <script is:inline set:html={audienceBootstrap} />
+
+    <!-- Per-page head. A page whose state has to be settled before first paint
+         puts its own inline bootstrap here rather than at the top of the body,
+         where the parser has already built enough of the document to paint. -->
+    <slot name="head" />
   </head>
   <body>
     <a class="skip vis-hidden" href="#main">{copy.common.skipToContent}</a>

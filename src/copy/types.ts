@@ -1,4 +1,4 @@
-import type { Audience } from '../lib/site';
+import type { Audience, DiscordOutcome } from '../lib/site';
 
 /**
  * The contract every locale has to satisfy.
@@ -111,11 +111,29 @@ export interface SectionHead {
   readonly lead?: string;
 }
 
+/** The <title> and meta description of one page. */
+export interface MetaCopy {
+  readonly title: string;
+  readonly description: string;
+}
+
+/**
+ * One way the Discord return can land.
+ *
+ * All four ship in the HTML and the page reveals whichever the callback URL
+ * turned out to describe, so the outcome needs no round trip and survives a
+ * script that never runs.
+ */
+export interface OutcomeCopy {
+  readonly heading: Heading;
+  readonly body: string;
+  readonly action: string;
+  /** Left out where one action is the whole answer. */
+  readonly secondary?: string;
+}
+
 export interface SiteCopy {
-  readonly meta: {
-    readonly title: string;
-    readonly description: string;
-  };
+  readonly meta: MetaCopy;
 
   readonly common: {
     readonly skipToContent: string;
@@ -240,6 +258,17 @@ export interface SiteCopy {
     readonly demo: string;
     readonly download: string;
     readonly installGuide: string;
+  };
+
+  readonly discordCallback: {
+    readonly meta: MetaCopy;
+    /** Label at the Discord end of the link bar. */
+    readonly from: string;
+    readonly outcomes: Readonly<Record<DiscordOutcome, OutcomeCopy>>;
+    /** Precedes the identifier Discord sent back. */
+    readonly codeLabel: string;
+    readonly footnote: string;
+    readonly home: string;
   };
 
   readonly footer: {

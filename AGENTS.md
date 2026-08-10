@@ -7,6 +7,7 @@ Source for **bedrockvoicechat.com** — the marketing site and the wiki, one Ast
 | Path | What |
 |---|---|
 | `src/pages/index.astro` | Marketing page. Owns `/`. |
+| `src/pages/discord/callback.astro` | Discord OAuth return. Owns `/discord/callback`. |
 | `src/content/docs/wiki/**` | The wiki. Starlight owns `/wiki/**`. |
 | `src/styles/tokens.css` | **The only file allowed to contain a hex value.** |
 | `src/lib/site.ts` | Facts — versions, URLs, feature gates. Not design decisions. |
@@ -68,4 +69,6 @@ Every wiki page is also served as raw markdown at the same URL with `.md` append
 
 Push to `gh-pages-src`. The workflow builds and publishes to the root of `gh-pages` with `keep_files: true`.
 
-`gh-pages` is shared with five other publishers — `/api`, `/websocket`, `/updater`, `/builds.json`, `/discord`, `/.well-known`. A publish with `keep_files: false` would delete them, and removing `/updater/*.json` silently breaks auto-update for every installed client. The workflow has a guard that fails on unrecognised root paths; add to `KNOWN` if a legitimate new one appears.
+`gh-pages` is shared with other publishers — `/api`, `/websocket`, `/updater`, `/builds.json`, `/.well-known`. A publish with `keep_files: false` would delete them, and removing `/updater/*.json` silently breaks auto-update for every installed client. The workflow has a guard that fails on unrecognised root paths; add to `KNOWN` if a legitimate new one appears.
+
+`/discord/callback` used to be one of them. It is built from this repo now and every publish overwrites it. The URL is the `redirect_uri` registered with Discord and one of the https links the client claims as a Universal/App Link, so the path is fixed: `src/pages/discord/callback.astro` and nowhere else.

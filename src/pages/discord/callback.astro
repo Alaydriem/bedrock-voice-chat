@@ -1,0 +1,397 @@
+---
+/**
+ * THE DISCORD RETURN.
+ *
+ * Discord sends the player here after they approve or decline the account link.
+ * The page hands the payload to `bedrock-voice-chat://discord-callback` and then
+ * says what happened, because the browser tab stays open behind the app and is
+ * the last thing the player sees if the handoff did not work.
+ *
+ * Four outcomes ship in the HTML and CSS reveals one. That is the same
+ * mechanism the audience tracks use on the home page: no round trip, no
+ * loading state, and a script that never runs still leaves a page that reads.
+ *
+ * The signature is the link bar — the logo's own blocks running from Discord to
+ * the mark, lit end to end when the payload crossed and broken at the point it
+ * stopped when it did not. Everything else on the page is quiet.
+ *
+ * Was a bare white page with two sentences on it. This route was published by
+ * hand to gh-pages; it is built from here now, and the deploy workflow's KNOWN
+ * list already covers /discord.
+ */
+import Base from '../../layouts/Base.astro';
+import Button from '../../components/Button.astro';
+import Mark from '../../components/Mark.astro';
+import { copy } from '../../copy';
+import { DISCORD_DEEP_LINK, DISCORD_OUTCOMES, SPECTRUM_STOPS } from '../../lib/site';
+
+const t = copy.discordCallback;
+
+/**
+ * Blocks lit in each outcome. Derived from the stop list rather than written
+ * out, so changing the spectrum cannot leave a bar that stops short of its end.
+ * `cancelled` breaks at the Discord end because nothing left Discord; `failed`
+ * breaks mid-span because the grant came back and was not usable.
+ */
+const stops = SPECTRUM_STOPS.length;
+const lit = {
+  linked: stops,
+  failed: Math.round(stops * 0.55),
+  cancelled: 2,
+  idle: 0,
+} as const;
+---
+
+<Base
+  title={t.meta.title}
+  description={t.meta.description}
+  path="/discord/callback"
+>
+  <Fragment slot="head">
+    <!-- A one-shot handoff page has nothing to rank for, and the URL it is
+         indexed under is one Discord fills in with somebody's grant. -->
+    <meta name="robots" content="noindex" />
+
+    <script is:inline define:vars={{ deepLink: DISCORD_DEEP_LINK, lit }}>
+      (function () {
+        var raw = (location.hash || location.search).slice(1);
+        var params = new URLSearchParams(raw);
+        var code = params.get('error');
+
+        var outcome = params.get('access_token')
+          ? 'linked'
+          : code === 'access_denied'
+            ? 'cancelled'
+            : code
+              ? 'failed'
+              : 'idle';
+
+        // Set before the body parses. Settling it later shows the direct-visit
+        // copy first and swaps, which reads as the page correcting itself.
+        document.documentElement.dataset.link = outcome;
+
+        var target = raw ? deepLink + '?' + raw : '';
+
+        document.addEventListener('DOMContentLoaded', function () {
+          var blocks = document.querySelectorAll('[data-blk]');
+          for (var i = 0; i < blocks.length; i++) {
+            if (i < lit[outcome]) blocks[i].dataset.lit = '';
+            else if (i === lit[outcome] && lit[outcome] > 0) blocks[i].dataset.broke = '';
+          }
+
+          // The mark is a level meter everywhere else on the site. A link that
+          // did not complete collapses it onto the mid row and holds it there.
+          var mark = document.querySelector('[data-cv="mark"]');
+          if (mark) {
+            mark.dataset.gain = outcome === 'linked' ? '1' : outcome === 'idle' ? '0.5' : '0.1';
+            mark.dataset.still = outcome === 'linked' ? '0' : '1';
+          }
+
+          // The only thing out of the URL that is ever written into the page.
+          // The access token is never printed, and the pattern keeps whatever
+          // Discord put in `error` from arriving as anything but an identifier.
+          var slot = document.querySelector('[data-code]');
+          if (slot && code && /^[a-z0-9_.-]{1,64}$/i.test(code)) {
+            slot.textContent = code;
+            slot.closest('[data-code-row]').dataset.filled = '';
+          }
+
+          if (!target) return;
+
+          document.querySelectorAll('[data-reopen] a').forEach(function (el) {
+            el.addEventListener('click', function (event) {
+              event.preventDefault();
+              location.replace(target);
+            });
+          });
+
+          // Drop the grant out of the address bar before handing it over. An
+          // implicit-grant token outlives the link it came from: it sits in
+          // history, in a shared screen and in a screenshot of this page.
+          history.replaceState(null, '', location.pathname);
+
+          location.replace(target);
+        });
+      })();
+    </script>
+  </Fragment>
+
+  <main class="stage" id="main">
+    <div class="col">
+      <section class="plate">
+        <header class="bar">
+          <span class="from">{t.from}</span>
+
+          <span class="track" aria-hidden="true">
+            {
+              SPECTRUM_STOPS.map((stop, i) => (
+                <span class="blk" data-blk style={`--i:${i};--stop:var(${stop})`} />
+              ))
+            }
+          </span>
+
+          <Mark cell={3} />
+        </header>
+
+        {
+          DISCORD_OUTCOMES.map((id) => {
+            const o = t.outcomes[id];
+            return (
+              <div data-state={id}>
+                <h1 class="display">
+                  {o.heading.lead}
+                  <br />
+                  <b>{o.heading.strong}</b>
+                </h1>
+
+                <p class="lead">{o.body}</p>
+
+                {id === 'failed' && (
+                  <p class="code" data-code-row>
+                    <span>{t.codeLabel}</span>
+                    <code data-code />
+                  </p>
+                )}
+
+                <div class="acts">
+                  {id === 'idle' ? (
+                    <Button href="/#download" variant="primary">
+                      {o.action}
+                    </Button>
+                  ) : (
+                    // The href is the fallback the click handler replaces. It
+                    // cannot carry the payload: by the time anyone clicks, the
+                    // URL it came from has been stripped.
+                    <span data-reopen>
+                      <Button href={DISCORD_DEEP_LINK} variant="primary">
+                        {o.action}
+                      </Button>
+                    </span>
+                  )}
+
+                  {o.secondary && <Button href="/wiki/">{o.secondary}</Button>}
+                </div>
+              </div>
+            );
+          })
+        }
+
+        <p class="foot">{t.footnote}</p>
+      </section>
+
+      <a class="home" href="/">{t.home}</a>
+    </div>
+  </main>
+</Base>
+
+<style>
+  /* The outcome tints the whole page. Someone who glances at this from across
+     the room should know whether to pick the controller back up. */
+  .stage {
+    --state: var(--brand);
+
+    min-height: 100svh;
+    /* Flex rather than a centred grid. An auto grid track sizes to its item's
+       max-content, and the link bar's max-content is the label plus all
+       seventeen blocks plus the mark unwrapped — wider than a phone, which
+       pushed the plate off the right of the screen. */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--pad-page);
+    position: relative;
+    isolation: isolate;
+  }
+
+  :root[data-link='linked'] .stage {
+    --state: var(--ok);
+  }
+
+  :root[data-link='cancelled'] .stage {
+    --state: var(--warn);
+  }
+
+  :root[data-link='failed'] .stage {
+    --state: var(--fault);
+  }
+
+  .stage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(
+      78% 62% at 50% 44%,
+      color-mix(in srgb, var(--state) 19%, transparent),
+      transparent 70%
+    );
+  }
+
+  .col {
+    width: 100%;
+    max-width: 620px;
+    margin-inline: auto;
+    min-width: 0;
+  }
+
+  .plate {
+    background: var(--void-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: clamp(26px, 5.5vw, 42px);
+  }
+
+  /* ---- the link bar --------------------------------------------------- */
+
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: clamp(26px, 4.5vw, 36px);
+  }
+
+  .from {
+    font-family: var(--font-mono);
+    font-size: var(--fs-label);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--faint);
+    white-space: nowrap;
+  }
+
+  /* space-between rather than a growing block: a block that takes a share of
+     the leftover pixels lands on fractions of a device pixel and the row comes
+     out visibly ragged. Fixing the block and spending the remainder on the gaps
+     keeps all seventeen identical. */
+  .track {
+    /* A block is square, like the ones the mark is built from, and it is sized
+       against the viewport: a fixed 14px would not shrink — flex-basis is also
+       the automatic minimum size — and seventeen of them overflowed a 375px
+       phone by the width of a thumb. */
+    --blk: clamp(9px, 3.2vw, 16px);
+
+    display: flex;
+    justify-content: space-between;
+    gap: 3px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .blk {
+    flex: 0 1 var(--blk);
+    height: var(--blk);
+    border-radius: 1px;
+    background: var(--line);
+    transition: background 0.3s var(--ease);
+    /* Lighting the span left to right is the handoff. It runs once, after the
+       outcome is already settled, and lights only what the outcome says. */
+    transition-delay: calc(var(--i) * 26ms);
+  }
+
+  .blk[data-lit] {
+    background: var(--stop);
+  }
+
+  /* The break sits among blocks that are already warm at that end of the
+     spectrum, so it carries a halo as well as a colour. */
+  .blk[data-broke] {
+    background: var(--state);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--state) 22%, transparent);
+  }
+
+  /* Seventeen blocks, a label and the mark do not share one narrow row. The
+     span takes a row of its own and keeps its full width. The breakpoint is
+     640 rather than 560 because the plate stops growing at 620: below that the
+     row loses width while the label and the mark do not give any back. */
+  @media (max-width: 640px) {
+    .bar {
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .from {
+      flex: 1 1 auto;
+    }
+
+    .track {
+      order: 3;
+      flex-basis: 100%;
+    }
+  }
+
+  /* ---- outcomes -------------------------------------------------------- */
+
+  [data-state] {
+    display: none;
+  }
+
+  :root[data-link='linked'] [data-state='linked'],
+  :root[data-link='cancelled'] [data-state='cancelled'],
+  :root[data-link='failed'] [data-state='failed'],
+  :root[data-link='idle'] [data-state='idle'],
+  /* No script, no handoff. The direct-visit copy is the honest default. */
+  :root:not([data-link]) [data-state='idle'] {
+    display: block;
+  }
+
+  [data-state] :global(.display) {
+    margin-top: 0;
+  }
+
+  .code {
+    display: none;
+    align-items: baseline;
+    gap: 10px;
+    margin: 20px 0 0;
+    font-family: var(--font-mono);
+    font-size: var(--fs-small);
+    color: var(--faint);
+  }
+
+  .code[data-filled] {
+    display: flex;
+  }
+
+  .code code {
+    color: var(--fault);
+    background: color-mix(in srgb, var(--fault) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--fault) 38%, transparent);
+    border-radius: var(--r-sm);
+    padding: 2px 9px;
+    overflow-wrap: anywhere;
+  }
+
+  .acts {
+    margin-top: 30px;
+    display: flex;
+    gap: 11px;
+    flex-wrap: wrap;
+  }
+
+  .foot {
+    margin: clamp(28px, 4.5vw, 36px) 0 0;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: var(--fs-small);
+    line-height: var(--lh-body);
+    color: var(--faint);
+    max-width: 54ch;
+  }
+
+  .home {
+    display: block;
+    margin-top: 22px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--faint);
+    text-decoration: none;
+  }
+
+  .home:hover {
+    color: var(--tx);
+  }
+</style>

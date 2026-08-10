@@ -14,8 +14,12 @@ name: Deploy site and wiki
 #   /websocket/**    AsyncAPI docs        build-all.yml, release.yml
 #   /updater/*.json  Tauri update feed    release.yml  <-- installed clients poll this
 #   /builds.json     build ledger         rewritten on every build
-#   /discord/**      OAuth callback
 #   /.well-known/**  deep-link association files  <-- see below
+#
+# /discord/callback was hand-committed to gh-pages and is now built from here
+# (src/pages/discord/callback.astro), so this workflow overwrites it. It stays
+# in KNOWN below so removing the page does not turn the leftover directory into
+# a guard failure.
 #
 # /.well-known holds apple-app-site-association and assetlinks.json, the files
 # iOS and Android fetch to decide whether a link opens the app instead of the

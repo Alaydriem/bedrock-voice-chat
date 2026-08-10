@@ -379,6 +379,42 @@ export const en = {
     installGuide: 'Install guide',
   },
 
+  discordCallback: {
+    meta: {
+      title: 'Discord link · Bedrock Voice Chat',
+      description: 'Finishes a Discord account link started in Bedrock Voice Chat.',
+    },
+    from: 'Discord',
+    outcomes: {
+      linked: {
+        heading: { lead: 'Switch back to', strong: 'Bedrock Voice Chat' },
+        body: 'Discord sent your account back. Bedrock Voice Chat finishes the link when you switch to it.',
+        action: 'Reopen Bedrock Voice Chat',
+      },
+      cancelled: {
+        heading: { lead: 'Discord link', strong: 'cancelled' },
+        body: 'You declined the request on Discord. Nothing changed on either account. Open Settings in Bedrock Voice Chat to link Discord again.',
+        action: 'Reopen Bedrock Voice Chat',
+      },
+      failed: {
+        heading: { lead: 'Discord did not', strong: 'finish the link' },
+        body: 'Discord returned an error instead of an account. Open Settings in Bedrock Voice Chat and link Discord again.',
+        action: 'Reopen Bedrock Voice Chat',
+        secondary: 'Open the wiki',
+      },
+      idle: {
+        heading: { lead: 'Nothing to', strong: 'link here' },
+        body: 'This page finishes a Discord link that starts inside Bedrock Voice Chat. Open Settings in the app and link Discord.',
+        action: 'Get Bedrock Voice Chat',
+        secondary: 'Open the wiki',
+      },
+    },
+    codeLabel: 'Discord reported',
+    footnote:
+      'Linking your Discord account to Bedrock Voice Chat enables you to receive experimental features and participate in the community. You can unlink Discord at any time from the app settings.',
+    home: 'bedrockvoicechat.com',
+  },
+
   footer: {
     blurb:
       'Proximity voice chat for Minecraft Bedrock and Java. Self-hosted, encrypted, source available.',
