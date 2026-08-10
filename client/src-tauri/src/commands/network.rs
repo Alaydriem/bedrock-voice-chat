@@ -147,6 +147,7 @@ pub(crate) async fn change_network_stream(
             server_fqdn.clone(),
             server.clone(),
             plan,
+            report.any_quic_answered(),
             identity,
             data.certificate_ca,
             data.certificate,

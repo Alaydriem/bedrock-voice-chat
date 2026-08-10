@@ -10,6 +10,7 @@ use crate::AudioPacket;
 use crate::NetworkPacket;
 use crate::diagnostics::{LinkSession, QuicLinkStats, QuicStatsSubscriber, TransportStats};
 use common::net::CandidatePlan;
+use common::net::NetTimeouts;
 use common::net::ConnectCandidate;
 use common::s2n_quic::Client;
 use common::s2n_quic::Connection;
@@ -85,7 +86,12 @@ impl NetworkStreamManager {
 
     /// The verdict store, so the health monitor can record a session that connected and
     /// then stopped carrying traffic.
-    pub(crate) fn transport_verdict(&self) -> Arc<crate::network::TransportVerdict> {
+    ///
+    /// Public for the end-to-end harness, which pre-demotes a host to place one client on
+    /// the WebSocket transport while another stays on QUIC. That drives the real selection
+    /// branch rather than bypassing it: the state it writes is exactly the state a client
+    /// reaches in the field after QUIC degrades on it.
+    pub fn transport_verdict(&self) -> Arc<crate::network::TransportVerdict> {
         self.transport_verdict.clone()
     }
 
@@ -95,6 +101,10 @@ impl NetworkStreamManager {
         server_fqdn: String,
         server_url: String,
         plan: CandidatePlan,
+        // The reachability probe's verdict on UDP. When it is `false` the probe has
+        // already spent a full handshake budget proving nothing answers, and walking the
+        // same endpoints again would spend a second one on the player's clock.
+        quic_reachable: bool,
         identity: String,
         ca_cert: String,
         cert: String,
@@ -163,45 +173,35 @@ impl NetworkStreamManager {
             log::info!("QUIC is demoted for {server_fqdn}; connecting over WebSocket");
             self.connect_websocket(&server_url, &ca_cert, &cert, &key)
                 .await?
+        } else if !quic_reachable {
+            // The reachability probe already spent a full handshake budget establishing
+            // that nothing answers on UDP. Walking the same endpoints again would spend a
+            // second one rediscovering it, and the player waits through both.
+            log::info!(
+                "no QUIC endpoint answered the probe for {server_fqdn}; connecting over WebSocket"
+            );
+            self.transport_verdict.demote(&server_fqdn);
+            self.connect_websocket(&server_url, &ca_cert, &cert, &key)
+                .await?
         } else {
-            // Reported before `?` propagates, so a walk that reached nothing is the case this
-            // measures rather than the one it loses.
+            // The probe said UDP answers, so QUIC is worth attempting — but a probe that
+            // answered is not a session that carried. The two transports race from here,
+            // and the loser costs nothing.
             let mut outcome = ConnectOutcome::new();
-            // Rendered to a String before the match below: the error is a `Box<dyn Error>`,
-            // which is not Send, and the WebSocket fallback holds it across an await.
-            let attempt = Self::connect_first_available(&client, &plan, &server_fqdn, &mut outcome)
-                .await
-                .map_err(|e| e.to_string());
+            let raced = self
+                .race_transports(
+                    &client,
+                    &plan,
+                    &server_fqdn,
+                    &server_url,
+                    &ca_cert,
+                    &cert,
+                    &key,
+                    &mut outcome,
+                )
+                .await;
             self.report_connect_outcome(&outcome, &server_url);
-
-            match attempt {
-                Ok((mut connection, winner)) => {
-                    connection.keep_alive(true)?;
-
-                    // Family comes from the winning candidate, never from its dial address: on a
-                    // dual-stack socket an IPv4 destination is dialed as `::ffff:a.b.c.d`, so
-                    // classifying the address would report every dual-stack client as IPv6.
-                    self.link_session.set(
-                        Some(winner.family()),
-                        winner.port(),
-                        common::structs::metrics::TransportKind::Quic,
-                        server_url.clone(),
-                        &ca_cert,
-                    );
-
-                    DatagramLink::Quic(Arc::new(connection))
-                }
-                // Nothing answered on any UDP candidate. The API answered — this client
-                // fetched its configuration and certificates over it — so TCP reaches the
-                // server and only UDP does not. That is the case the WebSocket transport
-                // exists for, and it is recorded so the next attempt does not re-walk.
-                Err(detail) => {
-                    log::warn!("no QUIC candidate carried a session ({detail}); trying WebSocket");
-                    self.transport_verdict.demote(&server_fqdn);
-                    self.connect_websocket(&server_url, &ca_cert, &cert, &key)
-                        .await?
-                }
-            }
+            raced?
         };
 
         self.health_manager.reset();
@@ -242,6 +242,127 @@ impl NetworkStreamManager {
         }
 
         Ok(())
+    }
+
+    /// Runs both transports against each other and returns whichever carried a session.
+    ///
+    /// QUIC is given a head start, so on any path where it works the WebSocket attempt is
+    /// never made: the delay expires after QUIC has already won. That matters on the
+    /// server, which would otherwise perform a TLS handshake and register a session for a
+    /// link nobody ends up using, once per connecting player.
+    ///
+    /// When the WebSocket attempt does win, QUIC keeps running for the remainder of its
+    /// handshake budget and takes the session if it lands. Preferring the faster answer
+    /// unconditionally would move a merely distant player onto TCP for being distant.
+    #[allow(clippy::too_many_arguments)]
+    async fn race_transports(
+        &self,
+        client: &Client,
+        plan: &CandidatePlan,
+        server_fqdn: &str,
+        server_url: &str,
+        ca_cert: &str,
+        cert: &str,
+        key: &str,
+        outcome: &mut ConnectOutcome,
+    ) -> Result<DatagramLink, String> {
+        // Rendered to a String at the source rather than at each use: the walk's error is a
+        // `Box<dyn Error>`, which is not Send, and the race below holds the pending result
+        // of one transport across the other's await.
+        let quic = async {
+            Self::connect_first_available(client, plan, server_fqdn, outcome)
+                .await
+                .map_err(|e| e.to_string())
+        };
+        tokio::pin!(quic);
+
+        let websocket = async {
+            tokio::time::sleep(NetTimeouts::WEBSOCKET_HEAD_START).await;
+            self.connect_websocket(server_url, ca_cert, cert, key).await
+        };
+        tokio::pin!(websocket);
+
+        tokio::select! {
+            // Biased so a QUIC handshake landing in the same instant as the WebSocket one
+            // is still preferred, rather than left to scheduler order.
+            biased;
+
+            attempt = &mut quic => {
+                match attempt {
+                    Ok((connection, winner)) => {
+                        self.adopt_quic(connection, winner, server_url, ca_cert)
+                    }
+                    // Every candidate failed inside the head start. The API answered — this
+                    // client fetched its configuration over it — so TCP reaches the server
+                    // and only UDP does not.
+                    Err(detail) => {
+                        log::warn!(
+                            "no QUIC candidate carried a session ({detail}); using WebSocket"
+                        );
+                        self.transport_verdict.demote(server_fqdn);
+                        Ok(websocket.await?)
+                    }
+                }
+            }
+
+            link = &mut websocket => {
+                let link = link?;
+                log::info!(
+                    "the WebSocket transport connected first; giving QUIC {:?} to overtake",
+                    NetTimeouts::QUIC_OVERTAKE
+                );
+
+                match tokio::time::timeout(NetTimeouts::QUIC_OVERTAKE, &mut quic).await {
+                    Ok(Ok((connection, winner))) => {
+                        log::info!("QUIC overtook the WebSocket transport; using QUIC");
+                        self.adopt_quic(connection, winner, server_url, ca_cert)
+                    }
+                    // QUIC failed outright while an alternative was already in hand. That
+                    // is evidence, so it is recorded for the rest of the run.
+                    Ok(Err(detail)) => {
+                        log::warn!(
+                            "no QUIC candidate carried a session ({detail}); using WebSocket"
+                        );
+                        self.transport_verdict.demote(server_fqdn);
+                        Ok(link)
+                    }
+                    // QUIC neither succeeded nor failed inside its budget. Slow is not the
+                    // same as broken, so this session runs on WebSocket and the next one
+                    // races again from scratch — no verdict is recorded.
+                    Err(_) => {
+                        log::warn!(
+                            "QUIC did not answer within {:?} while the WebSocket transport was ready; using WebSocket for this session",
+                            NetTimeouts::QUIC_OVERTAKE
+                        );
+                        Ok(link)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Records the winning QUIC candidate as the live session and wraps it as the link.
+    fn adopt_quic(
+        &self,
+        mut connection: Connection,
+        winner: ConnectCandidate,
+        server_url: &str,
+        ca_cert: &str,
+    ) -> Result<DatagramLink, String> {
+        connection.keep_alive(true).map_err(|e| e.to_string())?;
+
+        // Family comes from the winning candidate, never from its dial address: on a
+        // dual-stack socket an IPv4 destination is dialed as `::ffff:a.b.c.d`, so
+        // classifying the address would report every dual-stack client as IPv6.
+        self.link_session.set(
+            Some(winner.family()),
+            winner.port(),
+            common::structs::metrics::TransportKind::Quic,
+            server_url.to_string(),
+            ca_cert,
+        );
+
+        Ok(DatagramLink::Quic(Arc::new(connection)))
     }
 
     /// Opens the WebSocket voice transport against the same public port the API uses.

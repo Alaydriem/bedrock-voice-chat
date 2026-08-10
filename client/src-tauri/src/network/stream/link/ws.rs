@@ -1,5 +1,6 @@
-use super::RecvFailure;
+use super::{RecvFailure, VoiceLinkError};
 use bytes::Bytes;
+use common::structs::network::VoiceProtocol;
 use futures_util::{SinkExt, StreamExt};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::{ClientConfig, RootCertStore};
@@ -25,12 +26,6 @@ pub(crate) struct WsLink {
 }
 
 impl WsLink {
-    /// The protocol that tells the server's demultiplexer to route this to the voice
-    /// listener rather than to the API. A server too old to have one offers no such
-    /// protocol and the handshake fails fast, which is why no capability negotiation is
-    /// needed before dialling.
-    const ALPN: &'static [u8] = b"bvc-ws/1";
-
     // One frame is one packet, so these are measured in packets exactly like the QUIC
     // datagram capacities.
     const READ_QUEUE_DEPTH: usize = 256;
@@ -46,11 +41,14 @@ impl WsLink {
         ca_cert: &str,
         cert: &str,
         key: &str,
-    ) -> Result<Self, anyhow::Error> {
+    ) -> Result<Self, VoiceLinkError> {
         let config = Self::tls_config(ca_cert, cert, key)?;
         let request = url
             .into_client_request()
-            .map_err(|e| anyhow::anyhow!("building the WebSocket request for {url}: {e}"))?;
+            .map_err(|source| VoiceLinkError::InvalidUrl {
+                url: url.to_string(),
+                source,
+            })?;
 
         let (socket, _) = tokio_tungstenite::connect_async_tls_with_config(
             request,
@@ -59,7 +57,10 @@ impl WsLink {
             Some(Connector::Rustls(Arc::new(config))),
         )
         .await
-        .map_err(|e| anyhow::anyhow!("connecting the WebSocket transport to {url}: {e}"))?;
+        .map_err(|source| VoiceLinkError::Connect {
+            url: url.to_string(),
+            source,
+        })?;
 
         let (mut sink, mut source) = socket.split();
         let (inbound_tx, inbound_rx) = mpsc::channel::<Bytes>(Self::READ_QUEUE_DEPTH);
@@ -127,18 +128,14 @@ impl WsLink {
             .ok_or_else(|| RecvFailure::Closed("websocket closed".to_string()))
     }
 
-    pub(crate) fn send(&self, payload: Bytes) -> Result<(), anyhow::Error> {
+    pub(crate) fn send(&self, payload: Bytes) -> Result<(), VoiceLinkError> {
         match self.outbound.try_send(payload) {
             Ok(()) => Ok(()),
             // The write pump bounds its own queue and sheds the oldest frame. Reaching
             // here means even the handoff is saturated, which is the same shed-and-carry-on
             // case a full QUIC send queue is.
-            Err(mpsc::error::TrySendError::Full(_)) => {
-                Err(anyhow::anyhow!("websocket send queue full"))
-            }
-            Err(mpsc::error::TrySendError::Closed(_)) => {
-                Err(anyhow::anyhow!("websocket write pump stopped"))
-            }
+            Err(mpsc::error::TrySendError::Full(_)) => Err(VoiceLinkError::SendQueueFull),
+            Err(mpsc::error::TrySendError::Closed(_)) => Err(VoiceLinkError::Closed),
         }
     }
 
@@ -148,7 +145,7 @@ impl WsLink {
     /// The additional-root shape mirrors the HTTP client (`api/client.rs`): a hosted
     /// server presents a publicly-signed certificate, a self-hosted one presents a
     /// CA-signed certificate, and both must work without an operator choosing.
-    fn tls_config(ca_cert: &str, cert: &str, key: &str) -> Result<ClientConfig, anyhow::Error> {
+    fn tls_config(ca_cert: &str, cert: &str, key: &str) -> Result<ClientConfig, VoiceLinkError> {
         let mut roots = RootCertStore::from_iter(
             webpki_roots::TLS_SERVER_ROOTS
                 .iter()
@@ -157,7 +154,7 @@ impl WsLink {
         for certificate in Self::parse_certificates(ca_cert)? {
             roots
                 .add(certificate)
-                .map_err(|e| anyhow::anyhow!("adding the server CA to the trust roots: {e}"))?;
+                .map_err(|source| VoiceLinkError::TrustRoot { source })?;
         }
 
         // Named explicitly rather than taken from the process default: whether one is
@@ -167,14 +164,14 @@ impl WsLink {
             rustls::crypto::aws_lc_rs::default_provider(),
         ))
         .with_safe_default_protocol_versions()
-        .map_err(|e| anyhow::anyhow!("selecting TLS protocol versions: {e}"))?
+        .map_err(|source| VoiceLinkError::TlsConfig { source })?
         .with_root_certificates(roots);
 
         let mut config = builder
             .with_client_auth_cert(Self::parse_certificates(cert)?, Self::parse_key(key)?)
-            .map_err(|e| anyhow::anyhow!("presenting the client certificate: {e}"))?;
+            .map_err(|source| VoiceLinkError::TlsConfig { source })?;
 
-        config.alpn_protocols = vec![Self::ALPN.to_vec()];
+        config.alpn_protocols = vec![VoiceProtocol::ALPN.to_vec()];
 
         // Matches the HTTP client, which sets `danger_accept_invalid_certs` under the same
         // condition. Development and the end-to-end harness both run servers whose
@@ -189,15 +186,15 @@ impl WsLink {
         Ok(config)
     }
 
-    fn parse_certificates(pem: &str) -> Result<Vec<CertificateDer<'static>>, anyhow::Error> {
+    fn parse_certificates(pem: &str) -> Result<Vec<CertificateDer<'static>>, VoiceLinkError> {
         rustls_pemfile::certs(&mut pem.as_bytes())
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| anyhow::anyhow!("parsing certificates: {e}"))
+            .map_err(|source| VoiceLinkError::ParseCertificates { source })
     }
 
-    fn parse_key(pem: &str) -> Result<PrivateKeyDer<'static>, anyhow::Error> {
+    fn parse_key(pem: &str) -> Result<PrivateKeyDer<'static>, VoiceLinkError> {
         rustls_pemfile::private_key(&mut pem.as_bytes())
-            .map_err(|e| anyhow::anyhow!("parsing the client private key: {e}"))?
-            .ok_or_else(|| anyhow::anyhow!("no private key found in the client identity"))
+            .map_err(|source| VoiceLinkError::ParseKey { source })?
+            .ok_or(VoiceLinkError::MissingPrivateKey)
     }
 }

@@ -8,6 +8,9 @@ use std::time::{Duration, Instant};
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
 
 mod shared_state;
+mod transport;
+
+pub use transport::Transport;
 
 use shared_state::SharedState;
 
@@ -98,7 +101,48 @@ impl ClientProc {
     /// piped. A background thread immediately starts draining framed `OutMsg`
     /// from stdout into shared state.
     pub fn spawn(gamertag: &str, login_code: &str, server_url: &str, channel: &str) -> ClientProc {
-        Self::spawn_with_channel_id(gamertag, login_code, server_url, channel, None)
+        Self::spawn_inner(gamertag, login_code, server_url, channel, None, Transport::Quic)
+    }
+
+    /// Spawns a client that runs its voice session over the WebSocket transport.
+    ///
+    /// Transport is otherwise a property of the server's advertised configuration, which
+    /// every client against one server shares — so this is the only way to express a
+    /// channel whose members are split across both transports. The client still chooses
+    /// for itself: it is handed the verdict a real client reaches once QUIC has degraded
+    /// on a host, and takes the ordinary demoted branch from there.
+    pub fn spawn_websocket(
+        gamertag: &str,
+        login_code: &str,
+        server_url: &str,
+        channel: &str,
+    ) -> ClientProc {
+        Self::spawn_inner(
+            gamertag,
+            login_code,
+            server_url,
+            channel,
+            None,
+            Transport::WebSocket,
+        )
+    }
+
+    /// `spawn_websocket` against an already-created channel.
+    pub fn spawn_websocket_with_channel_id(
+        gamertag: &str,
+        login_code: &str,
+        server_url: &str,
+        channel: &str,
+        channel_id: Option<&str>,
+    ) -> ClientProc {
+        Self::spawn_inner(
+            gamertag,
+            login_code,
+            server_url,
+            channel,
+            channel_id,
+            Transport::WebSocket,
+        )
     }
 
     /// Like `spawn` but accepts a pre-existing channel id. When `channel_id` is
@@ -110,6 +154,24 @@ impl ClientProc {
         server_url: &str,
         channel: &str,
         channel_id: Option<&str>,
+    ) -> ClientProc {
+        Self::spawn_inner(
+            gamertag,
+            login_code,
+            server_url,
+            channel,
+            channel_id,
+            Transport::Quic,
+        )
+    }
+
+    fn spawn_inner(
+        gamertag: &str,
+        login_code: &str,
+        server_url: &str,
+        channel: &str,
+        channel_id: Option<&str>,
+        transport: Transport,
     ) -> ClientProc {
         let bin = Self::bin_path();
         assert!(
@@ -131,6 +193,9 @@ impl ClientProc {
             .env("BVC_E2E_CHANNEL", channel);
         if let Some(id) = channel_id {
             cmd.env("BVC_E2E_CHANNEL_ID", id);
+        }
+        if matches!(transport, Transport::WebSocket) {
+            cmd.env("BVC_E2E_FORCE_WEBSOCKET", "1");
         }
         cmd.env("BVC_PLAYER_SETTINGS_PATH", Self::player_settings_path(gamertag));
         let mut child = cmd
@@ -187,12 +252,14 @@ impl ClientProc {
                             uptime_secs,
                             peers,
                             downlink_loss_pct,
+                            transport,
                             ..
                         }) => {
                             let mut guard = reader_state.lock().unwrap();
                             guard.diagnostics = Some((connected, stalled, uptime_secs));
                             guard.diagnostic_peers = peers;
                             guard.diagnostic_downlink_loss = Some(downlink_loss_pct);
+                            guard.diagnostic_transport = Some(transport);
                         }
                         Ok(OutMsg::Stats {
                             frames_sent,
@@ -517,6 +584,30 @@ impl ClientProc {
     ///
     /// The bin reads the real service, so this observes the same derivation a player's status
     /// panel and copyable report would show.
+    /// Which transport the client reports carrying its session, as a stable label.
+    ///
+    /// Asserted rather than inferred: a scenario that only checks audio arrived cannot
+    /// tell QUIC from WebSocket, and a fallback test that quietly ran on QUIC would pass
+    /// while proving nothing about the fallback.
+    pub fn transport(&self) -> Option<String> {
+        {
+            let mut guard = self.state.lock().unwrap();
+            guard.diagnostic_transport = None;
+        }
+        self.send(&InMsg::RequestDiagnostics);
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(reading) = self.state.lock().unwrap().diagnostic_transport.clone() {
+                return reading;
+            }
+            if Instant::now() >= deadline {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+    }
+
     pub fn diagnostics(&self) -> (bool, bool, u64) {
         {
             let mut guard = self.state.lock().unwrap();

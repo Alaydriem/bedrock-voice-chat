@@ -1,4 +1,4 @@
-use crate::stream::session::SendOutcome;
+use crate::stream::session::{ReceiveError, SendOutcome};
 use bytes::Bytes;
 use std::sync::Arc;
 use tokio::sync::{Mutex, mpsc};
@@ -31,13 +31,15 @@ impl WsLink {
         }
     }
 
-    pub(crate) async fn recv(&self) -> Result<Bytes, anyhow::Error> {
+    pub(crate) async fn recv(&self) -> Result<Bytes, ReceiveError> {
         self.inbound
             .lock()
             .await
             .recv()
             .await
-            .ok_or_else(|| anyhow::anyhow!("websocket closed"))
+            .ok_or_else(|| ReceiveError::Closed {
+                detail: "the websocket read pump ended".to_string(),
+            })
     }
 
     pub(crate) fn send(&self, payload: Bytes) -> SendOutcome {

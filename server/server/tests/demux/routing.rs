@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bvc_server_lib::demux::AlpnDemux;
+use common::structs::network::VoiceProtocol;
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
@@ -106,11 +107,11 @@ async fn the_voice_protocol_reaches_the_websocket_listener() {
     let (websocket, mut websocket_rx) = spy_backend().await;
     let port = demux_on(api, Some(websocket)).await;
 
-    offer_alpn(port, &[AlpnDemux::WEBSOCKET_ALPN]).await;
+    offer_alpn(port, &[VoiceProtocol::ALPN]).await;
 
     assert!(
         received(&mut websocket_rx).await,
-        "a client offering bvc-ws/1 must reach the WebSocket listener"
+        "a client offering the voice protocol must reach the WebSocket listener"
     );
     assert!(
         !received(&mut api_rx).await,
@@ -164,7 +165,7 @@ async fn the_voice_protocol_is_refused_when_no_listener_exists() {
     let (api, mut api_rx) = spy_backend().await;
     let port = demux_on(api, None).await;
 
-    offer_alpn(port, &[AlpnDemux::WEBSOCKET_ALPN]).await;
+    offer_alpn(port, &[VoiceProtocol::ALPN]).await;
 
     assert!(
         !received(&mut api_rx).await,

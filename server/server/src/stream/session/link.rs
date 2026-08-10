@@ -1,4 +1,4 @@
-use super::SendOutcome;
+use super::{ReceiveError, SendOutcome};
 use bytes::Bytes;
 use common::s2n_quic::Connection;
 use core::{
@@ -15,7 +15,7 @@ struct RecvDatagram<'c> {
 }
 
 impl<'c> Future for RecvDatagram<'c> {
-    type Output = Result<Bytes, anyhow::Error>;
+    type Output = Result<Bytes, ReceiveError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.conn.datagram_mut(
@@ -24,9 +24,13 @@ impl<'c> Future for RecvDatagram<'c> {
             },
         ) {
             Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),
-            Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(anyhow::anyhow!(e))),
+            Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(ReceiveError::Closed {
+                detail: e.to_string(),
+            })),
             Ok(Poll::Pending) => Poll::Pending,
-            Err(e) => Poll::Ready(Err(anyhow::anyhow!(e))),
+            Err(e) => Poll::Ready(Err(ReceiveError::Unavailable {
+                detail: e.to_string(),
+            })),
         }
     }
 }
@@ -44,7 +48,7 @@ pub(crate) enum SessionLink {
 }
 
 impl SessionLink {
-    pub(crate) async fn recv(&self) -> Result<Bytes, anyhow::Error> {
+    pub(crate) async fn recv(&self) -> Result<Bytes, ReceiveError> {
         match self {
             Self::Quic(connection) => {
                 RecvDatagram {

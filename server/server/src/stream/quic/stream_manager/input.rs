@@ -288,12 +288,10 @@ impl StreamTrait for InputStream {
                         let player = self.identity.clone().unwrap_or_else(|| "unknown".into());
                         let device = self.device.unwrap_or_else(|| link.device());
 
-                        // Treat connection-closed-like errors as fatal and close
-                        let lower = emsg.to_ascii_lowercase();
-                        let is_closed = (lower.contains("connection") && lower.contains("clos"))
-                            || lower.contains("closed")
-                            || lower.contains("reset");
-                        if is_closed {
+                        // A peer that left is the common case and must not read as a
+                        // fault. Asked of the error rather than matched out of its text,
+                        // so a transport whose wording differs still classifies correctly.
+                        if e.is_disconnect() {
                             tracing::error!(
                                 "datagram_recv_closed player={} device={} err={}",
                                 player,

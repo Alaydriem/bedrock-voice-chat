@@ -44,6 +44,16 @@ impl Connector {
         ))
     }
 
+    /// Whether this process was told to run its voice session over WebSocket.
+    ///
+    /// Read from the environment because each e2e client is its own process, which is the
+    /// only place a per-client transport choice can be expressed.
+    fn websocket_is_forced() -> bool {
+        std::env::var("BVC_E2E_FORCE_WEBSOCKET")
+            .map(|value| value == "1")
+            .unwrap_or(false)
+    }
+
     // code_login -> initialize_api_client -> change_network_stream (QUIC) ->
     // join channel via api_channel_event. Returns the joined channel id (when a
     // channel was requested) once the QUIC stream is up and the join has been
@@ -69,6 +79,21 @@ impl Connector {
                 )
                 .await;
             state.current_server = Some(config.server.clone());
+        }
+
+        // Places this client on the WebSocket transport by writing the verdict a client
+        // reaches in the field once QUIC has degraded on a host. Selection then takes the
+        // real demoted branch, so the scenario exercises production code rather than a
+        // harness-only path around it. Without this, transport is a property of the server
+        // config and every client against one server shares it — which cannot express a
+        // mixed-transport channel.
+        if Self::websocket_is_forced() {
+            handle
+                .state::<Mutex<NetworkStreamManager>>()
+                .lock()
+                .await
+                .transport_verdict()
+                .demote(&config.server);
         }
 
         // Bring up the QUIC stream through the production command rather than a

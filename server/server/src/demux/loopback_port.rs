@@ -1,3 +1,4 @@
+use super::DemuxError;
 use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 
 /// Reserves a loopback port for a backend that cannot be handed a listener.
@@ -16,7 +17,7 @@ impl LoopbackPort {
     // out usable ephemeral ports, which is a startup failure rather than a retry loop.
     const ATTEMPTS: usize = 8;
 
-    pub fn reserve() -> Result<u16, anyhow::Error> {
+    pub fn reserve() -> Result<u16, DemuxError> {
         let mut last_error = None;
 
         for _ in 0..Self::ATTEMPTS {
@@ -29,12 +30,11 @@ impl LoopbackPort {
             }
         }
 
-        Err(anyhow::anyhow!(
-            "could not reserve a loopback port after {} attempts: {}",
-            Self::ATTEMPTS,
-            last_error
-                .map(|e| e.to_string())
-                .unwrap_or_else(|| "no error reported".to_string())
-        ))
+        Err(DemuxError::PortReservation {
+            attempts: Self::ATTEMPTS,
+            source: last_error.unwrap_or_else(|| {
+                std::io::Error::other("no error reported by the operating system")
+            }),
+        })
     }
 }

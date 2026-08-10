@@ -1,9 +1,11 @@
+mod link_error;
 mod recv_failure;
 mod ws;
 
 #[cfg(debug_assertions)]
 mod permissive_server_verifier;
 
+pub(crate) use link_error::VoiceLinkError;
 pub(crate) use recv_failure::RecvFailure;
 pub(crate) use ws::WsLink;
 
@@ -67,7 +69,7 @@ impl DatagramLink {
         }
     }
 
-    pub(crate) fn send(&self, payload: Bytes) -> Result<(), anyhow::Error> {
+    pub(crate) fn send(&self, payload: Bytes) -> Result<(), VoiceLinkError> {
         match self {
             Self::Quic(connection) => connection
                 .datagram_mut(
@@ -75,8 +77,12 @@ impl DatagramLink {
                         dg.send_datagram(payload)
                     },
                 )
-                .map_err(|e| anyhow::anyhow!("{e}"))?
-                .map_err(|e| anyhow::anyhow!("{e}")),
+                .map_err(|e| VoiceLinkError::Quic {
+                    detail: e.to_string(),
+                })?
+                .map_err(|e| VoiceLinkError::Quic {
+                    detail: e.to_string(),
+                }),
             Self::WebSocket(link) => link.send(payload),
         }
     }

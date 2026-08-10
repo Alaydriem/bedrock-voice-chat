@@ -1,5 +1,5 @@
-use super::WsLink;
-use crate::demux::AlpnDemux;
+use super::{WebSocketListenerError, WsLink};
+use common::structs::network::VoiceProtocol;
 use crate::stream::quic::{CertificateCommonName, ConnectionClassifier, ConnectionKind};
 use crate::stream::session::{SessionLink, SessionSpawner, WebSocketDeviceId};
 use bytes::Bytes;
@@ -22,7 +22,7 @@ use tokio_tungstenite::tungstenite::Message;
 /// session that reaches the spawner is therefore indistinguishable from a QUIC one.
 ///
 /// Binds loopback: the public port belongs to the demultiplexer, which relays here when a
-/// client offers the `bvc-ws/1` protocol.
+/// client offers the voice protocol.
 pub struct WebSocketListener {
     listener: TcpListener,
     acceptor: TlsAcceptor,
@@ -63,7 +63,7 @@ impl WebSocketListener {
         key_path: &str,
         ca_path: &str,
         spawner: Arc<SessionSpawner>,
-    ) -> Result<(Self, SocketAddr), anyhow::Error> {
+    ) -> Result<(Self, SocketAddr), WebSocketListenerError> {
         // Named explicitly rather than taken from the process default: whether one is
         // installed depends on which other component initialised rustls first, and
         // `ServerConfig::builder` panics rather than erroring when none is.
@@ -71,20 +71,22 @@ impl WebSocketListener {
             rustls::crypto::aws_lc_rs::default_provider(),
         ))
         .with_safe_default_protocol_versions()
-        .map_err(|e| anyhow::anyhow!("selecting TLS protocol versions: {e}"))?
+        .map_err(|source| WebSocketListenerError::TlsConfig { source })?
         .with_client_cert_verifier(Self::client_verifier(ca_path)?)
             .with_single_cert(
                 Self::load_certificates(certificate_path)?,
                 Self::load_key(key_path)?,
             )
-            .map_err(|e| anyhow::anyhow!("building the WebSocket TLS config: {e}"))?;
+            .map_err(|source| WebSocketListenerError::TlsConfig { source })?;
 
-        config.alpn_protocols = vec![AlpnDemux::WEBSOCKET_ALPN.to_vec()];
+        config.alpn_protocols = vec![VoiceProtocol::ALPN.to_vec()];
 
         let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
             .await
-            .map_err(|e| anyhow::anyhow!("binding the WebSocket listener: {e}"))?;
-        let addr = listener.local_addr()?;
+            .map_err(|source| WebSocketListenerError::Bind { source })?;
+        let addr = listener
+            .local_addr()
+            .map_err(|source| WebSocketListenerError::Bind { source })?;
 
         Ok((
             Self {
@@ -104,8 +106,12 @@ impl WebSocketListener {
         self.metrics = Some(metrics);
     }
 
-    pub async fn start(self) -> Result<(), anyhow::Error> {
-        tracing::info!(bind = %self.listener.local_addr()?, "WebSocket voice listener started");
+    pub async fn start(self) -> Result<(), WebSocketListenerError> {
+        let bind = self
+            .listener
+            .local_addr()
+            .map_err(|source| WebSocketListenerError::Bind { source })?;
+        tracing::info!(%bind, "WebSocket voice listener started");
 
         loop {
             let (stream, peer) = match self.listener.accept().await {
@@ -144,15 +150,14 @@ impl WebSocketListener {
         acceptor: TlsAcceptor,
         spawner: Arc<SessionSpawner>,
         device: u64,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), WebSocketListenerError> {
         let tls = acceptor
             .accept(stream)
             .await
-            .map_err(|e| anyhow::anyhow!("websocket TLS handshake from {peer}: {e}"))?;
+            .map_err(|source| WebSocketListenerError::Handshake { peer, source })?;
 
-        let identity = Self::authenticated_identity(&tls).ok_or_else(|| {
-            anyhow::anyhow!("refusing {peer}: no usable player identity in the client certificate")
-        })?;
+        let identity = Self::authenticated_identity(&tls)
+            .ok_or(WebSocketListenerError::UnusableIdentity { peer })?;
 
         let mut config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default();
         config.max_message_size = Some(Self::MAX_FRAME_BYTES);
@@ -160,7 +165,7 @@ impl WebSocketListener {
 
         let socket = tokio_tungstenite::accept_async_with_config(tls, Some(config))
             .await
-            .map_err(|e| anyhow::anyhow!("websocket upgrade from {peer}: {e}"))?;
+            .map_err(|source| WebSocketListenerError::Upgrade { peer, source })?;
 
         tracing::info!(%peer, device, %identity, "WebSocket session authenticated");
 
@@ -272,30 +277,49 @@ impl WebSocketListener {
 
     fn client_verifier(
         ca_path: &str,
-    ) -> Result<Arc<dyn rustls::server::danger::ClientCertVerifier>, anyhow::Error> {
+    ) -> Result<Arc<dyn rustls::server::danger::ClientCertVerifier>, WebSocketListenerError> {
         let mut roots = RootCertStore::empty();
         for certificate in Self::load_certificates(ca_path)? {
             roots
                 .add(certificate)
-                .map_err(|e| anyhow::anyhow!("adding {ca_path} to the client trust roots: {e}"))?;
+                .map_err(|source| WebSocketListenerError::TrustRoot {
+                    path: ca_path.to_string(),
+                    source,
+                })?;
         }
 
         WebPkiClientVerifier::builder(Arc::new(roots))
             .build()
-            .map_err(|e| anyhow::anyhow!("building the client certificate verifier: {e}"))
+            .map_err(|source| WebSocketListenerError::ClientVerifier { source })
     }
 
-    fn load_certificates(path: &str) -> Result<Vec<CertificateDer<'static>>, anyhow::Error> {
-        let pem = std::fs::read(path).map_err(|e| anyhow::anyhow!("reading {path}: {e}"))?;
+    fn load_certificates(
+        path: &str,
+    ) -> Result<Vec<CertificateDer<'static>>, WebSocketListenerError> {
+        let pem = std::fs::read(path).map_err(|source| WebSocketListenerError::ReadFile {
+            path: path.to_string(),
+            source,
+        })?;
         rustls_pemfile::certs(&mut pem.as_slice())
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| anyhow::anyhow!("parsing certificates in {path}: {e}"))
+            .map_err(|source| WebSocketListenerError::ParseCertificates {
+                path: path.to_string(),
+                source,
+            })
     }
 
-    fn load_key(path: &str) -> Result<PrivateKeyDer<'static>, anyhow::Error> {
-        let pem = std::fs::read(path).map_err(|e| anyhow::anyhow!("reading {path}: {e}"))?;
+    fn load_key(path: &str) -> Result<PrivateKeyDer<'static>, WebSocketListenerError> {
+        let pem = std::fs::read(path).map_err(|source| WebSocketListenerError::ReadFile {
+            path: path.to_string(),
+            source,
+        })?;
         rustls_pemfile::private_key(&mut pem.as_slice())
-            .map_err(|e| anyhow::anyhow!("parsing the private key in {path}: {e}"))?
-            .ok_or_else(|| anyhow::anyhow!("no private key found in {path}"))
+            .map_err(|source| WebSocketListenerError::ParseCertificates {
+                path: path.to_string(),
+                source,
+            })?
+            .ok_or_else(|| WebSocketListenerError::MissingPrivateKey {
+                path: path.to_string(),
+            })
     }
 }
