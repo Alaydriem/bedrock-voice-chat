@@ -11,7 +11,7 @@ certificates/
 config.hcl
 *.sqlite3
 *.sqlite
-target
+/target
 .claude
 upload-keystore.jks
 *.pem
