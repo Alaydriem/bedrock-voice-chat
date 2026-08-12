@@ -26,6 +26,7 @@ impl BwavRenderer {
         player_name: &str,
         sample_rate: u32,
         first_frame_relative_timestamp_ms: u64,
+        channels: u16,
     ) -> Bext {
         // Convert Unix timestamp (ms) to DateTime, using the actual first packet time
         let actual_start_timestamp =
@@ -62,7 +63,7 @@ impl BwavRenderer {
                 "A=PCM,F={},W={},M={},T=BVC\r\n",
                 sample_rate,
                 self.bits_per_sample,
-                "mono" // should always be mono?
+                if channels == 1 { "mono" } else { "stereo" }
             ),
         }
     }
@@ -74,6 +75,7 @@ impl BwavRenderer {
     pub(crate) fn write_samples(
         &self,
         track: &MixedPcmTrack,
+        display: &str,
         output_path: &Path,
     ) -> Result<(), anyhow::Error> {
         let format = if track.channels == 1 {
@@ -85,9 +87,10 @@ impl BwavRenderer {
         let mut writer = WaveWriter::create(output_path, format)?;
         let bext = self.create_bext(
             &track.session_info,
-            "Jukebox",
+            display,
             track.sample_rate,
             track.first_sound_ms,
+            track.channels,
         );
         writer.write_broadcast_metadata(&bext)?;
 
@@ -133,6 +136,7 @@ impl AudioRenderer for BwavRenderer {
             player_name,
             info.sample_rate,
             info.first_frame_timestamp_ms,
+            info.channels,
         );
         writer.write_broadcast_metadata(&bext)?;
 

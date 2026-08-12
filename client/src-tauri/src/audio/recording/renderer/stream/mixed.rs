@@ -1,7 +1,10 @@
 use std::path::Path;
 
 use crate::audio::recording::renderer::stream::opus::{OpusChunk, OpusStreamInfo};
-use crate::audio::recording::renderer::{DecodedAudioFrame, SessionInfo, TrackMixer, WalAudioReader};
+use crate::audio::recording::renderer::{
+    DecodedAudioFrame, SessionInfo, SpatialSource, TrackMixer, WalAudioReader,
+};
+use crate::audio::spatial::SpatialResolver;
 
 /// Several WAL keys, decoded and summed onto one timeline.
 ///
@@ -49,6 +52,54 @@ impl MixedPcmTrack {
             session_info: SessionInfo::load(session_path)?,
         })
     }
+
+    /// The same timeline, with every source placed where the listener heard it.
+    ///
+    /// Positioning needs each frame's own header, so this reads the entry and the decoded frame
+    /// together rather than going through the plain frame iterator.
+    pub fn spatial(
+        session_path: &Path,
+        keys: &[String],
+        resolver: &SpatialResolver,
+    ) -> Result<Self, anyhow::Error> {
+        let mut sources: Vec<Vec<DecodedAudioFrame>> = Vec::new();
+        let mut sample_rate: Option<u32> = None;
+
+        for key in keys {
+            let mut reader = WalAudioReader::new(session_path, key)?;
+            let mut frames = Vec::new();
+
+            // The header is cloned to end the immutable borrow the peek holds, so the frame can
+            // be taken next.
+            while let Some(header) = reader.peek_raw_entry().map(|entry| entry.header.clone()) {
+                let Some(frame) = reader.next_frame()? else {
+                    break;
+                };
+                sample_rate.get_or_insert(frame.sample_rate);
+                frames.push((header, frame));
+            }
+
+            if !frames.is_empty() {
+                sources.push(SpatialSource::position(frames, resolver));
+            }
+        }
+
+        let sample_rate = sample_rate
+            .ok_or_else(|| anyhow::anyhow!("no audio behind any of the keys for this track"))?;
+
+        // Positioned audio is always two channels, whatever the recorder captured.
+        let channels = 2;
+        let (samples, first_sound_ms) =
+            TrackMixer::mix_from_first_sound(&sources, sample_rate, channels);
+
+        Ok(Self {
+            samples,
+            sample_rate,
+            channels,
+            first_sound_ms,
+            session_info: SessionInfo::load(session_path)?,
+        })
+    }
 }
 
 /// A mixed track, encoded back to Opus so it can be muxed like any other.
@@ -63,7 +114,12 @@ impl MixedOpusStream {
     const BITRATE: i32 = 64_000;
 
     pub fn new(session_path: &Path, keys: &[String]) -> Result<Self, anyhow::Error> {
-        let track = MixedPcmTrack::new(session_path, keys)?;
+        Self::from_track(&MixedPcmTrack::new(session_path, keys)?)
+    }
+
+    /// Encode a timeline that has already been built, so a positioned track is not read from disk
+    /// a second time to be muxed.
+    pub fn from_track(track: &MixedPcmTrack) -> Result<Self, anyhow::Error> {
         let chunks = Self::encode(&track.samples, track.sample_rate, track.channels)?;
 
         Ok(Self {
@@ -74,7 +130,7 @@ impl MixedOpusStream {
                 // Where the first sound actually is. Everything downstream turns this into
                 // the wall clock the track began at, the same as for a single-key track.
                 first_packet_timestamp_ms: track.first_sound_ms,
-                session_info: track.session_info,
+                session_info: track.session_info.clone(),
             },
         })
     }

@@ -28,6 +28,12 @@
     let chosen = $state<ReadonlySet<string>>(new Set());
 
     /**
+     * On by default: a recording is of a session somebody was in, and what they heard is the
+     * thing worth keeping. Turning it off is the choice to mix it yourself.
+     */
+    let spatial = $state(true);
+
+    /**
      * A run belongs to the session, not to the screen that started it, so leaving mid-run
      * is allowed and the row reports it.
      */
@@ -113,7 +119,7 @@
         const outcome = await invoke<ExportOutcome>("export_recording", {
             sessionId: id,
             tracks: picked,
-            spatial: false,
+            spatial,
             format: "Mp4Opus",
         }).catch(() => null);
 
@@ -162,6 +168,8 @@
         ontoggle={toggleTrack}
         onall={() => (chosen = new Set(tracks.map((track) => track.display)))}
         onnone={() => (chosen = new Set())}
+        {spatial}
+        onspatial={(value) => (spatial = value)}
         onexport={() => void runExport()}
         onrename={() => {
             renaming = viewing;

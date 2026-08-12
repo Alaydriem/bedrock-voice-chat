@@ -16,10 +16,13 @@
         /** The last run's report, or an empty string before the first one. */
         status?: string;
         failed?: boolean;
+        /** Whether the export places each voice where it was heard. */
+        spatial: boolean;
         onback: () => void;
         ontoggle: (display: string) => void;
         onall: () => void;
         onnone: () => void;
+        onspatial: (value: boolean) => void;
         onexport: () => void;
         onrename: () => void;
         ondelete: () => void;
@@ -31,10 +34,12 @@
         progress,
         status = "",
         failed = false,
+        spatial,
         onback,
         ontoggle,
         onall,
         onnone,
+        onspatial,
         onexport,
         onrename,
         ondelete,
@@ -135,16 +140,16 @@
                 <span class="rad-row__label">{I18n.t("Mix in the spatial positions")}</span>
                 <span class="rad-row__note">
                     {I18n.t(
-                        "Not built yet. Every track is written flat and centred, which is what you want anyway if you are going to mix it yourself.",
+                        "Places each voice where it was standing and writes every track in stereo. Off writes each track flat and centred, straight from the recording with nothing re-encoded.",
                     )}
                 </span>
             </span>
             <span class="rad-row__control">
                 <Toggle
-                    checked={false}
-                    disabled
+                    checked={spatial}
+                    disabled={busy}
                     label={I18n.t("Mix in the spatial positions")}
-                    onchange={() => {}}
+                    onchange={onspatial}
                 />
             </span>
         </div>

@@ -5,6 +5,7 @@ pub mod backend;
 pub(crate) mod device;
 pub mod encode;
 pub mod recording;
+pub mod spatial;
 pub(crate) mod speaker_test;
 pub(crate) mod types;
 

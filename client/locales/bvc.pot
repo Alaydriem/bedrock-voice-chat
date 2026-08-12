@@ -73,11 +73,11 @@ msgstr ""
 msgid "A muted or unplugged headset is the usual cause"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:311
+#: src/js/app/error/FaultCatalog.ts:341
 msgid "A new version (v{version}) of Bedrock Voice Chat is available. This will download and install the update immediately."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:239
+#: src/js/app/error/FaultCatalog.ts:269
 msgid "A new version of Bedrock Voice Chat is available. This will download and install the update immediately."
 msgstr ""
 
@@ -108,7 +108,7 @@ msgstr ""
 
 #: src/components/server/PreflightPanel.svelte:114
 #: src/js/app/error/FaultCatalog.ts:228
-#: src/js/app/error/FaultCatalog.ts:260
+#: src/js/app/error/FaultCatalog.ts:290
 #: src/js/app/settings/SettingsCatalogue.ts:27
 msgid "Account"
 msgstr ""
@@ -124,7 +124,7 @@ msgstr ""
 #: src/components/dashboard/ServerRail.svelte:46
 #: src/components/server/ServerListScreen.svelte:52
 #: src/components/server/ServerListScreen.svelte:78
-#: src/components/settings/panes/ProxyPane.svelte:209
+#: src/components/settings/panes/ProxyPane.svelte:212
 msgid "Add a server"
 msgstr ""
 
@@ -151,7 +151,7 @@ msgstr ""
 
 #: src/components/settings/panes/WebSocketPane.svelte:140
 #: src/components/settings/panes/WebSocketPane.svelte:143
-#: src/components/settings/ProxyServerEditor.svelte:105
+#: src/components/settings/ProxyServerEditor.svelte:114
 #: src/js/app/error/FaultCatalog.ts:168
 msgid "Address"
 msgstr ""
@@ -164,7 +164,7 @@ msgstr ""
 msgid "Adjust {gamertag}"
 msgstr ""
 
-#: src/components/settings/ProxyServerEditor.svelte:113
+#: src/components/settings/ProxyServerEditor.svelte:122
 msgid "Advertised version"
 msgstr ""
 
@@ -172,7 +172,7 @@ msgstr ""
 msgid "Alerts"
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:89
+#: src/components/settings/RecordingDetail.svelte:94
 msgid "All"
 msgstr ""
 
@@ -194,7 +194,7 @@ msgstr ""
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:274
+#: src/js/app/error/FaultCatalog.ts:304
 msgid "An unexpected error occurred. Please try again or contact support if the problem persists."
 msgstr ""
 
@@ -252,11 +252,11 @@ msgstr ""
 msgid "Authorization denied. Please try again."
 msgstr ""
 
-#: src/components/settings/ProxyServerEditor.svelte:115
+#: src/components/settings/ProxyServerEditor.svelte:124
 msgid "Auto — mirror the backend"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:245
+#: src/js/app/error/FaultCatalog.ts:275
 msgid "Available now"
 msgstr ""
 
@@ -271,11 +271,11 @@ msgstr ""
 msgid "Back to Dashboard"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:283
+#: src/js/app/error/FaultCatalog.ts:313
 msgid "Back to Home"
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:53
+#: src/components/settings/RecordingDetail.svelte:58
 msgid "Back to recordings"
 msgstr ""
 
@@ -336,7 +336,7 @@ msgstr ""
 msgid "BVC server + world mod · installed once"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:281
+#: src/js/app/error/FaultCatalog.ts:311
 msgid "Can't continue"
 msgstr ""
 
@@ -351,8 +351,8 @@ msgstr ""
 
 #: src/components/dashboard/GroupRow.svelte:276
 #: src/components/settings/panes/PlayersPane.svelte:340
-#: src/components/settings/panes/RecordingsPane.svelte:283
-#: src/components/settings/ProxyServerEditor.svelte:128
+#: src/components/settings/panes/RecordingsPane.svelte:291
+#: src/components/settings/ProxyServerEditor.svelte:154
 #: src/components/settings/XboxSignIn.svelte:95
 #: src/routes/login/+page.svelte:275
 msgid "Cancel"
@@ -398,7 +398,7 @@ msgid "chat unavailable"
 msgstr ""
 
 #: src/components/settings/panes/AboutPane.svelte:113
-#: src/components/settings/panes/ProxyPane.svelte:189
+#: src/components/settings/panes/ProxyPane.svelte:192
 msgid "Check again"
 msgstr ""
 
@@ -414,7 +414,7 @@ msgstr ""
 msgid "Checking audio permission..."
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:166
+#: src/components/settings/panes/ProxyPane.svelte:169
 #: src/components/settings/panes/RealmsPane.svelte:119
 msgid "Checking your Microsoft sign-in."
 msgstr ""
@@ -425,7 +425,9 @@ msgstr ""
 #: src/js/app/error/FaultCatalog.ts:203
 #: src/js/app/error/FaultCatalog.ts:218
 #: src/js/app/error/FaultCatalog.ts:234
-#: src/js/app/error/FaultCatalog.ts:265
+#: src/js/app/error/FaultCatalog.ts:249
+#: src/js/app/error/FaultCatalog.ts:264
+#: src/js/app/error/FaultCatalog.ts:295
 msgid "Choose Different Server"
 msgstr ""
 
@@ -640,8 +642,8 @@ msgid "Cut my mic when I am not speaking"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:350
-#: src/components/settings/panes/RecordingsPane.svelte:302
-#: src/components/settings/RecordingDetail.svelte:161
+#: src/components/settings/panes/RecordingsPane.svelte:310
+#: src/components/settings/RecordingDetail.svelte:166
 msgid "Delete"
 msgstr ""
 
@@ -650,7 +652,7 @@ msgstr ""
 msgid "Delete {name}"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:294
+#: src/components/settings/panes/RecordingsPane.svelte:302
 msgid "Delete this recording?"
 msgstr ""
 
@@ -760,7 +762,7 @@ msgstr ""
 msgid "Everything looks fine."
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:180
+#: src/components/settings/RecordingDetail.svelte:185
 msgid "Export {count} track{plural}"
 msgstr ""
 
@@ -768,15 +770,15 @@ msgstr ""
 msgid "Export to WAV or MP4"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:175
+#: src/components/settings/panes/RecordingsPane.svelte:183
 msgid "Export your sessions to disk to import into your DAW or video editor. Players are exported to their own timecode encoded audio track."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:243
+#: src/components/settings/panes/RecordingsPane.svelte:251
 msgid "Exporting {index}/{total}"
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:179
+#: src/components/settings/RecordingDetail.svelte:184
 msgid "Exporting…"
 msgstr ""
 
@@ -887,7 +889,7 @@ msgstr ""
 msgid "History starts when you connect — nothing is stored"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:267
+#: src/js/app/error/FaultCatalog.ts:297
 msgid "How do I unlock this?"
 msgstr ""
 
@@ -924,6 +926,7 @@ msgid "I'm just looking"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:213
+#: src/js/app/error/FaultCatalog.ts:244
 msgid "Identity"
 msgstr ""
 
@@ -984,7 +987,7 @@ msgstr ""
 msgid "Is a BVC server already set up for"
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:73
+#: src/components/settings/RecordingDetail.svelte:78
 msgid "It is either still being written, or it was written by an older build whose format this version cannot read. It can still be renamed or deleted."
 msgstr ""
 
@@ -1000,7 +1003,7 @@ msgstr ""
 msgid "Jitter buffer"
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:260
+#: src/components/settings/panes/ProxyPane.svelte:263
 #: src/components/settings/panes/RealmsPane.svelte:182
 msgid "Join"
 msgstr ""
@@ -1022,7 +1025,7 @@ msgid "Jukeboxes"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:348
-#: src/components/settings/panes/RecordingsPane.svelte:300
+#: src/components/settings/panes/RecordingsPane.svelte:308
 msgid "Keep it"
 msgstr ""
 
@@ -1047,8 +1050,12 @@ msgstr ""
 msgid "Leave"
 msgstr ""
 
+#: src/components/settings/ProxyServerEditor.svelte:142
+msgid "Leave this off when the server runs the BVC addon — it delivers positions, chat and jukebox events itself. Turn it on for Realms, Aternos, and anywhere the addon cannot reach this server."
+msgstr ""
+
 #: src/components/settings/panes/LibraryPane.svelte:205
-#: src/components/settings/panes/RecordingsPane.svelte:217
+#: src/components/settings/panes/RecordingsPane.svelte:225
 msgid "Length"
 msgstr ""
 
@@ -1075,7 +1082,7 @@ msgstr ""
 msgid "Live"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:263
+#: src/js/app/error/FaultCatalog.ts:293
 msgid "Locked"
 msgstr ""
 
@@ -1128,8 +1135,8 @@ msgstr ""
 msgid "Minecraft Java"
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:135
-#: src/components/settings/RecordingDetail.svelte:146
+#: src/components/settings/RecordingDetail.svelte:140
+#: src/components/settings/RecordingDetail.svelte:151
 msgid "Mix in the spatial positions"
 msgstr ""
 
@@ -1160,12 +1167,12 @@ msgstr ""
 msgid "Muted by you"
 msgstr ""
 
-#: src/components/settings/ProxyServerEditor.svelte:95
-#: src/components/settings/ProxyServerEditor.svelte:96
+#: src/components/settings/ProxyServerEditor.svelte:104
+#: src/components/settings/ProxyServerEditor.svelte:105
 msgid "Name"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:262
+#: src/js/app/error/FaultCatalog.ts:292
 msgid "NEEDS UNLOCKING"
 msgstr ""
 
@@ -1173,7 +1180,7 @@ msgstr ""
 msgid "New group"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:244
+#: src/js/app/error/FaultCatalog.ts:274
 msgid "New version"
 msgstr ""
 
@@ -1197,7 +1204,7 @@ msgstr ""
 msgid "NO ANSWER · CONN01"
 msgstr ""
 
-#: src/js/app/dashboard.ts:822
+#: src/js/app/dashboard.ts:829
 msgid "No current server found in store!"
 msgstr ""
 
@@ -1265,7 +1272,7 @@ msgstr ""
 msgid "none"
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:97
+#: src/components/settings/RecordingDetail.svelte:102
 msgid "None"
 msgstr ""
 
@@ -1273,15 +1280,12 @@ msgstr ""
 msgid "Not available in a release build."
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:137
-msgid "Not built yet. Every track is written flat and centred, which is what you want anyway if you are going to mix it yourself."
-msgstr ""
-
 #: src/components/login/ConnectErrorScreen.svelte:32
 #: src/components/login/ConnectErrorScreen.svelte:44
 #: src/js/app/error/FaultCatalog.ts:170
 #: src/js/app/error/FaultCatalog.ts:185
 #: src/js/app/error/FaultCatalog.ts:200
+#: src/js/app/error/FaultCatalog.ts:261
 msgid "Not connected"
 msgstr ""
 
@@ -1289,8 +1293,8 @@ msgstr ""
 msgid "Not connected to a server."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:238
-#: src/components/settings/RecordingDetail.svelte:64
+#: src/components/settings/panes/RecordingsPane.svelte:246
+#: src/components/settings/RecordingDetail.svelte:69
 msgid "Not exportable"
 msgstr ""
 
@@ -1316,7 +1320,7 @@ msgid "NOT VERIFIED"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:229
-#: src/js/app/error/FaultCatalog.ts:261
+#: src/js/app/error/FaultCatalog.ts:291
 msgid "Not yet"
 msgstr ""
 
@@ -1341,7 +1345,7 @@ msgid "Nothing is recorded or sent anywhere until you are in a voice session, an
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:232
-#: src/js/app/error/FaultCatalog.ts:264
+#: src/js/app/error/FaultCatalog.ts:294
 msgid "Nothing is wrong with your setup"
 msgstr ""
 
@@ -1406,15 +1410,19 @@ msgstr ""
 msgid "One quiet ongoing notification while you are in a session, plus people arriving and channels you are part of."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:271
+#: src/components/settings/panes/RecordingsPane.svelte:279
 msgid "Only the name changes. The recording and its tracks stay where they are."
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:247
+msgid "Only the server owner can fix the certificate"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:157
 msgid "Only the server owner can fix this one"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:228
+#: src/components/settings/panes/RecordingsPane.svelte:236
 msgid "Open {name}"
 msgstr ""
 
@@ -1479,6 +1487,10 @@ msgstr ""
 msgid "Pick your microphone"
 msgstr ""
 
+#: src/components/settings/RecordingDetail.svelte:142
+msgid "Places each voice where it was standing and writes every track in stereo. Off writes each track flat and centred, straight from the recording with nothing re-encoded."
+msgstr ""
+
 #: src/components/settings/panes/AboutPane.svelte:181
 msgid "Platform ID"
 msgstr ""
@@ -1491,7 +1503,7 @@ msgstr ""
 msgid "players"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:218
+#: src/components/settings/panes/RecordingsPane.svelte:226
 #: src/js/app/settings/SettingsCatalogue.ts:29
 msgid "Players"
 msgstr ""
@@ -1567,6 +1579,10 @@ msgstr ""
 msgid "Proximity voice for Minecraft Bedrock. Source available."
 msgstr ""
 
+#: src/components/settings/ProxyServerEditor.svelte:138
+msgid "Proxy all events"
+msgstr ""
+
 #: src/js/app/settings/SettingsCatalogue.ts:37
 msgid "Proxy Connect"
 msgstr ""
@@ -1605,11 +1621,11 @@ msgstr ""
 msgid "Ready"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:246
+#: src/js/app/error/FaultCatalog.ts:276
 msgid "READY"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:247
+#: src/js/app/error/FaultCatalog.ts:277
 msgid "Ready to install"
 msgstr ""
 
@@ -1646,7 +1662,7 @@ msgstr ""
 msgid "Record everyone."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:216
+#: src/components/settings/panes/RecordingsPane.svelte:224
 msgid "Recorded"
 msgstr ""
 
@@ -1654,7 +1670,7 @@ msgstr ""
 msgid "Recording is off on this server"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:278
+#: src/components/settings/panes/RecordingsPane.svelte:286
 msgid "Recording name"
 msgstr ""
 
@@ -1687,19 +1703,19 @@ msgstr ""
 msgid "Remove {name}"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:285
+#: src/components/settings/panes/RecordingsPane.svelte:293
 msgid "Rename"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:270
+#: src/components/settings/panes/RecordingsPane.svelte:278
 msgid "Rename this recording"
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:160
+#: src/components/settings/RecordingDetail.svelte:165
 msgid "Rename…"
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:165
+#: src/components/settings/RecordingDetail.svelte:170
 msgid "Rendering {track} — {index} of {total}"
 msgstr ""
 
@@ -1816,12 +1832,21 @@ msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:40
 #: src/js/app/error/FaultCatalog.ts:154
+#: src/js/app/error/FaultCatalog.ts:259
 msgid "Server"
 msgstr ""
 
 #: src/components/login/SignInScreen.svelte:74
 #: src/components/login/SignInScreen.svelte:84
 msgid "Server address"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:253
+msgid "Server Certificate Misconfigured"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:238
+msgid "Server Certificate Rejected"
 msgstr ""
 
 #: src/components/dashboard/ChatDock.svelte:63
@@ -1861,7 +1886,7 @@ msgid "SERVICE STOPPED"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:260
-#: src/components/settings/panes/RecordingsPane.svelte:215
+#: src/components/settings/panes/RecordingsPane.svelte:223
 #: src/js/app/dashboard/DiagnosticsCopy.ts:24
 msgid "Session"
 msgstr ""
@@ -1892,7 +1917,7 @@ msgid "Show status"
 msgstr ""
 
 #: src/components/login/CodeScreen.svelte:81
-#: src/components/settings/panes/ProxyPane.svelte:178
+#: src/components/settings/panes/ProxyPane.svelte:181
 #: src/components/settings/panes/RealmsPane.svelte:131
 msgid "Sign in"
 msgstr ""
@@ -1902,6 +1927,7 @@ msgid "Sign in →"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:217
+#: src/js/app/error/FaultCatalog.ts:248
 msgid "Sign In Again"
 msgstr ""
 
@@ -1910,7 +1936,7 @@ msgid "Sign in with a code"
 msgstr ""
 
 #: src/components/login/SignInScreen.svelte:99
-#: src/components/settings/panes/ProxyPane.svelte:174
+#: src/components/settings/panes/ProxyPane.svelte:177
 #: src/components/settings/panes/RealmsPane.svelte:127
 #: src/components/settings/XboxSignIn.svelte:40
 msgid "Sign in with Microsoft"
@@ -1944,6 +1970,10 @@ msgstr ""
 msgid "SIGNED IN WITH XBOX LIVE"
 msgstr ""
 
+#: src/js/app/error/FaultCatalog.ts:246
+msgid "Signed out"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:216
 msgid "Signing in again issues fresh credentials"
 msgstr ""
@@ -1953,7 +1983,7 @@ msgid "Signing in with the account you play on"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:206
-#: src/components/settings/panes/RecordingsPane.svelte:219
+#: src/components/settings/panes/RecordingsPane.svelte:227
 msgid "Size"
 msgstr ""
 
@@ -1969,7 +1999,7 @@ msgstr ""
 msgid "Someone already set it up"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:273
+#: src/js/app/error/FaultCatalog.ts:303
 msgid "Something Went Wrong"
 msgstr ""
 
@@ -2003,11 +2033,11 @@ msgid "State"
 msgstr ""
 
 #: src/components/dashboard/StatusPanel.svelte:125
-#: src/components/settings/panes/ProxyPane.svelte:240
+#: src/components/settings/panes/ProxyPane.svelte:243
 msgid "Status"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:250
+#: src/js/app/error/FaultCatalog.ts:280
 msgid "Stay on This Version"
 msgstr ""
 
@@ -2017,7 +2047,7 @@ msgstr ""
 msgid "Still stuck?"
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:251
+#: src/components/settings/panes/ProxyPane.svelte:254
 #: src/components/settings/PlateGrid.svelte:91
 msgid "Stop"
 msgstr ""
@@ -2046,7 +2076,7 @@ msgstr ""
 msgid "System default"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:248
+#: src/js/app/error/FaultCatalog.ts:278
 msgid "Takes about a minute on a normal connection"
 msgstr ""
 
@@ -2077,7 +2107,7 @@ msgstr ""
 msgid "The BVC server runs separately, on"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:282
+#: src/js/app/error/FaultCatalog.ts:312
 msgid "The code above is what support will ask for"
 msgstr ""
 
@@ -2085,15 +2115,15 @@ msgstr ""
 msgid "The device list is incomplete."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:127
+#: src/components/settings/panes/RecordingsPane.svelte:133
 msgid "The export could not run."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:186
+#: src/components/settings/panes/RecordingsPane.svelte:194
 msgid "The operator has turned voice recording off, so the record button is unavailable while you are connected here."
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:175
+#: src/components/settings/panes/ProxyPane.svelte:178
 msgid "THE PROXY JOINS THE SERVER AS YOU"
 msgstr ""
 
@@ -2129,11 +2159,11 @@ msgstr ""
 msgid "This device answers on all of them. Use whichever your other device can reach."
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:72
+#: src/components/settings/RecordingDetail.svelte:77
 msgid "This recording cannot be exported"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:185
+#: src/components/settings/panes/RecordingsPane.svelte:193
 msgid "This server does not allow recording"
 msgstr ""
 
@@ -2141,11 +2171,15 @@ msgstr ""
 msgid "This server has not granted you account access. Join the Minecraft server in-game at least once so it can register you, or ask the server operator to add you."
 msgstr ""
 
+#: src/js/app/error/FaultCatalog.ts:239
+msgid "This server's security certificate does not match the one this device was issued. Your saved sign-in for it has been removed. Sign in again to get fresh credentials. If it keeps happening, the server operator needs to fix their certificate configuration."
+msgstr ""
+
 #: src/components/settings/panes/RealmsPane.svelte:128
 msgid "TO LIST THE REALMS YOU CAN JOIN"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:255
+#: src/js/app/error/FaultCatalog.ts:285
 msgid "To use Bedrock Voice Chat, a parent or guardian needs to turn it on for your device. Ask them to help you unlock it -- then you're good to go!"
 msgstr ""
 
@@ -2161,7 +2195,7 @@ msgstr ""
 msgid "Toggle Recording"
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:81
+#: src/components/settings/RecordingDetail.svelte:86
 msgid "Tracks"
 msgstr ""
 
@@ -2183,6 +2217,7 @@ msgstr ""
 #: src/js/app/error/FaultCatalog.ts:187
 #: src/js/app/error/FaultCatalog.ts:202
 #: src/js/app/error/FaultCatalog.ts:233
+#: src/js/app/error/FaultCatalog.ts:263
 #: src/js/app/error/FaultCatalog.ts:79
 msgid "Try Again"
 msgstr ""
@@ -2199,7 +2234,7 @@ msgstr ""
 msgid "Unable to establish a voice connection to the server. The server may be offline, unreachable, or your certificates may have expired. Please try again."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:280
+#: src/js/app/error/FaultCatalog.ts:310
 msgid "UNEXPECTED"
 msgstr ""
 
@@ -2207,7 +2242,7 @@ msgstr ""
 msgid "Uniquely identifies your build for experimental features + analytics."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:279
+#: src/js/app/error/FaultCatalog.ts:309
 msgid "Unknown"
 msgstr ""
 
@@ -2223,11 +2258,16 @@ msgstr ""
 msgid "UNRESOLVED"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:238
+#: src/js/app/error/FaultCatalog.ts:245
+#: src/js/app/error/FaultCatalog.ts:260
+msgid "UNTRUSTED"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:268
 msgid "Update Available"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:249
+#: src/js/app/error/FaultCatalog.ts:279
 msgid "Update Now"
 msgstr ""
 
@@ -2243,7 +2283,7 @@ msgstr ""
 msgid "Uploaded sounds can be played on a Jukeboxes"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:315
+#: src/js/app/error/FaultCatalog.ts:345
 msgid "v{version}"
 msgstr ""
 
@@ -2333,7 +2373,7 @@ msgstr ""
 msgid "Watching for your sign-in."
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:186
+#: src/components/settings/panes/ProxyPane.svelte:189
 msgid "We could not reach this server to ask whether Bedrock support is on."
 msgstr ""
 
@@ -2341,7 +2381,7 @@ msgstr ""
 msgid "We couldn't reach"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:254
+#: src/js/app/error/FaultCatalog.ts:284
 msgid "We need a grown-ups help to get started"
 msgstr ""
 
@@ -2370,7 +2410,7 @@ msgstr ""
 msgid "Where this message goes"
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:195
+#: src/components/settings/panes/ProxyPane.svelte:198
 msgid "Where you play"
 msgstr ""
 
@@ -2422,7 +2462,7 @@ msgstr ""
 msgid "Yes · I have an address"
 msgstr ""
 
-#: src/components/settings/RecordingDetail.svelte:120
+#: src/components/settings/RecordingDetail.svelte:125
 msgid "you"
 msgstr ""
 
@@ -2438,7 +2478,7 @@ msgstr ""
 msgid "You are muted. Nobody can hear you."
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:187
+#: src/components/settings/panes/ProxyPane.svelte:190
 msgid "You can start the proxy anyway — if position is refused, this is why."
 msgstr ""
 
@@ -2504,6 +2544,14 @@ msgstr ""
 
 #: src/components/settings/panes/RealmsPane.svelte:136
 msgid "Your Realms"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:254
+msgid "Your sign-in for this server is still valid, but its voice connection presented a certificate this device cannot verify. Only the server operator can fix this. Your saved sign-in has been kept."
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:262
+msgid "Your sign-in is fine; the server's certificate is not"
 msgstr ""
 
 #: src/components/login/GateScreen.svelte:50

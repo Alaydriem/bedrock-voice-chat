@@ -777,6 +777,13 @@ export default class Dashboard extends BVCApp {
                             device: "OutputDevice"
                         });
 
+                        // The metadata above does not survive the app closing, and a recording is
+                        // usually exported after the session it came from has ended. Without this
+                        // copy that export renders on the compiled falloff curve rather than this
+                        // server's, and nothing in the output would say so.
+                        await store.set("spatial_audio_config", configResponse.config.spatial_audio);
+                        await store.save();
+
                         // The same number the audio router uses, so the line the roster draws
                         // and the line a voice actually stops at are one line. The feed reaches
                         // 2.5x past it, which is what gives the ring an approach to animate.

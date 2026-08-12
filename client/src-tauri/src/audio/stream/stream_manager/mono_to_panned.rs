@@ -4,10 +4,8 @@ use std::time::Duration;
 
 use rodio::Source;
 
+use crate::audio::spatial::{GainSmoother, SpatialGains};
 use crate::audio::stream::jitter_buffer::PanState;
-
-// ~4.2ms time constant at 48kHz
-const SMOOTH_COEFF: f32 = 0.005;
 
 pub(crate) struct MonoToPanned<S>
 where
@@ -16,9 +14,7 @@ where
     inner: S,
     pan_state: Arc<PanState>,
     pending_right: Option<f32>,
-    current_left: f32,
-    current_right: f32,
-    current_volume: f32,
+    smoother: GainSmoother,
 }
 
 impl<S> MonoToPanned<S>
@@ -26,16 +22,16 @@ where
     S: Source,
 {
     pub fn new(source: S, pan_state: Arc<PanState>) -> Self {
-        let initial_left = pan_state.left_gain();
-        let initial_right = pan_state.right_gain();
-        let initial_volume = pan_state.volume();
+        let initial = SpatialGains {
+            left: pan_state.left_gain(),
+            right: pan_state.right_gain(),
+            volume: pan_state.volume(),
+        };
         Self {
             inner: source,
             pan_state,
             pending_right: None,
-            current_left: initial_left,
-            current_right: initial_right,
-            current_volume: initial_volume,
+            smoother: GainSmoother::new(initial),
         }
     }
 }
@@ -52,16 +48,15 @@ where
         }
 
         if let Some(sample) = self.inner.next() {
-            let target_left = self.pan_state.left_gain();
-            let target_right = self.pan_state.right_gain();
-            let target_volume = self.pan_state.volume();
+            let target = SpatialGains {
+                left: self.pan_state.left_gain(),
+                right: self.pan_state.right_gain(),
+                volume: self.pan_state.volume(),
+            };
+            let current = self.smoother.advance(&target);
 
-            self.current_left += (target_left - self.current_left) * SMOOTH_COEFF;
-            self.current_right += (target_right - self.current_right) * SMOOTH_COEFF;
-            self.current_volume += (target_volume - self.current_volume) * SMOOTH_COEFF;
-
-            self.pending_right = Some(sample * self.current_volume * self.current_right);
-            Some(sample * self.current_volume * self.current_left)
+            self.pending_right = Some(sample * current.volume * current.right);
+            Some(sample * current.volume * current.left)
         } else {
             None
         }

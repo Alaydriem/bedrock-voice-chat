@@ -2,23 +2,32 @@ mod bwav;
 pub mod mixer;
 pub mod mp4;
 pub mod naming;
+pub mod settings_provenance;
+pub mod spatial_render_settings;
+pub mod spatial_source;
 mod stream;
 
 pub use mixer::TrackMixer;
 pub use naming::ExportNaming;
+pub use settings_provenance::SettingsProvenance;
+pub use spatial_render_settings::SpatialRenderSettings;
+pub use spatial_source::SpatialSource;
+pub use stream::mixed::MixedPcmTrack;
 
 use async_trait::async_trait;
 use common::structs::AudioFormat;
-use common::structs::recording::{RecordingHeader, SessionManifest};
+use common::structs::recording::{RecordingHeader, RecordingTrack, SessionManifest};
 use log::debug;
 use std::fs;
 use std::path::Path;
+
+use crate::audio::spatial::SpatialResolver;
 
 use crate::audio::recording::renderer::{
     bwav::BwavRenderer,
     mp4::Mp4Renderer,
     stream::{
-        mixed::{MixedOpusStream, MixedPcmTrack},
+        mixed::MixedOpusStream,
         opus::{OpusChunk, OpusPacketStream, OpusStreamInfo},
         pcm::{PcmChunk, PcmStream},
     },
@@ -37,11 +46,15 @@ pub trait AudioFormatRenderer {
 
     /// One output file from one or more WAL keys. A single key is the path everything
     /// took before the jukebox needed several.
+    ///
+    /// A spatial render sends every track down the mixing path, single key or not: placing a
+    /// voice needs its samples, and the flat path never decodes them.
     async fn render_track(
         &self,
         session_path: &Path,
-        keys: &[String],
+        track: &RecordingTrack,
         output_path: &Path,
+        spatial: Option<&SpatialRenderSettings>,
     ) -> Result<(), anyhow::Error>;
 }
 
@@ -71,20 +84,42 @@ impl AudioFormatRenderer for AudioFormat {
     async fn render_track(
         &self,
         session_path: &Path,
-        keys: &[String],
+        track: &RecordingTrack,
         output_path: &Path,
+        spatial: Option<&SpatialRenderSettings>,
     ) -> Result<(), anyhow::Error> {
-        match keys {
-            [] => Err(anyhow::anyhow!(
+        let keys = track.keys.as_slice();
+
+        if keys.is_empty() {
+            return Err(anyhow::anyhow!(
                 "a track with no keys behind it has nothing to render"
-            )),
+            ));
+        }
+
+        if let Some(settings) = spatial {
+            let resolver = SpatialResolver::new(settings.clone());
+            let positioned = MixedPcmTrack::spatial(session_path, keys, &resolver)?;
+
+            return match self {
+                AudioFormat::Bwav => {
+                    BwavRenderer::new().write_samples(&positioned, &track.display, output_path)
+                }
+                AudioFormat::Mp4Opus => {
+                    let stream = MixedOpusStream::from_track(&positioned)?;
+                    let info = stream.info().clone();
+                    Mp4Renderer::new().mux(stream, info, output_path)
+                }
+            };
+        }
+
+        match keys {
             // The path everything took before the jukebox needed several, kept whole so
             // the common case does not pay a decode and a re-encode for the rare one.
             [single] => self.render(session_path, single, output_path).await,
             many => match self {
                 AudioFormat::Bwav => {
                     let mixed = MixedPcmTrack::new(session_path, many)?;
-                    BwavRenderer::new().write_samples(&mixed, output_path)
+                    BwavRenderer::new().write_samples(&mixed, &track.display, output_path)
                 }
                 AudioFormat::Mp4Opus => {
                     let stream = MixedOpusStream::new(session_path, many)?;

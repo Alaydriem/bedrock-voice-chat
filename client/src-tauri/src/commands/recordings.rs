@@ -1,6 +1,10 @@
+use crate::AudioStreamManager;
 use crate::analytics::AnalyticsService;
-use crate::audio::recording::renderer::{AudioFormatRenderer, ExportNaming};
+use crate::audio::recording::renderer::{
+    AudioFormatRenderer, ExportNaming, SpatialRenderSettings,
+};
 use crate::audio::recording::{ExportRun, ManifestStore, TrackIndex, TrackSink};
+use crate::audio::spatial::SpatialSettingsResolver;
 use common::structs::AudioFormat;
 use common::structs::recording::{
     ExportOutcome, ExportProgress, RecordingTrack, SessionManifest,
@@ -10,7 +14,8 @@ use log::{error, info};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::{Emitter, Manager};
+use tauri::async_runtime::Mutex;
+use tauri::{Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use common::structs::recording::RecordingSession;
@@ -165,6 +170,9 @@ struct SessionSink {
     session_path: PathBuf,
     render_path: PathBuf,
     format: AudioFormat,
+    // Absent when the export is flat. Resolved once for the whole run, because a session that
+    // ends part way through must not change the curve the remaining tracks render on.
+    spatial: Option<SpatialRenderSettings>,
 }
 
 #[async_trait::async_trait]
@@ -176,7 +184,12 @@ impl TrackSink for SessionSink {
             self.format.extension()
         ));
         self.format
-            .render_track(&self.session_path, &track.keys, &output_path)
+            .render_track(
+                &self.session_path,
+                track,
+                &output_path,
+                self.spatial.as_ref(),
+            )
             .await
     }
 
@@ -194,13 +207,14 @@ impl TrackSink for SessionSink {
 }
 
 #[tauri::command]
-#[tracing::instrument(skip(app_handle, tracks), fields(session_id = %session_id, format = ?format, track_count = tracks.len()))]
+#[tracing::instrument(skip(app_handle, tracks, asm), fields(session_id = %session_id, format = ?format, track_count = tracks.len()))]
 pub async fn export_recording(
     session_id: String,
     tracks: Vec<RecordingTrack>,
     spatial: bool,
     format: AudioFormat,
     app_handle: tauri::AppHandle,
+    asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<ExportOutcome, String> {
     log::info!(
         "Export recording called - Session ID: {}, Tracks: {}, Spatial: {}, Format: {:?}",
@@ -239,12 +253,36 @@ pub async fn export_recording(
     let export_format = format!("{:?}", format);
     let render_start = std::time::Instant::now();
 
+    // Resolved before the run starts, and the lock released before any rendering: a render
+    // decodes a whole session and must never hold the audio manager while it does.
+    let spatial = if spatial {
+        let live = {
+            let asm = asm.lock().await;
+            SpatialSettingsResolver::live(&asm).await
+        };
+        let settings = SpatialSettingsResolver::choose(
+            live,
+            SpatialSettingsResolver::last_known(&app_handle),
+        );
+
+        info!(
+            "Spatial export using {} settings, falloff {}",
+            settings.provenance().as_str(),
+            settings.config().falloff_distance
+        );
+
+        Some(settings)
+    } else {
+        None
+    };
+
     let sink = SessionSink {
         app_handle: app_handle.clone(),
         session_id: session_id.clone(),
         session_path: rec_path.clone(),
         render_path: render_path.clone(),
         format,
+        spatial,
     };
     let outcome = ExportRun::execute(&tracks, &sink).await;
 

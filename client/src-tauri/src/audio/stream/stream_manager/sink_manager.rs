@@ -10,6 +10,7 @@ use std::num::NonZero;
 use tokio::task::JoinHandle;
 
 use crate::audio::recording::RecordingProducer;
+use crate::audio::spatial::{PerceptualGain, SpatialCalculator, SpatialGains};
 use crate::audio::stream::ActivityUpdate;
 use crate::audio::stream::jitter_buffer::{EncodedAudioFramePacket, JitterBuffer, PanState};
 use crate::audio::stream::level_bus::LoudnessTracker;
@@ -92,12 +93,6 @@ where
     fn total_duration(&self) -> Option<Duration> {
         self.inner.total_duration()
     }
-}
-
-/// Convert a linear slider position (0.0-1.5) to a perceptually-correct amplitude factor.
-/// Uses a power curve (x^2.5) so equal slider increments produce roughly equal loudness changes.
-fn perceptual_gain(linear_position: f32) -> f32 {
-    linear_position.powf(2.5)
 }
 
 #[derive(Clone, Default)]
@@ -444,7 +439,7 @@ impl SinkManager {
                         .map(|p| p.get_game())
                         .unwrap_or(common::Game::Minecraft);
 
-                    let spatial_data = JitterBuffer::calculate_spatial_audio_data(
+                    let spatial_data = SpatialCalculator::gains(
                         &emitter_coordinate,
                         deafen_emitter,
                         &listener_coordinate,
@@ -460,14 +455,17 @@ impl SinkManager {
                             1.0
                         };
                         let volume =
-                            spatial_data.volume * perceptual_gain(gain_settings.gain) * mute_mult;
+                            spatial_data.volume
+                                * PerceptualGain::amplitude(gain_settings.gain)
+                                * mute_mult;
 
                         let intensity = f32::from_bits(panning_intensity.load(Ordering::Relaxed));
-                        let scaled_pan =
-                            platform_adjusted_pan((spatial_data.pan * intensity).clamp(-1.0, 1.0));
-                        let left = ((1.0 + scaled_pan) / 2.0).sqrt();
-                        let right = ((1.0 - scaled_pan) / 2.0).sqrt();
-                        pan_state.update(left, right, volume);
+                        let gains = SpatialGains::from_pan(
+                            platform_adjusted_pan(spatial_data.pan),
+                            volume,
+                            intensity,
+                        );
+                        pan_state.update(gains.left, gains.right, gains.volume);
                     }
 
                     if bundle.spatial_handle.is_none() {
@@ -522,7 +520,8 @@ impl SinkManager {
                         } else {
                             1.0
                         };
-                        let volume = 1.3 * perceptual_gain(gain_settings.gain) * mute_mult;
+                        let volume =
+                            1.3 * PerceptualGain::amplitude(gain_settings.gain) * mute_mult;
                         normal_sink.set_volume(volume);
                     }
 
