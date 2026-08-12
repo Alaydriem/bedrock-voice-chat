@@ -978,16 +978,17 @@ mod tests {
     use common::bedrock_protocol::AuthManager;
 
     fn build_gating() -> Arc<ProtocolGatingService> {
+        let platform_id = crate::analytics::PlatformId::new_shared(String::new());
         let flag_service = Arc::new(FeatureFlagService::new(
             String::new(),
             String::new(),
-            String::new(),
+            platform_id.clone(),
             0,
             std::time::Duration::from_secs(3600),
             None,
         ));
         let telemetry = Arc::new(crate::logging::Telemetry::new(false));
-        let analytics = Arc::new(AnalyticsService::new(telemetry, String::new()));
+        let analytics = Arc::new(AnalyticsService::new(telemetry, platform_id));
         ProtocolGatingService::new_shared(flag_service, analytics)
     }
 

@@ -178,6 +178,55 @@ pub(crate) async fn update_stream_metadata(
     Ok(())
 }
 
+/// Set whether jukebox music plays.
+///
+/// The single entry point for this flag: the settings pane, the in-game panel and the WebSocket
+/// toggle all end up in `AudioActionsManager::set_jukebox_muted`, which owns the three copies of
+/// it. A caller that wrote `store.json` itself would be writing one of the three.
+#[tauri::command]
+pub(crate) async fn set_jukebox_muted(
+    muted: bool,
+    actions: State<'_, AudioActionsManager>,
+) -> Result<bool, String> {
+    let reached = actions
+        .set_jukebox_muted(muted)
+        .await
+        .map_err(|e| e.to_string())?;
+    actions.broadcast_state().await;
+    Ok(reached)
+}
+
+/// Set how loud jukebox music plays, as a fraction where 1.0 is untouched.
+///
+/// The single entry point for this level, for the same reason as `set_jukebox_muted`: the settings
+/// pane, the in-game panel and a WebSocket controller all end up in
+/// `AudioActionsManager::set_jukebox_gain`, which owns the three copies of it.
+#[tauri::command]
+pub(crate) async fn set_jukebox_gain(
+    gain: f32,
+    actions: State<'_, AudioActionsManager>,
+) -> Result<f32, String> {
+    let reached = actions
+        .set_jukebox_gain(gain)
+        .await
+        .map_err(|e| e.to_string())?;
+    actions.broadcast_state().await;
+    Ok(reached)
+}
+
+/// Flip it, for a control that cannot read the current value first.
+#[tauri::command]
+pub(crate) async fn toggle_jukebox_muted(
+    actions: State<'_, AudioActionsManager>,
+) -> Result<bool, String> {
+    let reached = actions
+        .toggle_jukebox_muted()
+        .await
+        .map_err(|e| e.to_string())?;
+    actions.broadcast_state().await;
+    Ok(reached)
+}
+
 #[tauri::command]
 pub(crate) async fn reset_asm(
     app: AppHandle,

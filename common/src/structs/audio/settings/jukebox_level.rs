@@ -25,8 +25,9 @@ impl Default for JukeboxLevel {
 }
 
 impl JukeboxLevel {
-    /// The top of the slider, matching a player card so 100% means untouched in both places.
-    pub const MAX_GAIN: f32 = 1.5;
+    /// The top of the slider. The same ceiling as a peer's voice, so 100% means untouched
+    /// everywhere and one number governs every gain in the product.
+    pub const MAX_GAIN: f32 = PlayerGainSettings::MAX_GAIN;
 
     pub fn new() -> Self {
         Self::default()

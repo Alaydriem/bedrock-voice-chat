@@ -19,18 +19,10 @@ impl ResolvedTarget {
     }
 
     pub fn to_wire(&self) -> ConnectTarget {
-        ConnectTarget {
-            id: self.id.clone(),
-            name: self.name.clone(),
-            kind: self.kind(),
-        }
+        ConnectTarget::new(self.id.clone(), self.name.clone(), self.kind())
     }
 
     pub fn to_active(&self) -> ActiveConnection {
-        ActiveConnection {
-            id: self.id.clone(),
-            name: self.name.clone(),
-            kind: self.kind(),
-        }
+        ActiveConnection::new(self.id.clone(), self.name.clone(), self.kind())
     }
 }

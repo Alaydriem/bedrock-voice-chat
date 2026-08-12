@@ -1,4 +1,5 @@
 pub(crate) mod channel_event;
+pub mod jukebox;
 pub(crate) mod notification;
 pub mod player_gain_store;
 pub(crate) mod player_presence;

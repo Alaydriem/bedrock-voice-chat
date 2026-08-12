@@ -450,6 +450,7 @@
     for (const off of unsubs) off();
     presence?.cleanup();
     diagnostics.stop();
+    audioSettings.cleanup();
   });
 
   function signOut(): void {

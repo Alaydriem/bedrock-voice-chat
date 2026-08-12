@@ -73,6 +73,23 @@
   text-align: right;
 }
 
+/* A row that opens the record it names. A chevron says the row goes somewhere; a
+   kebab would say it has a menu, which is a different promise. */
+.rad-table__go {
+  display: inline-flex;
+  color: var(--color-rad-faint);
+}
+
+.rad-table__go > svg {
+  width: 16px;
+  height: 16px;
+  transform: rotate(-90deg);
+}
+
+.rad-table tr.is-openable td {
+  cursor: pointer;
+}
+
 .rad-row-actions {
   display: flex;
   gap: 2px;

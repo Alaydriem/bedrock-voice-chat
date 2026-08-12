@@ -1,3 +1,4 @@
+mod health_push;
 mod link;
 mod mic;
 mod peer;
@@ -12,6 +13,7 @@ mod snapshot;
 mod thresholds;
 mod transport_kind;
 
+pub use health_push::HealthPush;
 pub use link::LinkDiagnostics;
 pub use mic::MicDiagnostics;
 pub use peer::PeerDiagnostics;

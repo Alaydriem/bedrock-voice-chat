@@ -15,7 +15,8 @@ const healthy: DiagnosticsInput = {
   inputRate: 48000,
   outputDevice: "Sennheiser HD 560S",
   outputRate: 48000,
-  quicPort: 443,
+  port: 443,
+  transport: "Quic",
   protocol: "1.3.0",
   rangeMetres: 80,
   falloff: "inverse-square",
@@ -238,7 +239,7 @@ describe("Diagnostics.groups", () => {
   });
 
   it("marks a non-standard QUIC port as a fallback", () => {
-    const groups = Diagnostics.groups({ ...healthy, quicPort: 8443 });
+    const groups = Diagnostics.groups({ ...healthy, port: 8443 });
     const port = groups[2].rows.find(([key]) => key === "QUIC port");
     assert.ok(port?.[1].includes("fallback"));
     const standard = Diagnostics.groups(healthy)[2].rows.find(([key]) => key === "QUIC port");
@@ -248,6 +249,63 @@ describe("Diagnostics.groups", () => {
   it("drops the hours segment from a short uptime", () => {
     assert.equal(Diagnostics.duration(65), "01:05");
     assert.equal(Diagnostics.duration(3725), "1:02:05");
+  });
+});
+
+/**
+ * Which transport carried the session, stated rather than left to be inferred from a port.
+ *
+ * Every latency and loss figure on the panel means something different depending on this: a
+ * reliable ordered transport trades latency for delivery under loss, so the same round trip is
+ * a different verdict on each.
+ */
+describe("Diagnostics transport", () => {
+  const sessionRow = (input: DiagnosticsInput, label: string) =>
+    Diagnostics.groups(input)
+      .find((group) => group.title === "Session")
+      ?.rows.find(([key]) => key === label);
+
+  it("names the transport carrying the session", () => {
+    assert.deepEqual(sessionRow({ ...healthy, transport: "Quic" }, "Connection type"), [
+      "Connection type",
+      "QUIC",
+    ]);
+  });
+
+  it("says WSS for a WebSocket session", () => {
+    assert.deepEqual(sessionRow({ ...healthy, transport: "WebSocket" }, "Connection type"), [
+      "Connection type",
+      "WSS",
+    ]);
+  });
+
+  // Nothing is connected, so there is no transport to name. Defaulting to QUIC would assert a
+  // fact about a session that does not exist.
+  it("shows no transport when nothing is connected", () => {
+    assert.deepEqual(sessionRow({ ...healthy, transport: null }, "Connection type"), [
+      "Connection type",
+      "—",
+    ]);
+  });
+
+  it("labels the port for the transport that is carrying it", () => {
+    const labels = (input: DiagnosticsInput) =>
+      Diagnostics.groups(input)
+        .find((group) => group.title === "Link")
+        ?.rows.map(([key]) => key) ?? [];
+
+    assert.ok(labels({ ...healthy, transport: "Quic" }).includes("QUIC port"));
+    assert.ok(labels({ ...healthy, transport: "WebSocket" }).includes("WSS port"));
+  });
+
+  // 443 is the ordinary WSS port, so the fallback annotation would report the normal case as
+  // a problem. It belongs to QUIC, where 443 is the port a working path uses.
+  it("does not call a WSS port a fallback", () => {
+    const row = Diagnostics.groups({ ...healthy, transport: "WebSocket", port: 8443 })
+      .find((group) => group.title === "Link")
+      ?.rows.find(([key]) => key === "WSS port");
+
+    assert.equal(row?.[1], "8443");
   });
 });
 

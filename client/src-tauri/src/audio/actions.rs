@@ -1,6 +1,6 @@
 use crate::audio::types::AudioDeviceType;
 use crate::audio::{AudioStreamManager, RecordingManager};
-use common::structs::audio::{MuteEvent, StreamEvent, VoiceRuntimeState};
+use common::structs::audio::{MuteEvent, PlayerGainSettings, StreamEvent, VoiceRuntimeState};
 use common::structs::keybinds::VoiceMode;
 use log::info;
 use std::sync::Arc;
@@ -165,6 +165,136 @@ impl AudioActionsManager {
         }
     }
 
+    /// The one place jukebox mute is written.
+    ///
+    /// Three copies have to move together: the metadata entry a rebuilt output stream restores
+    /// from, `store.json` which survives a restart, and the atomic on the mixing path that the
+    /// metadata write sets. Every surface that changes this — the settings pane, a WebSocket
+    /// controller, the in-game panel — comes through here, so none of them can write a subset.
+    pub async fn set_jukebox_muted(&self, desired: bool) -> Result<bool, anyhow::Error> {
+        {
+            let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
+            let mut asm = asm.lock().await;
+            asm.metadata(
+                "jukebox_muted".to_string(),
+                desired.to_string(),
+                &AudioDeviceType::OutputDevice,
+            )
+            .await?;
+        }
+
+        let store = self.app_handle.store("store.json")?;
+        store.set("jukebox_muted", desired);
+        store.save()?;
+
+        // The settings pane and the dashboard chip read the store, and neither polls this flag.
+        // Without this they keep drawing the state from before the change for as long as they
+        // stay mounted.
+        let _ = self.app_handle.emit(
+            crate::events::event::jukebox::JUKEBOX_MUTED_UPDATED,
+            desired,
+        );
+
+        self.signal_jukebox_change();
+
+        Ok(desired)
+    }
+
+    /// The one place jukebox level is written.
+    ///
+    /// The mirror of `set_jukebox_muted`, and it exists for the same reason: three copies have to
+    /// move together — the metadata entry a rebuilt output stream restores from, `store.json`
+    /// which survives a restart, and the atomic on the mixing path that the metadata write sets.
+    /// Every surface that changes this comes through here, so none of them can write a subset.
+    ///
+    /// Returns the level actually applied, which is the requested one clamped to the ceiling.
+    pub async fn set_jukebox_gain(&self, desired: f32) -> Result<f32, anyhow::Error> {
+        // A non-finite level would reach the mixer as a NaN multiplier and silence the sink with
+        // no error, so it is refused rather than clamped.
+        if !desired.is_finite() {
+            return Err(anyhow::anyhow!("jukebox gain must be finite"));
+        }
+        let desired = desired.clamp(0.0, PlayerGainSettings::MAX_GAIN);
+
+        {
+            let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
+            let mut asm = asm.lock().await;
+            asm.metadata(
+                "jukebox_gain".to_string(),
+                desired.to_string(),
+                &AudioDeviceType::OutputDevice,
+            )
+            .await?;
+        }
+
+        let store = self.app_handle.store("store.json")?;
+        store.set("jukebox_gain", desired);
+        store.save()?;
+
+        // The settings pane's slider and the dashboard chip read the store, and neither polls
+        // this level. Without this they keep drawing the pre-change value for as long as they
+        // stay mounted.
+        let _ = self
+            .app_handle
+            .emit(crate::events::event::jukebox::JUKEBOX_GAIN_UPDATED, desired);
+
+        self.signal_jukebox_change();
+
+        Ok(desired)
+    }
+
+    /// Nudges the control-plane reporter so the in-game panel and the server's preference cache
+    /// learn about a jukebox change.
+    ///
+    /// The jukebox rides the preference plane, so this is the preference signal rather than the
+    /// self-state one. Without it a change made in the settings pane would never leave the
+    /// desktop, and the panel would keep drawing the previous value until the 30s resync.
+    fn signal_jukebox_change(&self) {
+        if let Some(bus) = self.app_handle.try_state::<crate::control::ControlStateBus>() {
+            bus.preferences();
+        }
+    }
+
+    /// Flip it, for a control that cannot read the current value before it is pressed.
+    pub async fn toggle_jukebox_muted(&self) -> Result<bool, anyhow::Error> {
+        let current = self.jukebox_muted().await;
+        self.set_jukebox_muted(!current).await
+    }
+
+    /// Whether jukebox music is muted, or false where no output stream is registered.
+    ///
+    /// Absent state rather than an unwrap, for the same reason as `is_recording`: this is read on
+    /// a poll and on every state query, and must not panic where a stream has yet to be built.
+    pub async fn jukebox_muted(&self) -> bool {
+        let Some(asm) = self.app_handle.try_state::<Mutex<AudioStreamManager>>() else {
+            return false;
+        };
+        let asm = asm.lock().await;
+        asm.metadata_value("jukebox_muted", &AudioDeviceType::OutputDevice)
+            .await
+            .and_then(|value| value.parse::<bool>().ok())
+            .unwrap_or(false)
+    }
+
+    /// The level jukebox music plays at, or unity where no output stream is registered.
+    ///
+    /// Reads the metadata entry rather than the atomic it seeds: that is the copy an
+    /// output-stream rebuild restores from, so it is the one that stays true across a rebuild.
+    ///
+    /// Absent state rather than an unwrap, for the same reason as `jukebox_muted`: this is read
+    /// on a poll and on every state query, and must not panic before a stream exists.
+    pub async fn jukebox_gain(&self) -> f32 {
+        let Some(asm) = self.app_handle.try_state::<Mutex<AudioStreamManager>>() else {
+            return 1.0;
+        };
+        let asm = asm.lock().await;
+        asm.metadata_value("jukebox_gain", &AudioDeviceType::OutputDevice)
+            .await
+            .and_then(|value| value.parse::<f32>().ok())
+            .filter(|gain| gain.is_finite())
+            .unwrap_or(1.0)
+    }
+
     /// Whether jukebox frames are arriving, or false when no stream manager is registered.
     ///
     /// Absent state rather than an unwrap, for the same reason as `is_recording`: this is read on
@@ -255,6 +385,8 @@ impl AudioActionsManager {
             recording,
             voice_mode,
             ptt_active,
+            jukebox_muted: self.jukebox_muted().await,
+            jukebox_gain: self.jukebox_gain().await,
             connection: self.active_connection().await,
         }
     }

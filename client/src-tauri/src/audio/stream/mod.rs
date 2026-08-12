@@ -613,6 +613,20 @@ impl AudioStreamManager {
         }
     }
 
+    /// The current value of a metadata key on one stream, or `None` when unset.
+    ///
+    /// The metadata entry rather than whatever atomic it seeds: this is the copy a rebuilt stream
+    /// restores from, so it is the one a read-then-write has to consult to stay in step with what
+    /// a rebuild would put back.
+    pub async fn metadata_value(&self, key: &str, device: &AudioDeviceType) -> Option<String> {
+        let metadata = match device {
+            AudioDeviceType::InputDevice => self.input.get_metadata(),
+            AudioDeviceType::OutputDevice => self.output.get_metadata(),
+        };
+
+        metadata.get(key).await
+    }
+
     pub async fn toggle(
         &mut self,
         device: &AudioDeviceType,

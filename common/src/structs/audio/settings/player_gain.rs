@@ -22,6 +22,14 @@ pub struct PlayerGainSettings {
 }
 
 impl PlayerGainSettings {
+    /// The loudest anything plays, for a peer's voice and for jukebox music alike.
+    ///
+    /// Above unity on purpose: a quiet speaker is unusable at 100%, and every slider in the
+    /// product already offers the headroom. One constant rather than a value per surface,
+    /// because the surfaces disagreed — an in-game volume command capped at 100% while the
+    /// player card it was meant to mirror reached 150%, and nothing reported the difference.
+    pub const MAX_GAIN: f32 = 1.5;
+
     /// What a player nobody holds an opinion about sounds like: unchanged and audible.
     ///
     /// The default is deliberately not silence. A lookup that misses — a wrong key, a device

@@ -71,3 +71,27 @@ fn a_hytale_action_composes_a_hytale_key() {
         "hytale:Carol"
     );
 }
+
+// The reserved jukebox target is not a player and must survive composition untouched. Composed
+// against the game it would become `minecraft:#jukebox` and park as a ghost store entry that
+// plays no audio and renders on no card — the exact failure the canonical key exists to prevent,
+// arriving through the one target that is not a name.
+#[test]
+fn the_reserved_jukebox_target_is_never_composed_against_a_game() {
+    assert_eq!(
+        resolve(common::consts::audio::JUKEBOX_CONTROL_TARGET, &[]),
+        common::consts::audio::JUKEBOX_CONTROL_TARGET
+    );
+}
+
+// Even with players tracked, the sentinel must not be matched loosely onto one of them.
+#[test]
+fn the_reserved_jukebox_target_never_resolves_onto_a_player() {
+    assert_eq!(
+        resolve(
+            common::consts::audio::JUKEBOX_CONTROL_TARGET,
+            &["minecraft:Alice", "minecraft:Bob"]
+        ),
+        common::consts::audio::JUKEBOX_CONTROL_TARGET
+    );
+}

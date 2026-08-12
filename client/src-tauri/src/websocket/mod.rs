@@ -1,4 +1,5 @@
 use common::structs::keybinds::VoiceMode as KeybindVoiceMode;
+use common::structs::network::ConnectionHealth;
 use common::traits::StreamTrait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -15,8 +16,8 @@ pub use clients::{ClientRegistration, WebSocketClients};
 pub use route::{RejectReason, WebSocketRoute};
 pub use structs::{
     Command, CommandMessage, ConnectData, ConnectTarget, ConnectTargetKind, DeviceType,
-    ErrorResponse, MuteData, PongData, PttData, RecordData, ResponseData, StateData,
-    SuccessResponse, TargetsData, VoiceMode, VoiceModeGuard,
+    ErrorResponse, GroupData, JukeboxData, MuteData, PongData, PttData, RecordData, ResponseData,
+    StateData, SuccessResponse, TargetsData, VoiceMode, VoiceModeGuard,
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -47,6 +48,10 @@ pub struct WebSocketBroadcaster {
     // A separate channel so a one-per-second diagnostics push cannot lag a command subscriber out
     // of its buffer, and so a command client that never asked for metrics is not sent any.
     pub metrics: broadcast::Sender<String>,
+    // Retained rather than only broadcast, so a subscriber that upgrades mid-session is told the
+    // current state instead of waiting for a transition. A healthy client produces none for
+    // hours, and a failed one produces no metrics frames to infer anything from.
+    health: watch::Sender<ConnectionHealth>,
 }
 
 impl WebSocketBroadcaster {
@@ -59,6 +64,24 @@ impl WebSocketBroadcaster {
         if let Ok(json) = serde_json::to_string(&push) {
             let _ = self.metrics.send(json);
         }
+    }
+
+    /// Broadcast a connection-health verdict to `/metrics` subscribers, and retain it for
+    /// whoever subscribes next.
+    ///
+    /// Rides the metrics channel rather than the command channel: it describes the link a metrics
+    /// subscriber is measuring, and a command client has `state` for what it cares about.
+    pub fn broadcast_health(&self, health: ConnectionHealth) {
+        let push = common::structs::metrics::HealthPush::new(health.clone());
+        let _ = self.health.send(health);
+        if let Ok(json) = serde_json::to_string(&push) {
+            let _ = self.metrics.send(json);
+        }
+    }
+
+    /// The last verdict published, for a subscriber that has just arrived.
+    pub fn latest_health(&self) -> ConnectionHealth {
+        self.health.borrow().clone()
     }
 
     /// Serialize a StateData DTO and broadcast to all connected WS clients.
@@ -77,6 +100,7 @@ pub struct WebSocketManager {
     app_handle: AppHandle,
     broadcast_tx: broadcast::Sender<String>,
     metrics_tx: broadcast::Sender<String>,
+    health_tx: watch::Sender<ConnectionHealth>,
     clients: Arc<WebSocketClients>,
 }
 
@@ -92,6 +116,9 @@ impl WebSocketManager {
         // Deeper than the command channel: this carries one frame per second, so a subscriber
         // that stalls briefly should fall behind rather than be dropped.
         let (metrics_tx, _) = broadcast::channel(64);
+        // Disconnected until something says otherwise. `Connected` as the initial value would
+        // tell the first subscriber the link is up before any connection has been attempted.
+        let (health_tx, _) = watch::channel(ConnectionHealth::Disconnected);
 
         Self {
             abort_handle: None,
@@ -100,6 +127,7 @@ impl WebSocketManager {
             app_handle,
             broadcast_tx,
             metrics_tx,
+            health_tx,
             clients: WebSocketClients::new_shared(),
         }
     }
@@ -109,6 +137,7 @@ impl WebSocketManager {
         WebSocketBroadcaster {
             commands: self.broadcast_tx.clone(),
             metrics: self.metrics_tx.clone(),
+            health: self.health_tx.clone(),
         }
     }
 
@@ -309,7 +338,12 @@ impl WebSocketManager {
 
         match route {
             WebSocketRoute::Metrics => {
-                Self::serve_metrics(ws_stream, metrics_tx, shutdown_rx).await
+                let health = app_handle
+                    .try_state::<WebSocketBroadcaster>()
+                    .map(|broadcaster| broadcaster.latest_health())
+                    .unwrap_or(ConnectionHealth::Disconnected);
+
+                Self::serve_metrics(ws_stream, metrics_tx, shutdown_rx, health).await
             }
             WebSocketRoute::Command => {
                 Self::serve_commands(
@@ -331,11 +365,22 @@ impl WebSocketManager {
         ws_stream: tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
         metrics_tx: broadcast::Sender<String>,
         mut shutdown_rx: watch::Receiver<bool>,
+        initial_health: ConnectionHealth,
     ) -> Result<(), anyhow::Error> {
         use futures_util::{SinkExt, StreamExt};
 
         let (mut write, mut read) = ws_stream.split();
         let mut metrics_rx = metrics_tx.subscribe();
+
+        // Sent before anything is forwarded, so a subscriber knows the current state rather than
+        // inferring it from an absence of frames. A healthy client produces no transition for
+        // hours, and a failed one produces no metrics frames to read anything from at all.
+        let push = common::structs::metrics::HealthPush::new(initial_health);
+        if let Ok(json) = serde_json::to_string(&push) {
+            write
+                .send(tokio_tungstenite::tungstenite::Message::Text(json.into()))
+                .await?;
+        }
 
         loop {
             tokio::select! {
@@ -420,7 +465,16 @@ impl WebSocketManager {
                     registration.count_command();
 
                     // Check if this is a state-changing command
-                    let is_state_changing = matches!(parsed.command, Command::Mute { .. } | Command::Record);
+                    let is_state_changing = matches!(
+                        parsed.command,
+                        Command::Mute { .. }
+                            | Command::Record
+                            | Command::Jukebox
+                            | Command::JukeboxVolume { .. }
+                            | Command::CreateGroup { .. }
+                            | Command::JoinGroup { .. }
+                            | Command::LeaveGroup
+                    );
 
                     // Execute command
                     let response_json = match Self::execute_command_from(parsed.command, &app_handle).await {
@@ -518,6 +572,35 @@ impl WebSocketManager {
                 let actions = app_handle.state::<crate::audio::AudioActionsManager>();
                 let recording = actions.toggle_recording().await?;
                 Ok(ResponseData::Record(RecordData { recording }))
+            }
+
+            Command::Jukebox => {
+                let actions = app_handle.state::<crate::audio::AudioActionsManager>();
+                let muted = actions.toggle_jukebox_muted().await?;
+                let gain = actions.jukebox_gain().await;
+                Ok(ResponseData::Jukebox(JukeboxData { muted, gain }))
+            }
+
+            Command::JukeboxVolume { level } => {
+                let actions = app_handle.state::<crate::audio::AudioActionsManager>();
+                let gain = actions.set_jukebox_gain(f32::from(level) / 100.0).await?;
+                let muted = actions.jukebox_muted().await;
+                Ok(ResponseData::Jukebox(JukeboxData { muted, gain }))
+            }
+
+            Command::CreateGroup { name } => {
+                let service = crate::groups::GroupService::new(app_handle.clone());
+                Ok(ResponseData::Group(service.create(name).await?))
+            }
+
+            Command::JoinGroup { name } => {
+                let service = crate::groups::GroupService::new(app_handle.clone());
+                Ok(ResponseData::Group(service.join(name).await?))
+            }
+
+            Command::LeaveGroup => {
+                let service = crate::groups::GroupService::new(app_handle.clone());
+                Ok(ResponseData::Group(service.leave().await?))
             }
 
             Command::State => {

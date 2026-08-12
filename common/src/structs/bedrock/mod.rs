@@ -1,3 +1,4 @@
+mod addon_transport;
 mod backend_kind;
 mod config;
 mod connect_error;
@@ -10,6 +11,7 @@ mod realm_entry;
 mod status;
 mod world_id;
 
+pub use addon_transport::AddonTransport;
 pub use backend_kind::BedrockBackendKind;
 pub use config::BedrockConnectConfig;
 pub use connect_error::BedrockConnectError;

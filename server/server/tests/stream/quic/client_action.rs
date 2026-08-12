@@ -2,6 +2,7 @@ use bvc_server_lib::services::ClientActionService;
 use bvc_server_lib::stream::quic::WebhookReceiver;
 use bvc_server_lib::stream::quic::connection_registry::{ConnectionRegistry, RoutedPacket};
 use bvc_server_lib::stream::quic::{CacheTrait, PlayerPreferenceCache, PlayerStateCache};
+use common::structs::audio::PlayerGainSettings;
 use common::structs::channel::{Channel, ChannelCollection};
 use common::structs::control::{ClientAction, ClientActionType, PreferenceKey, QueryState};
 use common::structs::packet::{PacketType, QuicNetworkPacket, QuicNetworkPacketData};
@@ -210,10 +211,12 @@ async fn delivered_preference_actions_upsert_into_preference_cache() {
     assert!(pref.muted, "SetHeard must patch the same entry");
 }
 
-// The echo mirrors the client's sanitation: a volume outside [0,1] is clamped
-// before it can be served back to the panel's 0-100 slider.
+// The echo mirrors the client's sanitation: a volume above the ceiling is
+// clamped before it can be served back to a panel. The ceiling is 1.5, matching
+// the desktop player card — a 1.0 ceiling here silently capped every in-game
+// volume command at 100% while the card it mirrors showed 150%.
 #[tokio::test]
-async fn echoed_volume_is_clamped_to_client_range() {
+async fn echoed_volume_is_clamped_to_the_shared_ceiling() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
     registry.register(1, "minecraft:Alice".to_string(), tx);
@@ -241,7 +244,46 @@ async fn echoed_volume_is_clamped_to_client_range() {
         .get(&PreferenceKey::new("minecraft:Alice", "Bob"))
         .await
         .expect("a clamped entry is still written");
-    assert_eq!(pref.volume, 1.0, "the served gain never exceeds what the client applies");
+    assert_eq!(
+        pref.volume,
+        PlayerGainSettings::MAX_GAIN,
+        "the served gain never exceeds what the client applies"
+    );
+}
+
+// A level the desktop card can reach must survive the echo untouched. The old
+// 1.0 clamp rewrote this to 100%, so the panel and the card disagreed with no
+// error anywhere.
+#[tokio::test]
+async fn an_above_unity_volume_the_card_permits_survives_the_echo() {
+    let registry = ConnectionRegistry::new();
+    let (tx, _rx) = mpsc::channel(4);
+    registry.register(1, "minecraft:Alice".to_string(), tx);
+    let player_state = PlayerStateCache::new();
+    let preferences = PlayerPreferenceCache::new();
+    let svc = ClientActionService::new(true);
+
+    svc.route_self_with_echo(
+        &ClientAction {
+            id: "Alice".into(),
+            game: None,
+            action: ClientActionType::SetVolume {
+                target: "Bob".into(),
+                volume: 1.25,
+            },
+        },
+        "minecraft:Alice",
+        &registry,
+        &player_state,
+        &preferences,
+    )
+    .await;
+
+    let pref = preferences
+        .get(&PreferenceKey::new("minecraft:Alice", "Bob"))
+        .await
+        .expect("the preference is written");
+    assert_eq!(pref.volume, 1.25);
 }
 
 fn test_webhook() -> (WebhookReceiver, mpsc::UnboundedReceiver<QuicNetworkPacket>) {

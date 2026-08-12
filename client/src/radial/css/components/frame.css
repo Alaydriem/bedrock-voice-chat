@@ -135,6 +135,30 @@
   border-top: 1px solid var(--color-rad-line);
 }
 
+/* The reference line: a code, a version, and on the fault screens the platform id.
+   Selectable as one value, because it is quoted whole into a support thread and
+   picking a uuid out of a line by hand is the part people get wrong. */
+.rad-footbar__ref {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  user-select: all;
+}
+
+/* Not uppercased like the labels either side of it. The value is copied as it is
+   stored, and a line that reads back in a different case than it pastes is a line
+   someone will retype by hand. */
+.rad-footbar__ref-id {
+  text-transform: none;
+}
+
+/* The separator belongs to the id rather than sitting between the halves, so dropping
+   the half in front of it on a phone takes the dot with it. */
+.rad-footbar__ref-id::before {
+  content: "· ";
+}
+
 .rad-footbar__actions {
   display: flex;
   align-items: center;
@@ -417,6 +441,16 @@
 
   .rad-footbar .rad-label {
     display: none;
+  }
+
+  /* The one label a phone keeps. Support asks every reporter for the platform id, and
+     the bar is the only place on these screens with room for a uuid. */
+  .rad-footbar .rad-footbar__ref-id {
+    display: inline;
+  }
+
+  .rad-footbar__ref-id::before {
+    content: none;
   }
 
   .rad-footbar__actions {

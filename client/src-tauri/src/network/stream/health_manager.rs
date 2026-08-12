@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use common::consts::version::PROTOCOL_VERSION;
 use common::response::{ApiConfigCheckResponse, ApiConfigResponse};
+use crate::network::stream::HealthPublisher;
 use crate::network::stream::link::DatagramLink;
 use common::structs::network::ConnectionHealth;
 use common::structs::packet::{
@@ -126,9 +127,7 @@ impl ConnectionHealthManager {
         self.stop();
         self.shutdown.store(false, Ordering::Relaxed);
 
-        let _ = self
-            .app_handle
-            .emit("connection_health", ConnectionHealth::Connected);
+        HealthPublisher::publish(&self.app_handle, ConnectionHealth::Connected);
 
         let health_state = self.health_state.clone();
         let shutdown = self.shutdown.clone();
@@ -189,8 +188,8 @@ impl ConnectionHealthManager {
                 log::error!(
                     "Server refused this connection's identity; stopping reconnect attempts"
                 );
-                let _ = app_handle.emit(
-                    "connection_health",
+                HealthPublisher::publish(
+                    &app_handle,
                     ConnectionHealth::Unauthorized {
                         reason: "The server refused this connection's identity. Your \
                                  credentials may have been revoked — sign in again."
@@ -265,13 +264,10 @@ impl ConnectionHealthManager {
         let mut attempt = 0u32;
         let mut delay = config.initial_delay;
 
-        let _ = app_handle.emit("connection_health", ConnectionHealth::Disconnected);
+        HealthPublisher::publish(app_handle, ConnectionHealth::Disconnected);
 
         while attempt < config.max_attempts {
-            let _ = app_handle.emit(
-                "connection_health",
-                ConnectionHealth::Reconnecting { attempt },
-            );
+            HealthPublisher::publish(app_handle, ConnectionHealth::Reconnecting { attempt });
 
             match Self::probe_server(server_url).await {
                 ProbeResult::Available => {
@@ -290,8 +286,8 @@ impl ConnectionHealthManager {
                         server_version,
                         client_too_old
                     );
-                    let _ = app_handle.emit(
-                        "connection_health",
+                    HealthPublisher::publish(
+                        app_handle,
                         ConnectionHealth::VersionMismatch {
                             client_version,
                             server_version,
@@ -319,7 +315,7 @@ impl ConnectionHealthManager {
         }
 
         log::error!("Failed to reconnect after {} attempts", config.max_attempts);
-        let _ = app_handle.emit("connection_health", ConnectionHealth::Failed);
+        HealthPublisher::publish(app_handle, ConnectionHealth::Failed);
     }
 
     /// Emit a VersionMismatch event for a connection that has been proven
@@ -335,8 +331,8 @@ impl ConnectionHealthManager {
             server_version,
             client_too_old
         );
-        let _ = app_handle.emit(
-            "connection_health",
+        HealthPublisher::publish(
+            app_handle,
             ConnectionHealth::VersionMismatch {
                 client_version: PROTOCOL_VERSION.to_string(),
                 server_version,

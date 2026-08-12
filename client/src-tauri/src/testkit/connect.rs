@@ -40,7 +40,9 @@ impl Connector {
         let telemetry = Arc::new(crate::logging::Telemetry::new(false));
         Arc::new(AnalyticsService::new(
             telemetry,
-            "00000000-0000-0000-0000-000000000000".to_string(),
+            crate::analytics::PlatformId::new_shared(
+                "00000000-0000-0000-0000-000000000000".to_string(),
+            ),
         ))
     }
 
@@ -286,7 +288,7 @@ impl Connector {
         Arc::new(crate::feature_flags::FeatureFlagService::new(
             String::new(),
             String::new(),
-            String::new(),
+            crate::analytics::PlatformId::new_shared(String::new()),
             0,
             std::time::Duration::from_secs(3600),
             None,

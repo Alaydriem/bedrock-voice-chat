@@ -87,8 +87,10 @@ impl PlayerSettingsCoordinator {
 
     pub async fn set_gain(&self, app: &AppHandle, cn: &str, gain: f32) -> Result<(), anyhow::Error> {
         // Out-of-range gain is an ear-safety hazard regardless of which surface asked for it.
-        self.service
-            .set_gain(&Self::key(app, cn).await?, gain.clamp(0.0, 2.0))?;
+        self.service.set_gain(
+            &Self::key(app, cn).await?,
+            gain.clamp(0.0, PlayerGainSettings::MAX_GAIN),
+        )?;
         self.publish(app, Some(cn)).await
     }
 

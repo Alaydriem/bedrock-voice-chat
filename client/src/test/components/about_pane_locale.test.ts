@@ -56,6 +56,7 @@ beforeEach(() => {
         i18n_load: () => RUSSIAN,
         get_app_info: () => ({ version: "1.0.0", tauri_version: "2", build: "test" }),
         get_telemetry: () => true,
+        get_platform_id: () => "b6f1c0e2-4d33-4a71-9c58-2f0e9a71d55c",
         get_credential: () => null,
     });
 });

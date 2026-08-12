@@ -112,6 +112,48 @@
   gap: 12px;
 }
 
+/* ---- an identifier, in full ----
+ * The platform id, on the About pane and on every fault screen. It wraps rather than
+ * clips: the whole value is what support asks for, and two thirds of a uuid identifies
+ * nothing. `user-select: all` so one tap takes the value and not the row around it.
+ */
+
+.rad-idfield {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius-rad-md);
+  background: var(--color-rad-void-2);
+}
+
+.rad-idfield__value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-tx);
+  user-select: all;
+}
+
+.rad-idfield__label {
+  flex: 0 0 auto;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-tag);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-idfield__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* ---- a filesystem path ----
  * `direction: rtl` keeps the end of the path visible when it overflows, because the
  * filename is the part you are checking.

@@ -51,6 +51,7 @@
   );
 
   let appVersion = $state("");
+  let platformId = $state("");
 
   let isUpdating = $state(false);
   let updateError = $state<string | null>(null);
@@ -106,6 +107,10 @@
 
     try { appVersion = await getVersion(); } catch (_) {}
 
+    // Read before the teardown below, so the identifier is on screen even if stopping
+    // the streams is what goes wrong.
+    try { platformId = await invoke<string>("get_platform_id"); } catch (_) {}
+
     const urlParams = new URLSearchParams(window.location.search);
     errorCode = urlParams.get("code");
     updateVersion = urlParams.get("version");
@@ -141,6 +146,7 @@
     label={currentError.label}
     hint={currentError.hint}
     {appVersion}
+    {platformId}
     {actions}
     working={isUpdating}
     workingPhrases={FaultCatalog.UPDATE_PHRASES}

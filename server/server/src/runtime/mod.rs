@@ -468,6 +468,16 @@ impl ServerRuntime {
                 tracing::error!("Failed to start bedrock transfer relay: {}", e);
             }
             transfer_relay = Some(relay);
+
+            for entry in &self.config.server.bedrock.servers {
+                tracing::info!(
+                    "Advertising Bedrock server {} at {}:{} (addon transport: {:?})",
+                    entry.name,
+                    entry.host,
+                    entry.port,
+                    entry.addon_transport,
+                );
+            }
         } else {
             tracing::info!(
                 "Bedrock services disabled (server.bedrock.enabled = false); DNS and transfer relay not started"

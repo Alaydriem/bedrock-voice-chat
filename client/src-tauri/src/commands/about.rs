@@ -1,5 +1,5 @@
 use common::structs::app::AppInfo;
-use log::info;
+use log::{info, warn};
 use std::env;
 use std::fs;
 use std::sync::Arc;
@@ -7,7 +7,9 @@ use tauri::async_runtime::Mutex;
 use tauri::{Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
+use crate::analytics::{AnalyticsService, PlatformId};
 use crate::commands::env::get_variant;
+use crate::feature_flags::FeatureFlagService;
 use crate::logging::{SentryLogger, Telemetry};
 use crate::structs::app_state::AppState;
 
@@ -43,6 +45,50 @@ pub(crate) async fn set_telemetry(
         .save()
         .map_err(|e| format!("Failed to save telemetry setting: {}", e))?;
     Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn get_platform_id(
+    platform_id: State<'_, Arc<PlatformId>>,
+) -> Result<String, String> {
+    Ok(platform_id.get())
+}
+
+/// Replaces the anonymous identity everything reports under, and returns the
+/// replacement.
+///
+/// The store is written before the live value changes, so a failed save leaves the
+/// session reporting under the id that is still on disk rather than one that would
+/// disappear at the next launch. Everything after the swap is best effort: the
+/// identity has already changed by then, and reporting failure would leave the screen
+/// showing an id the session has stopped using.
+#[tauri::command]
+pub(crate) async fn refresh_platform_id(
+    platform_id: State<'_, Arc<PlatformId>>,
+    analytics: State<'_, Arc<AnalyticsService>>,
+    feature_flags: State<'_, Arc<FeatureFlagService>>,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<String, String> {
+    let next = PlatformId::generate();
+
+    let store = state.lock().await.get_store().clone();
+    store.set("install_id", next.clone());
+    store
+        .save()
+        .map_err(|e| format!("Failed to save platform ID: {}", e))?;
+
+    platform_id.set(next.clone());
+    analytics.set_user(&next);
+    info!("Platform ID replaced: {}", next);
+
+    // Registers the new identity with Flagsmith and re-evaluates every flag under it.
+    // Without this the session keeps the segments the retired id was in until the
+    // hourly poll, which is what a failure here falls back to.
+    if let Err(e) = feature_flags.refresh().await {
+        warn!("Feature flags did not re-evaluate under the new platform ID: {}", e);
+    }
+
+    Ok(next)
 }
 
 #[tauri::command]

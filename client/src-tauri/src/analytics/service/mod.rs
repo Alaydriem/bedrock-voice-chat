@@ -1,6 +1,7 @@
 use crate::analytics::AnalyticsLevel;
 use crate::analytics::AnalyticsProvider;
 use crate::analytics::AnalyticsProviderType;
+use crate::analytics::PlatformId;
 use crate::analytics::PlayerIdentity;
 use crate::analytics::dtos::QueuedEvent;
 use crate::logging::Telemetry;
@@ -20,18 +21,18 @@ pub struct AnalyticsService {
     queue: parking_lot::Mutex<Vec<QueuedEvent>>,
     context: parking_lot::RwLock<AnalyticsContext>,
     telemetry: Arc<Telemetry>,
-    install_id: String,
+    platform_id: Arc<PlatformId>,
     session_id: String,
 }
 
 impl AnalyticsService {
-    pub fn new(telemetry: Arc<Telemetry>, install_id: String) -> Self {
+    pub fn new(telemetry: Arc<Telemetry>, platform_id: Arc<PlatformId>) -> Self {
         Self {
             providers: Vec::new(),
             queue: parking_lot::Mutex::new(Vec::new()),
             context: parking_lot::RwLock::new(AnalyticsContext::default()),
             telemetry,
-            install_id,
+            platform_id,
             session_id: uuid::Uuid::new_v4().to_string(),
         }
     }
@@ -152,10 +153,13 @@ impl AnalyticsService {
             return Ok(());
         }
 
+        // Read at send time rather than held, so a batch queued before an identity
+        // change is not attributed to the retired id.
+        let platform_id = self.platform_id.get();
         let results = join_all(
             batch_providers
                 .iter()
-                .map(|p| p.send_batch(&events, &self.install_id, &self.session_id)),
+                .map(|p| p.send_batch(&events, &platform_id, &self.session_id)),
         )
         .await;
 

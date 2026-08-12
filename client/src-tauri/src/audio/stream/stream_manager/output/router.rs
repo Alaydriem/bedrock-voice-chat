@@ -512,12 +512,8 @@ impl PacketRouter {
                         server_version: server_version.clone(),
                         client_too_old: true,
                     };
-                    info!("Emitting connection_health event: {:?}", health_event);
-                    if let Err(e) =
-                        tauri::Emitter::emit(&self.app_handle, "connection_health", health_event)
-                    {
-                        error!("Failed to emit connection_health event: {:?}", e);
-                    }
+                    info!("Publishing connection health: {:?}", health_event);
+                    crate::network::HealthPublisher::publish(&self.app_handle, health_event);
                 }
             }
         }

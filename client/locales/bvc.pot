@@ -6,17 +6,17 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:54
+#: src/js/app/dashboard/DiagnosticsCopy.ts:56
 msgid "(fallback)"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:101
+#: src/js/app/dashboard/DiagnosticsCopy.ts:103
 msgid "{count} player is muted by you."
 msgid_plural "{count} players are muted by you."
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:89
+#: src/js/app/dashboard/DiagnosticsCopy.ts:91
 msgid "{percent}% of the worst speaker's audio had to be reconstructed. They will sound rough."
 msgstr ""
 
@@ -24,19 +24,19 @@ msgstr ""
 msgid "{reason} — that message was not sent"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:49
+#: src/js/app/dashboard/DiagnosticsCopy.ts:51
 msgid "← expected 48.0"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:48
+#: src/js/app/dashboard/DiagnosticsCopy.ts:50
 msgid "← nothing is going out"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:53
+#: src/js/app/dashboard/DiagnosticsCopy.ts:55
 msgid "← stalled"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:47
+#: src/js/app/dashboard/DiagnosticsCopy.ts:49
 msgid "← your microphone has stopped"
 msgstr ""
 
@@ -77,7 +77,7 @@ msgstr ""
 msgid "A typo in the address is the usual cause"
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:64
+#: src/components/login/ConnectErrorScreen.svelte:74
 msgid "A wrong address is the usual cause"
 msgstr ""
 
@@ -190,7 +190,7 @@ msgstr ""
 msgid "Android and iOS both require a notification to let an app hold the microphone in the background. Without it your voice cuts out the moment BVC leaves the screen — which is every moment you are actually playing."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:195
+#: src/components/settings/panes/AboutPane.svelte:170
 msgid "Anonymous usage statistics and crash reports help us improve the app. No personal data is sent."
 msgstr ""
 
@@ -308,7 +308,7 @@ msgstr ""
 msgid "Both can be changed later in settings. Talk for a moment and the mark beside this fills out as your voice passes the noise gate."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:117
+#: src/components/settings/panes/AboutPane.svelte:120
 msgid "Build"
 msgstr ""
 
@@ -339,7 +339,7 @@ msgstr ""
 #: src/components/settings/panes/RecordingsPane.svelte:276
 #: src/components/settings/ProxyServerEditor.svelte:128
 #: src/components/settings/XboxSignIn.svelte:95
-#: src/routes/login/+page.svelte:267
+#: src/routes/login/+page.svelte:275
 msgid "Cancel"
 msgstr ""
 
@@ -382,16 +382,16 @@ msgstr ""
 msgid "chat unavailable"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:110
+#: src/components/settings/panes/AboutPane.svelte:113
 #: src/components/settings/panes/ProxyPane.svelte:189
 msgid "Check again"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:225
+#: src/components/settings/panes/AboutPane.svelte:220
 msgid "Check for new features and entitlements"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:104
+#: src/components/settings/panes/AboutPane.svelte:107
 msgid "Checking"
 msgstr ""
 
@@ -487,11 +487,11 @@ msgstr ""
 msgid "Commands"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:140
+#: src/components/settings/panes/AboutPane.svelte:128
 msgid "Commit"
 msgstr ""
 
-#: src/js/app/managers/settings/AboutManager.ts:65
+#: src/js/app/managers/settings/AboutManager.ts:64
 msgid "Community discussions and help"
 msgstr ""
 
@@ -501,11 +501,11 @@ msgstr ""
 msgid "Connect"
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:46
+#: src/components/login/ConnectErrorScreen.svelte:56
 msgid "Connect to a different server"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:52
+#: src/js/app/dashboard/DiagnosticsCopy.ts:54
 msgid "connected"
 msgstr ""
 
@@ -517,8 +517,8 @@ msgstr ""
 msgid "Connected clients"
 msgstr ""
 
-#: src/routes/login/+page.svelte:236
-#: src/routes/login/+page.svelte:258
+#: src/routes/login/+page.svelte:244
+#: src/routes/login/+page.svelte:266
 msgid "Connecting"
 msgstr ""
 
@@ -532,6 +532,10 @@ msgstr ""
 
 #: src/components/dashboard/NearbyRing.svelte:107
 msgid "Connection status"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsCopy.ts:39
+msgid "Connection type"
 msgstr ""
 
 #: src/routes/uireview/+page.svelte:156
@@ -567,7 +571,7 @@ msgstr ""
 msgid "Copy address"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:146
+#: src/components/settings/panes/AboutPane.svelte:134
 msgid "Copy commit"
 msgstr ""
 
@@ -583,7 +587,7 @@ msgstr ""
 msgid "Copy message →"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:158
+#: src/components/settings/panes/AboutPane.svelte:187
 msgid "Copy platform ID"
 msgstr ""
 
@@ -660,7 +664,7 @@ msgstr ""
 msgid "Devices come next"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:191
+#: src/components/settings/panes/AboutPane.svelte:166
 msgid "Diagnostics and privacy"
 msgstr ""
 
@@ -672,7 +676,7 @@ msgstr ""
 msgid "Dismiss"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:171
+#: src/components/settings/panes/AboutPane.svelte:146
 msgid "Display language"
 msgstr ""
 
@@ -692,7 +696,7 @@ msgstr ""
 msgid "Downloading the update…"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:55
+#: src/js/app/dashboard/DiagnosticsCopy.ts:57
 msgid "drops"
 msgstr ""
 
@@ -741,7 +745,7 @@ msgstr ""
 msgid "Everyone signs in with the account they already play on"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:110
+#: src/js/app/dashboard/DiagnosticsCopy.ts:112
 msgid "Everything looks fine."
 msgstr ""
 
@@ -765,7 +769,7 @@ msgstr ""
 msgid "Failed to refresh server state, using cached permissions"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:41
+#: src/js/app/dashboard/DiagnosticsCopy.ts:43
 msgid "Falloff"
 msgstr ""
 
@@ -773,7 +777,7 @@ msgstr ""
 msgid "Favourite {name}"
 msgstr ""
 
-#: src/js/app/managers/settings/AboutManager.ts:212
+#: src/js/app/managers/settings/AboutManager.ts:184
 msgid "Feature flags refreshed."
 msgstr ""
 
@@ -781,7 +785,7 @@ msgstr ""
 msgid "Finish setup"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:209
+#: src/components/settings/panes/AboutPane.svelte:204
 msgid "For a bug report. Written to your Documents folder."
 msgstr ""
 
@@ -905,7 +909,7 @@ msgid "Identity"
 msgstr ""
 
 #: src/components/dashboard/DashboardScreen.svelte:322
-#: src/routes/dashboard/+layout.svelte:592
+#: src/routes/dashboard/+layout.svelte:593
 msgid "In earshot"
 msgstr ""
 
@@ -949,7 +953,7 @@ msgstr ""
 msgid "Input device"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:107
+#: src/components/settings/panes/AboutPane.svelte:110
 msgid "Install"
 msgstr ""
 
@@ -1003,7 +1007,7 @@ msgstr ""
 msgid "Keybinds"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:168
+#: src/components/settings/panes/AboutPane.svelte:143
 msgid "Language"
 msgstr ""
 
@@ -1016,7 +1020,7 @@ msgid "last seen {n} min ago"
 msgstr ""
 
 #: src/components/dashboard/GroupRow.svelte:174
-#: src/routes/dashboard/+layout.svelte:585
+#: src/routes/dashboard/+layout.svelte:586
 msgid "Leave"
 msgstr ""
 
@@ -1065,11 +1069,11 @@ msgstr ""
 msgid "Loud enough to count as speech."
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:39
+#: src/components/login/ConnectErrorScreen.svelte:49
 msgid "Make sure your BVC server is running, and that your account has permission to use it."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:181
+#: src/components/settings/panes/AboutPane.svelte:156
 msgid "Match my system"
 msgstr ""
 
@@ -1166,7 +1170,7 @@ msgstr ""
 msgid "NO ANSWER"
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:29
+#: src/components/login/ConnectErrorScreen.svelte:39
 msgid "NO ANSWER · CONN01"
 msgstr ""
 
@@ -1234,7 +1238,7 @@ msgstr ""
 msgid "Noise gate & gain"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:50
+#: src/js/app/dashboard/DiagnosticsCopy.ts:52
 msgid "none"
 msgstr ""
 
@@ -1242,8 +1246,8 @@ msgstr ""
 msgid "Not available in a release build."
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:22
-#: src/components/login/ConnectErrorScreen.svelte:34
+#: src/components/login/ConnectErrorScreen.svelte:32
+#: src/components/login/ConnectErrorScreen.svelte:44
 #: src/js/app/error/FaultCatalog.ts:170
 #: src/js/app/error/FaultCatalog.ts:185
 #: src/js/app/error/FaultCatalog.ts:200
@@ -1258,7 +1262,7 @@ msgstr ""
 msgid "Not exportable"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:46
+#: src/js/app/dashboard/DiagnosticsCopy.ts:48
 msgid "not measured yet"
 msgstr ""
 
@@ -1338,7 +1342,7 @@ msgstr ""
 msgid "Off"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:43
+#: src/js/app/dashboard/DiagnosticsCopy.ts:45
 msgid "off (not in the audio path)"
 msgstr ""
 
@@ -1354,11 +1358,11 @@ msgstr ""
 msgid "On separate tracks."
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:45
+#: src/js/app/dashboard/DiagnosticsCopy.ts:47
 msgid "on, closed  ← this is cutting your mic"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:44
+#: src/js/app/dashboard/DiagnosticsCopy.ts:46
 msgid "on, open (passing audio)"
 msgstr ""
 
@@ -1378,7 +1382,7 @@ msgstr ""
 msgid "Only the server owner can fix this one"
 msgstr ""
 
-#: src/js/app/managers/settings/AboutManager.ts:59
+#: src/js/app/managers/settings/AboutManager.ts:58
 msgid "Open a bug report on GitHub"
 msgstr ""
 
@@ -1415,7 +1419,7 @@ msgstr ""
 msgid "Packet loss"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:95
+#: src/js/app/dashboard/DiagnosticsCopy.ts:97
 msgid "Packet loss is {percent}%. Audio will break up."
 msgstr ""
 
@@ -1447,7 +1451,7 @@ msgstr ""
 msgid "Places each voice where it was standing. Off writes every track flat and centred, which is what you want if you are going to mix it yourself."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:152
+#: src/components/settings/panes/AboutPane.svelte:182
 msgid "Platform ID"
 msgstr ""
 
@@ -1508,7 +1512,7 @@ msgstr ""
 msgid "Privacy notice"
 msgstr ""
 
-#: src/js/app/managers/settings/AboutManager.ts:70
+#: src/js/app/managers/settings/AboutManager.ts:69
 msgid "Privacy Notice"
 msgstr ""
 
@@ -1517,16 +1521,16 @@ msgid "Profile and sign-out"
 msgstr ""
 
 #: src/components/server/PreflightPanel.svelte:141
-#: src/components/settings/panes/AboutPane.svelte:121
-#: src/js/app/dashboard/DiagnosticsCopy.ts:39
+#: src/components/settings/panes/AboutPane.svelte:124
+#: src/js/app/dashboard/DiagnosticsCopy.ts:41
 msgid "Protocol"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:40
+#: src/js/app/dashboard/DiagnosticsCopy.ts:42
 msgid "Proximity range"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:98
+#: src/components/settings/panes/AboutPane.svelte:101
 msgid "Proximity voice for Minecraft Bedrock. Source available."
 msgstr ""
 
@@ -1542,7 +1546,7 @@ msgstr ""
 msgid "Push-to-talk & hotkeys"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:77
+#: src/js/app/dashboard/DiagnosticsCopy.ts:79
 msgid "Push-to-talk is on. Hold the mic button to speak."
 msgstr ""
 
@@ -1593,15 +1597,15 @@ msgstr ""
 msgid "Recheck every server"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:51
+#: src/js/app/dashboard/DiagnosticsCopy.ts:53
 msgid "reconnecting"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:67
+#: src/js/app/dashboard/DiagnosticsCopy.ts:69
 msgid "Reconnecting — attempt {attempt}. Nobody can hear you right now."
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:68
+#: src/js/app/dashboard/DiagnosticsCopy.ts:70
 msgid "Reconnecting. Nobody can hear you right now."
 msgstr ""
 
@@ -1625,7 +1629,8 @@ msgstr ""
 msgid "Recordings"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:236
+#: src/components/settings/panes/AboutPane.svelte:195
+#: src/components/settings/panes/AboutPane.svelte:231
 msgid "Refresh"
 msgstr ""
 
@@ -1637,7 +1642,7 @@ msgstr ""
 msgid "Regenerate"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:123
+#: src/components/settings/panes/AboutPane.svelte:126
 msgid "Release"
 msgstr ""
 
@@ -1661,7 +1666,7 @@ msgstr ""
 msgid "Rename this recording"
 msgstr ""
 
-#: src/js/app/managers/settings/AboutManager.ts:58
+#: src/js/app/managers/settings/AboutManager.ts:57
 msgid "Report a Bug"
 msgstr ""
 
@@ -1737,7 +1742,7 @@ msgstr ""
 msgid "Save"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:208
+#: src/components/settings/panes/AboutPane.svelte:203
 msgid "Save the logs to a file"
 msgstr ""
 
@@ -1759,8 +1764,8 @@ msgstr ""
 msgid "Send"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:194
-#: src/components/settings/panes/AboutPane.svelte:200
+#: src/components/settings/panes/AboutPane.svelte:169
+#: src/components/settings/panes/AboutPane.svelte:175
 msgid "Send anonymous usage and crash reports"
 msgstr ""
 
@@ -1772,7 +1777,7 @@ msgstr ""
 msgid "sent from the app, not in game"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:38
+#: src/js/app/dashboard/DiagnosticsCopy.ts:40
 #: src/js/app/error/FaultCatalog.ts:154
 msgid "Server"
 msgstr ""
@@ -1878,7 +1883,7 @@ msgstr ""
 msgid "Sign out"
 msgstr ""
 
-#: src/routes/login/+page.svelte:252
+#: src/routes/login/+page.svelte:260
 msgid "Sign out and start over"
 msgstr ""
 
@@ -1906,7 +1911,7 @@ msgstr ""
 msgid "Signing in again issues fresh credentials"
 msgstr ""
 
-#: src/routes/login/+page.svelte:279
+#: src/routes/login/+page.svelte:287
 msgid "Signing in with the account you play on"
 msgstr ""
 
@@ -1952,7 +1957,7 @@ msgstr ""
 msgid "Split-track recording"
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:410
+#: src/routes/uireview/+page.svelte:412
 msgid "Starting up"
 msgstr ""
 
@@ -1969,9 +1974,9 @@ msgstr ""
 msgid "Stay on This Version"
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:50
-#: src/routes/error/+page.svelte:155
-#: src/routes/uireview/+page.svelte:371
+#: src/components/login/ConnectErrorScreen.svelte:60
+#: src/routes/error/+page.svelte:161
+#: src/routes/uireview/+page.svelte:372
 msgid "Still stuck?"
 msgstr ""
 
@@ -2063,7 +2068,7 @@ msgstr ""
 msgid "The server refused this connection because it could not verify your identity. Your certificate may have been revoked or reissued. Sign in again to get fresh credentials."
 msgstr ""
 
-#: src/routes/error/+page.svelte:151
+#: src/routes/error/+page.svelte:157
 msgid "The update could not be installed. Try again, or download the new version by hand."
 msgstr ""
 
@@ -2123,7 +2128,7 @@ msgstr ""
 msgid "Transport"
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:43
+#: src/components/login/ConnectErrorScreen.svelte:53
 msgid "Try again"
 msgstr ""
 
@@ -2153,6 +2158,10 @@ msgstr ""
 msgid "UNEXPECTED"
 msgstr ""
 
+#: src/components/settings/panes/AboutPane.svelte:184
+msgid "Uniquely identifies your build for experimental features + analytics."
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:279
 msgid "Unknown"
 msgstr ""
@@ -2169,7 +2178,7 @@ msgstr ""
 msgid "UNRESOLVED"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:172
+#: src/components/settings/panes/AboutPane.svelte:147
 msgid "Untranslated text stays in English."
 msgstr ""
 
@@ -2181,7 +2190,7 @@ msgstr ""
 msgid "Update Now"
 msgstr ""
 
-#: src/routes/error/+page.svelte:86
+#: src/routes/error/+page.svelte:87
 msgid "Updating…"
 msgstr ""
 
@@ -2201,7 +2210,7 @@ msgstr ""
 msgid "Verifying the signature…"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:119
+#: src/components/settings/panes/AboutPane.svelte:122
 msgid "Version"
 msgstr ""
 
@@ -2213,7 +2222,7 @@ msgstr ""
 msgid "View FAQ"
 msgstr ""
 
-#: src/js/app/managers/settings/AboutManager.ts:71
+#: src/js/app/managers/settings/AboutManager.ts:70
 msgid "View privacy statement"
 msgstr ""
 
@@ -2245,7 +2254,7 @@ msgstr ""
 msgid "Voice mode"
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:28
+#: src/components/login/ConnectErrorScreen.svelte:38
 #: src/js/app/error/FaultCatalog.ts:183
 #: src/js/app/error/FaultCatalog.ts:198
 msgid "Voice path"
@@ -2287,7 +2296,7 @@ msgstr ""
 msgid "We could not reach this server to ask whether Bedrock support is on."
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:36
+#: src/components/login/ConnectErrorScreen.svelte:46
 msgid "We couldn't reach"
 msgstr ""
 
@@ -2352,12 +2361,16 @@ msgstr ""
 msgid "Who can join"
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:54
+#: src/components/login/ConnectErrorScreen.svelte:64
 #: src/components/login/NoServerScreen.svelte:92
-#: src/components/settings/panes/AboutPane.svelte:252
-#: src/routes/error/+page.svelte:159
-#: src/routes/uireview/+page.svelte:375
+#: src/components/settings/panes/AboutPane.svelte:247
+#: src/routes/error/+page.svelte:165
+#: src/routes/uireview/+page.svelte:376
 msgid "Wiki"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsCopy.ts:38
+msgid "WSS port"
 msgstr ""
 
 #: src/js/app/deepLinkHandlers/authCallbackHandler.ts:133
@@ -2368,7 +2381,7 @@ msgstr ""
 msgid "Yes · I have an address"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:74
+#: src/js/app/dashboard/DiagnosticsCopy.ts:76
 msgid "You are deafened. You cannot hear anyone."
 msgstr ""
 
@@ -2376,7 +2389,7 @@ msgstr ""
 msgid "You are in settings on its own."
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:80
+#: src/js/app/dashboard/DiagnosticsCopy.ts:82
 msgid "You are muted. Nobody can hear you."
 msgstr ""
 
@@ -2396,7 +2409,7 @@ msgstr ""
 msgid "You're signed in as"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:71
+#: src/js/app/dashboard/DiagnosticsCopy.ts:73
 msgid "Your audio is not reaching the server. Try reconnecting."
 msgstr ""
 
@@ -2404,7 +2417,7 @@ msgstr ""
 msgid "Your client version is outdated. Download the latest BVC client to connect to this server."
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:83
+#: src/js/app/dashboard/DiagnosticsCopy.ts:85
 msgid "Your input device is running at {kHz} kHz. BVC expects 48 kHz."
 msgstr ""
 

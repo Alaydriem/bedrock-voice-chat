@@ -1,3 +1,4 @@
+use common::structs::audio::PlayerGainSettings;
 use common::structs::channel::ChannelCollection;
 use common::structs::control::{
     ClientAction, ClientActionType, PlayerPreference, PreferenceKey, QueryState,
@@ -97,10 +98,10 @@ impl ClientActionService {
                 Self::patch_self_state(player_state, actor_identity, |s| s.recording = *on).await;
             }
             ClientActionType::SetVolume { target, volume } => {
-                // Mirror the client's own sanitation (ignore non-finite, clamp to
-                // [0,1]) so the echo never publishes a gain the client won't apply.
+                // Mirror the client's own sanitation (ignore non-finite, clamp to the
+                // shared ceiling) so the echo never publishes a gain the client won't apply.
                 if volume.is_finite() {
-                    let volume = volume.clamp(0.0, 1.0);
+                    let volume = volume.clamp(0.0, PlayerGainSettings::MAX_GAIN);
                     Self::patch_preference(preferences, actor_identity, target, |p| {
                         p.volume = volume
                     })

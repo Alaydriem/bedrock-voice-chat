@@ -10,7 +10,6 @@ import FeatureFlagService from "../../services/FeatureFlagService";
 import type { AppInfo } from "../../../bindings/AppInfo";
 import type { DiscordLinkStatus } from "../../../bindings/DiscordLinkStatus";
 import type { AboutLink } from "./AboutLink";
-import { AppStore } from "../../services/AppStore";
 
 type DiscordCommand = "discord_link" | "discord_resync" | "discord_unlink";
 
@@ -33,12 +32,12 @@ export class AboutManager {
     private telemetryStore: Writable<boolean>;
     public readonly telemetry: Readable<boolean>;
 
-    private showPlatformIdStore: Writable<boolean>;
-    public readonly showPlatformId: Readable<boolean>;
     private platformIdStore: Writable<string>;
     public readonly platformId: Readable<string>;
-    private platformIdCopiedStore: Writable<boolean>;
-    public readonly platformIdCopied: Readable<boolean>;
+    private isRefreshingPlatformIdStore: Writable<boolean>;
+    public readonly isRefreshingPlatformId: Readable<boolean>;
+    private platformIdErrorStore: Writable<string>;
+    public readonly platformIdError: Readable<string>;
 
     private isRefreshingFlagsStore: Writable<boolean>;
     public readonly isRefreshingFlags: Readable<boolean>;
@@ -73,9 +72,6 @@ export class AboutManager {
         },
     ];
 
-    private variantClickCount = 0;
-    private variantClickTimer: ReturnType<typeof setTimeout> | null = null;
-    private platformIdCopiedTimer: ReturnType<typeof setTimeout> | null = null;
     private readonly boundLoadDiscord: () => void;
 
     constructor() {
@@ -97,12 +93,12 @@ export class AboutManager {
         this.telemetryStore = writable(true);
         this.telemetry = { subscribe: this.telemetryStore.subscribe };
 
-        this.showPlatformIdStore = writable(false);
-        this.showPlatformId = { subscribe: this.showPlatformIdStore.subscribe };
         this.platformIdStore = writable("");
         this.platformId = { subscribe: this.platformIdStore.subscribe };
-        this.platformIdCopiedStore = writable(false);
-        this.platformIdCopied = { subscribe: this.platformIdCopiedStore.subscribe };
+        this.isRefreshingPlatformIdStore = writable(false);
+        this.isRefreshingPlatformId = { subscribe: this.isRefreshingPlatformIdStore.subscribe };
+        this.platformIdErrorStore = writable("");
+        this.platformIdError = { subscribe: this.platformIdErrorStore.subscribe };
 
         this.isRefreshingFlagsStore = writable(false);
         this.isRefreshingFlags = { subscribe: this.isRefreshingFlagsStore.subscribe };
@@ -127,6 +123,7 @@ export class AboutManager {
         try {
             this.appInfoStore.set(await invoke<AppInfo>("get_app_info"));
             this.telemetryStore.set(await invoke<boolean>("get_telemetry"));
+            this.platformIdStore.set(await invoke<string>("get_platform_id"));
         } catch (e) {
             error(`Failed to get app info: ${e}`);
         }
@@ -161,46 +158,21 @@ export class AboutManager {
         }
     }
 
-    async handleVariantClick(): Promise<void> {
-        this.variantClickCount++;
-
-        if (this.variantClickTimer) clearTimeout(this.variantClickTimer);
-        this.variantClickTimer = setTimeout(() => {
-            this.variantClickCount = 0;
-        }, 2000);
-
-        let revealed = false;
-        this.showPlatformIdStore.update((value) => {
-            revealed = value;
-            return value;
-        });
-
-        if (this.variantClickCount >= 3 && !revealed) {
-            try {
-                const store = await AppStore.load();
-                this.platformIdStore.set((await store.get<string>("install_id")) ?? "");
-            } catch (e) {
-                error(`Failed to read install_id: ${e}`);
-            }
-            this.showPlatformIdStore.set(true);
-        }
-    }
-
-    async copyPlatformId(): Promise<void> {
-        let id = "";
-        this.platformIdStore.update((value) => {
-            id = value;
-            return value;
-        });
+    /**
+     * Trades the current identity for a new one. Analytics and feature flags follow it
+     * without a restart, so the returned value is what the rest of the session reports
+     * under.
+     */
+    async refreshPlatformId(): Promise<void> {
+        this.isRefreshingPlatformIdStore.set(true);
+        this.platformIdErrorStore.set("");
         try {
-            await navigator.clipboard.writeText(id);
-            this.platformIdCopiedStore.set(true);
-            if (this.platformIdCopiedTimer) clearTimeout(this.platformIdCopiedTimer);
-            this.platformIdCopiedTimer = setTimeout(() => {
-                this.platformIdCopiedStore.set(false);
-            }, 1500);
+            this.platformIdStore.set(await invoke<string>("refresh_platform_id"));
         } catch (e) {
-            error(`Failed to copy install_id: ${e}`);
+            this.platformIdErrorStore.set(String(e));
+            error(`Failed to refresh the platform ID: ${e}`);
+        } finally {
+            this.isRefreshingPlatformIdStore.set(false);
         }
     }
 
@@ -250,8 +222,6 @@ export class AboutManager {
     }
 
     destroy(): void {
-        if (this.variantClickTimer) clearTimeout(this.variantClickTimer);
-        if (this.platformIdCopiedTimer) clearTimeout(this.platformIdCopiedTimer);
         window.removeEventListener("discord-link-updated", this.boundLoadDiscord);
     }
 }

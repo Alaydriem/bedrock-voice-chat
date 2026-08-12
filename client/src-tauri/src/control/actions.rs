@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use common::Game;
+use common::structs::audio::PlayerGainSettings;
 use common::structs::control::{ClientAction, ClientActionType};
 use log::warn;
 use tauri::Manager;
@@ -62,8 +63,13 @@ impl ControlActionsManager {
                     warn!("ControlActionsManager: ignoring non-finite volume for {target}");
                     return;
                 }
-                self.set_gain(target, &game, Some(volume.clamp(0.0, 1.0)), None)
-                    .await;
+                self.set_gain(
+                    target,
+                    &game,
+                    Some(volume.clamp(0.0, PlayerGainSettings::MAX_GAIN)),
+                    None,
+                )
+                .await;
             }
             ClientActionType::SetHeard { target, muted } => {
                 self.set_gain(target, &game, None, Some(*muted)).await;
@@ -91,6 +97,12 @@ impl ControlActionsManager {
     /// form rather than under the raw name, so the entry resolves once that player is tracked
     /// instead of sitting under a key nothing will ever look up.
     pub fn canonicalize_target(target: &str, game: &Game, candidates: &[&str]) -> String {
+        // The reserved jukebox target names a setting, not a player. Composing it would produce
+        // `minecraft:#jukebox`, which no candidate answers for and nothing downstream reads.
+        if target == common::consts::audio::JUKEBOX_CONTROL_TARGET {
+            return target.to_string();
+        }
+
         let wanted = Self::canonical(target, game);
 
         if candidates.iter().any(|c| *c == wanted) {
@@ -117,7 +129,9 @@ impl ControlActionsManager {
     /// The Rust counterpart of `GameNameUtils.canonical`, and idempotent for the same reason:
     /// a target can reach this from a mod (bare) or from the audio pipeline (canonical), and
     /// prefixing twice would produce `minecraft:minecraft:Bob`.
-    fn canonical(name: &str, game: &Game) -> String {
+    ///
+    /// Public because channel membership is keyed the same way, so a group lookup needs it too.
+    pub fn canonical(name: &str, game: &Game) -> String {
         match name.split_once(':') {
             Some((tag, _)) if Game::from_tag(tag).is_some() => name.to_string(),
             _ => game.membership_key(name),
@@ -133,6 +147,11 @@ impl ControlActionsManager {
     /// only work left here is resolving what a game mod called somebody onto the key the rest
     /// of the client uses.
     async fn set_gain(&self, target: &str, game: &Game, volume: Option<f32>, muted: Option<bool>) {
+        if target == common::consts::audio::JUKEBOX_CONTROL_TARGET {
+            self.set_jukebox(volume, muted).await;
+            return;
+        }
+
         let Some(coordinator) = self
             .app_handle
             .try_state::<Arc<PlayerSettingsCoordinator>>()
@@ -186,5 +205,29 @@ impl ControlActionsManager {
         log::debug!(
             "ControlActionsManager: gain applied target={target} volume={volume:?} muted={muted:?}"
         );
+    }
+
+    /// Applies a jukebox action through the backend's own single write path.
+    ///
+    /// Diverted before the coordinator is reached, so nothing about the jukebox ever enters the
+    /// per-player gain store — that store is what the dashboard builds player cards from, and an
+    /// entry there would render the jukebox as a person.
+    async fn set_jukebox(&self, volume: Option<f32>, muted: Option<bool>) {
+        let actions = AudioActionsManager::new(self.app_handle.clone());
+
+        if let Some(gain) = volume {
+            if let Err(e) = actions.set_jukebox_gain(gain).await {
+                warn!("ControlActionsManager: set_jukebox_gain failed: {e}");
+                return;
+            }
+        }
+        if let Some(m) = muted {
+            if let Err(e) = actions.set_jukebox_muted(m).await {
+                warn!("ControlActionsManager: set_jukebox_muted failed: {e}");
+                return;
+            }
+        }
+
+        log::debug!("ControlActionsManager: jukebox applied volume={volume:?} muted={muted:?}");
     }
 }

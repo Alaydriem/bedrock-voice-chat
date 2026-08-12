@@ -35,6 +35,12 @@
     /** Left of the footbar: the usual cause, or a reassurance. */
     hint: string;
     appVersion: string;
+    /**
+     * The install's anonymous identity, which support asks every reporter for. Joins
+     * the code and the version in the footbar. Empty until it has been read, and left
+     * out of the line rather than shown as a gap.
+     */
+    platformId?: string;
     actions: readonly Action[];
     /**
      * Replaces the visual with the mark spinner. The update is the longest wait in the
@@ -58,6 +64,7 @@
     label,
     hint,
     appVersion,
+    platformId = "",
     actions,
     working = false,
     workingPhrases,
@@ -69,6 +76,7 @@
     warn: "rad-status-chip--warn",
     ok: "rad-status-chip--ok",
   };
+
 </script>
 
 <!--
@@ -134,6 +142,13 @@
 
   {#snippet footbar()}
     <span class="rad-label">{hint}</span>
-    <span class="rad-label rad-num">{code} · v{appVersion}</span>
+    <!-- Two halves rather than one string: a phone keeps the platform id and drops the
+         code and version, which are already on the screen above it. -->
+    <span class="rad-footbar__ref">
+      <span class="rad-label rad-num">{code} · v{appVersion}</span>
+      {#if platformId}
+        <span class="rad-label rad-num rad-footbar__ref-id">{platformId}</span>
+      {/if}
+    </span>
   {/snippet}
 </RadScreen>

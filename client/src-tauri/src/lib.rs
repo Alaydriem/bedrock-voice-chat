@@ -23,6 +23,7 @@ pub mod android;
 // Re-exported for the integration test crate (a separate crate root that can
 // only reach `pub` items) to cover first-run and install-date resolution.
 pub use analytics::InstallMarker;
+pub use analytics::PlatformId;
 mod api;
 pub use api::FetchCache;
 pub mod app_builder;
@@ -40,6 +41,7 @@ pub use discord::{
 };
 pub mod events;
 mod feature_flags;
+pub mod groups;
 pub use feature_flags::FeatureFlagService;
 pub use feature_flags::flagsmith::FlagsmithProvider;
 // Re-exported for the integration test crate to assert that an unconfigured
@@ -248,6 +250,8 @@ pub fn run() {
             crate::commands::about::export_logs,
             crate::commands::about::get_telemetry,
             crate::commands::about::set_telemetry,
+            crate::commands::about::get_platform_id,
+            crate::commands::about::refresh_platform_id,
             // Authentication
             crate::auth::commands::server_login,
             crate::auth::commands::logout,
@@ -270,6 +274,9 @@ pub fn run() {
             crate::commands::audio::mute_status,
             crate::commands::audio::is_stopped,
             crate::commands::audio::update_stream_metadata,
+            crate::commands::audio::set_jukebox_muted,
+            crate::commands::audio::toggle_jukebox_muted,
+            crate::commands::audio::set_jukebox_gain,
             crate::commands::audio::reset_asm,
             crate::commands::audio::start_recording,
             crate::commands::audio::stop_recording,
@@ -312,6 +319,9 @@ pub fn run() {
             crate::api::commands::api_list_channels,
             crate::api::commands::api_get_channel,
             crate::api::commands::api_channel_event,
+            crate::commands::groups::group_create,
+            crate::commands::groups::group_join,
+            crate::commands::groups::group_leave,
             crate::api::commands::api_rename_channel,
             crate::api::commands::api_get_player_gamerpic,
             // WebSocket Server
@@ -525,10 +535,15 @@ pub fn run() {
             let install_id = marker.install_id.clone();
             log::info!("Platform ID: {}", install_id);
 
+            // One identity, shared by analytics and feature flags, so the About pane can
+            // replace it without a restart.
+            let platform_id = analytics::PlatformId::new_shared(install_id.clone());
+            app.manage(platform_id.clone());
+
             // Analytics service with provider pattern
             let mut analytics_service = analytics::AnalyticsService::new(
                 telemetry.clone(),
-                install_id.clone(),
+                platform_id.clone(),
             );
 
             if let (Some(key), Some(host)) = (option_env!("POSTHOG_KEY"), option_env!("POSTHOG_HOST")) {
@@ -566,7 +581,7 @@ pub fn run() {
                     option_env!("FLAGSMITH_SERVER")
                         .unwrap_or("https://flagsmith.bedrockvoicechat.com")
                         .to_string(),
-                    install_id.clone(),
+                    platform_id.clone(),
                     option_env!("APP_BUILD_NUMBER")
                         .and_then(|s| s.parse::<i64>().ok())
                         .unwrap_or(0),

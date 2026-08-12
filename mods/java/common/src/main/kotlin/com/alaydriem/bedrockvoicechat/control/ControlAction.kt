@@ -52,5 +52,18 @@ sealed class ControlAction {
 
     companion object {
         private val GSON = Gson()
+
+        /**
+         * The reserved control-plane target that names jukebox music instead of a player.
+         *
+         * Must match common's `JUKEBOX_CONTROL_TARGET`. A gamertag cannot contain '#', so it can
+         * never collide with a real player. The jukebox rides the per-player preference plane under
+         * this name, which is why it needs no variant of its own. This mod shares no types with the
+         * Rust crate; [ControlActionTest] is what keeps the value equal.
+         */
+        const val JUKEBOX_TARGET = "#jukebox"
+
+        /** The loudest anything plays, as a percent. Matches `PlayerGainSettings::MAX_GAIN`. */
+        const val MAX_LEVEL = 150
     }
 }

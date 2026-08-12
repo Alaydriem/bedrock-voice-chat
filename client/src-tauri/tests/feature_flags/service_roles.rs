@@ -1,4 +1,5 @@
 use bvc_client_lib::FeatureFlagService;
+use bvc_client_lib::PlatformId;
 use std::time::Duration;
 
 const DAY: i64 = 86_400;
@@ -8,7 +9,7 @@ fn svc() -> FeatureFlagService {
     FeatureFlagService::new(
         String::new(),
         String::new(),
-        "install-x".to_string(),
+        PlatformId::new_shared("install-x".to_string()),
         0,
         Duration::from_secs(3600),
         None,

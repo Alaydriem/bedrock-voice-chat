@@ -22,6 +22,7 @@ use tokio::sync::{RwLock, watch};
 
 use self::identity_response::FlagsmithIdentityResponse;
 use crate::analytics::AnalyticsService;
+use crate::analytics::PlatformId;
 use crate::discord::DiscordTraitState;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 
@@ -29,7 +30,9 @@ pub struct FlagsmithProvider {
     metadata: ProviderMetadata,
     api_key: String,
     server_url: String,
-    install_id: String,
+    // Shared with the FeatureFlagService that owns this provider, so the identity
+    // this provider fetches under follows a change made at runtime.
+    platform_id: Arc<PlatformId>,
     build_number: i64,
     refresh_interval: Duration,
     http_client: reqwest::Client,
@@ -43,7 +46,7 @@ impl FlagsmithProvider {
     pub fn new(
         api_key: String,
         server_url: String,
-        install_id: String,
+        platform_id: Arc<PlatformId>,
         build_number: i64,
         refresh_interval: Duration,
         http_client: reqwest::Client,
@@ -63,7 +66,7 @@ impl FlagsmithProvider {
             metadata: ProviderMetadata::new("flagsmith"),
             api_key,
             server_url: normalized_url,
-            install_id,
+            platform_id,
             build_number,
             refresh_interval,
             http_client,
@@ -190,11 +193,12 @@ impl FlagsmithProvider {
 
     async fn refresh(&self) -> Result<(), anyhow::Error> {
         let roles = Self::effective_roles_now(&self.discord_state);
+        let platform_id = self.platform_id.get();
         let count = Self::fetch_flags(
             &self.http_client,
             &self.server_url,
             &self.api_key,
-            &self.install_id,
+            &platform_id,
             self.build_number,
             &roles,
             &self.cache,
@@ -204,7 +208,7 @@ impl FlagsmithProvider {
         .await?;
         info!(
             "Refreshed {} feature flags for identity {}",
-            count, self.install_id
+            count, platform_id
         );
         Ok(())
     }
@@ -242,7 +246,7 @@ impl FeatureProvider for FlagsmithProvider {
         let http_client = self.http_client.clone();
         let api_key = self.api_key.clone();
         let server_url = self.server_url.clone();
-        let install_id = self.install_id.clone();
+        let platform_id = self.platform_id.clone();
         let build_number = self.build_number;
         let refresh_interval = self.refresh_interval;
         let discord_state = self.discord_state.clone();
@@ -259,7 +263,7 @@ impl FeatureProvider for FlagsmithProvider {
                     &http_client,
                     &server_url,
                     &api_key,
-                    &install_id,
+                    &platform_id.get(),
                     build_number,
                     &roles,
                     &cache,
@@ -388,7 +392,7 @@ mod tests {
         FlagsmithProvider::new(
             String::new(),
             String::new(),
-            String::new(),
+            PlatformId::new_shared(String::new()),
             0,
             Duration::from_secs(3600),
             reqwest::Client::new(),

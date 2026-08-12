@@ -568,20 +568,22 @@
 
                       <!-- ============ RECORDINGS ============ -->
                       <section data-pane="recordings" hidden>
-                        <div class="rad-section">
+                        <div class="rad-section" data-rec-list>
                           <div class="rad-section__note">
-                            Every session is stored as one track per player, timecoded together. Export
-                            writes the mix and the tracks you pick into the session's own folder.
+                            Every session is stored as one track per player, timecoded together. Open a
+                            session to pick which of its tracks to write out.
                           </div>
                           <div class="rad-swatchrow" style="margin-bottom: 4px">
                             <button class="rad-btn" data-toggle-empty>Toggle empty state</button>
                             <button class="rad-btn rad-btn--danger" data-rad-modal-open="wipe">Delete all&hellip;</button>
                             <span class="rad-status-chip" data-rec-meta>4 sessions &middot; 1.7 GB</span>
                           </div>
+                          <!-- Selection is for deleting several at once. Export is not here: which
+                               tracks to write is the whole question, and sessions with different
+                               casts cannot answer it together. -->
                           <div class="rad-selection-bar" data-rec-selbar hidden>
                             <span class="rad-selection-bar__count"><b data-rec-selcount>0</b> selected</span>
                             <span class="rad-spacer"></span>
-                            <button class="rad-btn" data-rec-export>Export&hellip;</button>
                             <button class="rad-btn rad-btn--danger" data-rec-delete>Delete</button>
                             <button class="rad-btn" data-rec-clear>Clear</button>
                           </div>
@@ -626,6 +628,63 @@
                               own folder. Nothing is uploaded &mdash; <b>a recording never leaves this
                               machine unless you move it yourself.</b>
                             </span>
+                          </div>
+                        </div>
+
+                        <!-- ---- one session, on its own screen ----
+                             The list stays mounted behind this, so its sort, its search and its
+                             selection all survive the trip down here and back. -->
+                        <div class="rad-section" data-rec-detail hidden>
+                          <div class="rad-detail__head">
+                            <button class="rad-detail__back" data-rec-back aria-label="Back to recordings">
+                              <span data-rad-icon="back"></span>
+                            </button>
+                            <span class="rad-detail__text">
+                              <span class="rad-detail__title" data-rec-d-name></span>
+                              <span class="rad-detail__meta" data-rec-d-meta></span>
+                            </span>
+                            <span data-rec-d-chip></span>
+                          </div>
+
+                          <!-- Says which of the two reasons applies. A disabled button that explains
+                               nothing is the thing this replaces. -->
+                          <div class="rad-callout rad-callout--warn" data-rec-d-warn hidden style="margin-top: 16px">
+                            <span data-rec-d-warntext></span>
+                          </div>
+
+                          <div class="rad-tracks__head">
+                            <span class="rad-label">Tracks</span>
+                            <span class="rad-spacer"></span>
+                            <button class="rad-btn rad-btn--quiet" data-rec-d-all>All</button>
+                            <button class="rad-btn rad-btn--quiet" data-rec-d-none>None</button>
+                          </div>
+                          <div class="rad-card" style="margin-top: 8px">
+                            <div class="rad-tracklist" data-rec-d-tracks></div>
+                          </div>
+
+                          <div class="rad-card">
+                            <div class="rad-row">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Mix in the spatial positions</span>
+                                <span class="rad-row__note">
+                                  Not built yet. Every track is written flat and centred, which is what
+                                  you want anyway if you are going to mix it yourself.
+                                </span>
+                              </span>
+                              <span class="rad-row__control">
+                                <button class="rad-toggle" role="switch" aria-checked="false" disabled data-rad-toggle="spatial" aria-label="Mix in the spatial positions"></button>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div class="rad-progress" data-rec-d-progress hidden style="margin-top: 16px"><i></i></div>
+
+                          <div class="rad-detail__foot">
+                            <button class="rad-btn" data-rec-d-rename>Rename&hellip;</button>
+                            <button class="rad-btn rad-btn--danger" data-rec-d-delete>Delete</button>
+                            <span class="rad-spacer"></span>
+                            <span class="rad-detail__status" data-rec-d-status hidden></span>
+                            <button class="rad-btn rad-btn--primary" data-rec-d-go>Export</button>
                           </div>
                         </div>
                       </section>
@@ -1039,21 +1098,13 @@
                             <dl class="rad-deflist">
                               <dt>Version</dt><dd><span>1.0.0-beta.8</span></dd>
                               <dt>Protocol</dt><dd><span>2.1.0</span></dd>
-                              <dt>Release</dt>
-                              <dd>
-                                <span data-variant title="Three presses reveals the platform identifier">stable</span>
-                              </dd>
+                              <dt>Release</dt><dd><span>stable</span></dd>
                               <dt>Commit</dt>
                               <dd>
                                 <span>8fa727ab</span>
                                 <button class="rad-icon-btn" data-rad-copy="8fa727ab" aria-label="Copy commit"><span data-rad-icon="copy"></span></button>
                               </dd>
                               <dt>Platform</dt><dd><span>Windows 11 &middot; 26200</span></dd>
-                              <dt data-platform-row hidden>Platform ID</dt>
-                              <dd data-platform-row hidden>
-                                <span data-platform-id>b6f1c0e2-4d33-4a71-9c58-2f0e9a71d55c</span>
-                                <button class="rad-icon-btn" data-rad-copy="the platform identifier" aria-label="Copy platform ID"><span data-rad-icon="copy"></span></button>
-                              </dd>
                             </dl>
                           </div>
 
@@ -1069,6 +1120,23 @@
                               <span class="rad-row__control">
                                 <button class="rad-toggle" role="switch" aria-checked="true" data-rad-toggle="telemetry" aria-label="Send anonymous usage and crash reports"></button>
                               </span>
+                            </div>
+                            <!-- The identity every report above is filed under, which is why it sits
+                                 with the toggle that decides whether any of them are sent. Support's
+                                 first question, and the one thing on this screen someone else needs
+                                 to read. -->
+                            <div class="rad-row rad-row--stack">
+                              <span class="rad-row__text">
+                                <span class="rad-row__label">Platform ID</span>
+                                <span class="rad-row__note" data-platform-note>Names this install in usage reports and feature checks. Nothing about you.</span>
+                              </span>
+                              <div class="rad-idfield">
+                                <span class="rad-idfield__value" data-platform-id>b6f1c0e2-4d33-4a71-9c58-2f0e9a71d55c</span>
+                                <span class="rad-idfield__actions">
+                                  <button class="rad-icon-btn" data-platform-copy aria-label="Copy platform ID"><span data-rad-icon="copy"></span></button>
+                                  <button class="rad-btn" data-platform-refresh><span data-rad-icon="refresh"></span> Refresh</button>
+                                </span>
+                              </div>
                             </div>
                             <div class="rad-row" data-rad-when="desktop">
                               <span class="rad-row__text">
@@ -1128,34 +1196,6 @@
               <div class="rad-modal__actions">
                 <button class="rad-btn" data-rad-modal-close>Cancel</button>
                 <button class="rad-btn rad-btn--primary" data-rename-go>Rename</button>
-              </div>
-            </div>
-
-            <!-- ---- export ---- -->
-            <div class="rad-modal rad-modal--wide" data-rad-modal="export">
-              <h5 class="rad-modal__title">Export this recording</h5>
-              <p>Pick who to include. Each player is written as their own track alongside the mix.</p>
-              <div class="rad-card" style="margin-top: 14px">
-                <div class="rad-modal__scroll" data-x-tracks></div>
-              </div>
-              <div class="rad-card" style="margin-top: 12px">
-                <div class="rad-row">
-                  <span class="rad-row__text">
-                    <span class="rad-row__label">Mix in the spatial positions</span>
-                    <span class="rad-row__note">
-                      Places each voice where it was standing. Off writes every track flat and centred,
-                      which is what you want if you are going to mix it yourself.
-                    </span>
-                  </span>
-                  <span class="rad-row__control">
-                    <button class="rad-toggle" role="switch" aria-checked="true" data-rad-toggle="spatial" aria-label="Mix in the spatial positions"></button>
-                  </span>
-                </div>
-              </div>
-              <div class="rad-progress" data-x-progress style="display: none"><i></i></div>
-              <div class="rad-modal__actions">
-                <button class="rad-btn" data-rad-modal-close>Cancel</button>
-                <button class="rad-btn rad-btn--primary" data-x-go>Export <span data-x-count>5</span> tracks</button>
               </div>
             </div>
 

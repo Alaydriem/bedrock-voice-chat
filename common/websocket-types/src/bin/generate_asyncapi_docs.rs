@@ -20,6 +20,15 @@ fn main() {
     let active_connection_schema = extract_def(&success_schema_value, "ActiveConnection");
     let connect_data_schema = extract_def(&success_schema_value, "ConnectData");
     let targets_data_schema = extract_def(&success_schema_value, "TargetsData");
+    // Every type `ResponseData` or a response type references has to be extracted and named in
+    // the schemas map below. A missing one leaves a dangling `$ref` in the emitted document, which
+    // no consumer can resolve and nothing here would otherwise report — `PttData` and `VoiceMode`
+    // were dangling for exactly that reason.
+    let ptt_data_schema = extract_def(&success_schema_value, "PttData");
+    let voice_mode_schema = extract_def(&success_schema_value, "VoiceMode");
+    let jukebox_data_schema = extract_def(&success_schema_value, "JukeboxData");
+    let group_data_schema = extract_def(&success_schema_value, "GroupData");
+    let glyph_schema = extract_def(&success_schema_value, "Glyph");
 
     let command_payload = remove_defs(command_schema_value.clone());
     let success_payload = remove_defs(success_schema_value.clone());
@@ -42,6 +51,24 @@ fn main() {
             "data": {
                 "type": "object",
                 "description": "LinkDiagnosticsSnapshot. Field-level contract: client/src/js/bindings/LinkDiagnosticsSnapshot.ts, generated from the Rust definition in common/src/structs/metrics/."
+            }
+        }
+    });
+
+    // Hand-written for the same reason as the metrics payload: `ConnectionHealth` lives in
+    // `common`, which this crate does not depend on, so it cannot be reflected from here.
+    let health_payload = json!({
+        "type": "object",
+        "required": ["type", "data"],
+        "properties": {
+            "type": {
+                "type": "string",
+                "const": "health",
+                "description": "Discriminant. Present so a consumer can tell this from a metrics frame."
+            },
+            "data": {
+                "type": "object",
+                "description": "ConnectionHealth. Field-level contract: client/src/js/bindings/ConnectionHealth.ts, generated from the Rust definition in common/src/structs/network/. Discriminated by `status`: Connected, Reconnecting (with attempt), Disconnected, Failed, VersionMismatch, Unauthorized."
             }
         }
     });
@@ -77,10 +104,13 @@ fn main() {
             },
             "metrics": {
                 "address": "/metrics",
-                "description": "Push-only link diagnostics, one frame per second while a connection is live. Authenticate with the configured key as a `key` query parameter; the upgrade is refused outright when it is missing or wrong. Inbound frames other than close and ping are ignored.",
+                "description": "Push-only. A `health` frame is sent immediately on subscribe and again on every transition; `metrics` frames follow once per second while a connection is live and stop entirely while it is not — the `health` frame is what says why. Authenticate with the configured key as a `key` query parameter; the upgrade is refused outright when it is missing or wrong. Inbound frames other than close and ping are ignored.",
                 "messages": {
                     "metrics": {
                         "$ref": "#/components/messages/MetricsPush"
+                    },
+                    "health": {
+                        "$ref": "#/components/messages/HealthPush"
                     }
                 }
             }
@@ -111,6 +141,14 @@ fn main() {
                     "contentType": "application/json",
                     "payload": metrics_payload
                 },
+                "HealthPush": {
+                    "name": "HealthPush",
+                    "title": "Connection Health Push",
+                    "summary": "Why the metrics stream is silent, or that it is not",
+                    "description": "Tagged envelope carrying the current connection verdict. Separate from MetricsPush rather than fields on it: a snapshot with zeroed measurements renders as a flawless link, which misleads worse than no frame at all.",
+                    "contentType": "application/json",
+                    "payload": health_payload
+                },
                 "ErrorResponse": {
                     "name": "ErrorResponse",
                     "title": "Error Response",
@@ -131,7 +169,12 @@ fn main() {
                 "ConnectTargetKind": connect_target_kind_schema,
                 "ActiveConnection": active_connection_schema,
                 "ConnectData": connect_data_schema,
-                "TargetsData": targets_data_schema
+                "TargetsData": targets_data_schema,
+                "PttData": ptt_data_schema,
+                "VoiceMode": voice_mode_schema,
+                "JukeboxData": jukebox_data_schema,
+                "GroupData": group_data_schema,
+                "Glyph": glyph_schema
             }
         }
     });

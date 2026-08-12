@@ -3,7 +3,10 @@ import { Diagnostics } from "$radial/core/controllers/Diagnostics";
 import { DiagnosticsView } from "../../../js/app/dashboard/DiagnosticsView";
 import type { LinkDiagnosticsSnapshot } from "../../../js/bindings/LinkDiagnosticsSnapshot";
 
-function snapshot(link: Partial<LinkDiagnosticsSnapshot["link"]> = {}): LinkDiagnosticsSnapshot {
+function snapshot(
+    link: Partial<LinkDiagnosticsSnapshot["link"]> = {},
+    session: Partial<LinkDiagnosticsSnapshot["session"]> = {},
+): LinkDiagnosticsSnapshot {
     return {
         captured_at_ms: 0n,
         mic: {
@@ -45,6 +48,8 @@ function snapshot(link: Partial<LinkDiagnosticsSnapshot["link"]> = {}): LinkDiag
             proximity_range: 48,
             falloff: "inverse-square",
             family_preference: null,
+            transport: "Quic",
+            ...session,
         },
         peers: [],
         history: [],
@@ -144,5 +149,19 @@ describe("Diagnostics.verdict", () => {
             severity: "ok",
             code: "fine",
         });
+    });
+
+    it("passes the transport through from the session", () => {
+        const input = DiagnosticsView.input(snapshot({}, { transport: "WebSocket" }), extra);
+
+        expect(input.transport).toBe("WebSocket");
+    });
+
+    // A server too old to report one, or nothing connected. Defaulting to QUIC would state a
+    // fact the backend did not report.
+    it("reports an absent transport as absent", () => {
+        const input = DiagnosticsView.input(snapshot({}, { transport: null }), extra);
+
+        expect(input.transport).toBeNull();
     });
 });

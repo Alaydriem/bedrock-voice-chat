@@ -21,6 +21,8 @@ pub enum ResponseData {
     Ptt(PttData),
     Targets(TargetsData),
     Connect(ConnectData),
+    Jukebox(JukeboxData),
+    Group(GroupData),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -45,6 +47,27 @@ pub struct PttData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct JukeboxData {
+    pub muted: bool,
+    /// The level as a fraction, where 1.0 is untouched.
+    ///
+    /// Reported alongside `muted` so a controller learns both halves from either command and never
+    /// has to infer one from the other — they are independent, and a level survives a mute.
+    pub gain: f32,
+}
+
+/// Whether this client is in a group, and which.
+///
+/// `id` and `name` are absent when a leave found nothing to leave, matching how `ConnectData`
+/// reports a disconnect that found nothing running.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GroupData {
+    pub in_group: bool,
+    pub id: Option<String>,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct StateData {
     pub muted: bool,
     pub deafened: bool,
@@ -54,6 +77,10 @@ pub struct StateData {
     pub voice_mode: VoiceMode,
     /// Whether push-to-talk is held right now. Always false in `openMic`.
     pub ptt_active: bool,
+    /// Whether jukebox music is muted.
+    pub jukebox_muted: bool,
+    /// How loud jukebox music plays, as a fraction where 1.0 is untouched.
+    pub jukebox_gain: f32,
     /// The world this client is connected to, absent when nothing is running.
     pub connection: Option<ActiveConnection>,
 }
@@ -136,6 +163,13 @@ impl SuccessResponse {
         Self {
             success: true,
             data: ResponseData::Ptt(PttData { active }),
+        }
+    }
+
+    pub fn jukebox(muted: bool, gain: f32) -> Self {
+        Self {
+            success: true,
+            data: ResponseData::Jukebox(JukeboxData { muted, gain }),
         }
     }
 }

@@ -1,7 +1,10 @@
 mod connect_outcome;
 mod health_manager;
+mod health_publisher;
 pub(crate) mod link;
 mod stream_manager;
+
+pub use health_publisher::HealthPublisher;
 
 use connect_outcome::{AttemptResult, ConnectOutcome};
 use link::DatagramLink;

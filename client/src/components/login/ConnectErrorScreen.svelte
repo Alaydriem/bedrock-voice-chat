@@ -6,12 +6,22 @@
     interface Props {
         server: string;
         appVersion: string;
+        /** Support's first question. Joins the version in the footbar, or is left out. */
+        platformId?: string;
         onretry: () => void;
         onchangeserver: () => void;
         onwiki: () => void;
         ondiscord: () => void;
     }
-    let { server, appVersion, onretry, onchangeserver, onwiki, ondiscord }: Props = $props();
+    let {
+        server,
+        appVersion,
+        platformId = "",
+        onretry,
+        onchangeserver,
+        onwiki,
+        ondiscord,
+    }: Props = $props();
 </script>
 
 <!--
@@ -62,6 +72,11 @@
 
     {#snippet footbar()}
         <span class="rad-label">{I18n.t("A wrong address is the usual cause")}</span>
-        <span class="rad-label rad-num">v{appVersion}</span>
+        <span class="rad-footbar__ref">
+            <span class="rad-label rad-num">v{appVersion}</span>
+            {#if platformId}
+                <span class="rad-label rad-num rad-footbar__ref-id">{platformId}</span>
+            {/if}
+        </span>
     {/snippet}
 </RadScreen>

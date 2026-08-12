@@ -6,6 +6,7 @@ mod transport_verdict;
 use serde::{Deserialize, Serialize};
 
 pub(crate) use stream::NetworkStreamManager;
+pub use stream::HealthPublisher;
 pub use transport_verdict::TransportVerdict;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

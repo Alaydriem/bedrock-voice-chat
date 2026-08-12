@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::ConnectTargetKind;
+use super::{ConnectTargetKind, Glyph, ServerGlyph};
 
 /// The world this client is connected to right now.
 ///
@@ -13,4 +13,19 @@ pub struct ActiveConnection {
     pub id: String,
     pub name: String,
     pub kind: ConnectTargetKind,
+    /// Derived from `name`, matching the entry in a `targets` response for the same world.
+    pub glyph: Glyph,
+}
+
+impl ActiveConnection {
+    /// Attaches the derived glyph, so no construction site has to remember to.
+    pub fn new(id: String, name: String, kind: ConnectTargetKind) -> Self {
+        let glyph = ServerGlyph::of(&name);
+        Self {
+            id,
+            name,
+            kind,
+            glyph,
+        }
+    }
 }

@@ -74,4 +74,25 @@ class ControlActionTest {
     fun leave_group_is_a_bare_string() {
         assertJson("""{"id":"Alice","game":"minecraft","action":"LeaveGroup"}""", ControlAction.LeaveGroup)
     }
+
+    /**
+     * The jukebox rides the per-player preference plane under a reserved target, so it produces the
+     * ordinary SetVolume and SetHeard shapes rather than variants of its own. This vector is what
+     * keeps the sentinel spelling and the hear inversion equal to the Rust decoder — nothing at
+     * runtime detects a drift, and a drifted target silently adjusts nobody.
+     *
+     * 150 rather than a round 100: the ceiling is above unity, and a fraction clamped to 1.0
+     * anywhere along the way would show up here.
+     */
+    @Test
+    fun jukebox_actions_carry_the_reserved_target() {
+        assertJson(
+            """{"id":"Alice","game":"minecraft","action":{"SetVolume":{"target":"#jukebox","volume":1.5}}}""",
+            ControlAction.Volume(ControlAction.JUKEBOX_TARGET, 150),
+        )
+        assertJson(
+            """{"id":"Alice","game":"minecraft","action":{"SetHeard":{"target":"#jukebox","muted":true}}}""",
+            ControlAction.Hear(ControlAction.JUKEBOX_TARGET, false),
+        )
+    }
 }

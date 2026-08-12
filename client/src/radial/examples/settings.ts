@@ -175,6 +175,9 @@ function renderNav(): void {
 }
 
 function goToPane(next: string): void {
+  // Leaving the pane leaves the record. Coming back to a session you opened three
+  // panes ago is a screen nobody asked for.
+  if (viewing) closeSession();
   pane = next;
   for (const section of frame.querySelectorAll<HTMLElement>("[data-pane]")) {
     section.hidden = section.dataset.pane !== pane;
@@ -356,7 +359,6 @@ new FormControls(frame, {
       renderPlayers();
     }
   },
-  onCheckbox: () => syncTrackCount(),
 });
 
 SelectControl.bindAll(frame, menu, (value, el) => {
@@ -803,16 +805,47 @@ q("[data-pl-reset-go]")?.addEventListener("click", () => {
 
 /* ---------------------------------------------------------------- recordings */
 
+/**
+ * A session's cast is three lists, not one.
+ *
+ * `self` is your own voice. It has always been on disk under your own name, and it is
+ * the one track the old picker could never offer, because the manifest only ever named
+ * the people it *received* audio from. It is null when you never spoke: a name in a
+ * manifest is not proof of a track, so a session offers only what it can actually write.
+ *
+ * `jukebox` is the sources that played into the world. They are recorded and named
+ * separately from the players and were never read by any surface, so they were
+ * unreachable too. They land on one track between them.
+ */
 interface Recording {
   name: string;
   recorded: string;
   length: string;
-  tracks: number;
   size: string;
   bytes: number;
+  self: string | null;
   players: readonly string[];
-  /** False while the session is still being written. */
+  jukebox: readonly string[];
   exportable: boolean;
+  /** Why not, when not. The session says which; a greyed button says neither. */
+  blocked?: "writing" | "old";
+}
+
+interface Track {
+  name: string;
+  group: "you" | "players" | "jukebox";
+}
+
+/** Every source playing into the world lands on this one track. */
+const JUKEBOX_TRACK = "Jukebox";
+
+/** Every track the session can write, one file each. */
+function tracksOf(recording: Recording): Track[] {
+  return [
+    ...(recording.self ? [{ name: recording.self, group: "you" as const }] : []),
+    ...recording.players.map((name) => ({ name, group: "players" as const })),
+    ...(recording.jukebox.length > 0 ? [{ name: JUKEBOX_TRACK, group: "jukebox" as const }] : []),
+  ];
 }
 
 let RECORDINGS: Recording[] = [
@@ -820,45 +853,89 @@ let RECORDINGS: Recording[] = [
     name: "Nether run — 2026-07-28",
     recorded: "2026-07-28 21:14",
     length: "1:42:08",
-    tracks: 5,
     size: "412 MB",
     bytes: 412e6,
-    players: ["Alaydriem", "Petra", "Juno", "Kestrel", "Moth"],
+    self: "Alaydriem",
+    players: ["Petra", "Juno", "Kestrel", "Moth"],
+    jukebox: ["Cave sounds"],
     exportable: true,
   },
   {
     name: "Ocean monument raid",
     recorded: "2026-07-26 19:02",
     length: "58:31",
-    tracks: 4,
     size: "221 MB",
     bytes: 221e6,
-    players: ["Alaydriem", "Petra", "Juno", "Moth"],
+    self: "Alaydriem",
+    players: ["Petra", "Juno", "Moth"],
+    jukebox: [],
     exportable: true,
   },
   {
     name: "Build stream — ep. 12",
     recorded: "2026-07-24 17:40",
     length: "3:05:52",
-    tracks: 7,
     size: "1.1 GB",
     bytes: 1.1e9,
-    players: ["Alaydriem", "Petra", "Juno", "Kestrel", "Moth", "Wren", "Bram"],
+    self: "Alaydriem",
+    players: ["Petra", "Juno", "Kestrel", "Moth", "Wren", "Bram"],
+    jukebox: ["Rain loop", "Intro sting"],
+    exportable: true,
+  },
+  // You listened and never spoke. There is no track of yours to offer, and the screen
+  // says so by not offering one.
+  {
+    name: "Quiet survey — 2026-06-02",
+    recorded: "2026-06-02 10:22",
+    length: "22:47",
+    size: "48 MB",
+    bytes: 48e6,
+    self: null,
+    players: ["Petra"],
+    jukebox: [],
     exportable: true,
   },
   {
     name: "Session in progress",
     recorded: "2026-07-28 22:06",
     length: "07:12",
-    tracks: 3,
     size: "31 MB",
     bytes: 31e6,
-    players: ["Alaydriem", "Petra", "Wren"],
+    self: "Alaydriem",
+    players: ["Petra", "Wren"],
+    jukebox: [],
     exportable: false,
+    blocked: "writing",
+  },
+  {
+    name: "Winter build — 2025-12-14",
+    recorded: "2025-12-14 20:05",
+    length: "1:12:30",
+    size: "290 MB",
+    bytes: 290e6,
+    self: "Alaydriem",
+    players: ["Juno", "Bram"],
+    jukebox: [],
+    exportable: false,
+    blocked: "old",
   },
 ];
 
 let forceEmpty = false;
+
+/**
+ * An export is a property of the session, not of the screen that started it. Leaving
+ * mid-run is allowed, so the run lives out here and the row reports it. Declared above
+ * the table because the row renderer reads it.
+ */
+let exportRun: {
+  session: string;
+  order: readonly Track[];
+  done: number;
+  total: number;
+  failed: string[];
+  timer: number;
+} | null = null;
 
 const recBody = q("[data-rec-body]");
 const recTable = q("[data-rec-table]");
@@ -883,21 +960,27 @@ const recordings = new TableController<Recording>({
     recBody.innerHTML = view.page
       .map((r) => {
         const selected = view.selected.has(r.name);
-        // A session still being written can be named and deleted but not exported, and
-        // says so on the row rather than by a menu item that does nothing.
-        const pending = r.exportable
+        // A session that cannot be exported can still be named and deleted, and says so
+        // on the row rather than by a control that does nothing.
+        const chip = r.exportable
           ? ""
-          : ' <span class="rad-status-chip rad-status-chip--live">Recording</span>';
+          : r.blocked === "old"
+            ? ' <span class="rad-status-chip rad-status-chip--muted">Older format</span>'
+            : ' <span class="rad-status-chip rad-status-chip--live">Recording</span>';
+        // An export outlives the screen it was started from, so the row carries it.
+        const running =
+          exportRun?.session === r.name
+            ? ` <span class="rad-status-chip rad-status-chip--warn">Exporting ${exportRun.done}/${exportRun.total}</span>`
+            : "";
         return (
-          `<tr class="${selected ? "is-selected" : ""}">` +
+          `<tr class="is-openable ${selected ? "is-selected" : ""}" data-rec-open="${escape(r.name)}">` +
           `<td class="rad-select-cell"><button class="rad-checkbox rad-checkbox--compact" role="checkbox" ` +
           `aria-checked="${selected}" data-rec-row="${escape(r.name)}" aria-label="Select ${escape(r.name)}">` +
           '<span class="rad-checkbox__box" data-rad-icon="check"></span></button></td>' +
-          `<td><span class="rad-table__name">${escape(r.name)}</span>${pending}</td>` +
+          `<td><span class="rad-table__name">${escape(r.name)}</span>${chip}${running}</td>` +
           `<td class="rad-num">${r.recorded}</td><td class="rad-num">${r.length}</td>` +
-          `<td class="rad-num">${r.tracks}</td><td class="rad-num">${r.size}</td>` +
-          `<td class="rad-table__actions"><button class="rad-kebab" data-rec-menu="${escape(r.name)}" ` +
-          'aria-label="Actions"><span data-rad-icon="kebab"></span></button></td></tr>'
+          `<td class="rad-num">${tracksOf(r).length}</td><td class="rad-num">${r.size}</td>` +
+          '<td class="rad-table__actions"><span class="rad-table__go" data-rad-icon="chev"></span></td></tr>'
         );
       })
       .join("");
@@ -931,76 +1014,230 @@ const recordings = new TableController<Recording>({
 let pendingDelete: Recording | null = null;
 let pendingRename: Recording | null = null;
 
-/* ---- export ----
- * One dialog, two shapes. For a single session it lists that session's players,
- * because who to include is a real choice. For a selection it does not: the sessions
- * have different casts, and a checklist that means something different per row is
- * worse than no checklist.
+/* ---- one session, on its own screen ----
+ * Which tracks to write is the question the whole feature exists to answer, so it gets
+ * a screen rather than a dialog: the choice, the reason a session cannot be exported,
+ * the run itself and its result all have somewhere to be, and renaming and deleting sit
+ * beside them instead of behind a menu.
  */
 
-let exportingMany = 0;
+const recList = q("[data-rec-list]");
+const recDetail = q("[data-rec-detail]");
 
-function openExport(recording: Recording | null, many = 0): void {
-  exportingMany = many;
-  const host = q("[data-x-tracks]");
-  const card = host?.closest<HTMLElement>(".rad-card");
-  if (host && card) {
-    card.hidden = many > 0;
-    host.innerHTML = (recording?.players ?? [])
-      .map(
-        (name, i) =>
-          '<button class="rad-checkbox" role="checkbox" aria-checked="true" data-rad-checkbox="' +
-          escape(name) +
-          '"><span class="rad-checkbox__box" data-rad-icon="check"></span>' +
-          `<span class="rad-checkbox__label">${escape(name)}</span>` +
-          `<span class="rad-checkbox__note">${i === 0 ? "you" : "nearby"}</span></button>`,
-      )
+let viewing: Recording | null = null;
+let chosen = new Set<string>();
+
+// One scripted failure, so the partial result is a state you can look at rather than
+// one you have to imagine.
+const ALWAYS_FAILS = "Wren";
+
+function openSession(recording: Recording): void {
+  viewing = recording;
+  chosen = new Set(tracksOf(recording).map((t) => t.name));
+  if (recList) recList.hidden = true;
+  if (recDetail) recDetail.hidden = false;
+  renderDetail();
+}
+
+function closeSession(): void {
+  viewing = null;
+  if (recDetail) recDetail.hidden = true;
+  if (recList) recList.hidden = false;
+  recordings.render();
+}
+
+function renderDetail(): void {
+  const recording = viewing;
+  if (!recording) return;
+
+  const name = q("[data-rec-d-name]");
+  if (name) name.textContent = recording.name;
+
+  const tracks = tracksOf(recording);
+  const meta = q("[data-rec-d-meta]");
+  if (meta) {
+    meta.textContent = `${recording.length} · ${recording.size} · ${tracks.length} track${tracks.length === 1 ? "" : "s"} · recorded ${recording.recorded}`;
+  }
+
+  const chip = q("[data-rec-d-chip]");
+  if (chip) {
+    chip.innerHTML = recording.exportable
+      ? ""
+      : recording.blocked === "old"
+        ? '<span class="rad-status-chip rad-status-chip--muted">Older format</span>'
+        : '<span class="rad-status-chip rad-status-chip--live">Recording</span>';
+  }
+
+  const warn = q("[data-rec-d-warn]");
+  const warnText = q("[data-rec-d-warntext]");
+  if (warn && warnText) {
+    warn.hidden = recording.exportable;
+    warnText.innerHTML =
+      recording.blocked === "old"
+        ? "<b>Written by an older build.</b> Its format is one this version cannot read, so it can be renamed or deleted but not exported."
+        : "<b>Still being written.</b> This session is recording now. It can be renamed or deleted, and exported once it is stopped.";
+  }
+
+  const host = q("[data-rec-d-tracks]");
+  if (host) {
+    const off = recording.exportable ? "" : " disabled";
+    const voices = tracks.filter((t) => t.group !== "jukebox");
+    const row = (track: Track, note = "", extra = ""): string =>
+      `<button class="rad-checkbox ${extra}" role="checkbox" aria-checked="${chosen.has(track.name)}"${off} ` +
+      `data-rec-d-track="${escape(track.name)}">` +
+      '<span class="rad-checkbox__box" data-rad-icon="check"></span>' +
+      `<span class="rad-checkbox__label">${escape(track.name)}</span>${note}</button>`;
+
+    // A heading appears only where a group actually starts, so a session recorded alone
+    // shows no "players" rule over nothing.
+    let group: Track["group"] | null = null;
+    let html = voices
+      .map((track) => {
+        const heading =
+          track.group === group ? "" : '<span class="rad-tracklist__group">players</span>';
+        group = track.group;
+        return (
+          (track.group === "players" ? heading : "") +
+          row(track, track.group === "you" ? '<span class="rad-checkbox__note">you</span>' : "")
+        );
+      })
       .join("");
+
+    // Everything the jukebox played is one track. Whether it was one loop or five is
+    // worth reporting and not worth choosing between.
+    const jukebox = tracks.find((t) => t.group === "jukebox");
+    if (jukebox) {
+      const count = recording.jukebox.length;
+      html += row(
+        jukebox,
+        `<span class="rad-checkbox__note">${count} source${count === 1 ? "" : "s"}</span>`,
+        "rad-tracklist__wide",
+      );
+    }
+
+    host.innerHTML = html;
     IconBinding.sync(host);
   }
-  const progress = q("[data-x-progress]");
-  if (progress) {
-    progress.style.display = "none";
-    const bar = progress.querySelector<HTMLElement>("i");
-    if (bar) bar.style.width = "0";
-  }
-  modal.open("export");
-  syncTrackCount();
+
+  renderExportState();
 }
 
-/** The button reports what it will write, and refuses when that is nothing. */
-function syncTrackCount(): void {
-  const go = q<HTMLButtonElement>("[data-x-go]");
-  const count = q("[data-x-count]");
-  if (!go || !count) return;
-  if (exportingMany > 0) {
-    count.textContent = String(exportingMany);
-    go.innerHTML = `Export <span data-x-count>${exportingMany}</span> sessions`;
-    go.disabled = false;
+/** The button says what it will write. The status says what happened to it. */
+function renderExportState(): void {
+  const recording = viewing;
+  const go = q<HTMLButtonElement>("[data-rec-d-go]");
+  const status = q("[data-rec-d-status]");
+  const progress = q("[data-rec-d-progress]");
+  const bar = progress?.querySelector<HTMLElement>("i");
+  if (!recording || !go || !status || !progress || !bar) return;
+
+  const run = exportRun?.session === recording.name ? exportRun : null;
+
+  if (run) {
+    const current = run.order[Math.min(run.done, run.order.length - 1)];
+    progress.hidden = false;
+    bar.style.width = `${Math.round((run.done / run.total) * 100)}%`;
+    status.hidden = false;
+    status.classList.remove("rad-detail__status--bad");
+    status.textContent = `Rendering ${current?.name ?? ""} — ${Math.min(run.done + 1, run.total)} of ${run.total}`;
+    go.textContent = "Exporting…";
+    go.disabled = true;
     return;
   }
-  const on = frame.querySelectorAll('[data-x-tracks] .rad-checkbox[aria-checked="true"]').length;
-  go.innerHTML = `Export <span data-x-count>${on}</span> tracks`;
-  go.disabled = on === 0;
+
+  progress.hidden = true;
+  bar.style.width = "0";
+  go.textContent = `Export ${chosen.size} track${chosen.size === 1 ? "" : "s"}`;
+  go.disabled = !recording.exportable || chosen.size === 0;
 }
 
-q("[data-x-go]")?.addEventListener("click", () => {
-  const progress = q("[data-x-progress]");
-  const bar = progress?.querySelector<HTMLElement>("i");
-  if (!progress || !bar) return;
-  progress.style.display = "block";
-  let value = 0;
-  const timer = window.setInterval(() => {
-    value += 6 + Math.random() * 10;
-    bar.style.width = `${Math.min(100, value)}%`;
-    if (value < 100) return;
-    window.clearInterval(timer);
-    window.setTimeout(() => {
-      const spatial = q('[data-rad-toggle="spatial"]')?.getAttribute("aria-checked") === "true";
-      modal.close();
-      Toast.show(spatial ? "Exported — spatial mix and tracks" : "Exported — flat tracks");
-    }, 260);
-  }, 90);
+function startExport(): void {
+  const recording = viewing;
+  if (!recording || exportRun) return;
+  const order = tracksOf(recording).filter((t) => chosen.has(t.name));
+  if (order.length === 0) return;
+
+  exportRun = {
+    session: recording.name,
+    order,
+    done: 0,
+    total: order.length,
+    failed: [],
+    timer: 0,
+  };
+  renderExportState();
+
+  exportRun.timer = window.setInterval(() => {
+    const run = exportRun;
+    if (!run) return;
+    const track = run.order[run.done];
+    if (track?.name === ALWAYS_FAILS) run.failed.push(track.name);
+    run.done += 1;
+    if (viewing?.name === run.session) renderExportState();
+    else recordings.render();
+    if (run.done < run.total) return;
+
+    window.clearInterval(run.timer);
+    exportRun = null;
+    finishExport(run.session, run.total, run.failed);
+  }, 700);
+}
+
+/** A track that failed is named. Silence would read as five files written. */
+function finishExport(session: string, total: number, failed: readonly string[]): void {
+  const written = total - failed.length;
+  const message =
+    failed.length === 0
+      ? `${written} track${written === 1 ? "" : "s"} written`
+      : `${written} of ${total} written — ${failed.join(", ")} failed`;
+
+  if (viewing?.name === session) {
+    const status = q("[data-rec-d-status]");
+    if (status) {
+      status.hidden = false;
+      status.textContent = message;
+      status.classList.toggle("rad-detail__status--bad", failed.length > 0);
+    }
+    renderExportState();
+    const go = q<HTMLButtonElement>("[data-rec-d-go]");
+    if (go) go.textContent = failed.length === 0 ? "Export again" : "Retry";
+  } else {
+    recordings.render();
+  }
+  Toast.show(message);
+}
+
+q("[data-rec-back]")?.addEventListener("click", () => closeSession());
+
+q("[data-rec-d-go]")?.addEventListener("click", () => startExport());
+
+q("[data-rec-d-all]")?.addEventListener("click", () => {
+  if (!viewing) return;
+  chosen = new Set(tracksOf(viewing).map((t) => t.name));
+  renderDetail();
+});
+
+q("[data-rec-d-none]")?.addEventListener("click", () => {
+  chosen = new Set();
+  renderDetail();
+});
+
+q("[data-rec-d-rename]")?.addEventListener("click", (e) => {
+  if (!viewing) return;
+  pendingRename = viewing;
+  const input = q<HTMLInputElement>("[data-rename-input]");
+  if (input) input.value = viewing.name;
+  modal.open("rename", e.currentTarget as HTMLElement);
+  input?.focus();
+  input?.select();
+});
+
+q("[data-rec-d-delete]")?.addEventListener("click", (e) => {
+  if (!viewing) return;
+  pendingDelete = viewing;
+  const name = q("[data-delete-name]");
+  if (name) name.textContent = viewing.name;
+  modal.open("delete", e.currentTarget as HTMLElement);
 });
 
 frame.addEventListener("click", (e) => {
@@ -1017,10 +1254,6 @@ frame.addEventListener("click", (e) => {
   }
   if (target.closest("[data-rec-clear]")) {
     recordings.clearSelection();
-    return;
-  }
-  if (target.closest("[data-rec-export]")) {
-    openExport(null, recordings.selected.size);
     return;
   }
   if (target.closest("[data-rec-delete]")) {
@@ -1042,45 +1275,31 @@ frame.addEventListener("click", (e) => {
     return;
   }
 
-  const rowMenu = target.closest<HTMLElement>("[data-rec-menu]");
-  if (rowMenu) {
-    const recording = RECORDINGS.find((r) => r.name === rowMenu.dataset.recMenu);
-    if (!recording) return;
-    menu.open(
-      rowMenu,
-      [
-        { label: "Export…", hint: `${recording.tracks} tracks`, disabled: !recording.exportable },
-        { label: "Rename…" },
-        MENU_DIVIDER,
-        { label: "Delete", danger: true },
-      ],
-      (item) => {
-        if (item.label === "Export…") {
-          openExport(recording);
-          return;
-        }
-        if (item.label === "Rename…") {
-          pendingRename = recording;
-          const input = q<HTMLInputElement>("[data-rename-input]");
-          if (input) input.value = recording.name;
-          modal.open("rename", rowMenu);
-          input?.focus();
-          input?.select();
-          return;
-        }
-        pendingDelete = recording;
-        const name = q("[data-delete-name]");
-        if (name) name.textContent = recording.name;
-        modal.open("delete", rowMenu);
-      },
-    );
+  // A track is toggled on the session's own screen, so the checkbox has to be found
+  // before the row it sits in, which goes somewhere.
+  const track = target.closest<HTMLElement>("[data-rec-d-track]");
+  if (track) {
+    const name = track.dataset.recDTrack ?? "";
+    if (chosen.has(name)) chosen.delete(name);
+    else chosen.add(name);
+    renderDetail();
+    return;
+  }
+
+  const open = target.closest<HTMLElement>("[data-rec-open]");
+  if (open) {
+    const recording = RECORDINGS.find((r) => r.name === open.dataset.recOpen);
+    if (recording) openSession(recording);
   }
 });
 
 q("[data-delete-go]")?.addEventListener("click", () => {
   if (pendingDelete) {
+    // The screen you are standing on is about to stop existing.
+    const wasViewing = viewing === pendingDelete;
     RECORDINGS = RECORDINGS.filter((r) => r !== pendingDelete);
     recordings.setRows(RECORDINGS);
+    if (wasViewing) closeSession();
   }
   modal.close();
   Toast.show("Deleted");
@@ -1089,8 +1308,11 @@ q("[data-delete-go]")?.addEventListener("click", () => {
 q("[data-rename-go]")?.addEventListener("click", () => {
   const next = q<HTMLInputElement>("[data-rename-input]")?.value.trim();
   if (pendingRename && next) {
+    // A run in flight is keyed by name, and the name is what just changed.
+    if (exportRun?.session === pendingRename.name) exportRun.session = next;
     pendingRename.name = next;
     recordings.setRows(RECORDINGS);
+    if (viewing === pendingRename) renderDetail();
   }
   modal.close();
   Toast.show("Renamed");
@@ -1884,25 +2106,21 @@ frame.addEventListener("click", (e) => {
     if (note) note.textContent = "Checked just now. Nothing changed.";
     return;
   }
-});
-
-/**
- * The platform identifier, behind three presses on the release type.
- *
- * It is support's first question and nobody else's business: a row that is always
- * there invites a player to read a machine ID as something they are supposed to
- * understand. Three presses is the well-worn shape for exactly this.
- */
-let variantPresses = 0;
-let variantTimer = 0;
-q("[data-variant]")?.addEventListener("click", () => {
-  variantPresses++;
-  window.clearTimeout(variantTimer);
-  variantTimer = window.setTimeout(() => (variantPresses = 0), 1400);
-  if (variantPresses < 3) return;
-  variantPresses = 0;
-  for (const el of frame.querySelectorAll<HTMLElement>("[data-platform-row]")) el.hidden = false;
-  Toast.show("Platform identifier shown — support asks for this");
+  if (target.closest("[data-platform-copy]")) {
+    const value = q("[data-platform-id]")?.textContent ?? "";
+    void navigator.clipboard?.writeText(value).catch(() => {});
+    Toast.show("Copied — quote this when you ask for help");
+    return;
+  }
+  // Replacing the identifier retires the old one: what came before it stays under the
+  // name it was reported with, and nothing after it carries that name.
+  if (target.closest("[data-platform-refresh]")) {
+    const value = q("[data-platform-id]");
+    if (value) value.textContent = crypto.randomUUID();
+    const note = q("[data-platform-note]");
+    if (note) note.textContent = "New identifier. Reports and feature checks use it from now on.";
+    return;
+  }
 });
 
 /* ---------------------------------------------------------------- boot */

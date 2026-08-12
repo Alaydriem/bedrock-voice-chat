@@ -165,8 +165,31 @@ impl QueryStateReporter {
                 None => PlayerGainStore::default(),
             };
 
-            for (target, settings) in gains.0.iter() {
-                let entry = (settings.gain, settings.muted);
+            // The jukebox rides this plane as a reserved target, so it is one more entry in the
+            // same iteration rather than a second reporting path — the diff, the QUIC report and
+            // the !bvcs: ride below all apply to it unchanged. Synthesised here and never
+            // persisted: an entry in the gain store would render as a player card.
+            //
+            // Read after the store, never before: the coordinator read above takes the AppState
+            // lock and these take the audio stream lock, which is the order `set_audio_device`
+            // already establishes. Reversing it would complete a deadlock cycle.
+            let jukebox = {
+                let actions = AudioActionsManager::new(self.app_handle.clone());
+                (
+                    common::consts::audio::JUKEBOX_CONTROL_TARGET.to_string(),
+                    actions.jukebox_gain().await,
+                    actions.jukebox_muted().await,
+                )
+            };
+            let entries: Vec<(String, f32, bool)> = gains
+                .0
+                .iter()
+                .map(|(target, settings)| (target.clone(), settings.gain, settings.muted))
+                .chain(std::iter::once(jukebox))
+                .collect();
+
+            for (target, gain, muted) in entries.iter() {
+                let entry = (*gain, *muted);
                 let changed = self.last_prefs.get(target) != Some(&entry);
                 let synced = wave.sync_targets.contains(target);
                 if !(wave.preferences && changed) && !synced {
@@ -176,8 +199,8 @@ impl QueryStateReporter {
                 let preference = PlayerPreference {
                     owner: id.clone().unwrap_or_default(),
                     target: target.clone(),
-                    volume: settings.gain,
-                    muted: settings.muted,
+                    volume: *gain,
+                    muted: *muted,
                 };
 
                 if wave.preferences && changed {

@@ -142,12 +142,6 @@
   fill: currentColor;
 }
 
-/* The build variant in About. Takes the three presses that reveal the platform id. */
-.rad-variant {
-  cursor: default;
-  user-select: none;
-}
-
 /* ---- nav ---- */
 
 .rad-nav-item {
@@ -389,6 +383,149 @@
   display: block;
   line-height: 1.35;
   min-height: 2.7em;
+}
+
+/* ---- a record, on its own screen ----
+ * The second level of a pane that has a list in it. A row opens the thing it names
+ * rather than a dialog about the thing it names, so everything that record can do —
+ * choosing its tracks, renaming, deleting, watching an export run — has one place to
+ * be, and the list behind it keeps its own state while you are down here.
+ */
+
+.rad-detail__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+.rad-detail__back {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-md);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+}
+
+.rad-detail__back:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-detail__back > [data-rad-icon] > svg {
+  width: 17px;
+  height: 17px;
+}
+
+.rad-detail__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rad-detail__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-rad-subhead);
+  color: var(--color-rad-tx);
+}
+
+.rad-detail__meta {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-faint);
+}
+
+/* ---- the track list ---- */
+
+.rad-tracks__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+/* Two columns where there is room for two. A cast of seven is a list worth scanning,
+   not a column worth scrolling. */
+.rad-tracklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0 20px;
+  padding: 6px 18px 12px;
+}
+
+/* Named only when a session has one. A divider over an empty group would claim the
+   recording has jukebox audio in it. */
+.rad-tracklist__group {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-rad-line);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-tracklist__group:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* One control for the whole jukebox, given the width to say what it covers. */
+.rad-tracklist__wide {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  padding-top: 13px;
+  border-top: 1px solid var(--color-rad-line);
+}
+
+.rad-tracklist .rad-checkbox:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---- the action bar ----
+ * Sticky, so a session with a long cast still shows what the button will write
+ * without scrolling back down to it.
+ */
+
+.rad-detail__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 20px;
+  padding: 14px 0 16px;
+  border-top: 1px solid var(--color-rad-line);
+  background: var(--color-rad-void);
+}
+
+.rad-detail__status {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-faint);
+}
+
+.rad-detail__status--bad {
+  color: var(--color-rad-warn);
 }
 
 @container rad (max-width: 620px) {

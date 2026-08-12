@@ -7,6 +7,7 @@ mod control;
 mod diagnostics;
 mod discord;
 mod feature_flags;
+mod groups;
 mod harness;
 mod i18n;
 mod iap;

@@ -35,6 +35,8 @@ export default class DiagnosticsCopy {
       packetLoss: I18n.t("Packet loss"),
       jitterBuffer: I18n.t("Jitter buffer"),
       quicPort: I18n.t("QUIC port"),
+      wssPort: I18n.t("WSS port"),
+      connectionType: I18n.t("Connection type"),
       server: I18n.t("Server"),
       protocol: I18n.t("Protocol"),
       proximityRange: I18n.t("Proximity range"),

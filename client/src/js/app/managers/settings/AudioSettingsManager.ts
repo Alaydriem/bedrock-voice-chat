@@ -1,5 +1,6 @@
 import { writable, type Readable, type Writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Store } from "@tauri-apps/plugin-store";
 import Analytics from "../../analytics";
 import PlatformDetector from "../../utils/PlatformDetector";
@@ -29,6 +30,8 @@ export class AudioSettingsManager {
     private voiceModeErrorStore: Writable<string>;
     /** Why the last mode change did not take, or empty. */
     public readonly voiceModeError: Readable<string>;
+    private unlistenJukeboxMuted: UnlistenFn | null = null;
+    private unlistenJukeboxGain: UnlistenFn | null = null;
 
     constructor() {
         this.platformDetector = new PlatformDetector();
@@ -72,6 +75,19 @@ export class AudioSettingsManager {
             this.jukeboxMutedStore.set(savedJukeboxMuted);
         }
 
+        // A WebSocket controller or the in-game panel changes this without the pane being asked,
+        // and the switch reads this store. Without the listener it keeps drawing the pre-change
+        // state for as long as it stays mounted.
+        this.unlistenJukeboxMuted = await listen<boolean>("jukebox_muted_updated", (event) =>
+            this.jukeboxMutedStore.set(event.payload),
+        );
+
+        // The same for the level, which the slider reads. The payload is the fraction the backend
+        // applied, which is the requested value clamped, so this also corrects an out-of-range ask.
+        this.unlistenJukeboxGain = await listen<number>("jukebox_gain_updated", (event) =>
+            this.jukeboxGainStore.set(Math.round(event.payload * 100)),
+        );
+
         const saved = await store.get<KeybindConfig>("keybinds");
         if (saved?.voiceMode) {
             this.voiceModeStore.set(saved.voiceMode);
@@ -103,38 +119,42 @@ export class AudioSettingsManager {
     /**
      * Set how loud jukebox music plays.
      *
+     * The backend owns all three copies of this level — the mixing-path atomic, the stream
+     * metadata a rebuild restores from, and `store.json` — and emits the event that moves this
+     * store. Writing any of them from here as well is how they drift, so this only asks.
+     *
+     * The store is still set optimistically, like the mute switch: the slider has to move under
+     * the finger rather than a round trip later, and the event reconciles it either way.
+     *
      * The mute flag is deliberately untouched. They are separate controls on every surface, so a
      * level set while muted is the level that comes back on unmute.
-     *
-     * `requireStore` rather than a read of the loaded store, because the pane does not await
-     * `initialize` — a change made in the first moments would otherwise move the control and do
-     * nothing else.
      */
     async handleJukeboxGainChange(percent: number): Promise<void> {
         this.jukeboxGainStore.set(percent);
-
-        const store = await this.requireStore();
-        const fraction = percent / 100;
-        await store.set("jukebox_gain", fraction);
-        await store.save();
-        await invoke("update_stream_metadata", {
-            key: "jukebox_gain",
-            value: fraction.toString(),
-            device: "OutputDevice",
-        });
+        await invoke("set_jukebox_gain", { gain: percent / 100 });
     }
 
+    /**
+     * Set whether jukebox music plays.
+     *
+     * The backend owns all three copies of this flag — the mixing-path atomic, the stream metadata
+     * a rebuild restores from, and `store.json` — and emits the event that moves this store.
+     * Writing any of them from here as well is how they drift, so this only asks.
+     *
+     * The store is still set optimistically: the switch has to move under the finger rather than
+     * a round trip later, and the event reconciles it either way.
+     */
     async handleJukeboxMutedChange(muted: boolean): Promise<void> {
         this.jukeboxMutedStore.set(muted);
+        await invoke("set_jukebox_muted", { muted });
+    }
 
-        const store = await this.requireStore();
-        await store.set("jukebox_muted", muted);
-        await store.save();
-        await invoke("update_stream_metadata", {
-            key: "jukebox_muted",
-            value: muted.toString(),
-            device: "OutputDevice",
-        });
+    /** Releases the event listeners. A listener outliving the manager writes to a dead store. */
+    cleanup(): void {
+        this.unlistenJukeboxMuted?.();
+        this.unlistenJukeboxMuted = null;
+        this.unlistenJukeboxGain?.();
+        this.unlistenJukeboxGain = null;
     }
 
     /**

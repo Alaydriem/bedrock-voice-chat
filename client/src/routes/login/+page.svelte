@@ -12,6 +12,7 @@
   import GateScreen from "../../components/login/GateScreen.svelte";
   import NoServerScreen from "../../components/login/NoServerScreen.svelte";
   import InviteMessage from "../../js/app/login/InviteMessage";
+  import { invoke } from "@tauri-apps/api/core";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import Login, { CONNECTING_STATUS_PHRASES, type LoginState } from "../../js/app/login.ts";
   import LoginCode, { type CodeLoginInput } from "../../js/app/loginCode.ts";
@@ -36,6 +37,7 @@
   // View mirrors of the managers' stores.
   let screen = $state("login");
   let appVersion = $state("");
+  let platformId = $state("");
   let serverInput = $state("");
   let isCodeLogin = $state(false);
   let loginState = $state<LoginState>("idle");
@@ -105,6 +107,12 @@
     unsubs.push(instance.attachVisibilityTracking());
 
     Analytics.track("LoginShown");
+
+    // Read on mount rather than when a connect fails, so the failure screen has it the
+    // moment it appears.
+    void invoke<string>("get_platform_id")
+      .then((id) => (platformId = id))
+      .catch(() => {});
 
     /*
      * Built before anything awaits, so no store read can leave it null — every screen
@@ -345,6 +353,7 @@
     <ConnectErrorScreen
       server={attemptServer}
       {appVersion}
+      {platformId}
       onretry={() => app?.tryAgain()}
       onchangeserver={() => app?.returnToIdle()}
       onwiki={() => app?.openWiki()}

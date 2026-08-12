@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
+    import IdField from "$radial/components/IdField.svelte";
     import SettingRow from "$radial/components/SettingRow.svelte";
     import StatusChip from "$radial/components/StatusChip.svelte";
     import Toggle from "$radial/components/Toggle.svelte";
@@ -23,8 +24,9 @@
     let telemetry = $state(true);
     let mobile = $state(false);
     let exporting = $state(false);
-    let showPlatformId = $state(false);
     let platformId = $state("");
+    let refreshingPlatformId = $state(false);
+    let platformIdError = $state("");
     let refreshing = $state(false);
     let refreshMessage = $state("");
     let update = $state<UpdateState>({ kind: "idle", version: null, checkedAt: null });
@@ -40,8 +42,9 @@
         unsubs.push(about.telemetry.subscribe((v) => (telemetry = v)));
         unsubs.push(about.isMobile.subscribe((v) => (mobile = v)));
         unsubs.push(about.isExporting.subscribe((v) => (exporting = v)));
-        unsubs.push(about.showPlatformId.subscribe((v) => (showPlatformId = v)));
         unsubs.push(about.platformId.subscribe((v) => (platformId = v)));
+        unsubs.push(about.isRefreshingPlatformId.subscribe((v) => (refreshingPlatformId = v)));
+        unsubs.push(about.platformIdError.subscribe((v) => (platformIdError = v)));
         unsubs.push(about.isRefreshingFlags.subscribe((v) => (refreshing = v)));
         unsubs.push(about.refreshFlagsMessage.subscribe((v) => (refreshMessage = v)));
         unsubs.push(updates.state.subscribe((v) => (update = v)));
@@ -121,22 +124,7 @@
             <dt>{I18n.t("Protocol")}</dt>
             <dd><span>{info?.protocol_version ?? "—"}</span></dd>
             <dt>{I18n.t("Release")}</dt>
-            <dd>
-                <!-- Three presses reveals the platform identifier. It is support's first
-                     question and nobody else's business: a row that is always there
-                     invites a player to read a machine id as something they should
-                     understand. -->
-                <!-- A bare span, not a button. A button's padding pushed the value out of
-                     line with every other row in the list, and the three-press reveal is a
-                     deliberately undiscoverable gesture rather than an advertised control. -->
-                <span
-                    class="rad-variant"
-                    role="presentation"
-                    onclick={() => void about.handleVariantClick()}
-                >
-                    {info?.build_variant ?? "—"}
-                </span>
-            </dd>
+            <dd><span>{info?.build_variant ?? "—"}</span></dd>
             <dt>{I18n.t("Commit")}</dt>
             <dd>
                 <span>{info?.build_commit ?? "—"}</span>
@@ -148,19 +136,6 @@
                     <Icon name="copy" />
                 </button>
             </dd>
-            {#if showPlatformId}
-                <dt>{I18n.t("Platform ID")}</dt>
-                <dd>
-                    <span>{platformId}</span>
-                    <button
-                        class="rad-icon-btn"
-                        onclick={() => void about.copyPlatformId()}
-                        aria-label={I18n.t("Copy platform ID")}
-                    >
-                        <Icon name="copy" />
-                    </button>
-                </dd>
-            {/if}
         </dl>
     </div>
 
@@ -201,6 +176,26 @@
                     onchange={() => void about.handleTelemetryToggle()}
                 />
             {/snippet}
+        </SettingRow>
+
+        <SettingRow
+            label={I18n.t("Platform ID")}
+            note={platformIdError ||
+                I18n.t("Uniquely identifies your build for experimental features + analytics.")}
+            stack
+        >
+            <IdField value={platformId || "—"} copyLabel={I18n.t("Copy platform ID")}>
+                {#snippet actions()}
+                    <button
+                        class="rad-btn"
+                        disabled={refreshingPlatformId}
+                        onclick={() => void about.refreshPlatformId()}
+                    >
+                        <Icon name="refresh" spin={refreshingPlatformId} />
+                        {I18n.t("Refresh")}
+                    </button>
+                {/snippet}
+            </IdField>
         </SettingRow>
 
         {#if !mobile}

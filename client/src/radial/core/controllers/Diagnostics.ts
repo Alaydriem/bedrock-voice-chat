@@ -26,6 +26,8 @@ export interface DiagnosticsLabels {
   packetLoss: string;
   jitterBuffer: string;
   quicPort: string;
+  wssPort: string;
+  connectionType: string;
   server: string;
   protocol: string;
   proximityRange: string;
@@ -64,6 +66,8 @@ export const DIAGNOSTICS_EN: DiagnosticsLabels = {
   packetLoss: "Packet loss",
   jitterBuffer: "Jitter buffer",
   quicPort: "QUIC port",
+  wssPort: "WSS port",
+  connectionType: "Connection type",
   server: "Server",
   protocol: "Protocol",
   proximityRange: "Proximity range",
@@ -119,6 +123,15 @@ export interface Verdict {
  */
 export type NoiseGateStatus = "Disabled" | "Open" | "Closed";
 
+/**
+ * Which transport is carrying the session, in the spelling the backend serialises.
+ *
+ * Mirrored here rather than imported, like `NoiseGateStatus`: the kit cannot reach the
+ * generated bindings. `common`'s `TransportKind` carries no rename, so these are its wire
+ * values.
+ */
+export type TransportKind = "Quic" | "WebSocket";
+
 export interface DiagnosticsInput {
   /** Round-trip time in milliseconds. */
   rtt: number;
@@ -147,7 +160,16 @@ export interface DiagnosticsInput {
   inputRate: number;
   outputDevice: string;
   outputRate: number;
-  quicPort: number;
+  /** The port the session is carried over, whichever transport is carrying it. */
+  port: number;
+  /**
+   * The transport carrying the session, or null when nothing is connected.
+   *
+   * Every latency and loss figure here means something different depending on this. A
+   * reliable ordered transport trades latency for delivery under loss, so the same round trip
+   * is a different verdict on each, and a figure without it cannot be compared to another.
+   */
+  transport: TransportKind | null;
   protocol: string;
   rangeMetres: number;
   falloff: string;
@@ -349,12 +371,16 @@ export class Diagnostics {
           [labels.roundTrip, `${d.rtt} ms`],
           [labels.packetLoss, `${d.lossPercent} %`],
           [labels.jitterBuffer, `${d.jitterMs} ms  /  ${d.jitterDrops} ${labels.drops}`],
-          [labels.quicPort, `${d.quicPort}${d.quicPort !== 443 ? `  ${labels.fallbackPort}` : ""}`],
+          [
+            d.transport === "WebSocket" ? labels.wssPort : labels.quicPort,
+            `${d.port}${d.transport !== "WebSocket" && d.port !== 443 ? `  ${labels.fallbackPort}` : ""}`,
+          ],
         ],
       },
       {
         title: labels.session,
         rows: [
+          [labels.connectionType, Diagnostics.transportLabel(d.transport)],
           [labels.server, d.server],
           [labels.protocol, d.protocol],
           [labels.proximityRange, `${d.rangeMetres} m`],
@@ -362,6 +388,26 @@ export class Diagnostics {
         ],
       },
     ];
+  }
+
+  /** Neither zero nor a guess. */
+  static readonly UNKNOWN = "—";
+
+  /**
+   * The transport as a person names it.
+   *
+   * Protocol names, so they are not translated. `WebSocket` prints as WSS because that is
+   * what it is on the wire and what an operator reading a support page will have been told.
+   */
+  static transportLabel(kind: TransportKind | null): string {
+    switch (kind) {
+      case "Quic":
+        return "QUIC";
+      case "WebSocket":
+        return "WSS";
+      default:
+        return Diagnostics.UNKNOWN;
+    }
   }
 
   static duration(seconds: number): string {

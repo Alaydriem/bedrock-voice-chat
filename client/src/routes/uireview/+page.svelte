@@ -256,6 +256,7 @@
             <ConnectErrorScreen
                 server="s4.bedrock-legends.bedrockvc.stream"
                 appVersion="1.0.0-beta.8"
+                platformId="9f3c1d84-2b57-4c0a-9e11-6d4a7b28e0f5"
                 onretry={noop}
                 onchangeserver={noop}
                 onwiki={noop}
@@ -360,6 +361,7 @@
                 label={fault.label}
                 hint={fault.hint}
                 appVersion="1.0.0-beta.8"
+                platformId="9f3c1d84-2b57-4c0a-9e11-6d4a7b28e0f5"
                 actions={faultActions}
             >
                 {#snippet footnote()}
@@ -399,6 +401,7 @@
                 label={FaultCatalog.DEFINITIONS.UPD01.label}
                 hint={FaultCatalog.DEFINITIONS.UPD01.hint}
                 appVersion="1.0.0-beta.8"
+                platformId="9f3c1d84-2b57-4c0a-9e11-6d4a7b28e0f5"
                 actions={[{ label: "Updating…", onclick: noop, primary: true, disabled: true }]}
                 working={true}
                 workingPhrases={FaultCatalog.UPDATE_PHRASES}

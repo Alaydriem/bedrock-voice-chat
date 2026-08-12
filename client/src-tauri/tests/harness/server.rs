@@ -650,17 +650,20 @@ impl EmbeddedServer {
 
     /// Read the owner's cached per-player preferences scoped to `targets`
     /// (`GET /api/preferences?owner=&targets=`, comma-separated targets).
+    ///
+    /// Parameters go through `query` rather than into a formatted string so they are
+    /// percent-encoded, which the BDS mod does with `encodeURIComponent` on the same request. An
+    /// interpolated `#` ends the query as a fragment delimiter and an interpolated space breaks the
+    /// URL outright, so a raw format silently drops targets the product sends correctly.
     pub async fn get_preferences(&self, owner: &str, targets: &str) -> Vec<serde_json::Value> {
-        let url = format!(
-            "https://127.0.0.1:{}/api/preferences?owner={}&targets={}",
-            self.rocket_port, owner, targets
-        );
+        let url = format!("https://127.0.0.1:{}/api/preferences", self.rocket_port);
         let client = reqwest::Client::builder()
             .danger_accept_invalid_certs(true)
             .build()
             .expect("build preferences client");
         let resp = client
             .get(&url)
+            .query(&[("owner", owner), ("targets", targets)])
             .header("X-MC-Access-Token", "test-token")
             .send()
             .await

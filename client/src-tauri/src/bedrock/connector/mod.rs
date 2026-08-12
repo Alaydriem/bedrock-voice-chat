@@ -212,14 +212,11 @@ impl BedrockConnector {
             state.realms = Some(realms);
             state.active_realm_id = Some(request.realm_id);
             state.active_realm_name = Some(request.realm_name.clone());
-            state.active_connection = Some(ActiveConnection {
-                id: ConnectTargetId::mint(
-                    ConnectTargetSource::Realm,
-                    &request.realm_id.to_string(),
-                ),
-                name: request.realm_name.clone(),
-                kind: ConnectTargetKind::Realm,
-            });
+            state.active_connection = Some(ActiveConnection::new(
+                ConnectTargetId::mint(ConnectTargetSource::Realm, &request.realm_id.to_string()),
+                request.realm_name.clone(),
+                ConnectTargetKind::Realm,
+            ));
 
             BedrockConnectionInfo {
                 local_address: "127.0.0.1".to_string(),

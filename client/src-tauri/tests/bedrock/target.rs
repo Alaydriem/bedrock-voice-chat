@@ -19,6 +19,7 @@ fn advertised(name: &str, host: &str, port: u16) -> ApiConfigBedrockServer {
         host: host.to_string(),
         port,
         protocol_version: None,
+        addon_transport: Default::default(),
     }
 }
 
