@@ -1,32 +1,22 @@
 use std::sync::Arc;
 
-use common::bedrock_protocol::protocol::event::EventPacket;
-use common::bedrock_protocol::protocol::packets::generated::misc::text::TextPacket;
-use common::bedrock_protocol::protocol::types::generated::TextPacketBody;
-use common::bedrock_protocol::{Direction, Event};
+use common::bedrock_protocol::Event;
+use common::structs::bedrock::AddonMode;
 
 use crate::bedrock::BedrockChatChannel;
 use crate::bedrock::BedrockEventEmitter;
 use crate::bedrock::BedrockPlayerStateCache;
-use crate::bedrock::BvcpCodec;
-use crate::bedrock::ChatCodec;
 use crate::bedrock::JukeboxBeaconCache;
 use crate::bedrock::proxy::session::BedrockSessionState;
-use crate::bedrock::proxy::session::{
-    BedrockPacketHandler, ChangeDimensionHandler, DisconnectedHandler, DispatchOutcome,
-    GameTypeHandler, PlaySoundHandler, PlayerAuthInputHandler, SetHealthHandler, StartGameHandler,
+use crate::bedrock::proxy::session::DispatchOutcome;
+use crate::bedrock::proxy::session::mode::{
+    DispatchResult, FullDispatch, ModeDispatch, ModeDispatcher, RelayOnlyDispatch,
 };
-use log::info;
+
 pub struct BedrockSessionEventDispatcher {
     player_name: String,
-    beacon_cache: Arc<JukeboxBeaconCache>,
     player_state_cache: Arc<BedrockPlayerStateCache>,
-    emitter: Option<Arc<BedrockEventEmitter>>,
-    control_tx: crate::control::ControlActionSender,
-    state_bus: crate::control::ControlStateBus,
-    chat_channel: Option<Arc<BedrockChatChannel>>,
-    last_known_health: Option<i32>,
-    player_auth_input_seen: bool,
+    child: ModeDispatcher,
 }
 
 impl BedrockSessionEventDispatcher {
@@ -38,124 +28,44 @@ impl BedrockSessionEventDispatcher {
         control_tx: crate::control::ControlActionSender,
         state_bus: crate::control::ControlStateBus,
         chat_channel: Option<Arc<BedrockChatChannel>>,
+        mode: AddonMode,
     ) -> Self {
+        // Built once rather than per event: `FullDispatch` carries per-session
+        // trackers, and rebuilding it would reset first-input and death
+        // detection on every packet.
+        let child = match mode {
+            AddonMode::Net => {
+                ModeDispatcher::RelayOnly(RelayOnlyDispatch::new(player_name.clone()))
+            }
+            AddonMode::NoNet => ModeDispatcher::Full(FullDispatch::new(
+                player_name.clone(),
+                beacon_cache,
+                emitter,
+                control_tx,
+                state_bus,
+                chat_channel,
+            )),
+        };
+
         Self {
             player_name,
-            beacon_cache,
             player_state_cache,
-            emitter,
-            control_tx,
-            state_bus,
-            chat_channel,
-            last_known_health: None,
-            player_auth_input_seen: false,
+            child,
         }
     }
 
-    fn bvcp_token(packet: &TextPacket) -> Option<String> {
-        let message = match &packet.body {
-            TextPacketBody::MessageOnly(body) => &body.message,
-            TextPacketBody::AuthorAndMessage(body) => &body.message,
-            TextPacketBody::MessageAndParams(body) => &body.message,
-        };
-        BvcpCodec::parse_bvcp(message)
-    }
-
-    fn bvca_endpoint(packet: &TextPacket) -> Option<String> {
-        let message = match &packet.body {
-            TextPacketBody::MessageOnly(body) => &body.message,
-            TextPacketBody::AuthorAndMessage(body) => &body.message,
-            TextPacketBody::MessageAndParams(body) => &body.message,
-        };
-        BvcpCodec::parse_bvca(message)
-    }
-
     pub fn dispatch(&mut self, evt: &Event, state: &mut BedrockSessionState) -> DispatchOutcome {
-        let emitter = self.emitter.as_ref();
-        let direction = evt.direction();
-        let state_changed = match evt.packet() {
-            EventPacket::StartGame(p) => {
-                StartGameHandler.handle(p, state, emitter);
-                true
-            }
-            EventPacket::PlayerAuthInput(p) => {
-                PlayerAuthInputHandler {
-                    player_auth_input_seen: &mut self.player_auth_input_seen,
-                }
-                .handle(p, state, emitter);
-                true
-            }
-            EventPacket::ChangeDimension(p) => {
-                ChangeDimensionHandler.handle(p, state, emitter);
-                true
-            }
-            EventPacket::SetPlayerGameType(p) => {
-                let gamemode = i64::from(p.player_game_type) as i32;
-                GameTypeHandler.handle(&gamemode, state, emitter);
-                true
-            }
-            EventPacket::UpdatePlayerGameType(p) => {
-                info!("Received UpdatePlayerGameType: {:?}", p);
-                let gamemode = i64::from(p.player_game_type) as i32;
-                GameTypeHandler.handle(&gamemode, state, emitter);
-                true
-            }
-            // The bvc: buses are server-authored (/playsound is clientbound);
-            // like the ChatMessage arm, ignore the serverbound direction.
-            EventPacket::PlaySound(p) if matches!(direction, Direction::Clientbound) => {
-                info!("Received PlaySound: {:?}", p);
-                PlaySoundHandler {
-                    beacon_cache: &self.beacon_cache,
-                    player_name: &self.player_name,
-                    control_tx: self.control_tx.clone(),
-                    state_bus: self.state_bus.clone(),
-                }
-                .handle(p, state, emitter);
-                false
-            }
-            EventPacket::SetHealth(p) => {
-                SetHealthHandler {
-                    last_known_health: &mut self.last_known_health,
-                }
-                .handle(p, state, emitter);
-                false
-            }
-            EventPacket::Disconnected(reason) => {
-                DisconnectedHandler {
-                    player_name: &self.player_name,
-                }
-                .handle(reason, state, emitter);
-                return DispatchOutcome::SessionEnded {
-                    reason: "peer_disconnect",
-                    detail: Some(format!("{:?}", reason)),
-                };
-            }
-            EventPacket::ChatMessage(p) if matches!(direction, Direction::Clientbound) => {
-                if let Some(token) = Self::bvcp_token(p) {
-                    if let Some(emitter) = emitter {
-                        emitter.try_send_observed(token);
-                    }
-                } else if let Some(endpoint) = Self::bvca_endpoint(p) {
-                    if let (Some(emitter), Some(world)) = (emitter, state.world_uuid()) {
-                        emitter.try_send_announce_observed(world.to_string(), endpoint);
-                    }
-                } else if let Some(chat) = self.chat_channel.as_ref() {
-                    // Everything the realm broadcasts that a person should read. The ride
-                    // arms above ran first, and ChatCodec rejects rides independently —
-                    // relying on caller ordering for a security boundary is how leaks happen.
-                    if let Some(line) = ChatCodec::decode(p) {
-                        chat.emit(line);
-                    }
-                }
-                false
-            }
-            _ => false,
-        };
+        let DispatchResult {
+            outcome,
+            state_changed,
+        } = self.child.dispatch(evt, state);
+
         if state_changed {
             self.player_state_cache
                 .set(&self.player_name, state.to_player_enum());
         }
-        DispatchOutcome::Continue
+
+        outcome
     }
 }
 
@@ -164,8 +74,13 @@ mod tests {
     use super::*;
     use crate::NetworkPacket;
     use crate::bedrock::proxy::presence::BvcpCodec;
+    use common::bedrock_protocol::Direction;
     use common::bedrock_protocol::ProtocolVersion;
-    use common::bedrock_protocol::protocol::types::generated::{AuthorAndMessage, TextPacketType};
+    use common::bedrock_protocol::protocol::event::EventPacket;
+    use common::bedrock_protocol::protocol::packets::generated::misc::text::TextPacket;
+    use common::bedrock_protocol::protocol::types::generated::{
+        AuthorAndMessage, TextPacketBody, TextPacketType,
+    };
     use common::structs::packet::{PacketType, QuicNetworkPacketData};
 
     fn chat_event(message: &str, direction: Direction) -> Event {
@@ -187,6 +102,8 @@ mod tests {
         )
     }
 
+    // These exercise the observation and chat-ingress arms, which only the
+    // full-processing child owns.
     fn build_dispatcher() -> (
         BedrockSessionEventDispatcher,
         flume::Receiver<NetworkPacket>,
@@ -201,6 +118,7 @@ mod tests {
             crate::control::ControlActionSender::channel().0,
             crate::control::ControlStateBus::new(),
             None,
+            AddonMode::NoNet,
         );
         (dispatcher, rx)
     }

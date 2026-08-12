@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::structs::bedrock::AddonTransport;
+use crate::structs::bedrock::AddonMode;
 
 // One operator-curated Bedrock server advertised via `/api/config`. The client
 // shows these as read-only, pre-populated entries in its Proxy Connect list.
@@ -16,8 +16,7 @@ pub struct ApiConfigBedrockServer {
     // server. None means Auto — mirror the real backend's version.
     #[serde(default)]
     pub protocol_version: Option<u32>,
-    // How this world's addon reaches the BVC server. Absent means no-net, which
-    // is what every client assumed before the field existed.
-    #[serde(default)]
-    pub addon_transport: AddonTransport,
+    // Who owns event delivery for this world. Required: an advertised server
+    // whose mode nobody declared is an operator mistake, not a value to guess.
+    pub addon_mode: AddonMode,
 }

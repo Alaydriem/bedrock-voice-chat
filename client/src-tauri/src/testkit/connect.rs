@@ -249,7 +249,7 @@ impl Connector {
         upstream_host: String,
         upstream_port: u16,
         listen_port: u16,
-        addon_transport: Option<common::structs::bedrock::AddonTransport>,
+        addon_mode: Option<common::structs::bedrock::AddonMode>,
     ) -> Result<(), String> {
         use crate::bedrock::BedrockState;
 
@@ -270,7 +270,7 @@ impl Connector {
             Some(listen_port),
             "127.0.0.1".to_string(),
             None,
-            addon_transport,
+            addon_mode,
         )
         .await
     }

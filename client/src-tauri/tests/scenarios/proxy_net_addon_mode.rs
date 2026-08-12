@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use common::structs::bedrock::AddonTransport;
+use common::structs::bedrock::AddonMode;
 
 use crate::harness::protocol_matrix::ProtocolMatrix;
 use crate::harness::proxy_world::ProxyWorld;
@@ -20,24 +20,20 @@ async fn net_mode_sends_no_in_band_rides_upstream() {
         .into_iter()
         .next()
         .expect("at least one protocol version");
-    let mut w = ProxyWorld::boot_with_transport(v, &["Alice"], AddonTransport::Net).await;
+    let mut w = ProxyWorld::boot_with_mode(v, &["Alice"], AddonMode::Net).await;
 
     for _ in 0..5 {
         w.upstream.drive_position("Alice", 0.0, 64.0, 0.0).await;
         tokio::time::sleep(Duration::from_millis(120)).await;
     }
 
+    // Nothing at all, not merely no `!bvc` prefixes: chat egress is suppressed
+    // in this mode too, so a relay-only session has no reason to author any
+    // serverbound chat whatsoever.
     let text = w.upstream.drain_serverbound_chat("Alice", CAPTURE_WINDOW).await;
-    let in_band: Vec<&String> = text
-        .iter()
-        .filter(|m| {
-            m.starts_with("!bvca ") || m.starts_with("!bvcp ") || m.starts_with("!bvce ")
-                || m.starts_with("!bvcs:")
-        })
-        .collect();
     assert!(
-        in_band.is_empty(),
-        "[{v}] net mode must send no in-band rides, got: {in_band:?}"
+        text.is_empty(),
+        "[{v}] a relay-only session must send nothing serverbound as chat, got: {text:?}"
     );
 
     w.shutdown();

@@ -1,4 +1,4 @@
-import type { AddonTransport } from '../../../bindings/AddonTransport';
+import type { AddonMode } from '../../../bindings/AddonMode';
 
 export interface ProxyServerEntry {
     id: string;
@@ -10,7 +10,7 @@ export interface ProxyServerEntry {
     protocolVersion?: number;
     // How this world's addon reaches the BVC server. Omitted resolves from the
     // advertised list, then defaults to no-net.
-    addonTransport?: AddonTransport;
+    addonMode?: AddonMode;
     // Present on entries advertised by the BVC server's config; they are
     // read-only and never persisted locally. Absent on user-created entries.
     source?: "server";

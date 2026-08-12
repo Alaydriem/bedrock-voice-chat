@@ -1,5 +1,5 @@
 use common::response::ApiConfigBedrockServer;
-use common::structs::bedrock::AddonTransport;
+use common::structs::bedrock::AddonMode;
 use serde::{Deserialize, Serialize};
 
 fn default_port() -> u16 {
@@ -18,10 +18,9 @@ pub struct BedrockServerEntry {
     // server. None means Auto — mirror the real backend's version.
     #[serde(default)]
     pub protocol_version: Option<u32>,
-    // How this world's addon reaches the BVC server. Declared by the operator
-    // because the client cannot observe it.
-    #[serde(default)]
-    pub addon_transport: AddonTransport,
+    // Who owns event delivery for this world. Declared by the operator because
+    // the client cannot observe it, and required so nothing is ever implicit.
+    pub addon_mode: AddonMode,
 }
 
 impl BedrockServerEntry {
@@ -58,7 +57,7 @@ impl BedrockServerEntry {
         };
 
         let mut protocol_version = None;
-        let mut addon_transport = AddonTransport::default();
+        let mut addon_mode = AddonMode::default();
 
         for token in [protocol, extra].into_iter().flatten() {
             if token.is_empty() {
@@ -70,9 +69,9 @@ impl BedrockServerEntry {
                 })?);
                 continue;
             }
-            addon_transport = match token {
-                "net" => AddonTransport::Net,
-                "no_net" => AddonTransport::NoNet,
+            addon_mode = match token {
+                "net" => AddonMode::Net,
+                "no_net" => AddonMode::NoNet,
                 other => {
                     return Err(anyhow::anyhow!(
                         "unrecognized token {other:?} in {raw:?}; \
@@ -87,7 +86,7 @@ impl BedrockServerEntry {
             host,
             port,
             protocol_version,
-            addon_transport,
+            addon_mode,
         })
     }
 
@@ -97,7 +96,7 @@ impl BedrockServerEntry {
             host: self.host.clone(),
             port: self.port,
             protocol_version: self.protocol_version,
-            addon_transport: self.addon_transport,
+            addon_mode: self.addon_mode,
         }
     }
 }

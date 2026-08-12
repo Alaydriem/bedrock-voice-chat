@@ -1,6 +1,6 @@
 use bvc_client_lib::bedrock::{BedrockTargetService, ResolvedAddress, SavedProxyEntry};
 use common::response::ApiConfigBedrockServer;
-use common::structs::bedrock::RealmEntry;
+use common::structs::bedrock::{AddonMode, RealmEntry};
 use websocket_types::ConnectTargetKind;
 
 fn saved(id: &str, name: &str, host: &str, port: u16) -> SavedProxyEntry {
@@ -10,7 +10,7 @@ fn saved(id: &str, name: &str, host: &str, port: u16) -> SavedProxyEntry {
         host: host.to_string(),
         port,
         protocol_version: None,
-        addon_transport: None,
+        addon_mode: None,
     }
 }
 
@@ -20,7 +20,7 @@ fn advertised(name: &str, host: &str, port: u16) -> ApiConfigBedrockServer {
         host: host.to_string(),
         port,
         protocol_version: None,
-        addon_transport: Default::default(),
+        addon_mode: AddonMode::NoNet,
     }
 }
 

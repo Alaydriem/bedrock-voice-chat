@@ -12,6 +12,7 @@ use bedrock_client::BedrockClient;
 use bvc_client_lib::testkit::signal::Signal;
 use common::bedrock_protocol::AuthInfo;
 use common::bedrock_protocol::version::ProtocolVersion;
+use common::structs::bedrock::AddonMode;
 use tempfile::TempDir;
 
 use crate::harness::client_proc::ClientProc;
@@ -159,7 +160,11 @@ impl RelayWorld {
                 &upstream_addr.ip().to_string(),
                 upstream_addr.port(),
                 listen,
-                None,
+                // Explicit, not `None`: cross-server peer discovery rides on the
+                // in-band `!bvca` announce, which relay-only mode suppresses. The
+                // default resolves to relay-only, so leaving this unset silently
+                // starves every peer link in this harness.
+                Some(AddonMode::NoNet),
                 Duration::from_secs(10),
             )
             .expect("proxy started");

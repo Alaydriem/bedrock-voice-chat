@@ -9,6 +9,7 @@ import type { BedrockConnectionInfo } from '../../../bindings/BedrockConnectionI
 import type { RealmEntry } from '../../../bindings/RealmEntry';
 import type { NetworkInterface } from '../../../bindings/NetworkInterface';
 import type { ProtocolVersionOption } from '../../../bindings/ProtocolVersionOption';
+import type { AddonMode } from '../../../bindings/AddonMode';
 import type { ProxyServerEntry } from './ProxyServerEntry';
 import type { BedrockCapabilityManager } from './BedrockCapabilityManager';
 import { BedrockAuthManager } from './auth/BedrockAuthManager';
@@ -308,8 +309,9 @@ export class BedrockManager {
         host: string,
         port: number,
         protocolVersion?: number,
+        addonMode?: AddonMode,
     ): Promise<ProxyServerEntry> {
-        return this.proxyManager.addProxyServer(name, host, port, protocolVersion);
+        return this.proxyManager.addProxyServer(name, host, port, protocolVersion, addonMode);
     }
 
     async updateProxyServer(id: string, patch: Partial<Omit<ProxyServerEntry, 'id'>>): Promise<void> {

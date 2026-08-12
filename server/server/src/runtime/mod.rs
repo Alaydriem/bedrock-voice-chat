@@ -475,7 +475,7 @@ impl ServerRuntime {
                     entry.name,
                     entry.host,
                     entry.port,
-                    entry.addon_transport,
+                    entry.addon_mode,
                 );
             }
         } else {

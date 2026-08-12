@@ -392,7 +392,7 @@ fn main() {
                             upstream_host,
                             upstream_port,
                             listen_port,
-                            addon_transport,
+                            addon_mode,
                         }) => {
                             let h = stdin_handle.clone();
                             tauri::async_runtime::spawn(async move {
@@ -401,7 +401,7 @@ fn main() {
                                     upstream_host,
                                     upstream_port,
                                     listen_port,
-                                    addon_transport,
+                                    addon_mode,
                                 )
                                 .await
                                 {

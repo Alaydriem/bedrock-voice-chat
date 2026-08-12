@@ -1,4 +1,4 @@
-pub mod addon_transport_resolver;
+pub mod addon_mode_resolver;
 pub mod advertised_version_resolver;
 pub mod auth;
 pub mod connector;
@@ -16,7 +16,7 @@ pub mod transfer_keep_alive;
 /// worlds that cannot be connected.
 pub const XBOX_AUTH_REQUIRED: &str = "Xbox Live authentication required. Please sign in first.";
 
-pub use addon_transport_resolver::AddonTransportResolver;
+pub use addon_mode_resolver::AddonModeResolver;
 pub use advertised_version_resolver::AdvertisedVersionResolver;
 pub use auth::{BedrockAuthService, BedrockKeyringService};
 pub use connector::{BedrockConnector, ProxyConnectRequest, RealmConnectRequest};

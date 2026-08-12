@@ -22,7 +22,7 @@ pub enum InMsg {
         // Absent resolves the same way a real connect does, which is what every
         // scenario written before this field wanted.
         #[serde(default)]
-        addon_transport: Option<common::structs::bedrock::AddonTransport>,
+        addon_mode: Option<common::structs::bedrock::AddonMode>,
     },
     InjectPresence {
         token: String,

@@ -9,6 +9,7 @@ use common::bedrock_protocol::protocol::types::generated::{
     AuthorAndMessage, TextPacketBody, TextPacketType,
 };
 use common::bedrock_protocol::{Direction, Event, ProtocolVersion};
+use common::structs::bedrock::AddonMode;
 
 /// Wires a dispatcher to a live chat channel and hands back a subscriber.
 ///
@@ -30,6 +31,9 @@ fn build() -> (
         bvc_client_lib::control::ControlActionSender::channel().0,
         bvc_client_lib::control::ControlStateBus::new(),
         Some(channel),
+        // Chat ingress is the full-processing child's job; relay-only would
+        // never reach the seam this test exists to cover.
+        AddonMode::NoNet,
     );
 
     (dispatcher, subscriber)

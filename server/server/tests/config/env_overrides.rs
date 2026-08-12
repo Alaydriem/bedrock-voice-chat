@@ -325,7 +325,7 @@ fn bedrock_servers_parse_compact_syntax_and_replace_config_list() {
         host: "config.example.com".to_string(),
         port: 19132,
         protocol_version: None,
-        addon_transport: Default::default(),
+        addon_mode: Default::default(),
     }];
 
     let config = apply(

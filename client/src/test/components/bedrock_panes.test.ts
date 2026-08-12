@@ -7,6 +7,7 @@ import type { BedrockCapabilityStatus } from "../../js/app/managers/bedrock/Bedr
 
 const { default: ProxyPane } = await import("../../components/settings/panes/ProxyPane.svelte");
 const { default: RealmsPane } = await import("../../components/settings/panes/RealmsPane.svelte");
+const { default: ProxyServerEditor } = await import("../../components/settings/ProxyServerEditor.svelte");
 
 interface Knobs {
     authed?: boolean;
@@ -351,5 +352,46 @@ describe("RealmsPane", () => {
         const view = mount(RealmsPane, stub({ capability: "disabled" }));
         await waitFor(() => expect(view.text()).toContain("will not accept a Realm"));
         expect(view.text()).not.toContain("Alaydriem's Realm");
+    });
+});
+
+describe("Proxy server editor addon mode", () => {
+    function mountEditor(entry: unknown) {
+        const host = document.createElement("div");
+        document.body.append(host);
+        render(ProxyServerEditor as never, {
+            target: host,
+            props: { entry, versions: [], onsave: () => {}, oncancel: () => {} },
+        } as never);
+        return host.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+    }
+
+    // The server's word is final on an entry it advertises, so the control shows
+    // the declaration without offering to change it.
+    it("greys out the toggle on an advertised entry", () => {
+        const box = mountEditor({
+            id: "server:play.example.com:19132",
+            name: "Advertised",
+            host: "play.example.com",
+            port: 19132,
+            addonMode: "no_net",
+            source: "server",
+        });
+        expect(box).not.toBeNull();
+        expect(box!.checked).toBe(true);
+        expect(box!.disabled).toBe(true);
+    });
+
+    it("leaves the toggle editable on a user-created entry", () => {
+        const box = mountEditor({
+            id: "local:1",
+            name: "Mine",
+            host: "play.example.com",
+            port: 19132,
+            addonMode: "net",
+        });
+        expect(box).not.toBeNull();
+        expect(box!.checked).toBe(false);
+        expect(box!.disabled).toBe(false);
     });
 });

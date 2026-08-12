@@ -21,7 +21,7 @@ use crate::analytics::AnalyticsService;
 use websocket_types::{ActiveConnection, ConnectTargetId, ConnectTargetKind, ConnectTargetSource};
 
 use crate::bedrock::{
-    AddonTransportResolver, AdvertisedVersionResolver, AnnounceInjector, BedrockChatChannel,
+    AddonModeResolver, AdvertisedVersionResolver, AnnounceInjector, BedrockChatChannel,
     BedrockConnectErrorChannel,
     BedrockEventEmitter, BedrockProxyManager, BedrockState, BedrockTargetService, ChatInjector,
     JukeboxBeaconCache, JukeboxEjectInjector, PresenceInjector, ProtocolGatingService, ProxyDeps,
@@ -119,8 +119,8 @@ impl BedrockConnector {
         // Resolved before the state lock: this reads the cached config over the
         // network client, which must not happen with the BedrockState guard held.
         let advertised = self.advertised_servers().await;
-        let addon_transport = AddonTransportResolver::proxy(
-            request.addon_transport,
+        let addon_mode = AddonModeResolver::proxy(
+            request.addon_mode,
             &advertised,
             &request.target_host,
             request.target_port,
@@ -160,7 +160,7 @@ impl BedrockConnector {
                 effective_listen_port,
                 auth_manager,
                 advertised_version,
-                addon_transport,
+                addon_mode,
                 deps,
             );
             proxy.start().await?;

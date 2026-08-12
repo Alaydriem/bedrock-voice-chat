@@ -2,6 +2,7 @@
   import { I18n } from "$lib/i18n";
     import { onMount } from "svelte";
     import type { ProxyServerEntry } from "../../js/app/managers/bedrock/ProxyServerEntry";
+    import type { AddonMode } from "../../js/bindings/AddonMode";
     import type { ProtocolVersionOption } from "../../js/bindings/ProtocolVersionOption";
 
     interface Props {
@@ -14,6 +15,7 @@
             host: string,
             port: number,
             protocolVersion: number | undefined,
+            addonMode: AddonMode,
             id?: string,
         ) => void;
         oncancel: () => void;
@@ -28,6 +30,11 @@
     let address = $state("");
     let version = $state(AUTO);
     let failure = $state("");
+    let addonMode = $state<AddonMode>("net");
+
+    // A server that advertises an entry has already declared its mode, and that
+    // declaration is final. Only entries the user created are theirs to change.
+    let modeLocked = $derived(entry?.source === "server");
 
     // Re-seeded whenever the dialog opens on a different entry.
     let seeded: ProxyServerEntry | null | undefined;
@@ -37,6 +44,7 @@
         name = entry?.name ?? "";
         address = entry ? `${entry.host}:${entry.port}` : "";
         version = entry?.protocolVersion != null ? String(entry.protocolVersion) : AUTO;
+        addonMode = entry?.addonMode ?? "net";
         failure = "";
     });
 
@@ -69,6 +77,7 @@
             parsed.host,
             parsed.port,
             version === AUTO ? undefined : Number(version),
+            addonMode,
             entry?.id,
         );
     }
@@ -117,6 +126,23 @@
                 <option value={String(option.protocol)}>{option.label}</option>
             {/each}
         </select>
+
+        <label class="rad-check" style="margin-top: 12px; display: flex; gap: 8px">
+            <input
+                type="checkbox"
+                checked={addonMode === "no_net"}
+                disabled={modeLocked}
+                onchange={(e) =>
+                    (addonMode = e.currentTarget.checked ? "no_net" : "net")}
+            />
+            <span>{I18n.t("Proxy all events")}</span>
+        </label>
+
+        <p class="rad-hint">
+            {I18n.t(
+                "Leave this off when the server runs the BVC addon — it delivers positions, chat and jukebox events itself. Turn it on for Realms, Aternos, and anywhere the addon cannot reach this server.",
+            )}
+        </p>
 
         {#if failure}
             <div class="rad-callout rad-callout--bad" style="margin-top: 12px">

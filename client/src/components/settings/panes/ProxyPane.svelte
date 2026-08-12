@@ -7,6 +7,7 @@
     import StatusChip from "$radial/components/StatusChip.svelte";
     import type { BedrockManager } from "../../../js/app/managers/bedrock/BedrockManager";
     import type { BedrockCapabilityStatus } from "../../../js/app/managers/bedrock/BedrockCapabilityManager";
+    import type { AddonMode } from "../../../js/bindings/AddonMode";
     import type { ProxyServerEntry } from "../../../js/app/managers/bedrock/ProxyServerEntry";
     import type { BedrockStatus } from "../../../js/bindings/BedrockStatus";
     import type { NetworkInterface } from "../../../js/bindings/NetworkInterface";
@@ -150,11 +151,13 @@
         host: string,
         port: number,
         protocolVersion: number | undefined,
+        addonMode: AddonMode,
         id?: string,
     ): Promise<void> {
         editing = undefined;
-        if (id) await bedrock.updateProxyServer(id, { name, host, port, protocolVersion });
-        else await bedrock.addProxyServer(name, host, port, protocolVersion);
+        if (id)
+            await bedrock.updateProxyServer(id, { name, host, port, protocolVersion, addonMode });
+        else await bedrock.addProxyServer(name, host, port, protocolVersion, addonMode);
     }
 </script>
 
@@ -269,8 +272,8 @@
 <ProxyServerEditor
     entry={editing}
     {versions}
-    onsave={(name, host, port, protocolVersion, id) =>
-        void saveServer(name, host, port, protocolVersion, id)}
+    onsave={(name, host, port, protocolVersion, addonMode, id) =>
+        void saveServer(name, host, port, protocolVersion, addonMode, id)}
     oncancel={() => (editing = undefined)}
 />
 

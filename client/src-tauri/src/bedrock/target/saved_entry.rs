@@ -14,6 +14,6 @@ pub struct SavedProxyEntry {
     pub protocol_version: Option<u32>,
     /// Carried so a user-saved entry keeps a transport it inherited or was given,
     /// rather than re-resolving to the default on every connect.
-    #[serde(default, rename = "addonTransport")]
-    pub addon_transport: Option<common::structs::bedrock::AddonTransport>,
+    #[serde(default, rename = "addonMode")]
+    pub addon_mode: Option<common::structs::bedrock::AddonMode>,
 }

@@ -8,7 +8,7 @@ use std::time::Duration;
 use bedrock_client::BedrockClient;
 use common::bedrock_protocol::AuthInfo;
 use common::bedrock_protocol::version::ProtocolVersion;
-use common::structs::bedrock::AddonTransport;
+use common::structs::bedrock::AddonMode;
 use tempfile::TempDir;
 
 use crate::harness::client_proc::ClientProc;
@@ -27,13 +27,13 @@ pub struct ProxyWorld {
 
 impl ProxyWorld {
     pub async fn boot(version: ProtocolVersion, names: &[&str]) -> Self {
-        Self::boot_with_transport(version, names, AddonTransport::NoNet).await
+        Self::boot_with_mode(version, names, AddonMode::NoNet).await
     }
 
-    pub async fn boot_with_transport(
+    pub async fn boot_with_mode(
         version: ProtocolVersion,
         names: &[&str],
-        addon_transport: AddonTransport,
+        addon_mode: AddonMode,
     ) -> Self {
         let data_dir = tempfile::tempdir().expect("temp data dir");
         let rocket_port = EmbeddedServer::free_port_tcp();
@@ -61,7 +61,7 @@ impl ProxyWorld {
                 &upstream_addr.ip().to_string(),
                 upstream_addr.port(),
                 listen,
-                Some(addon_transport),
+                Some(addon_mode),
                 Duration::from_secs(10),
             )
             .expect("proxy started");
