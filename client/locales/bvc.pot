@@ -1957,7 +1957,7 @@ msgstr ""
 msgid "Split-track recording"
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:412
+#: src/routes/uireview/+page.svelte:413
 msgid "Starting up"
 msgstr ""
 
@@ -1976,7 +1976,7 @@ msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:60
 #: src/routes/error/+page.svelte:161
-#: src/routes/uireview/+page.svelte:372
+#: src/routes/uireview/+page.svelte:373
 msgid "Still stuck?"
 msgstr ""
 
@@ -2365,7 +2365,7 @@ msgstr ""
 #: src/components/login/NoServerScreen.svelte:92
 #: src/components/settings/panes/AboutPane.svelte:247
 #: src/routes/error/+page.svelte:165
-#: src/routes/uireview/+page.svelte:376
+#: src/routes/uireview/+page.svelte:377
 msgid "Wiki"
 msgstr ""
 
