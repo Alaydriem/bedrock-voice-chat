@@ -315,30 +315,22 @@ impl AudioInputSource {
         match stream {
             Ok(stream) => {
                 if let Err(e) = stream.play() {
-                    error!("Failed to start input audio stream: {:?}", e);
                     shutdown.store(true, Ordering::Relaxed);
-                    let _ = recovery_tx.send(StreamRecoveryEvent::DeviceError {
-                        device_type: AudioDeviceType::InputDevice,
-                        error: format!("Failed to start input stream: {:?}", e),
-                    });
-                    return Ok(SourceDriver { stream: None });
+                    return Err(anyhow!("Failed to start input stream: {:?}", e));
                 }
 
                 Ok(SourceDriver {
                     stream: Some(stream),
                 })
             }
+            // A stream that never opened is a failed start, not a start that produced a broken
+            // stream. Reporting it as `Ok` set `capture_expected`, which armed the capture
+            // watchdog over a device that had never been opened, and the recovery event it also
+            // sent had the webview rebuilding it every 500 ms. Neither loop could ever succeed:
+            // both buffer sizes were already refused for this endpoint.
             Err(e) => {
-                // A stream that never opened must trigger the same
-                // recovery path as one that died at runtime; otherwise
-                // the client sits connected with a silently dead mic.
-                error!("Failed to build input audio stream: {:?}", e);
                 shutdown.store(true, Ordering::Relaxed);
-                let _ = recovery_tx.send(StreamRecoveryEvent::DeviceError {
-                    device_type: AudioDeviceType::InputDevice,
-                    error: format!("Failed to build input stream: {:?}", e),
-                });
-                Ok(SourceDriver { stream: None })
+                Err(anyhow!("Failed to build input stream: {:?}", e))
             }
         }
     }

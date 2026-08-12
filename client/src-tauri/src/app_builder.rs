@@ -117,8 +117,12 @@ impl AppBuilder {
         // before the move for the same reason as the two above.
         let session_config = audio_stream.session_config();
         let level_bus = audio_stream.levels();
+        // Read by the runtime-state poll, which must not take the audio manager's lock to learn
+        // that a rebuild gave up — the rebuild itself holds that lock while it runs.
+        let capture_availability = audio_stream.capture_availability();
 
         app.manage(Mutex::new(audio_stream));
+        app.manage(capture_availability);
 
         // Per-player volume and mute. Registered here rather than in `run()` because both the
         // desktop app and the e2e harness need it: the in-game control actions and the

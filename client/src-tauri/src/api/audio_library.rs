@@ -1,4 +1,4 @@
-use log::error;
+use log::{error, warn};
 use reqwest::{
     Response, StatusCode,
     header::{HeaderMap, HeaderValue},
@@ -159,6 +159,54 @@ impl Api {
             Err(SendError::Transport(e)) => {
                 error!("Failed to delete audio file: {}", e);
                 Err(format!("Connection failed: {}", e))
+            }
+        }
+    }
+
+    /// Ask the server whether it still accepts this device's certificate.
+    ///
+    /// Used before signing a player out over a rejected voice handshake. Deliberately separate
+    /// from `get_server_state`, which flattens every outcome to `Result<_, String>` and so
+    /// collapses a refused certificate and an unreachable server into the same value — the one
+    /// distinction this decision rests on.
+    pub(crate) async fn verify_credentials(&self) -> crate::api::CredentialVerdict {
+        use crate::api::CredentialVerdict;
+
+        let client = self.get_client();
+        let url = format!("{}/api/auth/state", self.endpoint);
+
+        match self.send(client.get(url)).await {
+            Ok(response) if response.status().is_success() => CredentialVerdict::Valid,
+            Ok(response)
+                if response.status() == StatusCode::UNAUTHORIZED
+                    || response.status() == StatusCode::FORBIDDEN =>
+            {
+                CredentialVerdict::Rejected
+            }
+            Ok(response) => {
+                warn!(
+                    "credential probe to {} was inconclusive: HTTP {}",
+                    self.endpoint,
+                    response.status()
+                );
+                CredentialVerdict::Inconclusive
+            }
+            Err(SendError::Transport(e)) if crate::network::CredentialFault::in_tls_chain(&e) => {
+                CredentialVerdict::Rejected
+            }
+            Err(SendError::Transport(e)) => {
+                warn!(
+                    "credential probe to {} was inconclusive: {}",
+                    self.endpoint, e
+                );
+                CredentialVerdict::Inconclusive
+            }
+            Err(SendError::Open) => {
+                warn!(
+                    "credential probe to {} was inconclusive: the endpoint breaker is open",
+                    self.endpoint
+                );
+                CredentialVerdict::Inconclusive
             }
         }
     }

@@ -1,7 +1,9 @@
 mod activity_detector;
+pub(crate) mod capture_availability;
 pub(crate) mod capture_watchdog;
 pub mod jitter_buffer;
 pub(crate) mod level_bus;
+pub(crate) mod rebuild_breaker;
 pub(crate) mod stream_manager;
 
 use crate::NetworkPacket;
@@ -28,6 +30,7 @@ use tokio::sync::mpsc;
 
 use super::AudioPacket;
 use capture_watchdog::{CaptureVerdict, CaptureWatchdog};
+use rebuild_breaker::{RebuildBreaker, RebuildVerdict};
 use stream_manager::{AudioInputSource, AudioOutputSink, StreamTrait, StreamTraitType};
 
 pub(crate) use activity_detector::ActivityUpdate;
@@ -39,6 +42,8 @@ pub enum StreamRecoveryEvent {
         device_type: AudioDeviceType,
         error: String,
     },
+    /// Something changed that could make a device openable again. Clears an open breaker.
+    Rearm { device_type: AudioDeviceType },
 }
 
 /// Sender type for recovery events (used by streams to signal errors)
@@ -60,6 +65,9 @@ pub(crate) struct AudioStreamManager {
     // Created here and shared with every stream this manager builds, so a device change or a
     // restart keeps writing into the same counters a diagnostic is already reading.
     input_stats: Arc<crate::diagnostics::InputPipelineStats>,
+    // Written by the recovery monitor when it gives up on a device, read lock-free by the
+    // runtime-state poll.
+    capture_availability: Arc<capture_availability::CaptureAvailability>,
     peer_registry: Arc<crate::diagnostics::PeerRegistry>,
     // Owned here for the same reason as `peer_registry`: the output stream writes into it while a
     // diagnostic reads it, and a stream restart must not swap the instance out from under the
@@ -186,6 +194,7 @@ impl AudioStreamManager {
     ) -> Self {
         let (recovery_tx, recovery_rx) = mpsc::unbounded_channel::<StreamRecoveryEvent>();
         let input_stats = Arc::new(crate::diagnostics::InputPipelineStats::new());
+        let capture_availability = capture_availability::CaptureAvailability::new_shared();
         let peer_registry = crate::diagnostics::PeerRegistry::new_shared();
         let session_config = Arc::new(crate::diagnostics::SessionConfig::new());
         let levels = level_bus::LevelBus::new_shared();
@@ -236,6 +245,7 @@ impl AudioStreamManager {
             levels: levels.clone(),
             level_publisher_started: false,
             input_stats,
+            capture_availability,
             peer_registry,
             session_config,
             #[cfg(feature = "bedrock-protocol")]
@@ -253,30 +263,134 @@ impl AudioStreamManager {
 
     /// Spawns the recovery monitor task if not already spawned.
     /// Must be called from an async context.
+    ///
+    /// The rebuild happens here rather than in the webview. Recovery that depends on a live
+    /// webview is unavailable in exactly the conditions that need it, and while both did it a
+    /// single device error rebuilt the stream twice.
     fn spawn_recovery_monitor(&mut self) {
         if let Some(mut recovery_rx) = self.recovery_rx.take() {
             let app_handle = self.app_handle.clone();
+            let availability = self.capture_availability.clone();
             tokio::spawn(async move {
+                let mut breaker = RebuildBreaker::new();
+
                 while let Some(event) = recovery_rx.recv().await {
                     match event {
                         StreamRecoveryEvent::DeviceError { device_type, error } => {
-                            info!("Stream recovery triggered for {:?}: {}", device_type, error);
-                            // Emit event for frontend to handle recovery
-                            let _ = app_handle.emit(
-                                "audio-stream-recovery",
-                                serde_json::json!({
-                                    "device_type": match device_type {
-                                        AudioDeviceType::InputDevice => "InputDevice",
-                                        AudioDeviceType::OutputDevice => "OutputDevice",
-                                    },
-                                    "error": error,
-                                }),
-                            );
+                            Self::recover(
+                                &app_handle,
+                                &availability,
+                                &mut breaker,
+                                device_type,
+                                error,
+                            )
+                            .await;
+                        }
+                        StreamRecoveryEvent::Rearm { device_type } => {
+                            breaker.rearm(&device_type);
+                            if matches!(device_type, AudioDeviceType::InputDevice) {
+                                availability.set(true);
+                            }
                         }
                     }
                 }
             });
         }
+    }
+
+    /// One failed stream, taken as far as the breaker allows.
+    ///
+    /// Attempts log at `WARN`, which reaches Sentry as a breadcrumb and not as an event. The one
+    /// `ERROR` is the breaker opening, which is the fact worth paying for: this device will not
+    /// open, rather than it failed once more.
+    ///
+    /// A rebuild that fails is the next iteration rather than a fresh event: `restart` can fail
+    /// before the device is opened, and nothing then reaches the capture callback that would
+    /// have sent one through the channel.
+    async fn recover(
+        app_handle: &tauri::AppHandle,
+        availability: &Arc<capture_availability::CaptureAvailability>,
+        breaker: &mut RebuildBreaker,
+        device_type: AudioDeviceType,
+        error: String,
+    ) {
+        let is_input = matches!(device_type, AudioDeviceType::InputDevice);
+
+        let _ = app_handle.emit(
+            "audio-stream-recovery",
+            serde_json::json!({
+                "device_type": match device_type {
+                    AudioDeviceType::InputDevice => "InputDevice",
+                    AudioDeviceType::OutputDevice => "OutputDevice",
+                },
+                "error": error,
+            }),
+        );
+
+        let mut reason = error;
+
+        loop {
+            let (after, attempt) = match breaker.observe_failure(&device_type) {
+                RebuildVerdict::Retry { after, attempt } => (after, attempt),
+                RebuildVerdict::Open => {
+                    log::error!(
+                        "{:?} could not be opened after {} attempts and will not be retried: {}",
+                        device_type,
+                        RebuildBreaker::MAX_ATTEMPTS,
+                        reason
+                    );
+                    if is_input {
+                        availability.set(false);
+                    }
+                    break;
+                }
+            };
+
+            log::warn!(
+                "{:?} stream failed ({}); rebuild {} of {} in {:?}",
+                device_type,
+                reason,
+                attempt,
+                RebuildBreaker::MAX_ATTEMPTS,
+                after
+            );
+            tokio::time::sleep(after).await;
+
+            // The manager is gone, which means the application is shutting down. Nothing left
+            // to rebuild into.
+            let Some(state) = app_handle.try_state::<TauriMutex<AudioStreamManager>>() else {
+                break;
+            };
+
+            let outcome = {
+                let mut asm = state.lock().await;
+                asm.restart(device_type.clone()).await
+            };
+
+            match outcome {
+                Ok(()) => {
+                    breaker.observe_success(&device_type);
+                    if is_input {
+                        availability.set(true);
+                    }
+                    info!("{:?} stream rebuilt", device_type);
+                    break;
+                }
+                Err(e) => reason = format!("{:?}", e),
+            }
+        }
+    }
+
+    /// Clears an open breaker, so a device the user just changed is tried again.
+    pub fn rearm_rebuilds(&self, device: AudioDeviceType) {
+        let _ = self.recovery_tx.send(StreamRecoveryEvent::Rearm {
+            device_type: device,
+        });
+    }
+
+    /// Whether the capture device could be opened. False only after every attempt was spent.
+    pub fn capture_availability(&self) -> Arc<capture_availability::CaptureAvailability> {
+        self.capture_availability.clone()
     }
 
     /// How often the watchdog reads the capture counter.

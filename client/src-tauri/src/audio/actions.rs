@@ -162,7 +162,20 @@ impl AudioActionsManager {
             recording: self.is_recording().await,
             recording_allowed: self.recording_allowed().await,
             jukebox_playing: self.jukebox_playing().await,
+            capture_available: self.capture_available(),
         }
+    }
+
+    /// Whether the capture device could be opened, read from the flag the rebuild path writes.
+    ///
+    /// A missing entry reads as available: nothing has failed yet on a client that has not
+    /// started an audio stream, and reporting a dead microphone there would be a false alarm on
+    /// every launch.
+    fn capture_available(&self) -> bool {
+        self.app_handle
+            .try_state::<std::sync::Arc<crate::audio::CaptureAvailability>>()
+            .map(|flag| flag.get())
+            .unwrap_or(true)
     }
 
     /// The one place jukebox mute is written.

@@ -39,4 +39,11 @@ pub struct VoiceRuntimeState {
     /// surface that went dark on mute could not tell silence the user caused from a disc that
     /// ended.
     pub jukebox_playing: bool,
+    /// Whether the capture device could be opened.
+    ///
+    /// False only once every rebuild attempt has been spent, which makes it a statement about
+    /// the device rather than about this moment. Carried beside the mute flag for the same
+    /// reason it is: the event that announces it can be missed, and a surface that learned this
+    /// only from an event would show an open microphone over one that does not exist.
+    pub capture_available: bool,
 }

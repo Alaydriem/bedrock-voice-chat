@@ -856,6 +856,14 @@ export default class Dashboard extends BVCApp {
             if (errStr.includes("DNS_FAIL")) {
                 error(`DNS resolution failed: ${e}`);
                 this.redirect("/error?code=DNS01");
+            } else if (errStr.includes("CERT_INVALID")) {
+                // Both certificate branches are checked ahead of QUIC_FAIL: the firewall advice
+                // QUIC01 gives would send the user to fix something that is not broken.
+                error(`Server certificate rejected, credentials cleared: ${e}`);
+                this.redirect("/error?code=CERT01");
+            } else if (errStr.includes("SERVER_CERT")) {
+                error(`Server voice certificate is misconfigured, credentials kept: ${e}`);
+                this.redirect("/error?code=CERT02");
             } else if (errStr.includes("QUIC_FAIL")) {
                 error(`QUIC connection failed: ${e}`);
                 this.redirect("/error?code=QUIC01");

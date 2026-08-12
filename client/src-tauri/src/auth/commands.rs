@@ -4,13 +4,11 @@ use crate::keyring::KeyringService;
 use crate::structs::app_state::AppState;
 use common::response::LinkJavaIdentityResponse;
 use common::response::LoginResponse;
-use common::structs::ServerListEntry;
 use common::structs::config::{
     HytaleAuthStatus, HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse,
 };
 use std::sync::Arc;
 use tauri::{State, async_runtime::Mutex};
-use tauri_plugin_store::StoreExt;
 
 #[cfg(desktop)]
 use crate::auth::mc_oauth_window::McOauthWindow;
@@ -52,56 +50,12 @@ pub(crate) async fn logout(
     analytics: State<'_, Arc<AnalyticsService>>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    analytics.clear_connected_server();
-    analytics.clear_player();
     let mut state = app_state.lock().await;
+    let mut kr = keyring.lock().await;
 
-    // Get the current server before clearing it
-    let current_server = state.current_server.clone();
-
-    // Clear the API client
-    state.clear_api_client();
-
-    // Clear keyring credentials for the server
-    if let Some(ref server_url) = current_server {
-        let mut kr = keyring.lock().await;
-        if let Err(e) = kr.delete_credentials(server_url) {
-            log::warn!("Failed to clear keyring credentials: {}", e);
-        }
-    }
-
-    // Get store and clear current session data
-    let store = app_handle
-        .store("store.json")
-        .map_err(|e| format!("Failed to access store: {}", e))?;
-
-    // Remove current_server and current_player from store
-    store.delete("current_server");
-    store.delete("current_player");
-
-    if let Some(current_server_url) = current_server {
-        if let Some(server_list_value) = store.get("server_list") {
-            if let Ok(mut server_list) =
-                serde_json::from_value::<Vec<ServerListEntry>>(server_list_value)
-            {
-                server_list.retain(|entry| entry.server != current_server_url);
-
-                let updated_list = serde_json::to_value(server_list)
-                    .map_err(|e| format!("Failed to serialize server list: {}", e))?;
-                store.set("server_list", updated_list);
-            }
-        }
-    }
-
-    // Save the store
-    store
-        .save()
-        .map_err(|e| format!("Failed to save store: {}", e))?;
-
-    // Clear the current_server in AppState
-    state.current_server = None;
-
-    Ok(())
+    crate::auth::SessionService::new(app_handle)
+        .forget_current_server(&mut state, &mut kr, &analytics)
+        .await
 }
 
 #[tauri::command(async)]

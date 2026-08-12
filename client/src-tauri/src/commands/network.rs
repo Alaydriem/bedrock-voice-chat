@@ -7,6 +7,7 @@ use common::response::LoginResponse;
 use common::structs::reachability::ServerReachability;
 use log::{error, info, warn};
 use std::sync::Arc;
+use tauri::Manager;
 use tauri::State;
 use tauri::async_runtime::Mutex;
 
@@ -54,6 +55,9 @@ pub(crate) async fn change_network_stream(
     };
 
     let api_for_invalidation = api.as_ref().ok().cloned();
+    // A second handle: the invalidation below consumes the first, and the credential probe on
+    // the failure path runs after it.
+    let api_for_probe = api.as_ref().ok().cloned();
 
     let advertised = match api {
         Ok(api) => match api.get_config().await {
@@ -139,10 +143,10 @@ pub(crate) async fn change_network_stream(
         .clone()
         .unwrap_or(common::Game::Minecraft)
         .membership_key(&gamertag);
-    // The error is rendered to a String before any further await: it is a
+    // The error is inspected and rendered before any further await: it is a
     // `Box<dyn Error>`, which is not Send, and holding one across an await would
     // make this command's future non-Send.
-    let outcome = network_stream
+    let outcome = match network_stream
         .restart(
             server_fqdn.clone(),
             server.clone(),
@@ -154,7 +158,16 @@ pub(crate) async fn change_network_stream(
             data.certificate_key,
         )
         .await
-        .map_err(|e| format!("{:?}", e));
+    {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            let certificate = e
+                .downcast_ref::<crate::network::ConnectFailure>()
+                .map(|failure| failure.is_certificate())
+                .unwrap_or(false);
+            Err((certificate, format!("{:?}", e)))
+        }
+    };
 
     match outcome {
         Ok(()) => {
@@ -162,7 +175,7 @@ pub(crate) async fn change_network_stream(
             analytics.set_connected_server(Some(server.clone()));
             analytics.set_player(&gamertag);
         }
-        Err(detail) => {
+        Err((certificate, detail)) => {
             error!("QUIC connection failed to {}: {}", server, detail);
             // A verdict that led nowhere must not persist to its TTL: the next
             // attempt re-probes rather than repeating the same ordering.
@@ -173,6 +186,56 @@ pub(crate) async fn change_network_stream(
             if let Some(api) = api_for_invalidation {
                 api.invalidate_config().await;
             }
+
+            if certificate {
+                drop(network_stream);
+
+                // A rejected handshake is evidence, not proof, and a keyring entry destroyed in
+                // error costs the player their saved server. Ask the one endpoint that answers
+                // the question directly.
+                let verdict = match api_for_probe {
+                    Some(api) => api.verify_credentials().await,
+                    None => crate::api::CredentialVerdict::Inconclusive,
+                };
+
+                match verdict {
+                    crate::api::CredentialVerdict::Rejected => {
+                        error!(
+                            "{} no longer accepts this device's certificate; signing out",
+                            server
+                        );
+
+                        let mut state = state.lock().await;
+                        let keyring = app.state::<Mutex<crate::keyring::KeyringService>>();
+                        let mut kr = keyring.lock().await;
+                        if let Err(e) = crate::auth::SessionService::new(app.clone())
+                            .forget_current_server(&mut state, &mut kr, &analytics)
+                            .await
+                        {
+                            error!("Could not clear credentials for {}: {}", server, e);
+                        }
+
+                        return Err(format!("CERT_INVALID: {}", detail));
+                    }
+                    // The credentials work. The voice listener's certificate is the server
+                    // operator's to fix, and taking a working sign-in away would not help.
+                    crate::api::CredentialVerdict::Valid => {
+                        error!(
+                            "{} accepts this device's certificate over HTTPS but its voice transport does not",
+                            server
+                        );
+                        return Err(format!("SERVER_CERT: {}", detail));
+                    }
+                    // Nothing was established. Credentials are never destroyed on this.
+                    crate::api::CredentialVerdict::Inconclusive => {
+                        warn!(
+                            "could not confirm whether {} still accepts this device's certificate; keeping it",
+                            server
+                        );
+                    }
+                }
+            }
+
             return Err(format!("QUIC_FAIL: {}", detail));
         }
     };

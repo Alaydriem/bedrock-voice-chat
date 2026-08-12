@@ -1,3 +1,4 @@
+mod connect_failure;
 mod connect_outcome;
 mod health_manager;
 mod health_publisher;
@@ -5,6 +6,7 @@ pub(crate) mod link;
 mod stream_manager;
 
 pub use health_publisher::HealthPublisher;
+pub(crate) use connect_failure::ConnectFailure;
 
 use connect_outcome::{AttemptResult, ConnectOutcome};
 use link::DatagramLink;
@@ -268,15 +270,8 @@ impl NetworkStreamManager {
         cert: &str,
         key: &str,
         outcome: &mut ConnectOutcome,
-    ) -> Result<DatagramLink, String> {
-        // Rendered to a String at the source rather than at each use: the walk's error is a
-        // `Box<dyn Error>`, which is not Send, and the race below holds the pending result
-        // of one transport across the other's await.
-        let quic = async {
-            Self::connect_first_available(client, plan, server_fqdn, outcome)
-                .await
-                .map_err(|e| e.to_string())
-        };
+    ) -> Result<DatagramLink, ConnectFailure> {
+        let quic = async { Self::connect_first_available(client, plan, server_fqdn, outcome).await };
         tokio::pin!(quic);
 
         let websocket = async {
@@ -294,13 +289,23 @@ impl NetworkStreamManager {
                 match attempt {
                     Ok((connection, winner)) => {
                         self.adopt_quic(connection, winner, server_url, ca_cert)
+                            .map_err(|detail| ConnectFailure::Unreachable { detail })
                     }
+                    // Every listener validates the client certificate against the same CA, so a
+                    // rejection here is a rejection the WebSocket transport will repeat. Racing
+                    // it would spend the head start and the dial budget reproducing an answer
+                    // already in hand.
+                    //
+                    // QUIC keeps its standing either way: a rejected certificate says nothing
+                    // about whether UDP reaches this server.
+                    Err(failure) if failure.is_certificate() => Err(failure),
                     // Every candidate failed inside the head start. The API answered — this
                     // client fetched its configuration over it — so TCP reaches the server
                     // and only UDP does not.
-                    Err(detail) => {
+                    Err(failure) => {
                         log::warn!(
-                            "no QUIC candidate carried a session ({detail}); using WebSocket"
+                            "no QUIC candidate carried a session ({}); using WebSocket",
+                            failure.detail()
                         );
                         self.transport_verdict.demote(server_fqdn);
                         Ok(websocket.await?)
@@ -319,12 +324,20 @@ impl NetworkStreamManager {
                     Ok(Ok((connection, winner))) => {
                         log::info!("QUIC overtook the WebSocket transport; using QUIC");
                         self.adopt_quic(connection, winner, server_url, ca_cert)
+                            .map_err(|detail| ConnectFailure::Unreachable { detail })
                     }
+                    // The WebSocket link already connected, and it is dropped rather than used.
+                    // Its handshake and QUIC's disagree about a certificate they both validate
+                    // against the same CA, and a session built on that disagreement hides the
+                    // fault for its whole length. The credential probe at the command boundary
+                    // decides what it means.
+                    Ok(Err(failure)) if failure.is_certificate() => Err(failure),
                     // QUIC failed outright while an alternative was already in hand. That
                     // is evidence, so it is recorded for the rest of the run.
-                    Ok(Err(detail)) => {
+                    Ok(Err(failure)) => {
                         log::warn!(
-                            "no QUIC candidate carried a session ({detail}); using WebSocket"
+                            "no QUIC candidate carried a session ({}); using WebSocket",
+                            failure.detail()
                         );
                         self.transport_verdict.demote(server_fqdn);
                         Ok(link)
@@ -380,7 +393,7 @@ impl NetworkStreamManager {
         ca_cert: &str,
         cert: &str,
         key: &str,
-    ) -> Result<DatagramLink, String> {
+    ) -> Result<DatagramLink, ConnectFailure> {
         let authority = server_url
             .strip_prefix("https://")
             .or_else(|| server_url.strip_prefix("http://"))
@@ -391,7 +404,21 @@ impl NetworkStreamManager {
         log::info!("Connecting the WebSocket voice transport to {url}");
         let link = link::WsLink::connect(&url, ca_cert, cert, key)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                // A rejected certificate is the same fault whichever transport reports it. A
+                // client whose UDP is blocked only ever reaches this path, and classifying it
+                // as unreachable would mean stale credentials could never be discovered there.
+                if crate::network::CredentialFault::in_tls_chain(&e) {
+                    log::error!("the WebSocket voice transport rejected a certificate: {e}");
+                    ConnectFailure::Certificate {
+                        detail: e.to_string(),
+                    }
+                } else {
+                    ConnectFailure::Unreachable {
+                        detail: e.to_string(),
+                    }
+                }
+            })?;
         log::info!("WebSocket voice transport connected");
 
         // The family is deliberately absent: the TLS dialler picks it, and reporting a
@@ -512,7 +539,7 @@ impl NetworkStreamManager {
         plan: &CandidatePlan,
         server_fqdn: &str,
         outcome: &mut ConnectOutcome,
-    ) -> Result<(Connection, ConnectCandidate), Box<dyn Error>> {
+    ) -> Result<(Connection, ConnectCandidate), ConnectFailure> {
         let mut last_error: Option<String> = None;
 
         for candidate in plan.candidates() {
@@ -530,13 +557,28 @@ impl NetworkStreamManager {
                     return Ok((connection, *candidate));
                 }
                 Ok(Err(e)) => {
+                    outcome.record(*candidate, AttemptResult::Rejected);
+
+                    // Every remaining candidate presents the same chain to the same trust roots.
+                    // Walking them spends a full handshake budget per port and family on the
+                    // player's clock to rediscover the answer this candidate already gave.
+                    if crate::network::CredentialFault::in_connection(&e) {
+                        log::error!(
+                            "QUIC handshake on {} rejected the certificate: {}",
+                            candidate.dial(),
+                            e
+                        );
+                        return Err(ConnectFailure::Certificate {
+                            detail: e.to_string(),
+                        });
+                    }
+
                     log::warn!(
                         "QUIC handshake rejected on {} ({:?}): {}",
                         candidate.dial(),
                         candidate.family(),
                         e
                     );
-                    outcome.record(*candidate, AttemptResult::Rejected);
                     last_error = Some(e.to_string());
                 }
                 Err(_) => {
@@ -552,9 +594,10 @@ impl NetworkStreamManager {
             }
         }
 
-        Err(last_error
-            .unwrap_or_else(|| "no candidate QUIC endpoints were available".to_string())
-            .into())
+        Err(ConnectFailure::Unreachable {
+            detail: last_error
+                .unwrap_or_else(|| "no candidate QUIC endpoints were available".to_string()),
+        })
     }
 
     pub async fn stop(&mut self) -> Result<(), anyhow::Error> {

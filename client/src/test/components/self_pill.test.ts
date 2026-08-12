@@ -14,6 +14,7 @@ function snapshot(mode: VoiceMode, over: Partial<SelfSnapshot> = {}): SelfSnapsh
         holding: false,
         transmitting: mode === "activated",
         recordAllowed: true,
+        captureAvailable: true,
         ...over,
     };
 }
@@ -158,5 +159,26 @@ describe("SelfPill record button", () => {
         record.click();
 
         expect(onrecord).not.toHaveBeenCalled();
+    });
+});
+
+describe("SelfPill when the microphone cannot be opened", () => {
+    // A muted glyph would say the user did this. They did not, and pressing the button they
+    // would reach for cannot fix it.
+    it("draws the mic as unavailable and refuses the toggle", () => {
+        const view = mount(snapshot("activated", { captureAvailable: false }));
+
+        expect(view.mic.getAttribute("aria-label")).toBe("Microphone unavailable");
+        expect(view.mic.hasAttribute("disabled")).toBe(true);
+
+        view.mic.click();
+        expect(view.onmute).not.toHaveBeenCalled();
+    });
+
+    it("is unaffected while capture is available", () => {
+        const view = mount(snapshot("activated"));
+
+        expect(view.mic.getAttribute("aria-label")).toBe("Mute");
+        expect(view.mic.hasAttribute("disabled")).toBe(false);
     });
 });

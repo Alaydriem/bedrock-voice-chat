@@ -11,6 +11,8 @@ export interface SelfSnapshot {
   transmitting: boolean;
   /** Whether the connected server permits arming a recording. */
   recordAllowed: boolean;
+  /** False when the capture device could not be opened. Not a mute: the user did not do it. */
+  captureAvailable: boolean;
 }
 
 /**
@@ -36,6 +38,7 @@ export class SelfState {
   #deafened = false;
   #recording = false;
   #recordAllowed = true;
+  #captureAvailable = true;
   #mode: VoiceMode = "activated";
   #holding = false;
   #recordStartedAt = 0;
@@ -50,6 +53,7 @@ export class SelfState {
       holding: this.#holding,
       transmitting: this.transmitting,
       recordAllowed: this.#recordAllowed,
+      captureAvailable: this.#captureAvailable,
     };
   }
 
@@ -130,7 +134,10 @@ export class SelfState {
    */
   sync(
     state: Partial<
-      Pick<SelfSnapshot, "muted" | "deafened" | "recording" | "mode" | "recordAllowed">
+      Pick<
+        SelfSnapshot,
+        "muted" | "deafened" | "recording" | "mode" | "recordAllowed" | "captureAvailable"
+      >
     >,
     now = 0,
   ): void {
@@ -138,6 +145,7 @@ export class SelfState {
     if (state.deafened !== undefined) this.#deafened = state.deafened;
     if (state.mode !== undefined) this.#mode = state.mode;
     if (state.recordAllowed !== undefined) this.#recordAllowed = state.recordAllowed;
+    if (state.captureAvailable !== undefined) this.#captureAvailable = state.captureAvailable;
     if (state.recording !== undefined && state.recording !== this.#recording) {
       this.#recording = state.recording;
       if (state.recording) this.#recordStartedAt = now;
@@ -150,6 +158,7 @@ export class SelfState {
     this.#deafened = false;
     this.#recording = false;
     this.#recordAllowed = true;
+    this.#captureAvailable = true;
     this.#mode = "activated";
     this.#holding = false;
     this.#emit();

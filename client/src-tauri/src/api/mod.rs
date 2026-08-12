@@ -8,12 +8,14 @@ use log::{error, warn};
 mod channel;
 mod circuit_breaker;
 mod client;
+mod credential_verdict;
 mod fetch_cache;
 mod gamerpic;
 
 pub use fetch_cache::FetchCache;
 
 pub(crate) use circuit_breaker::EndpointBreaker;
+pub(crate) use credential_verdict::CredentialVerdict;
 
 use common::reqwest::{
     Client as ReqwestClient, StatusCode,

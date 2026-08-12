@@ -155,25 +155,18 @@ export default class BVCApp {
     }
 
     /**
-     * Synchronously register the audio recovery listener
-     * This handler deals with audio device disconnect events to gracefully restart just the audio device if
-     * is disconnected or fails unexpectedly.
+     * Observe audio device failures for the log.
+     *
+     * The rebuild itself is the backend's. Recovery driven from here was unavailable in the
+     * conditions that needed it most — a webview that had not finished loading, or had been
+     * torn down — and while both sides did it, one device error rebuilt the stream twice. The
+     * backend also bounds its attempts, which this listener could not: it invoked
+     * `restart_audio_stream` every 500 ms for as long as the device kept refusing to open.
      */
     private setupAudioRecoveryListener(): void {
-        listen<AudioStreamRecoveryPayload>('audio-stream-recovery', async (event) => {
+        listen<AudioStreamRecoveryPayload>('audio-stream-recovery', (event) => {
             const { device_type, error: streamError } = event.payload;
             warn(`BVCApp: Audio stream error on ${device_type}: ${streamError}`);
-
-            // Brief delay before restart attempt to allow device state to settle
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            try {
-                info(`BVCApp: Attempting to restart ${device_type} stream...`);
-                await invoke('restart_audio_stream', { device: device_type });
-                info(`BVCApp: ${device_type} recovered successfully`);
-            } catch (e) {
-                logError(`BVCApp: Audio recovery failed for ${device_type}: ${e}`);
-            }
         }).then((unlisten) => {
             this.audioRecoveryUnlisten = unlisten;
             info('BVCApp: audio-stream-recovery listener registered');

@@ -98,6 +98,11 @@ export class SelfController {
                     // to leave the button wrong for the rest of the session.
                     recording: backend.recording,
                     recordAllowed: backend.recordingAllowed,
+                    // Read rather than awaited, for the same reason as everything above it. A
+                    // capture device that could not be opened stays unopened, so the state has
+                    // to survive a reload of this window rather than depend on having been
+                    // present for the event.
+                    captureAvailable: backend.captureAvailable,
                 },
                 performance.now(),
             );

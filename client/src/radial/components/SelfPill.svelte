@@ -30,6 +30,11 @@
      * for the same reason as `identityLabel`.
      */
     recordBlockedLabel?: string;
+    /**
+     * Why the microphone is unavailable, shown as its tooltip. Defaults to English for the
+     * same reason as `identityLabel`.
+     */
+    captureBlockedLabel?: string;
     /** Renders the phone capsule instead of the desktop pill. */
     capsule?: boolean;
   }
@@ -48,6 +53,7 @@
     onidentity,
     identityLabel = "Profile and sign-out",
     recordBlockedLabel = "Recording is off on this server",
+    captureBlockedLabel = "Your microphone could not be opened",
     capsule = false,
   }: Props = $props();
 
@@ -84,22 +90,27 @@
     class="rad-self__btn {capsule ? 'rad-self__btn--primary' : ''}"
     class:is-holding={ptt && state.holding}
     class:is-ptt={ptt}
+    class:is-unavailable={!state.captureAvailable}
     type="button"
+    disabled={!state.captureAvailable}
+    title={state.captureAvailable ? undefined : captureBlockedLabel}
     aria-pressed={state.muted}
-    aria-label={ptt
-      ? state.holding
-        ? "Talking, release to stop"
-        : "Muted. Hold to talk"
-      : state.muted
-        ? "Unmute"
-        : "Mute"}
+    aria-label={!state.captureAvailable
+      ? "Microphone unavailable"
+      : ptt
+        ? state.holding
+          ? "Talking, release to stop"
+          : "Muted. Hold to talk"
+        : state.muted
+          ? "Unmute"
+          : "Mute"}
     onclick={(e) => !ptt && onmute?.(e)}
     onpointerdown={() => ptt && onhold?.(true)}
     onpointerup={() => ptt && onhold?.(false)}
     onpointerleave={() => ptt && onhold?.(false)}
     onpointercancel={() => ptt && onhold?.(false)}
   >
-    <Icon name={closed ? "micoff" : "mic"} />
+    <Icon name={state.captureAvailable && !closed ? "mic" : "micoff"} />
   </button>
 
   <button

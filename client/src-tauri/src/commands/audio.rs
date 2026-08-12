@@ -152,6 +152,12 @@ pub(crate) async fn change_audio_device(
         }
     }
 
+    // A device written off as unopenable gets a fresh budget here. This is the one place the
+    // user changes what the streams are built from, so it is the only evidence that a device
+    // which refused to open might now succeed. Nothing clears an open breaker on a timer.
+    asm_active.rearm_rebuilds(AudioDeviceType::InputDevice);
+    asm_active.rearm_rebuilds(AudioDeviceType::OutputDevice);
+
     drop(asm_active);
     let _ = update_current_player(app.clone(), asm.clone()).await;
 
