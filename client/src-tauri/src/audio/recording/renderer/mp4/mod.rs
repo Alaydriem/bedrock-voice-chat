@@ -216,6 +216,29 @@ impl AudioRenderer for Mp4Renderer {
             .ok_or_else(|| anyhow::anyhow!("No audio data for player: {}", player_name))?
             .clone();
 
+        self.mux(stream, info, output_path)
+    }
+
+    fn file_extension(&self) -> &str {
+        "m4a"
+    }
+}
+
+impl Mp4Renderer {
+    /// Mux already-encoded Opus packets into the file.
+    ///
+    /// Separate from `render` because a track can arrive as packets lifted straight out of
+    /// the WAL or as packets encoded here from mixed audio, and everything after that point
+    /// is the same file being written.
+    pub(crate) fn mux<I>(
+        &mut self,
+        chunks: I,
+        info: OpusStreamInfo,
+        output_path: &Path,
+    ) -> Result<(), anyhow::Error>
+    where
+        I: IntoIterator<Item = Result<OpusChunk, anyhow::Error>>,
+    {
         // Create muxer
         let mut muxer = Mp4FileMuxer::new()?;
 
@@ -235,7 +258,7 @@ impl AudioRenderer for Mp4Renderer {
         let mut total_samples: u64 = 0;
 
         // Process all packets
-        for chunk in stream {
+        for chunk in chunks {
             match chunk? {
                 OpusChunk::Packet {
                     data,
@@ -358,10 +381,6 @@ impl AudioRenderer for Mp4Renderer {
         file.write_all(&timecode_sample.to_vec())?;
 
         Ok(())
-    }
-
-    fn file_extension(&self) -> &str {
-        "m4a"
     }
 }
 

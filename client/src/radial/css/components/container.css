@@ -625,17 +625,21 @@
     max-width: none;
   }
 
+  /*
+    Every value in this list is short — a version number, a protocol number, a short sha.
+    The pair fits one line at phone width, so the label column sizes to its text instead of
+    dropping the value onto a second line and doubling the height of the card.
+  */
   .rad-deflist {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
   }
 
   .rad-deflist dt {
-    padding-bottom: 0;
-    border-bottom: 0;
+    white-space: nowrap;
   }
 
   .rad-deflist dd {
-    padding-top: 5px;
+    padding-left: 0;
   }
 
   .rad-kv-grid {

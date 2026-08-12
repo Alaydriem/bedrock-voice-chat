@@ -14,6 +14,7 @@ use common::bedrock_protocol::{
     protocol::types::generated::{AuthorAndMessage, TextPacketBody, TextPacketType},
     proxy::{WarmPool, WarmTarget},
 };
+use common::structs::bedrock::AddonTransport;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use common::traits::StreamTrait;
 use log::{debug, error, info, warn};
@@ -44,6 +45,7 @@ pub struct BedrockProxyManager {
     listen_port: u16,
     backend: Option<Backend>,
     advertised_version: AdvertisedVersion,
+    addon_transport: AddonTransport,
     deps: ProxyDeps,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
@@ -58,6 +60,7 @@ impl BedrockProxyManager {
         listen_port: u16,
         auth_manager: Arc<AuthManager>,
         advertised_version: AdvertisedVersion,
+        addon_transport: AddonTransport,
         deps: ProxyDeps,
     ) -> Self {
         Self {
@@ -68,6 +71,7 @@ impl BedrockProxyManager {
                 auth_manager,
             }),
             advertised_version,
+            addon_transport,
             deps,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
@@ -92,6 +96,9 @@ impl BedrockProxyManager {
             listen_port,
             backend: Some(Backend::Realm { realm_config, auth }),
             advertised_version,
+            // A Realm never has an HTTP addon channel, so its proxy always
+            // carries state in-band.
+            addon_transport: AddonTransport::NoNet,
             deps,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
@@ -175,6 +182,7 @@ impl BedrockProxyManager {
         let query_state_injector = Arc::clone(&self.deps.query_state_injector);
         let state_bus = self.deps.state_bus.clone();
         let advertised_version = self.advertised_version.clone();
+        let addon_transport = self.addon_transport;
 
         let handle = tokio::spawn(async move {
             let bind_addr: SocketAddr = match format!("0.0.0.0:{}", listen_port).parse() {
@@ -309,7 +317,14 @@ impl BedrockProxyManager {
             let mut child_handles: Vec<JoinHandle<()>> = vec![];
             let (child_cancel_tx, _) = watch::channel(false);
 
-            {
+            // On a net world the addon posts every player's position over HTTP,
+            // so this feed would write the same cache key from a second source —
+            // one whose entry carries no world uuid, making that field flap.
+            if addon_transport.suppresses_position_feed() {
+                info!(
+                    "Bedrock: position heartbeat disabled; the addon feeds this world over HTTP"
+                );
+            } else {
                 let emitter = Arc::clone(&event_emitter);
                 let heartbeat_cache = Arc::clone(&player_state_cache);
                 let mut heartbeat_cancel_rx = child_cancel_tx.subscribe();
@@ -375,7 +390,8 @@ impl BedrockProxyManager {
                         };
                         let connect_data = AnalyticsEventData::new()
                             .insert("protocol", peer_protocol.0 as i64)
-                            .insert("backend", backend_label);
+                            .insert("backend", backend_label)
+                            .insert("addon_transport", format!("{:?}", addon_transport));
                         gating
                             .analytics()
                             .track(AnalyticsEvent::BedrockConnected, Some(connect_data));
@@ -505,30 +521,51 @@ impl BedrockProxyManager {
                                     }
                                     eject = child_eject_rx.recv_async() => {
                                         if let Ok(eject) = eject {
-                                            Self::dispatch_jukebox_eject(
-                                                &session,
-                                                &state,
-                                                &child_player_name,
-                                                eject,
-                                            );
+                                            if addon_transport.suppresses_in_band_rides() {
+                                                debug!(
+                                                    "Bedrock: dropping jukebox eject for {}; the addon receives it over HTTP",
+                                                    child_player_name
+                                                );
+                                            } else {
+                                                Self::dispatch_jukebox_eject(
+                                                    &session,
+                                                    &state,
+                                                    &child_player_name,
+                                                    eject,
+                                                );
+                                            }
                                         }
                                     }
                                     inject = child_presence_rx.recv_async() => {
                                         if let Ok(inject) = inject {
-                                            Self::inject_presence(
-                                                &session,
-                                                &child_player_name,
-                                                inject,
-                                            );
+                                            if addon_transport.suppresses_in_band_rides() {
+                                                debug!(
+                                                    "Bedrock: dropping presence ride for {}; the addon cancels it before any peer sees it",
+                                                    child_player_name
+                                                );
+                                            } else {
+                                                Self::inject_presence(
+                                                    &session,
+                                                    &child_player_name,
+                                                    inject,
+                                                );
+                                            }
                                         }
                                     }
                                     inject = child_announce_rx.recv_async() => {
                                         if let Ok(inject) = inject {
-                                            Self::inject_announce(
-                                                &session,
-                                                &child_player_name,
-                                                inject,
-                                            );
+                                            if addon_transport.suppresses_in_band_rides() {
+                                                debug!(
+                                                    "Bedrock: dropping announce ride for {}; the addon cancels it before any peer sees it",
+                                                    child_player_name
+                                                );
+                                            } else {
+                                                Self::inject_announce(
+                                                    &session,
+                                                    &child_player_name,
+                                                    inject,
+                                                );
+                                            }
                                         }
                                     }
                                     send = child_chat_send_rx.recv_async() => {
@@ -546,7 +583,9 @@ impl BedrockProxyManager {
                                         // rides instead of broadcasting the player's audio
                                         // state to the whole server.
                                         if let Ok(ride) = ride {
-                                            if state.bvcs_armed() {
+                                            if state.bvcs_armed()
+                                                && !addon_transport.suppresses_in_band_rides()
+                                            {
                                                 Self::inject_bvcs(
                                                     &session,
                                                     &child_player_name,
@@ -561,7 +600,8 @@ impl BedrockProxyManager {
                             let mut disconnect_data = AnalyticsEventData::new()
                                 .insert("reason", disconnect_reason)
                                 .insert("protocol", peer_protocol.0 as i64)
-                                .insert("backend", backend_label);
+                                .insert("backend", backend_label)
+                                .insert("addon_transport", format!("{:?}", addon_transport));
                             if let Some(detail) = disconnect_detail {
                                 disconnect_data = disconnect_data.insert("detail", detail);
                             }
@@ -1056,6 +1096,7 @@ mod tests {
             port,
             Arc::clone(&auth_mgr),
             AdvertisedVersion::Auto,
+            AddonTransport::NoNet,
             build_deps(),
         );
 
@@ -1087,6 +1128,7 @@ mod tests {
             port,
             auth_mgr,
             AdvertisedVersion::Auto,
+            AddonTransport::NoNet,
             build_deps(),
         );
         mgr2.start().await.expect("second start on same port");

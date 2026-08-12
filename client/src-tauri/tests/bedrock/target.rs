@@ -10,6 +10,7 @@ fn saved(id: &str, name: &str, host: &str, port: u16) -> SavedProxyEntry {
         host: host.to_string(),
         port,
         protocol_version: None,
+        addon_transport: None,
     }
 }
 

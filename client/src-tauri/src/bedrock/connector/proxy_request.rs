@@ -11,4 +11,7 @@ pub struct ProxyConnectRequest {
     pub network_interface: Option<String>,
     /// Raw Bedrock protocol version to advertise. `None` mirrors the real backend.
     pub advertised_protocol: Option<u32>,
+    /// Declared addon transport for this target. `None` resolves from the advertised
+    /// list, then defaults to no-net.
+    pub addon_transport: Option<common::structs::bedrock::AddonTransport>,
 }

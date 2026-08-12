@@ -9,7 +9,7 @@ use common::consts::bedrock::{
     BEDROCK_KEYRING_KEY_REFRESH_TOKEN, BEDROCK_KEYRING_KEY_XUID, XBOX_CLIENT_ID,
 };
 use common::structs::bedrock::{
-    BedrockStatus, NetworkInterface, ProtocolVersionOption, RealmEntry,
+    AddonTransport, BedrockStatus, NetworkInterface, ProtocolVersionOption, RealmEntry,
 };
 use common::traits::StreamTrait;
 
@@ -27,6 +27,7 @@ pub(crate) async fn bedrock_start_proxy(
     listen_port: Option<u16>,
     network_interface: String,
     advertised_protocol: Option<u32>,
+    addon_transport: Option<AddonTransport>,
 ) -> Result<(), String> {
     BedrockConnector::new(app_handle)
         .start_proxy(ProxyConnectRequest {
@@ -35,6 +36,7 @@ pub(crate) async fn bedrock_start_proxy(
             listen_port,
             network_interface: Some(network_interface),
             advertised_protocol,
+            addon_transport,
         })
         .await
         .map_err(|e| e.to_string())

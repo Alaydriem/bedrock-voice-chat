@@ -144,7 +144,6 @@
 
         <SettingRow
             label={I18n.t("Display language")}
-            note={I18n.t("Untranslated text stays in English.")}
         >
             {#snippet control()}
                 <select

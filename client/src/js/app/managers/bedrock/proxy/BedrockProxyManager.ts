@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Store } from '@tauri-apps/plugin-store';
 import { info, error as logError } from '@tauri-apps/plugin-log';
 import type { NetworkInterface } from '../../../../bindings/NetworkInterface';
+import type { AddonTransport } from '../../../../bindings/AddonTransport';
 import type { ProtocolVersionOption } from '../../../../bindings/ProtocolVersionOption';
 import type { ProxyServerEntry } from '../ProxyServerEntry';
 import type { BedrockProxyManagerCallbacks } from './BedrockProxyManagerCallbacks';
@@ -171,7 +172,10 @@ export class BedrockProxyManager {
         }
     }
 
-    async startProxy(advertisedProtocol?: number | null): Promise<void> {
+    async startProxy(
+        advertisedProtocol?: number | null,
+        addonTransport?: AddonTransport | null,
+    ): Promise<void> {
         this.isProxyLoadingStore.set(true);
         try {
             try {
@@ -187,6 +191,7 @@ export class BedrockProxyManager {
                 listenPort: get(this.listenPortStore),
                 networkInterface: get(this.selectedInterfaceStore),
                 advertisedProtocol: advertisedProtocol ?? null,
+                addonTransport: addonTransport ?? null,
             });
             this.proxyRunningStore.set(true);
             info(`Bedrock proxy started: ${targetHost}:${targetPort}`);
@@ -282,7 +287,7 @@ export class BedrockProxyManager {
         this.serverHostStore.set(entry.host);
         this.serverPortStore.set(entry.port);
         this.activeProxyIdStore.set(entry.id);
-        await this.startProxy(entry.protocolVersion ?? null);
+        await this.startProxy(entry.protocolVersion ?? null, entry.addonTransport ?? null);
         if (!get(this.proxyRunningStore)) {
             this.activeProxyIdStore.set(null);
         }

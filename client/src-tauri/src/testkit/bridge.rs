@@ -19,6 +19,10 @@ pub enum InMsg {
         upstream_host: String,
         upstream_port: u16,
         listen_port: u16,
+        // Absent resolves the same way a real connect does, which is what every
+        // scenario written before this field wanted.
+        #[serde(default)]
+        addon_transport: Option<common::structs::bedrock::AddonTransport>,
     },
     InjectPresence {
         token: String,

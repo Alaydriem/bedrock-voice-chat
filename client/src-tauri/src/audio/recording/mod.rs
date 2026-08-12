@@ -1,6 +1,10 @@
+pub mod export_run;
 mod manager;
 mod manifest_store;
+pub mod participants;
 pub mod renderer;
+pub mod track_index;
+pub mod wal_key;
 
 use common::structs::recording::{
     InputRecordingHeader, OutputRecordingHeader, RecordingHeader, RecordingPlayerData,
@@ -10,7 +14,6 @@ use common::structs::recording::{
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
     path::PathBuf,
     sync::{
         Arc,
@@ -23,8 +26,12 @@ use tokio::sync::oneshot;
 use tokio::task::AbortHandle;
 use uuid::{NoContext, Timestamp, Uuid};
 
+pub use export_run::{ExportRun, TrackSink};
 pub use manager::RecordingManager;
 pub use manifest_store::ManifestStore;
+pub use participants::ParticipantIndex;
+pub use track_index::TrackIndex;
+pub use wal_key::WalKey;
 
 pub type RecordingProducer = flume::Sender<RawRecordingData>;
 pub type RecordingConsumer = flume::Receiver<RawRecordingData>;
@@ -148,8 +155,7 @@ impl Recorder {
             }
 
             let mut batch_buffer: Vec<(String, RawRecordingData)> = Vec::new();
-            let mut participants = HashSet::new();
-            let mut jukebox_participants = HashSet::new();
+            let mut participants = ParticipantIndex::new();
             let mut manifest_dirty = false;
 
             loop {
@@ -161,14 +167,10 @@ impl Recorder {
                         match &mut raw_data {
                             RawRecordingData::InputData {
                                 absolute_timestamp_ms,
+                                emitter,
                                 ..
-                            } => {
-                                if let Some(abs_ts) = absolute_timestamp_ms {
-                                    *absolute_timestamp_ms =
-                                        Some(abs_ts.saturating_sub(session_start_timestamp));
-                                }
                             }
-                            RawRecordingData::OutputData {
+                            | RawRecordingData::OutputData {
                                 absolute_timestamp_ms,
                                 emitter,
                                 ..
@@ -177,15 +179,7 @@ impl Recorder {
                                     *absolute_timestamp_ms =
                                         Some(abs_ts.saturating_sub(session_start_timestamp));
                                 }
-                                let target = if emitter
-                                    .name
-                                    .starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX)
-                                {
-                                    &mut jukebox_participants
-                                } else {
-                                    &mut participants
-                                };
-                                if target.insert(emitter.name.clone()) {
+                                if participants.observe(&emitter.name) {
                                     manifest_dirty = true;
                                 }
                             }
@@ -210,23 +204,15 @@ impl Recorder {
                                 // Convert absolute timestamp to relative for WAL storage
                                 // First packet becomes timestamp 0, all others relative to that
                                 match &mut raw_data {
-                                    RawRecordingData::InputData { absolute_timestamp_ms, .. } => {
-                                        if let Some(abs_ts) = absolute_timestamp_ms {
-                                            *absolute_timestamp_ms = Some(abs_ts.saturating_sub(session_start_timestamp));
-                                        }
-                                    },
-                                    RawRecordingData::OutputData { absolute_timestamp_ms, emitter, .. } => {
+                                    RawRecordingData::InputData { absolute_timestamp_ms, emitter, .. }
+                                    | RawRecordingData::OutputData { absolute_timestamp_ms, emitter, .. } => {
                                         if let Some(abs_ts) = absolute_timestamp_ms {
                                             *absolute_timestamp_ms = Some(abs_ts.saturating_sub(session_start_timestamp));
                                         }
 
-                                        // Track participants and mark manifest as dirty if new participant
-                                        let target = if emitter.name.starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX) {
-                                            &mut jukebox_participants
-                                        } else {
-                                            &mut participants
-                                        };
-                                        if target.insert(emitter.name.clone()) {
+                                        // The manifest on disk falls behind the moment a name
+                                        // is heard that it does not carry.
+                                        if participants.observe(&emitter.name) {
                                             manifest_dirty = true;
                                         }
                                     }
@@ -253,8 +239,8 @@ impl Recorder {
 
                         // Write manifest if participants changed
                         if manifest_dirty {
-                            manifest.participants = participants.iter().cloned().collect();
-                            manifest.jukebox_participants = jukebox_participants.iter().cloned().collect();
+                            manifest.participants = participants.players();
+                            manifest.jukebox_participants = participants.jukebox();
                             if let Err(e) = Self::write_manifest(&recording_path, &manifest).await {
                                 error!("Failed to update manifest: {:?}", e);
                             } else {
@@ -290,8 +276,8 @@ impl Recorder {
 
             manifest.end_timestamp = Some(now);
             manifest.duration_ms = Some(now - manifest.start_timestamp);
-            manifest.participants = participants.into_iter().collect();
-            manifest.jukebox_participants = jukebox_participants.into_iter().collect();
+            manifest.participants = participants.players();
+            manifest.jukebox_participants = participants.jukebox();
 
             // Write final manifest
             if let Err(e) = Self::write_manifest(&recording_path, &manifest).await {

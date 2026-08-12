@@ -16,3 +16,8 @@ pub const LINK_DIAGNOSTICS: &str = "link_diagnostics";
 
 /// Everyone's voice activity, self and peers, in one message.
 pub const AUDIO_LEVELS: &str = "audio-levels";
+
+/// One message per finished track during an export. A person watching a gigabyte-sized
+/// session render needs to see it moving, and a run that reports only at the end looks
+/// stalled for as long as it takes.
+pub const RECORDING_EXPORT_PROGRESS: &str = "recording:export-progress";

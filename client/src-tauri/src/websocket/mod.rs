@@ -657,6 +657,9 @@ impl WebSocketManager {
                         listen_port: None,
                         network_interface: None,
                         advertised_protocol: *protocol_version,
+                        // Left unresolved so the advertised list decides: a
+                        // controller names a world, not how its addon reaches us.
+                        addon_transport: None,
                     })
                     .await?;
             }

@@ -95,6 +95,23 @@ fn compact_form_names_an_unrecognized_token_in_its_error() {
 }
 
 #[test]
+fn hcl_accepts_an_explicit_no_net_declaration() {
+    let hcl = r#"
+        enabled = true
+        servers = [
+            { name = "Aternos", host = "smp.aternos.me", addon_transport = "no_net" },
+        ]
+    "#;
+    let value: serde_json::Value = hcl::from_str(hcl).expect("parse hcl");
+    let config: BedrockConfig = serde_json::from_value(value).expect("deserialize bedrock config");
+
+    assert_eq!(
+        config.to_api().servers[0].addon_transport,
+        AddonTransport::NoNet
+    );
+}
+
+#[test]
 fn hcl_transport_reaches_the_api_view() {
     let hcl = r#"
         enabled = true

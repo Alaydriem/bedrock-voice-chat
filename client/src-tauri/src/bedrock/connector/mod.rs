@@ -21,7 +21,8 @@ use crate::analytics::AnalyticsService;
 use websocket_types::{ActiveConnection, ConnectTargetId, ConnectTargetKind, ConnectTargetSource};
 
 use crate::bedrock::{
-    AdvertisedVersionResolver, AnnounceInjector, BedrockChatChannel, BedrockConnectErrorChannel,
+    AddonTransportResolver, AdvertisedVersionResolver, AnnounceInjector, BedrockChatChannel,
+    BedrockConnectErrorChannel,
     BedrockEventEmitter, BedrockProxyManager, BedrockState, BedrockTargetService, ChatInjector,
     JukeboxBeaconCache, JukeboxEjectInjector, PresenceInjector, ProtocolGatingService, ProxyDeps,
 };
@@ -84,7 +85,47 @@ impl BedrockConnector {
             .map(|iface| iface.ip)
     }
 
+    /// The operator-curated list, read through the same cached `/api/config` the
+    /// connection hints already use.
+    ///
+    /// A failure is reported as an empty list rather than an error: it resolves the
+    /// session to no-net, which is the conservative direction — a world wrongly
+    /// treated as net loses voice features silently.
+    async fn advertised_servers(&self) -> Vec<common::response::ApiConfigBedrockServer> {
+        let app_state = self.app_handle.state::<Mutex<AppState>>();
+        let api = {
+            let app = app_state.lock().await;
+            app.api_client.clone()
+        };
+
+        let Some(api) = api else {
+            log::warn!("No API client; resolving the addon transport as no-net");
+            return vec![];
+        };
+
+        match api.get_config().await {
+            Ok(config) => config.bedrock.servers,
+            Err(e) => {
+                log::warn!(
+                    "Could not read the advertised server list; resolving as no-net: {}",
+                    e
+                );
+                vec![]
+            }
+        }
+    }
+
     pub async fn start_proxy(&self, request: ProxyConnectRequest) -> Result<(), anyhow::Error> {
+        // Resolved before the state lock: this reads the cached config over the
+        // network client, which must not happen with the BedrockState guard held.
+        let advertised = self.advertised_servers().await;
+        let addon_transport = AddonTransportResolver::proxy(
+            request.addon_transport,
+            &advertised,
+            &request.target_host,
+            request.target_port,
+        );
+
         let state = self.app_handle.state::<Mutex<BedrockState>>();
 
         let info = {
@@ -119,6 +160,7 @@ impl BedrockConnector {
                 effective_listen_port,
                 auth_manager,
                 advertised_version,
+                addon_transport,
                 deps,
             );
             proxy.start().await?;

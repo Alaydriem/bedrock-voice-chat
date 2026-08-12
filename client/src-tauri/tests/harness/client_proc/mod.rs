@@ -6,6 +6,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
+use common::structs::bedrock::AddonTransport;
 
 mod shared_state;
 mod transport;
@@ -483,6 +484,7 @@ impl ClientProc {
         upstream_host: &str,
         upstream_port: u16,
         listen_port: u16,
+        addon_transport: Option<AddonTransport>,
         timeout: Duration,
     ) -> Result<(), String> {
         self.state.lock().unwrap().proxy_listen = None;
@@ -490,6 +492,7 @@ impl ClientProc {
             upstream_host: upstream_host.to_string(),
             upstream_port,
             listen_port,
+            addon_transport,
         });
         let deadline = Instant::now() + timeout;
         loop {

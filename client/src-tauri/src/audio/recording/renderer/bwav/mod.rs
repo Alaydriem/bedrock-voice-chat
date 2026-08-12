@@ -1,3 +1,4 @@
+use crate::audio::recording::renderer::stream::mixed::MixedPcmTrack;
 use crate::audio::recording::renderer::{AudioRenderer, PcmChunk, PcmStream, SessionInfo};
 use async_trait::async_trait;
 use bwavfile::{Bext, WaveFmt, WaveWriter};
@@ -64,6 +65,37 @@ impl BwavRenderer {
                 "mono" // should always be mono?
             ),
         }
+    }
+
+    /// Write a track that arrived as one buffer rather than as a stream of WAL chunks.
+    ///
+    /// Mixed audio has no packets of its own to walk and no gaps left to fill — the
+    /// silence between its sources is already in the samples.
+    pub(crate) fn write_samples(
+        &self,
+        track: &MixedPcmTrack,
+        output_path: &Path,
+    ) -> Result<(), anyhow::Error> {
+        let format = if track.channels == 1 {
+            WaveFmt::new_pcm_mono(track.sample_rate, self.bits_per_sample)
+        } else {
+            WaveFmt::new_pcm_stereo(track.sample_rate, self.bits_per_sample)
+        };
+
+        let mut writer = WaveWriter::create(output_path, format)?;
+        let bext = self.create_bext(
+            &track.session_info,
+            "Jukebox",
+            track.sample_rate,
+            track.first_sound_ms,
+        );
+        writer.write_broadcast_metadata(&bext)?;
+
+        let mut frame_writer = writer.audio_frame_writer()?;
+        frame_writer.write_frames(&track.samples)?;
+        frame_writer.end()?;
+
+        Ok(())
     }
 }
 

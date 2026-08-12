@@ -249,6 +249,39 @@ impl FakeBedrockUpstream {
         }
     }
 
+    /// Every serverbound chat message `name`'s proxy session sends within
+    /// `window`, in arrival order.
+    ///
+    /// Collecting rather than matching is what lets a caller assert an absence:
+    /// `await_bvcs` answers "did this arrive", which cannot distinguish a ride
+    /// that was suppressed from one that was merely slow. This drains the whole
+    /// window every time, so an empty result means the window really was silent.
+    pub async fn drain_serverbound_chat(&mut self, name: &str, window: Duration) -> Vec<String> {
+        let version = self.version;
+        let deadline = tokio::time::Instant::now() + window;
+        let conn = self.conns.get_mut(name).expect("known player");
+        let mut seen = vec![];
+
+        loop {
+            let now = tokio::time::Instant::now();
+            if now >= deadline {
+                return seen;
+            }
+            match tokio::time::timeout(deadline - now, conn.recv_raw()).await {
+                Ok(Ok(subs)) => {
+                    for sub in subs {
+                        if let Some(m) = Self::chat_message_from_sub(version, sub) {
+                            seen.push(m);
+                        }
+                    }
+                }
+                // Timeout closes the window; a closed upstream ends it early with
+                // whatever was already observed.
+                _ => return seen,
+            }
+        }
+    }
+
     /// Build the PlaySound variant matching the negotiated peer version. The
     /// `versioned_codec_dispatch!` macro routes each version to its own codec, and
     /// a codec silently encodes a DEFAULT-ZERO packet (empty name) for any other

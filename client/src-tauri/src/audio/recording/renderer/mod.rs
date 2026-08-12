@@ -1,6 +1,11 @@
 mod bwav;
+pub mod mixer;
 pub mod mp4;
+pub mod naming;
 mod stream;
+
+pub use mixer::TrackMixer;
+pub use naming::ExportNaming;
 
 use async_trait::async_trait;
 use common::structs::AudioFormat;
@@ -13,6 +18,7 @@ use crate::audio::recording::renderer::{
     bwav::BwavRenderer,
     mp4::Mp4Renderer,
     stream::{
+        mixed::{MixedOpusStream, MixedPcmTrack},
         opus::{OpusChunk, OpusPacketStream, OpusStreamInfo},
         pcm::{PcmChunk, PcmStream},
     },
@@ -26,6 +32,15 @@ pub trait AudioFormatRenderer {
         &self,
         session_path: &Path,
         player_name: &str,
+        output_path: &Path,
+    ) -> Result<(), anyhow::Error>;
+
+    /// One output file from one or more WAL keys. A single key is the path everything
+    /// took before the jukebox needed several.
+    async fn render_track(
+        &self,
+        session_path: &Path,
+        keys: &[String],
         output_path: &Path,
     ) -> Result<(), anyhow::Error>;
 }
@@ -50,6 +65,33 @@ impl AudioFormatRenderer for AudioFormat {
                     .render(session_path, player_name, output_path)
                     .await
             }
+        }
+    }
+
+    async fn render_track(
+        &self,
+        session_path: &Path,
+        keys: &[String],
+        output_path: &Path,
+    ) -> Result<(), anyhow::Error> {
+        match keys {
+            [] => Err(anyhow::anyhow!(
+                "a track with no keys behind it has nothing to render"
+            )),
+            // The path everything took before the jukebox needed several, kept whole so
+            // the common case does not pay a decode and a re-encode for the rare one.
+            [single] => self.render(session_path, single, output_path).await,
+            many => match self {
+                AudioFormat::Bwav => {
+                    let mixed = MixedPcmTrack::new(session_path, many)?;
+                    BwavRenderer::new().write_samples(&mixed, output_path)
+                }
+                AudioFormat::Mp4Opus => {
+                    let stream = MixedOpusStream::new(session_path, many)?;
+                    let info = stream.info().clone();
+                    Mp4Renderer::new().mux(stream, info, output_path)
+                }
+            },
         }
     }
 }
@@ -257,15 +299,6 @@ impl WalAudioReader {
         self.entries.len()
     }
 
-    /// Sanitize a WAL key the same way nano_wal does internally.
-    /// Keeps only alphanumeric, underscore, and hyphen characters, truncated to 20 chars.
-    fn sanitize_wal_key(key: &str) -> String {
-        key.chars()
-            .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
-            .take(20)
-            .collect()
-    }
-
     /// Read WAL entries with headers by parsing segment files directly
     fn read_entries_with_headers(
         wal_path: &Path,
@@ -276,16 +309,13 @@ impl WalAudioReader {
         const MAX_CONTENT_SIZE: usize = 50 * 1024;
         let mut entries = Vec::new();
 
-        let sanitized_name = Self::sanitize_wal_key(player_name);
-
-        // Find all segment files for this player (files are named: SanitizedName-hash-sequence.log)
         debug!("Reading directory: {:?}", wal_path);
         let dir_entries = fs::read_dir(wal_path)?;
         let mut segment_files = Vec::new();
 
         for entry in dir_entries.flatten() {
             if let Some(filename) = entry.file_name().to_str() {
-                if filename.starts_with(&sanitized_name) && filename.ends_with(".log") {
+                if crate::audio::recording::WalKey::matches(filename, player_name) {
                     segment_files.push(entry.path());
                 }
             }

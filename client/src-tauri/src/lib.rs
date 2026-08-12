@@ -299,6 +299,7 @@ pub fn run() {
             crate::commands::players::player_settings_touch,
             crate::commands::players::player_settings_publish,
             crate::commands::recordings::get_recording_sessions,
+            crate::commands::recordings::get_recording_tracks,
             crate::commands::recordings::delete_recording_session,
             crate::commands::recordings::rename_recording_session,
             crate::commands::recordings::export_recording,

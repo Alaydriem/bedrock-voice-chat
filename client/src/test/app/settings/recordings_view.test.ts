@@ -75,8 +75,10 @@ describe("RecordingsView.row", () => {
         expect(RecordingsView.row(session({ name: "   " })).unnamed).toBe(true);
     });
 
-    it("counts a track per participant", () => {
-        expect(RecordingsView.row(session()).tracks).toBe(3);
+    // The participant list is who was heard, which is not the same as what can be
+    // exported: it never named you, and it never named the jukebox.
+    it("counts the people the session heard", () => {
+        expect(RecordingsView.row(session()).players).toBe(3);
     });
 
     // Sorting on the label would order 1 February above 9 January.

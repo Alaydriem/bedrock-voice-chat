@@ -82,6 +82,7 @@ export class BedrockCapabilityManager {
                     host: s.host,
                     port: s.port,
                     ...(s.protocol_version != null ? { protocolVersion: s.protocol_version } : {}),
+                    addonTransport: s.addon_transport,
                     source: 'server' as const,
                 })),
             );

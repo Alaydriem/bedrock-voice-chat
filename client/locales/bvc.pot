@@ -16,12 +16,24 @@ msgid_plural "{count} players are muted by you."
 msgstr[0] ""
 msgstr[1] ""
 
+#: src/js/app/settings/RecordingTracksView.ts:37
+msgid "{count} source{plural}"
+msgstr ""
+
+#: src/js/app/settings/RecordingTracksView.ts:46
+msgid "{count} track{plural} written"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsCopy.ts:91
 msgid "{percent}% of the worst speaker's audio had to be reconstructed. They will sound rough."
 msgstr ""
 
 #: src/components/dashboard/ChatComposer.svelte:47
 msgid "{reason} — that message was not sent"
+msgstr ""
+
+#: src/js/app/settings/RecordingTracksView.ts:51
+msgid "{written} of {total} written — {names} failed"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:51
@@ -160,6 +172,10 @@ msgstr ""
 msgid "Alerts"
 msgstr ""
 
+#: src/components/settings/RecordingDetail.svelte:89
+msgid "All"
+msgstr ""
+
 #: src/components/setup/MicrophoneScreen.svelte:69
 #: src/components/setup/MicrophoneScreen.svelte:76
 msgid "Allow microphone access"
@@ -178,10 +194,6 @@ msgstr ""
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:204
-msgid "An export is written beside the recording it came from, in that session's own folder. Nothing is uploaded —"
-msgstr ""
-
 #: src/js/app/error/FaultCatalog.ts:274
 msgid "An unexpected error occurred. Please try again or contact support if the problem persists."
 msgstr ""
@@ -190,7 +202,7 @@ msgstr ""
 msgid "Android and iOS both require a notification to let an app hold the microphone in the background. Without it your voice cuts out the moment BVC leaves the screen — which is every moment you are actually playing."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:170
+#: src/components/settings/panes/AboutPane.svelte:169
 msgid "Anonymous usage statistics and crash reports help us improve the app. No personal data is sent."
 msgstr ""
 
@@ -261,6 +273,10 @@ msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:283
 msgid "Back to Home"
+msgstr ""
+
+#: src/components/settings/RecordingDetail.svelte:53
+msgid "Back to recordings"
 msgstr ""
 
 #: src/components/login/CodeScreen.svelte:89
@@ -335,8 +351,7 @@ msgstr ""
 
 #: src/components/dashboard/GroupRow.svelte:276
 #: src/components/settings/panes/PlayersPane.svelte:340
-#: src/components/settings/panes/RecordingsPane.svelte:248
-#: src/components/settings/panes/RecordingsPane.svelte:276
+#: src/components/settings/panes/RecordingsPane.svelte:283
 #: src/components/settings/ProxyServerEditor.svelte:128
 #: src/components/settings/XboxSignIn.svelte:95
 #: src/routes/login/+page.svelte:275
@@ -387,7 +402,7 @@ msgstr ""
 msgid "Check again"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:220
+#: src/components/settings/panes/AboutPane.svelte:219
 msgid "Check for new features and entitlements"
 msgstr ""
 
@@ -587,7 +602,7 @@ msgstr ""
 msgid "Copy message →"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:187
+#: src/components/settings/panes/AboutPane.svelte:186
 msgid "Copy platform ID"
 msgstr ""
 
@@ -625,17 +640,17 @@ msgid "Cut my mic when I am not speaking"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:350
-#: src/components/settings/panes/RecordingsPane.svelte:293
+#: src/components/settings/panes/RecordingsPane.svelte:302
+#: src/components/settings/RecordingDetail.svelte:161
 msgid "Delete"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:250
 #: src/components/settings/panes/LibraryPane.svelte:296
-#: src/components/settings/panes/RecordingsPane.svelte:188
 msgid "Delete {name}"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:285
+#: src/components/settings/panes/RecordingsPane.svelte:294
 msgid "Delete this recording?"
 msgstr ""
 
@@ -664,7 +679,7 @@ msgstr ""
 msgid "Devices come next"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:166
+#: src/components/settings/panes/AboutPane.svelte:165
 msgid "Diagnostics and privacy"
 msgstr ""
 
@@ -733,10 +748,6 @@ msgstr ""
 msgid "Escape cancels, Delete clears it."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:104
-msgid "Every session is stored as one track per player, timecoded together. Export writes the mix and the tracks you pick into the session's own folder."
-msgstr ""
-
 #: src/components/login/IntroScreen.svelte:344
 msgid "Every voice lands on its own timecoded track, ready to drop straight into the edit — and the controls reach the desk beside your keyboard."
 msgstr ""
@@ -749,16 +760,24 @@ msgstr ""
 msgid "Everything looks fine."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:171
-msgid "Export {name}"
-msgstr ""
-
-#: src/components/settings/panes/RecordingsPane.svelte:213
-msgid "Export this recording"
+#: src/components/settings/RecordingDetail.svelte:180
+msgid "Export {count} track{plural}"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:352
 msgid "Export to WAV or MP4"
+msgstr ""
+
+#: src/components/settings/panes/RecordingsPane.svelte:175
+msgid "Export your sessions to disk to import into your DAW or video editor. Players are exported to their own timecode encoded audio track."
+msgstr ""
+
+#: src/components/settings/panes/RecordingsPane.svelte:243
+msgid "Exporting {index}/{total}"
+msgstr ""
+
+#: src/components/settings/RecordingDetail.svelte:179
+msgid "Exporting…"
 msgstr ""
 
 #: src/js/app/managers/settings/AccountManager.ts:121
@@ -785,7 +804,7 @@ msgstr ""
 msgid "Finish setup"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:204
+#: src/components/settings/panes/AboutPane.svelte:203
 msgid "For a bug report. Written to your Documents folder."
 msgstr ""
 
@@ -965,6 +984,10 @@ msgstr ""
 msgid "Is a BVC server already set up for"
 msgstr ""
 
+#: src/components/settings/RecordingDetail.svelte:73
+msgid "It is either still being written, or it was written by an older build whose format this version cannot read. It can still be renamed or deleted."
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:310
 msgid "It works with"
 msgstr ""
@@ -999,7 +1022,7 @@ msgid "Jukeboxes"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:348
-#: src/components/settings/panes/RecordingsPane.svelte:291
+#: src/components/settings/panes/RecordingsPane.svelte:300
 msgid "Keep it"
 msgstr ""
 
@@ -1025,7 +1048,7 @@ msgid "Leave"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:205
-#: src/components/settings/panes/RecordingsPane.svelte:142
+#: src/components/settings/panes/RecordingsPane.svelte:217
 msgid "Length"
 msgstr ""
 
@@ -1073,7 +1096,7 @@ msgstr ""
 msgid "Make sure your BVC server is running, and that your account has permission to use it."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:156
+#: src/components/settings/panes/AboutPane.svelte:155
 msgid "Match my system"
 msgstr ""
 
@@ -1105,8 +1128,8 @@ msgstr ""
 msgid "Minecraft Java"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:233
-#: src/components/settings/panes/RecordingsPane.svelte:241
+#: src/components/settings/RecordingDetail.svelte:135
+#: src/components/settings/RecordingDetail.svelte:146
 msgid "Mix in the spatial positions"
 msgstr ""
 
@@ -1242,8 +1265,16 @@ msgstr ""
 msgid "none"
 msgstr ""
 
+#: src/components/settings/RecordingDetail.svelte:97
+msgid "None"
+msgstr ""
+
 #: src/routes/uireview/+page.svelte:152
 msgid "Not available in a release build."
+msgstr ""
+
+#: src/components/settings/RecordingDetail.svelte:137
+msgid "Not built yet. Every track is written flat and centred, which is what you want anyway if you are going to mix it yourself."
 msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:32
@@ -1258,7 +1289,8 @@ msgstr ""
 msgid "Not connected to a server."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:158
+#: src/components/settings/panes/RecordingsPane.svelte:238
+#: src/components/settings/RecordingDetail.svelte:64
 msgid "Not exportable"
 msgstr ""
 
@@ -1374,12 +1406,16 @@ msgstr ""
 msgid "One quiet ongoing notification while you are in a session, plus people arriving and channels you are part of."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:264
+#: src/components/settings/panes/RecordingsPane.svelte:271
 msgid "Only the name changes. The recording and its tracks stay where they are."
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:157
 msgid "Only the server owner can fix this one"
+msgstr ""
+
+#: src/components/settings/panes/RecordingsPane.svelte:228
+msgid "Open {name}"
 msgstr ""
 
 #: src/js/app/managers/settings/AboutManager.ts:58
@@ -1439,19 +1475,11 @@ msgstr ""
 msgid "Persistent groups"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:214
-msgid "Pick who to include. Each player is written as their own track alongside the mix."
-msgstr ""
-
 #: src/components/setup/DevicesScreen.svelte:49
 msgid "Pick your microphone"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:235
-msgid "Places each voice where it was standing. Off writes every track flat and centred, which is what you want if you are going to mix it yourself."
-msgstr ""
-
-#: src/components/settings/panes/AboutPane.svelte:182
+#: src/components/settings/panes/AboutPane.svelte:181
 msgid "Platform ID"
 msgstr ""
 
@@ -1459,6 +1487,11 @@ msgstr ""
 msgid "Player presence event received with no payload"
 msgstr ""
 
+#: src/js/app/settings/RecordingTracksView.ts:13
+msgid "players"
+msgstr ""
+
+#: src/components/settings/panes/RecordingsPane.svelte:218
 #: src/js/app/settings/SettingsCatalogue.ts:29
 msgid "Players"
 msgstr ""
@@ -1613,7 +1646,7 @@ msgstr ""
 msgid "Record everyone."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:141
+#: src/components/settings/panes/RecordingsPane.svelte:216
 msgid "Recorded"
 msgstr ""
 
@@ -1621,7 +1654,7 @@ msgstr ""
 msgid "Recording is off on this server"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:271
+#: src/components/settings/panes/RecordingsPane.svelte:278
 msgid "Recording name"
 msgstr ""
 
@@ -1629,8 +1662,8 @@ msgstr ""
 msgid "Recordings"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:195
-#: src/components/settings/panes/AboutPane.svelte:231
+#: src/components/settings/panes/AboutPane.svelte:194
+#: src/components/settings/panes/AboutPane.svelte:230
 msgid "Refresh"
 msgstr ""
 
@@ -1654,16 +1687,20 @@ msgstr ""
 msgid "Remove {name}"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:277
+#: src/components/settings/panes/RecordingsPane.svelte:285
 msgid "Rename"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:181
-msgid "Rename {name}"
+#: src/components/settings/panes/RecordingsPane.svelte:270
+msgid "Rename this recording"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:263
-msgid "Rename this recording"
+#: src/components/settings/RecordingDetail.svelte:160
+msgid "Rename…"
+msgstr ""
+
+#: src/components/settings/RecordingDetail.svelte:165
+msgid "Rendering {track} — {index} of {total}"
 msgstr ""
 
 #: src/js/app/managers/settings/AboutManager.ts:57
@@ -1742,7 +1779,7 @@ msgstr ""
 msgid "Save"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:203
+#: src/components/settings/panes/AboutPane.svelte:202
 msgid "Save the logs to a file"
 msgstr ""
 
@@ -1764,8 +1801,8 @@ msgstr ""
 msgid "Send"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:169
-#: src/components/settings/panes/AboutPane.svelte:175
+#: src/components/settings/panes/AboutPane.svelte:168
+#: src/components/settings/panes/AboutPane.svelte:174
 msgid "Send anonymous usage and crash reports"
 msgstr ""
 
@@ -1824,7 +1861,7 @@ msgid "SERVICE STOPPED"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:260
-#: src/components/settings/panes/RecordingsPane.svelte:140
+#: src/components/settings/panes/RecordingsPane.svelte:215
 #: src/js/app/dashboard/DiagnosticsCopy.ts:24
 msgid "Session"
 msgstr ""
@@ -1916,7 +1953,7 @@ msgid "Signing in with the account you play on"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:206
-#: src/components/settings/panes/RecordingsPane.svelte:144
+#: src/components/settings/panes/RecordingsPane.svelte:219
 msgid "Size"
 msgstr ""
 
@@ -2048,7 +2085,11 @@ msgstr ""
 msgid "The device list is incomplete."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:113
+#: src/components/settings/panes/RecordingsPane.svelte:127
+msgid "The export could not run."
+msgstr ""
+
+#: src/components/settings/panes/RecordingsPane.svelte:186
 msgid "The operator has turned voice recording off, so the record button is unavailable while you are connected here."
 msgstr ""
 
@@ -2088,7 +2129,11 @@ msgstr ""
 msgid "This device answers on all of them. Use whichever your other device can reach."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:112
+#: src/components/settings/RecordingDetail.svelte:72
+msgid "This recording cannot be exported"
+msgstr ""
+
+#: src/components/settings/panes/RecordingsPane.svelte:185
 msgid "This server does not allow recording"
 msgstr ""
 
@@ -2116,7 +2161,7 @@ msgstr ""
 msgid "Toggle Recording"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:143
+#: src/components/settings/RecordingDetail.svelte:81
 msgid "Tracks"
 msgstr ""
 
@@ -2158,7 +2203,7 @@ msgstr ""
 msgid "UNEXPECTED"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:184
+#: src/components/settings/panes/AboutPane.svelte:183
 msgid "Uniquely identifies your build for experimental features + analytics."
 msgstr ""
 
@@ -2166,7 +2211,7 @@ msgstr ""
 msgid "Unknown"
 msgstr ""
 
-#: src/js/app/settings/RecordingsView.ts:34
+#: src/js/app/settings/RecordingsView.ts:33
 msgid "Unknown date"
 msgstr ""
 
@@ -2176,10 +2221,6 @@ msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:169
 msgid "UNRESOLVED"
-msgstr ""
-
-#: src/components/settings/panes/AboutPane.svelte:147
-msgid "Untranslated text stays in English."
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:238
@@ -2363,7 +2404,7 @@ msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:64
 #: src/components/login/NoServerScreen.svelte:92
-#: src/components/settings/panes/AboutPane.svelte:247
+#: src/components/settings/panes/AboutPane.svelte:246
 #: src/routes/error/+page.svelte:165
 #: src/routes/uireview/+page.svelte:377
 msgid "Wiki"
@@ -2379,6 +2420,10 @@ msgstr ""
 
 #: src/components/login/GateScreen.svelte:75
 msgid "Yes · I have an address"
+msgstr ""
+
+#: src/components/settings/RecordingDetail.svelte:120
+msgid "you"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:76

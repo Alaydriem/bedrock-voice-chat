@@ -79,21 +79,128 @@ describe("RecordingsPane", () => {
         await waitFor(() => expect(view.text()).toContain("Nether run"));
     });
 
-    // Still being written, or written by a build whose format this one cannot read.
-    // Either way it can be named and deleted, but exporting it would produce nothing.
-    it("refuses to export a session that is not exportable", async () => {
-        mockInvoke({ get_recording_sessions: () => [session({ exportable: false })] });
-        const view = mount(RecordingsPane);
-        await waitFor(() => expect(view.text()).toContain("Not exportable"));
-        expect(view.button("Export")?.disabled).toBe(true);
-        expect(view.button("Delete")?.disabled).toBeFalsy();
+    const track = (display: string, kind: string, keys: string[] = [`minecraft:${display}`]) => ({
+        keys,
+        display,
+        kind,
     });
 
-    it("offers the export on a finished session", async () => {
-        mockInvoke({ get_recording_sessions: () => [session()] });
+    /**
+     * Open the first session and wait for its tracks. The screen renders before the track
+     * list arrives, so waiting on the button alone races the fetch behind it.
+     */
+    async function openFirst(view: ReturnType<typeof mount>) {
+        await waitFor(() => expect(view.host.querySelector("tbody tr")).not.toBeNull());
+        view.host.querySelector<HTMLElement>("tbody tr")?.click();
+        await waitFor(() =>
+            expect(view.host.querySelector(".rad-tracklist .rad-checkbox")).not.toBeNull(),
+        );
+    }
+
+    const go = (view: ReturnType<typeof mount>) =>
+        view.host.querySelector<HTMLButtonElement>("[data-export-go]");
+
+    it("opens a session from its row and lists the tracks that session can write", async () => {
+        mockInvoke({
+            get_recording_sessions: () => [session()],
+            get_recording_tracks: () => [track("Alaydriem", "Own"), track("Petra", "Player")],
+        });
         const view = mount(RecordingsPane);
-        await waitFor(() => expect(view.button("Export")).not.toBeNull());
-        expect(view.button("Export")?.disabled).toBe(false);
+        await openFirst(view);
+
+        expect(view.text()).toContain("Petra");
+        expect(go(view)?.textContent).toContain("Export 2 tracks");
+    });
+
+    // The regression this replaces: your own voice was recorded and could never be picked.
+    it("offers your own voice as a track", async () => {
+        mockInvoke({
+            get_recording_sessions: () => [session()],
+            get_recording_tracks: () => [track("Alaydriem", "Own")],
+        });
+        const view = mount(RecordingsPane);
+        await openFirst(view);
+
+        expect(view.host.querySelector('[aria-label="Alaydriem"]')).not.toBeNull();
+    });
+
+    it("refuses to export when nothing is ticked", async () => {
+        mockInvoke({
+            get_recording_sessions: () => [session()],
+            get_recording_tracks: () => [track("Petra", "Player")],
+        });
+        const view = mount(RecordingsPane);
+        await openFirst(view);
+
+        view.host.querySelector<HTMLElement>("[data-track-none]")?.click();
+
+        await waitFor(() => expect(go(view)?.disabled).toBe(true));
+    });
+
+    it("sends the keys behind a track, not the name on the checkbox", async () => {
+        mockInvoke({
+            get_recording_sessions: () => [session()],
+            get_recording_tracks: () => [
+                track("Jukebox", "Jukebox", ["jukebox:rain", "jukebox:sting"]),
+            ],
+            export_recording: () => ({ written: ["Jukebox"], failed: [] }),
+        });
+        const view = mount(RecordingsPane);
+        await openFirst(view);
+
+        go(view)?.click();
+
+        await waitFor(() => {
+            const call = invokeCalls().find((c) => c.cmd === "export_recording");
+            expect(call?.args).toMatchObject({
+                tracks: [{ keys: ["jukebox:rain", "jukebox:sting"] }],
+            });
+        });
+    });
+
+    it("names the tracks that failed instead of reporting a clean export", async () => {
+        mockInvoke({
+            get_recording_sessions: () => [session()],
+            get_recording_tracks: () => [track("Alaydriem", "Own"), track("Petra", "Player")],
+            export_recording: () => ({
+                written: ["Alaydriem"],
+                failed: [{ track: "Petra", reason: "no such file" }],
+            }),
+        });
+        const view = mount(RecordingsPane);
+        await openFirst(view);
+
+        go(view)?.click();
+
+        await waitFor(() => expect(view.text()).toContain("Petra failed"));
+    });
+
+    // Still being written, or written by a build whose format this one cannot read.
+    // Either way it can be named and deleted, but exporting it would produce nothing.
+    it("says why a session cannot be exported rather than only disabling the button", async () => {
+        mockInvoke({
+            get_recording_sessions: () => [session({ exportable: false })],
+            get_recording_tracks: () => [track("Alaydriem", "Own")],
+        });
+        const view = mount(RecordingsPane);
+        await openFirst(view);
+
+        expect(view.text()).toContain("This recording cannot be exported");
+        expect(go(view)?.disabled).toBe(true);
+    });
+
+    it("goes back to the table without losing the list", async () => {
+        mockInvoke({
+            get_recording_sessions: () => [session({ name: "Nether run" })],
+            get_recording_tracks: () => [track("Alaydriem", "Own")],
+        });
+        const view = mount(RecordingsPane);
+        await openFirst(view);
+
+        view.host.querySelector<HTMLElement>("[data-rec-back]")?.click();
+
+        await waitFor(() => expect(view.text()).toContain("Nether run"));
+        expect(view.host.querySelector("tbody tr")).not.toBeNull();
     });
 
     // Empty is a different screen from a folder that could not be read.
@@ -142,12 +249,14 @@ describe("RecordingsPane", () => {
     it("still lists and offers to export existing sessions when recording is disallowed", async () => {
         mockInvoke({
             get_recording_sessions: () => [session({ name: "Nether run" })],
+            get_recording_tracks: () => [track("Alaydriem", "Own")],
             voice_runtime_state: policy(false),
         });
         const view = mount(RecordingsPane);
 
         await waitFor(() => expect(view.text()).toContain("Nether run"));
-        expect(view.button("Export")?.disabled).toBe(false);
+        await openFirst(view);
+        expect(go(view)?.disabled).toBe(false);
     });
 
     it("shows no notice where the server allows recording", async () => {
