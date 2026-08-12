@@ -16,7 +16,7 @@ Requires a server running the [Bedrock Addon](/wiki/server/bedrock-addon/), and 
 /bvc:panel
 ```
 
-Opens a form with the same controls as the app: mute, deafen, record, and per-player volume. It lists who is in range.
+Opens a form with the same controls as the app: mute, deafen, record, jukebox music, and per-player volume. It lists who is in range.
 
 <div class="shot"><span>The /bvc:panel control panel open in-game</span></div>
 
@@ -36,12 +36,23 @@ On a console, use the panel. Everything else needs typing, which is slow on a co
 
 | Command | Does |
 |---|---|
-| `/bvc:volume <player> <0-100>` | Set your local volume for one player. |
+| `/bvc:volume <player> <0-150>` | Set your local volume for one player. |
 | `/bvc:hear <player> <on\|off>` | Choose whether you hear them at all. |
 
 Both are local to you.
 
-The range is 0–100. The app's per-player slider goes to 150%.
+100 leaves a player untouched. Above that boosts a quiet one, to 150 at most. The app's per-player slider covers the same range.
+
+## Jukebox music
+
+| Command | Does |
+|---|---|
+| `/bvc:jukeboxmute <on\|off>` | Mute or unmute jukebox music. |
+| `/bvc:jukeboxvolume <0-150>` | Set how loud jukebox music plays. |
+
+One setting for every jukebox at once, and only for you. Voices are unaffected.
+
+The panel has the same two controls on its **Jukebox music** row. See [using the jukebox](/wiki/player/using-the-jukebox/).
 
 ## Groups
 

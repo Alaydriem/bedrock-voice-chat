@@ -22,12 +22,23 @@ Requires a server running the [Java mod](/wiki/server/java-mod/) on Fabric or Pa
 
 | Command | Does |
 |---|---|
-| `/bvc volume <player> <0-100>` | Set your local volume for one player. |
+| `/bvc volume <player> <0-150>` | Set your local volume for one player. |
 | `/bvc hear <player> <on\|off>` | Choose whether you hear them at all. |
 
 Both are local to you. Turning someone down does not change what anyone else hears, and does not stop them hearing you.
 
-The range is 0–100. The app's per-player slider goes to 150%.
+100 leaves a player untouched. Above that boosts a quiet one, to 150 at most. The app's per-player slider covers the same range.
+
+## Jukebox music
+
+| Command | Does |
+|---|---|
+| `/bvc jukebox mute <on\|off>` | Mute or unmute jukebox music. |
+| `/bvc jukebox volume <0-150>` | Set how loud jukebox music plays. |
+
+One setting for every jukebox at once, and only for you. Voices are unaffected.
+
+These are the same two controls as **Settings → Audio** in the app. See [using the jukebox](/wiki/player/using-the-jukebox/).
 
 ## Groups
 

@@ -49,6 +49,17 @@ Playback survives a server restart. A powered player block picks its clip back u
 
 Open **Settings → Audio** to set one volume for every jukebox at once, or mute them all. Voices are unaffected.
 
+Without leaving the game, use the commands:
+
+| Bedrock | Java |
+|---|---|
+| `/bvc:jukeboxmute <on>` | `/bvc jukebox mute <on>` |
+| `/bvc:jukeboxvolume <0-150>` | `/bvc jukebox volume <0-150>` |
+
+On Bedrock, `/bvc:panel` has both on its **Jukebox music** row.
+
+The level is yours alone. It changes nothing for anyone else in range. 100 is unchanged; 150 is the loudest. Muting and the level are separate. A level set while muted comes back on unmute.
+
 ## Limits
 
 Everyone needs the BVC app. The audio travels through BVC, not through Minecraft. A player without the app connected hears nothing.

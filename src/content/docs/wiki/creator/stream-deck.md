@@ -1,12 +1,12 @@
 ---
 title: Stream Deck
-description: Control mute, deafen, and recording from an Elgato Stream Deck.
+description: Control mute, deafen, recording, jukebox music, world connection, and live stats from an Elgato Stream Deck.
 sidebar:
   label: Stream Deck
   order: 3
 ---
 
-The Stream Deck plugin drives BVC over its local WebSocket API. Three actions: **mute**, **deafen**, **record**.
+The Stream Deck plugin drives BVC over its local WebSocket API. Six actions: **Microphone**, **Deafen**, **Record**, **Jukebox**, **Connect**, **Stats**.
 
 Download from the [Elgato Marketplace](https://marketplace.elgato.com/product/bedrock-voice-chat-c5a151d6-3669-487f-9548-bfe689e50203). Releases and issues are in [its own repository](https://github.com/Alaydriem/bedrock-voice-chat-streamdeck).
 
@@ -26,21 +26,50 @@ Install the plugin, then enter the same port and authentication key. Set the hos
 
 ## The actions
 
-| Action | Controls |
-|---|---|
-| Mute | Your microphone |
-| Deafen | All incoming audio |
-| Record | Session recording |
+| Action | Controls | Needs setup |
+|---|---|---|
+| Microphone | Your microphone | — |
+| Deafen | All incoming audio | — |
+| Record | Session recording | — |
+| Jukebox | Jukebox music | — |
+| Connect | The world BVC is connected to | Pick the world |
+| Stats | Nothing. Draws one live number | Pick the stat |
 
 Each has on, off, and disconnected art. Disconnected means the plugin cannot reach BVC. Check that the app is running and the WebSocket server is on.
 
-## Mute and push-to-talk
+Set up the last two from the key's own settings in the Stream Deck app.
 
-The mute action is a toggle, and a toggle applies in open-mic mode only. With BVC set to push to talk, the mute key will not open or close the microphone. BVC refuses the command.
+## Microphone and push-to-talk
 
-Deafen works in both modes.
+The Microphone key follows the voice mode. In open mic it toggles mute. In push to talk it opens the microphone on press and closes it on release.
 
-The API underneath has a held push-to-talk action and actions to list and connect to worlds. Whether the plugin exposes them depends on its own release. The [WebSocket API](/wiki/creator/websocket-api/) is the authority on what BVC accepts.
+Deafen and Jukebox work in both modes.
+
+## Jukebox
+
+Toggles all jukebox music for you alone. It changes nothing for anyone else in range, and does not touch voices.
+
+The key mutes and unmutes. Set the level in the app, or in game with `/bvc:jukeboxvolume` and `/bvc jukebox volume`. See [using the jukebox](/wiki/player/using-the-jukebox/).
+
+## Connect
+
+Pick a Realm or proxy in the key's settings. Pressing the key connects to it. Pressing it while connected disconnects.
+
+The list comes from BVC. Have the app running and reachable before you open the settings.
+
+## Stats
+
+One number per key. Add a second Stats key for a second number.
+
+Choose from the list in the key's settings. It is built from what BVC is reporting right now. Press refresh if it is empty.
+
+A number goes to `—` when it is more than three seconds old, and when the plugin loses its connection.
+
+Stats arrive on the WebSocket server's `/metrics` route. Enabling the server covers both.
+
+## Beyond the plugin
+
+BVC also accepts jukebox volume as a level, and group create, join and leave. The plugin has no keys for those. The [WebSocket API](/wiki/creator/websocket-api/) is the authority on what BVC accepts.
 
 ## Recording availability
 
