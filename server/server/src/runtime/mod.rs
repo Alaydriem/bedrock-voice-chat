@@ -424,41 +424,12 @@ impl ServerRuntime {
         self.state = RuntimeState::Running;
 
         #[cfg(feature = "bedrock")]
-        let mut dns_service = None;
         #[cfg(feature = "bedrock")]
         let mut transfer_relay = None;
 
         #[cfg(feature = "bedrock")]
         if self.config.server.bedrock.enabled {
             use common::traits::StreamTrait;
-
-            let listen_ip: std::net::IpAddr = self
-                .config
-                .server
-                .listen
-                .parse()
-                .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
-
-            let lan_ip = if listen_ip.is_unspecified() {
-                self.config
-                    .server
-                    .tls
-                    .ips
-                    .first()
-                    .and_then(|ip| ip.parse().ok())
-                    .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
-            } else {
-                listen_ip
-            };
-
-            let mut dns = crate::services::bedrock::DnsService::new(
-                self.config.server.bedrock.dns.clone(),
-                lan_ip,
-            );
-            if let Err(e) = dns.start().await {
-                tracing::error!("Failed to start bedrock DNS service: {}", e);
-            }
-            dns_service = Some(dns);
 
             let mut relay = crate::services::bedrock::TransferRelayService::new(
                 self.config.server.bedrock.transfer_port,
@@ -686,11 +657,6 @@ impl ServerRuntime {
         #[cfg(feature = "bedrock")]
         {
             use common::traits::StreamTrait;
-            if let Some(ref mut dns) = dns_service {
-                if let Err(e) = dns.stop().await {
-                    tracing::error!("Failed to stop bedrock DNS service: {}", e);
-                }
-            }
             if let Some(ref mut relay) = transfer_relay {
                 if let Err(e) = relay.stop().await {
                     tracing::error!("Failed to stop bedrock transfer relay: {}", e);

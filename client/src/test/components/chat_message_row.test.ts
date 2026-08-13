@@ -8,12 +8,14 @@ const { default: ChatMessageRow } = await import(
 
 function line(over: Partial<ChatLine> = {}): ChatLine {
     return {
+        id: 1,
         author: "Petra",
         text: "anyone got spare iron",
         system: false,
         fromApp: false,
         mention: false,
         timestamp: "14:03",
+        delivery: "confirmed",
         ...over,
     };
 }
@@ -77,5 +79,54 @@ describe("ChatMessageRow events", () => {
         const el = mount(line({ mention: true }));
 
         expect(el.querySelector(".rad-msg--mention")).not.toBeNull();
+    });
+});
+
+/**
+ * A sender must be able to read back what they typed even when nothing has proven it arrived.
+ * Dimmed rather than hidden, and never styled the same as a line the world reported.
+ */
+describe("ChatMessageRow delivery state", () => {
+    it("dims a line nothing has confirmed yet", () => {
+        const el = mount(line({ fromApp: true, delivery: "pending" }));
+
+        expect(el.querySelector(".rad-msg--unconfirmed")).not.toBeNull();
+        expect(el.querySelector(".rad-msg__text")?.textContent).toContain("anyone got spare iron");
+    });
+
+    it("dims a line the server refused, keeping the text readable", () => {
+        const el = mount(line({ fromApp: true, delivery: "failed" }));
+
+        expect(el.querySelector(".rad-msg--unconfirmed")).not.toBeNull();
+        expect(el.querySelector(".rad-msg__text")?.textContent).toContain("anyone got spare iron");
+    });
+
+    it("leaves a line the world reported at full strength", () => {
+        const el = mount(line({ delivery: "confirmed" }));
+
+        expect(el.querySelector(".rad-msg--unconfirmed")).toBeNull();
+    });
+});
+
+describe("ChatMessageRow unconfirmed identity", () => {
+    // Fading a hue still leaves a recognisably coloured avatar and name, which reads as a
+    // line that arrived. An unconfirmed line drops the colour entirely.
+    it("drops the identity colour from the avatar and the name", () => {
+        const el = mount(line({ fromApp: true, delivery: "pending" }));
+
+        const avatar = el.querySelector<HTMLElement>(".rad-msg__avatar");
+        const author = el.querySelector<HTMLElement>(".rad-msg__author");
+        expect(avatar?.getAttribute("style")).not.toContain("8239d8");
+        expect(avatar?.getAttribute("style")).toContain("--color-rad-dim");
+        expect(author?.getAttribute("style")).not.toContain("8239d8");
+        expect(author?.getAttribute("style")).toContain("--color-rad-dim");
+    });
+
+    it("keeps the identity colour once the world confirms it", () => {
+        const el = mount(line({ delivery: "confirmed" }));
+
+        const avatar = el.querySelector<HTMLElement>(".rad-msg__avatar");
+        expect(avatar?.getAttribute("style")).toContain("8239d8");
+        expect(avatar?.getAttribute("style")).not.toContain("--color-rad-dim");
     });
 });

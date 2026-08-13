@@ -46,6 +46,10 @@ pub struct BedrockProxyManager {
     backend: Option<Backend>,
     advertised_version: AdvertisedVersion,
     addon_mode: AddonMode,
+    // Advert line one: the world the user picked.
+    world: String,
+    // Advert line two: whose session this is, then the branding.
+    owner: String,
     deps: ProxyDeps,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
@@ -61,6 +65,8 @@ impl BedrockProxyManager {
         auth_manager: Arc<AuthManager>,
         advertised_version: AdvertisedVersion,
         addon_mode: AddonMode,
+        world: String,
+        owner: String,
         deps: ProxyDeps,
     ) -> Self {
         Self {
@@ -72,6 +78,8 @@ impl BedrockProxyManager {
             }),
             advertised_version,
             addon_mode,
+            world,
+            owner,
             deps,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
@@ -88,6 +96,8 @@ impl BedrockProxyManager {
         access_token: String,
         realms_api: common::bedrock_protocol::RealmsApi,
         advertised_version: AdvertisedVersion,
+        world: String,
+        owner: String,
         deps: ProxyDeps,
     ) -> Self {
         let auth = AuthInfo::xbl_token_with_access(xbl_token, user_hash, access_token);
@@ -99,12 +109,20 @@ impl BedrockProxyManager {
             // A Realm never has an HTTP addon channel, so its proxy always
             // carries state in-band.
             addon_mode: AddonMode::NoNet,
+            world,
+            owner,
             deps,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
             shutdown_tx: None,
             listener_handle: None,
         }
+    }
+
+    // The command layer routes a composed chat line on this, so the declaration has to be
+    // readable without reaching into a per-connection session.
+    pub(crate) fn addon_mode(&self) -> AddonMode {
+        self.addon_mode
     }
 }
 
@@ -183,12 +201,18 @@ impl BedrockProxyManager {
         let state_bus = self.deps.state_bus.clone();
         let advertised_version = self.advertised_version.clone();
         let addon_mode = self.addon_mode;
+        let world = self.world.clone();
+        let owner = self.owner.clone();
         // Computed once rather than per arm so the five outbound paths cannot
         // drift apart on what the mode means.
         let process_events = !addon_mode.relays_only();
 
         let handle = tokio::spawn(async move {
-            let bind_addr: SocketAddr = match format!("0.0.0.0:{}", listen_port).parse() {
+            // `[::]`, not `0.0.0.0`: the listener is dual-stack, so this one
+            // socket answers both the IPv6 dial that follows LAN discovery and a
+            // manually typed `127.0.0.1:<port>`. Binding IPv4-only leaves the
+            // discovered entry unjoinable.
+            let bind_addr: SocketAddr = match format!("[::]:{}", listen_port).parse() {
                 Ok(a) => a,
                 Err(e) => {
                     error!("Bedrock listener invalid bind: {}", e);
@@ -196,17 +220,14 @@ impl BedrockProxyManager {
                 }
             };
 
+            // Advert fields 2 and 7, which are the two lines Minecraft's Friends tab
+            // renders. The world leads because it is what the user picked; the owner
+            // line is what separates two clients advertising the same world.
             let (proxy_config_realm, motd, sub_motd) = match &backend {
-                Backend::Direct { .. } => (
-                    None,
-                    "BVC Proxy Connect".to_string(),
-                    "Bedrock Voice Chat Proxy".to_string(),
-                ),
-                Backend::Realm { realm_config, .. } => (
-                    Some(realm_config.clone()),
-                    "BVC Realms Connect".to_string(),
-                    "Bedrock Voice Chat Realms Proxy".to_string(),
-                ),
+                Backend::Direct { .. } => (None, world.clone(), owner.clone()),
+                Backend::Realm { realm_config, .. } => {
+                    (Some(realm_config.clone()), world.clone(), owner.clone())
+                }
             };
 
             // Resolve the direct backend hostname before binding: a Direct
@@ -265,6 +286,17 @@ impl BedrockProxyManager {
                 Ok(p) => p,
                 Err(e) => {
                     error!("Bedrock proxy bind failed: {}", e);
+                    // A bind failure is the one startup error the user is most
+                    // likely to cause and least able to see: the port is already
+                    // taken, the session never starts, and without this the UI is
+                    // indistinguishable from having done nothing at all.
+                    error_channel.emit(
+                        common::structs::bedrock::BedrockConnectError::Transport {
+                            message: format!(
+                                "Could not listen on port {listen_port}: {e}. Another program may already be using it."
+                            ),
+                        },
+                    );
                     return;
                 }
             };
@@ -582,7 +614,7 @@ impl BedrockProxyManager {
                                                     send,
                                                 );
                                             } else {
-                                                debug!(
+                                                info!(
                                                     "Bedrock: dropping chat send for {}; the addon relays chat itself",
                                                     child_player_name
                                                 );
@@ -1107,6 +1139,8 @@ mod tests {
             Arc::clone(&auth_mgr),
             AdvertisedVersion::Auto,
             AddonMode::NoNet,
+            "Test World".to_string(),
+            "Tester · Bedrock Voice Chat".to_string(),
             build_deps(),
         );
 
@@ -1139,6 +1173,8 @@ mod tests {
             auth_mgr,
             AdvertisedVersion::Auto,
             AddonMode::NoNet,
+            "Test World".to_string(),
+            "Tester · Bedrock Voice Chat".to_string(),
             build_deps(),
         );
         mgr2.start().await.expect("second start on same port");

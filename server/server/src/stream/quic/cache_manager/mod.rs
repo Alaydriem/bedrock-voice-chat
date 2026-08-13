@@ -259,19 +259,18 @@ impl CacheManager {
                     let send: Result<ChatSendPacket, ()> = data.to_owned().try_into();
                     if let Ok(send) = send {
                         let Some(world) = send.world_uuid.clone() else {
-                            tracing::debug!(player = %author, "ChatSend named no world");
+                            // The composer sends what it has rather than deciding on the
+                            // server's behalf, so an unnamed world is answered here instead of
+                            // being dropped where the sender cannot see it.
+                            service.reject(
+                                &author,
+                                &common::errors::ChatRejection::NoWorld,
+                                &send.text,
+                            );
                             return Ok(());
                         };
-                        if let Err(rejection) =
-                            service.on_app_send(&author, &world, send.text).await
-                        {
-                            tracing::info!(
-                                player = %author,
-                                world = %world,
-                                rejection = %rejection,
-                                "ChatSend rejected"
-                            );
-                        }
+                        // `on_app_send` answers the sender itself, so nothing more is owed here.
+                        let _ = service.on_app_send(&author, &world, send.text).await;
                     }
                 }
             }

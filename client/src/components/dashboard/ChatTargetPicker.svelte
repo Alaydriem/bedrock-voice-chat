@@ -11,8 +11,10 @@
     }
     let { options, current, onPick, onClose }: Props = $props();
 
+    // A hint, not a verdict. Every world stays pickable: the addon may answer again by the
+    // time somebody types, and a send that is genuinely refused says so itself.
     function seen(world: ChatWorld): string {
-        if (!world.available) return I18n.t("chat unavailable");
+        if (!world.available) return I18n.t("not answering right now");
         const mins = Math.round(Date.now() / 1000 - Number(world.last_seen)) / 60;
         if (mins < 2) return I18n.t("active now");
         if (mins < 60) return I18n.tf("last seen {n} min ago", { n: Math.round(mins) });
@@ -37,7 +39,6 @@
             class="rad-sheet-row"
             class:is-on={world.world_uuid === current.world_uuid}
             style="--i:{i}"
-            disabled={!world.available}
             onclick={() => onPick(world)}
         >
             <span class="rad-sheet-row__text">

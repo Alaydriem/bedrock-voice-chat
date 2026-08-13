@@ -33,15 +33,8 @@ export class SettingsCatalogue {
             { id: "ws", title: I18n.t("WebSocket server"), group: "", wide: false, desktopOnly: false },
             { id: "about", title: I18n.t("About"), group: "", wide: false, desktopOnly: false },
             {
-                id: "proxy",
-                title: I18n.t("Proxy Connect"),
-                group: bedrock,
-                wide: true,
-                desktopOnly: false,
-            },
-            {
-                id: "realms",
-                title: I18n.t("Realms Connect"),
+                id: "connect",
+                title: I18n.t("Voice Chat Connect"),
                 group: bedrock,
                 wide: true,
                 desktopOnly: false,

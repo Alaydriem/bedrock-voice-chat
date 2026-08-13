@@ -12,7 +12,6 @@ pub use permissions::Permissions;
 pub use server::Acme;
 pub use server::AcmeProviderKind;
 pub use server::BedrockConfig;
-pub use server::BedrockDnsConfig;
 pub use server::BedrockServerEntry;
 pub use server::Features;
 pub use server::Meridian;

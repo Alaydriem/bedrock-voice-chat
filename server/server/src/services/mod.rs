@@ -3,7 +3,7 @@
 #[cfg(feature = "bedrock")]
 pub mod bedrock;
 #[cfg(feature = "bedrock")]
-pub use bedrock::{DnsService, TransferRelayService, TransferTargetCache};
+pub use bedrock::{TransferRelayService, TransferTargetCache};
 
 pub mod acme;
 pub mod audio_file_service;
@@ -34,7 +34,7 @@ pub use auth_code_service::{AuthCodeError, AuthCodeService};
 pub use auth_service::{AuthError, AuthService, CodeLoginError};
 pub use bedrock_event_service::{BedrockEventRejection, BedrockEventService};
 pub use channel_membership_service::ChannelMembershipService;
-pub use chat_service::{ChatRejection, ChatService, ChatSink, QuicChatSink};
+pub use chat_service::{ChatService, ChatSink, QuicChatSink};
 pub use client_action_service::ClientActionService;
 pub use certificate_service::CertificateService;
 pub use gamerpic_decoder::GamerpicDecoder;

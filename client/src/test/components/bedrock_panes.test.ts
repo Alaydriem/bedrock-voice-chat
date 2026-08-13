@@ -5,30 +5,28 @@ import { mockInvoke } from "../tauri";
 import type { BedrockManager } from "../../js/app/managers/bedrock/BedrockManager";
 import type { BedrockCapabilityStatus } from "../../js/app/managers/bedrock/BedrockCapabilityManager";
 
-const { default: ProxyPane } = await import("../../components/settings/panes/ProxyPane.svelte");
-const { default: RealmsPane } = await import("../../components/settings/panes/RealmsPane.svelte");
+const { default: ConnectPane } = await import("../../components/settings/panes/ConnectPane.svelte");
 const { default: ProxyServerEditor } = await import("../../components/settings/ProxyServerEditor.svelte");
 
 interface Knobs {
     authed?: boolean;
     capability?: BedrockCapabilityStatus | null;
     restoring?: boolean;
-    transferPort?: number | null;
-    dnsOverrideHost?: string | null;
+    /** Names the world the session is forwarding to. Empty means nothing is running. */
+    activeName?: string;
 }
 
 /**
  * A stand-in for the Bedrock manager.
  *
  * The real one opens an Xbox session on construction. What these tests are about is
- * which surface a pane shows for a given answer, so the answers are supplied directly.
+ * which surface the pane shows for a given answer, so the answers are supplied directly.
  */
 function stub({
     authed = true,
     capability = "enabled",
     restoring = false,
-    transferPort = null,
-    dnsOverrideHost = null,
+    activeName = "",
 }: Knobs = {}) {
     const realms: Writable<unknown[]> = writable([
         { id: 1n, name: "Alaydriem's Realm", motd: "Survival", state: "OPEN", owner_uuid: "u" },
@@ -44,22 +42,19 @@ function stub({
         capability: {
             status: readable(capability),
             isChecking: readable(false),
-            serverHost: readable("bvc.example.com"),
-            transferPort: readable(transferPort),
-            dnsOverrideHost: readable(dnsOverrideHost),
             refresh: async () => {},
         },
         sortedProxyServers: servers,
         proxyFavorites: readable(new Set<string>()),
         activeProxyId: readable<string | null>(null),
         proxyRunning: readable(false),
-        interfaces: readable([{ name: "Ethernet", ip: "192.168.1.24", is_ipv4: true }]),
-        listenPort: readable(19132),
         sortedRealms: realms,
         isLoadingRealms: readable(false),
         favorites: readable(new Set<string>()),
-        activeRealmId: readable<bigint | null>(null),
-        activeRealmName: readable(""),
+        // The connected callout reads the active session's name. A Realm is the one
+        // backend whose name arrives on its own store, so the knob rides it.
+        activeRealmId: readable<bigint | null>(activeName ? 1n : null),
+        activeRealmName: readable(activeName),
         // The sign-in modal reads these; without them subscribing throws and takes the pane
         // down with it.
         showLoginModal: readable(false),
@@ -81,8 +76,7 @@ function stub({
         addProxyServer: async () => ({ id: "b3", name: "n", host: "h", port: 19132 }),
         updateProxyServer: async () => {},
         initialize: async () => {},
-        listProtocolVersions: async () => [{ protocol: 800, label: '1.21.100' }],
-        loadInterfaces: async () => {},
+        listProtocolVersions: async () => [{ protocol: 800, label: "1.21.100" }],
         initializeRealmsAccess: async () => {},
         openLoginModal: async () => {},
         stopProxy: async () => {},
@@ -99,156 +93,179 @@ function mount(component: unknown, bedrock: BedrockManager, mobile = false) {
     const host = document.createElement("div");
     document.body.append(host);
     render(component as never, { target: host, props: { bedrock, mobile } } as never);
-    return { host, text: () => host.textContent ?? "" };
+    return {
+        host,
+        text: () => host.textContent ?? "",
+        /**
+         * The section headings alone. A row's own copy can repeat a heading's
+         * wording, so "is that section present" has to ask the headings.
+         */
+        heads: () =>
+            [...host.querySelectorAll(".rad-section__head")].map((h) => h.textContent?.trim()),
+        /** The connected callout, never the capability warning beside it. */
+        callout: () =>
+            host.querySelector(".rad-callout:not(.rad-callout--warn)")?.textContent ?? "",
+    };
+}
+
+function status(over: Record<string, unknown> = {}) {
+    return {
+        proxy_running: false,
+        realms_running: false,
+        xbox_authenticated: true,
+        proxy_target_host: null,
+        proxy_target_port: null,
+        proxy_listen_port: 28282,
+        active_realm_id: null,
+        active_realm_name: null,
+        proxy_started_at: null,
+        ...over,
+    };
 }
 
 beforeEach(() => {
-    mockInvoke({
-        bedrock_get_status: () => ({
-            proxy_running: false,
-            realms_running: false,
-            xbox_authenticated: true,
-            proxy_target_host: null,
-            proxy_target_port: null,
-            proxy_listen_port: 19132,
-            active_realm_id: null,
-            active_realm_name: null,
-            proxy_started_at: null,
-        }),
+    mockInvoke({ bedrock_get_status: () => status() });
+});
+
+describe("Connect pane", () => {
+    it("renders all three sections when each has rows", async () => {
+        const view = mount(ConnectPane, stub());
+        await waitFor(() => expect(view.heads()).toHaveLength(3));
+        expect(view.heads()).toEqual(["Realms", "From your server", "Yours"]);
+    });
+
+    // The old flow's entire failure mode was telling the user about ports.
+    it("shows no address or port anywhere", async () => {
+        const view = mount(ConnectPane, stub());
+        await waitFor(() => expect(view.text()).toContain("Realms"));
+        expect(view.text()).not.toMatch(/\d+\.\d+\.\d+\.\d+/);
+        expect(view.text()).not.toContain("28282");
+        expect(view.text()).not.toContain(":19132");
+    });
+
+    it("names the world in the connected state", async () => {
+        const view = mount(ConnectPane, stub({ activeName: "Truly Bedrock SMP" }));
+        await waitFor(() => expect(view.text()).toContain("Truly Bedrock SMP"));
+        expect(view.text()).toContain("Friends");
+    });
+
+    // How long the session has been up is the one number worth printing: it is what
+    // distinguishes "connected" from "connected a moment ago and silently dropped".
+    it("counts the session's uptime beside the world", async () => {
+        const started = Math.floor(Date.now() / 1000) - 65;
+        mockInvoke({
+            bedrock_get_status: () =>
+                status({ proxy_running: true, proxy_started_at: BigInt(started) }),
+        });
+        const view = mount(ConnectPane, stub({ activeName: "Truly Bedrock SMP" }));
+        await waitFor(() => expect(view.callout()).toMatch(/00:01:0\d/));
+    });
+
+    // A Realm reports no start time, so the world is named without a clock counting
+    // up from zero.
+    it("omits the clock when nothing reports a start time", async () => {
+        const view = mount(ConnectPane, stub({ activeName: "Truly Bedrock SMP" }));
+        await waitFor(() => expect(view.callout()).toContain("Truly Bedrock SMP"));
+        expect(view.callout()).not.toMatch(/\d\d:\d\d:\d\d/);
+    });
+
+    // Nothing is running, so an instruction to go to the Friends tab would name no world.
+    it("says nothing about the Friends tab while stopped", async () => {
+        const view = mount(ConnectPane, stub());
+        await waitFor(() => expect(view.text()).toContain("Realms"));
+        expect(view.text()).not.toContain("Friends");
+    });
+
+    // A section with no rows is a heading over nothing. Only "Yours" persists, because
+    // it carries the way to add the first entry.
+    it("hides the read-only sections when they have no rows", async () => {
+        const bare = stub();
+        (bare as unknown as { sortedRealms: Writable<unknown[]> }).sortedRealms = writable([]);
+        (bare as unknown as { sortedProxyServers: Writable<unknown[]> }).sortedProxyServers =
+            writable([{ id: "b1", name: "Alaydriem's SMP", host: "mc.alaydriem.com", port: 19132 }]);
+
+        const view = mount(ConnectPane, bare);
+        await waitFor(() => expect(view.text()).toContain("Alaydriem's SMP"));
+        expect(view.heads()).toEqual(["Yours"]);
     });
 });
 
-describe("Bedrock panes", () => {
-    // One omission explained three reports: signed-in state forgotten, favourites forgotten,
-    // and an empty server list. `initialize` is what loads both managers from the store and
-    // restores the Microsoft session, and the panes never called it.
-    it("shows the log panel, which only exists once the manager is loaded", async () => {
-        const view = mount(ProxyPane, stub());
-        await waitFor(() => expect(view.text()).toContain("Connection log"));
-    });
-
-    // A log is the longest thing on the pane. Open by default on a phone it puts every
-    // control above it behind a scroll.
-    it("collapses the log by default on mobile and opens it on desktop", async () => {
-        const phone = mount(ProxyPane, stub(), true);
-        await waitFor(() => expect(phone.host.querySelector(".rad-disclosure")).not.toBeNull());
-        expect(phone.host.querySelector(".rad-disclosure")?.classList.contains("is-open")).toBe(false);
-
-        const desk = mount(ProxyPane, stub());
-        await waitFor(() => expect(desk.host.querySelector(".rad-disclosure")).not.toBeNull());
-        expect(desk.host.querySelector(".rad-disclosure")?.classList.contains("is-open")).toBe(true);
-    });
-
-    // Narration the pane already demonstrates. Both had a paragraph restating the callout
-    // below it.
-    it("carries no section narration", async () => {
-        const view = mount(ProxyPane, stub());
-        await waitFor(() => expect(view.text()).toContain("Where you play"));
-        expect(view.text()).not.toContain("Bedrock cannot tell BVC where you are standing");
-
-        const realms = mount(RealmsPane, stub());
-        await waitFor(() => expect(realms.text()).toContain("Your Realms"));
-        expect(realms.text()).not.toContain("Read from the Microsoft account");
-    });
-});
-
-// A stored session is read back on start, so `authed` is false for a moment before it is
-// true. Both panes took that moment as an answer and showed the sign-in card, which then
-// swapped itself out.
-describe("Bedrock panes while the session is being read back", () => {
-    it("shows a loader rather than a sign-in card", () => {
-        for (const pane of [ProxyPane, RealmsPane]) {
-            const view = mount(pane, stub({ authed: false, restoring: true }));
-            expect(view.text()).not.toContain("Sign in with Microsoft");
-            expect(view.host.querySelector(".rad-loader")).not.toBeNull();
-        }
-    });
-
-    it("shows the sign-in card once the read back finds nothing", () => {
-        for (const pane of [ProxyPane, RealmsPane]) {
-            const view = mount(pane, stub({ authed: false, restoring: false }));
-            expect(view.text()).toContain("Sign in with Microsoft");
-        }
-    });
-});
-
-describe("ProxyPane", () => {
+describe("Connect pane authentication gate", () => {
     // The proxy joins the backend as you. Everything below the gate is meaningless
     // without an account, and showing it invites somebody to configure a dead end.
     it("shows nothing but the sign-in until Microsoft is connected", () => {
-        const view = mount(ProxyPane, stub({ authed: false }));
+        const view = mount(ConnectPane, stub({ authed: false }));
         expect(view.text()).toContain("Sign in with Microsoft");
-        expect(view.text()).not.toContain("Where you play");
-        expect(view.text()).not.toContain("Point Minecraft here");
+        expect(view.text()).not.toContain("Yours");
     });
 
-    it("shows the servers once signed in", async () => {
-        const view = mount(ProxyPane, stub());
-        await waitFor(() => expect(view.text()).toContain("Where you play"));
+    // A stored session is read back on start, so `authed` is false for a moment before it
+    // is true. Taking that moment as an answer showed a sign-in card that swapped itself out.
+    it("shows a loader rather than a sign-in card while the session is read back", () => {
+        const view = mount(ConnectPane, stub({ authed: false, restoring: true }));
+        expect(view.text()).not.toContain("Sign in with Microsoft");
+        expect(view.host.querySelector(".rad-loader")).not.toBeNull();
+    });
+
+    it("shows the sign-in card once the read back finds nothing", () => {
+        const view = mount(ConnectPane, stub({ authed: false, restoring: false }));
+        expect(view.text()).toContain("Sign in with Microsoft");
+    });
+});
+
+describe("Connect pane rows", () => {
+    it("lists Realms and servers once signed in", async () => {
+        const view = mount(ConnectPane, stub());
+        await waitFor(() => expect(view.text()).toContain("Alaydriem's Realm"));
         expect(view.text()).toContain("Alaydriem's SMP");
     });
 
+    // A closed Realm is still listed — it is yours — but it cannot be joined now.
+    it("marks a closed Realm as closed", async () => {
+        const view = mount(ConnectPane, stub());
+        await waitFor(() => expect(view.text()).toContain("Alaydriem's Realm"));
+        expect(view.text()).toContain("Closed");
+    });
+
     // Every tile would be an offer that cannot be taken, so the tiles go entirely.
-    it("replaces the servers with the reason when the server refuses a proxy", async () => {
-        const view = mount(ProxyPane, stub({ capability: "disabled" }));
+    it("replaces every row with the reason when the server refuses a proxy", async () => {
+        const view = mount(ConnectPane, stub({ capability: "disabled" }));
         await waitFor(() => expect(view.text()).toContain("will not accept a proxy"));
         expect(view.text()).not.toContain("Alaydriem's SMP");
+        expect(view.text()).not.toContain("Alaydriem's Realm");
     });
 
     // Unknown is not refused. The proxy can still be started; the callout says what will
     // happen if position is rejected.
-    it("warns but still offers the servers when capability is unknown", async () => {
-        const view = mount(ProxyPane, stub({ capability: "unknown" }));
+    it("warns but still offers the rows when capability is unknown", async () => {
+        const view = mount(ConnectPane, stub({ capability: "unknown" }));
         await waitFor(() => expect(view.text()).toContain("could not reach this server"));
         expect(view.text()).toContain("Alaydriem's SMP");
     });
 
-    // Minecraft is usually on this machine, so the loopback address leads whatever else
-    // the listener answers on.
-    it("names the address to type into Minecraft", async () => {
-        const view = mount(ProxyPane, stub());
-        await waitFor(() => expect(view.text()).toContain("127.0.0.1:19132"));
-    });
-
-    // The listener binds every interface, so there is no choice to offer — and `0.0.0.0`
-    // is not something anything can connect to. Every reachable address is listed instead.
-    it("lists the addresses instead of offering a choice", async () => {
-        const view = mount(ProxyPane, stub(), true);
-        await waitFor(() => expect(view.text()).toContain("Point Minecraft at one of these"));
-        expect(view.host.querySelector("select")).toBeNull();
-        expect(view.text()).toContain("192.168.1.24:19132");
-        // Minecraft is often on the same machine, so loopback is one of the options.
-        expect(view.text()).toContain("127.0.0.1:19132");
-        expect(view.text()).not.toContain("0.0.0.0:19132");
-    });
-
-    it("gives every listed address its own copy button", async () => {
-        const view = mount(ProxyPane, stub(), true);
-        await waitFor(() => expect(view.host.querySelector(".rad-address")).not.toBeNull());
-        const rows = [...view.host.querySelectorAll(".rad-address")];
-        expect(rows.length).toBeGreaterThan(1);
-        expect(rows.every((r) => r.querySelector('[aria-label^="Copy"]'))).toBe(true);
-    });
-
-    // The listener has one mode and the picker never drove it, so a desktop reader is
-    // offered the addresses it actually answers on rather than a choice with no effect.
-    it("offers no interface choice on desktop either", async () => {
-        const view = mount(ProxyPane, stub());
-        await waitFor(() => expect(view.text()).toContain("Point Minecraft at one of these"));
-        expect(view.host.querySelector("select")).toBeNull();
+    // An operator's entry comes from the server's config and cannot be edited locally, so
+    // only the entries a reader owns offer it. Grids render Realms, then the server's, then
+    // the reader's own.
+    it("offers edit only in the section of your own entries", async () => {
+        const view = mount(ConnectPane, stub());
+        await waitFor(() => expect(view.text()).toContain("Alaydriem's SMP"));
+        const grids = [...view.host.querySelectorAll(".rad-server-grid")];
+        expect(grids).toHaveLength(3);
+        expect(grids[0]?.querySelector('[aria-label^="Edit"]')).toBeNull();
+        expect(grids[1]?.querySelector('[aria-label^="Edit"]')).toBeNull();
+        expect(grids[2]?.querySelector('[aria-label^="Edit"]')).not.toBeNull();
     });
 });
 
-describe("ProxyPane server list", () => {
-    // PlateGrid only draws the add tile when it is given a handler. Without one there was no
-    // way to add a backend at all, and nothing failed — the tile simply was not there.
-    // The add tile lives in the grid, and the grid is not rendered when the list is empty.
-    // So the one state that most needs the action was the only state without it.
-    it("offers a way to add the first server when the list is empty", async () => {
+describe("Connect pane add affordance", () => {
+    // The add tile lives in the grid, and the grid was not rendered when the list was
+    // empty. So the one state that most needs the action was the only state without it.
+    it("offers a way to add the first server when nothing is saved", async () => {
         const empty = stub();
+        (empty as unknown as { sortedRealms: Writable<unknown[]> }).sortedRealms = writable([]);
         (empty as unknown as { sortedProxyServers: Writable<unknown[]> }).sortedProxyServers =
             writable([]);
-        const view = mount(ProxyPane, empty);
+        const view = mount(ConnectPane, empty);
         await waitFor(() => expect(view.text()).toContain("No servers yet"));
 
         const add = [...view.host.querySelectorAll<HTMLElement>(".rad-btn")].find((b) =>
@@ -259,99 +276,33 @@ describe("ProxyPane server list", () => {
         await waitFor(() => expect(view.host.querySelector(".rad-modal.is-open")).not.toBeNull());
     });
 
-    it("offers a way to add a server", async () => {
-        const view = mount(ProxyPane, stub());
-        await waitFor(() => expect(view.text()).toContain("Where you play"));
-        expect(view.host.querySelector(".rad-server-add")).not.toBeNull();
-    });
-
     it("opens the editor from the add tile", async () => {
-        const view = mount(ProxyPane, stub());
+        const view = mount(ConnectPane, stub());
         await waitFor(() => expect(view.host.querySelector(".rad-server-add")).not.toBeNull());
         view.host.querySelector<HTMLElement>(".rad-server-add")?.click();
-        await waitFor(() => expect(view.text()).toContain("Add a server"));
-        expect(view.host.querySelector(".rad-modal.is-open")).not.toBeNull();
-    });
-
-    // An operator's entry comes from the server's config and cannot be edited locally, so
-    // only the entries a reader owns offer it.
-    it("offers edit only on an entry of your own", async () => {
-        const view = mount(ProxyPane, stub());
-        await waitFor(() => expect(view.text()).toContain("Alaydriem's SMP"));
-        const plates = [...view.host.querySelectorAll(".rad-server")];
-        expect(plates[0]?.querySelector('[aria-label^="Edit"]')).not.toBeNull();
-        expect(plates[1]?.querySelector('[aria-label^="Edit"]')).toBeNull();
+        await waitFor(() => expect(view.host.querySelector(".rad-modal.is-open")).not.toBeNull());
     });
 });
 
-// The server's own way in. A player whose device cannot stay on the network this client
-// runs on has no local address that will work, and the relay is the answer — but only if
-// the pane says so.
-describe("Bedrock panes and the server's relay", () => {
-    it("offers nothing extra when the server runs no relay", async () => {
-        for (const pane of [ProxyPane, RealmsPane]) {
-            const view = mount(pane, stub());
-            await waitFor(() => expect(view.text()).toContain("Point Minecraft"));
-            expect(view.text()).not.toContain("Or go through this BVC server");
-        }
+describe("Connect pane log", () => {
+    // One omission explained three reports: signed-in state forgotten, favourites forgotten,
+    // and an empty server list. `initialize` is what loads both managers from the store and
+    // restores the Microsoft session, and the panes never called it.
+    it("shows the log panel, which only exists once the manager is loaded", async () => {
+        const view = mount(ConnectPane, stub());
+        await waitFor(() => expect(view.text()).toContain("Connection log"));
     });
 
-    it("names the transfer relay on the BVC host", async () => {
-        for (const pane of [ProxyPane, RealmsPane]) {
-            const view = mount(pane, stub({ transferPort: 19132 }));
-            await waitFor(() => expect(view.text()).toContain("Transfer server"));
-            expect(view.text()).toContain("bvc.example.com:19132");
-        }
-    });
+    // A log is the longest thing on the pane. Open by default on a phone it puts every
+    // control above it behind a scroll.
+    it("collapses the log by default on mobile and opens it on desktop", async () => {
+        const phone = mount(ConnectPane, stub(), true);
+        await waitFor(() => expect(phone.host.querySelector(".rad-disclosure")).not.toBeNull());
+        expect(phone.host.querySelector(".rad-disclosure")?.classList.contains("is-open")).toBe(false);
 
-    it("adds the DNS override and what to do with it", async () => {
-        for (const pane of [ProxyPane, RealmsPane]) {
-            const view = mount(
-                pane,
-                stub({ transferPort: 19132, dnsOverrideHost: "geo.hivebedrock.network" }),
-            );
-            await waitFor(() => expect(view.text()).toContain("DNS override"));
-            expect(view.text()).toContain("geo.hivebedrock.network");
-            expect(view.text()).toContain("Point your device's DNS at bvc.example.com");
-        }
-    });
-
-    it("gives each offered address its own copy button", async () => {
-        const view = mount(
-            ProxyPane,
-            stub({ transferPort: 19132, dnsOverrideHost: "geo.hivebedrock.network" }),
-        );
-        await waitFor(() => expect(view.text()).toContain("DNS override"));
-        const rows = [...view.host.querySelectorAll(".rad-address--offer")];
-        expect(rows).toHaveLength(2);
-        expect(rows.every((r) => r.querySelector('[aria-label^="Copy"]'))).toBe(true);
-    });
-});
-
-describe("RealmsPane", () => {
-    it("shows nothing but the sign-in until Microsoft is connected", () => {
-        const view = mount(RealmsPane, stub({ authed: false }));
-        expect(view.text()).toContain("Sign in with Microsoft");
-        expect(view.text()).not.toContain("Your Realms");
-    });
-
-    it("lists the Realms once signed in", async () => {
-        const view = mount(RealmsPane, stub());
-        await waitFor(() => expect(view.text()).toContain("Your Realms"));
-        expect(view.text()).toContain("Alaydriem's Realm");
-    });
-
-    // A closed Realm is still listed — it is yours — but it cannot be joined now.
-    it("marks a closed Realm as closed", async () => {
-        const view = mount(RealmsPane, stub());
-        await waitFor(() => expect(view.text()).toContain("Hearthhold"));
-        expect(view.text()).toContain("Closed");
-    });
-
-    it("replaces the Realms with the reason when the server refuses one", async () => {
-        const view = mount(RealmsPane, stub({ capability: "disabled" }));
-        await waitFor(() => expect(view.text()).toContain("will not accept a Realm"));
-        expect(view.text()).not.toContain("Alaydriem's Realm");
+        const desk = mount(ConnectPane, stub());
+        await waitFor(() => expect(desk.host.querySelector(".rad-disclosure")).not.toBeNull());
+        expect(desk.host.querySelector(".rad-disclosure")?.classList.contains("is-open")).toBe(true);
     });
 });
 

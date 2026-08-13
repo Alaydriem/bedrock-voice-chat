@@ -4,6 +4,7 @@ pub mod auth;
 pub mod connector;
 pub mod gating;
 pub mod protocol_version_catalog;
+pub mod session_name;
 pub mod proxy;
 pub mod state;
 pub mod target;
@@ -21,6 +22,7 @@ pub use advertised_version_resolver::AdvertisedVersionResolver;
 pub use auth::{BedrockAuthService, BedrockKeyringService};
 pub use connector::{BedrockConnector, ProxyConnectRequest, RealmConnectRequest};
 pub use protocol_version_catalog::ProtocolVersionCatalog;
+pub use session_name::SessionName;
 pub use gating::ProtocolGatingService;
 pub(crate) use proxy::ProxyDeps;
 pub use proxy::{

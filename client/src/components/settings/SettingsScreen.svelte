@@ -15,8 +15,7 @@
     import KeybindsPane from "./panes/KeybindsPane.svelte";
     import LibraryPane from "./panes/LibraryPane.svelte";
     import PlayersPane from "./panes/PlayersPane.svelte";
-    import ProxyPane from "./panes/ProxyPane.svelte";
-    import RealmsPane from "./panes/RealmsPane.svelte";
+    import ConnectPane from "./panes/ConnectPane.svelte";
     import RecordingsPane from "./panes/RecordingsPane.svelte";
     import WebSocketPane from "./panes/WebSocketPane.svelte";
 
@@ -190,10 +189,8 @@
                         <KeybindsPane />
                     {:else if current.id === "ws"}
                         <WebSocketPane />
-                    {:else if current.id === "proxy"}
-                        <ProxyPane bedrock={bedrockManager()} {mobile} />
-                    {:else if current.id === "realms"}
-                        <RealmsPane bedrock={bedrockManager()} {mobile} />
+                    {:else if current.id === "connect"}
+                        <ConnectPane bedrock={bedrockManager()} {mobile} />
                     {:else if current.id === "about"}
                         <AboutPane {updates} />
                     {/if}

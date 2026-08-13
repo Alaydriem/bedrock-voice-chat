@@ -27,7 +27,8 @@ use common::{
         network::ConnectionHealth,
         packet::{
             AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType,
-            ChatMessagePacket, PlayerDataPacket, PlayerPresenceEvent, QuicNetworkPacket,
+            ChatMessagePacket, ChatRejectedPacket, PlayerDataPacket, PlayerPresenceEvent,
+            QuicNetworkPacket,
             ServerErrorPacket,
             ServerErrorType,
         },
@@ -107,6 +108,7 @@ impl PacketRouter {
             PacketType::PlayerPresence => self.handle_player_presence(&packet.data).await,
             PacketType::ChannelEvent => self.handle_channel_event(&packet.data).await,
             PacketType::ChatMessage => self.handle_chat_message(&packet.data).await,
+            PacketType::ChatRejected => self.handle_chat_rejected(&packet.data).await,
             #[cfg(feature = "bedrock-protocol")]
             PacketType::BedrockEvent => {
                 if let Some(injector) = self.eject_injector.as_ref() {
@@ -493,6 +495,28 @@ impl PacketRouter {
 
         if let Err(e) = tauri::Emitter::emit(&self.app_handle, "bedrock-chat", payload) {
             warn!("Failed to emit chat line: {:?}", e);
+        }
+    }
+
+    /// A line the server refused.
+    ///
+    /// A separate event from `bedrock-chat` because this is not a message in the log — it is
+    /// the composer's own send coming back undelivered, and it settles the line already on
+    /// screen rather than adding one.
+    async fn handle_chat_rejected(&self, data: &QuicNetworkPacket) {
+        let packet: Result<ChatRejectedPacket, ()> = data.data.to_owned().try_into();
+        let Ok(packet) = packet else {
+            warn!("Could not decode chat rejection packet");
+            return;
+        };
+
+        let payload = serde_json::json!({
+            "reason": packet.reason,
+            "text": packet.text,
+        });
+
+        if let Err(e) = tauri::Emitter::emit(&self.app_handle, "bedrock-chat-rejected", payload) {
+            warn!("Failed to emit chat rejection: {:?}", e);
         }
     }
 

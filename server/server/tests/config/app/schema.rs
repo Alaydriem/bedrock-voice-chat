@@ -26,7 +26,6 @@ fn application_config_schema_exposes_every_section() {
         "Features",
         "RelayFeature",
         "BedrockConfig",
-        "BedrockDnsConfig",
         "Age",
         "Database",
         "Logger",

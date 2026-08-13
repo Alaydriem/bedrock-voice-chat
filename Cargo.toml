@@ -38,4 +38,18 @@ audioadapter-buffers = { version = "^3" }
 tauri-plugin-deep-link = { git = "https://github.com/charlesportwoodii/tauri-plugin-deep-link", branch = "master" }
 sentry = { git = "https://github.com/Alaydriem/sentry-rust", branch = "0.46.x" }
 sentry-rust-minidump = { git = "https://github.com/Alaydriem/sentry-rust-minidump", branch = "master" }
-webrtc = { git = "https://github.com/alaydriem/webrtc", branch = "larger-buffer-size" }
+# Mirrored from bedrock-protocol-rs's own [patch.crates-io]. A `[patch]` in a
+# dependency's manifest is inert — only the workspace root's is honoured — so this
+# entry is what decides which webrtc the client links. Pinned to a commit rather
+# than the branch: `larger-buffer-size` moves, and this revision is the one
+# carrying the Windows IPv6 ifaces byte-order fix and TURN ALTERNATE-SERVER
+# (300 Try Alternate) handling, without which Realms cannot connect once TURN
+# authentication is enforced.
+webrtc = { git = "https://github.com/alaydriem/webrtc", rev = "6f07e0cf" }
+
+# The dual-stack game listener (IPV6_V6ONLY = false) lives only here. Without it a
+# client that discovers the proxy over IPv6 multicast dials a port nothing answers,
+# so the world appears in the Friends tab and cannot be joined. Repoint at a pushed
+# ref on `abort-on-drop` once the change lands there.
+[patch."https://github.com/alaydriem/tokio-raknet"]
+tokio-raknet = { path = "../tokio-raknet-dualstack" }

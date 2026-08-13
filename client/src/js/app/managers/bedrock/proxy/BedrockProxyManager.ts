@@ -49,7 +49,7 @@ export class BedrockProxyManager {
         this.isProxyLoadingStore = writable(false);
         this.serverHostStore = writable('');
         this.serverPortStore = writable(19132);
-        this.listenPortStore = writable(19137);
+        this.listenPortStore = writable(28282);
         this.proxyServersStore = writable([]);
         this.serverProvidedStore = writable([]);
         this.proxyFavoritesStore = writable(new Set());

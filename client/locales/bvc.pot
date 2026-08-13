@@ -28,7 +28,7 @@ msgstr ""
 msgid "{percent}% of the worst speaker's audio had to be reconstructed. They will sound rough."
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:47
+#: src/components/dashboard/ChatComposer.svelte:49
 msgid "{reason} — that message was not sent"
 msgstr ""
 
@@ -117,14 +117,14 @@ msgstr ""
 msgid "Acquiring"
 msgstr ""
 
-#: src/components/dashboard/ChatTargetPicker.svelte:17
+#: src/components/dashboard/ChatTargetPicker.svelte:19
 msgid "active now"
 msgstr ""
 
 #: src/components/dashboard/ServerRail.svelte:46
 #: src/components/server/ServerListScreen.svelte:52
 #: src/components/server/ServerListScreen.svelte:78
-#: src/components/settings/panes/ProxyPane.svelte:212
+#: src/components/settings/panes/ConnectPane.svelte:245
 msgid "Add a server"
 msgstr ""
 
@@ -135,10 +135,6 @@ msgstr ""
 #: src/components/login/IntroScreen.svelte:326
 #: src/components/login/NoServerScreen.svelte:48
 msgid "Add the mod to your world"
-msgstr ""
-
-#: src/js/app/settings/BedrockRelayAddresses.ts:40
-msgid "Add this in Minecraft. It sends you on to the server you picked above."
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:204
@@ -261,7 +257,7 @@ msgid "Available now"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:363
-#: src/components/settings/SettingsScreen.svelte:154
+#: src/components/settings/SettingsScreen.svelte:153
 msgid "Back"
 msgstr ""
 
@@ -328,6 +324,14 @@ msgstr ""
 msgid "Build"
 msgstr ""
 
+#: src/components/settings/panes/ConnectPane.svelte:49
+msgid "BVC Addon Required"
+msgstr ""
+
+#: src/components/settings/panes/ConnectPane.svelte:213
+msgid "BVC JOINS THE WORLD AS YOU"
+msgstr ""
+
 #: src/components/setup/MicrophoneScreen.svelte:54
 msgid "BVC needs"
 msgstr ""
@@ -388,17 +392,13 @@ msgstr ""
 msgid "Channel event received with no payload"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:53
+#: src/components/dashboard/ChatComposer.svelte:55
 #: src/components/dashboard/DashboardScreen.svelte:329
 msgid "Chat"
 msgstr ""
 
-#: src/components/dashboard/ChatTargetPicker.svelte:15
-msgid "chat unavailable"
-msgstr ""
-
 #: src/components/settings/panes/AboutPane.svelte:113
-#: src/components/settings/panes/ProxyPane.svelte:192
+#: src/components/settings/panes/ConnectPane.svelte:227
 msgid "Check again"
 msgstr ""
 
@@ -414,8 +414,7 @@ msgstr ""
 msgid "Checking audio permission..."
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:169
-#: src/components/settings/panes/RealmsPane.svelte:119
+#: src/components/settings/panes/ConnectPane.svelte:204
 msgid "Checking your Microsoft sign-in."
 msgstr ""
 
@@ -466,8 +465,8 @@ msgstr ""
 msgid "Close groups"
 msgstr ""
 
-#: src/components/settings/SettingsScreen.svelte:129
-#: src/components/settings/SettingsScreen.svelte:147
+#: src/components/settings/SettingsScreen.svelte:128
+#: src/components/settings/SettingsScreen.svelte:146
 msgid "Close settings"
 msgstr ""
 
@@ -479,7 +478,7 @@ msgstr ""
 msgid "Close this card"
 msgstr ""
 
-#: src/components/dashboard/ChatTargetPicker.svelte:30
+#: src/components/dashboard/ChatTargetPicker.svelte:32
 msgid "Close world picker"
 msgstr ""
 
@@ -526,6 +525,7 @@ msgstr ""
 msgid "connected"
 msgstr ""
 
+#: src/components/settings/panes/ConnectPane.svelte:299
 #: src/components/settings/panes/WebSocketPane.svelte:226
 msgid "Connected"
 msgstr ""
@@ -570,18 +570,6 @@ msgstr ""
 
 #: src/components/settings/BedrockLog.svelte:99
 msgid "Copy"
-msgstr ""
-
-#: src/components/settings/RelayAddresses.svelte:31
-msgid "Copy {address}"
-msgstr ""
-
-#: src/components/settings/ListenAddresses.svelte:55
-msgid "Copy {scheme}{address}"
-msgstr ""
-
-#: src/components/settings/ListenAddresses.svelte:74
-msgid "Copy {single}"
 msgstr ""
 
 #: src/components/settings/panes/WebSocketPane.svelte:148
@@ -695,10 +683,6 @@ msgstr ""
 
 #: src/components/settings/panes/AboutPane.svelte:146
 msgid "Display language"
-msgstr ""
-
-#: src/js/app/settings/BedrockRelayAddresses.ts:50
-msgid "DNS override"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:162
@@ -826,8 +810,8 @@ msgstr ""
 msgid "FORMAT UNSUPPORTED"
 msgstr ""
 
-#: src/components/settings/panes/RealmsPane.svelte:171
-msgid "Forwarding to"
+#: src/components/settings/panes/ConnectPane.svelte:267
+msgid "From your server"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:196
@@ -1003,11 +987,6 @@ msgstr ""
 msgid "Jitter buffer"
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:263
-#: src/components/settings/panes/RealmsPane.svelte:182
-msgid "Join"
-msgstr ""
-
 #: src/components/login/IntroScreen.svelte:302
 msgid "Join from in-game"
 msgstr ""
@@ -1037,11 +1016,11 @@ msgstr ""
 msgid "Language"
 msgstr ""
 
-#: src/components/dashboard/ChatTargetPicker.svelte:19
+#: src/components/dashboard/ChatTargetPicker.svelte:21
 msgid "last seen {n} h ago"
 msgstr ""
 
-#: src/components/dashboard/ChatTargetPicker.svelte:18
+#: src/components/dashboard/ChatTargetPicker.svelte:20
 msgid "last seen {n} min ago"
 msgstr ""
 
@@ -1276,8 +1255,16 @@ msgstr ""
 msgid "None"
 msgstr ""
 
+#: src/components/dashboard/ChatTargetPicker.svelte:17
+msgid "not answering right now"
+msgstr ""
+
 #: src/routes/uireview/+page.svelte:152
 msgid "Not available in a release build."
+msgstr ""
+
+#: src/components/dashboard/ChatMessageRow.svelte:40
+msgid "not confirmed — this may not have been delivered"
 msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:32
@@ -1332,7 +1319,7 @@ msgstr ""
 msgid "Nothing in range"
 msgstr ""
 
-#: src/components/settings/SettingsScreen.svelte:171
+#: src/components/settings/SettingsScreen.svelte:170
 msgid "Nothing is connected"
 msgstr ""
 
@@ -1430,6 +1417,10 @@ msgstr ""
 msgid "Open a bug report on GitHub"
 msgstr ""
 
+#: src/components/settings/panes/ConnectPane.svelte:302
+msgid "Open Minecraft, then join it from the Friends tab."
+msgstr ""
+
 #: src/components/settings/XboxSignIn.svelte:97
 msgid "Open the page"
 msgstr ""
@@ -1448,10 +1439,6 @@ msgstr ""
 
 #: src/js/app/settings/NoiseGateModel.ts:42
 msgid "Opens above"
-msgstr ""
-
-#: src/components/settings/RelayAddresses.svelte:19
-msgid "Or go through this BVC server"
 msgstr ""
 
 #: src/components/audio/AudioDeviceSelector.svelte:114
@@ -1541,7 +1528,7 @@ msgstr ""
 msgid "Positional audio"
 msgstr ""
 
-#: src/components/dashboard/ChatTargetPicker.svelte:33
+#: src/components/dashboard/ChatTargetPicker.svelte:35
 msgid "Post to"
 msgstr ""
 
@@ -1583,10 +1570,6 @@ msgstr ""
 msgid "Proxy all events"
 msgstr ""
 
-#: src/js/app/settings/SettingsCatalogue.ts:37
-msgid "Proxy Connect"
-msgstr ""
-
 #: src/js/app/managers/settings/KeybindsManager.ts:80
 msgid "Push to Talk"
 msgstr ""
@@ -1612,10 +1595,6 @@ msgstr ""
 msgid "Reach"
 msgstr ""
 
-#: src/components/settings/RelayAddresses.svelte:20
-msgid "Reaches the same session without this device having to stay on the network you play from."
-msgstr ""
-
 #: src/components/login/IntroScreen.svelte:227
 #: src/components/login/IntroScreen.svelte:231
 msgid "Ready"
@@ -1629,8 +1608,16 @@ msgstr ""
 msgid "Ready to install"
 msgstr ""
 
-#: src/js/app/settings/SettingsCatalogue.ts:44
-msgid "Realms Connect"
+#: src/components/settings/panes/ConnectPane.svelte:80
+msgid "Realm"
+msgstr ""
+
+#: src/components/settings/panes/ConnectPane.svelte:253
+msgid "Realms"
+msgstr ""
+
+#: src/components/settings/panes/ConnectPane.svelte:50
+msgid "Realms / No-Net Addon Required"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:31
@@ -1779,6 +1766,10 @@ msgstr ""
 msgid "Run the BVC server"
 msgstr ""
 
+#: src/components/settings/panes/ConnectPane.svelte:300
+msgid "Running for {clock}"
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:298
 msgid "Running something across the whole map? Drop into a channel and everyone stays at full volume however far apart you get. Proximity keeps running underneath the entire time."
 msgstr ""
@@ -1813,7 +1804,7 @@ msgstr ""
 msgid "Select a server"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:73
+#: src/components/dashboard/ChatComposer.svelte:74
 msgid "Send"
 msgstr ""
 
@@ -1826,7 +1817,11 @@ msgstr ""
 msgid "Sending"
 msgstr ""
 
-#: src/components/dashboard/ChatMessageRow.svelte:32
+#: src/components/dashboard/ChatMessageRow.svelte:38
+msgid "sending…"
+msgstr ""
+
+#: src/components/dashboard/ChatMessageRow.svelte:47
 msgid "sent from the app, not in game"
 msgstr ""
 
@@ -1896,7 +1891,7 @@ msgid "Set it up once."
 msgstr ""
 
 #: src/components/dashboard/ServerRail.svelte:52
-#: src/components/settings/SettingsScreen.svelte:135
+#: src/components/settings/SettingsScreen.svelte:134
 msgid "Settings"
 msgstr ""
 
@@ -1917,8 +1912,7 @@ msgid "Show status"
 msgstr ""
 
 #: src/components/login/CodeScreen.svelte:81
-#: src/components/settings/panes/ProxyPane.svelte:181
-#: src/components/settings/panes/RealmsPane.svelte:131
+#: src/components/settings/panes/ConnectPane.svelte:216
 msgid "Sign in"
 msgstr ""
 
@@ -1936,8 +1930,7 @@ msgid "Sign in with a code"
 msgstr ""
 
 #: src/components/login/SignInScreen.svelte:99
-#: src/components/settings/panes/ProxyPane.svelte:177
-#: src/components/settings/panes/RealmsPane.svelte:127
+#: src/components/settings/panes/ConnectPane.svelte:212
 #: src/components/settings/XboxSignIn.svelte:40
 msgid "Sign in with Microsoft"
 msgstr ""
@@ -2033,7 +2026,6 @@ msgid "State"
 msgstr ""
 
 #: src/components/dashboard/StatusPanel.svelte:125
-#: src/components/settings/panes/ProxyPane.svelte:243
 msgid "Status"
 msgstr ""
 
@@ -2047,7 +2039,6 @@ msgstr ""
 msgid "Still stuck?"
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:254
 #: src/components/settings/PlateGrid.svelte:91
 msgid "Stop"
 msgstr ""
@@ -2123,10 +2114,6 @@ msgstr ""
 msgid "The operator has turned voice recording off, so the record button is unavailable while you are connected here."
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:178
-msgid "THE PROXY JOINS THE SERVER AS YOU"
-msgstr ""
-
 #: src/js/app/error/FaultCatalog.ts:143
 msgid "The server is newer than this client"
 msgstr ""
@@ -2175,10 +2162,6 @@ msgstr ""
 msgid "This server's security certificate does not match the one this device was issued. Your saved sign-in for it has been removed. Sign in again to get fresh credentials. If it keeps happening, the server operator needs to fix their certificate configuration."
 msgstr ""
 
-#: src/components/settings/panes/RealmsPane.svelte:128
-msgid "TO LIST THE REALMS YOU CAN JOIN"
-msgstr ""
-
 #: src/js/app/error/FaultCatalog.ts:285
 msgid "To use Bedrock Voice Chat, a parent or guardian needs to turn it on for your device. Ask them to help you unlock it -- then you're good to go!"
 msgstr ""
@@ -2197,10 +2180,6 @@ msgstr ""
 
 #: src/components/settings/RecordingDetail.svelte:86
 msgid "Tracks"
-msgstr ""
-
-#: src/js/app/settings/BedrockRelayAddresses.ts:38
-msgid "Transfer server"
 msgstr ""
 
 #: src/components/server/PreflightPanel.svelte:148
@@ -2315,6 +2294,10 @@ msgstr ""
 msgid "Voice chat cannot work without a microphone"
 msgstr ""
 
+#: src/js/app/settings/SettingsCatalogue.ts:37
+msgid "Voice Chat Connect"
+msgstr ""
+
 #: src/components/login/GateScreen.svelte:96
 msgid "Voice chat needs a BVC server plus a mod on the world. It's a one-time install — see what's involved."
 msgstr ""
@@ -2373,7 +2356,7 @@ msgstr ""
 msgid "Watching for your sign-in."
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:189
+#: src/components/settings/panes/ConnectPane.svelte:224
 msgid "We could not reach this server to ask whether Bedrock support is on."
 msgstr ""
 
@@ -2408,10 +2391,6 @@ msgstr ""
 
 #: src/components/dashboard/ChatDock.svelte:85
 msgid "Where this message goes"
-msgstr ""
-
-#: src/components/settings/panes/ProxyPane.svelte:198
-msgid "Where you play"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:204
@@ -2470,7 +2449,7 @@ msgstr ""
 msgid "You are deafened. You cannot hear anyone."
 msgstr ""
 
-#: src/components/settings/SettingsScreen.svelte:171
+#: src/components/settings/SettingsScreen.svelte:170
 msgid "You are in settings on its own."
 msgstr ""
 
@@ -2478,11 +2457,11 @@ msgstr ""
 msgid "You are muted. Nobody can hear you."
 msgstr ""
 
-#: src/components/settings/panes/ProxyPane.svelte:190
-msgid "You can start the proxy anyway — if position is refused, this is why."
+#: src/components/settings/panes/ConnectPane.svelte:225
+msgid "You can connect anyway — if position is refused, this is why."
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:43
+#: src/components/dashboard/ChatComposer.svelte:45
 msgid "You moved out of {world} — that message was not sent"
 msgstr ""
 
@@ -2542,10 +2521,6 @@ msgstr ""
 msgid "Your range"
 msgstr ""
 
-#: src/components/settings/panes/RealmsPane.svelte:136
-msgid "Your Realms"
-msgstr ""
-
 #: src/js/app/error/FaultCatalog.ts:254
 msgid "Your sign-in for this server is still valid, but its voice connection presented a certificate this device cannot verify. Only the server operator can fix this. Your saved sign-in has been kept."
 msgstr ""
@@ -2568,6 +2543,10 @@ msgstr ""
 
 #: src/components/login/IntroScreen.svelte:245
 msgid "YOUR WORLD STAYS WHERE IT IS"
+msgstr ""
+
+#: src/components/settings/panes/ConnectPane.svelte:280
+msgid "Yours"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:141

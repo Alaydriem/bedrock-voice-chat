@@ -1,17 +1,20 @@
 use std::sync::{Arc, Mutex};
 
-use bvc_server_lib::services::{ChatRejection, ChatService, ChatSink};
-use common::structs::packet::ChatMessagePacket;
+use bvc_server_lib::services::{ChatService, ChatSink};
+use common::errors::ChatRejection;
+use common::structs::packet::{ChatMessagePacket, ChatRejectedPacket};
 
 /// Stands in for QUIC so the assertions are about routing rather than about transport.
 struct RecordingSink {
-    delivered: Mutex<Vec<(String, String)>>,
+    delivered: Mutex<Vec<(String, String, Option<String>)>>,
+    rejections: Mutex<Vec<(String, ChatRejectedPacket)>>,
 }
 
 impl RecordingSink {
     fn new() -> Arc<Self> {
         Arc::new(Self {
             delivered: Mutex::new(Vec::new()),
+            rejections: Mutex::new(Vec::new()),
         })
     }
 
@@ -20,7 +23,7 @@ impl RecordingSink {
             .lock()
             .unwrap()
             .iter()
-            .map(|(w, _)| w.clone())
+            .map(|(w, _, _)| w.clone())
             .collect()
     }
 
@@ -29,17 +32,40 @@ impl RecordingSink {
             .lock()
             .unwrap()
             .iter()
-            .map(|(_, t)| t.clone())
+            .map(|(_, t, _)| t.clone())
             .collect()
+    }
+
+    /// Which delivery, if any, was told who sent the line.
+    fn authors(&self) -> Vec<Option<String>> {
+        self.delivered
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(_, _, a)| a.clone())
+            .collect()
+    }
+
+    /// Which senders were told their line was refused, and with what.
+    fn rejections(&self) -> Vec<(String, ChatRejectedPacket)> {
+        self.rejections.lock().unwrap().clone()
     }
 }
 
 impl ChatSink for RecordingSink {
-    fn deliver(&self, world_uuid: &str, packet: &ChatMessagePacket) {
-        self.delivered
+    fn deliver(&self, world_uuid: &str, author_identity: Option<&str>, packet: &ChatMessagePacket) {
+        self.delivered.lock().unwrap().push((
+            world_uuid.to_string(),
+            packet.text.clone(),
+            author_identity.map(str::to_string),
+        ));
+    }
+
+    fn deliver_rejection(&self, identity: &str, packet: &ChatRejectedPacket) {
+        self.rejections
             .lock()
             .unwrap()
-            .push((world_uuid.to_string(), packet.text.clone()));
+            .push((identity.to_string(), packet.clone()));
     }
 }
 
@@ -246,4 +272,78 @@ async fn an_app_send_reaches_every_id_the_room_spans() {
         .expect("the send should be accepted");
 
     assert_eq!(sink.worlds(), worlds, "delivered under every id in the room");
+}
+
+// Delivery is addressed by in-game presence, and the app's sender is often not in game at
+// all — that is the case the off-game picker exists for. Without an explicit echo they watch
+// their own message disappear into a world that accepted it.
+#[tokio::test]
+async fn the_author_is_named_once_on_delivery() {
+    let svc = ChatService::new_shared();
+    let sink = RecordingSink::new();
+    svc.add_sink(sink.clone());
+    let (tx, _rx) = tokio::sync::mpsc::channel(8);
+    svc.register(svc.next_socket_id(), "W".into(), "Survival".into(), tx);
+
+    svc.on_app_send("minecraft:Alaydriem", "W", "hello".to_string())
+        .await
+        .expect("a registered world accepts a line");
+
+    assert_eq!(
+        sink.authors(),
+        vec![Some("minecraft:Alaydriem".to_string())],
+        "the author must be named exactly once so the sink can guarantee their echo"
+    );
+}
+
+// A line the world reported is already there. Naming an author would ask the sink to echo it
+// back to whoever happened to say it in game.
+#[tokio::test]
+async fn a_reported_line_names_no_author() {
+    let svc = ChatService::new_shared();
+    let sink = RecordingSink::new();
+    svc.add_sink(sink.clone());
+
+    svc.on_game_chat(&["W".to_string()], "Petra".into(), "hi".into())
+        .await;
+
+    assert_eq!(sink.authors(), vec![None]);
+}
+
+// A rejection the sender never hears is indistinguishable from a message that landed. With the
+// client no longer predicting failures, this is the only surface a real one has.
+#[tokio::test]
+async fn an_unroutable_world_answers_the_sender() {
+    let svc = ChatService::new_shared();
+    let sink = RecordingSink::new();
+    svc.add_sink(sink.clone());
+
+    let outcome = svc
+        .on_app_send("minecraft:Alaydriem", "no-such-world", "hello".into())
+        .await;
+
+    assert!(outcome.is_err());
+    let rejections = sink.rejections();
+    assert_eq!(rejections.len(), 1, "told exactly once");
+    assert_eq!(rejections[0].0, "minecraft:Alaydriem");
+    assert_eq!(rejections[0].1.text, "hello");
+    assert!(
+        rejections[0].1.reason.contains("no chat channel"),
+        "the sender needs the reason, got: {}",
+        rejections[0].1.reason
+    );
+}
+
+// The refusal goes to the sender alone. Everyone else never saw the message.
+#[tokio::test]
+async fn a_refusal_is_not_fanned_out_to_the_world() {
+    let svc = ChatService::new_shared();
+    let sink = RecordingSink::new();
+    svc.add_sink(sink.clone());
+
+    let _ = svc
+        .on_app_send("minecraft:Alaydriem", "no-such-world", "hello".into())
+        .await;
+
+    assert!(sink.texts().is_empty(), "nothing may be delivered to a world");
 }

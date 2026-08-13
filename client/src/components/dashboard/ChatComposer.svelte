@@ -29,9 +29,11 @@
               : I18n.tf("Message {world}…", { world: target.world.world_name }),
     );
 
+    // Typing is never refused. A line nothing can carry is rendered unconfirmed and the sender
+    // can read it back; swallowing it, as a disabled composer did, taught them nothing.
     function submit(): void {
         const trimmed = text.trim();
-        if (!trimmed || unavailable) return;
+        if (!trimmed) return;
         onSend(trimmed);
         text = "";
     }
@@ -60,7 +62,6 @@
         class="rad-chat-input"
         bind:value={text}
         {placeholder}
-        disabled={unavailable}
         autocomplete="off"
         aria-label={placeholder}
         onfocus={onFocus}

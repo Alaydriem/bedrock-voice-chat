@@ -1,4 +1,6 @@
-import { describe, expect, test } from 'vitest';
+import { get } from 'svelte/store';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { mockInvoke } from '../../tauri';
 import { ChatManager } from '../../../js/app/chat/ChatManager';
 import type { ChatWorld } from '../../../js/bindings/ChatWorld';
 
@@ -12,6 +14,124 @@ function world(uuid: string, name: string, available = true): ChatWorld {
         mode: 'Server',
     };
 }
+
+// A line the sender cannot see is the whole bug. Nothing may confirm it — the world's addon
+// may be absent, the link may be down — and it must still appear, marked as unconfirmed,
+// rather than being swallowed because delivery could not be proven.
+describe('ChatManager optimistic send', () => {
+    beforeEach(() => {
+        mockInvoke({ chat_send: () => null, bedrock_send_chat: () => null });
+    });
+
+    test('a typed line appears immediately, marked unconfirmed', async () => {
+        const manager = new ChatManager('Alaydriem');
+
+        await manager.send('hello');
+
+        const lines = get(manager.lines);
+        expect(lines).toHaveLength(1);
+        expect(lines[0].text).toBe('hello');
+        expect(lines[0].delivery).toBe('pending');
+    });
+
+    // With no world known to the server there is nothing to address, and the old code
+    // returned before sending or rendering anything at all.
+    test('a line typed with no target still appears', async () => {
+        const manager = new ChatManager('Alaydriem');
+
+        await manager.send('nobody is listening');
+
+        expect(get(manager.lines)).toHaveLength(1);
+        expect(get(manager.lines)[0].delivery).toBe('pending');
+    });
+
+    test('a refused send is marked failed and stays visible', async () => {
+        mockInvoke({
+            chat_send: () => {
+                throw new Error('Could not reach the server');
+            },
+        });
+        const manager = new ChatManager('Alaydriem');
+
+        await manager.send('into the void');
+
+        const lines = get(manager.lines);
+        expect(lines).toHaveLength(1);
+        expect(lines[0].delivery).toBe('failed');
+    });
+
+    // The echo is the confirmation. Appending it would show the sender their own line twice.
+    test('an echo of a pending line promotes it rather than duplicating it', async () => {
+        const manager = new ChatManager('Alaydriem');
+        await manager.send('hello');
+
+        manager.acceptLine({ author: 'Alaydriem', text: 'hello', system: false });
+
+        const lines = get(manager.lines);
+        expect(lines).toHaveLength(1);
+        expect(lines[0].delivery).toBe('confirmed');
+    });
+
+    // Somebody else saying the same words is not a confirmation of your send.
+    test('another player saying the same words does not confirm your line', async () => {
+        const manager = new ChatManager('Alaydriem');
+        await manager.send('hello');
+
+        manager.acceptLine({ author: 'SomebodyElse', text: 'hello', system: false });
+
+        const lines = get(manager.lines);
+        expect(lines).toHaveLength(2);
+        expect(lines[0].delivery).toBe('pending');
+    });
+
+    // The reason has to reach the sender, and it has to settle the line they can see rather
+    // than only raising a notice beside it.
+    test('a server rejection marks the matching line failed and names the reason', async () => {
+        const manager = new ChatManager('Alaydriem');
+        await manager.send('hello');
+
+        manager.handleRejection({
+            reason: 'no chat channel is registered for this world',
+            text: 'hello',
+        });
+
+        const lines = get(manager.lines);
+        expect(lines).toHaveLength(1);
+        expect(lines[0].delivery).toBe('failed');
+        const rejection = get(manager.rejection);
+        expect(rejection?.kind).toBe('failed');
+        expect((rejection as { reason: string }).reason).toContain('no chat channel');
+    });
+
+    // Two sends in flight with different text: refusing one must not settle the other.
+    test('a rejection settles only the line whose text it names', async () => {
+        const manager = new ChatManager('Alaydriem');
+        await manager.send('first');
+        await manager.send('second');
+
+        manager.handleRejection({ reason: 'no world was named', text: 'second' });
+
+        const lines = get(manager.lines);
+        expect(lines[0].delivery).toBe('pending');
+        expect(lines[1].delivery).toBe('failed');
+    });
+
+    // Nothing answered at all. Left pending forever the sender would assume it landed.
+    test('a line nothing answers is marked failed once the window closes', async () => {
+        vi.useFakeTimers();
+        try {
+            const manager = new ChatManager('Alaydriem');
+            await manager.send('hello');
+            expect(get(manager.lines)[0].delivery).toBe('pending');
+
+            vi.advanceTimersByTime(ChatManager.ANSWER_WINDOW_MS + 1);
+
+            expect(get(manager.lines)[0].delivery).toBe('failed');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
 
 describe('ChatManager.resolveTarget', () => {
     test('in game targets the world the player is standing in', () => {
@@ -29,8 +149,20 @@ describe('ChatManager.resolveTarget', () => {
         expect(ChatManager.resolveTarget(worlds, 'w1').kind).not.toBe('choose');
     });
 
-    test('out of game with one usable world targets it automatically', () => {
-        const worlds = [world('w1', 'Survival'), world('w2', 'Creative', false)];
+    test('out of game with one known world targets it automatically', () => {
+        const worlds = [world('w1', 'Survival')];
+
+        const target = ChatManager.resolveTarget(worlds, null);
+
+        expect(target.kind).toBe('only');
+        expect(target.kind === 'only' && target.world.world_uuid).toBe('w1');
+    });
+
+    // A registered chat channel is a momentary reading and it flaps. The world the server
+    // declared is still addressable, and the send path reports a real failure if the addon
+    // turns out to be away — predicting one here is what made a typed line vanish.
+    test('out of game offers a world whose chat channel is not registered', () => {
+        const worlds = [world('w1', 'Survival', false)];
 
         const target = ChatManager.resolveTarget(worlds, null);
 
@@ -47,17 +179,19 @@ describe('ChatManager.resolveTarget', () => {
         expect(target.kind === 'choose' && target.options).toHaveLength(2);
     });
 
-    // Standing in a world whose chat channel is down must not fall through to some other
-    // world. Sending there would put the message in front of people the player is not with.
-    test('a world the player is standing in with no chat channel is unavailable', () => {
+    // The player is standing in w1, so w1 is where their message belongs whether or not its
+    // chat channel answered a moment ago. What must never happen is falling through to w2,
+    // and the standing-world lookup is what prevents that.
+    test('a world the player is standing in is targeted even with no chat channel', () => {
         const worlds = [world('w1', 'Survival', false), world('w2', 'Creative')];
 
         const target = ChatManager.resolveTarget(worlds, 'w1');
 
-        expect(target.kind).toBe('unavailable');
+        expect(target.kind).toBe('in-game');
+        expect(target.kind === 'in-game' && target.world.world_uuid).toBe('w1');
     });
 
-    test('no usable world at all is unavailable', () => {
+    test('no world to name at all is unavailable', () => {
         expect(ChatManager.resolveTarget([], null).kind).toBe('unavailable');
     });
 

@@ -7,11 +7,11 @@ describe("SettingsRoute", () => {
     });
 
     it("reads the pane back out of a path", () => {
-        expect(SettingsRoute.paneOf("/dashboard/settings/proxy")).toBe("proxy");
+        expect(SettingsRoute.paneOf("/dashboard/settings/connect")).toBe("connect");
     });
 
     it("tolerates a trailing slash, which is what a prerendered route serves", () => {
-        expect(SettingsRoute.paneOf("/dashboard/settings/proxy/")).toBe("proxy");
+        expect(SettingsRoute.paneOf("/dashboard/settings/connect/")).toBe("connect");
     });
 
     it("falls back when the path names no pane", () => {

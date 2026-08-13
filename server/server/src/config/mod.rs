@@ -18,7 +18,6 @@ pub use app::Server;
 pub use app::Voice;
 
 pub use app::BedrockConfig;
-pub use app::BedrockDnsConfig;
 #[allow(unused_imports)]
 pub use app::BedrockServerEntry;
 #[allow(unused_imports)]

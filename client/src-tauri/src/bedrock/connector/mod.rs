@@ -12,7 +12,7 @@ use tauri::async_runtime::Mutex;
 
 use common::consts::bedrock::BEDROCK_LISTEN_PORT;
 use common::structs::bedrock::{
-    BedrockBackendKind, BedrockConnectionInfo, HIVE_DNS_HOSTNAME, NetworkInterface,
+    BedrockBackendKind, BedrockConnectionInfo, NetworkInterface,
 };
 use common::traits::StreamTrait;
 
@@ -22,6 +22,7 @@ use websocket_types::{ActiveConnection, ConnectTargetId, ConnectTargetKind, Conn
 
 use crate::bedrock::{
     AddonModeResolver, AdvertisedVersionResolver, AnnounceInjector, BedrockChatChannel,
+    SessionName,
     BedrockConnectErrorChannel,
     BedrockEventEmitter, BedrockProxyManager, BedrockState, BedrockTargetService, ChatInjector,
     JukeboxBeaconCache, JukeboxEjectInjector, PresenceInjector, ProtocolGatingService, ProxyDeps,
@@ -115,6 +116,27 @@ impl BedrockConnector {
         }
     }
 
+    /// The signed-in gamertag, for the advert's second line.
+    ///
+    /// Absent rather than fatal: a session that cannot name its owner still
+    /// connects, it just advertises branding alone.
+    async fn owner_gamertag(&self) -> Option<String> {
+        let server = {
+            let app_state = self.app_handle.state::<Mutex<AppState>>();
+            let app = app_state.lock().await;
+            app.current_server.clone()
+        }?;
+
+        // `try_state`, not `state`: the keyring is managed in the app's own run path,
+        // which the e2e binary never executes. `state` would panic there, taking the
+        // whole session down to decorate an advert.
+        let keyring = self
+            .app_handle
+            .try_state::<Mutex<crate::keyring::KeyringService>>()?;
+        let mut kr = keyring.lock().await;
+        kr.get_credential(&server, "gamertag").ok()
+    }
+
     pub async fn start_proxy(&self, request: ProxyConnectRequest) -> Result<(), anyhow::Error> {
         // Resolved before the state lock: this reads the cached config over the
         // network client, which must not happen with the BedrockState guard held.
@@ -125,6 +147,18 @@ impl BedrockConnector {
             &request.target_host,
             request.target_port,
         );
+
+        // Both resolved before the state lock. `name_proxy_session` reaches
+        // `load_proxies`, which takes that same lock, and the advert needs the name
+        // at construction rather than after the session is up.
+        let named = self
+            .name_proxy_session(&request.target_host, request.target_port)
+            .await;
+        let world = SessionName::world(
+            named.as_ref().map(|c| c.name.as_str()),
+            &request.target_host,
+        );
+        let owner = SessionName::owner(self.owner_gamertag().await.as_deref());
 
         let state = self.app_handle.state::<Mutex<BedrockState>>();
 
@@ -161,11 +195,13 @@ impl BedrockConnector {
                 auth_manager,
                 advertised_version,
                 addon_mode,
+                world,
+                owner,
                 deps,
             );
             proxy.start().await?;
 
-            let (server_transfer_relay, server_dns_enabled) = self
+            let server_transfer_relay = self
                 .start_keepalive(&mut state, effective_listen_port, &network_interface)
                 .await;
 
@@ -186,19 +222,12 @@ impl BedrockConnector {
                 port: effective_listen_port,
                 backend: BedrockBackendKind::Direct,
                 remote_label: format!("{}:{}", request.target_host, request.target_port),
-                hive_dns_hostname: HIVE_DNS_HOSTNAME.to_string(),
-                server_dns_enabled,
                 server_transfer_relay,
             }
         };
 
         self.emit_connection_info(info);
 
-        // Named after the session is up, not before: a start that fails on the exclusivity
-        // check should not have paid for a store read and a config read first.
-        let named = self
-            .name_proxy_session(&request.target_host, request.target_port)
-            .await;
         state.lock().await.active_connection = named;
 
         self.broadcast_state().await;
@@ -207,6 +236,10 @@ impl BedrockConnector {
     }
 
     pub async fn start_realm(&self, request: RealmConnectRequest) -> Result<(), anyhow::Error> {
+        // Resolved before the lock for the same reason the proxy path does it: the
+        // keyring read must not happen with the BedrockState guard held.
+        let realm_owner = SessionName::owner(self.owner_gamertag().await.as_deref());
+
         let flag_service = self.app_handle.state::<Arc<FeatureFlagService>>();
 
         let state = self.app_handle.state::<Mutex<BedrockState>>();
@@ -243,11 +276,13 @@ impl BedrockConnector {
                 access_token,
                 realms_api,
                 advertised_version,
+                request.realm_name.clone(),
+                realm_owner,
                 deps,
             );
             realms.start().await?;
 
-            let (server_transfer_relay, server_dns_enabled) = self
+            let server_transfer_relay = self
                 .start_keepalive(&mut state, BEDROCK_LISTEN_PORT, &network_interface)
                 .await;
 
@@ -266,8 +301,6 @@ impl BedrockConnector {
                 port: BEDROCK_LISTEN_PORT,
                 backend: BedrockBackendKind::Realm,
                 remote_label: request.realm_name.clone(),
-                hive_dns_hostname: HIVE_DNS_HOSTNAME.to_string(),
-                server_dns_enabled,
                 server_transfer_relay,
             }
         };
@@ -432,7 +465,7 @@ impl BedrockConnector {
         state: &mut BedrockState,
         listen_port: u16,
         network_interface: &str,
-    ) -> (Option<String>, bool) {
+    ) -> Option<String> {
         let app_state = self.app_handle.state::<Mutex<AppState>>();
         let server_api = {
             let app = app_state.lock().await;
@@ -447,7 +480,7 @@ impl BedrockConnector {
 
         match server_api {
             Some(api) => api.resolve_bedrock_connection_hints().await,
-            None => (None, false),
+            None => None,
         }
     }
 

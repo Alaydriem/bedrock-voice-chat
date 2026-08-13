@@ -1,6 +1,5 @@
 import { writable, derived, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { Store } from '@tauri-apps/plugin-store';
 import { error as logError } from '@tauri-apps/plugin-log';
 import type { BedrockStatus } from '../../../bindings/BedrockStatus';
@@ -79,7 +78,6 @@ export class BedrockManager {
 
     private initialized = false;
     private store: Store | null = null;
-    private flagsUnlisten: UnlistenFn | null = null;
 
     constructor(capability: BedrockCapabilityManager) {
         this.statusMessageStore = writable('');
@@ -178,6 +176,15 @@ export class BedrockManager {
         await this.realmsManager.initialize(this.store);
         await this.proxyManager.initialize(this.store);
 
+        // Nothing else reads /api/config on this path. Without this the
+        // advertised server list stays empty, the capability status stays null so
+        // the retry affordance never renders, and the focus-refresh handler never
+        // arms because it is registered inside refresh() itself.
+        //
+        // Not awaited: a slow or unreachable server must not hold up the panes,
+        // and a failure schedules its own retry.
+        void this.capability.refresh();
+
         await this.authManager.restoreAuth();
 
         try {
@@ -235,16 +242,6 @@ export class BedrockManager {
     // blocked connect attempt, so it must not survive into a later mount.
     async initializeRealmsAccess(): Promise<void> {
         this.realmsUnavailableModalStore.set(false);
-        await this.refreshRealmsEnabled();
-        if (!this.flagsUnlisten) {
-            try {
-                this.flagsUnlisten = await listen('feature-flags-updated', () => {
-                    void this.refreshRealmsEnabled();
-                });
-            } catch (e) {
-                logError(`feature-flags-updated subscription failed: ${e}`);
-            }
-        }
     }
 
 
@@ -354,10 +351,6 @@ export class BedrockManager {
         this.authManager.destroy();
         this.logsManager.destroy();
         this.connectionManager.destroy();
-        if (this.flagsUnlisten) {
-            this.flagsUnlisten();
-            this.flagsUnlisten = null;
-        }
         // The capability manager itself is owned by SettingsSidebarManager;
         // only the subscription is ours to release.
         if (this.capabilityUnsubscribe) {

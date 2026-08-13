@@ -169,18 +169,15 @@ impl Api {
     /// connection menu: the server transfer relay address (`host:port`, present
     /// only when the relay is enabled) and whether the server's DNS override is
     /// running. Both fall back to absent/false on a config fetch failure.
-    pub(crate) async fn resolve_bedrock_connection_hints(&self) -> (Option<String>, bool) {
+    pub(crate) async fn resolve_bedrock_connection_hints(&self) -> Option<String> {
         match self.get_config().await {
-            Ok(config) => (
-                config
-                    .bedrock
-                    .transfer_port
-                    .map(|port| self.transfer_relay_address(port)),
-                config.bedrock.dns_enabled,
-            ),
+            Ok(config) => config
+                .bedrock
+                .transfer_port
+                .map(|port| self.transfer_relay_address(port)),
             Err(e) => {
                 error!("Failed to fetch /api/config for bedrock connection hints: {}", e);
-                (None, false)
+                None
             }
         }
     }

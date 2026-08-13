@@ -113,6 +113,52 @@ fn an_entry_without_a_mode_is_rejected() {
     );
 }
 
+// Three ports live in this area and two of them are easy to conflate. Asserting
+// them together is what stops a future find-and-replace on 19132 from silently
+// repointing every advertised server at the local proxy.
+#[test]
+fn the_three_bedrock_ports_are_distinct_and_stable() {
+    let config = BedrockConfig::default();
+    assert_eq!(config.transfer_port, 28283, "the relay listens on 28283");
+    assert_eq!(
+        config.transfer_target_port,
+        common::consts::bedrock::BEDROCK_LISTEN_PORT,
+        "the relay must transfer to whatever port the client actually listens on"
+    );
+    assert_eq!(
+        common::consts::bedrock::BEDROCK_LISTEN_PORT,
+        28282,
+        "the client proxy listens on 28282"
+    );
+
+    let entry =
+        BedrockServerEntry::from_compact("Upstream@play.example.com@net").expect("parse");
+    assert_eq!(
+        entry.port, 19132,
+        "an advertised entry still defaults to the real BDS port"
+    );
+}
+
+// An operator upgrading past the DNS removal still has a `dns` block in their
+// config. Ignoring it keeps the server booting; rejecting it would turn a feature
+// that quietly stopped existing into a server that will not start.
+#[test]
+fn an_old_config_with_a_dns_block_still_loads() {
+    let hcl = r#"
+        enabled = true
+        dns {
+            enabled = true
+            override_host = "geo.hivebedrock.network"
+        }
+        servers = []
+    "#;
+    let value: serde_json::Value = hcl::from_str(hcl).expect("parse hcl");
+    let config: BedrockConfig =
+        serde_json::from_value(value).expect("a leftover dns block must not break startup");
+    assert!(config.enabled);
+    assert!(config.servers.is_empty());
+}
+
 #[test]
 fn hcl_accepts_an_explicit_no_net_declaration() {
     let hcl = r#"

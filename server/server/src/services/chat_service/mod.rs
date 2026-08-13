@@ -1,11 +1,9 @@
 mod quic_sink;
 mod registry;
-mod rejection;
 mod sink;
 
 pub use quic_sink::QuicChatSink;
 pub use registry::{ChatSocket, ChatSocketRegistry};
-pub use rejection::ChatRejection;
 pub use sink::ChatSink;
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -14,7 +12,8 @@ use std::time::Duration;
 
 use common::{Game, PlayerEnum};
 use common::structs::chat::ChatFrame;
-use common::structs::packet::{ChatMessagePacket, ChatOrigin};
+use common::errors::ChatRejection;
+use common::structs::packet::{ChatMessagePacket, ChatOrigin, ChatRejectedPacket};
 use sea_orm::{ActiveValue, DatabaseConnection, EntityTrait, sea_query::OnConflict};
 use tokio::sync::mpsc;
 
@@ -77,6 +76,20 @@ impl ChatService {
     pub fn add_sink(&self, sink: Arc<dyn ChatSink>) {
         if let Ok(mut sinks) = self.sinks.write() {
             sinks.push(sink);
+        }
+    }
+
+    /// Tells one sender their line did not go through.
+    ///
+    /// Addressed to that connection and never fanned out: a refusal is between the server and
+    /// the person who typed it, and the rest of the world never saw the message to begin with.
+    pub fn reject(&self, author: &str, rejection: &ChatRejection, text: &str) {
+        tracing::info!(player = %author, rejection = %rejection, "chat send refused");
+        let packet = ChatRejectedPacket::new(rejection.to_string(), text.to_string());
+        if let Ok(sinks) = self.sinks.read() {
+            for sink in sinks.iter() {
+                sink.deliver_rejection(author, &packet);
+            }
         }
     }
 
@@ -156,7 +169,7 @@ impl ChatService {
                 Some(world_uuid.clone()),
                 ChatOrigin::Game,
             );
-            self.fan_out(world_uuid, &packet);
+            self.fan_out(world_uuid, None, &packet);
         }
 
         self.spawn_history(canonical, &author);
@@ -174,7 +187,7 @@ impl ChatService {
                 Some(world_uuid.clone()),
                 ChatOrigin::Game,
             );
-            self.fan_out(world_uuid, &packet);
+            self.fan_out(world_uuid, None, &packet);
         }
     }
 
@@ -189,29 +202,35 @@ impl ChatService {
         world_uuid: &str,
         text: String,
     ) -> Result<(), ChatRejection> {
+        // Every refusal below is answered to the sender before it is returned. A rejection only
+        // the server knows about is indistinguishable, from the composer, from a message that
+        // landed — which is the whole reason a typed line could disappear.
+        let refuse = |rejection: ChatRejection| -> ChatRejection {
+            self.reject(author, &rejection, &text);
+            rejection
+        };
+
         // Resolve to the room rather than the id. On Paper and Fabric the id names a
         // dimension, and the room is all of them: a player standing in the nether is in the
         // same room as the overworld id the app addressed.
-        let room = self
-            .registry
-            .room(world_uuid)
-            .ok_or(ChatRejection::NoChannel)?;
+        let Some(room) = self.registry.room(world_uuid) else {
+            return Err(refuse(ChatRejection::NoChannel));
+        };
 
         // The sender's live world beats the world they named — they may have been transferred
         // while the app still held the older target. Compared against the room, so changing
         // dimension is not mistaken for changing server.
         if let Some(current) = self.current_world_of(author).await {
             if !room.contains(&current) {
-                return Err(ChatRejection::WrongWorld {
+                return Err(refuse(ChatRejection::WrongWorld {
                     current: Some(current),
-                });
+                }));
             }
         }
 
-        let tx = self
-            .registry
-            .sender(world_uuid)
-            .ok_or(ChatRejection::NoChannel)?;
+        let Some(tx) = self.registry.sender(world_uuid) else {
+            return Err(refuse(ChatRejection::NoChannel));
+        };
 
         // The gamertag, not the certificate CN. `minecraft:Alaydriem` is how the voice plane
         // keys identity; it is not what belongs in a chat line.
@@ -221,27 +240,34 @@ impl ChatService {
             author: display.clone(),
             text: text.clone(),
         };
-        let body = serde_json::to_string(&frame).map_err(|_| ChatRejection::NoChannel)?;
-        tx.try_send(body).map_err(|_| ChatRejection::NoChannel)?;
+        let Ok(body) = serde_json::to_string(&frame) else {
+            return Err(refuse(ChatRejection::NoChannel));
+        };
+        if tx.try_send(body).is_err() {
+            return Err(refuse(ChatRejection::NoChannel));
+        }
 
         // Delivered to the whole room, exactly as a typed line is. Delivering only under the
         // id the client named would hide it from anyone in another dimension.
-        for id in room.iter() {
+        //
+        // The author is named on the first id only. A sink guarantees their copy from that,
+        // and naming them per id would echo the line once per dimension in the room.
+        for (index, id) in room.iter().enumerate() {
             let packet = ChatMessagePacket::new(
                 Some(display.clone()),
                 text.clone(),
                 Some(id.clone()),
                 ChatOrigin::App,
             );
-            self.fan_out(id, &packet);
+            self.fan_out(id, (index == 0).then_some(author), &packet);
         }
         Ok(())
     }
 
-    fn fan_out(&self, world_uuid: &str, packet: &ChatMessagePacket) {
+    fn fan_out(&self, world_uuid: &str, author_identity: Option<&str>, packet: &ChatMessagePacket) {
         if let Ok(sinks) = self.sinks.read() {
             for sink in sinks.iter() {
-                sink.deliver(world_uuid, packet);
+                sink.deliver(world_uuid, author_identity, packet);
             }
         }
     }

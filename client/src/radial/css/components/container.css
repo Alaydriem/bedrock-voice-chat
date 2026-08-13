@@ -20,6 +20,17 @@
   color: var(--color-rad-tx);
 }
 
+/* A head that labels a grid instead of a card. Neither the head nor the grid
+ * carries a margin, so stacked groups sit flush and the label reads as part of
+ * the tile above it. */
+.rad-section__head + .rad-server-grid {
+  margin-top: 12px;
+}
+
+.rad-server-grid + .rad-section__head {
+  margin-top: 30px;
+}
+
 .rad-section__note {
   margin-top: 6px;
   max-width: 62ch;

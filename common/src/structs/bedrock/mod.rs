@@ -15,7 +15,7 @@ pub use addon_mode::AddonMode;
 pub use backend_kind::BedrockBackendKind;
 pub use config::BedrockConnectConfig;
 pub use connect_error::BedrockConnectError;
-pub use connection_info::{BedrockConnectionInfo, HIVE_DNS_HOSTNAME};
+pub use connection_info::BedrockConnectionInfo;
 pub use log_entry::BedrockLogEntry;
 pub use mode::BedrockConnectMode;
 pub use network_interface::NetworkInterface;

@@ -21,7 +21,4 @@ class BedrockConfig {
     @SerializedName("proxy_event_freshness_threshold_secs")
     var proxyEventFreshnessThresholdSecs: Long? = null
 
-    @SerializedName("dns")
-    var dns: BedrockDnsConfig? = null
-
 }

@@ -13,7 +13,6 @@ fn emits_one_file_per_config_class() {
         "Features.kt",
         "RelayFeature.kt",
         "BedrockConfig.kt",
-        "BedrockDnsConfig.kt",
         "Age.kt",
         "Database.kt",
         "Logger.kt",

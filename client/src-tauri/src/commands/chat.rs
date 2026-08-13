@@ -1,4 +1,4 @@
-use common::structs::chat::ChatAvailability;
+use common::structs::chat::{ChatAvailability, ChatTransport};
 #[cfg(feature = "bedrock-protocol")]
 use common::traits::StreamTrait;
 use tauri::State;
@@ -43,6 +43,35 @@ pub(crate) async fn chat_availability(
 #[tauri::command]
 pub(crate) async fn chat_availability() -> Result<ChatAvailability, String> {
     Ok(ChatAvailability::unavailable("Chat is not available"))
+}
+
+/// Which component carries a line composed in the app right now.
+///
+/// Read from the live session's declared addon mode, never from reachability: a net world's
+/// addon owns chat whether or not it answered in the last few seconds. Gating this on liveness
+/// is what routed a net-mode line into the proxy injector, where nothing was listening.
+#[cfg(feature = "bedrock-protocol")]
+#[tauri::command]
+pub(crate) async fn chat_transport(
+    state: State<'_, Mutex<BedrockState>>,
+) -> Result<ChatTransport, String> {
+    let state = state.lock().await;
+
+    // Realms are always no-net, so a live realm session owns its own chat the same way a
+    // no-net proxy session does.
+    let mode = match (&state.proxy, &state.realms) {
+        (Some(proxy), _) if !proxy.is_stopped() => Some(proxy.addon_mode()),
+        (_, Some(realms)) if !realms.is_stopped() => Some(realms.addon_mode()),
+        _ => None,
+    };
+
+    Ok(ChatTransport::for_mode(mode))
+}
+
+#[cfg(not(feature = "bedrock-protocol"))]
+#[tauri::command]
+pub(crate) async fn chat_transport() -> Result<ChatTransport, String> {
+    Ok(ChatTransport::Server)
 }
 
 /// Sends a line from the app into a net-mode world.

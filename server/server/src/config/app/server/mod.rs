@@ -11,7 +11,6 @@ pub mod tls;
 pub use acme::{Acme, AcmeProviderKind};
 pub use age::Age;
 pub use bedrock::BedrockConfig;
-pub use bedrock::BedrockDnsConfig;
 pub use bedrock::BedrockServerEntry;
 pub use cors::Cors;
 pub use features::Features;
