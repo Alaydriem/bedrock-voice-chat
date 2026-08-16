@@ -54,10 +54,3 @@ sentry-rust-minidump = { git = "https://github.com/Alaydriem/sentry-rust-minidum
 # (300 Try Alternate) handling, without which Realms cannot connect once TURN
 # authentication is enforced.
 webrtc = { git = "https://github.com/alaydriem/webrtc", rev = "6f07e0cf" }
-
-# The dual-stack game listener (IPV6_V6ONLY = false) lives only here. Without it a
-# client that discovers the proxy over IPv6 multicast dials a port nothing answers,
-# so the world appears in the Friends tab and cannot be joined. Repoint at a pushed
-# ref on `abort-on-drop` once the change lands there.
-[patch."https://github.com/alaydriem/tokio-raknet"]
-tokio-raknet = { path = "../tokio-raknet-dualstack" }

@@ -44,12 +44,7 @@ audio = ["dep:rodio", "dep:cpal"]
 browser = ["dep:webbrowser"]
 openapi = ["dep:schemars"]
 
-# Bedrock proxy/realms protocol stack. Pulls in webrtc-rs (patched fork) and
-# tokio-raknet (patched fork). Enabled by both client (proxy/realms feature)
-# and server (transfer relay feature).
 bedrock-protocol = ["dep:bedrock-protocol"]
-# Bedrock embedded-server stack. Server-only: brings in BedrockServer/ServerConfig
-# for the in-process JNI/embedded path. Implies bedrock-protocol.
 bedrock-server = ["dep:bedrock-server", "bedrock-protocol"]
 
 # Server-only feature - enables rocket, sea-orm, and related deps
