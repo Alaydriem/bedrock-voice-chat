@@ -4,7 +4,6 @@ use common::structs::control::bvcs_codec::BVCS_PREFIX;
 use log::debug;
 
 use crate::bedrock::proxy::chat::{ChatLine, MinecraftTranslation};
-use crate::bedrock::proxy::presence::BvcpCodec;
 
 /// Turns a clientbound `TextPacket` into a chat line, or rejects it.
 pub struct ChatCodec;
@@ -98,9 +97,6 @@ impl ChatCodec {
     /// This is a security boundary, not tidiness: a leaked `!bvcs:` ride would put a player's
     /// mute, deafen and recording state into visible chat.
     fn is_ride(message: &str) -> bool {
-        BvcpCodec::parse_bvcp(message).is_some()
-            || BvcpCodec::parse_bvca(message).is_some()
-            || message.starts_with(Self::EJECT_PREFIX)
-            || message.starts_with(BVCS_PREFIX)
+        message.starts_with(Self::EJECT_PREFIX) || message.starts_with(BVCS_PREFIX)
     }
 }

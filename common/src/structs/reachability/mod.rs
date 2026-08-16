@@ -22,6 +22,10 @@ pub struct ServerReachability {
     host: String,
     quic: Vec<EndpointReachability>,
     https: Vec<EndpointReachability>,
+    // The WebSocket voice transport, measured on the public TLS port. Empty when the
+    // server never advertised the transport, which is not the same as it having been
+    // measured and found silent — `verdict` is what distinguishes those.
+    ws: Vec<EndpointReachability>,
     preference: AddressFamilyPreference,
     // Derived and stored rather than computed on demand, for the same reason as
     // `preference` and for one more: these are fields, so they cross to the
@@ -29,6 +33,10 @@ pub struct ServerReachability {
     // matrix in TypeScript where it could drift from this one.
     verdict: ReachabilityVerdict,
     best_rtt_micros: Option<u32>,
+    // The fallback path's own round trip. Separate from `best_rtt_micros`, which
+    // orders QUIC candidates and must stay a QUIC measurement — a TCP figure mixed
+    // into it would sort a candidate list by a transport it does not contain.
+    fallback_rtt_micros: Option<u32>,
 }
 
 impl ServerReachability {
@@ -41,6 +49,7 @@ impl ServerReachability {
         host: String,
         quic: Vec<EndpointReachability>,
         https: Vec<EndpointReachability>,
+        ws: Vec<EndpointReachability>,
     ) -> Self {
         let preference = if quic
             .iter()
@@ -51,29 +60,38 @@ impl ServerReachability {
             AddressFamilyPreference::PreferIpv4
         };
 
-        let verdict = Self::derive_verdict(&quic, &https);
+        let verdict = Self::derive_verdict(&quic, &https, &ws);
         let best_rtt_micros = Self::lowest_answered_rtt(&quic);
+        let fallback_rtt_micros = Self::lowest_answered_rtt(&ws);
 
         Self {
             host,
             quic,
             https,
+            ws,
             preference,
             verdict,
             best_rtt_micros,
+            fallback_rtt_micros,
         }
     }
 
     // Ordering is the whole content of this function. A QUIC answer settles it.
-    // Then routing, because "no route" is the local stack's answer and nothing was
-    // learned about the destination. Only then does HTTPS separate a blocked UDP
-    // path from a host that is simply not there.
+    // Then the fallback transport, because an answer there means voice connects —
+    // which outranks anything the remaining arms could say, including a local stack
+    // that found no UDP route. Only after both voice transports have failed does
+    // HTTPS separate a blocked path from a host that is simply not there.
     fn derive_verdict(
         quic: &[EndpointReachability],
         https: &[EndpointReachability],
+        ws: &[EndpointReachability],
     ) -> ReachabilityVerdict {
         if quic.iter().any(|e| e.outcome().answered()) {
             return ReachabilityVerdict::Ready;
+        }
+
+        if ws.iter().any(|e| e.outcome().answered()) {
+            return ReachabilityVerdict::VoiceFallback;
         }
 
         let all_unrouted = !quic.is_empty()
@@ -110,6 +128,10 @@ impl ServerReachability {
         &self.https
     }
 
+    pub fn ws(&self) -> &[EndpointReachability] {
+        &self.ws
+    }
+
     pub fn preference(&self) -> AddressFamilyPreference {
         self.preference
     }
@@ -133,14 +155,34 @@ impl ServerReachability {
             .min_by_key(|e| e.outcome().rtt_micros().unwrap_or(u32::MAX))
     }
 
-    // Whether voice has a path at all. A single answering endpoint is enough: the
-    // candidate plan will find it.
+    // Whether QUIC has a path. A single answering endpoint is enough: the candidate
+    // plan will find it.
     pub fn any_quic_answered(&self) -> bool {
         self.verdict == ReachabilityVerdict::Ready
     }
 
+    // Whether the WebSocket voice transport answered, which is the only evidence that
+    // a UDP-blocked client has anywhere to go. A connect that reads this as true when
+    // it is not spends a TLS handshake to be refused; reading it as false when it is
+    // true strands a player who could have been talking.
+    pub fn voice_fallback_answered(&self) -> bool {
+        self.verdict == ReachabilityVerdict::VoiceFallback
+    }
+
+    // Whether either transport can carry voice to this server from this network.
+    pub fn any_voice_path(&self) -> bool {
+        matches!(
+            self.verdict,
+            ReachabilityVerdict::Ready | ReachabilityVerdict::VoiceFallback
+        )
+    }
+
     pub fn best_rtt_micros(&self) -> Option<u32> {
         self.best_rtt_micros
+    }
+
+    pub fn fallback_rtt_micros(&self) -> Option<u32> {
+        self.fallback_rtt_micros
     }
 
     pub fn verdict(&self) -> ReachabilityVerdict {

@@ -35,6 +35,7 @@ impl CoverageFlush {
 
 use bvc_client_lib::app_builder::AppBuilder;
 use bvc_client_lib::audio::AudioBackend;
+use bvc_client_lib::testkit::E2eAppData;
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
 use bvc_client_lib::testkit::connect::Connector;
 use bvc_client_lib::{BridgeInputSource, CapturingSink};
@@ -76,9 +77,12 @@ fn main() {
     // Move app_data_dir into a throwaway e2e namespace so every identifier-scoped
     // write — the seeded store, the audio input path's own `app.store("store.json")`
     // read, the webview's store/cookies — lands off the real client's app-data dir.
-    // The harness wipes this namespace between runs.
+    //
+    // The namespace is per spawning test process and per gamertag rather than one
+    // shared constant. Sharing it put every client in the suite on one tree, which
+    // the harness then deleted between spawns; see `E2eAppData`.
     let mut context = tauri::generate_context!();
-    context.config_mut().identifier = "com.alaydriem.bvc.client.e2e".to_string();
+    context.config_mut().identifier = E2eAppData::identifier();
     // Headless: drop the configured window so no WebView2 instance is created. This
     // removes the dominant per-process cost (each WebView2 spawns several helper
     // processes), letting many client procs run without exhausting resources. The
@@ -134,17 +138,11 @@ fn main() {
             #[cfg(feature = "bedrock-protocol")]
             let harness_eject_injector = Connector::eject_injector();
             #[cfg(feature = "bedrock-protocol")]
-            let harness_presence_injector = Connector::presence_injector();
-            #[cfg(feature = "bedrock-protocol")]
-            let harness_announce_injector = Connector::announce_injector();
-            #[cfg(feature = "bedrock-protocol")]
             {
                 app.manage(Connector::bedrock_state());
                 app.manage(Connector::feature_flag_service());
                 app.manage(Arc::clone(&harness_beacon_cache));
                 app.manage(Arc::clone(&harness_eject_injector));
-                app.manage(Arc::clone(&harness_presence_injector));
-                app.manage(Arc::clone(&harness_announce_injector));
                 app.manage(Connector::connect_error_channel());
                 app.manage(Connector::chat_channel());
                 app.manage(Connector::chat_injector());
@@ -159,10 +157,6 @@ fn main() {
                 Some(Arc::clone(&harness_beacon_cache)),
                 #[cfg(feature = "bedrock-protocol")]
                 Some(Arc::clone(&harness_eject_injector)),
-                #[cfg(feature = "bedrock-protocol")]
-                Some(Arc::clone(&harness_presence_injector)),
-                #[cfg(feature = "bedrock-protocol")]
-                Some(Arc::clone(&harness_announce_injector)),
             )?;
 
             // Self-state reporter: poll the client's audio-control state and emit

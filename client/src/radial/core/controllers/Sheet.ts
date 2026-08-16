@@ -130,6 +130,24 @@ export class Sheet {
     };
     sheet.addEventListener("pointerup", end);
     sheet.addEventListener("pointercancel", end);
+
+    // The browser reclaiming the pointer mid-drag — the webview backgrounded, the gesture
+    // handed to the system. No pointerup is coming, so the drag ends here: spring back
+    // rather than close, because the user never finished asking to leave. After a normal
+    // release `end` has already run and the guard makes this a no-op.
+    //
+    // Only the sheet's own loss counts. On touch, pointerdown implicitly captures the
+    // pointer to the element under the finger, and taking it for the sheet makes that
+    // child announce the transfer with a lostpointercapture that bubbles up here — the
+    // start of every touch drag, not the end of one.
+    sheet.addEventListener("lostpointercapture", (e) => {
+      if (e.target !== sheet) return;
+      if (this.#dragging !== sheet) return;
+      this.#dragging = null;
+      this.#offset = 0;
+      sheet.classList.remove("is-dragging");
+      sheet.style.transform = "";
+    });
   }
 
   /**

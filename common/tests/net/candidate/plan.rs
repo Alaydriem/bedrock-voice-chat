@@ -20,7 +20,7 @@ fn answered(rtt_micros: u32) -> ReachabilityOutcome {
 }
 
 fn report(endpoints: Vec<EndpointReachability>) -> ServerReachability {
-    ServerReachability::new("plan.test".to_string(), endpoints, Vec::new())
+    ServerReachability::new("plan.test".to_string(), endpoints, Vec::new(), Vec::new())
 }
 
 fn ipv6_preferred() -> ServerReachability {

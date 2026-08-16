@@ -7,9 +7,13 @@
 pub mod bridge;
 pub mod connect;
 pub mod counters;
+pub mod e2e_app_data;
+pub mod port_pool;
 pub mod signal;
 
 pub use bridge::{Frame, InMsg, OutMsg};
 pub use connect::ConnectConfig;
 pub use counters::TransportCounters;
+pub use e2e_app_data::E2eAppData;
+pub use port_pool::PortPool;
 pub use signal::Signal;

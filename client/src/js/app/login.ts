@@ -825,7 +825,8 @@ export default class Login extends BVCApp {
       await store.save();
 
       Analytics.track("LoginCompleted", { game_type: "hytale" });
-      window.location.href = "/setup";
+      // Replaced, not pushed: the sign-in is spent and going back to it signs nobody in.
+      window.location.replace("/setup");
     } catch (e) {
       error(`Failed to save login data: ${String(e)}`);
     }

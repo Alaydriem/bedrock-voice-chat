@@ -12,8 +12,11 @@
 </script>
 
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { flushSync, onMount } from "svelte";
+    import { warn } from "@tauri-apps/plugin-log";
     import { SentryManager } from "../js/sentry";
+    import { ReactivityProbe } from "../js/app/services/ReactivityProbe.svelte";
+    import { ReactivityWatchdog } from "../js/app/services/ReactivityWatchdog";
 
     interface Props {
         children?: import("svelte").Snippet;
@@ -25,6 +28,22 @@
         // last one to run. This marks the whole tree being up, not the layout alone.
         BootTimeline.shared().mark("svelte tree mounted");
         SentryManager.initialize();
+
+        // A long suspension on Android can wedge Svelte's scheduler: taps land, handlers
+        // run, nothing paints. The watchdog probes on every return to visibility and
+        // flushes the backlog when the scheduler failed to. Rooted here so every route is
+        // covered — the wedge does not care which screen is up.
+        const probe = new ReactivityProbe();
+        const watchdog = new ReactivityWatchdog(probe, flushSync, (message) => {
+            void warn(message);
+            SentryManager.warning(message);
+        });
+        watchdog.start();
+
+        return () => {
+            watchdog.cleanup();
+            probe.cleanup();
+        };
     });
 </script>
 

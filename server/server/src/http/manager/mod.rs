@@ -21,9 +21,9 @@ use std::sync::{Arc, Mutex};
 pub struct RocketManager {
     config: ApplicationConfig,
     /// Where this listener binds, which is loopback: the public port belongs to the TLS
-    /// demultiplexer. Held rather than derived, so an ACME bounce relaunches on the same
-    /// address the demultiplexer is already relaying to.
-    bind: std::net::SocketAddr,
+    /// demultiplexer. Shared with the demultiplexer rather than copied, so a port this
+    /// has to re-pick is one the demultiplexer relays to rather than one it has lost.
+    bind: crate::demux::ApiBind,
     webhook_receiver: WebhookReceiver,
     cache_manager: CacheManager,
     player_registrar: PlayerRegistrarService,
@@ -34,13 +34,12 @@ pub struct RocketManager {
     cert_service: Arc<CertificateService>,
     hytale_session_cache: routes::api::HytaleSessionCache,
     audio_stream_token_cache: AudioStreamTokenCache,
-    server_peer_store: Option<Arc<crate::relay::ServerPeerStore>>,
-    relay_inject_delivery: Option<Arc<dyn crate::relay::LocalInjectDelivery>>,
-    /// Held across relaunches: an ACME bounce rebuilds Rocket, and a fresh limiter would
-    /// hand every caller a full quota again.
-    relay_rate_limiter: Arc<crate::services::RelayRateLimiter>,
     metrics: Arc<crate::services::MetricsService>,
     readiness: Arc<crate::runtime::ReadinessState>,
+    /// `None` when no `peer` block is configured, which is the default. The peer
+    /// link route reports that as a 404 rather than failing to mount, so the
+    /// route's absence never has to be distinguished from a server that is down.
+    peer_plane: Option<Arc<crate::relay::PeerPlane>>,
     shutdown_handle: Arc<Mutex<Option<rocket::Shutdown>>>,
     /// Stops the shared position pass when the HTTP server does, so a restart does not
     /// leave a second ticker rebuilding the index alongside the first.
@@ -52,7 +51,7 @@ pub struct RocketManager {
 impl RocketManager {
     pub fn new(
         config: ApplicationConfig,
-        bind: std::net::SocketAddr,
+        bind: crate::demux::ApiBind,
         webhook_receiver: WebhookReceiver,
         cache_manager: CacheManager,
         player_registrar: PlayerRegistrarService,
@@ -61,11 +60,10 @@ impl RocketManager {
         bedrock_event_service: Arc<BedrockEventService>,
         chat_service: Arc<crate::services::ChatService>,
         cert_service: Arc<CertificateService>,
-        server_peer_store: Option<Arc<crate::relay::ServerPeerStore>>,
-        relay_inject_delivery: Option<Arc<dyn crate::relay::LocalInjectDelivery>>,
         audio_stream_token_cache: Option<AudioStreamTokenCache>,
         metrics: Arc<crate::services::MetricsService>,
         readiness: Arc<crate::runtime::ReadinessState>,
+        peer_plane: Option<Arc<crate::relay::PeerPlane>>,
         #[cfg(feature = "bedrock")]
         transfer_target_cache: crate::services::bedrock::TransferTargetCache,
     ) -> Self {
@@ -83,11 +81,9 @@ impl RocketManager {
             hytale_session_cache: routes::api::HytaleSessionCache::new(),
             audio_stream_token_cache: audio_stream_token_cache
                 .unwrap_or_else(AudioStreamTokenCache::new),
-            server_peer_store,
-            relay_inject_delivery,
-            relay_rate_limiter: crate::services::RelayRateLimiter::new_shared(),
             metrics,
             readiness,
+            peer_plane,
             shutdown_handle: Arc::new(Mutex::new(None)),
             feed_cancel: tokio_util::sync::CancellationToken::new(),
             #[cfg(feature = "bedrock")]
@@ -98,7 +94,12 @@ impl RocketManager {
 
     /// Starts the Rocket HTTP server - this is the main entry point
     pub async fn start(&self) -> Result<(), Error> {
-        tracing::info!(bind = %self.bind, "Starting Rocket HTTP server manager");
+        // The reservation is released here and nowhere else, so the port stays
+        // occupied for the whole of startup and is free only for the moment
+        // between this line and Rocket's own bind.
+        let bind = self.bind.claim_for_bind()?;
+
+        tracing::info!(bind = %bind, "Starting Rocket HTTP server manager");
 
         // Ensure the assets directory exists
         let assets_path = std::path::Path::new(&self.config.server.assets_path);
@@ -112,7 +113,7 @@ impl RocketManager {
             }
         }
 
-        match self.config.get_rocket_config(self.bind) {
+        match self.config.get_rocket_config(bind) {
             Ok(figment) => {
                 let cache = cached::TimedCache::with_lifespan_and_refresh(
                     std::time::Duration::from_secs(3600),
@@ -176,8 +177,8 @@ impl RocketManager {
                     .manage(self.config.audio.clone())
                     .manage(self.hytale_session_cache.clone())
                     .manage(self.audio_stream_token_cache.clone())
-                    .manage(self.relay_rate_limiter.clone())
-                    .manage(self.metrics.clone());
+                    .manage(self.metrics.clone())
+                    .manage(self.peer_plane.clone());
 
                 #[cfg(feature = "bedrock")]
                 {
@@ -188,22 +189,6 @@ impl RocketManager {
                 // peer-link endpoints two servers sharing a realm use directly.
                 // Discovery is decentralized (in-realm `!bvca` announce); there is no
                 // central relay role to mount. Present whenever the relay plane built.
-                if let (Some(store), Some(inject)) =
-                    (&self.server_peer_store, &self.relay_inject_delivery)
-                {
-                    tracing::info!(
-                        "relay plane active, mounting /relay/{{offer,peer-redeem,peer-link}}"
-                    );
-                    rocket = rocket.manage(store.clone()).manage(inject.clone()).mount(
-                        "/api/relay",
-                        routes![
-                            routes::api::relay::offer::offer,
-                            routes::api::relay::peer_redeem::peer_redeem,
-                            routes::api::relay::peer_link::peer_link,
-                        ],
-                    );
-                }
-
                 let mut rocket = rocket
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())

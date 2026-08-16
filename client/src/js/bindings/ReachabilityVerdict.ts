@@ -10,4 +10,4 @@
  * surfaces as an error from the planner rather than as a verdict about a host that
  * was never contacted.
  */
-export type ReachabilityVerdict = "Ready" | "VoiceBlocked" | "Unreachable" | "NoRoute";
+export type ReachabilityVerdict = "Ready" | "VoiceFallback" | "VoiceBlocked" | "Unreachable" | "NoRoute";

@@ -8,7 +8,15 @@ let answering = true;
 vi.mock("@tauri-apps/plugin-http", () => ({
   fetch: vi.fn(async () => {
     if (!answering) throw new Error("connection refused");
-    return { status: 200, json: async () => ({ protocol_version: "2.1.0", quic_ports: [443] }) };
+    return {
+      status: 200,
+      json: async () => ({
+        protocol_version: "2.1.0",
+        quic_port: 443,
+        quic_ports: [443],
+        voice_websocket: true,
+      }),
+    };
   }),
 }));
 
@@ -23,7 +31,7 @@ const SERVER = "https://bvc.example.com";
 
 function config(overrides: Record<string, unknown> = {}) {
   return {
-    config: { protocol_version: "2.1.0", quic_port: 443, quic_ports: [443] },
+    config: { protocol_version: "2.1.0", quic_port: 443, quic_ports: [443], voice_websocket: true },
     client_version: "2.1.0",
     compatible: true,
     client_too_old: false,
@@ -44,9 +52,28 @@ function reachability(verdict: string, port = 443, rtt: number | null = 24_000) 
       },
     ],
     https: [],
+    ws: [],
     preference: "PreferIpv4",
     verdict,
     best_rtt_micros: rtt,
+    fallback_rtt_micros: null,
+  };
+}
+
+/** UDP silent, the WebSocket leg answering: the report a blocked network produces. */
+function fallbackReachability(rtt = 41_000, port = 443) {
+  return {
+    ...reachability("VoiceFallback", 443, null),
+    ws: [
+      {
+        addr: `10.0.0.1:${port}`,
+        family: "Ipv4",
+        port,
+        outcome: { state: "answered", rtt_micros: rtt },
+        certificate: null,
+      },
+    ],
+    fallback_rtt_micros: rtt,
   };
 }
 
@@ -99,7 +126,7 @@ describe("a server that passes everything", () => {
   // working server and a mystery.
   it("names a non-standard QUIC port as a fallback", async () => {
     ipc({
-      api_get_config: () => config({ config: { protocol_version: "2.1.0", quic_port: 8443, quic_ports: [8443] } }),
+      api_get_config: () => config({ config: { protocol_version: "2.1.0", quic_port: 8443, quic_ports: [8443], voice_websocket: true } }),
       probe_server: () => reachability("Ready", 8443),
     });
     const { steps, outcome } = await run();
@@ -223,7 +250,7 @@ describe("protocol", () => {
     ipc({
       api_get_config: () =>
         config({
-          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443] },
+          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443], voice_websocket: true },
           compatible: false,
           client_too_old: true,
         }),
@@ -241,7 +268,7 @@ describe("protocol", () => {
     ipc({
       api_get_config: () =>
         config({
-          config: { protocol_version: "2.0.0", quic_port: 443, quic_ports: [443] },
+          config: { protocol_version: "2.0.0", quic_port: 443, quic_ports: [443], voice_websocket: true },
           compatible: false,
           client_too_old: false,
         }),
@@ -254,7 +281,7 @@ describe("protocol", () => {
     ipc({
       api_get_config: () =>
         config({
-          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443] },
+          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443], voice_websocket: true },
           compatible: false,
           client_too_old: true,
         }),
@@ -273,7 +300,7 @@ describe("protocol", () => {
     ipc({
       api_get_config: () =>
         config({
-          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443] },
+          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443], voice_websocket: true },
           compatible: false,
           client_too_old: true,
         }),
@@ -288,7 +315,7 @@ describe("protocol", () => {
     ipc({
       api_get_config: () =>
         config({
-          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443] },
+          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443], voice_websocket: true },
           compatible: false,
           client_too_old: true,
         }),
@@ -303,7 +330,7 @@ describe("protocol", () => {
     ipc({
       api_get_config: () =>
         config({
-          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443] },
+          config: { protocol_version: "2.2.0", quic_port: 443, quic_ports: [443], voice_websocket: true },
           compatible: false,
           client_too_old: true,
         }),
@@ -315,17 +342,66 @@ describe("protocol", () => {
   });
 });
 
-describe("the QUIC path", () => {
+describe("the voice path", () => {
   /**
    * The check that earns its place. Every check above it ran over TCP 443, so a network that
    * permits HTTPS and drops UDP passes all three and then cannot carry one audio frame.
    */
-  it("blocks a server that answered over TCP but not UDP", async () => {
+  it("blocks a server that answered over TCP but has no voice path on it", async () => {
     ipc({ probe_server: () => reachability("VoiceBlocked", 443, null) });
     const { outcome, steps } = await run();
     expect(outcome.status).toBe("udp_blocked");
     expect(steps[1].state).toBe("ok");
     expect(steps[3].note).toMatch(/unreachable/);
+  });
+
+  /**
+   * The case this check was getting wrong. UDP is blocked and the connect succeeds over the
+   * fallback, so blocking the plate withheld a server the client can reach.
+   */
+  it("connects over the fallback when UDP is blocked and the server carries voice on TCP", async () => {
+    ipc({ probe_server: () => fallbackReachability() });
+    const { outcome, steps } = await run();
+    expect(outcome.status).toBe("ws_fallback");
+    expect(steps[3].state).toBe("warn");
+  });
+
+  // Amber and not green. The path works and costs latency, and the note has to carry both
+  // halves or the plate's warning has nothing behind it.
+  it("names both the blocked port and the fallback it measured", async () => {
+    ipc({ probe_server: () => fallbackReachability(41_000, 8443) });
+    const { steps } = await run();
+    expect(steps[3].note).toMatch(/udp\/443 blocked/);
+    expect(steps[3].note).toMatch(/tcp\/8443 fallback/);
+    expect(steps[3].note).toMatch(/41 ms/);
+  });
+
+  // The server decides whether a fallback exists, so the probe has to be told. Without this
+  // the probe never measures the leg and every blocked network reads as having no path.
+  it("passes the server's advertised capability to the probe", async () => {
+    ipc();
+    await run();
+    const probe = invokeCalls().find((call) => call.cmd === "probe_server");
+    expect((probe?.args as { voiceWebsocket?: boolean }).voiceWebsocket).toBe(true);
+  });
+
+  it("tells the probe not to measure a fallback the server does not offer", async () => {
+    ipc({
+      api_get_config: () =>
+        config({
+          config: {
+            protocol_version: "2.1.0",
+            quic_port: 443,
+            quic_ports: [443],
+            voice_websocket: false,
+          },
+        }),
+      probe_server: () => reachability("VoiceBlocked", 443, null),
+    });
+    const { outcome } = await run();
+    const probe = invokeCalls().find((call) => call.cmd === "probe_server");
+    expect((probe?.args as { voiceWebsocket?: boolean }).voiceWebsocket).toBe(false);
+    expect(outcome.status).toBe("udp_blocked");
   });
 
   // No route is the local stack's answer and it earns its own wording: nothing about the

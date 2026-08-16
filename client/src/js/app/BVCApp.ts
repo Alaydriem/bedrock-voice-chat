@@ -140,12 +140,14 @@ export default class BVCApp {
                 const payload = event.payload as { status: 'VersionMismatch', client_version: string, server_version: string, client_too_old: boolean };
                 const errorCode = payload.client_too_old ? 'VER01' : 'VER02';
                 warn(`BVCApp: Version mismatch detected: client=${payload.client_version}, server=${payload.server_version}, redirecting to ${errorCode}`);
-                window.location.href = `/error?code=${errorCode}`;
+                // Replaced, not pushed: the screen this leaves is a dashboard on a link
+                // that has already failed, so back must not return to it.
+                window.location.replace(`/error?code=${errorCode}`);
             }
             if (event.payload.status === 'Unauthorized') {
                 const payload = event.payload as { status: 'Unauthorized', reason: string };
                 warn(`BVCApp: Server refused the connection identity: ${payload.reason}`);
-                window.location.href = '/error?code=AUTH01';
+                window.location.replace('/error?code=AUTH01');
             }
         }).then((unlisten) => {
             this.connectionHealthUnlisten = unlisten;

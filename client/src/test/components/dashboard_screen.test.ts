@@ -133,7 +133,13 @@ describe("DashboardScreen session menu", () => {
         const rows = [...sheet.querySelectorAll(".rad-list-row")].map((el) =>
             el.textContent?.trim(),
         );
-        expect(rows).toEqual(["Add a server", "Settings", "Connection status", "Sign out"]);
+        expect(rows).toEqual([
+            "Voice Chat Connect",
+            "Add a server",
+            "Settings",
+            "Connection status",
+            "Sign out",
+        ]);
 
         // A wide frame takes the dropdown path; `clientWidth` is zero in jsdom, which is the
         // phone branch, so the desktop menu is driven by widening the frame first.
@@ -319,5 +325,43 @@ describe("DashboardScreen chat", () => {
         const { frame } = mount({ chatOpen: false });
 
         expect(frame.classList.contains("is-chat")).toBe(false);
+    });
+});
+
+/**
+ * Reaching the proxy took two taps — open settings, then find the pane. It is the feature
+ * people open the app for, so it gets its own control in the header and a row in the session
+ * menu that every surface shares.
+ */
+describe("DashboardScreen connect shortcut", () => {
+    beforeEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    it("offers a one-tap header control that goes straight to Connect", () => {
+        let opened = 0;
+        const { frame } = mount({ onconnect: () => (opened += 1) });
+
+        const button = [...frame.querySelectorAll<HTMLElement>(".rad-header-btn")].find((b) =>
+            b.getAttribute("aria-label")?.includes("Connect"),
+        );
+        expect(button, "the header must carry a Connect control").not.toBeUndefined();
+
+        button?.click();
+        expect(opened).toBe(1);
+    });
+
+    // The session actions are defined once and rendered by the chevron, the corner glyph and
+    // the phone sheet. A row missing from that list is missing from all three.
+    it("lists Connect among the session actions", () => {
+        const { frame } = mount();
+
+        const sheet = frame.querySelector<HTMLElement>('[data-rad-sheet="servers"]')!;
+        const rows = [...sheet.querySelectorAll(".rad-list-row")].map((el) =>
+            el.textContent?.trim(),
+        );
+
+        expect(rows).toContain("Voice Chat Connect");
+        expect(rows[0]).toBe("Voice Chat Connect");
     });
 });

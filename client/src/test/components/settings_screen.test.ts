@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const onnavigate = vi.fn();
 const onclose = vi.fn();
+const onback = vi.fn();
 
 let platformName = "windows";
 vi.mock("@tauri-apps/plugin-os", () => ({ platform: () => platformName }));
@@ -24,7 +25,10 @@ function mount(props: Record<string, unknown> = {}) {
     frame.className = "rad-frame rad-frame--fluid";
     document.body.append(frame);
 
-    render(SettingsScreen, { target: frame, props: { pane: "account", onnavigate, onclose, ...props } });
+    render(SettingsScreen, {
+        target: frame,
+        props: { pane: "account", level: "detail", onnavigate, onclose, onback, ...props },
+    });
 
     return {
         frame,
@@ -42,6 +46,7 @@ function mount(props: Record<string, unknown> = {}) {
 beforeEach(() => {
     onnavigate.mockClear();
     onclose.mockClear();
+    onback.mockClear();
     platformName = "windows";
 });
 
@@ -89,38 +94,35 @@ describe("SettingsScreen", () => {
         expect(onnavigate).toHaveBeenCalledWith("keybinds");
     });
 
-    // At the top level back leaves settings, so it is an X: an arrow would promise a
+    // At the section list back leaves settings, so it is an X: an arrow would promise a
     // screen that is not there.
     it("shows an X at the section list and an arrow inside a pane", async () => {
-        const view = mount();
-        await waitFor(() => expect(view.navItems()).toHaveLength(9));
-        expect(view.backIcon()).toBe("close");
-
-        view.navItems()[1]?.click();
-        await waitFor(() => expect(view.backIcon()).toBe("back"));
+        expect(mount({ level: "list" }).backIcon()).toBe("close");
+        expect(mount({ level: "detail" }).backIcon()).toBe("back");
     });
 
-    it("climbs to the section list before it leaves", async () => {
-        const view = mount();
-        await waitFor(() => expect(view.navItems()).toHaveLength(9));
-        view.navItems()[1]?.click();
-        await waitFor(() => expect(view.backIcon()).toBe("back"));
-        onclose.mockClear();
-
-        view.backButton()?.click();
-        await waitFor(() => expect(view.backIcon()).toBe("close"));
+    // Where back goes is the route's decision, so the button reports the press and does
+    // not act on it. One callback at both levels is what keeps the on-screen button and
+    // the platform back from ever disagreeing.
+    it("reports the back press at either level without choosing a destination", async () => {
+        const pane = mount({ level: "detail" });
+        pane.backButton()?.click();
+        expect(onback).toHaveBeenCalledTimes(1);
         expect(onclose).not.toHaveBeenCalled();
 
-        view.backButton()?.click();
-        expect(onclose).toHaveBeenCalledTimes(1);
+        onback.mockClear();
+        const list = mount({ level: "list" });
+        list.backButton()?.click();
+        expect(onback).toHaveBeenCalledTimes(1);
+        expect(onclose).not.toHaveBeenCalled();
     });
 
-    // The error screen reaches settings with no dashboard behind it, so there is no
-    // level to climb and nothing to close back to.
-    it("leaves outright from the standalone route", async () => {
-        const view = mount({ standalone: true });
+    // The gear in the rail and the X in the header leave settings outright from any
+    // level, so they are the one control that stays wired to `onclose`.
+    it("leaves outright from the rail gear", async () => {
+        const view = mount({ level: "detail" });
         await waitFor(() => expect(view.navItems()).toHaveLength(9));
-        view.backButton()?.click();
+        view.frame.querySelector<HTMLElement>(".rad-rail-btn")?.click();
         expect(onclose).toHaveBeenCalledTimes(1);
     });
 

@@ -16,6 +16,7 @@ pub use server::BedrockServerEntry;
 pub use server::Features;
 pub use server::Meridian;
 pub use server::Minecraft;
+pub use server::PeerConfig;
 pub use server::Server;
 pub use server::Tls;
 pub use voice::Voice;

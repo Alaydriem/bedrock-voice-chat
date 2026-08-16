@@ -17,6 +17,15 @@
      */
     let pane = $state(SettingsCatalogue.fallback);
 
+    /**
+     * Which screen is showing on a phone.
+     *
+     * Held here rather than read from the path: this route carries its pane in the hash,
+     * and there is no dashboard behind it for a second history entry to sit above. Back
+     * therefore leaves outright from either screen, which is what it already did.
+     */
+    let level = $state<"list" | "detail">("list");
+
     $effect(() => {
         const asked = page.url.hash.replace(/^#/, "");
         pane = SettingsCatalogue.find(asked, false)?.id ?? SettingsCatalogue.fallback;
@@ -26,8 +35,13 @@
 <RadFrame>
     <SettingsScreen
         {pane}
+        {level}
         standalone
-        onnavigate={(next) => (pane = next)}
+        onnavigate={(next) => {
+            pane = next;
+            level = "detail";
+        }}
+        onback={() => void goto("/dashboard")}
         onclose={() => void goto("/dashboard")}
     />
 </RadFrame>

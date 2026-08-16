@@ -1,3 +1,4 @@
+use crate::game_data::Dimension;
 use crate::{Coordinate, Game, Orientation};
 
 /// Core trait - ALL players implement this
@@ -21,6 +22,33 @@ pub trait PlayerData: Send + Sync {
     /// is its equivalent for callers that hold the game and the name loose.
     fn identity(&self) -> String {
         self.get_game().membership_key(self.get_name())
+    }
+
+    /// The world this player is in, as the identifier cross-server peering scopes on.
+    ///
+    /// Each game answers for itself: Minecraft's is the mod-supplied `relay_world_uuid`,
+    /// which is deliberately not a Minecraft world UUID. `None` means the player cannot
+    /// be scoped to a world, so peering has no question to which "yes" is a safe answer.
+    ///
+    /// On the trait rather than on `Game`, because `Game` is only the variant tag — the
+    /// value itself lives on the player. Callers must never reach for a concrete variant
+    /// to find it; doing so is what silently confined peering to one game.
+    fn world_identifier(&self) -> Option<&str> {
+        None
+    }
+
+    /// This player's dimension, as the type anything positional is placed against.
+    ///
+    /// `None` means the player cannot be placed in one — either the game has no
+    /// notion of a dimension, or it has its own type that is not this one. Hytale
+    /// is the second case: it carries `game_data::hytale::Dimension`, a different
+    /// type, so it answers `None` here rather than pretending to convert.
+    ///
+    /// On the trait for the same reason as `world_identifier` — a caller reaching
+    /// for a concrete variant to read it is how a behaviour ends up quietly
+    /// confined to one game.
+    fn dimension(&self) -> Option<Dimension> {
+        None
     }
 }
 

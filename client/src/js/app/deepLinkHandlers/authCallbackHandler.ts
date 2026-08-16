@@ -177,7 +177,8 @@ export class AuthCallbackHandler {
         await this.store.save();
 
         Analytics.track("LoginCompleted", { game_type: "minecraft" });
-        window.location.href = "/setup";
+        // Replaced, not pushed: the callback carried a single-use code that is now spent.
+        window.location.replace("/setup");
     }
 
     /**
@@ -259,7 +260,7 @@ export class AuthCallbackHandler {
         } catch (e) {
             logError(`AuthCallbackHandler: Failed to clear pending deep link: ${e}`);
         }
-        window.location.href = "/error?code=AUTH02";
+        window.location.replace("/error?code=AUTH02");
     }
 
     /**
@@ -283,7 +284,7 @@ export class AuthCallbackHandler {
         // the callback landed on some other page.
         const path = window.location.pathname.replace(/\/+$/, "");
         if (path !== "/login") {
-            window.location.href = "/login";
+            window.location.replace("/login");
         }
     }
 }

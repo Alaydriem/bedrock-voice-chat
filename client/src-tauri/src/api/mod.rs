@@ -348,6 +348,7 @@ impl Api {
                             protocol_version: String::new(),
                             quic_port: 0,
                             quic_ports: Vec::new(),
+                            voice_websocket: false,
                             spatial_audio: Default::default(),
                             bedrock: Default::default(),
                             age: Default::default(),

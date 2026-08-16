@@ -24,7 +24,6 @@ fn application_config_schema_exposes_every_section() {
         "Acme",
         "Minecraft",
         "Features",
-        "RelayFeature",
         "BedrockConfig",
         "Age",
         "Database",
@@ -33,6 +32,7 @@ fn application_config_schema_exposes_every_section() {
         "SpatialAudioConfig",
         "Audio",
         "Permissions",
+        "PeerConfig",
     ] {
         assert!(
             root.definitions.contains_key(definition),

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bvc_client_lib::bedrock::proxy::session::{BedrockSessionEventDispatcher, BedrockSessionState};
-use bvc_client_lib::bedrock::{BedrockChatChannel, BedrockPlayerStateCache, BvcpCodec};
+use bvc_client_lib::bedrock::{BedrockChatChannel, BedrockPlayerStateCache};
 use bvc_client_lib::bedrock::{BedrockEventEmitter, JukeboxBeaconCache};
 use common::bedrock_protocol::protocol::event::EventPacket;
 use common::bedrock_protocol::protocol::packets::generated::misc::text::TextPacket;
@@ -85,15 +85,3 @@ fn serverbound_chat_is_not_relayed() {
     assert!(rx.try_recv().is_err());
 }
 
-// The ride arms run before the chat arm, and the codec rejects rides independently. Both
-// belts matter: a leaked ride puts a player's audio state into visible chat.
-#[test]
-fn a_presence_ride_never_reaches_the_chat_channel() {
-    let (mut dispatcher, mut rx) = build();
-    let mut state = BedrockSessionState::new("Alaydriem".to_string(), None);
-
-    let ride = BvcpCodec::format_bvcp("tok-1");
-    dispatcher.dispatch(&chat_event(&ride, Direction::Clientbound), &mut state);
-
-    assert!(rx.try_recv().is_err());
-}

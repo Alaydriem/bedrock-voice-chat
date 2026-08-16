@@ -45,10 +45,28 @@ describe("PlateView.of", () => {
    * connection would fail anyway, so a "connect anyway" would only sell a failure as a
    * choice.
    */
-  it("never offers a connect on a server with no UDP path", () => {
+  it("never offers a connect on a server with no voice path at all", () => {
     const view = PlateView.of(entry("udp_blocked"));
     expect(view.chip).toBe("Voice blocked");
     expect(view.kind).toBe("recheck");
+  });
+
+  /**
+   * The case the plate was getting wrong. A blocked UDP path with a working fallback is a
+   * server the client connects to, so withholding the connect withheld a working server.
+   */
+  it("offers the connect when voice reaches the server over the fallback path", () => {
+    const view = PlateView.of(entry("ws_fallback"));
+    expect(view.kind).toBe("connect");
+    expect(view.action).toBe("Connect");
+  });
+
+  // Amber, not green: the fallback costs latency under loss, and a plate that read as
+  // clean would leave somebody wondering why this server sounds worse than the next.
+  it("warns about the fallback path rather than passing it as ready", () => {
+    const view = PlateView.of(entry("ws_fallback"));
+    expect(view.severity).toBe("warn");
+    expect(view.chip).toMatch(/fallback/i);
   });
 
   it("offers a recheck rather than a sign-in for a server that is not answering", () => {
@@ -92,6 +110,7 @@ describe("PlateView.of", () => {
       "connect",
       "reauth",
       "version_mismatch",
+      "ws_fallback",
       "udp_blocked",
       "unreachable",
     ];
@@ -104,8 +123,14 @@ describe("PlateView.of", () => {
 });
 
 describe("PlateView.isJoinable", () => {
-  it("is only true for a server that passed all four checks", () => {
+  // Both transports lead to the dashboard. Which one carried the session is a property of
+  // the link, not a reason to send the player somewhere else.
+  it("is true for either path that carries voice", () => {
     expect(PlateView.isJoinable(entry("connect"))).toBe(true);
+    expect(PlateView.isJoinable(entry("ws_fallback"))).toBe(true);
+  });
+
+  it("is false for every state with no voice path", () => {
     for (const status of [
       "checking",
       "reauth",
@@ -139,6 +164,21 @@ describe("PlateView.tally", () => {
       entry("connect", { server: "https://b", slow: true }),
     ]);
     expect(tally.map((item) => item.label)).toEqual(["ready", "slow"]);
+  });
+
+  // A fallback server is neither ready nor blocked, and merging it into either would make
+  // the bar report a state no plate above it is in.
+  it("counts a fallback server as its own state", () => {
+    const tally = PlateView.tally([
+      entry("connect", { server: "https://a" }),
+      entry("ws_fallback", { server: "https://b" }),
+      entry("udp_blocked", { server: "https://c" }),
+    ]);
+    expect(tally).toEqual([
+      { label: "ready", count: 1, severity: "ok" },
+      { label: "fallback path", count: 1, severity: "warn" },
+      { label: "voice blocked", count: 1, severity: "bad" },
+    ]);
   });
 
   it("has nothing to report for an empty list", () => {

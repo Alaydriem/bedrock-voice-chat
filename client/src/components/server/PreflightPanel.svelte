@@ -146,7 +146,11 @@
                     </div>
                     <div class="rad-kv">
                         <span class="rad-kv__key">{I18n.t("Transport")}</span>
-                        <span class="rad-kv__value">TLS 1.3 · mTLS</span>
+                        <span class="rad-kv__value">
+                            {entry.status === "ws_fallback"
+                                ? "WebSocket"
+                                : "QUIC"} · TLS 1.3 · mTLS
+                        </span>
                     </div>
                 </div>
             </div>

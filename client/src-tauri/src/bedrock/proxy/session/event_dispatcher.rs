@@ -73,7 +73,6 @@ impl BedrockSessionEventDispatcher {
 mod tests {
     use super::*;
     use crate::NetworkPacket;
-    use crate::bedrock::proxy::presence::BvcpCodec;
     use common::bedrock_protocol::Direction;
     use common::bedrock_protocol::ProtocolVersion;
     use common::bedrock_protocol::protocol::event::EventPacket;
@@ -81,7 +80,6 @@ mod tests {
     use common::bedrock_protocol::protocol::types::generated::{
         AuthorAndMessage, TextPacketBody, TextPacketType,
     };
-    use common::structs::packet::{PacketType, QuicNetworkPacketData};
 
     fn chat_event(message: &str, direction: Direction) -> Event {
         let packet = TextPacket {
@@ -124,65 +122,11 @@ mod tests {
     }
 
     #[test]
-    fn clientbound_bvcp_chat_emits_observed_token() {
-        let (mut dispatcher, rx) = build_dispatcher();
-        let mut state = BedrockSessionState::new("alice".to_string(), None);
-
-        let evt = chat_event(&BvcpCodec::format_bvcp("tok-1"), Direction::Clientbound);
-        dispatcher.dispatch(&evt, &mut state);
-
-        let packet = rx.try_recv().expect("observed packet should be emitted");
-        assert_eq!(packet.data.packet_type, PacketType::PeerPresenceObserved);
-        match packet.data.data {
-            QuicNetworkPacketData::PeerPresenceObserved(observed) => {
-                assert_eq!(observed.token, "tok-1");
-            }
-            other => panic!("expected PeerPresenceObserved, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn clientbound_bvca_chat_emits_announce_observed() {
-        let (mut dispatcher, rx) = build_dispatcher();
-        let mut state = BedrockSessionState::new("alice".to_string(), None);
-        state.set_world_uuid_for_test("world-xyz".to_string());
-
-        let evt = chat_event(
-            &BvcpCodec::format_bvca("peer.example:443"),
-            Direction::Clientbound,
-        );
-        dispatcher.dispatch(&evt, &mut state);
-
-        let packet = rx
-            .try_recv()
-            .expect("announce observed packet should be emitted");
-        assert_eq!(packet.data.packet_type, PacketType::PeerAnnounceObserved);
-        match packet.data.data {
-            QuicNetworkPacketData::PeerAnnounceObserved(obs) => {
-                assert_eq!(obs.hashed_world, "world-xyz");
-                assert_eq!(obs.endpoint, "peer.example:443");
-            }
-            other => panic!("expected PeerAnnounceObserved, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn clientbound_non_bvcp_chat_emits_nothing() {
+    fn clientbound_chat_emits_no_quic_packet() {
         let (mut dispatcher, rx) = build_dispatcher();
         let mut state = BedrockSessionState::new("alice".to_string(), None);
 
         let evt = chat_event("hello world", Direction::Clientbound);
-        dispatcher.dispatch(&evt, &mut state);
-
-        assert!(rx.try_recv().is_err());
-    }
-
-    #[test]
-    fn serverbound_bvcp_chat_is_ignored() {
-        let (mut dispatcher, rx) = build_dispatcher();
-        let mut state = BedrockSessionState::new("alice".to_string(), None);
-
-        let evt = chat_event(&BvcpCodec::format_bvcp("tok-1"), Direction::Serverbound);
         dispatcher.dispatch(&evt, &mut state);
 
         assert!(rx.try_recv().is_err());

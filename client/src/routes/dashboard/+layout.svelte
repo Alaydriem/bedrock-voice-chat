@@ -9,6 +9,9 @@
   import { page } from "$app/state";
   import Cover from "../../components/shell/Cover.svelte";
   import { SettingsRoute } from "../../js/app/settings/SettingsRoute";
+  import { SettingsNavigation } from "../../js/app/settings/SettingsNavigation";
+  import { SETTINGS_NAV_KEY } from "../../js/app/shell/SettingsNavigationContext";
+  import PlatformDetector from "../../js/app/utils/PlatformDetector";
   import { UpdateStatus } from "../../js/app/settings/UpdateStatus";
   import { UpdatePoller } from "../../js/app/shell/UpdatePoller";
   import { UPDATE_STATUS_KEY } from "../../js/app/shell/UpdateStatusContext";
@@ -24,6 +27,7 @@
   import { ChatManager } from "../../js/app/chat/ChatManager";
   import type { ChatLine } from "../../js/app/chat/ChatLine";
   import type { ChatRejectionState, ChatTarget } from "../../js/app/chat/ChatTarget";
+  import type { WorldAssociations } from "../../js/app/chat/WorldLabel";
   import RadFrame from "../../components/shell/RadFrame.svelte";
   import ChatDock from "../../components/dashboard/ChatDock.svelte";
   import DashboardScreen from "../../components/dashboard/DashboardScreen.svelte";
@@ -82,6 +86,18 @@
   const audioSettings = new AudioSettingsManager();
   setContext(AUDIO_SETTINGS_KEY, audioSettings);
 
+  /**
+   * One per session, because it holds whether this session pushed the entries beneath the
+   * screen showing now. A second instance would answer that wrongly and pop past the
+   * dashboard. Published because the layout opens settings and the settings routes leave it.
+   */
+  const settingsNav = new SettingsNavigation(
+    (href, opts) => goto(href, opts),
+    (delta) => history.go(delta),
+    () => new PlatformDetector().mobile(),
+  );
+  setContext(SETTINGS_NAV_KEY, settingsNav);
+
   let servers = $state<readonly RailServer[]>([]);
   let player = $state("");
 
@@ -93,6 +109,9 @@
   let chatLines = $state<ChatLine[]>([]);
   let chatTarget = $state<ChatTarget>({ kind: "unavailable", reason: "Not connected" });
   let chatRejection = $state<ChatRejectionState | null>(null);
+  // Remembered world names. Most worlds report a level name that identifies nobody, so the
+  // labels come from what the reader picked in BVC Connect.
+  let chatAssociations = $state<WorldAssociations>({});
   let chatUnread = $state(0);
   let chatOpen = $state(false);
   /**
@@ -271,7 +290,9 @@
         if (landing.kind === "navigate") {
           BootTimeline.shared().mark(`REDIRECTED: ${landing.href}`);
           BootTimeline.shared().report();
-          window.location.href = landing.href;
+          // Replaced, not pushed: this dashboard never became a screen, so an entry for
+          // it is one back can only bounce off.
+          window.location.replace(landing.href);
           return;
         }
 
@@ -282,6 +303,7 @@
         unsubs.push(chatManager.lines.subscribe((v) => (chatLines = v)));
         unsubs.push(chatManager.target.subscribe((v) => (chatTarget = v)));
         unsubs.push(chatManager.rejection.subscribe((v) => (chatRejection = v)));
+        unsubs.push(chatManager.associations.subscribe((v) => (chatAssociations = v)));
         unsubs.push(chatManager.unread.subscribe((v) => (chatUnread = v)));
         void chatManager.startLocal();
         identity = instance.identity;
@@ -456,7 +478,8 @@
   function signOut(): void {
     Analytics.track("Logout");
     void app?.signOut().then((next) => {
-      if (next.kind === "navigate") window.location.href = next.href;
+      // Replaced, not pushed: the session is gone, so the dashboard cannot be returned to.
+      if (next.kind === "navigate") window.location.replace(next.href);
     });
   }
 
@@ -505,7 +528,7 @@
 {/snippet}
 
 <RadFrame>
-  <Cover open={coverOpen} ondismiss={() => void goto("/dashboard")}>
+  <Cover open={coverOpen} ondismiss={() => void settingsNav.exit(page.url.pathname)}>
     {#snippet under()}
   {#if ready && app?.selfController}
     <DashboardScreen
@@ -518,9 +541,10 @@
       {headline}
       {groupName}
       {statusOpen}
-      onswitch={(server) => (window.location.href = `/dashboard?server=${encodeURIComponent(server)}`)}
+      onswitch={(server) => window.location.replace(`/dashboard?server=${encodeURIComponent(server)}`)}
       onadd={() => (window.location.href = AddServerRoute.HREF)}
-      onsettings={() => void goto(SettingsRoute.href("audio"))}
+      onsettings={() => void settingsNav.open()}
+      onconnect={() => void settingsNav.open("connect")}
       jukebox={jukeboxChip}
       {chatOpen}
       onchat={(open) => {
@@ -624,6 +648,7 @@
           lines={chatLines}
           target={chatTarget}
           rejection={chatRejection}
+          associations={chatAssociations}
           unread={chatUnread}
           open={chatOpen}
           hueOf={(author) => (author ? PlayerHue.forPlayer("minecraft", author) : "#9483b6")}

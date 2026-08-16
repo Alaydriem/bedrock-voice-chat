@@ -689,7 +689,9 @@ export default class Dashboard extends BVCApp {
             Analytics.track("Logout");
             await invoke("logout").then(async () => {
                 await this.shutdown().then(() => {
-                    window.location.href = "/login";
+                    // Replaced, not pushed: the session is gone, so the dashboard behind
+                    // this cannot be returned to.
+                    window.location.replace("/login");
                 });
             });
 

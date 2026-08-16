@@ -59,6 +59,15 @@ impl CacheManager {
         &self.players
     }
 
+    /// Live relay worlds and how many players are in each, sorted by world name.
+    ///
+    /// Delegated rather than reached through `players()` so a caller outside this
+    /// module never has to name the inner cache: the manager is the surface, and
+    /// which cache answers is its business.
+    pub fn relay_world_populations(&self) -> Vec<(String, usize)> {
+        self.players.relay_world_populations()
+    }
+
     /// The player self-state cache (`get`/`set`/`delete` via `CacheTrait`).
     pub fn player_state(&self) -> &PlayerStateCache {
         &self.player_state

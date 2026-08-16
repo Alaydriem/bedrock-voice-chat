@@ -113,6 +113,8 @@ metrics-util = { version = "^0.20" }
 metrics-exporter-prometheus = { version = "^0.18", default-features = false }
 metrics-exporter-dogstatsd = { version = "^0.9" }
 rustls = { version = "^0.23", features = ["aws_lc_rs"] }
+iroh = { version = "1", default-features = false, features = ["tls-aws-lc-rs"] }
+bvc-relay = { path = "../../relay/lib" }
 socket2 = { version = "^0.5" }
 tokio-tungstenite = { version = "^0.29" }
 tokio-rustls = { version = "^0.26" }

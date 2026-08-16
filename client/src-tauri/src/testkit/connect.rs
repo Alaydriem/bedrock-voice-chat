@@ -309,18 +309,6 @@ impl Connector {
         crate::bedrock::JukeboxEjectInjector::new_shared()
     }
 
-    // Returns a freshly-constructed `PresenceInjector` for state registration.
-    #[cfg(feature = "bedrock-protocol")]
-    pub fn presence_injector() -> Arc<crate::bedrock::PresenceInjector> {
-        crate::bedrock::PresenceInjector::new_shared()
-    }
-
-    // Returns a freshly-constructed `AnnounceInjector` for state registration.
-    #[cfg(feature = "bedrock-protocol")]
-    pub fn announce_injector() -> Arc<crate::bedrock::AnnounceInjector> {
-        crate::bedrock::AnnounceInjector::new_shared()
-    }
-
     // Returns a freshly-constructed `BedrockConnectErrorChannel` for state registration.
     #[cfg(feature = "bedrock-protocol")]
     pub fn connect_error_channel() -> Arc<crate::bedrock::BedrockConnectErrorChannel> {

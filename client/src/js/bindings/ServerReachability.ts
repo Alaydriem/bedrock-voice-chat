@@ -3,4 +3,4 @@ import type { AddressFamilyPreference } from "./AddressFamilyPreference";
 import type { EndpointReachability } from "./EndpointReachability";
 import type { ReachabilityVerdict } from "./ReachabilityVerdict";
 
-export type ServerReachability = { host: string, quic: Array<EndpointReachability>, https: Array<EndpointReachability>, preference: AddressFamilyPreference, verdict: ReachabilityVerdict, best_rtt_micros: number | null, };
+export type ServerReachability = { host: string, quic: Array<EndpointReachability>, https: Array<EndpointReachability>, ws: Array<EndpointReachability>, preference: AddressFamilyPreference, verdict: ReachabilityVerdict, best_rtt_micros: number | null, fallback_rtt_micros: number | null, };

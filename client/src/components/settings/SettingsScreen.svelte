@@ -22,8 +22,13 @@
     interface Props {
         pane: string;
         /**
+         * Which of the phone's two screens is showing. Ignored at desktop width, where the
+         * section nav and the pane stand side by side as one screen.
+         */
+        level: "list" | "detail";
+        /**
          * Reached without a dashboard behind it — the error screen's "change audio
-         * devices" lands here. There is no cover to close, so there is no level to climb.
+         * devices" lands here. Nothing is connected, and the screen says so.
          */
         standalone?: boolean;
         /** Servers for the rail. Empty on the standalone route, which has no session. */
@@ -40,21 +45,31 @@
          */
         onnavigate: (pane: string) => void;
         onclose: () => void;
+        /** The back button in the bar. One screen up; the route decides what that is. */
+        onback: () => void;
         /** Signing out is the session's business, not a pane's. */
         onsignout?: () => void;
     }
     let {
         pane,
+        level,
         standalone = false,
         servers = [],
         updates = new UpdateStatus(),
         onnavigate,
         onclose,
+        onback,
         onsignout = () => {},
     }: Props = $props();
 
-    /** The mobile build. Not the same as a narrow window, which is a container query. */
-    let mobile = $state(false);
+    /**
+     * The mobile build. Not the same as a narrow window, which is a container query.
+     *
+     * Read synchronously. `plugin-os` returns a value injected at startup, so awaiting it
+     * only guarantees a first frame rendered as desktop — the wrong catalogue and the
+     * wrong layout — before the right one replaces it.
+     */
+    const mobile = new PlatformDetector().mobile();
 
     /** One manager across both Bedrock panes; built on first use. */
     let bedrock: BedrockManager | null = null;
@@ -73,38 +88,16 @@
     const current = $derived(SettingsCatalogue.find(pane, mobile) ?? SettingsCatalogue.all[0]);
     const badged = $derived(updateBadge ? "about" : null);
 
-    /** Which of the phone's two levels is showing. Ignored at desktop width. */
-    let level = $state<"list" | "detail">("list");
-
     let unbadge: (() => void) | null = null;
 
-    onMount(async () => {
+    onMount(() => {
         unbadge = updates.badge.subscribe((v) => (updateBadge = v));
-        try {
-            mobile = await new PlatformDetector().checkMobile();
-        } catch {
-            mobile = false;
-        }
     });
 
     onDestroy(() => {
         unbadge?.();
         bedrock?.destroy();
     });
-
-    function pick(id: string): void {
-        level = "detail";
-        onnavigate(id);
-    }
-
-    /** On a phone the first back climbs to the section list; the second leaves. */
-    function back(): void {
-        if (level === "detail" && !standalone) {
-            level = "list";
-            return;
-        }
-        onclose();
-    }
 
     // A pane change can happen without a remount, so the body is scrolled back itself.
     let body = $state<HTMLElement | null>(null);
@@ -133,7 +126,7 @@
     <div class="rad-panel">
         <div class="rad-panel__head">{I18n.t("Settings")}</div>
         <div class="rad-panel__body">
-            <SettingsNav {groups} current={current.id} {badged} onpick={pick} />
+            <SettingsNav {groups} current={current.id} {badged} onpick={onnavigate} />
         </div>
     </div>
 
@@ -150,7 +143,7 @@
         </div>
 
         <div class="rad-backbar">
-            <button class="rad-backbar__btn" onclick={back} aria-label={I18n.t("Back")}>
+            <button class="rad-backbar__btn" onclick={onback} aria-label={I18n.t("Back")}>
                 <Icon name={level === "list" ? "close" : "back"} />
             </button>
             <span class="rad-backbar__title">
@@ -159,7 +152,7 @@
         </div>
 
         <div class="rad-mobile-list">
-            <SettingsNav {groups} current={current.id} {badged} layout="list" onpick={pick} />
+            <SettingsNav {groups} current={current.id} {badged} layout="list" onpick={onnavigate} />
         </div>
 
         <div class="rad-settings-body" bind:this={body}>

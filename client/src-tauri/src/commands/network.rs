@@ -65,6 +65,7 @@ pub(crate) async fn change_network_stream(
                 config.quic_ports,
                 config.quic_port,
                 config.recording.enabled,
+                config.voice_websocket,
             )),
             Err(e) => {
                 warn!("Config fetch failed for {}; using stored port: {}", server, e);
@@ -78,9 +79,11 @@ pub(crate) async fn change_network_stream(
     };
 
     // A config fetch that failed leaves recording permitted, the same answer an
-    // unasked server gives.
-    let (advertised_ports, advertised_scalar, recording_enabled) =
-        advertised.unwrap_or((Vec::new(), 0, true));
+    // unasked server gives, and leaves the fallback transport worth trying. The two
+    // wrong answers are not symmetric: assuming no fallback strands a player whose
+    // UDP is blocked, while assuming one costs a TLS handshake that gets refused.
+    let (advertised_ports, advertised_scalar, recording_enabled, voice_websocket) =
+        advertised.unwrap_or((Vec::new(), 0, true, true));
 
     crate::audio::AudioActionsManager::new(app.clone())
         .set_recording_allowed(recording_enabled)
@@ -94,6 +97,7 @@ pub(crate) async fn change_network_stream(
         &advertised_ports,
         advertised_scalar,
         Some(&data.quic_connect_string),
+        voice_websocket,
     )
     .await
     {
@@ -152,6 +156,7 @@ pub(crate) async fn change_network_stream(
             server.clone(),
             plan,
             report.any_quic_answered(),
+            voice_websocket,
             identity,
             data.certificate_ca,
             data.certificate,
@@ -263,11 +268,16 @@ pub(crate) async fn probe_server(
     server: String,
     quic_ports: Vec<u32>,
     quic_port: u32,
+    // Whether the server advertised the WebSocket voice transport, from the
+    // `/api/config` the caller has already read. Supplied rather than fetched again
+    // for the same reason `quic_ports` is.
+    voice_websocket: bool,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<ServerReachability, String> {
-    let request = ReachabilityPlanner::plan(&server, &quic_ports, quic_port, None)
-        .await
-        .map_err(|e| e.to_string())?;
+    let request =
+        ReachabilityPlanner::plan(&server, &quic_ports, quic_port, None, voice_websocket)
+            .await
+            .map_err(|e| e.to_string())?;
 
     let reachability = {
         let state = state.lock().await;
@@ -275,6 +285,37 @@ pub(crate) async fn probe_server(
     };
 
     Ok(reachability.evaluate(&request).await)
+}
+
+// The address field's question, which is narrower than the preflight's: whether voice can
+// reach this address at all. Which transport carries it is settled at connect time, from the
+// complete report, so waiting out the QUIC budget here buys the screen nothing and costs it
+// seconds — the WebSocket probe answers in milliseconds and the QUIC walk has a full
+// handshake budget per endpoint.
+//
+// The report this returns may therefore be incomplete, and its verdict means "a path exists"
+// rather than "this is the path". Never hand it to `CandidatePlan::build`. The measurement
+// finishes in the background and caches the whole thing, so the connect that follows still
+// reads a complete report from this same instance.
+#[tauri::command]
+pub(crate) async fn probe_voice_path(
+    server: String,
+    quic_ports: Vec<u32>,
+    quic_port: u32,
+    voice_websocket: bool,
+    state: State<'_, Mutex<AppState>>,
+) -> Result<ServerReachability, String> {
+    let request =
+        ReachabilityPlanner::plan(&server, &quic_ports, quic_port, None, voice_websocket)
+            .await
+            .map_err(|e| e.to_string())?;
+
+    let reachability = {
+        let state = state.lock().await;
+        state.reachability()
+    };
+
+    Ok(reachability.evaluate_any_voice_path(&request).await)
 }
 
 // Compatibility is a different axis from reachability, and both are needed before a

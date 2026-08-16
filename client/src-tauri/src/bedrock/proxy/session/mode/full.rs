@@ -1,15 +1,12 @@
 use std::sync::Arc;
 
 use common::bedrock_protocol::protocol::event::EventPacket;
-use common::bedrock_protocol::protocol::packets::generated::misc::text::TextPacket;
-use common::bedrock_protocol::protocol::types::generated::TextPacketBody;
 use common::bedrock_protocol::{Direction, Event};
 use log::info;
 
 use super::{DispatchResult, ModeDispatch};
 use crate::bedrock::BedrockChatChannel;
 use crate::bedrock::BedrockEventEmitter;
-use crate::bedrock::BvcpCodec;
 use crate::bedrock::ChatCodec;
 use crate::bedrock::JukeboxBeaconCache;
 use crate::bedrock::proxy::session::BedrockSessionState;
@@ -54,23 +51,6 @@ impl FullDispatch {
         }
     }
 
-    fn bvcp_token(packet: &TextPacket) -> Option<String> {
-        let message = match &packet.body {
-            TextPacketBody::MessageOnly(body) => &body.message,
-            TextPacketBody::AuthorAndMessage(body) => &body.message,
-            TextPacketBody::MessageAndParams(body) => &body.message,
-        };
-        BvcpCodec::parse_bvcp(message)
-    }
-
-    fn bvca_endpoint(packet: &TextPacket) -> Option<String> {
-        let message = match &packet.body {
-            TextPacketBody::MessageOnly(body) => &body.message,
-            TextPacketBody::AuthorAndMessage(body) => &body.message,
-            TextPacketBody::MessageAndParams(body) => &body.message,
-        };
-        BvcpCodec::parse_bvca(message)
-    }
 }
 
 impl ModeDispatch for FullDispatch {
@@ -142,18 +122,10 @@ impl ModeDispatch for FullDispatch {
                 };
             }
             EventPacket::ChatMessage(p) if matches!(direction, Direction::Clientbound) => {
-                if let Some(token) = Self::bvcp_token(p) {
-                    if let Some(emitter) = emitter {
-                        emitter.try_send_observed(token);
-                    }
-                } else if let Some(endpoint) = Self::bvca_endpoint(p) {
-                    if let (Some(emitter), Some(world)) = (emitter, state.world_uuid()) {
-                        emitter.try_send_announce_observed(world.to_string(), endpoint);
-                    }
-                } else if let Some(chat) = self.chat_channel.as_ref() {
-                    // Everything the realm broadcasts that a person should read. The ride
-                    // arms above ran first, and ChatCodec rejects rides independently —
-                    // relying on caller ordering for a security boundary is how leaks happen.
+                if let Some(chat) = self.chat_channel.as_ref() {
+                    // Everything the realm broadcasts that a person should read. ChatCodec
+                    // rejects rides itself — relying on caller ordering for a security
+                    // boundary is how leaks happen.
                     if let Some(line) = ChatCodec::decode(p) {
                         chat.emit(line);
                     }

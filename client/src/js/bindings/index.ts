@@ -27,6 +27,7 @@ export type { BedrockConnectError } from './BedrockConnectError';
 export type { BedrockConnectMode } from './BedrockConnectMode';
 export type { BedrockConnectionInfo } from './BedrockConnectionInfo';
 export type { BedrockLogEntry } from './BedrockLogEntry';
+export type { BedrockRenewal } from './BedrockRenewal';
 export type { BedrockStatus } from './BedrockStatus';
 export type { Channel } from './Channel';
 export type { ChannelEvent } from './ChannelEvent';

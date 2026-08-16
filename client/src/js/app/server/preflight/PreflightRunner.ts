@@ -8,6 +8,7 @@ import type { PreflightOutcome } from './PreflightOutcome';
 import type { PreflightStep } from './PreflightStep';
 import { PREFLIGHT_STEPS } from './PreflightStepName';
 import type { PreflightStepState } from './PreflightStepState';
+import type { VoiceTransport } from './VoiceTransport';
 
 /** Called after every change to the step list, so a plate can resolve as it goes. */
 export type PreflightObserver = (steps: readonly PreflightStep[]) => void;
@@ -19,9 +20,9 @@ export type PreflightObserver = (steps: readonly PreflightStep[]) => void;
  * in a ragged order rather than top to bottom.
  *
  * A check is skipped when something it needed did not happen, not merely because something
- * before it failed — so a protocol mismatch still measures the UDP path, whose port list came
- * from the handshake rather than from the verdict. Skipped checks say so, because a reader
- * left at "pending" is waiting for a result that is not coming.
+ * before it failed — so a protocol mismatch still measures the voice path, whose port list and
+ * transport capability came from the handshake rather than from the verdict. Skipped checks say
+ * so, because a reader left at "pending" is waiting for a result that is not coming.
  *
  * Certificate expiry is checked and never named. It is the mechanism behind "you are not
  * signed in any more", and naming it asks a player to understand mTLS to work out that they
@@ -32,6 +33,16 @@ export class PreflightRunner {
     static readonly SLOW_MS = 120;
 
     private static readonly STANDARD_QUIC_PORT = 443;
+
+    /** What each measured transport means for the plate. */
+    private static readonly STATUS_FOR_TRANSPORT: Record<
+        VoiceTransport,
+        PreflightOutcome['status']
+    > = {
+        quic: 'connect',
+        websocket: 'ws_fallback',
+        none: 'udp_blocked',
+    };
 
     private readonly steps: PreflightStep[];
     private readonly observer: PreflightObserver;
@@ -71,8 +82,13 @@ export class PreflightRunner {
                 return PreflightRunner.blank('unreachable');
             }
 
-            const quic = await this.quicPath(server, answered.quic_port, answered.quic_ports);
-            return { ...PreflightRunner.blank('reauth'), quicPort: quic.port };
+            const voice = await this.voicePath(
+                server,
+                answered.quic_port,
+                answered.quic_ports,
+                answered.voice_websocket,
+            );
+            return { ...PreflightRunner.blank('reauth'), quicPort: voice.port };
         }
 
         const { response, rtt } = handshake;
@@ -94,16 +110,19 @@ export class PreflightRunner {
          * available at all.
          */
         const compatible = this.protocol(response);
-        const quic = await this.quicPath(
+        const voice = await this.voicePath(
             server,
             response.config.quic_port,
             response.config.quic_ports,
+            response.config.voice_websocket,
         );
 
         // First failing check wins, and the protocol check runs before this one.
-        const status = !compatible ? 'version_mismatch' : quic.open ? 'connect' : 'udp_blocked';
+        const status = !compatible
+            ? 'version_mismatch'
+            : PreflightRunner.STATUS_FOR_TRANSPORT[voice.transport];
 
-        return { status, ...measured, quicPort: quic.port };
+        return { status, ...measured, quicPort: voice.port };
     }
 
     /**
@@ -173,26 +192,48 @@ export class PreflightRunner {
     /**
      * Step four, the one the other three cannot see. All of them ran over TCP 443, and a
      * network that permits HTTPS while dropping UDP passes every one.
+     *
+     * It measures both transports because both carry voice. A blocked UDP path used to be
+     * the end of the answer; it is now the question the fallback measurement answers, and
+     * the difference between the two decides whether this server is connectable at all.
      */
-    private async quicPath(
+    private async voicePath(
         server: string,
         advertised: number,
         ports: number[],
-    ): Promise<{ open: boolean; port: number }> {
+        voiceWebsocket: boolean,
+    ): Promise<{ transport: VoiceTransport; port: number }> {
         const done = this.begin(3);
         try {
             const report = await invoke<ServerReachability>('probe_server', {
                 server,
                 quicPorts: ports,
                 quicPort: advertised,
+                voiceWebsocket,
             });
 
             if (report.verdict === 'Ready') {
-                const port = PreflightRunner.answeringPort(report) ?? advertised;
+                const port = PreflightRunner.answeringPort(report.quic, report.best_rtt_micros);
+                const resolved = port ?? advertised;
                 const ms = Math.round((report.best_rtt_micros ?? 0) / 1000);
-                const fallback = port === PreflightRunner.STANDARD_QUIC_PORT ? '' : ' · fallback port';
-                done('ok', `udp/${port} open · ${ms} ms${fallback}`);
-                return { open: true, port };
+                const fallback =
+                    resolved === PreflightRunner.STANDARD_QUIC_PORT ? '' : ' · fallback port';
+                done('ok', `udp/${resolved} open · ${ms} ms${fallback}`);
+                return { transport: 'quic', port: resolved };
+            }
+
+            /*
+             * A warning rather than a pass. The check found a working path, which is why the
+             * plate offers a connect — and it found it on the transport that costs latency
+             * under loss, which is why the row is not green.
+             */
+            if (report.verdict === 'VoiceFallback') {
+                const ms = Math.round((report.fallback_rtt_micros ?? 0) / 1000);
+                const port =
+                    PreflightRunner.answeringPort(report.ws, report.fallback_rtt_micros) ??
+                    PreflightRunner.STANDARD_QUIC_PORT;
+                done('warn', `udp/${advertised} blocked · tcp/${port} fallback · ${ms} ms`);
+                return { transport: 'websocket', port: advertised };
             }
 
             const probes = report.quic.length || 1;
@@ -202,18 +243,22 @@ export class PreflightRunner {
                     ? `no route to udp/${advertised} from this device`
                     : `udp/${advertised} unreachable · ${probes} ${probes === 1 ? 'probe' : 'probes'}, no response`,
             );
-            return { open: false, port: advertised };
+            return { transport: 'none', port: advertised };
         } catch (e) {
-            warn(`Preflight QUIC probe failed for ${server}: ${e}`);
+            warn(`Preflight voice path probe failed for ${server}: ${e}`);
             done('bad', `udp/${advertised} could not be probed`);
-            return { open: false, port: advertised };
+            return { transport: 'none', port: advertised };
         }
     }
 
-    private static answeringPort(report: ServerReachability): number | null {
-        for (const endpoint of report.quic) {
+    /** Which endpoint in a leg produced that leg's winning measurement. */
+    private static answeringPort(
+        endpoints: ServerReachability['quic'],
+        best: number | null,
+    ): number | null {
+        for (const endpoint of endpoints) {
             const outcome = endpoint.outcome;
-            if (outcome.state === 'answered' && outcome.rtt_micros === report.best_rtt_micros) {
+            if (outcome.state === 'answered' && outcome.rtt_micros === best) {
                 return endpoint.port;
             }
         }

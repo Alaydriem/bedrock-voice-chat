@@ -12,7 +12,7 @@ use tauri::async_runtime::Mutex;
 
 use common::consts::bedrock::BEDROCK_LISTEN_PORT;
 use common::structs::bedrock::{
-    BedrockBackendKind, BedrockConnectionInfo, NetworkInterface,
+    BedrockBackendKind, BedrockConnectionInfo, BedrockRenewal, NetworkInterface,
 };
 use common::traits::StreamTrait;
 
@@ -21,11 +21,12 @@ use crate::analytics::AnalyticsService;
 use websocket_types::{ActiveConnection, ConnectTargetId, ConnectTargetKind, ConnectTargetSource};
 
 use crate::bedrock::{
-    AddonModeResolver, AdvertisedVersionResolver, AnnounceInjector, BedrockChatChannel,
+    AddonModeResolver, AdvertisedVersionResolver, BedrockAuthService,
+    BedrockChatChannel,
     SessionName,
     BedrockConnectErrorChannel,
     BedrockEventEmitter, BedrockProxyManager, BedrockState, BedrockTargetService, ChatInjector,
-    JukeboxBeaconCache, JukeboxEjectInjector, PresenceInjector, ProtocolGatingService, ProxyDeps,
+    JukeboxBeaconCache, JukeboxEjectInjector, ProtocolGatingService, ProxyDeps,
 };
 use crate::control::ControlActionSender;
 use crate::feature_flags::FeatureFlagService;
@@ -244,6 +245,24 @@ impl BedrockConnector {
 
         let state = self.app_handle.state::<Mutex<BedrockState>>();
 
+        // The realm backend carries a fixed AuthInfo minted here, with no refresh path of its
+        // own, so this is the only chance to notice the credential has expired. Outside the
+        // guard below: `renew` locks this same state.
+        match BedrockAuthService::new()
+            .renew(state.inner(), &self.app_handle)
+            .await
+        {
+            BedrockRenewal::ReauthRequired => {
+                anyhow::bail!("Xbox re-authentication required. Please sign in again.");
+            }
+            // The tokens already held may still work, and refusing on a network blip would be
+            // worse than trying with them.
+            BedrockRenewal::Unavailable { message } => {
+                log::warn!("Could not renew before realm connect: {}", message);
+            }
+            BedrockRenewal::Renewed => {}
+        }
+
         let info = {
             let mut state = state.lock().await;
 
@@ -443,8 +462,6 @@ impl BedrockConnector {
                     .clone(),
             )),
             Arc::clone(self.app_handle.state::<Arc<JukeboxEjectInjector>>().inner()),
-            Arc::clone(self.app_handle.state::<Arc<PresenceInjector>>().inner()),
-            Arc::clone(self.app_handle.state::<Arc<AnnounceInjector>>().inner()),
             self.app_handle.state::<ControlActionSender>().inner().clone(),
             self.app_handle
                 .state::<Arc<crate::bedrock::QueryStateInjector>>()

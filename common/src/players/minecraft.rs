@@ -45,6 +45,14 @@ impl PlayerData for MinecraftPlayer {
         Game::Minecraft
     }
 
+    fn world_identifier(&self) -> Option<&str> {
+        self.relay_world_uuid.as_deref()
+    }
+
+    fn dimension(&self) -> Option<Dimension> {
+        Some(self.dimension.clone())
+    }
+
     fn clone_box(&self) -> Box<dyn PlayerData> {
         Box::new(self.clone())
     }

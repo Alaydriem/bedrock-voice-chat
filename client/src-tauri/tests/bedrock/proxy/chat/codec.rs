@@ -1,4 +1,4 @@
-use bvc_client_lib::bedrock::{BvcpCodec, ChatCodec};
+use bvc_client_lib::bedrock::ChatCodec;
 use common::bedrock_protocol::protocol::packets::generated::misc::text::TextPacket;
 use common::bedrock_protocol::protocol::types::generated::{
     AuthorAndMessage, MessageAndParams, MessageOnly, TextPacketBody, TextPacketType,
@@ -147,20 +147,8 @@ fn unrecognized_wire_values_are_dropped() {
     assert!(ChatCodec::decode(&message_only(TextPacketType::Unrecognized(99), "?")).is_none());
 }
 
-// The four rides below are BVC's own silent chat bus. A leaked ride would broadcast a player's
+// The rides below are BVC's own silent chat bus. A leaked ride would broadcast a player's
 // audio state into visible chat, so this is a security regression guard rather than tidiness.
-#[test]
-fn the_bvcp_presence_ride_is_rejected() {
-    let ride = BvcpCodec::format_bvcp("tok-1");
-    assert!(ChatCodec::decode(&authored(TextPacketType::Chat, &ride)).is_none());
-}
-
-#[test]
-fn the_bvca_announce_ride_is_rejected() {
-    let ride = BvcpCodec::format_bvca("peer.example:443");
-    assert!(ChatCodec::decode(&authored(TextPacketType::Chat, &ride)).is_none());
-}
-
 #[test]
 fn the_bvce_eject_ride_is_rejected() {
     assert!(ChatCodec::decode(&authored(TextPacketType::Chat, "!bvce 10 64 -20")).is_none());

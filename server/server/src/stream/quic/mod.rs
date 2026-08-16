@@ -426,18 +426,15 @@ impl QuicServerManager {
                 }
             };
 
-            let (player_identity, peer_endpoint) = match ConnectionClassifier::classify(
-                &authenticated_cn,
-            ) {
+            let player_identity = match ConnectionClassifier::classify(&authenticated_cn) {
                 // The canonical identity is carried, not the bare name: it is the key every
                 // cache, the registry index and channel membership share.
-                ConnectionKind::Player { game, name } => (Some(game.membership_key(&name)), None),
-                ConnectionKind::Peer { endpoint, .. } => (None, Some(endpoint)),
+                ConnectionKind::Player { game, name } => Some(game.membership_key(&name)),
                 ConnectionKind::Rejected { identity } => {
                     tracing::warn!(
                         connection = %connection_id,
                         identity = %identity,
-                        "Refusing connection: certificate identity is not a valid player or peer CN"
+                        "Refusing connection: certificate identity is not a valid player CN"
                     );
                     connection.close(Self::unauthorized_code());
                     continue;
@@ -457,19 +454,11 @@ impl QuicServerManager {
                 }
                 let conn_arc = Arc::new(connection);
 
-                // Handle to the accepted connection, so a peer (acceptor) link can spawn
-                // an outbound write pump that sends relayed datagrams BACK on this same
-                // connection, which makes the relay bidirectional. A player session has
-                // no such pump and is given none.
-                let peer_connection = peer_endpoint.as_ref().map(|_| conn_arc.clone());
-
                 spawner
                     .run(
                         SessionLink::Quic(conn_arc),
                         device,
                         player_identity,
-                        peer_endpoint,
-                        peer_connection,
                     )
                     .await;
             });

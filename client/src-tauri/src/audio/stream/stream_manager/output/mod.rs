@@ -11,13 +11,9 @@ use router::PacketRouter;
 use crate::AudioPacket;
 use crate::audio::types::AudioDevice;
 #[cfg(feature = "bedrock-protocol")]
-use crate::bedrock::AnnounceInjector;
-#[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxBeaconCache;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxEjectInjector;
-#[cfg(feature = "bedrock-protocol")]
-use crate::bedrock::PresenceInjector;
 use anyhow::anyhow;
 use common::{
     Coordinate, Game, GenericPlayer, Orientation, PlayerEnum,
@@ -78,10 +74,6 @@ pub(crate) struct OutputStream {
     beacon_cache: Option<Arc<JukeboxBeaconCache>>,
     #[cfg(feature = "bedrock-protocol")]
     eject_injector: Option<Arc<JukeboxEjectInjector>>,
-    #[cfg(feature = "bedrock-protocol")]
-    presence_injector: Option<Arc<PresenceInjector>>,
-    #[cfg(feature = "bedrock-protocol")]
-    announce_injector: Option<Arc<AnnounceInjector>>,
 }
 
 impl common::traits::StreamTrait for OutputStream {
@@ -232,8 +224,6 @@ impl OutputStream {
         session_config: Arc<crate::diagnostics::SessionConfig>,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
-        #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
-        #[cfg(feature = "bedrock-protocol")] announce_injector: Option<Arc<AnnounceInjector>>,
     ) -> Self {
         let players = moka::sync::Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
@@ -277,10 +267,6 @@ impl OutputStream {
             beacon_cache,
             #[cfg(feature = "bedrock-protocol")]
             eject_injector,
-            #[cfg(feature = "bedrock-protocol")]
-            presence_injector,
-            #[cfg(feature = "bedrock-protocol")]
-            announce_injector,
         }
     }
 
@@ -314,10 +300,6 @@ impl OutputStream {
             self.beacon_cache.clone(),
             #[cfg(feature = "bedrock-protocol")]
             self.eject_injector.clone(),
-            #[cfg(feature = "bedrock-protocol")]
-            self.presence_injector.clone(),
-            #[cfg(feature = "bedrock-protocol")]
-            self.announce_injector.clone(),
         );
 
         let handle = tokio::spawn(async move {
@@ -409,6 +391,15 @@ impl OutputStream {
             None => None,
         };
 
+        // Read before the config is handed to the sink, which consumes it. The device's own
+        // rate where there is a device; the fake sink used by the harness reports no config,
+        // and 48 kHz stereo there keeps the mixer from resampling a cue in the one case where
+        // nothing is listening anyway.
+        let (cue_rate, cue_channels) = resolved_config
+            .as_ref()
+            .map(|config| (config.sample_rate(), config.channels()))
+            .unwrap_or((48_000, 2));
+
         let sink = std::mem::replace(&mut self.sink, AudioOutputSink::Rodio);
         let mix_target = sink.open(self.device.clone(), resolved_config, self.shutdown.clone())?;
         self.playback_stream = mix_target.playback_stream;
@@ -438,6 +429,16 @@ impl OutputStream {
         if let Some(value) = metadata.get("jukebox_muted").await {
             if let Ok(muted) = value.parse::<bool>() {
                 self.jukebox.set_muted(muted);
+            }
+        }
+
+        {
+            use tauri::Manager;
+            if let Some(cue_sink) = self
+                .app_handle
+                .try_state::<std::sync::Arc<crate::audio::CueSink>>()
+            {
+                cue_sink.attach(mix_target.mixer.clone(), cue_rate, cue_channels);
             }
         }
 

@@ -34,6 +34,12 @@ jobs:
     env:
       POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
       POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+      # Compiled into `bvc-relay` and presented to the iroh relay as a bearer
+      # token. Not a secret — it ships inside the binary — so an unset value is
+      # not a failure: it expands to empty, which `PeerEndpoint::access_token`
+      # treats as absent, and the binary then reaches a relay that admits
+      # everyone. That keeps a fork building without this repository's secrets.
+      BVC_RELAY_ACCESS_TOKEN: ${{ secrets.RELAY_ACCESS_TOKEN }}
     strategy:
       fail-fast: false
       matrix:

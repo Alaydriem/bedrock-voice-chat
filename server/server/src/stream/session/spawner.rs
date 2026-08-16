@@ -2,7 +2,6 @@ use super::SessionLink;
 use crate::stream::quic::connection_registry::{ConnectionRegistry, RoutedPacket};
 use crate::stream::quic::stream_manager::{InputStream, OutputStream};
 use crate::stream::quic::{CacheManager, PacketIdentityStamp, WebhookReceiver};
-use common::s2n_quic::Connection;
 use common::structs::packet::{
     PacketType, PlayerDataPacket, PlayerPositionPacket, QuicNetworkPacket, QuicNetworkPacketData,
 };
@@ -63,20 +62,14 @@ impl SessionSpawner {
 
     /// Serves one session until either direction ends.
     ///
-    /// `peer_connection` is present only on an inbound peer link, which is server-to-server
-    /// QUIC by nature. A player session passes `None` and the relay branch is unreachable
-    /// for it.
     pub(crate) async fn run(
         &self,
         link: SessionLink,
         device: u64,
         player_identity: Option<String>,
-        peer_endpoint: Option<String>,
-        peer_connection: Option<Arc<Connection>>,
     ) {
         let label = player_identity
             .clone()
-            .or_else(|| peer_endpoint.clone())
             .unwrap_or_else(|| format!("device {device}"));
 
         let (packet_tx, packet_rx) = mpsc::channel::<RoutedPacket>(Self::ROUTED_PACKET_CAPACITY);
@@ -114,9 +107,7 @@ impl SessionSpawner {
             input_shutdown_rx,
             Box::new(register_connection),
             device,
-            peer_connection,
             player_identity,
-            peer_endpoint,
         );
         let input_task = tokio::spawn(input);
 
@@ -202,9 +193,7 @@ impl SessionSpawner {
         mut shutdown_rx: oneshot::Receiver<()>,
         register_connection: Box<dyn Fn(String) + Send + Sync>,
         device: u64,
-        peer_connection: Option<Arc<Connection>>,
         player_identity: Option<String>,
-        peer_endpoint: Option<String>,
     ) -> impl std::future::Future<Output = ()> + Send + 'static {
         let connection_registry = self.connection_registry.clone();
         let cache_manager = self.cache_manager.clone();
@@ -230,48 +219,6 @@ impl SessionSpawner {
                 tracing::info!("Registered authenticated player identity: {identity}");
             }
 
-            // An inbound peer link registers with the relay up front rather than waiting
-            // for a first packet to reveal who it is, then drains its outbound queue back
-            // onto this same connection so `forward_local`'s per-peer enqueues reach
-            // acceptor-accepted peers. Mirrors the dialer's write pump.
-            if let Some(endpoint) = &peer_endpoint {
-                match connection_registry.peer_manager() {
-                    Some(pm) => {
-                        pm.register_inbound(endpoint, std::time::Instant::now());
-
-                        // Taken only once a connection exists to drain it onto. Taking the
-                        // receiver and then finding nothing to write with would consume the
-                        // peer's only outbound queue and drop it.
-                        if let Some(write_conn) = peer_connection.clone()
-                            && let Some(mut outbound_rx) = pm.take_outbound_receiver(endpoint)
-                        {
-                            tokio::spawn(async move {
-                                while let Some(relayed) = outbound_rx.recv().await {
-                                    if let Ok(bytes) = relayed.packet.to_datagram() {
-                                        let _ = write_conn.datagram_mut(
-                                            |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
-                                                dg.send_datagram(bytes.into())
-                                            },
-                                        );
-                                    }
-                                }
-                            });
-                        }
-
-                        tracing::info!(
-                            "Accepted inbound peer connection: {} (relay ingest path)",
-                            endpoint
-                        );
-                    }
-                    None => {
-                        tracing::warn!(
-                            "Inbound peer-identity connection {} but no relay manager is wired; dropping",
-                            endpoint
-                        );
-                    }
-                }
-            }
-
             loop {
                 tokio::select! {
                     Some(server_packet) = packet_rx.recv() => {
@@ -281,16 +228,6 @@ impl SessionSpawner {
                         // anything downstream reads either.
                         if let Some(identity) = &player_identity {
                             PacketIdentityStamp::apply(&mut packet, identity, device);
-                        }
-
-                        // Inbound peer link: route every packet straight into the
-                        // relay ingest (FromPeer) — single-hop, registration
-                        // bypassed. Never touches the local client/broadcast path.
-                        if let Some(endpoint) = &peer_endpoint {
-                            if let Some(pm) = connection_registry.peer_manager() {
-                                pm.ingest(endpoint, packet).await;
-                            }
-                            continue;
                         }
 
                         // process_packet has no AudioFrame arm; skipping it avoids a
@@ -318,9 +255,6 @@ impl SessionSpawner {
 
                         match updated_packet.packet_type {
                             PacketType::AudioFrame => {
-                                // Local-origin audio: forward to peer servers
-                                // sharing the sender's relay world (single-hop;
-                                // relayed-origin packets never reach this path).
                                 connection_registry.forward_local_to_peers(&updated_packet);
                                 connection_registry
                                     .route_audio_frame(&updated_packet, &player_cache, broadcast_range, deafen_distance)
@@ -345,29 +279,6 @@ impl SessionSpawner {
                                         ..Default::default()
                                     };
                                     connection_registry.send_positions_to_owners(&echo);
-                                }
-                            }
-                            PacketType::PeerPresenceObserved => {
-                                // A local client reported a `!bvcp` code observed in the
-                                // realm. Route it to the asker-side observe handler
-                                // (Flow 1) to redeem against the offering minter and open
-                                // the peer link. Never broadcast onward.
-                                if let QuicNetworkPacketData::PeerPresenceObserved(observed) =
-                                    updated_packet.data
-                                {
-                                    connection_registry.on_peer_presence_observed(observed.token);
-                                }
-                            }
-                            PacketType::PeerAnnounceObserved => {
-                                // A local client reported a peer `!bvca` announce observed
-                                // in the realm. Record the peer endpoint for the observer's
-                                // world so the offer/forward paths can reach it. Never
-                                // broadcast onward.
-                                if let QuicNetworkPacketData::PeerAnnounceObserved(announce) =
-                                    updated_packet.data
-                                {
-                                    connection_registry
-                                        .on_peer_announce_observed(announce.hashed_world, announce.endpoint);
                                 }
                             }
                             PacketType::PlayerData => {

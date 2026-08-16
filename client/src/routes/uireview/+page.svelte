@@ -38,9 +38,10 @@
     const noop = () => {};
 
     const VERDICTS: Record<string, ResolveVerdict> = {
-        ok: { state: "ok", ring: "live", line: "✓ Resolved · 41ms", caption: "REACHABLE" },
-        bad: { state: "bad", ring: "empty", line: "✕ Nothing at that address", caption: "NO RESPONSE" },
-        editing: { state: "editing", ring: "empty", line: "○ Resolving", caption: "RESOLVING" },
+        ok: { state: "ok", ring: "live", line: "✓ Resolved · 41ms", caption: "REACHABLE", busy: false },
+        bad: { state: "bad", ring: "empty", line: "✕ Nothing at that address", caption: "NO RESPONSE", busy: false },
+        editing: { state: "editing", ring: "empty", line: "○ Resolving", caption: "RESOLVING", busy: false },
+        measuring: { state: "editing", ring: "empty", line: "Resolving", caption: "RESOLVING", busy: true },
     };
 
     let introStep = $state(1);
@@ -56,7 +57,7 @@
      * denies the checks after it — which is what the runner does. A protocol mismatch skips
      * nothing, because the UDP path needs the port list rather than the verdict.
      */
-    function steps(failedAt: number | null, warnHandshake = false) {
+    function steps(failedAt: number | null, warnHandshake = false, fallbackPath = false) {
         const denied = failedAt === 0 ? 1 : failedAt === 1 ? 2 : PREFLIGHT_STEPS.length;
 
         return PREFLIGHT_STEPS.map((name, i) => {
@@ -66,6 +67,9 @@
             }
             if (i >= denied) {
                 return { name, state: "skipped" as PreflightStepState, note: "not run", ms: 0 };
+            }
+            if (fallbackPath && i === 3) {
+                return { name, state: "warn" as PreflightStepState, note: FALLBACK_NOTE, ms };
             }
             const state: PreflightStepState = warnHandshake && i === 1 ? "warn" : "ok";
             return { name, state, note: NOTES[i], ms };
@@ -79,6 +83,9 @@
         "udp/443 open · 28 ms",
     ];
 
+    // The one check that reports a working path in amber rather than a failure in red.
+    const FALLBACK_NOTE = "udp/443 blocked · tcp/443 fallback · 41 ms";
+
     const FAILURES = [
         "no valid sign-in for this server",
         "no response",
@@ -88,9 +95,10 @@
 
     /**
      * A plate in every state at once, which no real device can produce: it needs a live
-     * server, a slow one, a lapsed sign-in, a dead host, a blocked UDP path and two
-     * mismatched protocols saved side by side. Mocking store.json reaches the layout but only
-     * ever the failing states, because a made-up host cannot pass a preflight.
+     * server, a slow one, a lapsed sign-in, a dead host, a blocked UDP path with a working
+     * fallback, one without, and two mismatched protocols saved side by side. Mocking
+     * store.json reaches the layout but only ever the failing states, because a made-up host
+     * cannot pass a preflight.
      */
     function plate(host: string, status: RosterStatus, extra: Partial<ServerRosterEntry> = {}) {
         return {
@@ -121,6 +129,7 @@
             steps: steps(null, true),
         }),
         plate("voice.hearthhold.net", "udp_blocked", { steps: steps(3) }),
+        plate("cgnat.example.com", "ws_fallback", { steps: steps(null, false, true) }),
         plate("bvc.tinyaxolotl.gg", "reauth", { steps: steps(0) }),
         plate("down.example.com", "unreachable", { steps: steps(1) }),
         plate("ahead.example.com", "version_mismatch", {

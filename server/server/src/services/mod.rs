@@ -25,7 +25,6 @@ pub mod player_identity_service;
 pub mod player_registrar_service;
 pub mod position_feed;
 pub mod position_service;
-pub mod relay_rate_limiter;
 
 pub use audio_file_service::{AudioFileError, AudioFileService};
 pub use audio_playback_service::{AudioPlaybackService, EjectScheduler};
@@ -46,4 +45,3 @@ pub use player_identity_service::PlayerIdentityService;
 pub use player_registrar_service::{PlayerRegistrarService, RegisteredPlayersCache};
 pub use position_feed::{GridCell, PositionFeedService, WorldIndex};
 pub use position_service::{FAR_TIER_MAX, PositionService};
-pub use relay_rate_limiter::RelayRateLimiter;

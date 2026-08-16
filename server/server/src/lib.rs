@@ -8,11 +8,11 @@ extern crate rocket;
 pub mod config;
 pub mod demux;
 pub mod http;
-pub mod relay;
 pub mod services;
 pub mod stream;
 
 pub mod ffi;
+pub mod relay;
 pub mod runtime;
 
 pub use config::ApplicationConfig;

@@ -1,4 +1,5 @@
 import { render } from "@testing-library/svelte";
+import { flushSync } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 
 const { default: Cover } = await import("../../components/shell/Cover.svelte");
@@ -249,6 +250,68 @@ describe("Cover", () => {
         const ondismiss = vi.fn();
         const { cover } = mount({ open: false, ondismiss });
         drag(cover(), 0, 200);
+        expect(ondismiss).not.toHaveBeenCalled();
+    });
+
+    // On touch, pointerdown implicitly captures the pointer to the element under the
+    // finger. Taking the capture for the cover transfers it, and the child announces the
+    // loss with a lostpointercapture that bubbles here. That is the start of every touch
+    // drag, not the end of one — reacting to it made the gesture kill itself.
+    it("keeps dragging when a child loses its implicit capture", () => {
+        watchCapture();
+        const ondismiss = vi.fn();
+        const { cover } = mount({ open: true, ondismiss });
+        const body = document.createElement("div");
+        body.className = "rad-settings-body";
+        Object.defineProperty(body, "scrollTop", { value: 0, writable: true });
+        cover()?.append(body);
+
+        body.dispatchEvent(new MouseEvent("pointerdown", { clientY: 0, bubbles: true }));
+        body.dispatchEvent(new MouseEvent("pointermove", { clientY: 60, bubbles: true }));
+        // The transfer: the pressed child gives its implicit capture up to the cover.
+        body.dispatchEvent(new PointerEvent("lostpointercapture", { bubbles: true }));
+
+        body.dispatchEvent(new MouseEvent("pointermove", { clientY: 120, bubbles: true }));
+        flushSync();
+        expect(cover()?.getAttribute("style") ?? "").toContain("translateY");
+        body.dispatchEvent(new MouseEvent("pointerup", { clientY: 200, bubbles: true }));
+        expect(ondismiss).toHaveBeenCalledTimes(1);
+    });
+
+    // The browser can take the capture back without ever sending a pointerup — the webview
+    // backgrounded mid-drag is the reproducible case. A drag whose ending never arrives
+    // must not leave the cover half-translated or holding state that eats the next gesture.
+    it("springs back when the pointer capture is lost mid-drag", () => {
+        watchCapture();
+        const ondismiss = vi.fn();
+        const { cover } = mount({ open: true, ondismiss });
+
+        press(cover(), 0);
+        cover()?.dispatchEvent(new MouseEvent("pointermove", { clientY: 60, bubbles: true }));
+        flushSync();
+        expect(cover()?.getAttribute("style") ?? "").toContain("translateY");
+
+        cover()?.dispatchEvent(new PointerEvent("lostpointercapture", { bubbles: true }));
+        flushSync();
+        expect(cover()?.getAttribute("style") ?? "").not.toContain("translateY");
+        expect(ondismiss).not.toHaveBeenCalled();
+    });
+
+    it("does not resume an interrupted drag from later pointer events", () => {
+        watchCapture();
+        const ondismiss = vi.fn();
+        const { cover } = mount({ open: true, ondismiss });
+
+        press(cover(), 0);
+        cover()?.dispatchEvent(new MouseEvent("pointermove", { clientY: 60, bubbles: true }));
+        cover()?.dispatchEvent(new PointerEvent("lostpointercapture", { bubbles: true }));
+
+        // Stale continuations of the dead gesture: far past the dismiss threshold, and a
+        // release. Neither may move the cover or dismiss it.
+        cover()?.dispatchEvent(new MouseEvent("pointermove", { clientY: 300, bubbles: true }));
+        flushSync();
+        expect(cover()?.getAttribute("style") ?? "").not.toContain("translateY");
+        cover()?.dispatchEvent(new MouseEvent("pointerup", { clientY: 300, bubbles: true }));
         expect(ondismiss).not.toHaveBeenCalled();
     });
 });

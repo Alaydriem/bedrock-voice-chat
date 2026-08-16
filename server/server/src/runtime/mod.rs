@@ -272,26 +272,69 @@ impl ServerRuntime {
         let heartbeat_shutdown = tokio_util::sync::CancellationToken::new();
         let heartbeat_handle = metrics.spawn_heartbeat(heartbeat_shutdown.clone());
 
-        // Cross-server voice relay plane. Discovery is decentralized via in-realm
-        // `!bvca` announces — there is no central relay and no discovery routes.
-        // All relay work runs on dedicated tokio tasks, never on the audio hot
-        // path, so there is NO 4th `tokio::select!` arm. Returns the relay HTTP
-        // state (peer store + inject delivery) the Rocket manager mounts the
-        // `/relay/{offer,peer-redeem,peer-link}` routes against.
-        // Shared stream-token cache: the cross-server jukebox responder mints
-        // single-use tokens into the SAME cache the public `/api/audio/stream`
-        // route validates against, so a peer's HTTP pull resolves.
+        let relay_watch_shutdown = tokio_util::sync::CancellationToken::new();
+        let mut relay_watch_handle: Option<tokio::task::JoinHandle<()>> = None;
+
+        // Shared stream-token cache: single-use tokens minted into the SAME cache
+        // the public `/api/audio/stream` route validates against.
         let audio_stream_token_cache = crate::services::AudioStreamTokenCache::new();
 
-        let relay_client_state = self.wire_relay_client(
-            &webhook_receiver,
-            &cache_manager,
-            &connection_registry,
-            cert_service.clone(),
-            ca_pem,
-            db_conn.clone(),
-            audio_stream_token_cache.clone(),
-        );
+        // Cross-server peering. Declared, never discovered: every peer is named in
+        // `config.hcl`, and a config error here is fatal rather than a silently
+        // unauthorized peer later.
+        let grants = Arc::new(crate::relay::GrantTable::from_config(
+            &self.config.server.peers,
+        )?);
+
+        let mut peer_plane: Option<Arc<crate::relay::PeerPlane>> = None;
+
+        if grants.is_empty() {
+            tracing::info!("peering is not configured; no peer socket bound");
+        } else {
+            let identity =
+                bvc_relay::node::NodeIdentity::load_or_create(&self.config.server.tls.certs_path)?;
+
+            let relay_url = match self.config.server.peer_relay_url.as_deref() {
+                Some(raw) => match raw.parse() {
+                    Ok(url) => Some(url),
+                    Err(e) => {
+                        tracing::error!("server.peer_relay_url {raw:?} is not a URL: {e}");
+                        return Err(anyhow::anyhow!("invalid server.peer_relay_url"));
+                    }
+                },
+                None => None,
+            };
+
+            let plane = crate::relay::PeerPlane::bind(
+                &identity,
+                Arc::clone(&grants),
+                connection_registry.clone(),
+                Arc::new(webhook_receiver.clone()),
+                relay_url,
+            )
+            .await?;
+
+            // Logged at startup because an operator has no other way to read it,
+            // and the other side's `peer` block needs exactly this string.
+            tracing::info!(
+                node_id = %plane.node_id(),
+                peers = grants.len(),
+                "peering enabled"
+            );
+
+            plane.spawn_accept_loop();
+            connection_registry.set_peer_plane(plane.clone());
+            peer_plane = Some(plane);
+
+            // Gated on peering rather than unconditional: on a server with no
+            // peer block these lines report a value nothing consumes, and the
+            // `relay worlds` command answers the same question on demand.
+            relay_watch_handle = Some(crate::relay::RelayWorldWatch::spawn(
+                cache_manager.clone(),
+                Arc::clone(&grants),
+                relay_watch_shutdown.clone(),
+            ));
+        }
 
         // Store webhook_receiver for FFI position updates
         {
@@ -316,16 +359,11 @@ impl ServerRuntime {
         // miss can fetch the `.opus` from a peer; otherwise discovery is absent and
         // a miss is a hard error.
         let playback_cancel_token = tokio_util::sync::CancellationToken::new();
-        let peer_query: Option<Arc<dyn crate::relay::AudioPeerQuery>> = relay_client_state
-            .as_ref()
-            .map(|relay| relay.peer_manager() as Arc<dyn crate::relay::AudioPeerQuery>);
         let audio_playback_service = Arc::new(AudioPlaybackService::new(
             webhook_receiver.clone(),
             self.config.audio.file_path.clone(),
             playback_cancel_token.clone(),
             self.config.audio.max_concurrent_per_uuid,
-            peer_query,
-            crate::relay::RelayAudioPuller::new_shared(),
         ));
 
         // Store audio_playback_service and db_conn for FFI access
@@ -391,15 +429,16 @@ impl ServerRuntime {
         // the WebSocket voice transport. Resolved once here rather than per launch: an
         // ACME renewal relaunches Rocket, and a fresh port each time would leave the
         // demultiplexer relaying to an address nothing is listening on.
-        let api_bind = std::net::SocketAddr::from((
-            std::net::Ipv4Addr::LOCALHOST,
-            crate::demux::LoopbackPort::reserve()?,
-        ));
+        // Shared rather than a plain address: `LoopbackPort` picks by binding port
+        // zero and releasing, so the number can be taken before Rocket binds it.
+        // Rocket re-picks in that case, and the demultiplexer reads the same cell
+        // so it relays to wherever the listener actually landed.
+        let api_bind = crate::demux::ApiBind::reserve()?;
 
         // Create Rocket manager
         let mut rocket_manager = RocketManager::new(
             self.config.clone(),
-            api_bind,
+            api_bind.clone(),
             webhook_receiver,
             cache_manager,
             player_registrar,
@@ -408,15 +447,10 @@ impl ServerRuntime {
             bedrock_event_service,
             chat_service,
             cert_service,
-            relay_client_state
-                .as_ref()
-                .map(|relay| relay.server_peer_store()),
-            relay_client_state
-                .as_ref()
-                .map(|relay| relay.inject_delivery()),
             Some(audio_stream_token_cache),
             metrics.clone(),
             readiness_state.clone(),
+            peer_plane,
             #[cfg(feature = "bedrock")]
             transfer_target_cache.clone(),
         );
@@ -639,6 +673,11 @@ impl ServerRuntime {
         heartbeat_shutdown.cancel();
         let _ = tokio::time::timeout(std::time::Duration::from_secs(2), heartbeat_handle).await;
 
+        relay_watch_shutdown.cancel();
+        if let Some(handle) = relay_watch_handle {
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(2), handle).await;
+        }
+
         metrics.record_stopped();
 
         // Final PostHog flush: signal the drain and await it briefly so buffered fleet
@@ -674,96 +713,6 @@ impl ServerRuntime {
 
         self.state = RuntimeState::Stopped;
         Ok(())
-    }
-
-    /// Assemble the cross-server voice relay client plane via `RelayManager`,
-    /// install the peer manager on the connection registry so the QUIC fan-out
-    /// forwards local-origin audio to proven peers, and spawn the relay's
-    /// background + orchestration tasks. No-op unless the relay client builds.
-    /// Returns the manager the runtime retains for the remaining integration
-    /// wires (playback discovery handle + Rocket relay-route state). Everything
-    /// is off the audio hot path (dedicated tasks).
-    fn wire_relay_client(
-        &self,
-        webhook_receiver: &WebhookReceiver,
-        cache_manager: &crate::stream::quic::CacheManager,
-        connection_registry: &Arc<crate::stream::quic::connection_registry::ConnectionRegistry>,
-        cert_service: Arc<CertificateService>,
-        ca_pem: String,
-        db_conn: Arc<DatabaseConnection>,
-        audio_stream_token_cache: crate::services::AudioStreamTokenCache,
-    ) -> Option<Arc<crate::relay::RelayManager>> {
-        use crate::relay::{RelayManager, RelayManagerConfig};
-        use common::structs::relay::RelayEndpoint;
-
-        let self_host = self
-            .config
-            .server
-            .tls
-            .names
-            .iter()
-            .find(|n| n.parse::<std::net::IpAddr>().is_err())
-            .cloned()
-            .or_else(|| self.config.server.tls.ips.first().cloned())
-            .unwrap_or_else(|| "localhost".to_string());
-        // Advertised endpoint is the public HTTPS port; the QUIC datagram port is
-        // divined on demand from the peer's `/api/config` at dial time.
-        let self_endpoint = RelayEndpoint {
-            host: self_host,
-            port: self.config.server.port as u16,
-            primary: false,
-        };
-
-        let relay = match RelayManager::new_shared(RelayManagerConfig {
-            self_endpoint,
-            webhook_receiver: webhook_receiver.clone(),
-            cache_manager: cache_manager.clone(),
-            cert_service,
-            ca_pem,
-            db_conn,
-            audio_storage_path: self.config.audio.file_path.clone(),
-            audio_stream_token_cache,
-            announce_interval: self
-                .config
-                .server
-                .features
-                .relay
-                .announce_interval_secs
-                .map(std::time::Duration::from_secs),
-            orchestration_interval: self
-                .config
-                .server
-                .features
-                .relay
-                .orchestration_interval_secs
-                .map(std::time::Duration::from_secs),
-            idle_timeout: self
-                .config
-                .server
-                .features
-                .relay
-                .idle_timeout_secs
-                .map(std::time::Duration::from_secs),
-        }) {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::error!(
-                    "failed to build relay client, cross-server voice disabled: {}",
-                    e
-                );
-                return None;
-            }
-        };
-
-        connection_registry.set_peer_manager(relay.peer_manager());
-        connection_registry.set_observe_handler(relay.observe_handler());
-        relay.start();
-
-        tracing::info!(
-            "cross-server voice relay client wired (relay url configured); peer dial + presence tasks spawned"
-        );
-
-        Some(relay)
     }
 
     /// Signal the server to stop gracefully

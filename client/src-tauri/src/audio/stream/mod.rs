@@ -10,15 +10,11 @@ use crate::NetworkPacket;
 use crate::audio::recording::RecordingManager;
 use crate::audio::types::{AudioDevice, AudioDeviceType};
 #[cfg(feature = "bedrock-protocol")]
-use crate::bedrock::AnnounceInjector;
-#[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::BedrockPlayerStateCache;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxBeaconCache;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxEjectInjector;
-#[cfg(feature = "bedrock-protocol")]
-use crate::bedrock::PresenceInjector;
 use anyhow::Error;
 use common::structs::audio::StreamEvent;
 use log::info;
@@ -68,6 +64,9 @@ pub(crate) struct AudioStreamManager {
     // Written by the recovery monitor when it gives up on a device, read lock-free by the
     // runtime-state poll.
     capture_availability: Arc<capture_availability::CaptureAvailability>,
+    // Owned here so it outlives the output streams that hand it their mixer. A rebuild
+    // replaces the mixer; this instance is what carries the cue across that replacement.
+    cue_sink: Arc<crate::audio::CueSink>,
     peer_registry: Arc<crate::diagnostics::PeerRegistry>,
     // Owned here for the same reason as `peer_registry`: the output stream writes into it while a
     // diagnostic reads it, and a stream restart must not swap the instance out from under the
@@ -79,10 +78,6 @@ pub(crate) struct AudioStreamManager {
     beacon_cache: Option<Arc<JukeboxBeaconCache>>,
     #[cfg(feature = "bedrock-protocol")]
     eject_injector: Option<Arc<JukeboxEjectInjector>>,
-    #[cfg(feature = "bedrock-protocol")]
-    presence_injector: Option<Arc<PresenceInjector>>,
-    #[cfg(feature = "bedrock-protocol")]
-    announce_injector: Option<Arc<AnnounceInjector>>,
 }
 
 impl AudioStreamManager {
@@ -148,8 +143,6 @@ impl AudioStreamManager {
         >,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
-        #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
-        #[cfg(feature = "bedrock-protocol")] announce_injector: Option<Arc<AnnounceInjector>>,
     ) -> Self {
         Self::new_with_sources(
             producer,
@@ -164,10 +157,6 @@ impl AudioStreamManager {
             beacon_cache,
             #[cfg(feature = "bedrock-protocol")]
             eject_injector,
-            #[cfg(feature = "bedrock-protocol")]
-            presence_injector,
-            #[cfg(feature = "bedrock-protocol")]
-            announce_injector,
         )
     }
 
@@ -189,12 +178,11 @@ impl AudioStreamManager {
         >,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
-        #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
-        #[cfg(feature = "bedrock-protocol")] announce_injector: Option<Arc<AnnounceInjector>>,
     ) -> Self {
         let (recovery_tx, recovery_rx) = mpsc::unbounded_channel::<StreamRecoveryEvent>();
         let input_stats = Arc::new(crate::diagnostics::InputPipelineStats::new());
         let capture_availability = capture_availability::CaptureAvailability::new_shared();
+        let cue_sink = crate::audio::CueSink::new_shared();
         let peer_registry = crate::diagnostics::PeerRegistry::new_shared();
         let session_config = Arc::new(crate::diagnostics::SessionConfig::new());
         let levels = level_bus::LevelBus::new_shared();
@@ -232,10 +220,6 @@ impl AudioStreamManager {
                 beacon_cache.clone(),
                 #[cfg(feature = "bedrock-protocol")]
                 eject_injector.clone(),
-                #[cfg(feature = "bedrock-protocol")]
-                presence_injector.clone(),
-                #[cfg(feature = "bedrock-protocol")]
-                announce_injector.clone(),
             )),
             app_handle: app_handle.clone(),
             recording_manager,
@@ -246,6 +230,7 @@ impl AudioStreamManager {
             level_publisher_started: false,
             input_stats,
             capture_availability,
+            cue_sink,
             peer_registry,
             session_config,
             #[cfg(feature = "bedrock-protocol")]
@@ -254,10 +239,6 @@ impl AudioStreamManager {
             beacon_cache,
             #[cfg(feature = "bedrock-protocol")]
             eject_injector,
-            #[cfg(feature = "bedrock-protocol")]
-            presence_injector,
-            #[cfg(feature = "bedrock-protocol")]
-            announce_injector,
         }
     }
 
@@ -391,6 +372,11 @@ impl AudioStreamManager {
     /// Whether the capture device could be opened. False only after every attempt was spent.
     pub fn capture_availability(&self) -> Arc<capture_availability::CaptureAvailability> {
         self.capture_availability.clone()
+    }
+
+    /// Where mute and deafen cues are played.
+    pub fn cue_sink(&self) -> Arc<crate::audio::CueSink> {
+        self.cue_sink.clone()
     }
 
     /// How often the watchdog reads the capture counter.
@@ -567,10 +553,6 @@ impl AudioStreamManager {
                     self.beacon_cache.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.eject_injector.clone(),
-                    #[cfg(feature = "bedrock-protocol")]
-                    self.presence_injector.clone(),
-                    #[cfg(feature = "bedrock-protocol")]
-                    self.announce_injector.clone(),
                 ));
             }
         }
@@ -630,10 +612,6 @@ impl AudioStreamManager {
                     self.beacon_cache.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.eject_injector.clone(),
-                    #[cfg(feature = "bedrock-protocol")]
-                    self.presence_injector.clone(),
-                    #[cfg(feature = "bedrock-protocol")]
-                    self.announce_injector.clone(),
                 ));
             }
         };
@@ -863,10 +841,6 @@ impl AudioStreamManager {
             self.beacon_cache.clone(),
             #[cfg(feature = "bedrock-protocol")]
             self.eject_injector.clone(),
-            #[cfg(feature = "bedrock-protocol")]
-            self.presence_injector.clone(),
-            #[cfg(feature = "bedrock-protocol")]
-            self.announce_injector.clone(),
         ));
 
         Ok(())

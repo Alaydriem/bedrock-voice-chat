@@ -531,6 +531,9 @@
 .rad-resolve {
   display: flex;
   align-items: center;
+  /* Separates the working spinner from the line it belongs to. Inert on a line that has
+     nothing beside its text, which is every state except a measurement in flight. */
+  gap: 8px;
   min-height: 30px;
   margin-top: 10px;
   padding: 4px 2px;

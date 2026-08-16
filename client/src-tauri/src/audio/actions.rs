@@ -17,13 +17,46 @@ impl AudioActionsManager {
         Self { app_handle }
     }
 
+    /// Whether mute and deafen announce themselves.
+    ///
+    /// Read from the store on each change rather than cached. The plugin keeps the file in
+    /// memory so this is a map lookup, and one copy cannot drift from the settings pane the
+    /// way a mirrored flag would.
+    ///
+    /// An absent key is on. Every install that predates this feature has no key, and reading
+    /// that as off would ship the feature switched off for everyone who already has BVC.
+    fn cues_enabled(&self) -> bool {
+        self.app_handle
+            .store("store.json")
+            .ok()
+            .and_then(|store| store.get("mute_cues_enabled"))
+            .and_then(|value| value.as_bool())
+            .unwrap_or(true)
+    }
+
+    /// Announce a mute change that actually happened.
+    fn play_cue(&self, device: &AudioDeviceType, previous: bool, next: bool) {
+        let Some(cue) = crate::audio::CuePolicy::for_change(device, previous, next) else {
+            return;
+        };
+        if !self.cues_enabled() {
+            return;
+        }
+        if let Some(sink) = self.app_handle.try_state::<Arc<crate::audio::CueSink>>() {
+            sink.play(cue);
+        }
+    }
+
     /// Toggle mute for a device, emit `mute:{device}` event, return new mute status.
     pub async fn toggle_mute(&self, device: AudioDeviceType) -> bool {
         let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
         let mut asm = asm.lock().await;
+        let previous = asm.mute_status(&device).await.unwrap_or(false);
         let _ = asm.toggle(&device, StreamEvent::Mute).await;
         let status = asm.mute_status(&device).await.unwrap_or(false);
         drop(asm);
+
+        self.play_cue(&device, previous, status);
 
         let mute_event = MuteEvent::from(&device);
         self.app_handle.emit(&mute_event.to_string(), status).ok();
@@ -70,13 +103,27 @@ impl AudioActionsManager {
     /// toggle happen under a single `AudioStreamManager` lock so an idempotent
     /// `set_mute(dev, true)` can't race the desktop-app / Stream-Deck toggle surfaces.
     pub async fn set_mute(&self, device: AudioDeviceType, desired: bool) -> bool {
+        self.apply_mute(device, desired, true).await
+    }
+
+    /// The body of `set_mute`, with a say in whether the change announces itself.
+    ///
+    /// Deafening drives two devices, and each leg reaching this with `cue` set would play
+    /// three tones over one keypress. The deafen path emits once, for the state the user
+    /// actually changed, and silences both legs here.
+    async fn apply_mute(&self, device: AudioDeviceType, desired: bool, cue: bool) -> bool {
         let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
         let mut asm = asm.lock().await;
-        if asm.mute_status(&device).await.unwrap_or(false) != desired {
+        let previous = asm.mute_status(&device).await.unwrap_or(false);
+        if previous != desired {
             let _ = asm.toggle(&device, StreamEvent::Mute).await;
         }
         let status = asm.mute_status(&device).await.unwrap_or(false);
         drop(asm);
+
+        if cue {
+            self.play_cue(&device, previous, status);
+        }
 
         let mute_event = MuteEvent::from(&device);
         self.app_handle.emit(&mute_event.to_string(), status).ok();
@@ -100,9 +147,26 @@ impl AudioActionsManager {
     /// held — so undeafening left it live, and the mic button, which reads the same flag,
     /// disagreed with the mode it was drawing.
     pub async fn set_deafened(&self, desired: bool) -> bool {
-        self.set_mute(AudioDeviceType::OutputDevice, desired).await;
-        self.set_mute(AudioDeviceType::InputDevice, desired || self.input_rests_muted().await)
+        let previous = self.is_muted(AudioDeviceType::OutputDevice).await;
+
+        let next = self
+            .apply_mute(AudioDeviceType::OutputDevice, desired, false)
             .await;
+        self.apply_mute(
+            AudioDeviceType::InputDevice,
+            desired || self.input_rests_muted().await,
+            false,
+        )
+        .await;
+
+        // Cued from the state the flag reached rather than the one that was asked for, so a
+        // refused change stays silent instead of announcing itself.
+        //
+        // One cue for one press, and it reports the deafen rather than the microphone that
+        // moved with it. Undeafening in push-to-talk leaves the microphone muted on purpose,
+        // so a cue per leg would announce an unmute that did not happen.
+        self.play_cue(&AudioDeviceType::OutputDevice, previous, next);
+
         desired
     }
 

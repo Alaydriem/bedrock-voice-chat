@@ -2,10 +2,13 @@ import { writable, derived, get, type Writable, type Readable } from 'svelte/sto
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { warn } from '@tauri-apps/plugin-log';
+import type { BedrockStatus } from '../../bindings/BedrockStatus';
+import { AppStore } from '../services/AppStore';
 import type { ChatTransport } from '../../bindings/ChatTransport';
 import type { ChatWorld } from '../../bindings/ChatWorld';
 import type { BedrockChatPayload, ChatDelivery, ChatLine } from './ChatLine';
 import type { ChatRejectionState, ChatTarget } from './ChatTarget';
+import type { WorldAssociations } from './WorldLabel';
 
 /**
  * Server chat, relayed live.
@@ -22,11 +25,14 @@ export class ChatManager {
     private unreadStore: Writable<number>;
     private targetStore: Writable<ChatTarget>;
     private rejectionStore: Writable<ChatRejectionState | null>;
+    private associationsStore: Writable<WorldAssociations>;
 
     public readonly lines: Readable<ChatLine[]>;
     public readonly unread: Readable<number>;
     public readonly target: Readable<ChatTarget>;
     public readonly rejection: Readable<ChatRejectionState | null>;
+    /** Remembered `world_uuid` → the name the reader chose, for the label resolver. */
+    public readonly associations: Readable<WorldAssociations>;
     public readonly canSend: Readable<boolean>;
 
     /**
@@ -59,6 +65,9 @@ export class ChatManager {
      */
     static readonly ANSWER_WINDOW_MS = 8_000;
 
+    /** Where remembered world names live, so a label survives a restart. */
+    private static readonly ASSOCIATIONS_KEY = 'bedrock_world_names';
+
     private lastLineId = 0;
     private readonly answerTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
@@ -67,11 +76,13 @@ export class ChatManager {
         this.unreadStore = writable(0);
         this.targetStore = writable({ kind: 'unavailable', reason: 'Not connected' });
         this.rejectionStore = writable(null);
+        this.associationsStore = writable({});
 
         this.lines = { subscribe: this.linesStore.subscribe };
         this.unread = { subscribe: this.unreadStore.subscribe };
         this.target = { subscribe: this.targetStore.subscribe };
         this.rejection = { subscribe: this.rejectionStore.subscribe };
+        this.associations = { subscribe: this.associationsStore.subscribe };
         this.canSend = derived(this.targetStore, ($t) => $t.kind !== 'unavailable');
     }
 
@@ -132,12 +143,78 @@ export class ChatManager {
             if (next === this.liveWorld) return;
             this.liveWorld = next;
             this.applyTarget();
+            void this.learnWorldName();
         });
 
+        await this.loadAssociations();
         await this.refreshAvailability();
         this.poll = setInterval(() => {
             void this.refreshAvailability();
         }, ChatManager.AVAILABILITY_POLL_MS);
+    }
+
+    /**
+     * Remembers what the reader calls the world they are standing in.
+     *
+     * Most worlds report a level name that identifies nobody — a uuid from BDS, which cannot
+     * read one, or Paper's default `world`. The session already knows the name they chose in
+     * BVC Connect, and the world pulse supplies the id to file it under, so the pair is learned
+     * the first time they play and the label survives into every later listing.
+     *
+     * Learned on the pulse rather than polled: it changes only when the world does.
+     */
+    private async learnWorldName(): Promise<void> {
+        const world = this.liveWorld;
+        if (!world) {
+            return;
+        }
+        try {
+            const status = await invoke<BedrockStatus>('bedrock_get_status');
+            const name = status.active_connection_name ?? status.active_realm_name;
+            if (name && name.trim().length > 0) {
+                await this.rememberWorld(world, name.trim());
+            }
+        } catch (e) {
+            await warn(`could not learn the world name: ${e}`);
+        }
+    }
+
+    /**
+     * Files a world id under a name a person recognises.
+     *
+     * Public so the association can be taught from a test, and from anywhere else that learns
+     * the pair, without that caller owning the persistence.
+     */
+    async rememberWorld(worldUuid: string, name: string): Promise<void> {
+        if (get(this.associationsStore)[worldUuid] === name) {
+            return;
+        }
+        this.associationsStore.update(($current) => ({ ...$current, [worldUuid]: name }));
+        await this.persistAssociations();
+    }
+
+    private async loadAssociations(): Promise<void> {
+        try {
+            const store = await AppStore.load();
+            const saved = await store.get<Record<string, string>>(
+                ChatManager.ASSOCIATIONS_KEY,
+            );
+            if (saved) {
+                this.associationsStore.set(saved);
+            }
+        } catch (e) {
+            await warn(`could not read remembered world names: ${e}`);
+        }
+    }
+
+    private async persistAssociations(): Promise<void> {
+        try {
+            const store = await AppStore.load();
+            await store.set(ChatManager.ASSOCIATIONS_KEY, get(this.associationsStore));
+            await store.save();
+        } catch (e) {
+            await warn(`could not remember the world name: ${e}`);
+        }
     }
 
     /** Off-game picker: the player chose which world to post to. */

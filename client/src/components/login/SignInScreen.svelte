@@ -1,5 +1,6 @@
 <script lang="ts">
   import { I18n } from "$lib/i18n";
+    import Icon from "$radial/components/Icon.svelte";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import RadScreen from "../shell/RadScreen.svelte";
     import type { ResolveVerdict } from "../../js/app/login/AddressResolver";
@@ -85,7 +86,14 @@
                         oninput={(e) => oninput((e.currentTarget as HTMLInputElement).value)}
                     />
                 </div>
-                <div class={resolveClass}>{verdict.line}</div>
+                <!--
+                  The spinner sits on this line rather than on the ring. On a phone the ring is
+                  above the fold and this line is what is being read, so a measurement that
+                  showed itself only on the ring would not show itself at all.
+                -->
+                <div class={resolveClass}>
+                    {#if verdict.busy}<Icon name="refresh" spin />{/if}{verdict.line}
+                </div>
                 <!--
                   Never disabled by the verdict. The probe is a readout; a slow or
                   blocked measurement must not be the reason someone cannot sign in.

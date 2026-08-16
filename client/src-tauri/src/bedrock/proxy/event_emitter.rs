@@ -4,7 +4,7 @@ use common::PlayerEnum;
 use common::structs::control::ClientAction;
 use common::structs::packet::{
     BedrockEvent, BedrockEventDirection, BedrockEventPacket, ClientActionPacket, PacketDirection,
-    PacketType, PeerAnnounceObservedPacket, PeerPresenceObservedPacket, PlayerPositionPacket,
+    PacketType, PlayerPositionPacket,
     QuicNetworkPacket, QuicNetworkPacketData,
 };
 use log::{trace, warn};
@@ -89,72 +89,4 @@ impl BedrockEventEmitter {
         }
     }
 
-    pub fn try_send_observed(&self, token: String) {
-        let packet = NetworkPacket {
-            data: QuicNetworkPacket {
-                packet_type: PacketType::PeerPresenceObserved,
-                data: QuicNetworkPacketData::PeerPresenceObserved(PeerPresenceObservedPacket {
-                    token,
-                }),
-                            // Not a server fan-out, so this envelope carries no sequence.
-                ..Default::default()
-            },
-        };
-
-        match self.tx.try_send(packet) {
-            Ok(()) => trace!("Bedrock presence observation queued for QUIC transport"),
-            Err(flume::TrySendError::Full(_)) => {
-                warn!("Network packet queue full; dropping bedrock presence observation");
-            }
-            Err(flume::TrySendError::Disconnected(_)) => {
-                warn!("Network packet channel disconnected; dropping bedrock presence observation");
-            }
-        }
-    }
-
-    pub fn try_send_announce_observed(&self, hashed_world: String, endpoint: String) {
-        let packet = NetworkPacket {
-            data: QuicNetworkPacket {
-                packet_type: PacketType::PeerAnnounceObserved,
-                data: QuicNetworkPacketData::PeerAnnounceObserved(PeerAnnounceObservedPacket {
-                    hashed_world,
-                    endpoint,
-                }),
-                            // Not a server fan-out, so this envelope carries no sequence.
-                ..Default::default()
-            },
-        };
-
-        match self.tx.try_send(packet) {
-            Ok(()) => trace!("Bedrock announce observation queued for QUIC transport"),
-            Err(flume::TrySendError::Full(_)) => {
-                warn!("Network packet queue full; dropping bedrock announce observation");
-            }
-            Err(flume::TrySendError::Disconnected(_)) => {
-                warn!("Network packet channel disconnected; dropping bedrock announce observation");
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn try_send_observed_emits_observed_packet() {
-        let (tx, rx) = flume::unbounded::<NetworkPacket>();
-        let emitter = BedrockEventEmitter::new(Arc::new(tx));
-
-        emitter.try_send_observed("tok".to_string());
-
-        let packet = rx.try_recv().expect("observed packet should be queued");
-        assert_eq!(packet.data.packet_type, PacketType::PeerPresenceObserved);
-        match packet.data.data {
-            QuicNetworkPacketData::PeerPresenceObserved(observed) => {
-                assert_eq!(observed.token, "tok");
-            }
-            other => panic!("expected PeerPresenceObserved, got {:?}", other),
-        }
-    }
 }

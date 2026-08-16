@@ -35,6 +35,7 @@
     let panning = $state(100);
     let jukeboxGain = $state(100);
     let jukeboxMuted = $state(false);
+    let muteCues = $state(true);
     let inputLevel = $state(0);
     let gateOpen = $state(false);
     let meterAvailable = $state(true);
@@ -47,6 +48,7 @@
         unsubs.push(audio.panningIntensity.subscribe((v) => (panning = v)));
         unsubs.push(audio.jukeboxGain.subscribe((v) => (jukeboxGain = v)));
         unsubs.push(audio.jukeboxMuted.subscribe((v) => (jukeboxMuted = v)));
+        unsubs.push(audio.muteCues.subscribe((v) => (muteCues = v)));
         unsubs.push(probe.rms.subscribe((v) => (inputLevel = v)));
         unsubs.push(probe.gateOpen.subscribe((v) => (gateOpen = v)));
         unsubs.push(probe.available.subscribe((v) => (meterAvailable = v)));
@@ -154,6 +156,19 @@
                         Number((e.target as HTMLInputElement).value),
                     )}
             />
+        </SettingRow>
+
+        <SettingRow
+            label={I18n.t("Mute and deafen sounds")}
+            note={I18n.t("A short tone when you mute or deafen, and a rising one when you turn either back on. It falls for off and rises for on, so you can tell without looking at the window.")}
+        >
+            {#snippet control()}
+                <Toggle
+                    checked={muteCues}
+                    label={I18n.t("Mute and deafen sounds")}
+                    onchange={(next) => void audio.handleMuteCuesChange(next)}
+                />
+            {/snippet}
         </SettingRow>
     </div>
 

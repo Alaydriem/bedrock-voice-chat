@@ -12,7 +12,6 @@ use tokio::sync::mpsc;
 
 use super::log_throttle::LogThrottle;
 use crate::stream::session::WebSocketDeviceId;
-use crate::relay::{ObservedCodeHandler, PeerManager, RelayedPacket};
 use crate::services::MetricsService;
 use crate::services::metrics_service::interaction::InteractionRoute;
 use crate::services::metrics_service::interaction::InteractionTracker;
@@ -47,22 +46,15 @@ pub struct ConnectionRegistry {
     name_index: DashMap<String, u64>,
     // canonical identity -> channel_id (one channel per player)
     player_channel: DashMap<String, String>,
-    // Emits connect/disconnect counters + events. Installed after construction,
-    // mirroring the peer_manager / observe_handler OnceLock pattern.
+    // Emits connect/disconnect counters + events. Installed after construction
+    // rather than at build time.
     metrics: OnceLock<Arc<MetricsService>>,
+    // The peer plane, when any peer is declared. Absent is the common case: a
+    // server with no `peer` block binds no peer socket at all.
+    peer_plane: OnceLock<Arc<crate::relay::PeerPlane>>,
     // Consecutive reap sweeps each stale channel-membership key has been absent for.
     // Drives the grace-period reaper (`reap_stale_channels`).
     channel_absent_ticks: DashMap<String, u32>,
-    // Optional cross-server relay fan-out. When present, LOCAL-origin packets
-    // are forwarded to peer servers sharing the sender's relay world. Packets
-    // that arrived FROM a peer are not routed through here (single-hop); the
-    // relay ingest path publishes them straight to the broadcast loop. Installed
-    // after the registry is wired into the QUIC manager and cache.
-    peer_manager: OnceLock<Arc<PeerManager>>,
-    // Optional asker-side observe handler (Flow 1). When present, a local
-    // client's `PeerPresenceObserved` report is redeemed against the offering
-    // minter to establish the peer link. Installed alongside the relay manager.
-    observe_handler: OnceLock<Arc<dyn ObservedCodeHandler>>,
     // Guards the broadcast serialization-failure log. The inputs that cause a
     // failure recur every tick, so this site would otherwise emit at the
     // source's full rate.
@@ -81,9 +73,8 @@ impl ConnectionRegistry {
             connections: DashMap::new(),
             name_index: DashMap::new(),
             player_channel: DashMap::new(),
-            peer_manager: OnceLock::new(),
-            observe_handler: OnceLock::new(),
             metrics: OnceLock::new(),
+            peer_plane: OnceLock::new(),
             channel_absent_ticks: DashMap::new(),
             oversized_broadcast_log: LogThrottle::new(OVERSIZED_BROADCAST_LOG_INTERVAL),
         }
@@ -92,6 +83,22 @@ impl ConnectionRegistry {
     // Installs the metrics service. Set once; a later install is ignored.
     pub fn set_metrics(&self, metrics: Arc<MetricsService>) {
         let _ = self.metrics.set(metrics);
+    }
+
+    // Installs the peer plane. Set once; a later install is ignored.
+    pub fn set_peer_plane(&self, plane: Arc<crate::relay::PeerPlane>) {
+        let _ = self.peer_plane.set(plane);
+    }
+
+    // Forwards a LOCAL-origin packet to peers granted the sender's relay world.
+    //
+    // A no-op when no peer is declared or the packet carries no relay world.
+    // Packets that arrived FROM a peer never reach here — the plane publishes
+    // them straight to its sink — which is what keeps relay single-hop.
+    pub fn forward_local_to_peers(&self, packet: &QuicNetworkPacket) {
+        if let Some(plane) = self.peer_plane.get() {
+            plane.forward_local(packet);
+        }
     }
 
     // Distinct connected players, not raw connection entries. A connection id is minted
@@ -178,84 +185,6 @@ impl ConnectionRegistry {
             self.channel_absent_ticks.remove(&key);
         }
         self.push_gauges();
-    }
-
-    // Installs the cross-server relay manager. Set once; a later install is
-    // ignored.
-    pub fn set_peer_manager(&self, peer_manager: Arc<PeerManager>) {
-        let _ = self.peer_manager.set(peer_manager);
-    }
-
-    // Installs the asker-side observe handler. Set once; a later install is
-    // ignored.
-    pub fn set_observe_handler(&self, handler: Arc<dyn ObservedCodeHandler>) {
-        let _ = self.observe_handler.set(handler);
-    }
-
-    // Routes a `!bvcp` code a local client observed in the realm to the observe
-    // handler (the asker side of Flow 1). No-op when no handler is wired.
-    pub fn on_peer_presence_observed(&self, token: String) {
-        if let Some(handler) = self.observe_handler.get() {
-            handler.on_observed(token);
-        }
-    }
-
-    // A local client observed a peer `!bvca` announce in the realm. Record the
-    // peer endpoint as live for the observer's world so the offer/forward paths
-    // can reach it — the decentralized replacement for relay lookup.
-    pub fn on_peer_announce_observed(&self, hashed_world: String, endpoint: String) {
-        let Some(peer_manager) = self.peer_manager.get() else {
-            return;
-        };
-        let ep = match endpoint.rsplit_once(':') {
-            Some((host, port)) => common::structs::relay::RelayEndpoint {
-                host: host.to_string(),
-                port: port.parse().unwrap_or(0),
-                primary: false,
-            },
-            None => return,
-        };
-        if ep.port == 0 {
-            return;
-        }
-        peer_manager.observe_announced_peer(&hashed_world, ep, std::time::Instant::now());
-    }
-
-    // The installed relay manager, if any. Used by the QUIC input path to route
-    // inbound `PeerPresenceObserved` reports from local clients.
-    pub fn peer_manager(&self) -> Option<&Arc<PeerManager>> {
-        self.peer_manager.get()
-    }
-
-    // Forwards a LOCAL-origin packet to peer servers sharing the sender's relay
-    // world. No-op when no relay is wired or the sender carries no
-    // `relay_world_uuid`. Off the hot path semantics are preserved by the
-    // manager (bounded `try_send`, drop-on-full).
-    pub fn forward_local_to_peers(&self, packet: &QuicNetworkPacket) {
-        let peer_manager = match self.peer_manager.get() {
-            Some(pm) => pm,
-            None => return,
-        };
-
-        let world = match Self::relay_world_of(packet) {
-            Some(w) => w,
-            None => return,
-        };
-
-        let relayed = RelayedPacket::local(packet.clone());
-        peer_manager.forward_local(&relayed, &world);
-    }
-
-    // Extracts the sender's `relay_world_uuid` from an audio packet, if any.
-    fn relay_world_of(packet: &QuicNetworkPacket) -> Option<String> {
-        if let QuicNetworkPacketData::AudioFrame(af) = &packet.data {
-            if let Some(sender) = &af.sender {
-                if let Some(mc) = sender.as_minecraft() {
-                    return mc.relay_world_uuid.clone();
-                }
-            }
-        }
-        None
     }
 
     pub fn register(&self, device: u64, identity: String, tx: mpsc::Sender<RoutedPacket>) {
@@ -471,6 +400,12 @@ impl ConnectionRegistry {
     /// voice at all — the same asymmetry `send_positions_to_owners` exploits. This is what
     /// lets the position feed report "in range, and nothing you say reaches them" rather
     /// than omitting those players and making them indistinguishable from nobody.
+    // One index lookup, for the peer boundary to ask per packet whether a name a
+    // peer used belongs to a player this server already serves.
+    pub fn has_live_client(&self, identity: &str) -> bool {
+        self.name_index.contains_key(identity)
+    }
+
     pub fn on_voice_identities(&self) -> std::collections::HashSet<String> {
         self.name_index
             .iter()
@@ -762,172 +697,5 @@ impl ConnectionRegistry {
         if let Some(m) = self.metrics.get() {
             m.record_audio_route(route_started.elapsed());
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::relay::{AlwaysProven, PeerTable, RelayIngestSink, RelayedPacket as _RelayedPacket};
-    use common::game_data::Dimension;
-    use common::players::MinecraftPlayer;
-    use common::structs::packet::{AudioFramePacket, PacketSender, PacketType};
-    use common::structs::relay::RelayEndpoint;
-    use common::{Coordinate, Orientation};
-    use std::time::Instant;
-
-    struct NoopSink;
-    #[async_trait::async_trait]
-    impl RelayIngestSink for NoopSink {
-        async fn publish(&self, _packet: QuicNetworkPacket) {}
-    }
-
-    fn registry_with_takeable_peer(
-        world: &str,
-        peer: RelayEndpoint,
-    ) -> (ConnectionRegistry, Arc<PeerManager>) {
-        let table = PeerTable::new_shared();
-        table.set_active_worlds(vec![world.to_string()]);
-        table.set_world_peers(world, vec![peer.clone()]);
-        let mgr = Arc::new(PeerManager::new(
-            ep("self", 1),
-            table,
-            Arc::new(NoopSink),
-            Arc::new(AlwaysProven),
-        ));
-        mgr.register_inbound(&PeerManager::endpoint_key(&peer), Instant::now());
-        let reg = ConnectionRegistry::new();
-        reg.set_peer_manager(mgr.clone());
-        (reg, mgr)
-    }
-
-    fn ep(host: &str, port: u16) -> RelayEndpoint {
-        RelayEndpoint {
-            host: host.into(),
-            port,
-            primary: false,
-        }
-    }
-
-    fn mc(relay_world: Option<&str>) -> PlayerEnum {
-        PlayerEnum::Minecraft(MinecraftPlayer {
-            name: "alice".into(),
-            coordinates: Coordinate {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            orientation: Orientation { x: 0.0, y: 0.0 },
-            dimension: Dimension::Overworld,
-            deafen: false,
-            spectator: false,
-            world_uuid: None,
-            alternative_identity: None,
-            player_uuid: None,
-            relay_world_uuid: relay_world.map(String::from),
-        })
-    }
-
-    fn audio_packet(sender: Option<PlayerEnum>) -> QuicNetworkPacket {
-        QuicNetworkPacket {
-            packet_type: PacketType::AudioFrame,
-            sender: Some(PacketSender::new("minecraft:alice".into(), 1)),
-            data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
-                vec![5, 5, 5],
-                48000,
-                sender,
-                Some(true),
-            )),
-            // Not a server fan-out to one connection, so this envelope carries no sequence.
-            ..Default::default()
-        }
-    }
-
-    fn registry_with_peer(world: &str, peers: Vec<RelayEndpoint>) -> ConnectionRegistry {
-        let table = PeerTable::new_shared();
-        table.set_active_worlds(vec![world.to_string()]);
-        table.set_world_peers(world, peers.clone());
-        let mgr = PeerManager::new(
-            ep("self", 1),
-            table,
-            Arc::new(NoopSink),
-            Arc::new(AlwaysProven),
-        );
-        for p in &peers {
-            mgr.register_inbound(&PeerManager::endpoint_key(p), Instant::now());
-        }
-        let reg = ConnectionRegistry::new();
-        reg.set_peer_manager(Arc::new(mgr));
-        reg
-    }
-
-    #[test]
-    fn relay_world_extracted_from_audio_sender() {
-        let p = audio_packet(Some(mc(Some("W1"))));
-        assert_eq!(
-            ConnectionRegistry::relay_world_of(&p),
-            Some("W1".to_string())
-        );
-    }
-
-    #[test]
-    fn no_relay_world_when_sender_absent() {
-        let p = audio_packet(None);
-        assert_eq!(ConnectionRegistry::relay_world_of(&p), None);
-    }
-
-    #[test]
-    fn forward_local_is_noop_without_peer_manager() {
-        let reg = ConnectionRegistry::new();
-        // must not panic; simply does nothing
-        reg.forward_local_to_peers(&audio_packet(Some(mc(Some("W1")))));
-    }
-
-    #[test]
-    fn forward_local_enqueues_for_world_peer() {
-        let reg = registry_with_peer("W1", vec![ep("z", 9)]);
-        // sanity: the wired manager would forward one copy for a local packet
-        let pm = reg.peer_manager().unwrap();
-        let local = _RelayedPacket::local(audio_packet(Some(mc(Some("W1")))));
-        assert_eq!(pm.forward_local(&local, "W1"), 1);
-    }
-
-    // A server-originated AudioFrame (e.g. jukebox playback) whose sender
-    // carries a relay_world_uuid must be forwarded to the peer's outbound queue
-    // when forward_local_to_peers is called.
-    #[tokio::test]
-    async fn server_originated_audio_frame_with_relay_world_reaches_peer_queue() {
-        let peer = ep("peer", 7);
-        let peer_key = PeerManager::endpoint_key(&peer);
-        let (reg, mgr) = registry_with_takeable_peer("W1", peer);
-        let mut rx = mgr
-            .take_outbound_receiver(&peer_key)
-            .expect("peer link must expose its outbound receiver");
-
-        reg.forward_local_to_peers(&audio_packet(Some(mc(Some("W1")))));
-
-        let got = rx
-            .try_recv()
-            .expect("forwarded packet must arrive on peer queue");
-        assert_eq!(got.packet.packet_type, PacketType::AudioFrame);
-    }
-
-    // A server-originated AudioFrame with no relay_world_uuid (non-jukebox,
-    // non-relay) must NOT be forwarded to any peer queue.
-    #[tokio::test]
-    async fn server_originated_audio_frame_without_relay_world_skips_peers() {
-        let peer = ep("peer", 8);
-        let peer_key = PeerManager::endpoint_key(&peer);
-        let (reg, mgr) = registry_with_takeable_peer("W1", peer);
-        let mut rx = mgr
-            .take_outbound_receiver(&peer_key)
-            .expect("peer link must expose its outbound receiver");
-
-        reg.forward_local_to_peers(&audio_packet(None));
-
-        assert!(
-            rx.try_recv().is_err(),
-            "packet without relay_world_uuid must not be forwarded to peers"
-        );
     }
 }

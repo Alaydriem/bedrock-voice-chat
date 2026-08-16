@@ -2,23 +2,14 @@ use crate::AudioPacket;
 use crate::audio::stream::jitter_buffer::EncodedAudioFramePacket;
 use crate::audio::stream::stream_manager::AudioSinkType;
 #[cfg(feature = "bedrock-protocol")]
-use crate::bedrock::AnnounceInjector;
-#[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxBeaconCache;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxEjectInjector;
-#[cfg(feature = "bedrock-protocol")]
-use crate::bedrock::PresenceInjector;
 #[cfg(feature = "bedrock-protocol")]
 use common::structs::packet::AudioFrameMetadata;
 #[cfg(feature = "bedrock-protocol")]
 use common::structs::packet::BedrockEventPacket;
 #[cfg(feature = "bedrock-protocol")]
-use common::structs::packet::PeerAnnounceInjectPacket;
-#[cfg(feature = "bedrock-protocol")]
-use common::structs::packet::PeerPresenceInjectPacket;
-#[cfg(feature = "bedrock-protocol")]
-use common::structs::packet::QuicNetworkPacketData;
 use common::traits::player_data::PlayerData;
 use common::{
     PlayerEnum, RecordingPlayerData,
@@ -59,10 +50,6 @@ pub(crate) struct PacketRouter {
     beacon_cache: Option<Arc<JukeboxBeaconCache>>,
     #[cfg(feature = "bedrock-protocol")]
     eject_injector: Option<Arc<JukeboxEjectInjector>>,
-    #[cfg(feature = "bedrock-protocol")]
-    presence_injector: Option<Arc<PresenceInjector>>,
-    #[cfg(feature = "bedrock-protocol")]
-    announce_injector: Option<Arc<AnnounceInjector>>,
 }
 
 impl PacketRouter {
@@ -77,8 +64,6 @@ impl PacketRouter {
         app_handle: tauri::AppHandle,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
-        #[cfg(feature = "bedrock-protocol")] presence_injector: Option<Arc<PresenceInjector>>,
-        #[cfg(feature = "bedrock-protocol")] announce_injector: Option<Arc<AnnounceInjector>>,
     ) -> Self {
         Self {
             producer,
@@ -93,10 +78,6 @@ impl PacketRouter {
             beacon_cache,
             #[cfg(feature = "bedrock-protocol")]
             eject_injector,
-            #[cfg(feature = "bedrock-protocol")]
-            presence_injector,
-            #[cfg(feature = "bedrock-protocol")]
-            announce_injector,
         }
     }
 
@@ -117,28 +98,6 @@ impl PacketRouter {
                         if let Ok(event_packet) = decoded {
                             injector.handle_packet(&event_packet);
                         }
-                    }
-                }
-            }
-            #[cfg(feature = "bedrock-protocol")]
-            PacketType::PeerPresenceInject => {
-                if let Some(injector) = self.presence_injector.as_ref() {
-                    if let Some(QuicNetworkPacketData::PeerPresenceInject(inject)) =
-                        packet.data.get_data()
-                    {
-                        let inject: &PeerPresenceInjectPacket = inject;
-                        injector.handle_inject(inject);
-                    }
-                }
-            }
-            #[cfg(feature = "bedrock-protocol")]
-            PacketType::PeerAnnounceInject => {
-                if let Some(injector) = self.announce_injector.as_ref() {
-                    if let Some(QuicNetworkPacketData::PeerAnnounceInject(inject)) =
-                        packet.data.get_data()
-                    {
-                        let inject: &PeerAnnounceInjectPacket = inject;
-                        injector.handle_inject(inject);
                     }
                 }
             }

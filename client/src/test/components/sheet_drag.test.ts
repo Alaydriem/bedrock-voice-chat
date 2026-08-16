@@ -75,6 +75,55 @@ describe("Sheet drag to dismiss", () => {
         expect((el.querySelector("[data-rad-sheet]") as HTMLElement).style.transform).toBe("");
     });
 
+    // On touch, pointerdown implicitly captures the pointer to the element under the
+    // finger. Taking the capture for the sheet transfers it, and the child announces the
+    // loss with a lostpointercapture that bubbles here. That is the start of every touch
+    // drag, not the end of one — reacting to it made the gesture kill itself.
+    it("keeps dragging when a child loses its implicit capture", () => {
+        const el = frame();
+        const sheet = new Sheet(el);
+        sheet.open("groups");
+        const node = el.querySelector("[data-rad-sheet]") as HTMLElement;
+        const handle = el.querySelector(".rad-sheet__handle") as Element;
+
+        handle.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientY: 100 }));
+        // The transfer: the pressed child gives its implicit capture up to the sheet.
+        handle.dispatchEvent(new PointerEvent("lostpointercapture", { bubbles: true }));
+
+        handle.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientY: 240 }));
+        expect(node.style.transform).not.toBe("");
+        handle.dispatchEvent(
+            new PointerEvent("pointerup", { bubbles: true, clientY: 100 + CoverDrag.DISMISS + 1 }),
+        );
+        expect(sheet.openName).toBeNull();
+    });
+
+    // The browser can take the capture back without a pointerup — the webview backgrounded
+    // mid-drag is the reproducible case. The sheet must spring back and stay open: losing
+    // the pointer is not a dismissal.
+    it("springs back open when the pointer capture is lost mid-drag", () => {
+        const el = frame();
+        const sheet = new Sheet(el);
+        sheet.open("groups");
+        const node = el.querySelector("[data-rad-sheet]") as HTMLElement;
+
+        node.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientY: 100 }));
+        node.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientY: 240 }));
+        expect(node.style.transform).not.toBe("");
+
+        node.dispatchEvent(new PointerEvent("lostpointercapture", { bubbles: true }));
+        expect(node.style.transform).toBe("");
+        expect(node.classList.contains("is-dragging")).toBe(false);
+        expect(sheet.openName).toBe("groups");
+
+        // Stale continuations of the dead gesture: far past the dismiss distance, and a
+        // release. Neither may move the sheet or close it.
+        node.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientY: 400 }));
+        expect(node.style.transform).toBe("");
+        node.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientY: 400 }));
+        expect(sheet.openName).toBe("groups");
+    });
+
     // Closing leaves the sheet ready to open again from its resting position.
     it("clears the drag transform when it closes", () => {
         const el = frame();

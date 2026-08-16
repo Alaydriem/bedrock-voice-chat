@@ -3,19 +3,25 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use moka::future::Cache;
+use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 
-use super::{HttpsProbe, NegotiationProbe};
+use super::{HttpsProbe, MeasuredLeg, NegotiationProbe, WsVoiceProbe};
 use crate::structs::reachability::{
     AddressFamily, AddressFamilyPreference, EndpointReachability, ReachabilityOutcome,
-    ReachabilityRequest, ServerReachability,
+    ReachabilityRequest, ReachabilityVerdict, ServerReachability,
 };
 
 pub struct ReachabilityProbe {
     // The measured port set travels with the report. Keyed on host alone a preflight
     // over one port would answer a later connect that dials more, and the verdict
     // would be asserting something about an endpoint nobody probed.
-    cache: Cache<String, (Vec<u16>, ServerReachability)>,
+    //
+    // The flag beside it is whether the fallback transport was measured, for the same
+    // reason: a report taken before the server's capability was known carries no
+    // WebSocket leg, and handing it to a caller that asked for one would report no
+    // fallback path on a server that has one.
+    cache: Cache<String, (Vec<u16>, bool, ServerReachability)>,
 }
 
 impl ReachabilityProbe {
@@ -40,27 +46,83 @@ impl ReachabilityProbe {
     }
 
     pub async fn evaluate(&self, request: &ReachabilityRequest) -> ServerReachability {
-        // A cached report answers only if it measured every port being asked about.
-        // A wider one answers a narrower question; a narrower one never answers a
-        // wider one.
-        if let Some((measured, cached)) = self.cache.get(&request.host).await {
-            if request
-                .quic_ports
-                .iter()
-                .all(|port| measured.contains(port))
-            {
-                return cached;
-            }
+        if let Some(cached) = self.cached(request).await {
+            return cached;
         }
 
-        let report = Self::measure(request).await;
+        let report = Self::measure(request, None).await;
+        self.store(request, &report).await;
+        report
+    }
+
+    /// The complete measurement, or the first one that proved voice can get through.
+    ///
+    /// For a screen that only asks "can voice reach this address", where waiting out the QUIC
+    /// budget costs seconds for an answer the WebSocket probe already gave in milliseconds.
+    ///
+    /// **The returned report may be incomplete.** An early answer means one leg finished and
+    /// the others did not, so its verdict says a path exists and nothing more — in particular
+    /// `VoiceFallback` here means QUIC had not answered *yet*, not that it is blocked. It must
+    /// never reach `CandidatePlan::build`, which orders the walk by per-endpoint latency the
+    /// early report does not have.
+    ///
+    /// The measurement itself always runs to completion in the background and caches the whole
+    /// report, so the connect that follows reads a complete one rather than paying for the
+    /// walk a second time.
+    pub async fn evaluate_any_voice_path(
+        self: &Arc<Self>,
+        request: &ReachabilityRequest,
+    ) -> ServerReachability {
+        if let Some(cached) = self.cached(request).await {
+            return cached;
+        }
+
+        // Two capacity: the first positive interim and the final report. A sender that cannot
+        // queue would make the measurement wait on a receiver that has already left.
+        let (tx, mut rx) = mpsc::channel::<ServerReachability>(2);
+        let probe = self.clone();
+        let owned = request.clone();
+
+        tokio::spawn(async move {
+            let report = Self::measure(&owned, Some(tx.clone())).await;
+            probe.store(&owned, &report).await;
+            let _ = tx.send(report).await;
+        });
+
+        match rx.recv().await {
+            Some(report) => report,
+            // The measurement task died before it said anything. Measuring here rather than
+            // inventing a verdict: an "unreachable" this never established would send somebody
+            // to ask their server operator about a fault on this device.
+            None => Self::measure(request, None).await,
+        }
+    }
+
+    // A cached report answers only if it measured every port being asked about, and the
+    // fallback leg if one was asked for. A wider one answers a narrower question; a
+    // narrower one never answers a wider one.
+    async fn cached(&self, request: &ReachabilityRequest) -> Option<ServerReachability> {
+        let (measured, measured_ws, cached) = self.cache.get(&request.host).await?;
+
+        let ports_covered = request
+            .quic_ports
+            .iter()
+            .all(|port| measured.contains(port));
+
+        (ports_covered && (measured_ws || !request.voice_websocket)).then_some(cached)
+    }
+
+    async fn store(&self, request: &ReachabilityRequest, report: &ServerReachability) {
         self.cache
             .insert(
                 request.host.clone(),
-                (request.quic_ports.clone(), report.clone()),
+                (
+                    request.quic_ports.clone(),
+                    request.voice_websocket,
+                    report.clone(),
+                ),
             )
             .await;
-        report
     }
 
     pub async fn preference(&self, request: &ReachabilityRequest) -> AddressFamilyPreference {
@@ -75,42 +137,89 @@ impl ReachabilityProbe {
         self.cache.contains_key(host)
     }
 
-    async fn measure(request: &ReachabilityRequest) -> ServerReachability {
-        let mut quic_tasks = JoinSet::new();
+    /// Runs every leg and returns the complete report.
+    ///
+    /// `first_path` receives one interim report, the moment the legs that have landed prove
+    /// voice can get through. Only good news is published: a verdict derived while the QUIC
+    /// walk is still running would read "no voice path" about a server that is about to
+    /// answer, and correcting that a few seconds later is worse than saying nothing.
+    async fn measure(
+        request: &ReachabilityRequest,
+        first_path: Option<mpsc::Sender<ServerReachability>>,
+    ) -> ServerReachability {
+        let mut tasks = JoinSet::new();
+
         for addr in &request.addrs {
             for port in &request.quic_ports {
                 let dest = SocketAddr::new(*addr, *port);
                 let server_name = request.host.clone();
-                quic_tasks.spawn(async move { Self::measure_quic(dest, server_name).await });
+                tasks.spawn(async move {
+                    MeasuredLeg::Quic(Self::measure_quic(dest, server_name).await)
+                });
             }
         }
 
-        let mut https_tasks = JoinSet::new();
         for addr in &request.addrs {
             let url = request.https_url.clone();
             let dest = SocketAddr::new(*addr, request.https_port);
             let family = AddressFamily::of(addr);
-            https_tasks.spawn(async move {
+            tasks.spawn(async move {
                 let outcome = HttpsProbe::probe(&url, family).await;
-                EndpointReachability::new(dest, outcome, None)
+                MeasuredLeg::Https(EndpointReachability::new(dest, outcome, None))
             });
         }
 
+        // Only run against a server that claimed the transport. An unadvertised one would
+        // answer the ALPN with a refusal, and a whole TLS handshake spent confirming what
+        // `/api/config` already said is time the screen waiting on it pays for.
+        if request.voice_websocket {
+            for addr in &request.addrs {
+                let dest = SocketAddr::new(*addr, request.https_port);
+                let server_name = request.host.clone();
+                tasks.spawn(async move {
+                    let outcome = WsVoiceProbe::probe(dest, &server_name).await;
+                    MeasuredLeg::Ws(EndpointReachability::new(dest, outcome, None))
+                });
+            }
+        }
+
         let mut quic = Vec::new();
-        while let Some(joined) = quic_tasks.join_next().await {
-            if let Ok(endpoint) = joined {
-                quic.push(endpoint);
-            }
-        }
-
         let mut https = Vec::new();
-        while let Some(joined) = https_tasks.join_next().await {
-            if let Ok(endpoint) = joined {
-                https.push(endpoint);
+        let mut ws = Vec::new();
+        let mut announced = false;
+
+        while let Some(joined) = tasks.join_next().await {
+            match joined {
+                Ok(MeasuredLeg::Quic(endpoint)) => quic.push(endpoint),
+                Ok(MeasuredLeg::Https(endpoint)) => https.push(endpoint),
+                Ok(MeasuredLeg::Ws(endpoint)) => ws.push(endpoint),
+                Err(_) => continue,
+            }
+
+            if announced {
+                continue;
+            }
+
+            if let Some(sender) = &first_path {
+                let interim =
+                    ServerReachability::new(request.host.clone(), quic.clone(), https.clone(), ws.clone());
+                if Self::carries_voice(interim.verdict()) {
+                    announced = true;
+                    let _ = sender.send(interim).await;
+                }
             }
         }
 
-        ServerReachability::new(request.host.clone(), quic, https)
+        ServerReachability::new(request.host.clone(), quic, https, ws)
+    }
+
+    // Whether an interim verdict is worth answering with. Both arms mean a transport
+    // answered, which is the whole of what an early caller asked.
+    fn carries_voice(verdict: ReachabilityVerdict) -> bool {
+        matches!(
+            verdict,
+            ReachabilityVerdict::Ready | ReachabilityVerdict::VoiceFallback
+        )
     }
 
     // Escalates only when it has to. The negotiation probe costs one round trip and

@@ -178,11 +178,6 @@ export class BedrockProxyManager {
     ): Promise<void> {
         this.isProxyLoadingStore.set(true);
         try {
-            try {
-                await invoke('bedrock_force_refresh');
-            } catch (e) {
-                logError(`Token refresh before proxy start failed: ${e}`);
-            }
             const targetHost = get(this.serverHostStore);
             const targetPort = get(this.serverPortStore);
             await invoke('bedrock_start_proxy', {

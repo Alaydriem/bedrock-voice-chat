@@ -6,7 +6,7 @@ use tokio::net::UdpSocket;
 // Stands in for a QUIC server: reads one probe, reflects its Source Connection ID
 // back inside a Version Negotiation packet. Building the reply from the received
 // bytes is what makes this exercise the real accept rule.
-async fn spawn_negotiating_server() -> SocketAddr {
+pub async fn spawn_negotiating_server() -> SocketAddr {
     let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let addr = socket.local_addr().unwrap();
 
@@ -34,7 +34,10 @@ async fn spawn_negotiating_server() -> SocketAddr {
     addr
 }
 
-async fn spawn_silent_server() -> SocketAddr {
+/// A bound port that reads and never replies, which is what a blackholed UDP path looks
+/// like: the negotiation probe waits out its budget and the handshake probe then waits out
+/// its own.
+pub async fn spawn_silent_server() -> SocketAddr {
     let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let addr = socket.local_addr().unwrap();
 

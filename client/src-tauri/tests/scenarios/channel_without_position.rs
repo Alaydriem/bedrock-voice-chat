@@ -82,7 +82,8 @@ async fn channel_members_hear_each_other_before_joining_the_game() {
     let alice = feed_handle.join().expect("feed thread panicked");
 
     let (alice_sent, _, _) = alice.stats();
-    let (_, bob_from_quic, bob_received) = bob.stats();
+    let (_, bob_from_quic, bob_received) =
+        bob.await_transport_frames(alice_sent, Duration::from_secs(5));
 
     alice.shutdown();
     bob.shutdown();

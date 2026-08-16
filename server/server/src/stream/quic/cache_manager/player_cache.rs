@@ -11,7 +11,7 @@ use super::cache_trait::CacheTrait;
 ///
 /// Beyond the uniform `CacheTrait`, it exposes the raw moka handle for the audio
 /// hot path (`route_audio_frame`, `AudioFramePacket::update_coordinates`) and
-/// iteration (relay-world discovery), which need direct access for per-frame work.
+/// iteration (relay world populations), which need direct access for per-frame work.
 #[derive(Clone)]
 pub struct PlayerCache {
     cache: Arc<Cache<String, PlayerEnum>>,
@@ -51,21 +51,24 @@ impl PlayerCache {
         self.cache.clone()
     }
 
-    /// Distinct `relay_world_uuid`s of players currently cached — backs the relay
-    /// `ActiveWorldsSource` so the discovery task advertises only worlds this
-    /// server is actively hosting clients in. Lock-light snapshot iteration; never
-    /// on the audio hot path.
-    pub fn relay_worlds(&self) -> Vec<String> {
-        use std::collections::HashSet;
-        let mut seen: HashSet<String> = HashSet::new();
+    /// Live relay worlds and how many cached players are in each, sorted by world
+    /// name.
+    ///
+    /// Sorted because this is read by a diagnostic an operator compares between
+    /// runs, and by change detection that would otherwise report a reordering as a
+    /// change. Lock-light snapshot iteration; never on the audio hot path.
+    pub fn relay_world_populations(&self) -> Vec<(String, usize)> {
+        use std::collections::BTreeMap;
+
+        let mut counts: BTreeMap<String, usize> = BTreeMap::new();
         for (_, player) in self.cache.iter() {
             if let Some(mc) = player.as_minecraft() {
                 if let Some(world) = &mc.relay_world_uuid {
-                    seen.insert(world.clone());
+                    *counts.entry(world.clone()).or_insert(0) += 1;
                 }
             }
         }
-        seen.into_iter().collect()
+        counts.into_iter().collect()
     }
 }
 

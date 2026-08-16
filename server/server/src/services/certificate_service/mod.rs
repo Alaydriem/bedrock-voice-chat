@@ -35,20 +35,6 @@ impl CertificateService {
         self.build_signed_cert(&format!("{}:{}", game.as_str(), player_name), player_name)
     }
 
-    /// Issues an in-memory client certificate for a peered remote server.
-    /// The CN carries the explicit peer marker `server::{remote_host}:{port}` so a
-    /// peer connection is unambiguously classified as a `Peer` (never a player) and
-    /// the `host:port` keeps two endpoints on the same host distinct. Because the
-    /// CN is not a valid DNS name, the SAN carries only the bare host; the full
-    /// identity lives in the CN.
-    pub fn sign_peer_cert(
-        &self,
-        remote_host: &str,
-        port: u16,
-    ) -> Result<(Certificate, KeyPair), anyhow::Error> {
-        self.build_signed_cert(&format!("server::{remote_host}:{port}"), remote_host)
-    }
-
     /// Single cert-issuance path shared by all leaf-cert callers. The CN is set
     /// to `cn_identity` and a DNS SAN is added for `san_host`; all other cert
     /// parameters (EKU, validity window, loopback SANs) are fixed here.
@@ -127,36 +113,4 @@ mod tests {
             .to_owned()
     }
 
-    #[test]
-    fn sign_peer_cert_embeds_host_and_port_in_cn() {
-        let (service, _dir) = make_service();
-
-        let (cert, _key) = service
-            .sign_peer_cert("peer.example.com", 5000)
-            .expect("sign_peer_cert should succeed");
-
-        assert_eq!(extract_cn(&cert), "server::peer.example.com:5000");
-    }
-
-    #[test]
-    fn sign_peer_cert_distinct_identities_for_same_host_different_ports() {
-        let (service, _dir) = make_service();
-
-        let (cert_a, _) = service
-            .sign_peer_cert("relay.bvc.io", 5000)
-            .expect("sign_peer_cert port 5000 should succeed");
-        let (cert_b, _) = service
-            .sign_peer_cert("relay.bvc.io", 5001)
-            .expect("sign_peer_cert port 5001 should succeed");
-
-        let cn_a = extract_cn(&cert_a);
-        let cn_b = extract_cn(&cert_b);
-
-        assert_ne!(
-            cn_a, cn_b,
-            "different ports must produce different identities"
-        );
-        assert_eq!(cn_a, "server::relay.bvc.io:5000");
-        assert_eq!(cn_b, "server::relay.bvc.io:5001");
-    }
 }

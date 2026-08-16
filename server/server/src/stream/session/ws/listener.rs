@@ -234,7 +234,7 @@ impl WebSocketListener {
 
         let link = WsLink::new(device, inbound_rx, outbound_tx);
         spawner
-            .run(SessionLink::WebSocket(link), device, Some(identity), None, None)
+            .run(SessionLink::WebSocket(link), device, Some(identity))
             .await;
 
         reader.abort();
@@ -258,13 +258,6 @@ impl WebSocketListener {
 
         match ConnectionClassifier::classify(&common_name) {
             ConnectionKind::Player { game, name } => Some(game.membership_key(&name)),
-            ConnectionKind::Peer { .. } => {
-                tracing::warn!(
-                    identity = %common_name,
-                    "Refusing WebSocket session: peer links are QUIC only"
-                );
-                None
-            }
             ConnectionKind::Rejected { identity } => {
                 tracing::warn!(
                     %identity,

@@ -55,6 +55,14 @@ export class BedrockConnectErrorMapper {
                     suggestion: 'Click Refresh to renew tokens. If it persists, sign out and back in.',
                     severity: 'error',
                 };
+            case 'reauth_required':
+                return {
+                    raw: err,
+                    title: 'Sign in to Xbox again',
+                    detail: 'Your Xbox Live session expired and could not be renewed.',
+                    suggestion: 'Sign in with the code shown to get back to your worlds.',
+                    severity: 'error',
+                };
             case 'transport':
                 return {
                     raw: err,

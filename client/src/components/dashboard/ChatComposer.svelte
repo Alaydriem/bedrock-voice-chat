@@ -2,17 +2,29 @@
     import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import type { ChatRejectionState, ChatTarget } from "../../js/app/chat/ChatTarget";
+    import { WorldLabel, type WorldAssociations } from "../../js/app/chat/WorldLabel";
 
     interface Props {
         target: ChatTarget;
         rejection: ChatRejectionState | null;
         unread: number;
+        /** Remembered world names, keyed by uuid. Empty until one has been learned. */
+        associations?: WorldAssociations;
         onSend: (text: string) => void;
         onToggle: () => void;
         onFocus?: () => void;
         onDismissRejection?: () => void;
     }
-    let { target, rejection, unread, onSend, onToggle, onFocus, onDismissRejection }: Props =
+    let {
+        target,
+        rejection,
+        unread,
+        associations = {},
+        onSend,
+        onToggle,
+        onFocus,
+        onDismissRejection,
+    }: Props =
         $props();
 
     let text = $state("");
@@ -26,7 +38,13 @@
             ? target.reason
             : target.kind === "local"
               ? I18n.t("Message the server…")
-              : I18n.tf("Message {world}…", { world: target.world.world_name }),
+              : I18n.tf("Message {world}…", {
+                    world: WorldLabel.resolve(
+                        target.world.world_uuid,
+                        target.world.world_name,
+                        associations,
+                    ),
+                }),
     );
 
     // Typing is never refused. A line nothing can carry is rendered unconfirmed and the sender

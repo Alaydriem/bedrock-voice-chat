@@ -61,6 +61,7 @@ fn request_carries_the_measured_https_port_rather_than_assuming_443() {
         vec![IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))],
         vec![443],
         "https://bvc.example.com:8443",
+        false,
     );
 
     assert_eq!(request.https_port, 8443);
@@ -73,6 +74,7 @@ fn request_defaults_the_https_port_when_the_url_omits_it() {
         vec![IpAddr::V6(Ipv6Addr::LOCALHOST)],
         vec![443],
         "https://bvc.example.com",
+        false,
     );
 
     assert_eq!(request.https_port, ReachabilityRequest::DEFAULT_HTTPS_PORT);
@@ -85,6 +87,7 @@ fn request_points_the_https_probe_at_the_config_endpoint() {
         vec![IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))],
         vec![443],
         "https://bvc.example.com/",
+        false,
     );
 
     assert_eq!(request.https_url, "https://bvc.example.com/api/config");

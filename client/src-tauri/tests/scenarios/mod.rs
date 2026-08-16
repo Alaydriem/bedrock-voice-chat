@@ -20,8 +20,6 @@ mod reachability_probe;
 mod proxy_audio;
 mod proxy_jukebox;
 mod proxy_net_addon_mode;
-mod relay_jukebox;
-mod relay_voice;
 mod same_channel;
 mod unauthorized;
 mod websocket_transport;

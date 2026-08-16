@@ -11,5 +11,4 @@ pub mod udp_blackhole;
 pub mod rebinding_relay;
 pub mod proxy_scale;
 pub mod proxy_world;
-pub mod relay_world;
 pub mod server;

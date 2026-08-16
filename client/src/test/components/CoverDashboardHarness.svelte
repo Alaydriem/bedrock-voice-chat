@@ -47,6 +47,7 @@
                 onswitch={() => {}}
                 onadd={() => {}}
                 onsettings={() => {}}
+                onconnect={() => {}}
                 onsignout={() => {}}
                 onstatus={(open) => (statusOpen = open)}
             >

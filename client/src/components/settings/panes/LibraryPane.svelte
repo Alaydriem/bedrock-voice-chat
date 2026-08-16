@@ -3,7 +3,7 @@
     import { invoke } from "@tauri-apps/api/core";
     import { open } from "@tauri-apps/plugin-dialog";
     import { readFile } from "@tauri-apps/plugin-fs";
-    import { Store } from "@tauri-apps/plugin-store";
+    import { AppStore } from "../../../js/app/services/AppStore";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import StatusChip from "$radial/components/StatusChip.svelte";
@@ -42,7 +42,7 @@
 
     async function loadPermissions(): Promise<void> {
         try {
-            const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+            const store = await AppStore.load();
             const server = await store.get<string>("current_server");
             if (!server) return;
             const raw = await invoke<string>("get_credential", {

@@ -9,18 +9,28 @@ const editing: ResolveVerdict = {
   ring: "empty",
   line: "○ Resolving",
   caption: "RESOLVING",
+  busy: false,
+};
+const measuring: ResolveVerdict = {
+  state: "editing",
+  ring: "empty",
+  line: "Resolving",
+  caption: "RESOLVING",
+  busy: true,
 };
 const ok: ResolveVerdict = {
   state: "ok",
   ring: "lock",
   line: "● Resolved · 41 ms",
   caption: "RESOLVED · 41 MS",
+  busy: false,
 };
 const bad: ResolveVerdict = {
   state: "bad",
   ring: "empty",
   line: "✕ Nothing at that address",
   caption: "NO RESPONSE",
+  busy: false,
 };
 
 function props(overrides: Record<string, unknown> = {}) {
@@ -57,6 +67,23 @@ describe("SignInScreen", () => {
   it("says specifically what failed rather than that something did", () => {
     render(SignInScreen, { props: props({ verdict: bad }) });
     expect(screen.getByText("✕ Nothing at that address")).toBeInTheDocument();
+  });
+
+  /**
+   * The spinner goes on this line and not on the ring. On a phone the ring is above the fold,
+   * so a measurement that showed itself only there would not show itself at all.
+   */
+  it("spins beside the resolve line while a measurement is in flight", () => {
+    const { container } = render(SignInScreen, { props: props({ verdict: measuring }) });
+    expect(container.querySelector(".rad-resolve .rad-icon-spin")).not.toBeNull();
+  });
+
+  it("shows nothing spinning once a verdict has landed", () => {
+    for (const verdict of [editing, ok, bad]) {
+      const { container, unmount } = render(SignInScreen, { props: props({ verdict }) });
+      expect(container.querySelector(".rad-icon-spin")).toBeNull();
+      unmount();
+    }
   });
 
   // The rule the whole probe design rests on. A slow or blocked probe must never be

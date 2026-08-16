@@ -2,16 +2,22 @@ use common::structs::packet::QuicNetworkPacket;
 
 pub(crate) mod actions;
 pub mod backend;
+pub mod cue;
 pub(crate) mod device;
 pub mod encode;
 pub mod recording;
 pub mod spatial;
 pub(crate) mod speaker_test;
+pub mod tone;
 pub(crate) mod types;
 
 pub(crate) mod stream;
 
 pub use actions::AudioActionsManager;
+// Re-exported for the same reason as the watchdog below: the cue a mute change earns is a
+// decision rule worth testing without an audio device, and the tone it renders is the one
+// part of an audible cue a test can observe at all.
+pub use cue::{Cue, CuePolicy, CueSink};
 // Re-exported rather than opening `stream`: the watchdog's decision rule is a behavioural
 // contract worth testing on its own, and the rest of that module is not.
 pub use stream::capture_watchdog::{CaptureVerdict, CaptureWatchdog};

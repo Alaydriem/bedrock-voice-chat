@@ -7,4 +7,5 @@ mod control_cache;
 mod ingress_guards;
 mod ingress_stamping;
 mod path_observer_context;
+mod player_cache;
 mod websocket_ticket_cache;

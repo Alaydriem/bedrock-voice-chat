@@ -9,6 +9,7 @@ mod m20260322_000002_player_permission;
 mod m20260618_000001_player_auth_code_ephemeral;
 mod m20260726_000001_signed_timestamps;
 mod m20260808_000001_player_world;
+mod m20260814_000001_drop_peer_link_permission;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -24,6 +25,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260618_000001_player_auth_code_ephemeral::Migration),
             Box::new(m20260726_000001_signed_timestamps::Migration),
             Box::new(m20260808_000001_player_world::Migration),
+            Box::new(m20260814_000001_drop_peer_link_permission::Migration),
         ]
     }
 }

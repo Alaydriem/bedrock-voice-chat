@@ -24,7 +24,7 @@ tauri-build = { version = "^2.4", features = [] }
 # Package is `bedrock-voice-chat-client`; its lib name is `bvc_client_lib`, which
 # stays the import path in code (`use bvc_client_lib::...`).
 bedrock-voice-chat-client = { path = "../src-tauri", default-features = false, features = ["e2e"] }
-common = { path = "../../common", features = ["quic", "audio", "browser"] }
+common = { path = "../../common", features = ["quic", "audio", "browser", "net"] }
 
 tauri = { version = "^2", features = ["rustls-tls"] }
 tauri-plugin-opener = { version = "^2" }

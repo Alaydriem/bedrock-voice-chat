@@ -9,7 +9,7 @@ use common::consts::bedrock::{
     BEDROCK_KEYRING_KEY_REFRESH_TOKEN, BEDROCK_KEYRING_KEY_XUID, XBOX_CLIENT_ID,
 };
 use common::structs::bedrock::{
-    AddonMode, BedrockStatus, NetworkInterface, ProtocolVersionOption, RealmEntry,
+    AddonMode, BedrockRenewal, BedrockStatus, NetworkInterface, ProtocolVersionOption, RealmEntry,
 };
 use common::traits::StreamTrait;
 
@@ -121,7 +121,17 @@ pub(crate) async fn bedrock_xbox_login(
 
     let mut state = state.lock().await;
     state.login_cancel_tx = None;
-    state.apply_auth(api, xbl_token, user_hash, access_token, refresh_token, xuid);
+    let auth_manager =
+        auth.build_auth_manager(refresh_token.as_deref(), &xuid, Some(&app_handle));
+    state.apply_auth(
+        auth_manager,
+        api,
+        xbl_token,
+        user_hash,
+        access_token,
+        refresh_token,
+        xuid,
+    );
 
     Ok(())
 }
@@ -146,21 +156,30 @@ pub(crate) async fn bedrock_restore_auth(
     };
     let stored_xuid = keyring.load(BEDROCK_KEYRING_KEY_XUID);
 
-    let result = RealmsApi::authenticate_refresh(XBOX_CLIENT_ID, &refresh_token, RealmsEnvironment::Retail)
-        .await
-        .map_err(|e| {
+    // Only a credential the provider actually rejected is worth deleting. `authenticate_refresh`
+    // reaches the token endpoint over the network, so an unreachable host arrives here too, and
+    // discarding on that trades a device-code prompt for a dropped connection.
+    let result = RealmsApi::authenticate_refresh(
+        XBOX_CLIENT_ID,
+        &refresh_token,
+        RealmsEnvironment::Retail,
+    )
+    .await
+    .map_err(|e| {
+        if matches!(BedrockRenewal::from(&e), BedrockRenewal::ReauthRequired) {
             keyring.clear();
-            e.to_string()
-        })?;
+        }
+        e.to_string()
+    })?;
 
     let (api, xbl_token, user_hash, access_token, new_refresh_token) = result;
     let auth = BedrockAuthService::new();
     let xuid = match stored_xuid {
         Some(x) => x,
-        None => auth.extract_xuid(&xbl_token).await.map_err(|e| {
-            keyring.clear();
-            format!("Failed to extract XUID during auth restore: {}", e)
-        })?,
+        None => auth
+            .extract_xuid(&xbl_token)
+            .await
+            .map_err(|e| format!("Failed to extract XUID during auth restore: {}", e))?,
     };
     keyring.store(BEDROCK_KEYRING_KEY_XUID, &xuid);
 
@@ -169,8 +188,12 @@ pub(crate) async fn bedrock_restore_auth(
         keyring.store(BEDROCK_KEYRING_KEY_REFRESH_TOKEN, rt);
     }
 
+    let auth_manager =
+        auth.build_auth_manager(effective_refresh.as_deref(), &xuid, Some(&app_handle));
+
     let mut state = state.lock().await;
     state.apply_auth(
+        auth_manager,
         api,
         xbl_token,
         user_hash,
@@ -186,46 +209,10 @@ pub(crate) async fn bedrock_restore_auth(
 pub(crate) async fn bedrock_force_refresh(
     state: State<'_, Mutex<BedrockState>>,
     app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    let refresh_token = {
-        let s = state.lock().await;
-        s.refresh_token
-            .clone()
-            .ok_or_else(|| "No refresh token available. Sign in again.".to_string())?
-    };
-
-    let (api, xbl_token, user_hash, access_token, new_refresh_token) =
-        RealmsApi::authenticate_refresh(XBOX_CLIENT_ID, &refresh_token, RealmsEnvironment::Retail)
-            .await
-            .map_err(|e| e.to_string())?;
-
-    let stored_xuid = {
-        let s = state.lock().await;
-        s.xuid.clone()
-    };
-    let auth = BedrockAuthService::new();
-    let xuid = match stored_xuid {
-        Some(x) => x,
-        None => auth.extract_xuid(&xbl_token).await?,
-    };
-
-    let keyring = BedrockKeyringService::new(&app_handle);
-    let effective_refresh = new_refresh_token.or(Some(refresh_token));
-    if let Some(ref rt) = effective_refresh {
-        keyring.store(BEDROCK_KEYRING_KEY_REFRESH_TOKEN, rt);
-    }
-    keyring.store(BEDROCK_KEYRING_KEY_XUID, &xuid);
-
-    let mut state = state.lock().await;
-    state.apply_auth(
-        api,
-        xbl_token,
-        user_hash,
-        access_token,
-        effective_refresh,
-        xuid,
-    );
-    Ok(())
+) -> Result<BedrockRenewal, String> {
+    Ok(BedrockAuthService::new()
+        .renew(state.inner(), &app_handle)
+        .await)
 }
 
 #[tauri::command(async)]
@@ -253,15 +240,7 @@ pub(crate) async fn bedrock_xbox_logout(
         return Err("Stop the realms session before signing out.".to_string());
     }
 
-    state.auth_manager = None;
-    state.realms_api = None;
-    state.xbl_token = None;
-    state.user_hash = None;
-    state.access_token = None;
-    state.refresh_token = None;
-    state.xuid = None;
-
-    BedrockKeyringService::new(&app_handle).clear();
+    BedrockAuthService::new().sign_out(&mut state, &app_handle);
     Ok(())
 }
 
@@ -278,17 +257,46 @@ pub(crate) async fn bedrock_list_interfaces() -> Result<Vec<NetworkInterface>, S
 #[tauri::command(async)]
 pub(crate) async fn bedrock_list_realms(
     state: State<'_, Mutex<BedrockState>>,
+    app_handle: tauri::AppHandle,
 ) -> Result<Vec<RealmEntry>, String> {
     let api = {
         let state = state.lock().await;
-        state
-            .realms_api
-            .as_ref()
-            .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
-            .clone()
+        state.realms_api.as_ref().cloned()
     };
 
-    let worlds = api.list_worlds().await.map_err(|e| e.to_string())?;
+    let listed = match api {
+        Some(api) => api.list_worlds().await.map_err(|e| e.to_string()),
+        None => Err(crate::bedrock::XBOX_AUTH_REQUIRED.to_string()),
+    };
+
+    // A stale XSTS token recovers here without anyone being told; only a rejected credential
+    // reaches the player.
+    let worlds = match listed {
+        Ok(w) => w,
+        Err(_) => {
+            match BedrockAuthService::new()
+                .renew(state.inner(), &app_handle)
+                .await
+            {
+                BedrockRenewal::ReauthRequired => {
+                    return Err(crate::bedrock::REAUTH_REQUIRED.to_string());
+                }
+                BedrockRenewal::Unavailable { message } => return Err(message),
+                BedrockRenewal::Renewed => {}
+            }
+
+            let api = {
+                let state = state.lock().await;
+                state
+                    .realms_api
+                    .as_ref()
+                    .cloned()
+                    .ok_or_else(|| crate::bedrock::XBOX_AUTH_REQUIRED.to_string())?
+            };
+            api.list_worlds().await.map_err(|e| e.to_string())?
+        }
+    };
+
     let entries = worlds
         .into_iter()
         .map(|r| RealmEntry {
@@ -322,13 +330,20 @@ pub(crate) async fn bedrock_get_status(
     Ok(BedrockStatus {
         proxy_running: state.proxy.as_ref().is_some_and(|p| !p.is_stopped()),
         realms_running: state.realms.as_ref().is_some_and(|r| !r.is_stopped()),
-        xbox_authenticated: state.auth_manager.is_some(),
+        xbox_authenticated: state.is_authenticated(),
+        reauth_required: state.reauth_required,
         proxy_target_host: state.proxy_target_host.clone(),
         proxy_target_port: state.proxy_target_port,
         proxy_listen_port: state.proxy_listen_port,
         proxy_started_at: state.proxy_started_at,
         active_realm_id: state.active_realm_id,
         active_realm_name: state.active_realm_name.clone(),
+        // Resolved once at connect time by the connector, which is also what names the entry in
+        // Minecraft's Friends tab, so both surfaces call the world the same thing.
+        active_connection_name: state
+            .active_connection
+            .as_ref()
+            .map(|connection| connection.name.clone()),
     })
 }
 

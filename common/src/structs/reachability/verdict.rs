@@ -14,9 +14,14 @@ use ts_rs::TS;
 pub enum ReachabilityVerdict {
     /// A QUIC endpoint answered. Voice can connect.
     Ready,
-    /// HTTPS answered and QUIC did not: a network that permits TCP and drops UDP.
-    /// The distinction matters because it sends the player to their firewall rather
-    /// than to the server operator.
+    /// No QUIC endpoint answered and the WebSocket voice transport did: the network
+    /// drops UDP, and voice reaches this server over TCP instead. Connectable, and
+    /// separate from `Ready` because the path costs latency the player can hear.
+    VoiceFallback,
+    /// HTTPS answered, and neither voice transport did. A network that permits TCP
+    /// and drops UDP, against a server with no TCP voice path — or one that has none
+    /// on this port. The distinction from `Unreachable` matters because it sends the
+    /// player to their firewall rather than to the server operator.
     VoiceBlocked,
     /// Nothing answered on either transport. The host is down, or it is the wrong
     /// host.

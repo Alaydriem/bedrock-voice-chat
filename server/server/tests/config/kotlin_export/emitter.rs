@@ -11,7 +11,6 @@ fn emits_one_file_per_config_class() {
         "Acme.kt",
         "Minecraft.kt",
         "Features.kt",
-        "RelayFeature.kt",
         "BedrockConfig.kt",
         "Age.kt",
         "Database.kt",
@@ -20,6 +19,7 @@ fn emits_one_file_per_config_class() {
         "SpatialAudioConfig.kt",
         "Audio.kt",
         "Permissions.kt",
+        "PeerConfig.kt",
     ] {
         assert!(files.contains_key(name), "expected {name} in the export");
     }

@@ -1,4 +1,5 @@
 use crate::errors::CommunicationError;
+use crate::game_data::Dimension;
 use crate::players::{GenericPlayer, HytalePlayer, MinecraftPlayer};
 use crate::traits::player_data::{PlayerData, SpatialPlayer};
 use crate::{Coordinate, Game, Orientation};
@@ -56,6 +57,22 @@ impl PlayerData for PlayerEnum {
             PlayerEnum::Minecraft(p) => p.get_game(),
             PlayerEnum::Hytale(p) => p.get_game(),
             PlayerEnum::Generic(p) => p.get_game(),
+        }
+    }
+
+    fn world_identifier(&self) -> Option<&str> {
+        match self {
+            PlayerEnum::Minecraft(p) => p.world_identifier(),
+            PlayerEnum::Hytale(p) => p.world_identifier(),
+            PlayerEnum::Generic(p) => p.world_identifier(),
+        }
+    }
+
+    fn dimension(&self) -> Option<Dimension> {
+        match self {
+            PlayerEnum::Minecraft(p) => p.dimension(),
+            PlayerEnum::Hytale(p) => p.dimension(),
+            PlayerEnum::Generic(p) => p.dimension(),
         }
     }
 

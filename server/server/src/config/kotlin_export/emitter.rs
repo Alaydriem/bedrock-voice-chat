@@ -143,7 +143,12 @@ impl KotlinExporter {
     }
 
     // Follows a `$ref`, including one wrapped in the anyOf/null shape an
-    // Option<T> produces, and returns the definition it names.
+    // Option<T> produces and one held as a map's value type, and returns the
+    // definition it names.
+    //
+    // The map case is not cosmetic: `KotlinType` renders a `HashMap<String, T>`
+    // as `Map<String, T>` whether or not `T`'s class is ever emitted, so without
+    // this the generated Kotlin references a type that does not exist.
     fn referenced_definition(
         schema: &Schema,
         defs: &Map<String, Schema>,
@@ -153,11 +158,23 @@ impl KotlinExporter {
             Schema::Bool(_) => return Ok(None),
         };
 
+        let map_value_reference = || -> Option<String> {
+            match object
+                .object
+                .as_ref()
+                .and_then(|validation| validation.additional_properties.as_ref())
+                .map(|values| values.as_ref())
+            {
+                Some(Schema::Object(values)) => values.reference.clone(),
+                _ => None,
+            }
+        };
+
         let reference = match &object.reference {
             Some(reference) => Some(reference.clone()),
             None => match KotlinType::first_non_null_subschema(object) {
                 Some(Schema::Object(inner)) => inner.reference.clone(),
-                _ => None,
+                _ => map_value_reference(),
             },
         };
 

@@ -82,10 +82,13 @@ export class BedrockCapabilityManager {
                 })),
             );
         } catch (e) {
+            // The status becomes unknown, but the operator's list and transfer port are kept:
+            // a check that could not complete is not evidence the server has no servers. This
+            // path runs on every focus refresh, so discarding them made adding a server of
+            // your own — which closes a modal, which raises a focus — erase the advertised
+            // ones. Only a successful response replaces either.
             logError(`Bedrock capability check failed: ${e}`);
             this.statusStore.set('unknown');
-            this.serverProvidedStore.set([]);
-            this.transferPortStore.set(null);
             this.scheduleRetry();
         } finally {
             this.checkingStore.set(false);

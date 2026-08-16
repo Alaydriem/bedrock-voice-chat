@@ -307,6 +307,7 @@ pub fn run() {
             crate::commands::network::stop_network_stream,
             crate::commands::network::change_network_stream,
             crate::commands::network::probe_server,
+            crate::commands::network::probe_voice_path,
             crate::commands::network::check_protocol_compatibility,
             crate::commands::network::reset_nsm,
             // API implementation
@@ -772,14 +773,6 @@ pub fn run() {
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_eject_injector));
             #[cfg(feature = "bedrock-protocol")]
-            let bedrock_presence_injector = crate::bedrock::PresenceInjector::new_shared();
-            #[cfg(feature = "bedrock-protocol")]
-            app.manage(Arc::clone(&bedrock_presence_injector));
-            #[cfg(feature = "bedrock-protocol")]
-            let bedrock_announce_injector = crate::bedrock::AnnounceInjector::new_shared();
-            #[cfg(feature = "bedrock-protocol")]
-            app.manage(Arc::clone(&bedrock_announce_injector));
-            #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_connect_error_channel));
             app.manage(Arc::clone(&bedrock_chat_channel));
             app.manage(Arc::clone(&bedrock_chat_injector));
@@ -799,10 +792,6 @@ pub fn run() {
                 Some(Arc::clone(&bedrock_beacon_cache)),
                 #[cfg(feature = "bedrock-protocol")]
                 Some(Arc::clone(&bedrock_eject_injector)),
-                #[cfg(feature = "bedrock-protocol")]
-                Some(Arc::clone(&bedrock_presence_injector)),
-                #[cfg(feature = "bedrock-protocol")]
-                Some(Arc::clone(&bedrock_announce_injector)),
             )?;
 
             // The listener owns the voice-mode transition and the push-to-talk hold. Both

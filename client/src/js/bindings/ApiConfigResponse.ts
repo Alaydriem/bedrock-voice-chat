@@ -4,4 +4,4 @@ import type { ApiConfigBedrock } from "./ApiConfigBedrock";
 import type { ApiConfigRecording } from "./ApiConfigRecording";
 import type { SpatialAudioConfig } from "./SpatialAudioConfig";
 
-export type ApiConfigResponse = { status: string, client_id: string, protocol_version: string, quic_port: number, quic_ports: Array<number>, spatial_audio: SpatialAudioConfig, bedrock: ApiConfigBedrock, age: ApiConfigAge, recording: ApiConfigRecording, };
+export type ApiConfigResponse = { status: string, client_id: string, protocol_version: string, quic_port: number, quic_ports: Array<number>, voice_websocket: boolean, spatial_audio: SpatialAudioConfig, bedrock: ApiConfigBedrock, age: ApiConfigAge, recording: ApiConfigRecording, };

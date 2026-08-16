@@ -5,7 +5,7 @@ use super::connect_error_channel::BedrockConnectErrorChannel;
 use super::event_emitter::BedrockEventEmitter;
 use super::jukebox::{JukeboxBeaconCache, JukeboxEjectInjector};
 use super::player_state_cache::BedrockPlayerStateCache;
-use super::presence::{AnnounceInjector, PresenceInjector, QueryStateInjector};
+use super::presence::QueryStateInjector;
 use crate::bedrock::ProtocolGatingService;
 use crate::control::{ControlActionSender, ControlStateBus};
 
@@ -21,8 +21,6 @@ pub(crate) struct ProxyDeps {
     pub(crate) chat_injector: Arc<ChatInjector>,
     pub(crate) event_emitter: Arc<BedrockEventEmitter>,
     pub(crate) eject_injector: Arc<JukeboxEjectInjector>,
-    pub(crate) presence_injector: Arc<PresenceInjector>,
-    pub(crate) announce_injector: Arc<AnnounceInjector>,
     pub(crate) control_tx: ControlActionSender,
     pub(crate) query_state_injector: Arc<QueryStateInjector>,
     pub(crate) state_bus: ControlStateBus,
@@ -39,8 +37,6 @@ impl ProxyDeps {
         chat_injector: Arc<ChatInjector>,
         event_emitter: Arc<BedrockEventEmitter>,
         eject_injector: Arc<JukeboxEjectInjector>,
-        presence_injector: Arc<PresenceInjector>,
-        announce_injector: Arc<AnnounceInjector>,
         control_tx: ControlActionSender,
         query_state_injector: Arc<QueryStateInjector>,
         state_bus: ControlStateBus,
@@ -54,8 +50,6 @@ impl ProxyDeps {
             chat_injector,
             event_emitter,
             eject_injector,
-            presence_injector,
-            announce_injector,
             control_tx,
             query_state_injector,
             state_bus,

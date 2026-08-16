@@ -5,4 +5,3 @@ mod auth;
 mod control;
 mod health;
 mod metrics;
-mod relay;

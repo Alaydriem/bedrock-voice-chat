@@ -27,6 +27,9 @@ export class AudioSettingsManager {
     public readonly jukeboxGain: Readable<number>;
     private jukeboxMutedStore: Writable<boolean>;
     public readonly jukeboxMuted: Readable<boolean>;
+    private muteCuesStore: Writable<boolean>;
+    /** Whether mute and deafen announce themselves with a tone. */
+    public readonly muteCues: Readable<boolean>;
     private voiceModeErrorStore: Writable<string>;
     /** Why the last mode change did not take, or empty. */
     public readonly voiceModeError: Readable<string>;
@@ -50,6 +53,8 @@ export class AudioSettingsManager {
         this.jukeboxGain = { subscribe: this.jukeboxGainStore.subscribe };
         this.jukeboxMutedStore = writable(false);
         this.jukeboxMuted = { subscribe: this.jukeboxMutedStore.subscribe };
+        this.muteCuesStore = writable(true);
+        this.muteCues = { subscribe: this.muteCuesStore.subscribe };
         this.voiceModeErrorStore = writable("");
         this.voiceModeError = { subscribe: this.voiceModeErrorStore.subscribe };
     }
@@ -74,6 +79,11 @@ export class AudioSettingsManager {
         if (savedJukeboxMuted !== null && savedJukeboxMuted !== undefined) {
             this.jukeboxMutedStore.set(savedJukeboxMuted);
         }
+
+        // An absent key is on, not off. Nothing writes this key until the user touches the
+        // switch, so every install that predates the feature arrives here with null.
+        const savedMuteCues = await store.get<boolean>("mute_cues_enabled");
+        this.muteCuesStore.set(savedMuteCues ?? true);
 
         // A WebSocket controller or the in-game panel changes this without the pane being asked,
         // and the switch reads this store. Without the listener it keeps drawing the pre-change
@@ -147,6 +157,27 @@ export class AudioSettingsManager {
     async handleJukeboxMutedChange(muted: boolean): Promise<void> {
         this.jukeboxMutedStore.set(muted);
         await invoke("set_jukebox_muted", { muted });
+    }
+
+    /**
+     * Set whether mute and deafen announce themselves.
+     *
+     * Written here rather than asked of the backend, unlike the jukebox controls. The backend
+     * reads this key from the store at the moment it plays, so the store is the only copy and
+     * there is nothing for a round trip to reconcile.
+     */
+    async handleMuteCuesChange(next: boolean): Promise<void> {
+        this.muteCuesStore.set(next);
+
+        let store: Store | undefined;
+        this.storeStore.update((current) => {
+            store = current;
+            return current;
+        });
+        if (!store) return;
+
+        await store.set("mute_cues_enabled", next);
+        await store.save();
     }
 
     /** Releases the event listeners. A listener outliving the manager writes to a dead store. */

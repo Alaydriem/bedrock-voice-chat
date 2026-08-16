@@ -36,47 +36,48 @@
 <!-- Device-code sign-in. There is no Done button: the poll decides. -->
 {#if open}
     <div class="rad-scrim rad-scrim--modal is-on"></div>
-    <div class="rad-modal is-open">
+    <!--
+      Laid out like the sign-in screen rather than a settings form: a kicker, the code as the
+      one thing worth reading, then where to take it. The address was a read-only text input
+      inside a two-column row, which nobody types into and which cramped the code beside it.
+    -->
+    <div class="rad-modal rad-modal--wide is-open">
         <h5 class="rad-modal__title">{I18n.t("Sign in with Microsoft")}</h5>
         <p>
-            {I18n.t("Open the page below on any device and enter this code. This window updates by itself once you are done.")}
+            {I18n.t("Open the page on any device and enter this code. This window updates by itself once you are done.")}
         </p>
 
-        <div class="rad-card" style="margin-top: 14px">
-            <div class="rad-row">
-                <span class="rad-row__text"><span class="rad-row__label">{I18n.t("Go to")}</span></span>
-                <span class="rad-row__control">
-                    <span class="rad-input" style="width: 190px">
-                        <input type="text" value={url} readonly aria-label={I18n.t("Sign-in address")} />
-                    </span>
-                    <button
-                        class="rad-icon-btn"
-                        onclick={() => void bedrock.openLoginUrl()}
-                        aria-label={I18n.t("Open the sign-in page")}
-                    >
-                        <Icon name="ext" />
-                    </button>
+        <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 7px">
+            <span class="rad-label">{I18n.t("Your code")}</span>
+            <span style="display: flex; align-items: center; gap: 12px">
+                <span
+                    class="rad-kbd"
+                    style="font-size: 1.75rem; letter-spacing: 0.1em; padding: 10px 16px"
+                >
+                    {code || "…"}
                 </span>
-            </div>
+                <button
+                    class="rad-icon-btn"
+                    onclick={() => void bedrock.copyDeviceCode()}
+                    aria-label={I18n.t("Copy the code")}
+                >
+                    <Icon name="copy" />
+                </button>
+            </span>
+            <span class="rad-label">
+                {copied ? I18n.t("Copied.") : I18n.t("It expires after a few minutes.")}
+            </span>
+        </div>
 
-            <div class="rad-row">
-                <span class="rad-row__text">
-                    <span class="rad-row__label">{I18n.t("Enter the code")}</span>
-                    <span class="rad-row__note">
-                        {copied ? "Copied." : "It expires after a few minutes."}
-                    </span>
-                </span>
-                <span class="rad-row__control">
-                    <span class="rad-kbd" style="font-size: var(--text-rad-lead)">{code || "…"}</span>
-                    <button
-                        class="rad-icon-btn"
-                        onclick={() => void bedrock.copyDeviceCode()}
-                        aria-label={I18n.t("Copy the code")}
-                    >
-                        <Icon name="copy" />
-                    </button>
-                </span>
-            </div>
+        <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 7px">
+            <span class="rad-label">{I18n.t("Then go to")}</span>
+            <button
+                class="rad-link-card"
+                onclick={() => void bedrock.openLoginUrl()}
+                aria-label={I18n.t("Open the sign-in page")}
+            >
+                {url || "microsoft.com/link"} <Icon name="ext" />
+            </button>
         </div>
 
         {#if restoring}

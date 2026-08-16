@@ -9,7 +9,8 @@ use common::request::admin::{
 };
 use common::response::LoginResponse;
 use common::response::admin::{
-    BanishedUserResponse, CreatedUserResponse, GeneratedCodeResponse, PermissionListResponse,
+    BanishedUserResponse, CreatedUserResponse, GeneratedCodeResponse, PeerLinkResponse,
+    PermissionListResponse, RelayWorldsResponse,
 };
 use common::response::auth::IntrospectResponse;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -176,6 +177,16 @@ impl AdminApiClient {
             Self::encode_segment(gamertag)
         );
         self.request::<(), _>(Method::GET, &path, None).await
+    }
+
+    pub async fn relay_peerlink(&self) -> Result<PeerLinkResponse, AdminApiError> {
+        self.request::<(), _>(Method::GET, "/api/admin/relay/peerlink", None)
+            .await
+    }
+
+    pub async fn relay_worlds(&self) -> Result<RelayWorldsResponse, AdminApiError> {
+        self.request::<(), _>(Method::GET, "/api/admin/relay/worlds", None)
+            .await
     }
 
     pub async fn introspect(&self) -> Result<IntrospectResponse, AdminApiError> {

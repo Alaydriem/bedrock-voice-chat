@@ -8,6 +8,7 @@ mod mode;
 mod network_interface;
 mod protocol_version_option;
 mod realm_entry;
+mod renewal;
 mod status;
 mod world_id;
 
@@ -21,5 +22,6 @@ pub use mode::BedrockConnectMode;
 pub use network_interface::NetworkInterface;
 pub use protocol_version_option::ProtocolVersionOption;
 pub use realm_entry::RealmEntry;
+pub use renewal::BedrockRenewal;
 pub use status::BedrockStatus;
 pub use world_id::BedrockWorldId;

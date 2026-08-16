@@ -49,6 +49,20 @@ export class PlateView {
                           kind: 'blocked',
                       };
 
+            /**
+             * Voice arrives, over the slower of the two transports. A warning rather than a
+             * clean result and rather than a blocker: connecting works, and saying nothing
+             * about the path would leave somebody wondering why this server sounds worse
+             * than the one beside it.
+             */
+            case 'ws_fallback':
+                return {
+                    chip: 'Ready · fallback path',
+                    severity: 'warn',
+                    action: 'Connect',
+                    kind: 'connect',
+                };
+
             // Connecting would fail, so rechecking is the only thing worth offering.
             case 'udp_blocked':
                 return {
@@ -78,7 +92,7 @@ export class PlateView {
 
     /** Whether choosing this plate leads to the dashboard rather than anywhere else. */
     static isJoinable(entry: ServerRosterEntry): boolean {
-        return entry.status === 'connect';
+        return entry.status === 'connect' || entry.status === 'ws_fallback';
     }
 
     /**
@@ -108,6 +122,8 @@ export class PlateView {
                 return 'need sign-in';
             case 'version_mismatch':
                 return 'outdated';
+            case 'ws_fallback':
+                return 'fallback path';
             case 'udp_blocked':
                 return 'voice blocked';
             case 'unreachable':
@@ -122,6 +138,7 @@ export class PlateView {
             case 'connect':
                 return entry.slow ? 'warn' : 'ok';
             case 'version_mismatch':
+            case 'ws_fallback':
                 return 'warn';
             case 'reauth':
             case 'udp_blocked':

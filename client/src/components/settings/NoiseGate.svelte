@@ -1,7 +1,8 @@
 <script lang="ts">
   import { I18n } from "$lib/i18n";
     import { invoke } from "@tauri-apps/api/core";
-    import { Store } from "@tauri-apps/plugin-store";
+    import type { Store } from "@tauri-apps/plugin-store";
+    import { AppStore } from "../../js/app/services/AppStore";
     import { onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import SettingRow from "$radial/components/SettingRow.svelte";
@@ -18,7 +19,7 @@
 
     onMount(async () => {
         try {
-            const loaded = await Store.load("store.json", { autoSave: false, defaults: {} });
+            const loaded = await AppStore.load();
             store = loaded;
             enabled = (await loaded.get<boolean>("use_noise_gate")) ?? false;
             settings = NoiseGateModel.hydrate(

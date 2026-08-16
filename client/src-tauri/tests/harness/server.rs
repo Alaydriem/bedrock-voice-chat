@@ -4,6 +4,7 @@ use std::sync::{Arc, OnceLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use bvc_client_lib::testkit::PortPool;
 use serde_json::json;
 
 use crate::harness::ffi::{SendHandle, ServerLibrary};
@@ -23,22 +24,19 @@ pub struct EmbeddedServer {
 }
 
 impl EmbeddedServer {
-    /// Bind an ephemeral TCP port, read the assigned port, and release it.
+    /// Reserve a TCP port this server will bind.
+    ///
+    /// The port is held against other test processes for the lifetime of this
+    /// one. Sampling an ephemeral port and releasing it instead — which is what
+    /// this used to do — leaves the number unowned until the server binds it, and
+    /// the operating system hands a just-released port straight back out.
     pub fn free_port_tcp() -> u16 {
-        std::net::TcpListener::bind("127.0.0.1:0")
-            .expect("bind ephemeral tcp port")
-            .local_addr()
-            .expect("read tcp local addr")
-            .port()
+        PortPool::tcp()
     }
 
-    /// Bind an ephemeral UDP port, read the assigned port, and release it.
+    /// Reserve a UDP port this server will bind.
     pub fn free_port_udp() -> u16 {
-        std::net::UdpSocket::bind("127.0.0.1:0")
-            .expect("bind ephemeral udp port")
-            .local_addr()
-            .expect("read udp local addr")
-            .port()
+        PortPool::udp()
     }
 
     /// Build the JSON config string `bvc_server_create` deserializes into

@@ -2,6 +2,7 @@ import { writable, derived, get, type Writable, type Readable } from 'svelte/sto
 import { invoke } from '@tauri-apps/api/core';
 import { Store } from '@tauri-apps/plugin-store';
 import { info, error as logError } from '@tauri-apps/plugin-log';
+import type { BedrockRenewal } from '../../../../bindings/BedrockRenewal';
 import type { RealmEntry } from '../../../../bindings/RealmEntry';
 import type { RealmsLifecycle } from './RealmsLifecycle';
 import type { BedrockRealmsManagerCallbacks } from './BedrockRealmsManagerCallbacks';
@@ -83,7 +84,7 @@ export class BedrockRealmsManager implements RealmsLifecycle {
             const realms = await invoke<RealmEntry[]>('bedrock_list_realms');
             this.realmsStore.set(realms);
         } catch (e) {
-            logError(`Failed to load realms: ${e}`);
+            this.reportListFailure(e);
         }
         this.isLoadingRealmsStore.set(false);
     }
@@ -91,19 +92,44 @@ export class BedrockRealmsManager implements RealmsLifecycle {
     async refreshRealms(): Promise<void> {
         this.isLoadingRealmsStore.set(true);
         this.callbacks.clearConnectionError();
+
+        // The one renewal the player asks for by hand. Every other surface renews for itself
+        // when it needs to, so this is the only place that still calls it directly.
         try {
-            await invoke('bedrock_force_refresh');
-            info('Bedrock token refreshed');
+            const outcome = await invoke<BedrockRenewal>('bedrock_force_refresh');
+            if (outcome.kind === 'reauth_required') {
+                this.callbacks.onReauthRequired();
+                this.isLoadingRealmsStore.set(false);
+                return;
+            }
+            if (outcome.kind === 'unavailable') {
+                logError(`Token refresh unavailable: ${outcome.message}`);
+            } else {
+                info('Bedrock token refreshed');
+            }
         } catch (e) {
             logError(`Token refresh failed: ${e}`);
         }
+
         try {
             const realms = await invoke<RealmEntry[]>('bedrock_list_realms');
             this.realmsStore.set(realms);
         } catch (e) {
-            logError(`Failed to load realms: ${e}`);
+            this.reportListFailure(e);
         }
         this.isLoadingRealmsStore.set(false);
+    }
+
+    /**
+     * The listing command's error type is a string, so a rejected credential arrives as a
+     * sentinel rather than a variant. Anything else is an ordinary failure.
+     */
+    private reportListFailure(e: unknown): void {
+        if (String(e).includes('REAUTH_REQUIRED')) {
+            this.callbacks.onReauthRequired();
+            return;
+        }
+        logError(`Failed to load realms: ${e}`);
     }
 
     async toggleFavorite(realmId: bigint): Promise<void> {
@@ -133,11 +159,6 @@ export class BedrockRealmsManager implements RealmsLifecycle {
         this.callbacks.clearConnectionError();
 
         try {
-            try {
-                await invoke('bedrock_force_refresh');
-            } catch (e) {
-                logError(`Token refresh before realm connect failed: ${e}`);
-            }
             await invoke('bedrock_start_realms', {
                 realmId: Number(realm.id),
                 realmName: realm.name,

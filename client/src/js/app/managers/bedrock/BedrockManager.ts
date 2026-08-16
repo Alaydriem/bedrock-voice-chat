@@ -106,6 +106,7 @@ export class BedrockManager {
                 onRealmsUnavailable: () => {
                     this.realmsUnavailableModalStore.set(true);
                 },
+                onReauthRequired: () => this.handleReauthRequired(),
             },
         );
 
@@ -116,6 +117,8 @@ export class BedrockManager {
                 await this.realmsManager.loadRealms();
             },
         });
+
+        this.connectionManager.setReauthHandler(() => this.handleReauthRequired());
 
         this.isAuthenticated = this.authManager.isAuthenticated;
         this.isRestoringAuth = this.authManager.isRestoringAuth;
@@ -268,6 +271,15 @@ export class BedrockManager {
 
     dismissConnectionInfo(): void {
         this.connectionManager.dismissConnectionInfo();
+    }
+
+    /**
+     * The stored Xbox credential was rejected. Nothing on the device can repair it, so the
+     * only useful response is to put a device code in front of the player.
+     */
+    handleReauthRequired(): void {
+        this.authManager.setAuthenticated(false);
+        void this.authManager.openLoginModal();
     }
 
     async openLoginModal(): Promise<void> {

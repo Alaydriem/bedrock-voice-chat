@@ -42,6 +42,11 @@ tasks.shadowJar {
     // Relocate Gson to avoid conflicts with server-provided version
     relocate("com.google.gson", "com.alaydriem.bedrockvoicechat.shaded.gson")
 
+    // JNA is bundled below. Two plugins each bundling an unrelocated copy fail
+    // at load with "Native Library jnidispatch already loaded in another
+    // classloader", which is what a bridge plugin sharing this server would hit.
+    relocate("com.sun.jna", "com.alaydriem.bedrockvoicechat.shaded.jna")
+
     // Include common module and its dependencies
     dependencies {
         include(project(":common"))

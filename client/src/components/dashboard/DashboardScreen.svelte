@@ -25,6 +25,9 @@
         onswitch: (server: string) => void;
         onadd: () => void;
         onsettings: () => void;
+        /** Straight to the Connect pane. Its own entry point rather than a trip through
+         *  settings: it is the reason most people open the app. */
+        onconnect: () => void;
         onsignout: () => void;
         onstatus: (open: boolean) => void;
         /** The jukebox chip. Rendered in the header's state group, beside the status button. */
@@ -59,6 +62,7 @@
         onswitch,
         onadd,
         onsettings,
+        onconnect,
         onsignout,
         onstatus,
         jukebox,
@@ -166,7 +170,7 @@
      * "Switch server" and no status; the sheet offered status and no identity. Nobody can learn a
      * menu that changes depending on which edge of the screen they came in from.
      */
-    type SessionAction = "add" | "settings" | "status" | "signout";
+    type SessionAction = "connect" | "add" | "settings" | "status" | "signout";
 
     const ACTIONS: readonly {
         action: SessionAction;
@@ -174,6 +178,7 @@
         icon: import("$radial/core/icons/Icons").IconName;
         danger?: boolean;
     }[] = [
+            { action: "connect", label: "Voice Chat Connect", icon: "server" },
             { action: "add", label: "Add a server", icon: "plus" },
             { action: "settings", label: "Settings", icon: "gear" },
             { action: "status", label: "Connection status", icon: "field" },
@@ -182,7 +187,8 @@
 
     function run(action: SessionAction): void {
         sheet?.close();
-        if (action === "add") onadd();
+        if (action === "connect") onconnect();
+        else if (action === "add") onadd();
         else if (action === "settings") onsettings();
         else if (action === "status") onstatus(true);
         else onsignout();
@@ -290,6 +296,13 @@
                         <span class="rad-health-dot"></span>
                         <span>{headline}</span>
                     </span>
+                    <button
+                        class="rad-header-btn"
+                        aria-label={I18n.t("Voice Chat Connect")}
+                        onclick={onconnect}
+                    >
+                        <Icon name="server" />
+                    </button>
                     <button
                         class="rad-header-btn"
                         class:is-on={statusOpen}

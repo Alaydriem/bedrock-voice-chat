@@ -49,18 +49,14 @@ pub struct TestServer {
 
 impl TestServer {
     pub async fn start() -> Result<Self> {
-        Self::start_with(false, true).await
-    }
-
-    pub async fn start_with_relay(relay_enabled: bool) -> Result<Self> {
-        Self::start_with(relay_enabled, true).await
+        Self::start_with(true).await
     }
 
     pub async fn start_with_recording(recording_enabled: bool) -> Result<Self> {
-        Self::start_with(false, recording_enabled).await
+        Self::start_with(recording_enabled).await
     }
 
-    async fn start_with(relay_enabled: bool, recording_enabled: bool) -> Result<Self> {
+    async fn start_with(recording_enabled: bool) -> Result<Self> {
         // rustls crypto provider: install once per process; ignore re-install error.
         let _ =
             common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
@@ -132,7 +128,6 @@ impl TestServer {
             config,
             cert_service.clone(),
             identity_service,
-            relay_enabled,
             readiness.clone(),
         )
         .await?;

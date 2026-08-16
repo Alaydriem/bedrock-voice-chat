@@ -1,0 +1,30 @@
+[package]
+name = "bvc-relay"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Tests live in tests/ mirroring src/, wired through a single aggregator target.
+autotests = false
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+
+[lib]
+name = "bvc_relay"
+path = "src/lib.rs"
+
+[dependencies]
+common = { path = "../../common", default-features = false }
+data-encoding = { version = "^2" }
+iroh = { version = "1", default-features = false, features = ["tls-aws-lc-rs"] }
+iroh-relay = { version = "1", default-features = false }
+postcard = { version = "^1", features = ["use-std"] }
+thiserror = { version = "^2" }
+tokio = { version = "^1", features = ["full"] }
+tokio-util = { version = "^0.7" }
+tracing = { version = "^0.1" }
+
+[dev-dependencies]
+tempfile = { version = "^3" }

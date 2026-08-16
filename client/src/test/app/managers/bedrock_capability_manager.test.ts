@@ -93,3 +93,63 @@ describe("Bedrock capability manager", () => {
         capability.destroy();
     });
 });
+
+/**
+ * Adding a server closes a modal, which raises a window `focus`, which refreshes the
+ * capability check. A refresh that fails used to empty the advertised list — so adding a
+ * server of your own made the operator's servers disappear.
+ *
+ * A failed check is not evidence the server has no servers. The last good answer is kept and
+ * only a successful response replaces it.
+ */
+describe("Bedrock capability manager keeps the last good server list", () => {
+    beforeEach(() => {
+        mockInvoke({});
+    });
+
+    it("retains advertised servers when a later check fails", async () => {
+        mockInvoke({
+            api_get_config: () =>
+                configWith([
+                    { name: "Truly Bedrock SMP", host: "tbs7.nodecraft.gg", port: 19132, addon_mode: "net" },
+                ]),
+        });
+        const manager = new BedrockCapabilityManager();
+        await manager.refresh();
+        expect(get(manager.serverProvidedServers)).toHaveLength(1);
+
+        mockInvoke({
+            api_get_config: () => {
+                throw new Error("unreachable");
+            },
+        });
+        await manager.refresh();
+
+        expect(
+            get(manager.serverProvidedServers),
+            "a failed check must not discard the operator's list",
+        ).toHaveLength(1);
+        expect(get(manager.status)).toBe("unknown");
+
+        manager.destroy();
+    });
+
+    it("replaces the list when a successful check reports fewer servers", async () => {
+        mockInvoke({
+            api_get_config: () =>
+                configWith([
+                    { name: "One", host: "a.example.com", port: 19132, addon_mode: "net" },
+                    { name: "Two", host: "b.example.com", port: 19132, addon_mode: "net" },
+                ]),
+        });
+        const manager = new BedrockCapabilityManager();
+        await manager.refresh();
+        expect(get(manager.serverProvidedServers)).toHaveLength(2);
+
+        mockInvoke({ api_get_config: () => configWith([]) });
+        await manager.refresh();
+
+        expect(get(manager.serverProvidedServers)).toHaveLength(0);
+        manager.destroy();
+    });
+});

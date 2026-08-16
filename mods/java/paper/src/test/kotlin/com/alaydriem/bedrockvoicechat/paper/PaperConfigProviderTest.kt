@@ -60,9 +60,6 @@ class PaperConfigProviderTest {
                 bedrock:
                   enabled: true
                   transfer_port: 19139
-                  dns:
-                    enabled: true
-                    override_host: "geo.hivebedrock.network"
         """.trimIndent()
 
         val config = PaperConfigProvider.fromJson(YamlSectionConverter.toJson(sectionOf(yaml)))
@@ -70,8 +67,6 @@ class PaperConfigProviderTest {
         val bedrock = config.embeddedConfig?.server?.bedrock
         assertEquals(true, bedrock?.enabled)
         assertEquals(19139, bedrock?.transferPort)
-        assertEquals(true, bedrock?.dns?.enabled)
-        assertEquals("geo.hivebedrock.network", bedrock?.dns?.overrideHost)
     }
 
     @Test

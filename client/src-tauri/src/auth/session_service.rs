@@ -27,6 +27,8 @@ impl SessionService {
         keyring: &mut KeyringService,
         analytics: &AnalyticsService,
     ) -> Result<(), String> {
+        self.clear_bedrock_session().await;
+
         analytics.clear_connected_server();
         analytics.clear_player();
 
@@ -70,4 +72,42 @@ impl SessionService {
 
         Ok(())
     }
+
+    /// Ends the Xbox Live session along with the BVC one.
+    ///
+    /// `BedrockState` is managed once at startup, so it survives a logout that only navigates
+    /// the webview, and `bedrock_restore_auth` returns early whenever an auth manager is
+    /// already loaded without asking whose it is. Left alone, the next player to sign in on
+    /// this device inherits the previous player's Xbox identity.
+    ///
+    /// Nothing here is fatal. A logout that failed would leave the player signed in to a
+    /// server they asked to leave, which is worse than any outcome this can produce.
+    #[cfg(feature = "bedrock-protocol")]
+    async fn clear_bedrock_session(&self) {
+        use crate::bedrock::{BedrockAuthService, BedrockConnector, BedrockState};
+        use tauri::Manager;
+
+        // Idempotent, and stops whichever of the proxy or the realms session is live along
+        // with the transfer keepalive. The sign-out button refuses while one is running and
+        // asks the player to stop it; a logout has nobody to ask.
+        if let Err(e) = BedrockConnector::new(self.app_handle.clone())
+            .disconnect()
+            .await
+        {
+            log::warn!("Could not stop the Bedrock session during logout: {}", e);
+        }
+
+        let Some(state) = self
+            .app_handle
+            .try_state::<tauri::async_runtime::Mutex<BedrockState>>()
+        else {
+            return;
+        };
+
+        let mut state = state.lock().await;
+        BedrockAuthService::new().sign_out(&mut state, &self.app_handle);
+    }
+
+    #[cfg(not(feature = "bedrock-protocol"))]
+    async fn clear_bedrock_session(&self) {}
 }

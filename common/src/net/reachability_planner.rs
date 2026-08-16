@@ -48,6 +48,7 @@ impl ReachabilityPlanner {
         addrs: Vec<IpAddr>,
         ports: Vec<u16>,
         server_url: &str,
+        voice_websocket: bool,
     ) -> ReachabilityRequest {
         let trimmed = server_url.trim_end_matches('/');
         let https_port = Url::parse(server_url)
@@ -61,6 +62,7 @@ impl ReachabilityPlanner {
             ports,
             format!("{}{}", trimmed, Self::CONFIG_PATH),
             https_port,
+            voice_websocket,
         )
     }
 
@@ -72,6 +74,7 @@ impl ReachabilityPlanner {
         advertised_ports: &[u32],
         advertised_scalar: u32,
         cached_connect_string: Option<&str>,
+        voice_websocket: bool,
     ) -> Result<ReachabilityRequest, anyhow::Error> {
         let host = Self::host_of(server_url)?;
         let ports = Self::ports(advertised_ports, advertised_scalar, cached_connect_string);
@@ -91,6 +94,12 @@ impl ReachabilityPlanner {
             return Err(anyhow!("DNS_FAIL: System DNS returned no results"));
         }
 
-        Ok(Self::request(host, addrs, ports, server_url))
+        Ok(Self::request(
+            host,
+            addrs,
+            ports,
+            server_url,
+            voice_websocket,
+        ))
     }
 }

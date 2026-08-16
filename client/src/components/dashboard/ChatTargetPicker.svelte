@@ -2,14 +2,23 @@
     import { I18n } from "$lib/i18n";
     import Icon from "$radial/components/Icon.svelte";
     import type { ChatWorld } from "../../js/bindings/ChatWorld";
+    import { WorldLabel, type WorldAssociations } from "../../js/app/chat/WorldLabel";
 
     interface Props {
         options: ChatWorld[];
         current: ChatWorld;
+        /** Remembered names, keyed by world uuid. Empty until one has been learned. */
+        associations?: WorldAssociations;
         onPick: (world: ChatWorld) => void;
         onClose: () => void;
     }
-    let { options, current, onPick, onClose }: Props = $props();
+    let { options, current, associations = {}, onPick, onClose }: Props = $props();
+
+    // `world_name` is a placeholder for most worlds — a uuid from BDS, the default level name
+    // on Paper and Fabric — so it is resolved rather than rendered raw.
+    function label(world: ChatWorld): string {
+        return WorldLabel.resolve(world.world_uuid, world.world_name, associations);
+    }
 
     // A hint, not a verdict. Every world stays pickable: the addon may answer again by the
     // time somebody types, and a send that is genuinely refused says so itself.
@@ -43,7 +52,7 @@
         >
             <span class="rad-sheet-row__text">
                 <!-- world_uuid is the key and the comparison, never the label. -->
-                <span class="rad-sheet-row__name">{world.world_name}</span>
+                <span class="rad-sheet-row__name">{label(world)}</span>
                 <span class="rad-sheet-row__host">{seen(world)}</span>
             </span>
             {#if world.world_uuid === current.world_uuid}

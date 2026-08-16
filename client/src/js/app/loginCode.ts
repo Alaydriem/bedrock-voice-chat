@@ -86,7 +86,8 @@ export default class LoginCode extends BVCApp {
             ServerListStore.mirrorServerCount(serverList);
 
             info('Code login successful, continuing to setup');
-            window.location.href = '/setup';
+            // Replaced, not pushed: the code is spent and going back to it signs nobody in.
+            window.location.replace('/setup');
         } catch (e) {
             logError(`Code login failed: ${String(e)}`);
             this.errorStore.set('That code was not accepted. Check it and try again.');

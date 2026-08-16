@@ -961,3 +961,37 @@ jobs:
       build_mode: release
       push: true
     secrets: inherit
+
+  # Post-approval: Build and push the peering relay image.
+  #
+  # Tagged with the BVC version even though the image is upstream iroh-relay:
+  # the relay protocol is tied to the iroh release the peer code is built
+  # against, so a BVC version is what tells an operator which relay their
+  # servers can reach. It builds from source rather than a release artifact, so
+  # it does not wait on build-server.
+  publish-relay-docker:
+    name: Publish Relay Image
+    needs: [prepare-release, approve-publish]
+    if: needs.approve-publish.result == 'success'
+    uses: ./.github/workflows/build-relay-docker.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.new_version }}
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
+      push: true
+    secrets: inherit
+
+  # Post-approval: build the SDK natives and publish the bridge-facing jar.
+  #
+  # Versioned with BVC because the jar carries the peer wire: a bridge resolving
+  # it needs to know which server protocol it speaks, and that is what a BVC
+  # version names.
+  publish-relay-sdk:
+    name: Publish Relay SDK
+    needs: [prepare-release, approve-publish]
+    if: needs.approve-publish.result == 'success'
+    uses: ./.github/workflows/build-relay-sdk.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.new_version }}
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
+      publish: true
+    secrets: inherit

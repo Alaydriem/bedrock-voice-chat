@@ -20,7 +20,4 @@ pub use event_emitter::BedrockEventEmitter;
 pub use jukebox::{DiscNbt, JukeboxBeaconCache, JukeboxEjectInjector, PendingEject};
 pub use manager::BedrockProxyManager;
 pub use player_state_cache::BedrockPlayerStateCache;
-pub use presence::{
-    AnnounceInjector, BvcpCodec, PendingAnnounce, PendingInject, PendingQueryState,
-    PresenceInjector, QueryStateInjector,
-};
+pub use presence::{PendingQueryState, QueryStateInjector};

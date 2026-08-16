@@ -46,4 +46,13 @@ impl NetTimeouts {
     /// server being absent or the credentials being refused, and answering "absent" about a
     /// server that was merely slow sends somebody to ask their operator about nothing.
     pub const HTTPS: Duration = Duration::from_secs(7);
+
+    /// One TLS handshake against the WebSocket voice transport, for the probe that decides
+    /// whether a UDP-blocked client has a path at all.
+    ///
+    /// Matched to `HTTPS` because it is the same TCP path to the same port. Anything shorter
+    /// would report no fallback on a server the HTTPS probe reached in the same run, and the
+    /// two answers would contradict each other on exactly the slow networks this transport
+    /// exists for.
+    pub const VOICE_WEBSOCKET: Duration = Self::HTTPS;
 }

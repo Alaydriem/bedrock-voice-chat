@@ -49,6 +49,11 @@ pub async fn get_config(config: &State<Server>, voice: &State<Voice>) -> Json<Ap
         protocol_version: PROTOCOL_VERSION.to_string(),
         quic_port: config.quic_port,
         quic_ports: config.quic_ports(),
+        // Unconditional in this build: `ServerRuntime` binds the WebSocket voice listener
+        // alongside QUIC and hands the demultiplexer its address, with nothing for an
+        // operator to turn on. Should that ever become optional, this has to follow it —
+        // a client reads this field to decide whether a fallback path is worth probing.
+        voice_websocket: true,
         spatial_audio: voice.spatial_audio.clone(),
         bedrock,
         age: ApiConfigAge::from_minimum(config.age.minimum),

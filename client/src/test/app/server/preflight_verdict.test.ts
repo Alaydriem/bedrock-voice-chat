@@ -44,9 +44,51 @@ describe("PreflightVerdict.of", () => {
    * leave somebody with a problem to find the one line that is not.
    */
   it("leads with the check that failed, not the ones that passed", () => {
-    const verdict = PreflightVerdict.of(failedAt("QUIC path", "udp_blocked"));
+    const verdict = PreflightVerdict.of(failedAt("Voice path", "udp_blocked"));
     expect(verdict.severity).toBe("bad");
     expect(verdict.sentence).toMatch(/UDP 443/);
+  });
+
+  // A blocked UDP path is only fatal when there is nothing else. Saying "cannot connect at
+  // all" about a server the client does connect to is the whole reason this state exists.
+  it("does not call a blocked UDP path fatal when the fallback carries voice", () => {
+    const fallback = failedAt(null, "ws_fallback");
+    const warned = {
+      ...fallback,
+      steps: fallback.steps.map((step) =>
+        step.name === "Voice path" ? { ...step, state: "warn" as PreflightStepState } : step,
+      ),
+    } as ServerRosterEntry;
+
+    const verdict = PreflightVerdict.of(warned);
+
+    expect(verdict.severity).toBe("warn");
+    expect(verdict.sentence).toMatch(/fallback path/i);
+    expect(verdict.sentence).not.toMatch(/cannot connect/i);
+  });
+
+  // The fallback sentence names a cause. The round-trip warning names a number, and would
+  // leave somebody on a blocked network reading a latency figure as the explanation.
+  it("prefers the fallback explanation over the round-trip one", () => {
+    const fallback = failedAt(null, "ws_fallback", { slow: true, rtt: 186 });
+    const warned = {
+      ...fallback,
+      steps: fallback.steps.map((step) =>
+        step.name === "Handshake" || step.name === "Voice path"
+          ? { ...step, state: "warn" as PreflightStepState }
+          : step,
+      ),
+    } as ServerRosterEntry;
+
+    expect(PreflightVerdict.of(warned).sentence).not.toMatch(/186 ms/);
+  });
+
+  // The step name changed with the transport it measures. A stale name falls through the
+  // switch and returns undefined, which renders as an empty panel rather than an error.
+  it("has a sentence for every named check", () => {
+    for (const name of PREFLIGHT_STEPS) {
+      expect(PreflightVerdict.of(failedAt(name, "udp_blocked")).sentence).toBeTruthy();
+    }
   });
 
   it("tells someone with no sign-in to sign in again", () => {

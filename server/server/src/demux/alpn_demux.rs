@@ -22,7 +22,10 @@ use tokio::time::timeout;
 /// configure.
 pub struct AlpnDemux {
     listen: SocketAddr,
-    api: SocketAddr,
+    // Read per connection rather than copied once: the API listener can land on a
+    // different port than it was first given, and a copy taken at construction
+    // would relay to an address nothing is listening on.
+    api: super::api_bind::ApiBind,
     websocket: Option<SocketAddr>,
 }
 
@@ -40,7 +43,11 @@ impl AlpnDemux {
     const READINESS_TIMEOUT: Duration = Duration::from_secs(60);
     const READINESS_POLL: Duration = Duration::from_millis(200);
 
-    pub fn new(listen: SocketAddr, api: SocketAddr, websocket: Option<SocketAddr>) -> Self {
+    pub fn new(
+        listen: SocketAddr,
+        api: super::api_bind::ApiBind,
+        websocket: Option<SocketAddr>,
+    ) -> Self {
         Self {
             listen,
             api,
@@ -50,7 +57,7 @@ impl AlpnDemux {
 
     pub fn new_shared(
         listen: SocketAddr,
-        api: SocketAddr,
+        api: super::api_bind::ApiBind,
         websocket: Option<SocketAddr>,
     ) -> Arc<Self> {
         Arc::new(Self::new(listen, api, websocket))
@@ -67,7 +74,7 @@ impl AlpnDemux {
 
         tracing::info!(
             listen = %self.listen,
-            api = %self.api,
+            api = %self.api.addr(),
             websocket = ?self.websocket,
             "TLS demultiplexer listening"
         );
@@ -81,7 +88,7 @@ impl AlpnDemux {
                 }
             };
 
-            let api = self.api;
+            let api = self.api.addr();
             let websocket = self.websocket;
             tokio::spawn(async move {
                 if let Err(e) = Self::handle_connection(stream, peer, api, websocket).await {
@@ -98,8 +105,24 @@ impl AlpnDemux {
     async fn await_backends(&self) -> Result<(), DemuxError> {
         let deadline = tokio::time::Instant::now() + Self::READINESS_TIMEOUT;
 
-        for backend in [Some(self.api), self.websocket].into_iter().flatten() {
+
+        // The API address is resolved per attempt rather than once, because the
+        // listener may still be settling on a port while this waits for it to
+        // answer. The WebSocket listener is already bound by the time this runs,
+        // so its address is fixed.
+        let backends: [Option<Box<dyn Fn() -> SocketAddr + Send>>; 2] = [
+            Some(Box::new({
+                let api = self.api.clone();
+                move || api.addr()
+            })),
+            self.websocket
+                .map(|addr| Box::new(move || addr) as Box<dyn Fn() -> SocketAddr + Send>),
+        ];
+
+        for resolve in backends.into_iter().flatten() {
             loop {
+                let backend = resolve();
+
                 match TcpStream::connect(backend).await {
                     Ok(_) => break,
                     Err(source) => {

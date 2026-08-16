@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use bvc_client_lib::testkit::E2eAppData;
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
 use common::structs::bedrock::AddonMode;
 
@@ -31,10 +32,6 @@ pub struct ClientProc {
     reader: Option<JoinHandle<()>>,
 }
 
-// App-data namespace the e2e bin writes to (its `generate_context` identifier is
-// overridden to this so nothing lands in the real client's dir). Wiped once per
-// test-binary run so the isolated store/cookies/WebView2 data never accumulate.
-const E2E_APP_DATA_IDENTIFIER: &str = "com.alaydriem.bvc.client.e2e";
 
 impl ClientProc {
     /// Where this client's redb settings file lives.
@@ -62,16 +59,9 @@ impl ClientProc {
         root.path().join(name).join("player_settings.redb")
     }
 
-    fn wipe_e2e_app_data_once() {
-        static WIPE: std::sync::Once = std::sync::Once::new();
-        WIPE.call_once(|| {
-            for var in ["APPDATA", "LOCALAPPDATA"] {
-                if let Ok(base) = std::env::var(var) {
-                    let dir = std::path::Path::new(&base).join(E2E_APP_DATA_IDENTIFIER);
-                    let _ = std::fs::remove_dir_all(&dir);
-                }
-            }
-        });
+    fn reclaim_own_app_data_once() {
+        static RECLAIM: std::sync::Once = std::sync::Once::new();
+        RECLAIM.call_once(E2eAppData::reclaim_own);
     }
 }
 
@@ -182,16 +172,17 @@ impl ClientProc {
             bin.display()
         );
 
-        // The e2e bin scopes all its app-data (store.json, the audio input path's
-        // own store read, webview store/cookies) under the `.e2e` identifier; clear
-        // any leftovers from a prior run so they never accumulate.
-        Self::wipe_e2e_app_data_once();
+        // Collects the namespaces this process left behind last time its id was in
+        // use. Scoped to this process's own id — a run-wide delete here is what
+        // used to kill other tests' clients mid-startup.
+        Self::reclaim_own_app_data_once();
 
         let mut cmd = Command::new(&bin);
         cmd.env("BVC_E2E_SERVER", server_url)
             .env("BVC_E2E_GAMERTAG", gamertag)
             .env("BVC_E2E_CODE", login_code)
-            .env("BVC_E2E_CHANNEL", channel);
+            .env("BVC_E2E_CHANNEL", channel)
+            .env(E2eAppData::ENV_VAR, E2eAppData::namespace(gamertag));
         if let Some(id) = channel_id {
             cmd.env("BVC_E2E_CHANNEL_ID", id);
         }
@@ -579,6 +570,34 @@ impl ClientProc {
                 return (0, 0, 0);
             }
             std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// Blocks until this client has taken `expected` frames off the transport, or
+    /// `timeout` passes, then returns the final counters.
+    ///
+    /// A scenario that reads `stats()` the instant a fixed collection window
+    /// closes is not measuring delivery, it is measuring whether the sender's
+    /// 20 ms pacing held under whatever else the machine was doing. Paced sends
+    /// slip a little under load, and 150 frames of small slips consume the whole
+    /// margin, so the tail is still in flight when the counter is read. That reads
+    /// as "the transport dropped frames" — including over WebSocket, which is TCP
+    /// and cannot drop any.
+    ///
+    /// Returning the reading rather than asserting keeps the failure message with
+    /// the scenario: a genuine loss still fails, and now says so for a real reason.
+    pub fn await_transport_frames(&self, expected: u64, timeout: Duration) -> (u64, u64, u64) {
+        let deadline = Instant::now() + timeout;
+
+        loop {
+            let stats = self.stats();
+            if stats.1 >= expected {
+                return stats;
+            }
+            if Instant::now() >= deadline {
+                return stats;
+            }
+            std::thread::sleep(Duration::from_millis(50));
         }
     }
 

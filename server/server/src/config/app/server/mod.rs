@@ -5,7 +5,7 @@ pub mod cors;
 pub mod features;
 pub mod meridian;
 pub mod minecraft;
-pub mod relay;
+pub mod peer;
 pub mod tls;
 
 pub use acme::{Acme, AcmeProviderKind};
@@ -16,6 +16,7 @@ pub use cors::Cors;
 pub use features::Features;
 pub use meridian::Meridian;
 pub use minecraft::Minecraft;
+pub use peer::PeerConfig;
 pub use tls::Tls;
 
 use serde::{Deserialize, Serialize};
@@ -70,6 +71,18 @@ pub struct Server {
     pub bedrock: BedrockConfig,
     #[serde(default)]
     pub age: Age,
+
+    // Declared peers, keyed by the block label. hcl-rs deserializes a labeled
+    // block into a label-keyed object, so `peer "name" { ... }` arrives as a map
+    // rather than a list.
+    #[serde(default)]
+    pub peers: std::collections::HashMap<String, PeerConfig>,
+
+    // The iroh relay peers reach this server through when they have no direct
+    // path to it. Absent means peers must already hold a reachable address,
+    // which is the same-host and local-network arrangement.
+    #[serde(default)]
+    pub peer_relay_url: Option<String>,
 }
 
 impl Default for Server {
@@ -87,6 +100,8 @@ impl Default for Server {
             meridian: None,
             bedrock: BedrockConfig::default(),
             age: Age::default(),
+            peers: std::collections::HashMap::new(),
+            peer_relay_url: None,
         }
     }
 }

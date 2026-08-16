@@ -12,8 +12,12 @@ impl ConnectionClassifier {
     // Everything else is refused, so an unrecognized CN never reaches the player
     // path by default.
     pub fn classify(identity: &str) -> ConnectionKind {
-        if let Some(rest) = identity.strip_prefix("server::") {
-            return Self::classify_peer(identity, rest);
+        // `server::` was a peer marker while peer links existed. It is not a game
+        // tag, so it now falls through to the same refusal as any other unknown
+        // prefix — but it is named here so that stays deliberate rather than
+        // incidental.
+        if identity.starts_with("server::") {
+            return Self::rejected(identity);
         }
 
         match identity.split_once(':') {
@@ -26,25 +30,6 @@ impl ConnectionClassifier {
             },
             None => Self::rejected(identity),
         }
-    }
-
-    // Splits on the LAST colon so namespaced/IPv6-ish hosts survive.
-    fn classify_peer(identity: &str, rest: &str) -> ConnectionKind {
-        if let Some((host, suffix)) = rest.rsplit_once(':') {
-            if !host.is_empty() {
-                if let Ok(port) = suffix.parse::<u16>() {
-                    if port != 0 {
-                        return ConnectionKind::Peer {
-                            host: host.to_string(),
-                            port,
-                            endpoint: format!("{host}:{port}"),
-                        };
-                    }
-                }
-            }
-        }
-
-        Self::rejected(identity)
     }
 
     fn rejected(identity: &str) -> ConnectionKind {

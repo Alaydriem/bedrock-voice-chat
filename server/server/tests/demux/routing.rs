@@ -73,7 +73,11 @@ async fn demux_on(api: SocketAddr, websocket: Option<SocketAddr>) -> u16 {
     let port = listener.local_addr().expect("demux addr").port();
     drop(listener);
 
-    let demux = AlpnDemux::new(SocketAddr::from((Ipv4Addr::LOCALHOST, port)), api, websocket);
+    let demux = AlpnDemux::new(
+        SocketAddr::from((Ipv4Addr::LOCALHOST, port)),
+        bvc_server_lib::demux::ApiBind::new(api.port()),
+        websocket,
+    );
     tokio::spawn(async move {
         let _ = demux.start().await;
     });

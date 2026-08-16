@@ -149,7 +149,8 @@ async fn a_blocked_quic_port_falls_back_to_the_websocket_transport() {
     let alice = feed_handle.join().expect("feed thread panicked");
 
     let (alice_sent, _, _) = alice.stats();
-    let (_, bob_received, _) = bob.stats();
+    let (_, bob_received, _) =
+        bob.await_transport_frames(alice_sent, Duration::from_secs(5));
     let swallowed = blackhole.swallowed();
 
     alice.shutdown();
@@ -244,7 +245,8 @@ async fn websocket_channel_members_hear_regardless_of_distance() {
     let alice = feed_handle.join().expect("feed thread panicked");
 
     let (alice_sent, _, _) = alice.stats();
-    let (_, bob_received, _) = bob.stats();
+    let (_, bob_received, _) =
+        bob.await_transport_frames(alice_sent, Duration::from_secs(5));
 
     alice.shutdown();
     bob.shutdown();

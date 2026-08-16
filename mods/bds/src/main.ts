@@ -3,7 +3,6 @@ import { Payload, Player } from './dto';
 import { AudioPlayerManager } from './audio/player_manager';
 import { AudioComponentRegistry } from './audio/components';
 import { ChatEjectListener } from './audio/chat_eject_listener';
-import { ChatPresenceListener } from './audio/chat_presence_listener';
 import { BvcsListener } from './state/bvcs_listener';
 import { StateCacheStore } from './state/cache_store';
 import { NetStateSource, NoNetStateSource } from './state/state_source';
@@ -78,9 +77,6 @@ jukeboxTestCommands.register();
 
 const chatEjectListener = new ChatEjectListener(audioManager, getWorldUuid);
 chatEjectListener.register();
-
-const chatPresenceListener = new ChatPresenceListener();
-chatPresenceListener.register();
 
 // Panel state: the !bvcs: reverse ride feeds per-player caches in no-net mode;
 // the control panel binds to the same store.
@@ -161,7 +157,7 @@ serverAdminConfig
         bvcServer,
         accessToken,
         getWorldUuid(),
-        serverAdminConfig.worldName,
+        serverAdminConfig.worldNameOr(getWorldUuid()),
         (author, text) => chatListener?.say(author, text),
       );
       chatListener = new ChatListener(chatChannel);

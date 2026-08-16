@@ -15,6 +15,14 @@ export class SentryManager {
         void SentryManager.applyAppInfoTags();
     }
 
+    /**
+     * A condition worth counting in the field, from code that recovered and has nothing
+     * to throw. No-op until `initialize` has run, which mirrors every other capture.
+     */
+    static warning(message: string): void {
+        Sentry.captureMessage(message, "warning");
+    }
+
     private static async applyAppInfoTags(): Promise<void> {
         try {
             const info = await invoke<AppInfo>("get_app_info");

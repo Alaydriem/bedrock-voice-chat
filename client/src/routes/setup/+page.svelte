@@ -52,7 +52,10 @@
         // Straight through to the dashboard, which takes the overlay down itself. Doing
         // it here too would fade it out over a page that is about to be replaced.
         setup.reportCompletion();
-        window.location.href = "/dashboard";
+        // Replaced, not pushed: setup is finished, and back into it re-runs a flow that
+        // has nothing left to ask. It also puts the dashboard at the bottom of the stack,
+        // which is what lets back there hand the press to the platform.
+        window.location.replace("/dashboard");
         return;
       }
 
@@ -138,7 +141,7 @@
     const next = setup.nextScreen();
     if (next === null) {
       setup.reportCompletion();
-      window.location.href = "/dashboard";
+      window.location.replace("/dashboard");
       return;
     }
     flow.go(next);

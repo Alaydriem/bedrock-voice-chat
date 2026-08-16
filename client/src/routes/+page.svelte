@@ -32,8 +32,10 @@
   // bundle, so a client-side navigation leaves it standing. Reloading the document instead
   // would tear it down and start its ring again from zero, which is the flicker between
   // launch screens this route exists to have removed.
+  // Replaced rather than pushed: the roster forwards a device with one saved server
+  // straight through, so an entry for it is one the back button can only bounce off.
   function apply(action: NextAction): void {
-    if (action.kind === "navigate") void goto(action.href);
+    if (action.kind === "navigate") void goto(action.href, { replaceState: true });
   }
 
   onMount(() => {
@@ -53,7 +55,7 @@
         // The overlay comes down only when this screen is the destination. A redirect and a
         // deep-link handoff are both already navigating, and showing the list on the way past
         // would flash a screen nobody asked for.
-        if (landing.kind === "navigate") void goto(landing.href);
+        if (landing.kind === "navigate") void goto(landing.href, { replaceState: true });
         else if (landing.kind === "show") {
           instance.showPreloader();
           BootTimeline.shared().report();

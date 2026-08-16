@@ -28,7 +28,7 @@ msgstr ""
 msgid "{percent}% of the worst speaker's audio had to be reconstructed. They will sound rough."
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:49
+#: src/components/dashboard/ChatComposer.svelte:67
 msgid "{reason} — that message was not sent"
 msgstr ""
 
@@ -85,6 +85,10 @@ msgstr ""
 msgid "A server that is not running answers exactly like this"
 msgstr ""
 
+#: src/components/settings/panes/AudioPane.svelte:163
+msgid "A short tone when you mute or deafen, and a rising one when you turn either back on. It falls for off and rises for on, so you can tell without looking at the window."
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:171
 msgid "A typo in the address is the usual cause"
 msgstr ""
@@ -113,11 +117,11 @@ msgstr ""
 msgid "Account"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:60
+#: src/components/login/SignInScreen.svelte:61
 msgid "Acquiring"
 msgstr ""
 
-#: src/components/dashboard/ChatTargetPicker.svelte:19
+#: src/components/dashboard/ChatTargetPicker.svelte:28
 msgid "active now"
 msgstr ""
 
@@ -141,7 +145,7 @@ msgstr ""
 msgid "Added"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:76
+#: src/components/login/SignInScreen.svelte:77
 msgid "ADDR"
 msgstr ""
 
@@ -186,7 +190,7 @@ msgstr ""
 msgid "Almost there…"
 msgstr ""
 
-#: src/js/app/dashboard.ts:700
+#: src/js/app/dashboard.ts:702
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
@@ -257,7 +261,7 @@ msgid "Available now"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:363
-#: src/components/settings/SettingsScreen.svelte:153
+#: src/components/settings/SettingsScreen.svelte:146
 msgid "Back"
 msgstr ""
 
@@ -279,7 +283,7 @@ msgstr ""
 msgid "Back to sign in"
 msgstr ""
 
-#: src/components/settings/NoiseGate.svelte:102
+#: src/components/settings/NoiseGate.svelte:103
 #: src/components/settings/panes/KeybindsPane.svelte:74
 msgid "Back to the defaults"
 msgstr ""
@@ -353,12 +357,12 @@ msgstr ""
 msgid "Can't start"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:276
+#: src/components/dashboard/GroupRow.svelte:296
 #: src/components/settings/panes/PlayersPane.svelte:340
 #: src/components/settings/panes/RecordingsPane.svelte:291
 #: src/components/settings/ProxyServerEditor.svelte:154
-#: src/components/settings/XboxSignIn.svelte:95
-#: src/routes/login/+page.svelte:275
+#: src/components/settings/XboxSignIn.svelte:96
+#: src/routes/login/+page.svelte:278
 msgid "Cancel"
 msgstr ""
 
@@ -392,8 +396,8 @@ msgstr ""
 msgid "Channel event received with no payload"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:55
-#: src/components/dashboard/DashboardScreen.svelte:329
+#: src/components/dashboard/ChatComposer.svelte:73
+#: src/components/dashboard/DashboardScreen.svelte:342
 msgid "Chat"
 msgstr ""
 
@@ -431,7 +435,7 @@ msgid "Choose Different Server"
 msgstr ""
 
 #: src/components/audio/AudioDeviceSelector.svelte:85
-#: src/components/settings/panes/AudioPane.svelte:71
+#: src/components/settings/panes/AudioPane.svelte:73
 msgid "Chosen by the system"
 msgstr ""
 
@@ -452,21 +456,21 @@ msgstr ""
 msgid "Client Update Required"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:185
+#: src/components/dashboard/GroupRow.svelte:204
 #: src/components/server/PreflightPanel.svelte:79
 msgid "Close"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:92
+#: src/components/dashboard/ChatDock.svelte:96
 msgid "Close chat"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:411
+#: src/components/dashboard/DashboardScreen.svelte:424
 msgid "Close groups"
 msgstr ""
 
-#: src/components/settings/SettingsScreen.svelte:128
-#: src/components/settings/SettingsScreen.svelte:146
+#: src/components/settings/SettingsScreen.svelte:121
+#: src/components/settings/SettingsScreen.svelte:139
 msgid "Close settings"
 msgstr ""
 
@@ -478,7 +482,7 @@ msgstr ""
 msgid "Close this card"
 msgstr ""
 
-#: src/components/dashboard/ChatTargetPicker.svelte:32
+#: src/components/dashboard/ChatTargetPicker.svelte:41
 msgid "Close world picker"
 msgstr ""
 
@@ -511,8 +515,8 @@ msgstr ""
 msgid "Community discussions and help"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:54
-#: src/components/login/SignInScreen.svelte:66
+#: src/components/login/SignInScreen.svelte:55
+#: src/components/login/SignInScreen.svelte:67
 #: src/components/settings/PlateGrid.svelte:99
 msgid "Connect"
 msgstr ""
@@ -534,8 +538,8 @@ msgstr ""
 msgid "Connected clients"
 msgstr ""
 
-#: src/routes/login/+page.svelte:244
-#: src/routes/login/+page.svelte:266
+#: src/routes/login/+page.svelte:247
+#: src/routes/login/+page.svelte:269
 msgid "Connecting"
 msgstr ""
 
@@ -555,7 +559,7 @@ msgstr ""
 msgid "Connection type"
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:156
+#: src/routes/uireview/+page.svelte:165
 msgid "Container queries, so these are faithful. Scroll each frame — the footbar must stay on screen at every step."
 msgstr ""
 
@@ -564,8 +568,12 @@ msgstr ""
 msgid "Continue →"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:95
+#: src/components/login/SignInScreen.svelte:103
 msgid "Continue with a code"
+msgstr ""
+
+#: src/components/settings/XboxSignIn.svelte:68
+msgid "Copied."
 msgstr ""
 
 #: src/components/settings/BedrockLog.svelte:99
@@ -601,7 +609,7 @@ msgstr ""
 msgid "Copy report"
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:74
+#: src/components/settings/XboxSignIn.svelte:62
 msgid "Copy the code"
 msgstr ""
 
@@ -625,7 +633,7 @@ msgstr ""
 msgid "Could not retrieve Java username."
 msgstr ""
 
-#: src/components/settings/NoiseGate.svelte:63
+#: src/components/settings/NoiseGate.svelte:64
 msgid "Cut my mic when I am not speaking"
 msgstr ""
 
@@ -660,7 +668,7 @@ msgstr ""
 msgid "Device setup continues after sign-in"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:66
+#: src/components/settings/panes/AudioPane.svelte:68
 #: src/components/setup/DevicesScreen.svelte:37
 msgid "Devices"
 msgstr ""
@@ -701,7 +709,7 @@ msgstr ""
 msgid "drops"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:179
+#: src/components/dashboard/GroupRow.svelte:198
 msgid "Edit"
 msgstr ""
 
@@ -726,7 +734,6 @@ msgid "Endpoint"
 msgstr ""
 
 #: src/components/login/CodeScreen.svelte:44
-#: src/components/settings/XboxSignIn.svelte:64
 msgid "Enter the code"
 msgstr ""
 
@@ -802,7 +809,7 @@ msgstr ""
 msgid "Forget {name}"
 msgstr ""
 
-#: src/routes/+page.svelte:118
+#: src/routes/+page.svelte:120
 msgid "Forget this server?"
 msgstr ""
 
@@ -830,10 +837,6 @@ msgstr ""
 msgid "Global shortcuts. They work while Minecraft has focus, which is the entire point of them."
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:47
-msgid "Go to"
-msgstr ""
-
 #: src/components/setup/NotificationsScreen.svelte:68
 msgid "Grant it in your system settings, then come back and try again. Voice cannot survive leaving the screen without it."
 msgstr ""
@@ -846,18 +849,18 @@ msgstr ""
 msgid "Granted in your system settings, not here"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:267
+#: src/components/dashboard/GroupRow.svelte:287
 msgid "Group id"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:252
-#: src/components/dashboard/GroupRow.svelte:261
+#: src/components/dashboard/GroupRow.svelte:272
+#: src/components/dashboard/GroupRow.svelte:281
 msgid "Group name"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:266
-#: src/components/dashboard/DashboardScreen.svelte:280
-#: src/components/dashboard/DashboardScreen.svelte:414
+#: src/components/dashboard/DashboardScreen.svelte:272
+#: src/components/dashboard/DashboardScreen.svelte:286
+#: src/components/dashboard/DashboardScreen.svelte:427
 msgid "Groups"
 msgstr ""
 
@@ -869,7 +872,7 @@ msgstr ""
 msgid "Held under the level that opens it, so a steady voice at the edge does not stutter."
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:103
+#: src/components/dashboard/ChatDock.svelte:107
 msgid "History starts when you connect — nothing is stored"
 msgstr ""
 
@@ -877,7 +880,7 @@ msgstr ""
 msgid "How do I unlock this?"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:134
+#: src/components/settings/panes/AudioPane.svelte:136
 msgid "How hard voices are pushed left and right by where their speaker is standing. At 0% everyone is centred; distance still governs volume either way."
 msgstr ""
 
@@ -885,7 +888,7 @@ msgstr ""
 msgid "How long it stays open after you stop talking."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:178
+#: src/components/settings/panes/AudioPane.svelte:193
 msgid "How loud jukebox music plays before distance is applied. Every jukebox keeps its own position and its own falloff, so this scales what distance already decided."
 msgstr ""
 
@@ -914,12 +917,12 @@ msgstr ""
 msgid "Identity"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:322
-#: src/routes/dashboard/+layout.svelte:593
+#: src/components/dashboard/DashboardScreen.svelte:335
+#: src/routes/dashboard/+layout.svelte:617
 msgid "In earshot"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:71
+#: src/components/dashboard/ChatDock.svelte:75
 msgid "In game"
 msgstr ""
 
@@ -971,6 +974,10 @@ msgstr ""
 msgid "Is a BVC server already set up for"
 msgstr ""
 
+#: src/components/settings/XboxSignIn.svelte:68
+msgid "It expires after a few minutes."
+msgstr ""
+
 #: src/components/settings/RecordingDetail.svelte:78
 msgid "It is either still being written, or it was written by an older build whose format this version cannot read. It can still be renamed or deleted."
 msgstr ""
@@ -993,13 +1000,13 @@ msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:52
 #: src/components/dashboard/JukeboxChip.svelte:73
-#: src/components/settings/panes/AudioPane.svelte:177
-#: src/components/settings/panes/AudioPane.svelte:196
+#: src/components/settings/panes/AudioPane.svelte:192
+#: src/components/settings/panes/AudioPane.svelte:211
 msgid "Jukebox volume"
 msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:64
-#: src/components/settings/panes/AudioPane.svelte:161
+#: src/components/settings/panes/AudioPane.svelte:176
 msgid "Jukeboxes"
 msgstr ""
 
@@ -1016,16 +1023,16 @@ msgstr ""
 msgid "Language"
 msgstr ""
 
-#: src/components/dashboard/ChatTargetPicker.svelte:21
+#: src/components/dashboard/ChatTargetPicker.svelte:30
 msgid "last seen {n} h ago"
 msgstr ""
 
-#: src/components/dashboard/ChatTargetPicker.svelte:20
+#: src/components/dashboard/ChatTargetPicker.svelte:29
 msgid "last seen {n} min ago"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:174
-#: src/routes/dashboard/+layout.svelte:586
+#: src/components/dashboard/GroupRow.svelte:193
+#: src/routes/dashboard/+layout.svelte:610
 msgid "Leave"
 msgstr ""
 
@@ -1056,7 +1063,7 @@ msgstr ""
 msgid "Listen on this device only"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:72
+#: src/components/dashboard/ChatDock.svelte:76
 #: src/components/settings/BedrockLog.svelte:72
 msgid "Live"
 msgstr ""
@@ -1070,7 +1077,7 @@ msgstr ""
 msgid "Login failed. Please check your server URL and try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:699
+#: src/js/app/dashboard.ts:701
 msgid "Logout Failed"
 msgstr ""
 
@@ -1086,11 +1093,11 @@ msgstr ""
 msgid "Match my system"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:29
+#: src/components/dashboard/ChatComposer.svelte:41
 msgid "Message {world}…"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:28
+#: src/components/dashboard/ChatComposer.svelte:40
 msgid "Message the server…"
 msgstr ""
 
@@ -1128,17 +1135,22 @@ msgstr ""
 msgid "MS RTT"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:165
+#: src/components/settings/panes/AudioPane.svelte:180
 msgid "Music from jukeboxes in the world. Voices are not affected."
 msgstr ""
 
+#: src/components/settings/panes/AudioPane.svelte:162
+#: src/components/settings/panes/AudioPane.svelte:168
+msgid "Mute and deafen sounds"
+msgstr ""
+
 #: src/components/dashboard/JukeboxChip.svelte:43
-#: src/components/settings/panes/AudioPane.svelte:164
-#: src/components/settings/panes/AudioPane.svelte:170
+#: src/components/settings/panes/AudioPane.svelte:179
+#: src/components/settings/panes/AudioPane.svelte:185
 msgid "Mute jukeboxes"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:183
+#: src/components/settings/panes/AudioPane.svelte:198
 msgid "Muted"
 msgstr ""
 
@@ -1183,7 +1195,7 @@ msgstr ""
 msgid "NO ANSWER · CONN01"
 msgstr ""
 
-#: src/js/app/dashboard.ts:829
+#: src/js/app/dashboard.ts:831
 msgid "No current server found in store!"
 msgstr ""
 
@@ -1237,8 +1249,8 @@ msgstr ""
 msgid "Nobody you have changed has that name."
 msgstr ""
 
-#: src/components/settings/NoiseGate.svelte:69
-#: src/components/settings/panes/AudioPane.svelte:207
+#: src/components/settings/NoiseGate.svelte:70
+#: src/components/settings/panes/AudioPane.svelte:222
 #: src/js/app/dashboard/DiagnosticsCopy.ts:28
 msgid "Noise gate"
 msgstr ""
@@ -1255,11 +1267,11 @@ msgstr ""
 msgid "None"
 msgstr ""
 
-#: src/components/dashboard/ChatTargetPicker.svelte:17
+#: src/components/dashboard/ChatTargetPicker.svelte:26
 msgid "not answering right now"
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:152
+#: src/routes/uireview/+page.svelte:161
 msgid "Not available in a release build."
 msgstr ""
 
@@ -1319,7 +1331,7 @@ msgstr ""
 msgid "Nothing in range"
 msgstr ""
 
-#: src/components/settings/SettingsScreen.svelte:170
+#: src/components/settings/SettingsScreen.svelte:163
 msgid "Nothing is connected"
 msgstr ""
 
@@ -1361,7 +1373,7 @@ msgstr ""
 msgid "Notifications and devices come next"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:69
+#: src/components/dashboard/ChatDock.svelte:73
 msgid "Off"
 msgstr ""
 
@@ -1421,19 +1433,19 @@ msgstr ""
 msgid "Open Minecraft, then join it from the Friends tab."
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:97
+#: src/components/settings/XboxSignIn.svelte:98
 msgid "Open the page"
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:42
-msgid "Open the page below on any device and enter this code. This window updates by itself once you are done."
+#: src/components/settings/XboxSignIn.svelte:47
+msgid "Open the page on any device and enter this code. This window updates by itself once you are done."
 msgstr ""
 
 #: src/components/server/PreflightStrip.svelte:29
 msgid "Open the preflight readout"
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:55
+#: src/components/settings/XboxSignIn.svelte:77
 msgid "Open the sign-in page"
 msgstr ""
 
@@ -1495,11 +1507,11 @@ msgstr ""
 msgid "Players"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:183
+#: src/components/settings/panes/AudioPane.svelte:198
 msgid "Playing"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:99
+#: src/components/settings/panes/AudioPane.svelte:101
 msgid "Plays a chime through the device you listen on, not through whatever the browser would pick."
 msgstr ""
 
@@ -1528,7 +1540,7 @@ msgstr ""
 msgid "Positional audio"
 msgstr ""
 
-#: src/components/dashboard/ChatTargetPicker.svelte:35
+#: src/components/dashboard/ChatTargetPicker.svelte:44
 msgid "Post to"
 msgstr ""
 
@@ -1540,7 +1552,7 @@ msgstr ""
 msgid "Previous page"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:111
+#: src/components/login/SignInScreen.svelte:119
 msgid "Privacy notice"
 msgstr ""
 
@@ -1624,7 +1636,7 @@ msgstr ""
 msgid "Receiving"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:161
+#: src/components/server/PreflightPanel.svelte:165
 msgid "Recheck"
 msgstr ""
 
@@ -1682,7 +1694,7 @@ msgstr ""
 msgid "Release"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:157
+#: src/components/server/PreflightPanel.svelte:161
 msgid "Remove"
 msgstr ""
 
@@ -1718,7 +1730,7 @@ msgstr ""
 msgid "Required on connect. Regenerating disconnects anything using the old one."
 msgstr ""
 
-#: src/components/settings/NoiseGate.svelte:110
+#: src/components/settings/NoiseGate.svelte:111
 #: src/components/settings/panes/PlayersPane.svelte:341
 msgid "Reset"
 msgstr ""
@@ -1774,7 +1786,7 @@ msgstr ""
 msgid "Running something across the whole map? Drop into a channel and everyone stays at full volume however far apart you get. Proximity keeps running underneath the entire time."
 msgstr ""
 
-#: src/components/settings/NoiseGate.svelte:64
+#: src/components/settings/NoiseGate.svelte:65
 msgid "Runs on this machine. Anything it filters out is never encoded or sent."
 msgstr ""
 
@@ -1782,7 +1794,7 @@ msgstr ""
 msgid "Sample rate"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:277
+#: src/components/dashboard/GroupRow.svelte:297
 msgid "Save"
 msgstr ""
 
@@ -1804,7 +1816,7 @@ msgstr ""
 msgid "Select a server"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:74
+#: src/components/dashboard/ChatComposer.svelte:92
 msgid "Send"
 msgstr ""
 
@@ -1831,8 +1843,8 @@ msgstr ""
 msgid "Server"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:74
-#: src/components/login/SignInScreen.svelte:84
+#: src/components/login/SignInScreen.svelte:75
+#: src/components/login/SignInScreen.svelte:85
 msgid "Server address"
 msgstr ""
 
@@ -1844,7 +1856,7 @@ msgstr ""
 msgid "Server Certificate Rejected"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:63
+#: src/components/dashboard/ChatDock.svelte:67
 msgid "Server chat"
 msgstr ""
 
@@ -1868,11 +1880,11 @@ msgstr ""
 msgid "Server-wide broadcast"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:369
+#: src/components/dashboard/DashboardScreen.svelte:382
 msgid "Servers"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:306
+#: src/components/dashboard/DashboardScreen.svelte:319
 msgid "Servers and settings"
 msgstr ""
 
@@ -1891,7 +1903,7 @@ msgid "Set it up once."
 msgstr ""
 
 #: src/components/dashboard/ServerRail.svelte:52
-#: src/components/settings/SettingsScreen.svelte:134
+#: src/components/settings/SettingsScreen.svelte:127
 msgid "Settings"
 msgstr ""
 
@@ -1907,7 +1919,7 @@ msgstr ""
 msgid "Show me how →"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:297
+#: src/components/dashboard/DashboardScreen.svelte:310
 msgid "Show status"
 msgstr ""
 
@@ -1929,9 +1941,9 @@ msgstr ""
 msgid "Sign in with a code"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:99
+#: src/components/login/SignInScreen.svelte:107
 #: src/components/settings/panes/ConnectPane.svelte:212
-#: src/components/settings/XboxSignIn.svelte:40
+#: src/components/settings/XboxSignIn.svelte:45
 msgid "Sign in with Microsoft"
 msgstr ""
 
@@ -1939,16 +1951,12 @@ msgstr ""
 msgid "Sign out"
 msgstr ""
 
-#: src/routes/login/+page.svelte:260
+#: src/routes/login/+page.svelte:263
 msgid "Sign out and start over"
 msgstr ""
 
 #: src/components/settings/panes/AccountPane.svelte:139
 msgid "Sign out of this server"
-msgstr ""
-
-#: src/components/settings/XboxSignIn.svelte:50
-msgid "Sign-in address"
 msgstr ""
 
 #: src/components/login/CodeScreen.svelte:25
@@ -1971,7 +1979,7 @@ msgstr ""
 msgid "Signing in again issues fresh credentials"
 msgstr ""
 
-#: src/routes/login/+page.svelte:287
+#: src/routes/login/+page.svelte:290
 msgid "Signing in with the account you play on"
 msgstr ""
 
@@ -2000,8 +2008,8 @@ msgstr ""
 msgid "Sound"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:133
-#: src/components/settings/panes/AudioPane.svelte:150
+#: src/components/settings/panes/AudioPane.svelte:135
+#: src/components/settings/panes/AudioPane.svelte:152
 msgid "Spatial panning"
 msgstr ""
 
@@ -2017,7 +2025,7 @@ msgstr ""
 msgid "Split-track recording"
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:413
+#: src/routes/uireview/+page.svelte:422
 msgid "Starting up"
 msgstr ""
 
@@ -2035,7 +2043,7 @@ msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:60
 #: src/routes/error/+page.svelte:161
-#: src/routes/uireview/+page.svelte:373
+#: src/routes/uireview/+page.svelte:382
 msgid "Still stuck?"
 msgstr ""
 
@@ -2063,7 +2071,7 @@ msgstr ""
 msgid "Supported"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:75
+#: src/components/settings/panes/AudioPane.svelte:77
 msgid "System default"
 msgstr ""
 
@@ -2071,26 +2079,26 @@ msgstr ""
 msgid "Takes about a minute on a normal connection"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:91
+#: src/components/settings/panes/AudioPane.svelte:93
 msgid "Talk for a moment. The mark fills out as it hears you."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:90
+#: src/components/settings/panes/AudioPane.svelte:92
 msgid "Test my microphone"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:98
+#: src/components/settings/panes/AudioPane.svelte:100
 msgid "Test playback"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:87
+#: src/components/settings/panes/AudioPane.svelte:89
 msgid "Test your devices"
 msgstr ""
 
 #: src/js/app/deepLinkHandlers/authCallbackHandler.ts:131
-#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:202
-#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:211
-#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:216
+#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:203
+#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:212
+#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:217
 msgid "That sign-in could not be completed. Please sign in again."
 msgstr ""
 
@@ -2130,12 +2138,16 @@ msgstr ""
 msgid "The update could not be installed. Try again, or download the new version by hand."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:126
+#: src/components/settings/panes/AudioPane.svelte:128
 msgid "The voice mode did not change."
 msgstr ""
 
 #: src/components/login/NoServerScreen.svelte:31
 msgid "Then everyone just signs in."
+msgstr ""
+
+#: src/components/settings/XboxSignIn.svelte:73
+msgid "Then go to"
 msgstr ""
 
 #: src/components/login/NoServerScreen.svelte:74
@@ -2233,6 +2245,10 @@ msgstr ""
 msgid "Unmute jukeboxes"
 msgstr ""
 
+#: src/js/app/chat/WorldLabel.ts:68
+msgid "Unnamed world ({id})"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:169
 msgid "UNRESOLVED"
 msgstr ""
@@ -2286,7 +2302,7 @@ msgstr ""
 msgid "View privacy statement"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:108
+#: src/components/settings/panes/AudioPane.svelte:110
 msgid "Voice"
 msgstr ""
 
@@ -2294,6 +2310,7 @@ msgstr ""
 msgid "Voice chat cannot work without a microphone"
 msgstr ""
 
+#: src/components/dashboard/DashboardScreen.svelte:301
 #: src/js/app/settings/SettingsCatalogue.ts:37
 msgid "Voice Chat Connect"
 msgstr ""
@@ -2314,7 +2331,7 @@ msgstr ""
 msgid "Voice has to keep running"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:110
+#: src/components/settings/panes/AudioPane.svelte:112
 msgid "Voice mode"
 msgstr ""
 
@@ -2336,7 +2353,7 @@ msgstr ""
 msgid "Volume for {name}"
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:84
+#: src/components/settings/XboxSignIn.svelte:85
 msgid "Waiting"
 msgstr ""
 
@@ -2352,7 +2369,7 @@ msgstr ""
 msgid "Watch the setup walkthrough and see it running before you commit to anything."
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:84
+#: src/components/settings/XboxSignIn.svelte:85
 msgid "Watching for your sign-in."
 msgstr ""
 
@@ -2377,7 +2394,7 @@ msgstr ""
 msgid "WebSocket server"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:112
+#: src/components/login/SignInScreen.svelte:120
 msgid "What is this?"
 msgstr ""
 
@@ -2389,7 +2406,7 @@ msgstr ""
 msgid "What's involved"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:85
+#: src/components/dashboard/ChatDock.svelte:89
 msgid "Where this message goes"
 msgstr ""
 
@@ -2409,7 +2426,7 @@ msgstr ""
 msgid "Which players"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:71
+#: src/components/login/SignInScreen.svelte:72
 msgid "Which server are you joining?"
 msgstr ""
 
@@ -2425,7 +2442,7 @@ msgstr ""
 #: src/components/login/NoServerScreen.svelte:92
 #: src/components/settings/panes/AboutPane.svelte:246
 #: src/routes/error/+page.svelte:165
-#: src/routes/uireview/+page.svelte:377
+#: src/routes/uireview/+page.svelte:386
 msgid "Wiki"
 msgstr ""
 
@@ -2449,7 +2466,7 @@ msgstr ""
 msgid "You are deafened. You cannot hear anyone."
 msgstr ""
 
-#: src/components/settings/SettingsScreen.svelte:170
+#: src/components/settings/SettingsScreen.svelte:163
 msgid "You are in settings on its own."
 msgstr ""
 
@@ -2461,7 +2478,7 @@ msgstr ""
 msgid "You can connect anyway — if position is refused, this is why."
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:45
+#: src/components/dashboard/ChatComposer.svelte:63
 msgid "You moved out of {world} — that message was not sent"
 msgstr ""
 
@@ -2479,6 +2496,10 @@ msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:132
 msgid "Your client version is outdated. Download the latest BVC client to connect to this server."
+msgstr ""
+
+#: src/components/settings/XboxSignIn.svelte:51
+msgid "Your code"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:85
@@ -2509,7 +2530,7 @@ msgstr ""
 msgid "Your PC, a VPS, or a home box"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:72
+#: src/components/settings/panes/AudioPane.svelte:74
 msgid "Your phone routes voice to whatever you last connected. Plug in a headset and it follows — there is nothing to pick here."
 msgstr ""
 

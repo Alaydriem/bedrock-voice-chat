@@ -12,8 +12,6 @@ pub fn default_true() -> bool {
 pub struct Features {
     #[serde(default = "default_false")]
     pub openapi_docs: bool,
-    #[serde(default)]
-    pub relay: super::relay::RelayFeature,
     #[serde(default = "default_true")]
     pub telemetry: bool,
 }
@@ -22,7 +20,6 @@ impl Default for Features {
     fn default() -> Self {
         Features {
             openapi_docs: default_false(),
-            relay: super::relay::RelayFeature::default(),
             telemetry: default_true(),
         }
     }

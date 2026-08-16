@@ -1,5 +1,7 @@
+#[cfg(feature = "net")]
 pub mod ncryptflib;
 
+#[cfg(feature = "net")]
 pub mod auth;
 pub mod encoding;
 pub mod errors;
@@ -7,6 +9,7 @@ pub use serde::{Deserialize, Serialize};
 
 pub mod consts;
 pub mod game_data;
+#[cfg(feature = "net")]
 pub mod net;
 pub mod players;
 pub mod request;
@@ -23,6 +26,7 @@ pub use errors::{
     MinecraftCommunicationError,
 };
 
+#[cfg(feature = "net")]
 pub use reqwest;
 
 // Re-export s2n-quic when feature is enabled

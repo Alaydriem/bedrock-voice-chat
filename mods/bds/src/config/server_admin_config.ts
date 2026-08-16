@@ -26,12 +26,14 @@ export class ServerAdminConfig {
   /**
    * The world's display name, for the app's chat target picker.
    *
-   * BDS scripting does not expose the level name, and `world_uuid` is never shown to a person,
-   * so this is the only human-readable label available. Falls back to something honest rather
-   * than to the uuid.
+   * BDS scripting does not expose the level name, so `bvc_world_name` is the only real label
+   * available. Unset, the world's uuid is sent rather than a friendly-looking constant: every
+   * unnamed world reported the same `Minecraft world`, which the app could not tell apart and
+   * could not tell was a placeholder. A uuid is unmistakably not a name, so the app matches
+   * the shape and substitutes a label of its own.
    */
-  get worldName(): string {
-    return this.world || 'Minecraft world';
+  worldNameOr(worldUuid: string): string {
+    return this.world || worldUuid;
   }
 
   isAvailable(): boolean {

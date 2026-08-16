@@ -206,3 +206,36 @@ describe('ChatManager.resolveTarget', () => {
         expect(target.kind).toBe('unavailable');
     });
 });
+
+/**
+ * A world's reported name identifies nobody — a uuid from BDS, Paper's default `world`. What
+ * the reader recognises is the name they picked in BVC Connect, so the pair is learned while
+ * they are standing in it and kept for every later listing.
+ */
+describe('ChatManager world associations', () => {
+    test('remembering a world exposes it for the label resolver', async () => {
+        const manager = new ChatManager('Alaydriem');
+
+        await manager.rememberWorld('w1', 'Truly Bedrock SMP');
+
+        expect(get(manager.associations)['w1']).toBe('Truly Bedrock SMP');
+    });
+
+    test('a later name for the same world replaces the earlier one', async () => {
+        const manager = new ChatManager('Alaydriem');
+
+        await manager.rememberWorld('w1', 'Old Name');
+        await manager.rememberWorld('w1', 'Renamed');
+
+        expect(get(manager.associations)['w1']).toBe('Renamed');
+    });
+
+    test('worlds are remembered independently', async () => {
+        const manager = new ChatManager('Alaydriem');
+
+        await manager.rememberWorld('w1', 'One');
+        await manager.rememberWorld('w2', 'Two');
+
+        expect(get(manager.associations)).toEqual({ w1: 'One', w2: 'Two' });
+    });
+});

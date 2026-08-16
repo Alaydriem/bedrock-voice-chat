@@ -35,12 +35,6 @@ impl AppBuilder {
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<
             Arc<crate::bedrock::JukeboxEjectInjector>,
         >,
-        #[cfg(feature = "bedrock-protocol")] presence_injector: Option<
-            Arc<crate::bedrock::PresenceInjector>,
-        >,
-        #[cfg(feature = "bedrock-protocol")] announce_injector: Option<
-            Arc<crate::bedrock::AnnounceInjector>,
-        >,
     ) -> anyhow::Result<()> {
         let handle = app.handle().clone();
 
@@ -102,10 +96,6 @@ impl AppBuilder {
             beacon_cache,
             #[cfg(feature = "bedrock-protocol")]
             eject_injector,
-            #[cfg(feature = "bedrock-protocol")]
-            presence_injector,
-            #[cfg(feature = "bedrock-protocol")]
-            announce_injector,
         );
 
         // Pulled out before the manager is moved behind its mutex, so the diagnostics service
@@ -120,9 +110,13 @@ impl AppBuilder {
         // Read by the runtime-state poll, which must not take the audio manager's lock to learn
         // that a rebuild gave up — the rebuild itself holds that lock while it runs.
         let capture_availability = audio_stream.capture_availability();
+        // Read by every mute and deafen surface, which must not take the audio manager's lock
+        // to play a tone — the action that triggered the cue is already holding it.
+        let cue_sink = audio_stream.cue_sink();
 
         app.manage(Mutex::new(audio_stream));
         app.manage(capture_availability);
+        app.manage(cue_sink);
 
         // Per-player volume and mute. Registered here rather than in `run()` because both the
         // desktop app and the e2e harness need it: the in-game control actions and the

@@ -24,6 +24,18 @@ export class PreflightVerdict {
         const failed = entry.steps.find((step) => step.state === 'bad');
         if (failed) return PreflightVerdict.forFailure(failed, entry);
 
+        // Named before the round-trip warning, which is the other thing that turns a row
+        // amber. Both say "voice works, but slower"; only one of them has a cause worth
+        // stating, and it is not one the player can do anything about by waiting.
+        if (entry.status === 'ws_fallback') {
+            return {
+                severity: 'warn',
+                sentence:
+                    `UDP ${entry.quicPort} to this server is blocked, so voice will use the slower ` +
+                    'fallback path over TCP. It works — expect more delay when the network is busy.',
+            };
+        }
+
         if (entry.steps.some((step) => step.state === 'warn')) {
             return {
                 severity: 'warn',
@@ -60,12 +72,13 @@ export class PreflightVerdict {
                         : `This server speaks protocol ${entry.serverVersion} and your client speaks ${entry.clientVersion}. Whoever runs it has to update it.`,
                 };
 
-            case 'QUIC path':
+            case 'Voice path':
                 return {
                     severity: 'bad',
                     sentence:
-                        `UDP ${entry.quicPort} to this server is blocked, so voice cannot connect at all. ` +
-                        'Check the network or firewall you are behind, then recheck.',
+                        `UDP ${entry.quicPort} to this server is blocked and it offers no fallback path, ` +
+                        'so voice cannot connect at all. Check the network or firewall you are behind, ' +
+                        'then recheck.',
                 };
         }
     }

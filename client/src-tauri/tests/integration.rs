@@ -15,4 +15,5 @@ mod keybinds;
 mod network;
 mod players;
 mod scenarios;
+mod testkit;
 mod websocket;

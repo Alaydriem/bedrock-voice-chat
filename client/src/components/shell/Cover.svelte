@@ -95,6 +95,25 @@
         }
         if (CoverDrag.dismisses(travelled)) ondismiss();
     }
+
+    /**
+     * The browser reclaiming the pointer mid-drag — the webview backgrounded, the gesture
+     * handed to the system. No pointerup is coming, so the drag ends here: spring back
+     * rather than dismiss, because the user never finished asking to leave. Also fires
+     * after our own release in `onpointerup`, where everything is already reset.
+     *
+     * Only the cover's own loss counts. On touch, pointerdown implicitly captures the
+     * pointer to the element under the finger, and taking it for the cover makes that
+     * child announce the transfer with a lostpointercapture that bubbles up here — the
+     * start of every touch drag, not the end of one.
+     */
+    function onlostpointercapture(e: PointerEvent): void {
+        if (e.target !== cover) return;
+        pressed = false;
+        dragging = false;
+        offset = 0;
+        held = null;
+    }
 </script>
 
 <!-- One screen over another. The screen behind stays mounted. -->
@@ -123,6 +142,7 @@
         {onpointermove}
         {onpointerup}
         onpointercancel={onpointerup}
+        {onlostpointercapture}
     >
         <!-- The grip is the hit area; the bar is what is seen. Decorative. -->
         <span class="rad-cover__grip" aria-hidden="true">

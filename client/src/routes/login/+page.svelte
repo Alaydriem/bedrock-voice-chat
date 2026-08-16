@@ -51,6 +51,7 @@
     ring: "empty",
     line: "",
     caption: "RESOLVING",
+    busy: false,
   });
   let step = $state(1);
 
@@ -229,6 +230,7 @@
     ring: "empty",
     line: "○ Add the server address after code@",
     caption: "AWAITING ADDRESS",
+    busy: false,
   };
 
   const CODE_READY: ResolveVerdict = {
@@ -236,6 +238,7 @@
     ring: "lock",
     line: "✓ Continue to enter your code",
     caption: "CODE SIGN-IN",
+    busy: false,
   };
 </script>
 

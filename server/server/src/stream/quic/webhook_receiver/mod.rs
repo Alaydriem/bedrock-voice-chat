@@ -21,3 +21,14 @@ impl WebhookReceiver {
         Ok(())
     }
 }
+
+// A peer's admitted packets enter the same broadcast loop a local client's do.
+// The plane never learns how local delivery works; this is the whole of the
+// coupling between them.
+impl crate::relay::PeerSink for WebhookReceiver {
+    fn publish(&self, packet: QuicNetworkPacket) {
+        if self.webhook_tx.send(packet).is_err() {
+            tracing::warn!("dropping a peer packet: the webhook loop has stopped");
+        }
+    }
+}

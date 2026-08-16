@@ -15,8 +15,6 @@ pub enum Permission {
     AudioDelete,
     #[serde(rename = "admin")]
     Admin,
-    #[serde(rename = "peer_link")]
-    PeerLink,
 }
 
 impl Permission {
@@ -25,7 +23,6 @@ impl Permission {
             Permission::AudioUpload,
             Permission::AudioDelete,
             Permission::Admin,
-            Permission::PeerLink,
         ]
     }
 
@@ -34,7 +31,6 @@ impl Permission {
             Permission::AudioUpload => "audio_upload",
             Permission::AudioDelete => "audio_delete",
             Permission::Admin => "admin",
-            Permission::PeerLink => "peer_link",
         }
     }
 

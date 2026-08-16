@@ -22,7 +22,21 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 path = "./src/lib.rs"
 
 [features]
-default = []
+# `net` is on by default because almost every consumer wants it, and because
+# `cargo test -p common` is how the ts-rs bindings are regenerated — the test
+# target itself exercises `auth` and `net`.
+#
+# The relay crates opt out with `default-features = false`. Anything else that
+# only speaks the peer wire should do the same.
+default = ["net"]
+
+# HTTP and the ncryptf envelope: the `auth`, `net` and `ncryptflib` modules and
+# everything they pull in — reqwest, hyper, hickory.
+#
+# Separable so a consumer that only speaks the peer wire links none of it.
+# `relay/sdk` is exactly that consumer: it ships as a cdylib inside a plugin jar,
+# where a second HTTP stack it never calls is dead weight per platform.
+net = ["dep:reqwest", "dep:ncryptf-rs"]
 
 # Heavy optional features
 quic = ["dep:s2n-quic", "dep:s2n-quic-core", "dep:rustls-pemfile"]
@@ -46,12 +60,13 @@ server = [
     "ncryptf-rs/rocket",
     "dep:clap",
     "openapi",
+    "net",
 ]
 
 [dependencies]
 nanoid = { workspace = true }
 chrono = { version = "^0.4", features = ["serde"] }
-ncryptf-rs = { version = "^0.5", features = ["client"] }
+ncryptf-rs = { version = "^0.5", features = ["client"], optional = true }
 tokio = { version = "^1.38", features = ["full"] }
 anyhow = { version = "^1.0" }
 url = { version = "^2" }
@@ -63,7 +78,7 @@ blake3 = { version = "^1.3" }
 async-trait = { version = "^0.1" }
 async-mutex = { version = "^1.4" }
 rand = { version = "^0.10" }
-reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"], default-features = false }
+reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"], default-features = false, optional = true }
 webbrowser = { version = "^1", optional = true }
 ts-rs = { version = "^12.0" }
 erased-serde = { version = "^0.4" }
@@ -107,8 +122,8 @@ sea-orm = { version = "^2.0.0-rc.30", optional = true, features = [
 sea-orm-rocket = { version = "^0.6", optional = true }
 clap = { version = "^4", features = ["derive"], optional = true }
 schemars = { workspace = true, optional = true }
-bedrock-protocol = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.10", optional = true }
-bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.10", optional = true }
+bedrock-protocol = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.12", optional = true }
+bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.12", optional = true }
 
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 cpal = { version = "^0.17", optional = true, features = ["asio"] }

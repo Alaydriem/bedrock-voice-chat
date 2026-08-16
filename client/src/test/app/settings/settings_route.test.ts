@@ -30,3 +30,63 @@ describe("SettingsRoute", () => {
         expect(SettingsRoute.paneOf("/dashboard/settings/nonsense")).toBe("account");
     });
 });
+
+describe("SettingsRoute.isPane", () => {
+    it("separates a named pane from the section list", () => {
+        expect(SettingsRoute.isPane("/dashboard/settings/audio")).toBe(true);
+        expect(SettingsRoute.isPane("/dashboard/settings")).toBe(false);
+    });
+
+    // A trailing slash is the section list with punctuation, not a pane named "".
+    it("treats a trailing slash as the section list", () => {
+        expect(SettingsRoute.isPane("/dashboard/settings/")).toBe(false);
+    });
+
+    it("claims nothing outside settings", () => {
+        expect(SettingsRoute.isPane("/dashboard")).toBe(false);
+        expect(SettingsRoute.isPane("/login")).toBe(false);
+    });
+});
+
+/**
+ * Depth is how many entries sit between this screen and the dashboard. It is the number
+ * of pops that leaves settings, so it is what `exit` counts with.
+ */
+describe("SettingsRoute.depthOf", () => {
+    // A phone shows the section list and the pane as two screens.
+    it("counts the list and the pane separately on mobile", () => {
+        expect(SettingsRoute.depthOf("/dashboard/settings", true)).toBe(1);
+        expect(SettingsRoute.depthOf("/dashboard/settings/audio", true)).toBe(2);
+    });
+
+    // Desktop shows the section nav and the pane side by side: one screen, one level.
+    it("collapses the list and the pane on desktop", () => {
+        expect(SettingsRoute.depthOf("/dashboard/settings/audio", false)).toBe(1);
+    });
+
+    it("puts the dashboard at the bottom", () => {
+        expect(SettingsRoute.depthOf("/dashboard", true)).toBe(0);
+        expect(SettingsRoute.depthOf("/dashboard", false)).toBe(0);
+    });
+});
+
+describe("SettingsRoute.parentOf", () => {
+    it("climbs a mobile pane to the section list", () => {
+        expect(SettingsRoute.parentOf("/dashboard/settings/audio", true)).toBe(
+            "/dashboard/settings",
+        );
+    });
+
+    it("climbs a desktop pane straight to the dashboard", () => {
+        expect(SettingsRoute.parentOf("/dashboard/settings/audio", false)).toBe("/dashboard");
+    });
+
+    it("climbs the section list to the dashboard", () => {
+        expect(SettingsRoute.parentOf("/dashboard/settings", true)).toBe("/dashboard");
+    });
+
+    // Nothing is above the dashboard. Back there is Android's to handle, not ours.
+    it("keeps the dashboard as its own ceiling", () => {
+        expect(SettingsRoute.parentOf("/dashboard", true)).toBe("/dashboard");
+    });
+});

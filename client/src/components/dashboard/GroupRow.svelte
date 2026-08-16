@@ -123,6 +123,25 @@
     }
 
     /**
+     * The browser reclaiming the pointer mid-swipe — the webview backgrounded, the gesture
+     * handed to the system. No pointerup is coming, so the swipe ends here without latching:
+     * an interruption is not the user opening or closing the tray. The settle effect above
+     * returns the row to the parent's idea of open once `dragging` drops. After a normal
+     * release `up` has already run and this is a no-op.
+     *
+     * Only the row's own loss counts. On touch, pointerdown implicitly captures the pointer
+     * to the element under the finger — a span inside the row — and taking it for the row
+     * makes that child announce the transfer with a lostpointercapture that bubbles up
+     * here: the start of every touch swipe, not the end of one.
+     */
+    function lost(event: PointerEvent): void {
+        if (event.target !== event.currentTarget) return;
+        if (!dragging) return;
+        dragging = false;
+        swiped = false;
+    }
+
+    /**
      * A tap on the row joins or leaves. A tap that was really the end of a swipe does neither —
      * a gesture that reveals actions must not also take one.
      */
@@ -210,6 +229,7 @@
             onpointermove={move}
             onpointerup={up}
             onpointercancel={up}
+            onlostpointercapture={lost}
         >
             <span class="rad-group-row__text">
                 <span class="rad-group-row__name">{group.name}</span>

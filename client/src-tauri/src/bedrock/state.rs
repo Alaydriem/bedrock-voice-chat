@@ -4,7 +4,6 @@ use common::bedrock_protocol::{AuthManager, RealmsApi};
 use common::traits::StreamTrait;
 use tokio::sync::watch;
 
-use crate::bedrock::BedrockAuthService;
 use crate::bedrock::BedrockPlayerStateCache;
 use crate::bedrock::BedrockProxyManager;
 use crate::bedrock::TransferKeepAlive;
@@ -22,6 +21,12 @@ pub struct BedrockState {
     pub refresh_token: Option<String>,
     pub xuid: Option<String>,
     pub player_state_cache: Arc<BedrockPlayerStateCache>,
+    /// Set only by a rejected root refresh. An expired XSTS or XBL token is a re-mint, and
+    /// must never set this.
+    pub reauth_required: bool,
+    /// Held across a renewal so two callers cannot both spend the same rotating refresh
+    /// token. Never held across an unrelated await.
+    pub renewal_lock: Arc<tokio::sync::Mutex<()>>,
     pub login_cancel_tx: Option<watch::Sender<bool>>,
     pub proxy_target_host: Option<String>,
     pub proxy_target_port: Option<u16>,
@@ -48,6 +53,8 @@ impl BedrockState {
             refresh_token: None,
             xuid: None,
             player_state_cache: Arc::new(BedrockPlayerStateCache::new()),
+            reauth_required: false,
+            renewal_lock: Arc::new(tokio::sync::Mutex::new(())),
             login_cancel_tx: None,
             proxy_target_host: None,
             proxy_target_port: None,
@@ -59,8 +66,14 @@ impl BedrockState {
         }
     }
 
+    /// Installs a signed-in Xbox session.
+    ///
+    /// Takes a ready `AuthManager` rather than the means to build one. Building it needs a
+    /// `tauri::AppHandle`, and naming that type anywhere reachable from this struct links
+    /// Tauri's window drop glue into the integration test binary, which then aborts on load.
     pub fn apply_auth(
         &mut self,
+        auth_manager: Arc<AuthManager>,
         api: RealmsApi,
         xbl_token: String,
         user_hash: String,
@@ -68,9 +81,6 @@ impl BedrockState {
         refresh_token: Option<String>,
         xuid: String,
     ) {
-        let auth_manager =
-            BedrockAuthService::new().build_auth_manager(refresh_token.as_deref(), &xuid);
-
         self.auth_manager = Some(auth_manager);
         self.realms_api = Some(api);
         self.xbl_token = Some(xbl_token);
@@ -78,6 +88,26 @@ impl BedrockState {
         self.access_token = Some(access_token);
         self.refresh_token = refresh_token;
         self.xuid = Some(xuid);
+        self.reauth_required = false;
+    }
+
+    pub fn is_authenticated(&self) -> bool {
+        self.auth_manager.is_some()
+    }
+
+    /// Drops the Xbox Live session this process holds.
+    ///
+    /// Clears every field `apply_auth` sets. `BedrockState` is managed once at startup, so it
+    /// outlives any one sign-in; whatever is left here belongs to whoever signed in last.
+    pub fn clear_auth(&mut self) {
+        self.auth_manager = None;
+        self.realms_api = None;
+        self.xbl_token = None;
+        self.user_hash = None;
+        self.access_token = None;
+        self.refresh_token = None;
+        self.xuid = None;
+        self.reauth_required = false;
     }
 
     pub async fn start_keepalive(

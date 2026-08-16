@@ -13,6 +13,14 @@ export interface ResolveVerdict {
     readonly line: string;
     /** The ring caption, which is upper case by design. */
     readonly caption: string;
+    /**
+     * A measurement is in flight, so the line carries a spinner.
+     *
+     * Distinct from `state: 'editing'`, which is also what an address nothing will measure
+     * looks like. On a phone the ring is off the top of the screen and this line is the only
+     * thing being read, so "working" has to be visible here or it is not visible at all.
+     */
+    readonly busy: boolean;
 }
 
 /**
@@ -33,11 +41,20 @@ export default class AddressResolver {
     static readonly DEBOUNCE_MS = 700;
     private static readonly STANDARD_QUIC_PORT = 443;
 
+    /** The field has something in it that no probe will be spent on. */
     private static readonly EDITING: ResolveVerdict = {
         state: 'editing',
         ring: 'empty',
         line: '○ Resolving',
         caption: 'RESOLVING',
+        busy: false,
+    };
+
+    /** The same state with something actually happening behind it. */
+    private static readonly MEASURING: ResolveVerdict = {
+        ...AddressResolver.EDITING,
+        line: 'Resolving',
+        busy: true,
     };
 
     private static readonly NO_RESPONSE: ResolveVerdict = {
@@ -45,6 +62,7 @@ export default class AddressResolver {
         ring: 'empty',
         line: '✕ Nothing at that address',
         caption: 'NO RESPONSE',
+        busy: false,
     };
 
     private readonly verdictStore: Writable<ResolveVerdict>;
@@ -76,6 +94,7 @@ export default class AddressResolver {
             ring: 'empty',
             line,
             caption: `PROTOCOL ${check.server_version}`,
+            busy: false,
         };
     }
 
@@ -83,8 +102,23 @@ export default class AddressResolver {
         if (!report) return AddressResolver.EDITING;
 
         switch (report.verdict) {
-            case 'Ready': {
-                const ms = Math.round((report.best_rtt_micros ?? 0) / 1000);
+            /*
+             * Both mean the same thing here: voice can reach this address. Which transport
+             * carried the answer is deliberately not shown — `probe_voice_path` returns on the
+             * first leg to land, and the WebSocket probe finishes in milliseconds while the
+             * QUIC walk still has its whole budget left. So `VoiceFallback` on this screen
+             * means QUIC had not answered *yet*, not that it is blocked, and naming a fallback
+             * path would be reporting a verdict nothing measured.
+             *
+             * The transport is settled at connect time from the complete report, and the
+             * server selector names it there, where the walk has actually finished.
+             */
+            case 'Ready':
+            case 'VoiceFallback': {
+                const micros = report.best_rtt_micros ?? report.fallback_rtt_micros ?? 0;
+                const ms = Math.round(micros / 1000);
+                // Only a QUIC endpoint has a port worth naming, and `answeringPort` finds one
+                // only when QUIC is what answered.
                 const port = AddressResolver.answeringPort(report);
                 const suffix =
                     port === null || port === AddressResolver.STANDARD_QUIC_PORT
@@ -95,6 +129,7 @@ export default class AddressResolver {
                     ring: 'lock',
                     line: `● Resolved · ${ms} ms${suffix}`,
                     caption: `RESOLVED · ${ms} MS`,
+                    busy: false,
                 };
             }
             case 'VoiceBlocked':
@@ -103,6 +138,7 @@ export default class AddressResolver {
                     ring: 'empty',
                     line: '✕ Server reachable, but no voice path',
                     caption: 'NO VOICE PATH',
+                    busy: false,
                 };
             case 'NoRoute':
                 return {
@@ -110,13 +146,20 @@ export default class AddressResolver {
                     ring: 'empty',
                     line: '✕ This device has no route to that address',
                     caption: 'NO ROUTE',
+                    busy: false,
                 };
             case 'Unreachable':
                 return AddressResolver.NO_RESPONSE;
         }
     }
 
-    /** Which QUIC port produced the winning measurement, for the fallback label. */
+    /**
+     * Which QUIC port produced the winning measurement, for the non-standard-port label.
+     *
+     * Null whenever QUIC is not what answered, which is the common case on this screen: the
+     * probe returns on the first leg to land and `best_rtt_micros` stays null unless a QUIC
+     * endpoint was that leg.
+     */
     private static answeringPort(report: ServerReachability): number | null {
         const best = report.best_rtt_micros;
         for (const endpoint of report.quic) {
@@ -131,17 +174,28 @@ export default class AddressResolver {
     /**
      * A new value in the field. Goes grey immediately, then measures once the typing
      * stops: a probe is spent per address, not per keystroke.
+     *
+     * The spinner starts here rather than when the timer fires, because arming the timer is
+     * the point the work is committed to. Waiting for the debounce would leave the line
+     * static for its whole duration and then start spinning, which reads as the screen
+     * noticing late.
      */
     public input(value: string): void {
         this.generation++;
-        this.verdictStore.set(AddressResolver.EDITING);
         if (this.timer !== null) clearTimeout(this.timer);
 
         const trimmed = value
             .trim()
             .replace(/^https?:\/\//, '')
             .replace(/\/$/, '');
-        if (!AddressResolver.HOSTNAME.test(trimmed)) return;
+
+        // Nothing about this value will be measured, so it must not claim to be working.
+        if (!AddressResolver.HOSTNAME.test(trimmed)) {
+            this.verdictStore.set(AddressResolver.EDITING);
+            return;
+        }
+
+        this.verdictStore.set(AddressResolver.MEASURING);
 
         const mine = this.generation;
         this.timer = setTimeout(
@@ -174,10 +228,14 @@ export default class AddressResolver {
                 return;
             }
 
-            const report = await invoke<ServerReachability>('probe_server', {
+            // The narrower command: it returns on the first leg that proves voice can get
+            // through rather than waiting out the QUIC budget, and finishes the full
+            // measurement in the background so the connect after this reads a complete one.
+            const report = await invoke<ServerReachability>('probe_voice_path', {
                 server,
                 quicPorts: config.quic_ports,
                 quicPort: config.quic_port,
+                voiceWebsocket: config.voice_websocket,
             });
             if (generation !== this.generation) return;
             this.verdictStore.set(AddressResolver.verdictFor(report));

@@ -4,6 +4,7 @@
     import type { ChatLine } from "../../js/app/chat/ChatLine";
     import type { ChatRejectionState, ChatTarget } from "../../js/app/chat/ChatTarget";
     import ChatComposer from "./ChatComposer.svelte";
+    import type { WorldAssociations } from "../../js/app/chat/WorldLabel";
     import ChatMessageRow from "./ChatMessageRow.svelte";
     import ChatTargetPicker from "./ChatTargetPicker.svelte";
     import type { ChatWorld } from "../../js/bindings/ChatWorld";
@@ -14,6 +15,8 @@
         rejection: ChatRejectionState | null;
         unread: number;
         open: boolean;
+        /** Remembered world names, keyed by uuid, for the labels the picker renders. */
+        associations?: WorldAssociations;
         /** Falls back to a neutral for anyone not in the roster. */
         hueOf: (author: string) => string;
         onToggle: (open: boolean) => void;
@@ -27,6 +30,7 @@
         rejection,
         unread,
         open,
+        associations = {},
         hueOf,
         onToggle,
         onSend,
@@ -112,6 +116,7 @@
         {target}
         {rejection}
         {unread}
+        {associations}
         {onSend}
         onToggle={() => onToggle(!open)}
         onFocus={() => onToggle(true)}
@@ -129,6 +134,7 @@
     <ChatTargetPicker
         options={target.options}
         current={target.world}
+        {associations}
         onPick={(world) => {
             onPickWorld?.(world);
             pickerOpen = false;

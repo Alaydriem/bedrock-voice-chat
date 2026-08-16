@@ -314,10 +314,6 @@ object BvcNative {
 
     /**
      * Takes every `say` frame waiting to be broadcast, as a JSON array.
-     *
-     * A pull rather than a callback: the FFI has no callback mechanism, and holding a function
-     * pointer across the JNA boundary for the life of the process is not worth the latency it
-     * would save on a few frames a minute.
      */
     fun chatDrain(handle: Pointer): String? {
         val ptr = getLib().bvc_chat_drain(handle) ?: return null

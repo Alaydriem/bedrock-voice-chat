@@ -18,7 +18,7 @@ class GeneratedConfigTest {
               "server": {
                 "port": 8444,
                 "tls": { "certificate": "cert.pem", "names": ["bvc.example.com"] },
-                "bedrock": { "enabled": true, "transfer_port": 19139, "dns": { "enabled": false } }
+                "bedrock": { "enabled": true, "transfer_port": 19139 }
               },
               "voice": { "spatial_audio": { "broadcast_range": 32.0 } }
             }
@@ -30,7 +30,6 @@ class GeneratedConfigTest {
         assertEquals("cert.pem", config.server?.tls?.certificate)
         assertEquals(listOf("bvc.example.com"), config.server?.tls?.names)
         assertEquals(19139, config.server?.bedrock?.transferPort)
-        assertEquals(false, config.server?.bedrock?.dns?.enabled)
         assertEquals(32.0f, config.voice?.spatialAudio?.broadcastRange)
     }
 

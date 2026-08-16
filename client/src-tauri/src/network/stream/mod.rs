@@ -110,6 +110,10 @@ impl NetworkStreamManager {
         // already spent a full handshake budget proving nothing answers, and walking the
         // same endpoints again would spend a second one on the player's clock.
         quic_reachable: bool,
+        // Whether this server carries voice over WebSocket at all, from
+        // `ApiConfigResponse::voice_websocket`. On a server that does not, QUIC is the whole
+        // of voice: there is nothing to race it against and nothing to fall back to.
+        voice_websocket: bool,
         identity: String,
         ca_cert: String,
         cert: String,
@@ -174,7 +178,23 @@ impl NetworkStreamManager {
         // it again would say "reachable" — that is exactly the signal a degrading network
         // defeats — and the walk would then hand back a session that stops carrying audio a
         // minute later.
-        let link = if self.transport_verdict.is_demoted(&server_fqdn) {
+        let link = if !voice_websocket {
+            // QUIC is the whole of voice here, so a demotion and a negative probe change
+            // nothing about what is left to try. The walk runs alone rather than against
+            // an alternative that does not exist.
+            if !quic_reachable {
+                log::error!(
+                    "{server_fqdn} advertises no WebSocket voice transport and no QUIC endpoint answered"
+                );
+                return Err(Box::new(ConnectFailure::Unreachable {
+                    detail: "no voice transport is reachable on this server".to_string(),
+                }));
+            }
+
+            log::info!("{server_fqdn} carries voice over QUIC only");
+            self.connect_quic_alone(&client, &plan, &server_fqdn, &server_url, &ca_cert)
+                .await?
+        } else if self.transport_verdict.is_demoted(&server_fqdn) {
             log::info!("QUIC is demoted for {server_fqdn}; connecting over WebSocket");
             self.connect_websocket(&server_url, &ca_cert, &cert, &key)
                 .await?
@@ -355,6 +375,29 @@ impl NetworkStreamManager {
                 }
             }
         }
+    }
+
+    /// Walks the QUIC plan with no alternative running beside it.
+    ///
+    /// For a server with no WebSocket voice transport, where the race would spend its head
+    /// start and then dial a listener that is not there. The outcome is still reported: a
+    /// walk that reached the server on its third candidate is as diagnostic here as it is
+    /// under the race.
+    async fn connect_quic_alone(
+        &self,
+        client: &Client,
+        plan: &CandidatePlan,
+        server_fqdn: &str,
+        server_url: &str,
+        ca_cert: &str,
+    ) -> Result<DatagramLink, ConnectFailure> {
+        let mut outcome = ConnectOutcome::new();
+        let attempt = Self::connect_first_available(client, plan, server_fqdn, &mut outcome).await;
+        self.report_connect_outcome(&outcome, server_url);
+
+        let (connection, winner) = attempt?;
+        self.adopt_quic(connection, winner, server_url, ca_cert)
+            .map_err(|detail| ConnectFailure::Unreachable { detail })
     }
 
     /// Records the winning QUIC candidate as the live session and wraps it as the link.
