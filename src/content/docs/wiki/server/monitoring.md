@@ -6,6 +6,8 @@ sidebar:
   order: 10
 ---
 
+Bedrock Voice Chat server exposes health endpoints, Prometheus metrics, and structured logs so you can monitor a deployment.
+
 ## Health endpoints
 
 | Endpoint | Answers |

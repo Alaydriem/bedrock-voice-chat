@@ -6,6 +6,8 @@ sidebar:
   order: 5
 ---
 
+Bedrock Voice Chat server exposes an HTTP API for authentication, configuration, position relay, and administration.
+
 ## Reference
 
 **[bedrockvoicechat.com/api](https://www.bedrockvoicechat.com/api)**

@@ -6,6 +6,8 @@ sidebar:
   order: 2
 ---
 
+The Bedrock Voice Chat Fabric mod runs on your Java server in external or embedded mode, configured through a JSON file.
+
 ## Install
 
 1. Put [fabric-api](https://modrinth.com/mod/fabric-api) in your server's `mods` folder.
@@ -51,7 +53,7 @@ Runs BVC inside the game server's JVM.
         "ips": ["203.0.113.1"]
       },
       "bedrock": {
-        "transfer_port": 19139
+        "enabled": true
       }
     },
     "voice": {
@@ -65,7 +67,7 @@ Runs BVC inside the game server's JVM.
 }
 ```
 
-Set the ports explicitly. Both default to 443, which needs root on Linux. `server.bedrock.transfer_port` defaults to 19132 and collides with Geyser; 19139 sits beside it.
+Set `server.port` and `server.quic_port` explicitly. Both default to 443. Binding 443 needs root on Linux.
 
 `bvc-server` is still what players type into the app. Set it to the public address even though nothing separate runs there.
 

@@ -6,9 +6,9 @@ sidebar:
   order: 6
 ---
 
-BVC plays audio clips in the world. The sound comes out of a block, positioned the same way voices are.
+The Jukebox feature of Bedrock Voice Chat enables you to play custom audio files in your world and experience it with proximity. Use it to create custom scripted scenarios such as `Decked-Out` experiences using Redstone and hoppers.
 
-You need three things:
+To use the jukebox, you'll need three things:
 
 1. A clip in the server's [audio library](/wiki/player/audio-library/).
 2. A BVC disc bound to that clip.
@@ -22,17 +22,18 @@ You need three things:
 
 `audio_id` is the clip's ID from the audio library. You get a music disc named `BVC: <audio_id>`.
 
-Any player can run this. It does not require cheats or operator status.
-
 <div class="shot"><span>Inventory showing a BVC disc, with its <code>BVC: &lt;audio_id&gt;</code> name visible</span></div>
-
-Run `/bvc:disc` with no argument to print the usage. A disc bound to an ID that is not in the library is still created, and will not play.
 
 ## Craft the audio player
 
-The BVC audio player is a craftable block added by the Addon. A BVC disc plays in this block only. A vanilla jukebox cannot reach the voice server.
+### Bedrock
+On Bedrock edition, the BVC Audio Player must first be crafted.
 
 <div class="shot"><span>Crafting recipe for the BVC audio player block</span></div>
+
+### Java
+
+On Java edition, the native Jukebox is used.
 
 ## Play a clip
 
@@ -41,9 +42,7 @@ The BVC audio player is a craftable block added by the Addon. A BVC disc plays i
 
 Everyone in range hears it through BVC with the same distance falloff as voice. See [using voice chat](/wiki/player/using-voice-chat/) for the ranges.
 
-Take the disc out to stop it. The binding stays on the disc.
-
-Playback survives a server restart. A powered player block picks its clip back up.
+Take the disc out to stop it. Playback survives a server restart. A powered player block picks its clip back up.
 
 ## Volume
 
@@ -58,13 +57,11 @@ Without leaving the game, use the commands:
 
 On Bedrock, `/bvc:panel` has both on its **Jukebox music** row.
 
-The level is yours alone. It changes nothing for anyone else in range. 100 is unchanged; 150 is the loudest. Muting and the level are separate. A level set while muted comes back on unmute.
-
-## Limits
-
+:::caution
 Everyone needs the BVC app. The audio travels through BVC, not through Minecraft. A player without the app connected hears nothing.
 
 Clips come from the server's library. A disc cannot point at a URL or a local file. Adding clips needs the `audio_upload` permission. See [audio library](/wiki/player/audio-library/).
+:::
 
 `max_concurrent_per_uuid` caps how many clips one player can have going at once. Default is 5.
 

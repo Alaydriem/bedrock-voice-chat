@@ -6,7 +6,7 @@ sidebar:
   order: 3
 ---
 
-You hear two sets of people: players near you in the world, and anyone in your group.
+Bedrock Voice Chat lets you hear people nearby you in the world, and in groups you create or join.
 
 <div class="shot"><span>BVC dashboard showing the player list with proximity and group members</span></div>
 
@@ -28,9 +28,7 @@ Operators can change all of these. See the `voice.spatial_audio` block in the [c
 
 ## Groups
 
-In a group you hear everyone at full volume with no spatial positioning, wherever they are.
-
-Groups are not exclusive. You still hear nearby players and they still hear you. See [Groups](/wiki/player/groups/).
+In a group you hear everyone at full volume with no spatial positioning, wherever they are. Groups are not exclusive. You still hear nearby players and they still hear you. See [Groups](/wiki/player/groups/).
 
 ## Mute and deafen yourself
 
@@ -40,12 +38,20 @@ Both controls are at the bottom left of the secondary sidebar.
 
 Both can be bound to a key, along with push-to-talk. See [Settings](/wiki/player/settings/).
 
+<div class="shot"><span>The Mute and Deafen buttons within the app.</span></div>
+
 ## Adjust another player
 
-Each player tile has its own controls. Mute someone outright, or set their volume between 0% and 150%.
+BVC enables you to adjust the volume of any player you come in range with. You can mute them entirely, or adjust their volume up or down for comfort.
 
-Set the volume while they are inside 24 blocks. That is their unattenuated level, and distance falloff applies on top of it.
+<div class="shot"><span>Adjusting player volume</span></div>
 
+:::tip
+When adjusting player volume, be sure to do it while they are within 24 blocks of you, as this is their baseline level.
+:::
+
+:::caution
 Muting someone affects only what **you** hear. They can still hear you.
+:::
 
 Adjustments stay after the player walks away or logs off. To find someone no longer on screen, or to undo a mute, open **Settings → Players**. It lists everyone you have heard and has a reset for all of them.

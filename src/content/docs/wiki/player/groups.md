@@ -20,24 +20,16 @@ There is no limit on how many groups exist.
 
 ## Join a group
 
-Enter the group's share code in the app, or run `/bvc:groupjoin <code>`.
+In the app, you can join a group by viewing the name of it in the sidebar and clicking on it; by joining from the `/bvc:panel` window in Bedrock, or by using the `/bvc:groupjoin <code>` command.
 
-Your icon in the sidebar turns from red to purple once you are in a group.
+:::caution
+Groups are not _private_. Any member can join any group at any time.
+:::
 
 ## Leave or close a group
 
-Anyone can leave at any time. The owner can also **close** a group, which removes everyone.
-
-Leave, do not close, while people are still talking. Closing drops them all with no warning.
+You can leave a group at any time. If the group creator or owner closes the group, the group will be disbanded.
 
 ## Groups and proximity
 
-You still hear nearby players, and they still hear you. A group adds a channel. It does not mute the world.
-
-For privacy, use distance. Group audio carries; proximity audio does not.
-
-## Everyone in the group hears you
-
-Traffic is encrypted in transit. That protects it from outsiders, not from the people you are talking to. Any of them can be recording.
-
-Treat a group like an open mic in a room.
+While in a group, you will hear all players in the group at normal volume. You will also hear nearby players within proximity at their proximity-adjusted volume.

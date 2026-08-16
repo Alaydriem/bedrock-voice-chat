@@ -6,7 +6,7 @@ sidebar:
   order: 1
 ---
 
-BVC records every player to their own track. Fix one person's audio in post without touching anyone else's.
+Bedrock Voice Chat gives creators multi-track recording, Stream Deck control, and a local API for your own tooling. Every player records to their own track, letting you fix one person's audio in post without touching anyone else's.
 
 | Page | What it covers |
 |---|---|
@@ -14,4 +14,6 @@ BVC records every player to their own track. Fix one person's audio in post with
 | [Stream Deck](/wiki/creator/stream-deck/) | Mute, deafen, and record from an Elgato Stream Deck. |
 | [WebSocket API](/wiki/creator/websocket-api/) | Drive the same controls from your own tooling. |
 
+:::note
 Recording is desktop only. Mobile devices lack the disk throughput for multi-track capture.
+:::

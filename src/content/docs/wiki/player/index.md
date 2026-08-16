@@ -6,15 +6,17 @@ sidebar:
   order: 1
 ---
 
-You play on a server that already runs BVC and you want to hear people.
+This page is for players who are on a server that already has BVC installed and configured that you want to join and play on.
 
-## Getting started
+## Getting Started
 
 1. [Install the app](/wiki/start/downloads/) for your device.
 2. [Sign in](/wiki/player/signing-in/) with the Xbox account you play on, using the server URL your operator gave you.
 3. Put headphones on and play.
 
-BVC is deny-by-default. If sign-in refuses you, you have not been whitelisted. Ask your operator to add you.
+:::caution
+BVC is deny-by-default. If sign-in refuses you, you have not been whitelisted by your server operator. Ask your operator to add you.
+:::
 
 If nothing works at all, the server may not have BVC set up. Point your operator at [Running a server](/wiki/server/).
 

@@ -6,9 +6,8 @@ sidebar:
   order: 3
 ---
 
-**[Discord](https://discord.gg/CdtchD5zxr) is where support happens.** Post there. It gets triaged into a GitHub issue if it is a bug, or answered on the spot if it is not.
+For support related questions, join **[Discord](https://discord.gg/CdtchD5zxr)**
 
-You do not need to work out which it is first. That is the triage step.
 
 :::tip[Check the troubleshooting page first]
 Most reports resolve there in under a minute.

@@ -6,9 +6,11 @@ sidebar:
   order: 9
 ---
 
+Bedrock Voice Chat collects a small amount of anonymous operational telemetry. You can turn it off entirely.
+
 ## Telemetry
 
-BVC collects anonymous operational metrics: connection counts, session lifecycle events, and error rates.
+Bedrock Voice Chat collects anonymous operational metrics: connection counts, session lifecycle events, and error rates.
 
 It does not collect gamertags, message content, audio, or position data.
 

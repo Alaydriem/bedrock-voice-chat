@@ -6,7 +6,7 @@ sidebar:
   order: 4
 ---
 
-BVC is free and stays free. Support pays for development, app store fees, test devices, and server costs.
+Bedrock Voice Chat is a free addon for Minecraft. However, software development is not free. If you wish to support Bedrock Voice Chat, there are several ways to do this that help cover development costs, app store fees, test devices, server hosting, and more.
 
 ## Financially
 
@@ -20,7 +20,7 @@ Supporters get **early access to builds and packs**. On Realms and Aternos, supp
 
 **Watch and comment on [YouTube](https://youtube.com/@alaydriem).** All major BVC announcements go there first.
 
-**Follow the [Twitch](https://www.twitch.tv/alaydriem) streams.** Twice weekly on a regular schedule.
+**Watch, follow, and subscribe the [Twitch](https://www.twitch.tv/alaydriem) streams.** Twice weekly on a regular schedule.
 
 **Tell people about BVC, and send feedback.** Bug reports and feature requests on GitHub or Discord shape what gets built.
 

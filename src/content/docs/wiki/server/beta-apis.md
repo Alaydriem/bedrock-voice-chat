@@ -6,7 +6,11 @@ sidebar:
   order: 7
 ---
 
-The BVC Addon uses beta script modules. The world it runs in must have the **Beta APIs** experiment enabled. Without it the Addon loads and does nothing. No error, no console line, no positions.
+The Bedrock Voice Chat Addon uses beta script modules. The world it runs in must have the **Beta APIs** experiment enabled.
+
+:::danger
+Without Beta APIs the Addon loads and does nothing. There is no error, no console line, and no positions. This is the most common reason a working install reports nothing.
+:::
 
 This is the single most common reason a correct-looking Bedrock install produces silence.
 

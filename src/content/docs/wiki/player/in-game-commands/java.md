@@ -63,7 +63,3 @@ A player has to run it. From the console, use the give form:
 ```
 /bvc give <player> <audio_id>
 ```
-
-## No control panel
-
-`/bvc:panel` is Bedrock only. Use the app window on Java. Everything the panel does is there.

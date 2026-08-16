@@ -6,7 +6,7 @@ sidebar:
   order: 4
 ---
 
-The BVC server executable is also a CLI for managing servers, remotely or locally.
+The Bedrock Voice Chat server executable is also a CLI, letting you manage identities, users, and permissions either locally or against a remote server.
 
 Available since beta.11.
 
@@ -63,7 +63,7 @@ Flags: `-p, --player <name>`, `-g, --game <minecraft>`. `user banish` also takes
 
 ## Permissions
 
-Requires an active admin identity. Valid strings: `audio_upload`, `audio_delete`, `admin`, `peer_link`.
+Requires an active admin identity. Valid strings: `audio_upload`, `audio_delete`, `admin`.
 
 | Command | Endpoint | Does |
 |---|---|---|
@@ -77,6 +77,23 @@ Flags: `-p, --player <name>`, `-g, --game <minecraft>`, and `--permission <name>
 `clear` is not `deny`. It removes the override.
 
 Empty output from `list` means no overrides. The defaults govern that player entirely.
+
+## Peering
+
+Over HTTPS with mTLS. Requires an active admin identity.
+
+| Command | Endpoint | Does |
+|---|---|---|
+| `relay peerlink` | `GET /api/admin/relay/peerlink` | Print this server's peer link, its node id, and a `peer` block to paste into the other server's `config.hcl`. |
+| `relay worlds` | `GET /api/admin/relay/worlds` | List relay worlds with player counts. |
+
+`relay peerlink` takes `-l, --label <label>`, the block label rendered in the printed example. Default `bvc-server`. Use what the far side will call this server.
+
+`relay peerlink` exits non-zero on a server with no `peer` block in `config.hcl`. The peer endpoint binds only when one exists.
+
+`relay worlds` prints nothing until a player joins a relay world.
+
+See [peering](/wiki/reference/peering/).
 
 ## Bootstrapping a fresh deployment
 

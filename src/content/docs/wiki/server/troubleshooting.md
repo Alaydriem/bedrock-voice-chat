@@ -6,7 +6,7 @@ sidebar:
   order: 11
 ---
 
-Work outward from the server. Most reports resolve in the first two checks.
+Work through a Bedrock Voice Chat deployment from the outside in. Most reports resolve in the first two checks.
 
 ## 1. Is the server reachable?
 
@@ -62,7 +62,7 @@ BVC is deny-by-default. See [players and permissions](/wiki/server/players-and-p
 
 **Everything worked, then stopped after a Minecraft update.** Only affects Realms and Aternos. See [version support](/wiki/platforms/version-support/).
 
-**Console players cannot connect.** The DNS responder is off by default. See [console and mobile](/wiki/platforms/console-and-mobile/).
+**Console players cannot connect.** The console and the device running BVC must share a network. The session is listed under Worlds, not Servers. See [console and mobile](/wiki/platforms/console-and-mobile/).
 
 **Everyone was signed out at once.** The mTLS CA in `certs_path` was deleted or replaced. Every issued client certificate is now invalid and everyone must sign in again. Restore from backup if you have one.
 

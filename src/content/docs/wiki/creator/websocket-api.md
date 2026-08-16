@@ -6,7 +6,7 @@ sidebar:
   order: 4
 ---
 
-BVC runs a local WebSocket server. External tooling can toggle mute, deafen and recording, set jukebox music levels, manage groups, hold push-to-talk, and start or stop a Proxy or Realm session. The [Stream Deck plugin](/wiki/creator/stream-deck/) uses it.
+Bedrock Voice Chat runs a local WebSocket server that lets your own tooling toggle mute, deafen and recording, set jukebox music levels, manage groups, hold push-to-talk, and start or stop a Bedrock Voice Chat Connect session. The [Stream Deck plugin](/wiki/creator/stream-deck/) uses it.
 
 ## Reference
 
@@ -19,6 +19,17 @@ Open **Settings → WebSocket server**. Off by default.
 Note the port and the authentication key. Every message carries the key. Messages without a valid one are rejected.
 
 <div class="shot"><span>WebSocket settings page with the server enabled, showing port and key</span></div>
+
+## Routes
+
+Two endpoints on the same port.
+
+| Path | Direction | Authentication |
+|---|---|---|
+| Any path except `/metrics` | Request and response | Per message, as `key` |
+| `/metrics` | Push only | At the upgrade, as `?key=` |
+
+Only the exact path `/metrics` is routed to the diagnostics stream. Everything else reaches the command protocol, including `/` and `/ws`. An integration that connects on an arbitrary path keeps working.
 
 ## Message shape
 
@@ -96,11 +107,29 @@ Creating and joining are moves. The client leaves its current group first.
 
 Both reply with `connected`, plus `id` and `name` when there was a session. `state.connection` carries the same on every push.
 
+## Metrics stream
+
+A push-only diagnostics feed. There is no request. Connect and read.
+
+```
+ws://127.0.0.1:<port>/metrics?key=<your key>
+```
+
+The key goes on the query string. There is no inbound message to carry it. A missing or wrong key is refused at the upgrade.
+
+A client with no key configured accepts the connection without one.
+
+Each push carries microphone, playback, link quality, session and transport diagnostics, with round-trip time and loss thresholds. The payload shape is on the [reference](https://www.bedrockvoicechat.com/websocket).
+
+The command protocol is unaffected. It still authenticates per message.
+
 ## Security
 
-The key is the only thing protecting the socket. Anyone who can reach the port and has the key can mute you or start a recording.
+:::danger
+The key is the only thing protecting the socket. Anyone who can reach the port and has the key can mute you, start a recording, or read your diagnostics stream.
 
-Keep it on your LAN. Do not port-forward it.
+Keep it on your LAN. Do **not** port-forward it.
+:::
 
 ## Recording availability
 

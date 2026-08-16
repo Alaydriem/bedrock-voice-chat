@@ -6,9 +6,11 @@ sidebar:
   order: 2
 ---
 
-The BVC server coordinates audio, player state, and positioning for every connected client. It needs a publicly reachable Linux or Windows host and a valid TLS certificate.
+The Bedrock Voice Chat server coordinates audio, player state, and positioning for every connected client. It needs a publicly reachable Linux or Windows host and a valid TLS certificate.
 
-Do this before installing the Addon. The Addon needs this server's address.
+:::caution
+Install this **before** the Addon. The Addon needs this server's address to work.
+:::
 
 ## Sizing
 

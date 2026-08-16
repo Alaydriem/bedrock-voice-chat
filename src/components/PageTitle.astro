@@ -1,0 +1,46 @@
+---
+// Starlight's default PageTitle, with the edit link moved up beside the title.
+// Reviewing a page and opening its source are the same action, so the control
+// belongs where the reader already is instead of past the whole article.
+//
+// `_top` is Starlight's PAGE_TITLE_ID. The table of contents links to it, and
+// the constant is not exported from the package.
+//
+// EditLink comes from the package path, not `virtual:starlight/components/*`.
+// The virtual modules are declared in `virtual-internal.d.ts`, which is absent
+// from Starlight's exports map, so `astro check` cannot resolve them. The
+// virtual form only matters for a component that is itself overridden, and
+// EditLink is not.
+import EditLink from '@astrojs/starlight/components/EditLink.astro';
+---
+
+<div class="title-row sl-flex">
+	<h1 id="_top">{Astro.locals.starlightRoute.entry.data.title}</h1>
+	<div class="edit sl-flex">
+		<EditLink />
+	</div>
+</div>
+
+<style>
+	@layer starlight.core {
+		.title-row {
+			gap: 0.5rem 1.5rem;
+			align-items: baseline;
+			justify-content: space-between;
+			flex-wrap: wrap;
+		}
+
+		h1 {
+			margin-top: 1rem;
+			font-size: var(--sl-text-h1);
+			line-height: var(--sl-line-height-headings);
+			font-weight: 600;
+			color: var(--sl-color-white);
+		}
+
+		.edit {
+			font-size: var(--sl-text-sm);
+			white-space: nowrap;
+		}
+	}
+</style>

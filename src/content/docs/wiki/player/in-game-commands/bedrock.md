@@ -16,13 +16,9 @@ Requires a server running the [Bedrock Addon](/wiki/server/bedrock-addon/), and 
 /bvc:panel
 ```
 
-Opens a form with the same controls as the app: mute, deafen, record, jukebox music, and per-player volume. It lists who is in range.
+Opens a form with the same controls as the app: mute, deafen, record, jukebox music, and per-player volume.
 
 <div class="shot"><span>The /bvc:panel control panel open in-game</span></div>
-
-:::tip
-On a console, use the panel. Everything else needs typing, which is slow on a controller.
-:::
 
 ## Your own audio
 

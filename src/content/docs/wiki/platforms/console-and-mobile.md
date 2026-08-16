@@ -6,9 +6,15 @@ sidebar:
   order: 6
 ---
 
-There is no on-console BVC client and there will not be one. Console players run the mobile app on a phone or tablet next to the console.
+Bedrock Voice Chat supports Xbox, PlayStation, and Switch players through the mobile app. Your phone or tablet is your microphone and speaker, running alongside the console.
 
 Your position comes from the game server. The console does nothing special, and the app knows where you are without being installed on it.
+
+:::note
+There is no on-console Bedrock Voice Chat client. Consoles do not allow installable applications of this kind.
+
+If you would like this feature, consider supporting Bedrock Voice Chat on Patreon, or by becoming a YouTube Member.
+:::
 
 ## Get the app
 
@@ -23,42 +29,34 @@ Nothing console-specific. Join the server as usual, sign into the app, done.
 
 ## On Realms or Aternos
 
-These go through Realms Connect or Proxy Connect, and a console cannot type a custom server address. Instead you point the console's DNS at your BVC server, which answers for a featured-server hostname and redirects the console to the right place.
+These go through Bedrock Voice Chat Connect. The app hosts the session on your network, and it appears in Minecraft under **Worlds**.
 
-### Operator: enable the DNS responder
+### Operator
 
-**It is off by default.** Without this, console players cannot connect at all.
+Nothing to configure. The relay defaults handle it.
 
-```hcl
-server {
-    bedrock {
-        dns {
-            enabled = true
-        }
-    }
-}
-```
+### Player
 
-Then:
+1. Put the console and the phone running BVC on the same network.
+2. Open BVC. Open Settings, then **Voice Chat Connect**.
+3. Pick your Realm or server. Wait for the connection details.
+4. Open Minecraft on the console. Go to **Worlds**.
+5. Pick the entry named after your world. The second line shows your gamertag and **Bedrock Voice Chat**.
 
-- Publish **53/UDP** on the BVC server. In Docker that is `-p 53:53/udp`.
-- Binding port 53 needs elevated privileges, or `CAP_NET_BIND_SERVICE` on Linux. In a container, add the capability.
-- Port 53 must be reachable from the console's network.
+<div class="shot"><span>Minecraft's Worlds tab showing a BVC session, world name on the first line and gamertag on the second</span></div>
 
-Full options in the [configuration reference](/wiki/reference/configuration/#serverbedrockdns).
+If two people on the network run BVC in the same world, both entries appear. The gamertag on the second line tells them apart.
 
-### Player: point the console at it
+:::caution
+Do **not** enter your Realm or Aternos address directly. That bypasses Bedrock Voice Chat entirely. Minecraft works and nobody hears anyone.
+:::
 
-Set **both** primary and secondary DNS on the console to your BVC server's IP. Setting only the primary leaves the console free to fall back to the secondary, which defeats it.
+## Playing on mobile
 
-Then open Minecraft, go to **Servers**, and pick **Hive** under Featured Servers. You are redirected to your Realm or Aternos server.
-
-Do not enter your Realm or Aternos address directly. That bypasses BVC — Minecraft works and nobody hears anyone.
-
-## Mobile as a player, not a console companion
-
-Everything above is about consoles. A phone or tablet playing Minecraft can enter a custom server address. Follow the desktop instructions on the [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/) pages.
+A phone or tablet playing Minecraft can enter a custom server address. Follow the desktop instructions on the [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/) pages.
 
 ## Recording
 
-Not available on mobile. Phones and tablets lack the disk throughput for multi-track capture. Record on a desktop instead. See [Recording](/wiki/creator/recording/).
+:::note
+Recording is not available on mobile. Phones and tablets lack the disk throughput for multi-track capture. Record on a desktop instead. See [Recording](/wiki/creator/recording/).
+:::

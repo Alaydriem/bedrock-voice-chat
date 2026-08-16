@@ -6,7 +6,7 @@ sidebar:
   order: 4
 ---
 
-The container image is `ghcr.io/alaydriem/bedrock-voice-chat/server`, built for amd64 and arm64.
+Bedrock Voice Chat server ships as a container image at `ghcr.io/alaydriem/bedrock-voice-chat/server`, built for amd64 and arm64.
 
 ## Compose
 
@@ -44,8 +44,6 @@ services:
 | 8443 | UDP | Redundant QUIC, for networks that block it on 443 |
 
 Publishing TCP only produces a server that authenticates fine and never passes audio. It is the most common container misconfiguration because everything looks healthy until someone tries to talk.
-
-Add 53/UDP if you enable the DNS responder for console players. See [console and mobile](/wiki/platforms/console-and-mobile/). Binding 53 inside a container needs `NET_BIND_SERVICE`.
 
 ## What to persist
 

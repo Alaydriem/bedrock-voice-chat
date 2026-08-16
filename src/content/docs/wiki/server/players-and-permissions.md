@@ -1,12 +1,16 @@
 ---
 title: Players and permissions
-description: Whitelisting, the four permissions, and bootstrapping your first admin.
+description: Whitelisting, the three permissions, and bootstrapping your first admin.
 sidebar:
   label: Players and permissions
   order: 8
 ---
 
-BVC is deny-by-default. Players show up automatically once your game server relays them, but none of them can sign in until you add them.
+Bedrock Voice Chat is deny-by-default. Players appear automatically once your game server relays them.
+
+:::caution
+No player can sign in until you whitelist them. A player who has never been added is refused with `AUTH02`.
+:::
 
 Everything here uses the server executable, which doubles as a CLI. Full reference: [CLI](/wiki/reference/cli/).
 
@@ -67,7 +71,8 @@ Banishing is reversible and keeps the record. There is no hard delete from the C
 | `audio_upload` | Upload clips to the [audio library](/wiki/player/audio-library/). |
 | `audio_delete` | Delete clips. |
 | `admin` | User and permission management. |
-| `peer_link` | Establish cross-server peer links. Early access. |
+
+Peering is not a player permission. A peer is declared in [`server.peers`](/wiki/reference/configuration/#serverpeers). See [peering](/wiki/reference/peering/).
 
 ### Server-wide defaults
 
@@ -77,7 +82,6 @@ permissions {
         audio_upload = true
         audio_delete = false
         admin        = false
-        peer_link    = false
     }
 }
 ```

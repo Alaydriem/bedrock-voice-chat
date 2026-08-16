@@ -6,17 +6,19 @@ sidebar:
   order: 2
 ---
 
-BVC signs you in with your Xbox account. That is how the server knows which in-game player you are.
+Because Bedrock Voice Chat can perform actions on your behalf and represent you on your server, you must first sign-in to Bedrock Voice Chat using your Microsoft/Xbox Live credentials.
+
+:::tip
+Bedrock Voice Chat only stores your gamertag and profile picture on servers that you connect to. No other data is collected, and no data is centrally collected.
+:::
 
 ## Join the Minecraft server first
 
-Join the Minecraft server itself at least once before your first sign-in. BVC identifies you from the position data the server relays.
+Make sure before you sign into Bedrock Voice Chat, you login to your Minecraft instance _first_. Bedrock Voice Chat works on your servers allow-list, and builds its permissions list from your Minecraft server.
 
-Your operator can add you ahead of time instead:
-
-```
-bedrock-voice-chat-server user add --player <gamertag> --game minecraft
-```
+:::caution
+If you are a Realms or Aternos player using the no-net addon, you server operator **MUST** manually whitelist you on Bedrock Voice Chat Server **FIRST** before you can login.
+:::
 
 ## Your login URL
 
@@ -28,7 +30,7 @@ It includes `https://` and the full hostname:
 https://example.bedrockvc.stream
 ```
 
-Your operator gives you this address. There is no way to find it from the app.
+Your operator gives you this address.
 
 <div class="shot"><span>BVC login window with the server URL field filled in</span></div>
 
@@ -41,19 +43,3 @@ Your operator gives you this address. There is no way to find it from the app.
 You land on the dashboard. Headphones on, go play.
 
 <div class="shot"><span>BVC dashboard immediately after a successful sign-in</span></div>
-
-## Add another server
-
-One identity, many servers. Every server uses the same Xbox account and has its own address. Add each one separately.
-
-## If sign-in fails
-
-**`AUTH02`, or a rejected login.** BVC is deny-by-default. Your operator has to add you first.
-
-**The URL is refused.** Check you are using the BVC server address and not the Minecraft one. This is the most common mistake.
-
-**`DNS01`.** The address did not resolve. Check for a typo.
-
-**It hangs or times out.** The BVC server may be down. Your operator can check with `curl https://<their-server>/api/config`.
-
-More in [troubleshooting](/wiki/player/troubleshooting/).

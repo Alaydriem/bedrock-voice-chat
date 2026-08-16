@@ -55,12 +55,25 @@ const RULES = [
   {
     id: 'meta-documentation',
     hint: 'Delete. The reader did not ask how the page was made.',
-    re: /\b(this page|what follows|the (section|page) below|as (mentioned|described) above|restate[sd]?|generated from (the )?source)\b/gi,
+    // "This page is for <audience>" is an audience gate, not a remark about how
+    // the page was written. Player and platform pages open with one on purpose.
+    // The rule still catches prose about the documentation's construction.
+    re: /\b(this page(?! is for\b)|what follows|the (section|page) below|as (mentioned|described) above|restate[sd]?|generated from (the )?source)\b/gi,
   },
   {
     id: 'moralizing',
     hint: 'Give the instruction directly.',
-    re: /\b(you are responsible for|be sure to|make sure you|do not forget|remember to)\b/gi,
+    // `be sure to` survives inside an aside. A :::caution or :::tip exists to
+    // press a point, and the flat imperative reads wrong once it is in one.
+    // Running prose still has to give the instruction directly.
+    re: /\b(you are responsible for|make sure you|do not forget|remember to)\b/gi,
+    proseOnly: true,
+  },
+  {
+    id: 'moralizing-strong',
+    hint: 'Give the instruction directly, or move it into an aside.',
+    re: /\b(be sure to)\b/gi,
+    proseOnly: true,
   },
 ];
 
@@ -95,6 +108,7 @@ for (const file of files.sort()) {
 
   let inFence = false;
   let inFrontmatter = false;
+  let inAside = false;
 
   lines.forEach((raw, index) => {
     const lineNo = index + 1;
@@ -113,6 +127,14 @@ for (const file of files.sort()) {
     }
     if (inFence) return;
 
+    // A `:::type[Title]` opens an aside and a bare `:::` closes it. Some rules
+    // are suspended inside one: an aside exists to press a point, and the flat
+    // imperative the rule asks for reads wrong once the box is already shouting.
+    if (/^\s*:::/.test(raw)) {
+      inAside = !/^\s*:::\s*$/.test(raw);
+      return;
+    }
+
     // Inline code and link targets carry names we do not control.
     const line = raw.replace(/`[^`]*`/g, '``').replace(/\]\([^)]*\)/g, ']()');
 
@@ -122,6 +144,7 @@ for (const file of files.sort()) {
 
     for (const rule of RULES) {
       if (rule.paragraphOnly && !isParagraph) continue;
+      if (rule.proseOnly && inAside) continue;
       rule.re.lastIndex = 0;
       const match = rule.re.exec(line);
       if (match) {

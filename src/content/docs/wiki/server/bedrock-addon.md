@@ -6,7 +6,11 @@ sidebar:
   order: 5
 ---
 
-The Addon relays player positions to the BVC server. Without it, BVC does not know where anyone is and nothing works.
+The Bedrock Addon relays player positions from your Bedrock Dedicated Server to the Bedrock Voice Chat server, which is what makes proximity voice chat work.
+
+:::caution
+The Addon is **mandatory**. Without it, Bedrock Voice Chat does not know where anyone is and nothing works.
+:::
 
 For Bedrock Dedicated Server. Realms, Aternos, and other hosts that cannot enable `@minecraft/server-net` use the [no-net Addon](/wiki/server/nonet-addon/).
 

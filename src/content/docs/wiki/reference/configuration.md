@@ -6,7 +6,7 @@ sidebar:
   order: 2
 ---
 
-Complete reference for `config.hcl`. Almost nothing here is required; for a working starting point see [Installing the BVC server](/wiki/server/installation/).
+Every block and key Bedrock Voice Chat server accepts in `config.hcl`, with defaults. Almost nothing here is required. For a working starting point see [Installing the BVC server](/wiki/server/installation/).
 
 Every key also has an environment override; see [environment variables](/wiki/reference/environment-variables/). Precedence is **environment > config file > default**.
 
@@ -27,16 +27,12 @@ An unset referenced variable is a hard startup error. The server stops instead o
 | Key | Default | Description |
 |---|---|---|
 | `listen` | `::` | Bind address. The IPv6 wildcard also serves IPv4 peers. |
-| `port` | `443` | HTTP/REST and login. |
+| `port` | `443` | HTTP/REST and login. The public port. The API listener binds a loopback port behind the TLS demultiplexer. |
 | `quic_port` | `443` | UDP/QUIC voice transport. |
 | `advertised_quic_ports` | `[]` | Additional public UDP ports clients should try, in preference order. Empty means only `quic_port`. Use when a proxy fronts the server on a different port. |
 | `assets_path` | `./assets` | Static asset directory served by the API. |
 
-The default `::` gives QUIC a dual-stack socket on every platform.
-
-On Windows, Rocket's HTTP listener cannot be dual-stack. It falls back to `0.0.0.0` and logs the fallback. IPv6 HTTP is unavailable there. IPv4 clients are unaffected.
-
-On Linux this follows `net.ipv6.bindv6only`, which defaults to `0`.
+The default `::` gives QUIC a dual-stack socket on every platform. On Linux this follows `net.ipv6.bindv6only`, which defaults to `0`.
 
 ## `server.tls`
 
@@ -81,21 +77,69 @@ Provider-specific fields are validated at startup. A missing one is named in the
 |---|---|---|
 | `openapi_docs` | `false` | Serve `/openapi.json` and the API browser at `/docs`. |
 | `telemetry` | `true` | Anonymous usage metrics. See [privacy and telemetry](/wiki/server/privacy-and-telemetry/). |
-| `relay` | — | Cross-server peering tuning. See below. |
 
 One-time code login (`POST /api/auth/code`, used by `bvc login`) is always enabled. Earlier releases gated it behind a `code_login` flag. That key no longer exists and is ignored if present.
 
-## `server.features.relay`
+## `server.peers`
 
-Cross-server peering. Early access: functional, still being hardened, and the shape may change between releases. Gated by the `peer_link` permission. See [peering](/wiki/reference/peering/).
+Declared peers, one labeled block each. Peering is declared, never discovered. A node absent from this list is refused at connect.
+
+Work in progress. The shape changes between releases. See [peering](/wiki/reference/peering/).
+
+```hcl
+server {
+    peer "partner-smp" {
+        peerlink     = "<base32 peer link>"
+        worlds       = ["overworld"]
+        capabilities = ["carry_speakers"]
+    }
+}
+```
 
 | Key | Default | Description |
 |---|---|---|
-| `announce_interval_secs` | `60` | Seconds between self-announce cycles. |
-| `orchestration_interval_secs` | `5` | Seconds between offer, idle-sweep, and reconnect-grace cycles. |
-| `idle_timeout_secs` | `300` | Seconds a peer link may idle before it is closed. |
+| `peerlink` | — | The link the far side printed. Carries the peer's public key and the paths to reach it. **Required.** |
+| `worlds` | `[]` | Narrowing filter. Empty accepts what the peer declares. |
+| `capabilities` | `["carry_speakers"]` | What the peer may do on the link. |
 
-The defaults suit production; these keys exist mainly so integration tests can shorten them.
+Get `peerlink` from the other server with `bvc relay peerlink`. It prints a block ready to paste. See the [CLI reference](/wiki/reference/cli/).
+
+The block label names the peer in log lines.
+
+### `worlds`
+
+A peer declares which worlds it hosts during the handshake. `worlds` narrows what this server accepts from that declaration.
+
+| Value | Effect |
+|---|---|
+| `[]` | Accept every world the peer declares. |
+| `["a", "b"]` | Accept only the intersection of that list and the peer's declaration. |
+
+It never grants a world the peer did not declare.
+
+### `capabilities`
+
+| Value | Effect |
+|---|---|
+| `carry_speakers` | Carry voice across the link. |
+| `query_audio` | Reserved. Granting it changes no behaviour. |
+| `serve_audio` | Reserved. Granting it changes no behaviour. |
+
+Omitting the key grants `carry_speakers`. An explicitly empty list stays empty and grants nothing.
+
+An unrecognised value stops startup and names the value.
+
+`query_audio` and `serve_audio` described a peer fetching an audio file it did not hold. Nothing does that now. Jukebox audio is decoded where it is played and reaches a peer as ordinary frames.
+
+## `server.peer_relay_url`
+
+| Key | Default | Description |
+|---|---|---|
+| `peer_relay_url` | — | The iroh relay peers reach this server through when no direct path exists. |
+
+Leave it unset when both servers share a host or a local network. Both reach each other at an address the peer link already carries.
+
+See [deploying a peer relay](/wiki/server/peer-relay/).
 
 ## `server.cors`
 
@@ -114,28 +158,16 @@ Minimum age for your community. Clients use this to decide whether to show Age S
 
 ## `server.bedrock`
 
-The relay behind Proxy Connect and Realms Connect. This is how BVC supports Aternos, Realms, and consoles.
+The relay behind Bedrock Voice Chat Connect. This is how BVC supports Aternos, Realms, and consoles.
 
 | Key | Default | Description |
 |---|---|---|
 | `enabled` | `true` | Master switch. When off, `/api/config` advertises nothing for it. |
-| `transfer_port` | `19132` | Port players point Minecraft at. |
-| `transfer_target_port` | `19137` | Internal port sessions are handed off to. |
+| `transfer_port` | `28283` | Relay listen port. |
+| `transfer_target_port` | `28282` | Client proxy port sessions are handed off to. Defaults to the proxy's own listen port. Change it only alongside the proxy. |
 | `transfer_cache_ttl_secs` | `900` | How long a resolved transfer target is cached. |
 | `proxy_event_freshness_threshold_secs` | `30` | Age beyond which a proxied position event is discarded. |
 | `servers` | `[]` | Curated server list advertised to clients. |
-
-### `server.bedrock.dns`
-
-| Key | Default | Description |
-|---|---|---|
-| `enabled` | **`false`** | DNS responder. Consoles cannot connect without it. |
-| `port` | `53` | Bind port. Needs elevated privileges, or `CAP_NET_BIND_SERVICE` on Linux. |
-| `upstream` | `["1.1.1.1", "1.0.0.1"]` | Resolvers for everything not overridden. |
-| `override_host` | `geo.hivebedrock.network` | Hostname redirected to this server. |
-| `rate_limit_per_sec` | `100` | Per-client query rate limit. |
-
-A console cannot enter a custom server address. It reaches BVC by pointing its DNS here. With `dns.enabled = false` that path does not work. See [console and mobile](/wiki/platforms/console-and-mobile/).
 
 ### `server.bedrock.servers`
 
@@ -147,6 +179,7 @@ bedrock {
             host             = "play.example.com"
             port             = 19132
             protocol_version = 1001
+            addon_mode       = "net"
         }
     ]
 }
@@ -158,6 +191,22 @@ bedrock {
 | `host` | — | Hostname of the real backend. |
 | `port` | `19132` | Backend port. |
 | `protocol_version` | — | Protocol the client proxy advertises. Omit for Auto, which mirrors the real backend. See [version support](/wiki/platforms/version-support/). |
+| `addon_mode` | — | `net` or `no_net`. **Required.** Who delivers events for this world. |
+
+`addon_mode` states who delivers position, state and chat events for that world.
+
+| Value | Delivery |
+|---|---|
+| `net` | The world's own BVC Addon posts to the BVC server over HTTP. The client proxy relays only. |
+| `no_net` | There is no HTTP channel. The client proxy carries events in-band. |
+
+The operator declares it. Addon liveness is keyed on the addon's own world uuid, and nothing maps that back to a configured entry.
+
+`addon_mode` says nothing about how a client reaches the BVC server. That is decided separately.
+
+`addon_mode` has no default. Every entry carries one, and a `servers` list missing it does not parse.
+
+Use `no_net` for Realms and Aternos worlds running the no-net Addon. Use `net` for a world running the standard Addon or the Java mod.
 
 ## `database`
 
@@ -238,16 +287,16 @@ permissions {
         audio_upload = true
         audio_delete = false
         admin        = false
-        peer_link    = false
     }
 }
 ```
 
-Server-wide defaults for the four permissions. Set per-player overrides with the `permission` CLI subcommands. See the [CLI reference](/wiki/reference/cli/).
+Server-wide defaults for the three permissions. Set per-player overrides with the `permission` CLI subcommands. See the [CLI reference](/wiki/reference/cli/).
 
 | Permission | Grants |
 |---|---|
 | `audio_upload` | Upload clips to the audio library. |
 | `audio_delete` | Delete clips from the library. |
 | `admin` | User and permission management. |
-| `peer_link` | Establish cross-server peer links. Early access. |
+
+Peering is not a player permission. A peer is declared in [`server.peers`](/wiki/reference/configuration/#serverpeers).

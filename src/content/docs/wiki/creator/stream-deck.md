@@ -6,13 +6,13 @@ sidebar:
   order: 3
 ---
 
-The Stream Deck plugin drives BVC over its local WebSocket API. Six actions: **Microphone**, **Deafen**, **Record**, **Jukebox**, **Connect**, **Stats**.
+The Bedrock Voice Chat Stream Deck plugin lets you drive the app from an Elgato Stream Deck, with six actions: **Microphone**, **Deafen**, **Record**, **Jukebox**, **Connect**, and **Stats**.
 
-Download from the [Elgato Marketplace](https://marketplace.elgato.com/product/bedrock-voice-chat-c5a151d6-3669-487f-9548-bfe689e50203). Releases and issues are in [its own repository](https://github.com/Alaydriem/bedrock-voice-chat-streamdeck).
+Download it from the [Elgato Marketplace](https://marketplace.elgato.com/product/bedrock-voice-chat-c5a151d6-3669-487f-9548-bfe689e50203). Releases and issues are in [its own repository](https://github.com/Alaydriem/bedrock-voice-chat-streamdeck).
 
 ## Enable the WebSocket server
 
-BVC does not listen by default. Open **Settings → WebSocket server**.
+Bedrock Voice Chat does not listen by default. Open **Settings → WebSocket server**.
 
 <div class="shot"><span>WebSocket settings page with the server enabled, showing port and key</span></div>
 

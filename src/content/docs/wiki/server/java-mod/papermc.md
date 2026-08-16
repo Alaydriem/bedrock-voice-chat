@@ -6,6 +6,8 @@ sidebar:
   order: 3
 ---
 
+The Bedrock Voice Chat PaperMC plugin runs on your Java server in external or embedded mode, configured through a YAML file.
+
 ## Install
 
 1. Put the plugin JAR in your server's `plugins` directory.
@@ -50,7 +52,7 @@ embedded-config:
       ips:
         - 203.0.113.1
     bedrock:
-      transfer_port: 19139
+      enabled: true
   voice:
     spatial_audio:
       broadcast_range: 32.0
@@ -64,7 +66,7 @@ embedded-config:
 
 The block is `embedded-config` on both Paper and Fabric. Earlier Paper releases called it `embedded:`. That name no longer works.
 
-Set the ports explicitly. Both default to 443, which needs root on Linux. `server.bedrock.transfer_port` defaults to 19132 and collides with Geyser; 19139 sits beside it.
+Set `server.port` and `server.quic_port` explicitly. Both default to 443. Binding 443 needs root on Linux.
 
 `bvc-server` is still what players type into the app. Set it to the public address even though nothing separate runs there.
 

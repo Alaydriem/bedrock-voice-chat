@@ -6,7 +6,7 @@ sidebar:
   order: 5
 ---
 
-BVC mirrors your server's in-game chat into the app. What you type goes back into the game as an ordinary chat message.
+Bedrock Voice Chat mirrors your server's in-game chat into the app, letting you read and reply without leaving what you are doing. What you type goes back into the game as an ordinary chat message.
 
 ## Send a message
 
@@ -16,24 +16,24 @@ BVC mirrors your server's in-game chat into the app. What you type goes back int
 
 Your message appears in game as `<yourname> your message`.
 
-## History
-
-Chat history starts when you connect and ends when you close the app. Nothing is written to disk, and nothing is stored on the BVC server.
+<div class="shot"><span>BVC Chat Window</span></div>
 
 ## Where your message goes
 
-If you are standing in a world, your message goes there and you are not asked.
+If you are standing in a world, Bedrock Voice Chat sends your message there and does not ask.
 
-You get a picker when all of these are true: you are signed in, you are not in game, and the BVC server carries more than one world you have been in.
-
-Each world in the list shows two things:
+You get a picker when you are signed in, not in game, and the server carries more than one world you have been in. Each world in the list shows two labels:
 
 | Label | Meaning |
 |---|---|
 | **Active** | People are in it right now |
 | **Available** | Its chat relay is up |
 
-A world can be active and unavailable. The game server is running, its chat link to BVC is down, and you cannot send there.
+<div class="shot"><span>The chat target picker listing worlds with their Active and Available labels</span></div>
+
+:::caution
+A world can be **Active** without being **Available**. The game server is running, but its chat link to Bedrock Voice Chat is down, and your message **will not send** there.
+:::
 
 ## If a message does not send
 
@@ -41,16 +41,9 @@ A world can be active and unavailable. The game server is running, its chat link
 
 **It failed.** No session, a dead link, or a full queue. Send it again once the dock shows chat as available.
 
-## Two modes
+## History
 
-The app picks the mode. There is nothing to choose.
-
-| Mode | When | What relays chat |
-|---|---|---|
-| **Server** | The game server runs a BVC Addon or mod | The Addon or mod |
-| **Local** | You are connected through Proxy Connect or Realms Connect | Your own proxy session |
-
-Local mode needs nothing from the server operator.
+Chat history starts when you connect and ends when you close the app. Nothing is stored on the server or on your device.
 
 ## If chat is not available
 
@@ -59,6 +52,7 @@ The composer says why.
 - **Not connected.** Sign in to a server first.
 - **The server has no BVC Addon or mod.** Server mode needs one. Proxy and Realms sessions do not.
 - **The chat relay is down.** The mod reconnects on its own.
+- **Chat is disabled.** Some servers may disable the BVC chat sync feature.
 
 ## For server operators
 

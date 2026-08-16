@@ -6,7 +6,7 @@ sidebar:
   order: 1
 ---
 
-BVC runs on Java servers through a mod published on [Modrinth](https://modrinth.com/mod/bedrock-voice-chat) for both Fabric and PaperMC. Geyser servers work. See [Geyser](/wiki/platforms/geyser/).
+Bedrock Voice Chat runs on Minecraft Java servers through a mod published on [Modrinth](https://modrinth.com/mod/bedrock-voice-chat) for both Fabric and PaperMC. Geyser servers are supported. See [Geyser](/wiki/platforms/geyser/).
 
 ## Pick your loader
 
@@ -48,20 +48,21 @@ The Kotlin classes are generated from the server's Rust configuration types. A k
 
 Four sections are unavailable: `server.meridian`, `server.cors`, `server.features.openapi_docs`, and `server.bedrock.servers`.
 
+Peering works in embedded mode. Declare peers under [`server.peers`](/wiki/reference/configuration/#serverpeers) like any other key.
+
 ### Defaults to set explicitly
 
-Four defaults come from the standalone server and are wrong for most Java hosts.
+Three defaults come from the standalone server and are wrong for most Java hosts.
 
 | Key | Default | Set it to |
 |---|---|---|
 | `server.port` | `443` | `8444`. Binding 443 needs root on Linux, and a failed HTTP bind stops startup. |
 | `server.quic_port` | `443` | `8443`. |
-| `server.bedrock.transfer_port` | `19132` | `19139`. Geyser normally owns 19132. A failed bind is logged and the server keeps running, and the relay then appears to do nothing. |
 | `voice.spatial_audio.broadcast_range` | `48.0` | Whatever range you want, in blocks. |
 
 Set `server.bedrock.enabled: false` to turn the relay off instead.
 
-`server.bedrock.dns.enabled` stays false. Port 53 is untouched unless you ask for it.
+`server.bedrock.transfer_port` defaults to `28283` and does not collide with Geyser. Leave it alone.
 
 ### TLS
 

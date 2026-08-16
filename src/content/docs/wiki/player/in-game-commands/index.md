@@ -6,7 +6,7 @@ sidebar:
   order: 1
 ---
 
-Both editions let you drive BVC from the chat bar. Useful on a handheld, and the only practical option on a console.
+Both the Bedrock and Java addons let you drive BVC from the chat bar, and may be used for scripted events
 
 The syntax differs between editions:
 

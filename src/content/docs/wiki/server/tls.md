@@ -6,7 +6,11 @@ sidebar:
   order: 3
 ---
 
-Client apps validate your certificate the way a browser does. Self-signed will not work.
+Bedrock Voice Chat requires a valid TLS certificate. Client apps validate it the way a browser does.
+
+:::danger
+Self-signed certificates **will not work**. The app refuses the connection and there is no override.
+:::
 
 Two options. They are mutually exclusive, and the server refuses to start with both configured.
 

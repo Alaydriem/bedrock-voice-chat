@@ -1,75 +1,76 @@
 ---
 title: Peering
-description: Linking two BVC servers so voice carries across both. Early access.
+description: Linking two BVC servers so voice carries across both. Work in progress.
 sidebar:
   label: Peering
   order: 6
 ---
 
-Peering links two BVC servers. Players whose realms overlap hear each other across both.
+:::caution[Work in progress]
+Peering is under active development. The configuration shape, the CLI, and the wire protocol all change between releases. Treat everything here as provisional.
+:::
 
-**Early access.** It works. It is still being hardened, and the configuration shape may change between releases. Not recommended for production communities.
+Peering links two Bedrock Voice Chat servers together, letting players whose worlds overlap hear each other across both.
 
-## How it works
+Not for production communities.
 
-Discovery is decentralised. Servers announce themselves in-realm instead of registering with a broker. There is no central relay role and no third party in the path.
+## Model
 
-A server offers a link, the peer redeems a code, and the link is established. Voice traffic then flows between the two.
+Peering is declared. There is no discovery, no broker, and no announce cycle. Each operator writes the other's peer link into their own `config.hcl`. A node absent from that list is refused at connect.
 
-Idle links are swept and re-established as needed.
+The declaration is the authorization. There is no peering permission.
 
-## Permission
+## Link two servers
 
-Gated by `peer_link`, which defaults to off.
+Run on server A:
 
 ```bash
-bvc permission allow -p <player> -g minecraft --permission peer_link
+bvc relay peerlink --label server-b
 ```
 
-Or server-wide:
+It prints the peer link, the node id, and a block to paste. Put that block in server B's `config.hcl`. Then run the same command on server B and paste its block into server A's.
 
-```hcl
-permissions {
-    defaults = {
-        peer_link = true
-    }
-}
-```
-
-## Configuration
-
-Under `server.features.relay`:
-
-| Key | Default | Description |
-|---|---|---|
-| `announce_interval_secs` | `60` | Seconds between self-announce cycles. |
-| `orchestration_interval_secs` | `5` | Seconds between offer, idle-sweep, and reconnect-grace cycles. |
-| `idle_timeout_secs` | `300` | Seconds a link may idle before it is closed. |
+Restart both.
 
 ```hcl
 server {
-    features {
-        relay {
-            announce_interval_secs = 60
-        }
+    peer "server-b" {
+        peerlink = "<the value server B printed>"
     }
 }
 ```
 
-The defaults suit production. Lowering them buys responsiveness at the cost of traffic.
+`bvc relay peerlink` exits non-zero on a server with no `peer` block. The peer endpoint binds only when one exists. Write a placeholder peer block on the first side, restart, then read the link.
 
-## Endpoints
+## Configuration
 
-Mounted only when the relay plane is active:
+| Key | Default | Description |
+|---|---|---|
+| `peerlink` | — | The link the far side printed. **Required.** |
+| `worlds` | `[]` | Narrowing filter over the worlds the peer declares. |
+| `capabilities` | `["carry_speakers"]` | What the peer may do on the link. |
 
-| Endpoint | Does |
+Full descriptions in the [configuration reference](/wiki/reference/configuration/#serverpeers).
+
+## Reaching a peer
+
+A peer link carries the paths to reach its server. Two servers on one host, or two hosts on one local network, need nothing else.
+
+Set [`server.peer_relay_url`](/wiki/reference/configuration/#serverpeer_relay_url) when no direct path exists. See [deploying a peer relay](/wiki/server/peer-relay/).
+
+## Diagnostics
+
+| Command | Does |
 |---|---|
-| `POST /api/relay/offer` | Offer a peer link. |
-| `POST /api/relay/peer-redeem` | Redeem a peering code. |
-| `POST /api/relay/peer-link` | Establish the link. |
+| `bvc relay peerlink` | Print this server's peer link and node id. |
+| `bvc relay worlds` | List the relay worlds this server hosts, with player counts. |
+
+`bvc relay worlds` lists nothing until a player joins a relay world.
+
+Both read the admin API over mTLS and need an active admin identity. See the [CLI reference](/wiki/reference/cli/).
 
 ## Before you turn it on
 
 Peering means players on another operator's server hear yours, and yours hear theirs. Their moderation becomes your problem, and yours becomes theirs.
 
-Grant `peer_link` deliberately.
+Declare a peer deliberately.

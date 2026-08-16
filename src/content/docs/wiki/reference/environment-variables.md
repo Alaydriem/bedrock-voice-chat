@@ -6,7 +6,7 @@ sidebar:
   order: 3
 ---
 
-Every configuration value has an environment override. Precedence is **environment > config file > default**.
+Every Bedrock Voice Chat configuration value has a `BVC_*` environment override, letting you run a server without a config file at all. Precedence is **environment > config file > default**.
 
 An unset or empty variable never overrides anything. `FOO=` in a compose file will not blank out a configured value. A malformed value is a hard startup error.
 
@@ -27,6 +27,15 @@ An unset or empty variable never overrides anything. `FOO=` in a compose file wi
 | Variable | Sets |
 |---|---|
 | `BVC_RECORDING` | `voice.recording.enabled`. `true` or `false`. |
+
+## Runtime
+
+Read by a server started in-process over FFI, which is the Java mod's embedded mode. A standalone server ignores them.
+
+| Variable | Sets |
+|---|---|
+| `BVC_RUNTIME_WORKER_THREADS` | Tokio worker thread count. Defaults to the host's core count. |
+| `BVC_RUNTIME_MAX_BLOCKING_THREADS` | Ceiling on the blocking pool. |
 
 ## TLS
 
@@ -81,11 +90,15 @@ TLS combinations are validated at startup. See the [database section](/wiki/refe
 | `BVC_BEDROCK_TRANSFER_PORT` | `server.bedrock.transfer_port` |
 | `BVC_BEDROCK_SERVERS` | Replaces the curated list entirely. |
 
-`BVC_BEDROCK_SERVERS` takes comma-separated `Name@host[:port][@protocol]` entries:
+`BVC_BEDROCK_SERVERS` takes comma-separated `Name@host[:port][@protocol][@mode]` entries:
 
 ```
-BVC_BEDROCK_SERVERS="My SMP@play.example.com:19132@1001,Other@mc.example.net"
+BVC_BEDROCK_SERVERS="My SMP@play.example.com:19132@1001@net,Other@mc.example.net@no_net"
 ```
+
+`mode` is `net` or `no_net`. See [`server.bedrock.servers`](/wiki/reference/configuration/#serverbedrockservers).
+
+The two trailing tokens are classified by shape. Either may be omitted, and their order does not matter. An unrecognised token stops startup and names the token.
 
 Hostnames only. An IPv6 literal's colons parse as a port separator.
 
@@ -102,6 +115,7 @@ These are read by the CLI, not the server:
 |---|---|
 | `BVC_SERVER` | `--server-url` for `login`. Doubles as the listen override above, distinguished by whether the value is a URL. |
 | `BVC_IDENTITY` | `--identity`, as `<gamertag>:<game>` |
+| `BVC_IDENTITY_DIR` | Directory holding stored CLI identities. |
 
 See [CLI](/wiki/reference/cli/).
 

@@ -51,7 +51,7 @@ const table = [
   '## Not supported',
   '',
   'These protocols are recognised but this build has no codec for them. The',
-  'no-net Addon and Proxy Connect will not work against a server running one.',
+  'no-net Addon and Bedrock Voice Chat Connect will not work against a server running one.',
   '',
   '| Minecraft Bedrock | Protocol |',
   '|---|---|',

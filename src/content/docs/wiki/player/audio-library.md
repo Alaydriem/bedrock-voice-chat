@@ -28,12 +28,6 @@ Upload a clip and the server gives it an ID. That ID is what `/bvc:disc <audio_i
 
 Clips live on the server. Everyone on the server shares one library, and a clip you upload is a clip everyone can play.
 
-## Limits
-
-`max_concurrent_per_uuid` caps how many clips one player can have playing at once. Default is 5.
-
-Storage is the operator's disk. There is no per-player quota.
-
 ## For operators
 
 Clip storage path and the concurrency cap are the `audio` block in [config.hcl](/wiki/reference/configuration/#audio). Permission defaults are the `permissions` block.

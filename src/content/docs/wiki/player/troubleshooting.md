@@ -22,7 +22,7 @@ Work down this list in order.
 2. **Are you in range?** Default is 24 blocks for full volume, fading to nothing at 48. Stand next to someone.
 3. **Are you deafened?** Check the deafen button at the bottom left, and the per-player mutes on the tiles.
 4. **Is your output device right?** Open Settings → Audio and select **Test playback**. If you hear no chime, pick a different output.
-5. **Did you connect the way your server needs?** On Realms and Aternos you must go through Realms Connect or Proxy Connect. Connecting to the server address directly skips BVC.
+5. **Did you connect the way your server needs?** On Realms and Aternos you must go through Bedrock Voice Chat Connect. Connecting to the server address directly skips BVC.
 
 ## Nobody can hear me
 

@@ -6,7 +6,7 @@ sidebar:
   order: 8
 ---
 
-Select the gear icon at the bottom left. Settings open over the dashboard.
+Bedrock Voice Chat has a variety of different settings that enable you to customize and tailor your experience.
 
 ## Audio
 
@@ -14,13 +14,9 @@ Select the gear icon at the bottom left. Settings open over the dashboard.
 
 ### Devices
 
-BVC uses your platform's default communication device and speaker. The dropdowns let you pick a specific microphone and output.
+BVC defaults to using your platforms default communication device and speaker, with dropdowns so that you can use a specific input and output device.
 
-Windows supports both the standard Windows audio drivers and ASIO.
-
-All input is mixed to mono. A stereo microphone gains you nothing here.
-
-On phones there is nothing to pick. The device routes voice to whatever you last connected.
+Windows supports both the standard Windows audio drivers and ASIO devices.
 
 ### Test your devices
 
@@ -29,7 +25,11 @@ On phones there is nothing to pick. The device routes voice to whatever you last
 
 ### Voice mode
 
-**Open mic** transmits whenever the noise gate opens. **Push to talk** transmits only while your key is held. Bind the key under Keybinds.
+BVC has two voice modes: **Open mic** transmits whenever the noise gate opens. **Push to talk** transmits only while your key is held. Bind the key under Keybinds.
+
+### Mute cues
+
+BVC plays a short tone when you mute or deafen, and another when you turn either off. On by default.
 
 ### Spatial panning
 
@@ -93,7 +93,8 @@ Under **Minecraft Bedrock**:
 
 | Pane | What it does |
 |---|---|
-| Proxy Connect | Connect through Aternos and other no-net hosts. See [Aternos](/wiki/platforms/aternos/). |
-| Realms Connect | Connect to a Realm. See [Realms](/wiki/platforms/realms/). |
+| Voice Chat Connect | Connect to a Realm, or through Aternos and other no-net hosts. See [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/). |
+
+Realms and no-net hosts share one pane. Pick the world from the list.
 
 Recordings and Keybinds are desktop only.

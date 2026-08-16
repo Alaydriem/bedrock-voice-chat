@@ -6,7 +6,7 @@ sidebar:
   order: 6
 ---
 
-Some hosts do not let you enable `@minecraft/server-net`. The Addon cannot make HTTP requests there, and cannot report positions the normal way. Realms and Aternos are both in this category.
+The no-net Addon lets Bedrock Voice Chat run on hosts that do not permit `@minecraft/server-net`, such as Realms and Aternos. Without that module the standard Addon cannot make HTTP requests, and cannot report positions the normal way.
 
 The no-net Addon works differently. Your BVC client becomes the Bedrock server your game connects to, proxies packets through to the real host, and reads positions off the wire.
 
@@ -62,10 +62,10 @@ The `bvc_world_name` variable on the [full Addon](/wiki/server/bedrock-addon/) d
 
 ## Then
 
-Upload the world to your host, then point the client at it. The steps differ per host:
+Upload the world to your host, then point the client at it with Bedrock Voice Chat Connect. The upload step differs per host:
 
-- **[Realms](/wiki/platforms/realms/)** — upload to the Realm, connect through Realms Connect.
-- **[Aternos and other no-net hosts](/wiki/platforms/aternos/)** — rename to `.zip`, upload, connect through Proxy Connect.
+- **[Realms](/wiki/platforms/realms/)** — upload the world to the Realm.
+- **[Aternos and other no-net hosts](/wiki/platforms/aternos/)** — rename to `.zip`, then upload.
 
 ## Match the versions
 
@@ -75,16 +75,4 @@ Check [version support](/wiki/platforms/version-support/) before picking a serve
 
 ## Console players
 
-Consoles cannot enter a custom server address. They reach BVC through DNS, which needs the DNS responder on your BVC server. It is **off by default**:
-
-```hcl
-server {
-    bedrock {
-        dns {
-            enabled = true
-        }
-    }
-}
-```
-
-See [console and mobile](/wiki/platforms/console-and-mobile/).
+Nothing extra. The app hosts the session on your network, and it appears in Minecraft under **Worlds**. See [console and mobile](/wiki/platforms/console-and-mobile/).

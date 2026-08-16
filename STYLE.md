@@ -12,10 +12,32 @@ Two voices. Pick by directory.
 
 The reader came for an answer. Give the answer.
 
+### Name the product, then say what it does for the reader
+
+Open a page or a major section by naming the feature and what it lets the
+reader do. The product is the subject, not the reader.
+
+```
+BAD   You hear two sets of people: players near you, and anyone in your group.
+GOOD  Bedrock Voice Chat lets you hear people nearby you in the world, and in
+      groups you create or join.
+
+BAD   BVC plays audio clips in the world.
+GOOD  The Jukebox feature of Bedrock Voice Chat enables you to play custom
+      audio files in your world and experience it with proximity.
+```
+
+Spell out **Bedrock Voice Chat** on first use and inside warnings. `BVC` is
+fine after that, and in tables.
+
+An audience gate is allowed as an opening line: "This page is for players who
+already have a server running BVC."
+
 ### Never explain the documentation
 
 Delete any sentence about how a page was written, what it does or does not
-cover, or how it relates to another page.
+cover, or how it relates to another page. An audience gate is the exception
+above.
 
 ```
 BAD   Generated from source on every build, so it always matches the client.
@@ -24,10 +46,41 @@ BAD   This page does not restate any of it.
 GOOD  (nothing — link the reference and move on)
 ```
 
+### Put caveats in asides
+
+Anything conditional, breakable, or nice-to-know belongs in a Starlight aside
+instead of an inline paragraph.
+
+| Aside | Carries |
+|---|---|
+| `:::caution` | A prerequisite, or something that will break |
+| `:::danger` | Data loss, a security problem, or a step that silently defeats BVC |
+| `:::tip` | Useful extra the reader can skip |
+| `:::note` | Context that qualifies the paragraph above |
+
+`note`, `tip`, `caution` and `danger` are the only valid types. `:::notice`
+and `:::warning` render as literal text. Three colons, never two.
+
+Emphasis inside an aside is loud on purpose: `**MUST**`, `**FIRST**`,
+`**will not work**`.
+
+`be sure to` and `make sure you` are permitted inside an aside and nowhere
+else. `check:prose` enforces exactly that.
+
 ### Never restate a generated reference
 
 `bedrockvoicechat.com/api` and `/websocket` are built from source. Link them.
 A hand-copied endpoint list is duplication no matter how well written.
+
+### Cut mechanism from player pages, keep it on operator pages
+
+On `wiki/player/`, `wiki/start/`, `wiki/platforms/` and `wiki/creator/`, keep
+the happy path. Drop the failure enumerations, the internal mechanism, and the
+edge cases, or move them into an aside. Link the operator page instead.
+
+On `wiki/server/` and `wiki/reference/`, keep everything. An operator debugging
+at midnight needs the failure mode and the exact default. A reference page that
+drops them stops being a reference.
 
 ### One "why" per fact, and only if it changes an action
 
@@ -75,6 +128,10 @@ GOOD  Recording availability
 BAD   The embedded configuration mirrors the server
 GOOD  Embedded configuration
 ```
+
+Sentence case for a heading naming a thing: "Client application", "Spatial
+export". Title Case where the heading is a proper feature name: "How Bedrock
+Voice Chat Works", "Getting Started".
 
 ### Structure beats prose
 

@@ -6,7 +6,7 @@ sidebar:
   order: 1
 ---
 
-Adding BVC means running one extra service and installing one Addon. The order matters more than either.
+Adding Bedrock Voice Chat to your server means running one extra service and installing one Addon. The order you do them in matters more than either.
 
 ## What is Bedrock Voice Chat Server?
 
