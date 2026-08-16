@@ -9,7 +9,7 @@ use crate::audio::stream::stream_manager::AudioOutputSink;
 use router::PacketRouter;
 
 use crate::AudioPacket;
-use crate::audio::types::AudioDevice;
+use crate::audio::AudioDevice;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxBeaconCache;
 #[cfg(feature = "bedrock-protocol")]
@@ -359,7 +359,7 @@ impl OutputStream {
             Some(device) => match device.get_stream_config() {
                 Ok(stored_config) => {
                     // Validate stored config against live device - detect Windows sound settings changes
-                    let config = match crate::audio::device::refresh_device_config(&device) {
+                    let config = match crate::audio::device::AudioDeviceEnumerator::refresh_device_config(&device) {
                         Some(fresh_configs) if !fresh_configs.is_empty() => {
                             let fresh_config: rodio::cpal::SupportedStreamConfig =
                                 fresh_configs[0].clone().into();

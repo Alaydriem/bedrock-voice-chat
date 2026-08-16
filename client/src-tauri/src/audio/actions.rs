@@ -1,4 +1,4 @@
-use crate::audio::types::AudioDeviceType;
+use crate::audio::AudioDeviceType;
 use crate::audio::{AudioStreamManager, RecordingManager};
 use common::structs::audio::{MuteEvent, PlayerGainSettings, StreamEvent, VoiceRuntimeState};
 use common::structs::keybinds::VoiceMode;

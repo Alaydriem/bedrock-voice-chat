@@ -174,7 +174,8 @@ impl StreamTrait for InputStream {
                                                         prev
                                                     );
                                                 }
-                                                continue; // Drop older/same-timestamp frame
+                                                // Drop older or same-timestamp frame
+                                                continue;
                                             }
 
                                             // Update last seen timestamp for this speaker

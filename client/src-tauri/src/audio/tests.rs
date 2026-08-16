@@ -2,7 +2,7 @@ use rodio::cpal::traits::{DeviceTrait, HostTrait};
 
 #[test]
 fn get_cpal_hosts() {
-    let hosts = crate::audio::device::get_cpal_hosts();
+    let hosts = crate::audio::device::AudioDeviceEnumerator::get_cpal_hosts();
     match hosts {
         Ok(hosts) => {
             // On Windows we should have both AISO and WASAPI drivers
@@ -40,7 +40,7 @@ fn get_devices() {
     // The contract under test is that device enumeration succeeds without
     // erroring. The device count is NOT asserted: headless CI runners have no
     // audio hardware, so an empty list is a valid result there.
-    let devices = crate::audio::device::get_devices();
+    let devices = crate::audio::device::AudioDeviceEnumerator::get_devices();
     match devices {
         Ok(devices) => {
             for (host, device_list) in devices.iter() {
@@ -55,7 +55,7 @@ fn get_devices() {
     }
 
     println!("------");
-    let hosts = crate::audio::device::get_cpal_hosts().unwrap();
+    let hosts = crate::audio::device::AudioDeviceEnumerator::get_cpal_hosts().unwrap();
     for host in hosts {
         match host.input_devices() {
             Ok(devices) => {

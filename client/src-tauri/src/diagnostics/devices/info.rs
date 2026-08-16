@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 
 use super::DeviceSnapshot;
-use crate::audio::types::AudioDeviceType;
+use crate::audio::AudioDeviceType;
 use crate::structs::StoredAudioDevice;
 
 

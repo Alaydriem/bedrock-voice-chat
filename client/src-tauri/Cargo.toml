@@ -133,12 +133,20 @@ bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag
 bedrock-client = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.12" }
 
 [[test]]
+name = "unit"
+path = "tests/unit.rs"
+
+[[test]]
 name = "integration"
 path = "tests/integration.rs"
-# The integration tests use `bvc_client_lib::testkit`, which is gated behind the
-# `e2e` feature. Without this, a plain `cargo test`/`cargo nextest run` tries to
-# compile this target with `testkit` configured out and fails. `required-features`
-# makes cargo skip the target entirely unless `e2e` is enabled.
+# `integration` holds the modules that use `bvc_client_lib::testkit`, which is
+# gated behind the `e2e` feature. Without this, a plain `cargo test`/`cargo
+# nextest run` tries to compile the target with `testkit` configured out and
+# fails. `required-features` makes cargo skip it entirely unless `e2e` is on.
+#
+# Everything that does NOT need testkit lives in the `unit` target above, so the
+# gate costs the fast suite nothing. Adding a module here that does not use
+# testkit hides it from `cargo nextest run`.
 required-features = ["e2e"]
 
 [features]

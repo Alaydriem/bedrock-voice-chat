@@ -166,18 +166,3 @@ impl PlayerIdentityService {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cache_key_equality() {
-        let key1 = ("CoolBuilder42".to_string(), Game::Minecraft);
-        let key2 = ("CoolBuilder42".to_string(), Game::Minecraft);
-        assert_eq!(key1, key2);
-
-        let key3 = ("CoolBuilder42".to_string(), Game::Hytale);
-        assert_ne!(key1, key3);
-    }
-}

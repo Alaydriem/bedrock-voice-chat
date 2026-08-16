@@ -2,7 +2,6 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::Duration;
 
 use base64::{Engine as _, engine::general_purpose};
 use common::Game;
@@ -10,7 +9,6 @@ use common::ncryptflib as ncryptf;
 use common::ncryptflib::rocket::Utc;
 use common::traits::player_data::PlayerData;
 use entity::{player, player_identity};
-use moka::sync::Cache;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
@@ -18,36 +16,9 @@ use sea_orm::{
 
 use crate::services::CertificateService;
 
-/// Cache of registered player names to avoid repeated database queries
-#[derive(Clone)]
-pub struct RegisteredPlayersCache {
-    cache: Cache<String, bool>,
-}
+mod cache;
 
-impl RegisteredPlayersCache {
-    pub fn new() -> Self {
-        Self {
-            cache: Cache::builder()
-                .time_to_live(Duration::from_secs(86400)) // 1 day
-                .max_capacity(512)
-                .build(),
-        }
-    }
-
-    pub fn contains(&self, player_name: &str) -> bool {
-        self.cache.get(player_name).is_some()
-    }
-
-    pub fn insert(&self, player_name: String) {
-        self.cache.insert(player_name, true);
-    }
-}
-
-impl Default for RegisteredPlayersCache {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub use cache::RegisteredPlayersCache;
 
 /// Service for player registration logic.
 /// Creates new player records in the database with certificates.

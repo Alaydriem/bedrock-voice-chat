@@ -110,7 +110,8 @@ impl RecordingManager {
         self.recording_state.store(false, Ordering::SeqCst);
 
         if let Some(recorder) = &mut self.recorder {
-            recorder.stop().await?; // Now drain and finish
+            // Now drain and finish
+            recorder.stop().await?;
             info!(
                 "Recording session {} stopped via RecordingManager",
                 recorder.session_id()

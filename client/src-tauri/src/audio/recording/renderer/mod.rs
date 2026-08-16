@@ -14,9 +14,17 @@ pub use spatial_render_settings::SpatialRenderSettings;
 pub use spatial_source::SpatialSource;
 pub use stream::mixed::MixedPcmTrack;
 
+mod decoded_frame;
+mod session_info;
+mod wal_entry;
+
+pub use decoded_frame::DecodedAudioFrame;
+pub use session_info::SessionInfo;
+pub use wal_entry::WalEntry;
+
 use async_trait::async_trait;
 use common::structs::AudioFormat;
-use common::structs::recording::{RecordingHeader, RecordingTrack, SessionManifest};
+use common::structs::recording::{RecordingHeader, RecordingTrack};
 use log::debug;
 use std::fs;
 use std::path::Path;
@@ -144,46 +152,6 @@ pub trait AudioRenderer {
     fn file_extension(&self) -> &str;
 }
 
-/// Decoded audio frame with metadata
-#[derive(Debug)]
-pub struct DecodedAudioFrame {
-    pub pcm_data: Vec<f32>,
-    pub sample_rate: u32,
-    pub channels: u16,
-    pub relative_timestamp_ms: u64,
-}
-
-#[derive(Debug, Clone)]
-pub struct SessionInfo {
-    pub session_id: String,
-    pub start_timestamp: u64,
-    pub player_name: String,
-    pub duration_ms: Option<u64>,
-}
-
-impl SessionInfo {
-    pub fn load(session_path: &Path) -> Result<Self, anyhow::Error> {
-        let session_json_path = session_path.join("session.json");
-        let manifest: SessionManifest =
-            serde_json::from_str(&std::fs::read_to_string(session_json_path)?)?;
-
-        Ok(Self {
-            session_id: manifest.session_id,
-            start_timestamp: manifest.start_timestamp,
-            player_name: manifest.emitter_player,
-            duration_ms: manifest.duration_ms,
-        })
-    }
-}
-
-/// Raw WAL entry containing Opus packet and metadata
-#[derive(Debug)]
-pub struct WalEntry {
-    pub header: RecordingHeader,
-    pub opus_data: Vec<u8>,
-    pub relative_timestamp_ms: u64,
-}
-
 /// WAL audio reader that decodes Opus frames and handles silence gaps
 pub struct WalAudioReader {
     entries: Vec<WalEntry>,
@@ -285,7 +253,8 @@ impl WalAudioReader {
 
     pub fn calculate_silence_before_next(&self) -> Option<usize> {
         const OPUS_FRAME_MS: u64 = 20;
-        const NETWORK_JITTER_TOLERANCE_MS: u64 = 39; // 0-39ms = consecutive packets
+        // 0-39 ms apart counts as consecutive packets
+        const NETWORK_JITTER_TOLERANCE_MS: u64 = 39;
 
         if self.current_index == 0 || self.current_index >= self.entries.len() {
             return None;

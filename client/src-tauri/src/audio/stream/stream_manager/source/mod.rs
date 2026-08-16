@@ -9,7 +9,7 @@ pub(crate) use config::CaptureConfig;
 pub(crate) use driver::SourceDriver;
 
 use crate::audio::stream::StreamRecoveryEvent;
-use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType};
+use crate::audio::{AudioDevice, AudioDeviceCpal, AudioDeviceType};
 use anyhow::anyhow;
 use log::{error, warn};
 use rodio::DeviceTrait;
@@ -53,7 +53,7 @@ impl AudioInputSource {
                 })?;
                 let stored_config = device.get_stream_config()?;
 
-                let config = match crate::audio::device::refresh_device_config(&device) {
+                let config = match crate::audio::device::AudioDeviceEnumerator::refresh_device_config(&device) {
                     Some(fresh_configs) if !fresh_configs.is_empty() => {
                         let fresh_config: rodio::cpal::SupportedStreamConfig =
                             fresh_configs[0].clone().into();
@@ -99,7 +99,7 @@ impl AudioInputSource {
                 let buffer_size = rodio::cpal::BufferSize::Default;
 
                 #[cfg(not(any(target_os = "ios", target_os = "android")))]
-                let buffer_size = rodio::cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
+                let buffer_size = rodio::cpal::BufferSize::Fixed(crate::audio::BUFFER_SIZE);
 
                 Ok(CaptureConfig {
                     sample_rate: config.sample_rate(),

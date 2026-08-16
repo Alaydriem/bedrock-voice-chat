@@ -1,4 +1,4 @@
-use crate::audio::types::OPUS_SAMPLE_RATE;
+use crate::audio::AudioResampling;
 use audioadapter_buffers::direct::SequentialSlice;
 use rubato::audioadapter::Adapter;
 use rubato::{Fft, FixedSync, Resampler};
@@ -15,7 +15,7 @@ impl AudioResampler {
     /// Create resampler for source_rate → 48 kHz conversion
     /// Returns None if source rate is already 48 kHz (no resampling needed)
     pub fn new_if_needed(source_rate: u32) -> Option<Result<Self, anyhow::Error>> {
-        if source_rate == OPUS_SAMPLE_RATE {
+        if source_rate == AudioResampling::OPUS_SAMPLE_RATE {
             return None;
         }
 
@@ -31,10 +31,11 @@ impl AudioResampler {
 
         let resampler = match Fft::<f32>::new(
             source_rate as usize,
-            OPUS_SAMPLE_RATE as usize,
+            AudioResampling::OPUS_SAMPLE_RATE as usize,
             chunk_size,
             sub_chunks,
-            1, // mono
+            // mono
+            1,
             FixedSync::Input,
         ) {
             Ok(r) => r,

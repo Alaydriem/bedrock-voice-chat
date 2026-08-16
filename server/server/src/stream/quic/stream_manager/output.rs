@@ -1,4 +1,4 @@
-use crate::stream::quic::connection_registry::RoutedPacket;
+use crate::stream::quic::connection::RoutedPacket;
 use crate::stream::session::{SendOutcome, SessionLink};
 use anyhow::Error;
 use common::traits::StreamTrait;

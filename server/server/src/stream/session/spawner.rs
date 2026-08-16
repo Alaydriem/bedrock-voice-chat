@@ -1,5 +1,5 @@
 use super::SessionLink;
-use crate::stream::quic::connection_registry::{ConnectionRegistry, RoutedPacket};
+use crate::stream::quic::connection::{ConnectionRegistry, RoutedPacket};
 use crate::stream::quic::stream_manager::{InputStream, OutputStream};
 use crate::stream::quic::{CacheManager, PacketIdentityStamp, WebhookReceiver};
 use common::structs::packet::{

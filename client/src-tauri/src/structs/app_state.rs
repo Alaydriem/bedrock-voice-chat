@@ -1,5 +1,5 @@
 use crate::api::Api;
-use crate::audio::types::{AudioDevice, AudioDeviceHost, AudioDeviceType};
+use crate::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType};
 use crate::structs::StoredAudioDevice;
 use rodio::cpal::{
     self,

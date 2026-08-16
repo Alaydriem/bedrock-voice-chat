@@ -1,11 +1,11 @@
-mod link_error;
+mod error;
 mod recv_failure;
 mod ws;
 
 #[cfg(debug_assertions)]
 mod permissive_server_verifier;
 
-pub(crate) use link_error::VoiceLinkError;
+pub(crate) use error::VoiceLinkError;
 pub(crate) use recv_failure::RecvFailure;
 pub(crate) use ws::WsLink;
 
@@ -16,35 +16,11 @@ use bytes::Bytes;
 use common::s2n_quic::Connection;
 use common::s2n_quic::provider::datagram::default::DatagramError;
 use common::structs::network::QuicCloseCode;
-use core::{
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-};
 use std::sync::Arc;
 
-// Awaits exactly one datagram from a QUIC connection. A hand-written future rather than a
-// `futures` dependency on the hot path.
-struct RecvDatagram<'c> {
-    conn: &'c Connection,
-}
+mod recv_datagram;
 
-impl<'c> Future for RecvDatagram<'c> {
-    type Output = Result<Bytes, RecvFailure>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.conn.datagram_mut(
-            |r: &mut common::s2n_quic::provider::datagram::default::Receiver| {
-                r.poll_recv_datagram(cx)
-            },
-        ) {
-            Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),
-            Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(RecvFailure::Datagram(e))),
-            Ok(Poll::Pending) => Poll::Pending,
-            Err(e) => Poll::Ready(Err(RecvFailure::Query(e.to_string()))),
-        }
-    }
-}
+use recv_datagram::RecvDatagram;
 
 /// The transport this client's voice session runs over.
 ///

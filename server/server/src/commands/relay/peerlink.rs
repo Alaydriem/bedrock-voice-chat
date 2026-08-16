@@ -3,8 +3,8 @@ use clap::Parser;
 use bvc_server_lib::relay::PeerBlock;
 
 use crate::commands::Cli;
-use crate::commands::admin_api_client::AdminApiClient;
-use crate::commands::admin_api_error::AdminApiError;
+use crate::commands::admin::AdminApiClient;
+use crate::commands::admin::AdminApiError;
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Print this server's peer link", long_about = None)]

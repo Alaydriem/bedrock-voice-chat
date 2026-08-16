@@ -1,3 +1,7 @@
+mod value_trait;
+
+pub use value_trait::FlagsmithValue;
+
 pub(crate) mod feature;
 pub(crate) mod flag;
 pub(crate) mod identity_response;

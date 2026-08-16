@@ -1,4 +1,4 @@
-use crate::stream::quic::connection_registry::ConnectionRegistry;
+use crate::stream::quic::connection::ConnectionRegistry;
 
 // Whether this server currently serves a given canonical identity.
 //

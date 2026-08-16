@@ -6,7 +6,7 @@ mod mix_target;
 pub use capturing::CapturingSink;
 pub(crate) use mix_target::MixTarget;
 
-use crate::audio::types::{AudioDevice, AudioDeviceCpal};
+use crate::audio::{AudioDevice, AudioDeviceCpal};
 use anyhow::anyhow;
 use log::error;
 use rodio::DeviceSinkBuilder;

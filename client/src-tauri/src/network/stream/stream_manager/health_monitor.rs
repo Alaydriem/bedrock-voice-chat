@@ -193,7 +193,8 @@ mod tests {
     fn test_on_health_check_received_resets() {
         let state = HealthMonitorState::new();
         state.set_awaiting(true);
-        state.on_timeout(); // failure_count = 1
+        // failure_count = 1
+        state.on_timeout();
         state.set_awaiting(true);
 
         state.on_health_check_received();

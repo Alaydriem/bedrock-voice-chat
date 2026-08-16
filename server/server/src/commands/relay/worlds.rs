@@ -1,7 +1,7 @@
 use clap::Parser;
 
 use crate::commands::Cli;
-use crate::commands::admin_api_client::AdminApiClient;
+use crate::commands::admin::AdminApiClient;
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "List the relay worlds this server is hosting", long_about = None)]

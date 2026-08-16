@@ -29,24 +29,3 @@ impl FeatureFlag for MinecraftProtocolSupport {
         ))
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn key_format_uses_raw_protocol_number() {
-        let flag = MinecraftProtocolSupport {
-            protocol_version: 988,
-        };
-        assert_eq!(flag.key().as_ref(), "feature.minecraft.protocol.988");
-    }
-
-    #[test]
-    fn default_rejects() {
-        let flag = MinecraftProtocolSupport {
-            protocol_version: 999,
-        };
-        assert!(!flag.default());
-    }
-}

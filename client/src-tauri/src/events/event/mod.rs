@@ -1,4 +1,4 @@
-pub(crate) mod channel_event;
+pub(crate) mod channel;
 pub mod jukebox;
 pub(crate) mod notification;
 pub mod player_gain_store;

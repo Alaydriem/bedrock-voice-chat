@@ -248,7 +248,7 @@ impl FeatureFlagService {
     // flag definition (struct + trait impl) to call site through the type
     // system, preventing key typos and bool-vs-int mix-ups at compile time.
     pub async fn get<F: FeatureFlag>(&self, flag: F) -> F::Value {
-        use super::flagsmith_value::FlagsmithValue;
+        use super::FlagsmithValue;
         let key = flag.key();
         let default = flag.default();
         F::Value::fetch(self, key.as_ref(), default).await

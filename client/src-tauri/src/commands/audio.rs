@@ -1,4 +1,4 @@
-use crate::audio::types::{AudioDevice, AudioDeviceType};
+use crate::audio::{AudioDevice, AudioDeviceType};
 use crate::audio::{AudioActionsManager, RecordingManager};
 use crate::events::event::notification::{EVENT_NOTIFICATION, Notification};
 use crate::{AudioStreamManager, structs::app_state::AppState};
@@ -296,7 +296,7 @@ pub(crate) async fn stop_audio_device(
 /// Returns a list of audio devices
 #[tauri::command]
 pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, ()> {
-    return crate::audio::device::get_devices();
+    return crate::audio::device::AudioDeviceEnumerator::get_devices();
 }
 
 // Toggle mutes a given input stream

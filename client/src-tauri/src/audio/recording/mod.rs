@@ -1,8 +1,10 @@
+mod directory_size;
 pub mod export_run;
 mod manager;
 mod manifest_store;
 pub mod participants;
 pub mod renderer;
+mod session_sink;
 pub mod track_index;
 pub mod wal_key;
 
@@ -26,10 +28,12 @@ use tokio::sync::oneshot;
 use tokio::task::AbortHandle;
 use uuid::{NoContext, Timestamp, Uuid};
 
+pub use directory_size::DirectorySize;
 pub use export_run::{ExportRun, TrackSink};
 pub use manager::RecordingManager;
 pub use manifest_store::ManifestStore;
 pub use participants::ParticipantIndex;
+pub use session_sink::SessionSink;
 pub use track_index::TrackIndex;
 pub use wal_key::WalKey;
 
@@ -285,7 +289,7 @@ impl Recorder {
             }
 
             info!("Recording session {} fully finalized", manifest.session_id);
-            let _ = completion_tx.send(()); // Signal completion
+            let _ = completion_tx.send(());
         });
 
         Ok((handle.abort_handle(), completion_rx))

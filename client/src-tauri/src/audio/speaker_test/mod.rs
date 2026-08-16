@@ -5,7 +5,7 @@ mod chime;
 // sleeping for the duration is not something a test can observe.
 pub use chime::Chime;
 
-use crate::audio::types::{AudioDevice, AudioDeviceCpal};
+use crate::audio::{AudioDevice, AudioDeviceCpal};
 use anyhow::anyhow;
 use log::error;
 use rodio::DeviceSinkBuilder;

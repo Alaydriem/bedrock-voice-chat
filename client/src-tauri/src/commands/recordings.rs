@@ -1,46 +1,20 @@
 use crate::AudioStreamManager;
 use crate::analytics::AnalyticsService;
-use crate::audio::recording::renderer::{
-    AudioFormatRenderer, ExportNaming, SpatialRenderSettings,
+use crate::audio::recording::{
+    DirectorySize, ExportRun, ManifestStore, SessionSink, TrackIndex,
 };
-use crate::audio::recording::{ExportRun, ManifestStore, TrackIndex, TrackSink};
 use crate::audio::spatial::SpatialSettingsResolver;
 use common::structs::AudioFormat;
-use common::structs::recording::{
-    ExportOutcome, ExportProgress, RecordingTrack, SessionManifest,
-};
+use common::structs::recording::{ExportOutcome, RecordingTrack, SessionManifest};
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use log::{error, info};
 use std::fs;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::async_runtime::Mutex;
-use tauri::{Emitter, Manager, State};
+use tauri::{Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use common::structs::recording::RecordingSession;
-
-struct DirectorySize;
-
-impl DirectorySize {
-    fn calculate(path: &PathBuf) -> Result<u64, std::io::Error> {
-        let mut total_size = 0u64;
-
-        if path.is_dir() {
-            for entry in fs::read_dir(path)? {
-                let entry = entry?;
-                let path = entry.path();
-                if path.is_dir() {
-                    total_size += Self::calculate(&path)?;
-                } else {
-                    total_size += entry.metadata()?.len();
-                }
-            }
-        }
-
-        Ok(total_size)
-    }
-}
 
 #[tauri::command]
 pub async fn get_recording_sessions(
@@ -163,48 +137,6 @@ pub async fn rename_recording_session(
     ManifestStore::rename(&recordings_dir, &session_id, &name)
 }
 
-/// The run's one track at a time, against the session on disk.
-struct SessionSink {
-    app_handle: tauri::AppHandle,
-    session_id: String,
-    session_path: PathBuf,
-    render_path: PathBuf,
-    format: AudioFormat,
-    // Absent when the export is flat. Resolved once for the whole run, because a session that
-    // ends part way through must not change the curve the remaining tracks render on.
-    spatial: Option<SpatialRenderSettings>,
-}
-
-#[async_trait::async_trait]
-impl TrackSink for SessionSink {
-    async fn write(&self, track: &RecordingTrack) -> Result<(), anyhow::Error> {
-        let output_path = self.render_path.join(format!(
-            "{}.{}",
-            ExportNaming::file_stem(track),
-            self.format.extension()
-        ));
-        self.format
-            .render_track(
-                &self.session_path,
-                track,
-                &output_path,
-                self.spatial.as_ref(),
-            )
-            .await
-    }
-
-    fn progressed(&self, track: &RecordingTrack, index: u32, total: u32) {
-        let _ = self.app_handle.emit(
-            crate::events::event::RECORDING_EXPORT_PROGRESS,
-            ExportProgress {
-                session_id: self.session_id.clone(),
-                track: track.display.clone(),
-                index,
-                total,
-            },
-        );
-    }
-}
 
 #[tauri::command]
 #[tracing::instrument(skip(app_handle, tracks, asm), fields(session_id = %session_id, format = ?format, track_count = tracks.len()))]

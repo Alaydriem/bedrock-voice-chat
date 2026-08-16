@@ -3,8 +3,8 @@ use common::Game;
 use common::request::admin::ClearPermissionRequest;
 
 use crate::commands::Cli;
-use crate::commands::admin_api_client::AdminApiClient;
-use crate::commands::admin_api_error::AdminApiError;
+use crate::commands::admin::AdminApiClient;
+use crate::commands::admin::AdminApiError;
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Clear a permission override (fall back to config default)", long_about = None)]

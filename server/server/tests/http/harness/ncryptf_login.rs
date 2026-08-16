@@ -2,7 +2,7 @@ use base64::Engine;
 use common::request::CodeLoginRequest;
 use common::response::LoginResponse;
 
-use super::json_message::JsonMessage;
+use common::response::JsonMessage;
 use super::server::TestServer;
 
 const ENDPOINT: &str = "/api/auth/code";

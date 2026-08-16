@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use bvc_server_lib::stream::quic::connection_registry::{ConnectionRegistry, RoutedPacket};
+use bvc_server_lib::stream::quic::connection::{ConnectionRegistry, RoutedPacket};
 use clap::Parser;
 use common::game_data::Dimension;
 use common::players::MinecraftPlayer;

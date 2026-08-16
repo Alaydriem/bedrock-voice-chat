@@ -9,11 +9,14 @@
 //! - Professional timecode track (tmcd) for NLE compatibility
 //! - User data box (udta) with session metadata
 
-mod boxes;
+pub mod boxes;
 pub mod constants;
-mod timecode;
+pub mod timecode;
 
-use boxes::BoxWriter;
+mod tref_injector;
+
+use tref_injector::TrefInjector;
+
 use timecode::{TimecodeSample, TimecodeTrack, UserDataBox};
 
 use super::{AudioRenderer, OpusChunk, OpusPacketStream, OpusStreamInfo};
@@ -26,104 +29,6 @@ use std::io::{Seek, Write};
 use std::num::{NonZeroU16, NonZeroU32};
 use std::path::Path;
 
-/// Create a tref box that references the timecode track
-fn create_tref_to_timecode(timecode_track_id: u32) -> Vec<u8> {
-    // Build tref box: tref contains a tmcd reference with the track ID
-    // tref: size (4) + 'tref' (4) + tmcd reference
-    // tmcd reference: size (4) + 'tmcd' (4) + track_id (4)
-    let tmcd_size: u32 = 12; // 4 + 4 + 4
-    let tref_size: u32 = 8 + tmcd_size;
-
-    BoxWriter::new()
-        .u32(tref_size)
-        .fourcc(b"tref")
-        .u32(tmcd_size)
-        .fourcc(b"tmcd")
-        .u32(timecode_track_id)
-        .finish()
-}
-
-/// Inject tref box into the first trak box found in moov content
-/// Returns modified moov content (without moov header)
-fn inject_tref_into_audio_trak(moov_content: &[u8], tref: &[u8]) -> Vec<u8> {
-    let mut result = Vec::new();
-    let mut pos = 0;
-    let mut trak_modified = false;
-
-    while pos + 8 <= moov_content.len() {
-        let box_size = u32::from_be_bytes([
-            moov_content[pos],
-            moov_content[pos + 1],
-            moov_content[pos + 2],
-            moov_content[pos + 3],
-        ]) as usize;
-
-        let box_type = &moov_content[pos + 4..pos + 8];
-
-        if box_size == 0 || pos + box_size > moov_content.len() {
-            // Invalid box, copy rest and break
-            result.extend_from_slice(&moov_content[pos..]);
-            break;
-        }
-
-        if box_type == b"trak" && !trak_modified {
-            // Found first trak (audio track) - inject tref after tkhd
-            let trak_content = &moov_content[pos + 8..pos + box_size];
-            let new_trak = inject_tref_after_tkhd(trak_content, tref);
-
-            // Write new trak with updated size
-            let new_trak_size = (8 + new_trak.len()) as u32;
-            result.extend_from_slice(&new_trak_size.to_be_bytes());
-            result.extend_from_slice(b"trak");
-            result.extend_from_slice(&new_trak);
-
-            trak_modified = true;
-        } else {
-            // Copy box as-is
-            result.extend_from_slice(&moov_content[pos..pos + box_size]);
-        }
-
-        pos += box_size;
-    }
-
-    result
-}
-
-/// Inject tref after tkhd in trak content
-fn inject_tref_after_tkhd(trak_content: &[u8], tref: &[u8]) -> Vec<u8> {
-    let mut result = Vec::new();
-    let mut pos = 0;
-    let mut tref_injected = false;
-
-    while pos + 8 <= trak_content.len() {
-        let box_size = u32::from_be_bytes([
-            trak_content[pos],
-            trak_content[pos + 1],
-            trak_content[pos + 2],
-            trak_content[pos + 3],
-        ]) as usize;
-
-        let box_type = &trak_content[pos + 4..pos + 8];
-
-        if box_size == 0 || pos + box_size > trak_content.len() {
-            result.extend_from_slice(&trak_content[pos..]);
-            break;
-        }
-
-        // Copy current box
-        result.extend_from_slice(&trak_content[pos..pos + box_size]);
-
-        // Inject tref right after tkhd
-        if box_type == b"tkhd" && !tref_injected {
-            result.extend_from_slice(tref);
-            tref_injected = true;
-        }
-
-        pos += box_size;
-    }
-
-    result
-}
 
 /// MP4/M4A renderer with Opus audio
 ///
@@ -316,8 +221,8 @@ impl Mp4Renderer {
             if bytes.len() >= 8 && &bytes[4..8] == b"moov" {
                 // First pass: calculate where timecode data will end up
                 let original_content = &bytes[8..]; // Skip size and 'moov' fourcc
-                let audio_tref = create_tref_to_timecode(2);
-                let modified_content = inject_tref_into_audio_trak(original_content, &audio_tref);
+                let audio_tref = TrefInjector::create_tref_to_timecode(2);
+                let modified_content = TrefInjector::inject_tref_into_audio_trak(original_content, &audio_tref);
 
                 // Create user data box using new struct-based API
                 let udta = UserDataBox::from_stream_info(&info, Some(duration_ms));

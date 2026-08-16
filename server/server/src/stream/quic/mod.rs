@@ -12,18 +12,12 @@
 
 mod cache_manager;
 mod certificate_common_name;
-mod connection_id_format;
+pub mod connection;
 mod connection_identity;
-pub mod connection_registry;
-// Public so the integration crate can drive the one invariant this mechanism rests on: a sequence
-// number is consumed only when a datagram is actually produced for a connection.
-pub mod connection_sequence;
 mod log_throttle;
 mod packet_identity_stamp;
-mod path_observer;
-mod path_observer_context;
-mod peer_identity_capture;
-mod peer_identity_context;
+pub mod path;
+pub mod peer;
 mod server_input_packet;
 pub(crate) mod stream_manager;
 mod webhook_receiver;
@@ -35,7 +29,7 @@ use common::s2n_quic::{Connection, Server};
 use common::structs::network::QuicCloseCode;
 use common::structs::packet::{PacketType, QuicNetworkPacket};
 use common::traits::StreamTrait;
-use connection_registry::ConnectionRegistry;
+use connection::ConnectionRegistry;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
@@ -44,13 +38,11 @@ pub use cache_manager::{
     WebsocketTicketCache,
 };
 pub use certificate_common_name::CertificateCommonName;
-pub use connection_id_format::PrefixedConnectionIdFormat;
+pub use connection::PrefixedConnectionIdFormat;
 pub use connection_identity::{ConnectionClassifier, ConnectionKind};
 pub use packet_identity_stamp::PacketIdentityStamp;
-pub use path_observer::PathObserver;
-pub use path_observer_context::PathObserverContext;
-pub use peer_identity_capture::PeerIdentityCapture;
-pub use peer_identity_context::PeerIdentityContext;
+pub use path::{PathObserver, PathObserverContext};
+pub use peer::identity::{PeerIdentityCapture, PeerIdentityContext};
 pub use server_input_packet::ServerInputPacket;
 pub use webhook_receiver::WebhookReceiver;
 

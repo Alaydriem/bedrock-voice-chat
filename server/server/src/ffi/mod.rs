@@ -16,6 +16,10 @@
 //! BvcNative.destroyServer(handle);
 //! ```
 
+mod error;
+
+use error::FfiError;
+
 use crate::config::ApplicationConfig;
 use crate::runtime::{ServerRuntime, position_updater};
 use crate::services::{
@@ -73,16 +77,6 @@ pub struct RuntimeHandle {
     recording_enabled: AtomicBool,
 }
 
-// Thread-local storage for last error message
-thread_local! {
-    static LAST_ERROR: std::cell::RefCell<Option<CString>> = const { std::cell::RefCell::new(None) };
-}
-
-fn set_last_error(msg: &str) {
-    LAST_ERROR.with(|e| {
-        *e.borrow_mut() = CString::new(msg).ok();
-    });
-}
 
 /// Run an FFI entry point's body, converting any panic into the function's error
 /// sentinel instead of letting it unwind across the C ABI — an unwind out of an
@@ -94,7 +88,7 @@ macro_rules! ffi_guard {
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| $body)) {
             Ok(value) => value,
             Err(_) => {
-                set_last_error(concat!("panic in ", $name));
+                FfiError::set_last_error(concat!("panic in ", $name));
                 $sentinel
             }
         }
@@ -123,14 +117,14 @@ pub extern "C" fn bvc_init() -> c_int {
 pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut RuntimeHandle {
     ffi_guard!("bvc_server_create", ptr::null_mut(), {
     if config_json.is_null() {
-        set_last_error("config_json is null");
+        FfiError::set_last_error("config_json is null");
         return ptr::null_mut();
     }
 
     let config_str = match unsafe { CStr::from_ptr(config_json) }.to_str() {
         Ok(s) => s,
         Err(e) => {
-            set_last_error(&format!("Invalid UTF-8 in config_json: {}", e));
+            FfiError::set_last_error(&format!("Invalid UTF-8 in config_json: {}", e));
             return ptr::null_mut();
         }
     };
@@ -139,7 +133,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         match ApplicationConfig::from_json_with_env(config_str, std::env::vars().collect()) {
             Ok(c) => c,
             Err(e) => {
-                set_last_error(&format!("Failed to parse config JSON: {}", e));
+                FfiError::set_last_error(&format!("Failed to parse config JSON: {}", e));
                 return ptr::null_mut();
             }
         };
@@ -147,7 +141,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let resolved_config = match serde_json::to_string(&config) {
         Ok(json) => json,
         Err(e) => {
-            set_last_error(&format!("Failed to serialize resolved config: {}", e));
+            FfiError::set_last_error(&format!("Failed to serialize resolved config: {}", e));
             return ptr::null_mut();
         }
     };
@@ -157,7 +151,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let runtime = match crate::BvcServer::new(config) {
         Ok(r) => r,
         Err(e) => {
-            set_last_error(&format!("Failed to create runtime: {}", e));
+            FfiError::set_last_error(&format!("Failed to create runtime: {}", e));
             return ptr::null_mut();
         }
     };
@@ -195,7 +189,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let tokio_runtime = match runtime_builder.build() {
         Ok(rt) => rt,
         Err(e) => {
-            set_last_error(&format!("Failed to create tokio runtime: {}", e));
+            FfiError::set_last_error(&format!("Failed to create tokio runtime: {}", e));
             return ptr::null_mut();
         }
     };
@@ -242,7 +236,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
 pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
     ffi_guard!("bvc_server_start", -1, {
     if handle.is_null() {
-        set_last_error("handle is null");
+        FfiError::set_last_error("handle is null");
         return -1;
     }
 
@@ -252,7 +246,7 @@ pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
     let tokio_rt = match &handle_ref.tokio_runtime {
         Some(rt) => rt,
         None => {
-            set_last_error("Tokio runtime not available");
+            FfiError::set_last_error("Tokio runtime not available");
             return -1;
         }
     };
@@ -261,7 +255,7 @@ pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
     let mut runtime_guard = match handle_ref.runtime.lock() {
         Ok(g) => g,
         Err(e) => {
-            set_last_error(&format!("Failed to lock runtime: {}", e));
+            FfiError::set_last_error(&format!("Failed to lock runtime: {}", e));
             return -1;
         }
     };
@@ -269,7 +263,7 @@ pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
     let runtime = match runtime_guard.as_mut() {
         Some(r) => r,
         None => {
-            set_last_error("Runtime already consumed or not initialized");
+            FfiError::set_last_error("Runtime already consumed or not initialized");
             return -1;
         }
     };
@@ -280,7 +274,7 @@ pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
     match result {
         Ok(_) => 0,
         Err(e) => {
-            set_last_error(&format!("Server error: {}", e));
+            FfiError::set_last_error(&format!("Server error: {}", e));
             -1
         }
     }
@@ -305,7 +299,7 @@ pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
 pub unsafe extern "C" fn bvc_server_stop(handle: *mut RuntimeHandle) -> c_int {
     ffi_guard!("bvc_server_stop", -1, {
     if handle.is_null() {
-        set_last_error("handle is null");
+        FfiError::set_last_error("handle is null");
         return -1;
     }
 
@@ -342,7 +336,7 @@ pub unsafe extern "C" fn bvc_server_stop(handle: *mut RuntimeHandle) -> c_int {
 pub unsafe extern "C" fn bvc_server_destroy(handle: *mut RuntimeHandle) -> c_int {
     ffi_guard!("bvc_server_destroy", -1, {
     if handle.is_null() {
-        set_last_error("handle is null");
+        FfiError::set_last_error("handle is null");
         return -1;
     }
 
@@ -373,12 +367,7 @@ pub unsafe extern "C" fn bvc_server_destroy(handle: *mut RuntimeHandle) -> c_int
 /// * The pointer is only valid until the next FFI call
 #[unsafe(no_mangle)]
 pub extern "C" fn bvc_get_last_error() -> *const c_char {
-    LAST_ERROR.with(|e| {
-        e.borrow()
-            .as_ref()
-            .map(|s| s.as_ptr())
-            .unwrap_or(ptr::null())
-    })
+    FfiError::last_error_ptr()
 }
 
 /// Free a string allocated by this library.
@@ -444,19 +433,19 @@ pub unsafe extern "C" fn bvc_update_positions(
 ) -> c_int {
     ffi_guard!("bvc_update_positions", -1, {
     if handle.is_null() {
-        set_last_error("handle is null");
+        FfiError::set_last_error("handle is null");
         return -1;
     }
 
     if game_data_json.is_null() {
-        set_last_error("game_data_json is null");
+        FfiError::set_last_error("game_data_json is null");
         return -1;
     }
 
     let json_str = match unsafe { CStr::from_ptr(game_data_json) }.to_str() {
         Ok(s) => s,
         Err(e) => {
-            set_last_error(&format!("Invalid UTF-8 in game_data_json: {}", e));
+            FfiError::set_last_error(&format!("Invalid UTF-8 in game_data_json: {}", e));
             return -1;
         }
     };
@@ -465,7 +454,7 @@ pub unsafe extern "C" fn bvc_update_positions(
     let game_data: common::GameDataCollection = match serde_json::from_str(json_str) {
         Ok(data) => data,
         Err(e) => {
-            set_last_error(&format!("Failed to parse game_data JSON: {}", e));
+            FfiError::set_last_error(&format!("Failed to parse game_data JSON: {}", e));
             return -1;
         }
     };
@@ -476,7 +465,7 @@ pub unsafe extern "C" fn bvc_update_positions(
     let tokio_rt = match &handle_ref.tokio_runtime {
         Some(rt) => rt,
         None => {
-            set_last_error("Tokio runtime not available");
+            FfiError::set_last_error("Tokio runtime not available");
             return -1;
         }
     };
@@ -486,7 +475,7 @@ pub unsafe extern "C" fn bvc_update_positions(
     let wr_guard = match handle_ref.webhook_receiver.read() {
         Ok(g) => g,
         Err(e) => {
-            set_last_error(&format!("Failed to read webhook_receiver: {}", e));
+            FfiError::set_last_error(&format!("Failed to read webhook_receiver: {}", e));
             return -1;
         }
     };
@@ -494,7 +483,7 @@ pub unsafe extern "C" fn bvc_update_positions(
     let webhook_receiver = match wr_guard.as_ref() {
         Some(wr) => wr,
         None => {
-            set_last_error("Server not started - webhook_receiver not available");
+            FfiError::set_last_error("Server not started - webhook_receiver not available");
             return -1;
         }
     };
@@ -503,7 +492,7 @@ pub unsafe extern "C" fn bvc_update_positions(
     let pr_guard = match handle_ref.player_registrar.read() {
         Ok(g) => g,
         Err(e) => {
-            set_last_error(&format!("Failed to read player_registrar: {}", e));
+            FfiError::set_last_error(&format!("Failed to read player_registrar: {}", e));
             return -1;
         }
     };
@@ -520,7 +509,7 @@ pub unsafe extern "C" fn bvc_update_positions(
     let is_guard = match handle_ref.identity_service.read() {
         Ok(g) => g,
         Err(e) => {
-            set_last_error(&format!("Failed to read identity_service: {}", e));
+            FfiError::set_last_error(&format!("Failed to read identity_service: {}", e));
             return -1;
         }
     };
@@ -590,19 +579,19 @@ pub unsafe extern "C" fn bvc_audio_play(
 ) -> *mut c_char {
     ffi_guard!("bvc_audio_play", ptr::null_mut(), {
     if handle.is_null() {
-        set_last_error("handle is null");
+        FfiError::set_last_error("handle is null");
         return ptr::null_mut();
     }
 
     if play_json.is_null() {
-        set_last_error("play_json is null");
+        FfiError::set_last_error("play_json is null");
         return ptr::null_mut();
     }
 
     let json_str = match unsafe { CStr::from_ptr(play_json) }.to_str() {
         Ok(s) => s,
         Err(e) => {
-            set_last_error(&format!("Invalid UTF-8 in play_json: {}", e));
+            FfiError::set_last_error(&format!("Invalid UTF-8 in play_json: {}", e));
             return ptr::null_mut();
         }
     };
@@ -610,7 +599,7 @@ pub unsafe extern "C" fn bvc_audio_play(
     let request: common::request::AudioPlayRequest = match serde_json::from_str(json_str) {
         Ok(r) => r,
         Err(e) => {
-            set_last_error(&format!("Failed to parse play_json: {}", e));
+            FfiError::set_last_error(&format!("Failed to parse play_json: {}", e));
             return ptr::null_mut();
         }
     };
@@ -620,7 +609,7 @@ pub unsafe extern "C" fn bvc_audio_play(
     let tokio_rt = match &handle_ref.tokio_runtime {
         Some(rt) => rt,
         None => {
-            set_last_error("Tokio runtime not available");
+            FfiError::set_last_error("Tokio runtime not available");
             return ptr::null_mut();
         }
     };
@@ -628,7 +617,7 @@ pub unsafe extern "C" fn bvc_audio_play(
     let aps_guard = match handle_ref.audio_playback_service.read() {
         Ok(g) => g,
         Err(e) => {
-            set_last_error(&format!("Failed to read audio_playback_service: {}", e));
+            FfiError::set_last_error(&format!("Failed to read audio_playback_service: {}", e));
             return ptr::null_mut();
         }
     };
@@ -636,7 +625,7 @@ pub unsafe extern "C" fn bvc_audio_play(
     let audio_service = match aps_guard.as_ref() {
         Some(s) => s.clone(),
         None => {
-            set_last_error("Server not started - audio_playback_service not available");
+            FfiError::set_last_error("Server not started - audio_playback_service not available");
             return ptr::null_mut();
         }
     };
@@ -645,7 +634,7 @@ pub unsafe extern "C" fn bvc_audio_play(
     let db_guard = match handle_ref.db_conn.read() {
         Ok(g) => g,
         Err(e) => {
-            set_last_error(&format!("Failed to read db_conn: {}", e));
+            FfiError::set_last_error(&format!("Failed to read db_conn: {}", e));
             return ptr::null_mut();
         }
     };
@@ -653,7 +642,7 @@ pub unsafe extern "C" fn bvc_audio_play(
     let db_conn = match db_guard.as_ref() {
         Some(c) => c.clone(),
         None => {
-            set_last_error("Server not started - db_conn not available");
+            FfiError::set_last_error("Server not started - db_conn not available");
             return ptr::null_mut();
         }
     };
@@ -670,17 +659,17 @@ pub unsafe extern "C" fn bvc_audio_play(
             Ok(json) => match CString::new(json) {
                 Ok(cstr) => cstr.into_raw(),
                 Err(e) => {
-                    set_last_error(&format!("Failed to create CString: {}", e));
+                    FfiError::set_last_error(&format!("Failed to create CString: {}", e));
                     ptr::null_mut()
                 }
             },
             Err(e) => {
-                set_last_error(&format!("Failed to serialize response: {}", e));
+                FfiError::set_last_error(&format!("Failed to serialize response: {}", e));
                 ptr::null_mut()
             }
         },
         Err(e) => {
-            set_last_error(&format!("Audio play failed: {}", e));
+            FfiError::set_last_error(&format!("Audio play failed: {}", e));
             ptr::null_mut()
         }
     }
@@ -694,19 +683,19 @@ pub unsafe extern "C" fn bvc_audio_stop(
 ) -> c_int {
     ffi_guard!("bvc_audio_stop", -1, {
     if handle.is_null() {
-        set_last_error("handle is null");
+        FfiError::set_last_error("handle is null");
         return -1;
     }
 
     if event_id.is_null() {
-        set_last_error("event_id is null");
+        FfiError::set_last_error("event_id is null");
         return -1;
     }
 
     let event_id_str = match unsafe { CStr::from_ptr(event_id) }.to_str() {
         Ok(s) => s,
         Err(e) => {
-            set_last_error(&format!("Invalid UTF-8 in event_id: {}", e));
+            FfiError::set_last_error(&format!("Invalid UTF-8 in event_id: {}", e));
             return -1;
         }
     };
@@ -716,7 +705,7 @@ pub unsafe extern "C" fn bvc_audio_stop(
     let tokio_rt = match &handle_ref.tokio_runtime {
         Some(rt) => rt,
         None => {
-            set_last_error("Tokio runtime not available");
+            FfiError::set_last_error("Tokio runtime not available");
             return -1;
         }
     };
@@ -724,7 +713,7 @@ pub unsafe extern "C" fn bvc_audio_stop(
     let aps_guard = match handle_ref.audio_playback_service.read() {
         Ok(g) => g,
         Err(e) => {
-            set_last_error(&format!("Failed to read audio_playback_service: {}", e));
+            FfiError::set_last_error(&format!("Failed to read audio_playback_service: {}", e));
             return -1;
         }
     };
@@ -732,7 +721,7 @@ pub unsafe extern "C" fn bvc_audio_stop(
     let audio_service = match aps_guard.as_ref() {
         Some(s) => s.clone(),
         None => {
-            set_last_error("Server not started - audio_playback_service not available");
+            FfiError::set_last_error("Server not started - audio_playback_service not available");
             return -1;
         }
     };
@@ -743,7 +732,7 @@ pub unsafe extern "C" fn bvc_audio_stop(
     match result {
         Ok(_) => 0,
         Err(e) => {
-            set_last_error(&format!("Audio stop failed: {}", e));
+            FfiError::set_last_error(&format!("Audio stop failed: {}", e));
             -1
         }
     }
@@ -768,18 +757,18 @@ pub unsafe extern "C" fn bvc_client_action(
         unsafe { *group_code_out = ptr::null_mut() };
     }
     if handle.is_null() {
-        set_last_error("handle is null");
+        FfiError::set_last_error("handle is null");
         return -1;
     }
     if action_json.is_null() {
-        set_last_error("action_json is null");
+        FfiError::set_last_error("action_json is null");
         return -1;
     }
 
     let json = match unsafe { CStr::from_ptr(action_json) }.to_str() {
         Ok(s) => s,
         Err(e) => {
-            set_last_error(&format!("Invalid UTF-8 in action_json: {}", e));
+            FfiError::set_last_error(&format!("Invalid UTF-8 in action_json: {}", e));
             return -1;
         }
     };
@@ -787,7 +776,7 @@ pub unsafe extern "C" fn bvc_client_action(
     let mut action: common::structs::control::ClientAction = match serde_json::from_str(json) {
         Ok(a) => a,
         Err(e) => {
-            set_last_error(&format!("Invalid ClientAction JSON: {}", e));
+            FfiError::set_last_error(&format!("Invalid ClientAction JSON: {}", e));
             return -1;
         }
     };
@@ -797,7 +786,7 @@ pub unsafe extern "C" fn bvc_client_action(
     let tokio_rt = match &handle_ref.tokio_runtime {
         Some(rt) => rt,
         None => {
-            set_last_error("Tokio runtime not available");
+            FfiError::set_last_error("Tokio runtime not available");
             return -1;
         }
     };
@@ -806,14 +795,14 @@ pub unsafe extern "C" fn bvc_client_action(
         let g = match handle_ref.cache_manager.read() {
             Ok(g) => g,
             Err(e) => {
-                set_last_error(&format!("Failed to read cache_manager: {}", e));
+                FfiError::set_last_error(&format!("Failed to read cache_manager: {}", e));
                 return -1;
             }
         };
         match g.as_ref() {
             Some(cm) => cm.clone(),
             None => {
-                set_last_error("Server not started - cache_manager not available");
+                FfiError::set_last_error("Server not started - cache_manager not available");
                 return -1;
             }
         }
@@ -826,7 +815,7 @@ pub unsafe extern "C" fn bvc_client_action(
         let g = match handle_ref.identity_service.read() {
             Ok(g) => g,
             Err(e) => {
-                set_last_error(&format!("Failed to read identity_service: {}", e));
+                FfiError::set_last_error(&format!("Failed to read identity_service: {}", e));
                 return -1;
             }
         };
@@ -843,7 +832,7 @@ pub unsafe extern "C" fn bvc_client_action(
     );
 
     if !svc.permits(&action.action) {
-        set_last_error("this server does not permit recording");
+        FfiError::set_last_error("this server does not permit recording");
         return -1;
     }
 
@@ -852,14 +841,14 @@ pub unsafe extern "C" fn bvc_client_action(
             let g = match handle_ref.webhook_receiver.read() {
                 Ok(g) => g,
                 Err(e) => {
-                    set_last_error(&format!("Failed to read webhook_receiver: {}", e));
+                    FfiError::set_last_error(&format!("Failed to read webhook_receiver: {}", e));
                     return -1;
                 }
             };
             match g.as_ref() {
                 Some(w) => w.clone(),
                 None => {
-                    set_last_error("Server not started - webhook_receiver not available");
+                    FfiError::set_last_error("Server not started - webhook_receiver not available");
                     return -1;
                 }
             }
@@ -881,7 +870,7 @@ pub unsafe extern "C" fn bvc_client_action(
                     match CString::new(code) {
                         Ok(cstr) => unsafe { *group_code_out = cstr.into_raw() },
                         Err(e) => {
-                            set_last_error(&format!("Failed to create CString: {}", e));
+                            FfiError::set_last_error(&format!("Failed to create CString: {}", e));
                             return -1;
                         }
                     }
@@ -889,7 +878,7 @@ pub unsafe extern "C" fn bvc_client_action(
                 0
             }
             Err(e) => {
-                set_last_error(&format!("route_group failed: {}", e));
+                FfiError::set_last_error(&format!("route_group failed: {}", e));
                 -1
             }
         }
@@ -909,7 +898,7 @@ pub unsafe extern "C" fn bvc_client_action(
                 0
             }
             None => {
-                set_last_error("connection_registry not available");
+                FfiError::set_last_error("connection_registry not available");
                 -1
             }
         }
@@ -943,24 +932,24 @@ pub unsafe extern "C" fn bvc_provision_login_code(
 ) -> *mut c_char {
     ffi_guard!("bvc_provision_login_code", ptr::null_mut(), {
     if handle.is_null() {
-        set_last_error("handle is null");
+        FfiError::set_last_error("handle is null");
         return ptr::null_mut();
     }
 
     if gamertag.is_null() {
-        set_last_error("gamertag is null");
+        FfiError::set_last_error("gamertag is null");
         return ptr::null_mut();
     }
 
     if game.is_null() {
-        set_last_error("game is null");
+        FfiError::set_last_error("game is null");
         return ptr::null_mut();
     }
 
     let gamertag_str = match unsafe { CStr::from_ptr(gamertag) }.to_str() {
         Ok(s) => s,
         Err(e) => {
-            set_last_error(&format!("Invalid UTF-8 in gamertag: {}", e));
+            FfiError::set_last_error(&format!("Invalid UTF-8 in gamertag: {}", e));
             return ptr::null_mut();
         }
     };
@@ -968,7 +957,7 @@ pub unsafe extern "C" fn bvc_provision_login_code(
     let game_str = match unsafe { CStr::from_ptr(game) }.to_str() {
         Ok(s) => s,
         Err(e) => {
-            set_last_error(&format!("Invalid UTF-8 in game: {}", e));
+            FfiError::set_last_error(&format!("Invalid UTF-8 in game: {}", e));
             return ptr::null_mut();
         }
     };
@@ -977,7 +966,7 @@ pub unsafe extern "C" fn bvc_provision_login_code(
         "minecraft" => Game::Minecraft,
         "hytale" => Game::Hytale,
         other => {
-            set_last_error(&format!("Invalid game '{}'", other));
+            FfiError::set_last_error(&format!("Invalid game '{}'", other));
             return ptr::null_mut();
         }
     };
@@ -987,7 +976,7 @@ pub unsafe extern "C" fn bvc_provision_login_code(
     let tokio_rt = match &handle_ref.tokio_runtime {
         Some(rt) => rt,
         None => {
-            set_last_error("Tokio runtime not available");
+            FfiError::set_last_error("Tokio runtime not available");
             return ptr::null_mut();
         }
     };
@@ -995,7 +984,7 @@ pub unsafe extern "C" fn bvc_provision_login_code(
     let pr_guard = match handle_ref.player_registrar.read() {
         Ok(g) => g,
         Err(e) => {
-            set_last_error(&format!("Failed to read player_registrar: {}", e));
+            FfiError::set_last_error(&format!("Failed to read player_registrar: {}", e));
             return ptr::null_mut();
         }
     };
@@ -1003,7 +992,7 @@ pub unsafe extern "C" fn bvc_provision_login_code(
     let registrar = match pr_guard.as_ref() {
         Some(r) => r.clone(),
         None => {
-            set_last_error("Server not started - player_registrar not available");
+            FfiError::set_last_error("Server not started - player_registrar not available");
             return ptr::null_mut();
         }
     };
@@ -1012,7 +1001,7 @@ pub unsafe extern "C" fn bvc_provision_login_code(
     let db_guard = match handle_ref.db_conn.read() {
         Ok(g) => g,
         Err(e) => {
-            set_last_error(&format!("Failed to read db_conn: {}", e));
+            FfiError::set_last_error(&format!("Failed to read db_conn: {}", e));
             return ptr::null_mut();
         }
     };
@@ -1020,7 +1009,7 @@ pub unsafe extern "C" fn bvc_provision_login_code(
     let db_conn = match db_guard.as_ref() {
         Some(c) => c.clone(),
         None => {
-            set_last_error("Server not started - db_conn not available");
+            FfiError::set_last_error("Server not started - db_conn not available");
             return ptr::null_mut();
         }
     };
@@ -1038,12 +1027,12 @@ pub unsafe extern "C" fn bvc_provision_login_code(
         Ok(code) => match CString::new(code) {
             Ok(cstr) => cstr.into_raw(),
             Err(e) => {
-                set_last_error(&format!("Failed to create CString: {}", e));
+                FfiError::set_last_error(&format!("Failed to create CString: {}", e));
                 ptr::null_mut()
             }
         },
         Err(e) => {
-            set_last_error(&format!("Provision login code failed: {}", e));
+            FfiError::set_last_error(&format!("Provision login code failed: {}", e));
             ptr::null_mut()
         }
     }
@@ -1076,19 +1065,19 @@ pub unsafe extern "C" fn bvc_provision_websocket_ticket(
 ) -> *mut c_char {
     ffi_guard!("bvc_provision_websocket_ticket", ptr::null_mut(), {
     if handle.is_null() {
-        set_last_error("handle is null");
+        FfiError::set_last_error("handle is null");
         return ptr::null_mut();
     }
 
     if gamertag.is_null() || game.is_null() {
-        set_last_error("gamertag or game is null");
+        FfiError::set_last_error("gamertag or game is null");
         return ptr::null_mut();
     }
 
     let gamertag_str = match unsafe { CStr::from_ptr(gamertag) }.to_str() {
         Ok(s) => s.to_string(),
         Err(e) => {
-            set_last_error(&format!("Invalid UTF-8 in gamertag: {}", e));
+            FfiError::set_last_error(&format!("Invalid UTF-8 in gamertag: {}", e));
             return ptr::null_mut();
         }
     };
@@ -1097,11 +1086,11 @@ pub unsafe extern "C" fn bvc_provision_websocket_ticket(
         Ok("minecraft") => Game::Minecraft,
         Ok("hytale") => Game::Hytale,
         Ok(other) => {
-            set_last_error(&format!("Invalid game '{}'", other));
+            FfiError::set_last_error(&format!("Invalid game '{}'", other));
             return ptr::null_mut();
         }
         Err(e) => {
-            set_last_error(&format!("Invalid UTF-8 in game: {}", e));
+            FfiError::set_last_error(&format!("Invalid UTF-8 in game: {}", e));
             return ptr::null_mut();
         }
     };
@@ -1111,7 +1100,7 @@ pub unsafe extern "C" fn bvc_provision_websocket_ticket(
     let tokio_rt = match &handle_ref.tokio_runtime {
         Some(rt) => rt,
         None => {
-            set_last_error("Tokio runtime not available");
+            FfiError::set_last_error("Tokio runtime not available");
             return ptr::null_mut();
         }
     };
@@ -1120,12 +1109,12 @@ pub unsafe extern "C" fn bvc_provision_websocket_ticket(
         Ok(guard) => match guard.as_ref() {
             Some(cm) => cm.clone(),
             None => {
-                set_last_error("Server not started - cache_manager not available");
+                FfiError::set_last_error("Server not started - cache_manager not available");
                 return ptr::null_mut();
             }
         },
         Err(e) => {
-            set_last_error(&format!("Failed to read cache_manager: {}", e));
+            FfiError::set_last_error(&format!("Failed to read cache_manager: {}", e));
             return ptr::null_mut();
         }
     };
@@ -1143,7 +1132,7 @@ pub unsafe extern "C" fn bvc_provision_websocket_ticket(
     match CString::new(ticket) {
         Ok(cstr) => cstr.into_raw(),
         Err(e) => {
-            set_last_error(&format!("Failed to create CString: {}", e));
+            FfiError::set_last_error(&format!("Failed to create CString: {}", e));
             ptr::null_mut()
         }
     }
@@ -1169,14 +1158,14 @@ pub unsafe extern "C" fn bvc_chat_register(
 ) -> c_int {
     ffi_guard!("bvc_chat_register", -1, {
         if handle.is_null() || hello_json.is_null() {
-            set_last_error("handle or hello_json is null");
+            FfiError::set_last_error("handle or hello_json is null");
             return -1;
         }
 
         let json = match unsafe { CStr::from_ptr(hello_json) }.to_str() {
             Ok(s) => s,
             Err(e) => {
-                set_last_error(&format!("Invalid UTF-8 in hello_json: {}", e));
+                FfiError::set_last_error(&format!("Invalid UTF-8 in hello_json: {}", e));
                 return -1;
             }
         };
@@ -1184,7 +1173,7 @@ pub unsafe extern "C" fn bvc_chat_register(
         let frame: common::structs::chat::ChatFrame = match serde_json::from_str(json) {
             Ok(f) => f,
             Err(e) => {
-                set_last_error(&format!("Invalid ChatFrame JSON: {}", e));
+                FfiError::set_last_error(&format!("Invalid ChatFrame JSON: {}", e));
                 return -1;
             }
         };
@@ -1196,7 +1185,7 @@ pub unsafe extern "C" fn bvc_chat_register(
             ..
         } = frame
         else {
-            set_last_error("bvc_chat_register expects a hello frame");
+            FfiError::set_last_error("bvc_chat_register expects a hello frame");
             return -1;
         };
 
@@ -1206,12 +1195,12 @@ pub unsafe extern "C" fn bvc_chat_register(
             Ok(g) => match g.as_ref() {
                 Some(s) => s.clone(),
                 None => {
-                    set_last_error("Server not started - chat service not available");
+                    FfiError::set_last_error("Server not started - chat service not available");
                     return -1;
                 }
             },
             Err(e) => {
-                set_last_error(&format!("Failed to read chat_service: {}", e));
+                FfiError::set_last_error(&format!("Failed to read chat_service: {}", e));
                 return -1;
             }
         };
@@ -1259,14 +1248,14 @@ pub unsafe extern "C" fn bvc_chat_report(
 ) -> c_int {
     ffi_guard!("bvc_chat_report", -1, {
         if handle.is_null() || chat_json.is_null() {
-            set_last_error("handle or chat_json is null");
+            FfiError::set_last_error("handle or chat_json is null");
             return -1;
         }
 
         let json = match unsafe { CStr::from_ptr(chat_json) }.to_str() {
             Ok(s) => s,
             Err(e) => {
-                set_last_error(&format!("Invalid UTF-8 in chat_json: {}", e));
+                FfiError::set_last_error(&format!("Invalid UTF-8 in chat_json: {}", e));
                 return -1;
             }
         };
@@ -1274,7 +1263,7 @@ pub unsafe extern "C" fn bvc_chat_report(
         let frame: common::structs::chat::ChatFrame = match serde_json::from_str(json) {
             Ok(f) => f,
             Err(e) => {
-                set_last_error(&format!("Invalid ChatFrame JSON: {}", e));
+                FfiError::set_last_error(&format!("Invalid ChatFrame JSON: {}", e));
                 return -1;
             }
         };
@@ -1289,7 +1278,7 @@ pub unsafe extern "C" fn bvc_chat_report(
         };
 
         let Some((author, text)) = reported else {
-            set_last_error("bvc_chat_report expects a chat or event frame");
+            FfiError::set_last_error("bvc_chat_report expects a chat or event frame");
             return -1;
         };
 
@@ -1298,7 +1287,7 @@ pub unsafe extern "C" fn bvc_chat_report(
         let tokio_rt = match &handle_ref.tokio_runtime {
             Some(rt) => rt,
             None => {
-                set_last_error("Tokio runtime not available");
+                FfiError::set_last_error("Tokio runtime not available");
                 return -1;
             }
         };
@@ -1307,12 +1296,12 @@ pub unsafe extern "C" fn bvc_chat_report(
             Ok(g) => match g.as_ref() {
                 Some(s) => s.clone(),
                 None => {
-                    set_last_error("Server not started - chat service not available");
+                    FfiError::set_last_error("Server not started - chat service not available");
                     return -1;
                 }
             },
             Err(e) => {
-                set_last_error(&format!("Failed to read chat_service: {}", e));
+                FfiError::set_last_error(&format!("Failed to read chat_service: {}", e));
                 return -1;
             }
         };
@@ -1320,13 +1309,13 @@ pub unsafe extern "C" fn bvc_chat_report(
         let rooms = match handle_ref.chat_rooms.lock() {
             Ok(r) => r.clone(),
             Err(e) => {
-                set_last_error(&format!("Failed to read chat_rooms: {}", e));
+                FfiError::set_last_error(&format!("Failed to read chat_rooms: {}", e));
                 return -1;
             }
         };
 
         if rooms.is_empty() {
-            set_last_error("bvc_chat_register has not been called");
+            FfiError::set_last_error("bvc_chat_register has not been called");
             return -1;
         }
 
@@ -1356,7 +1345,7 @@ pub unsafe extern "C" fn bvc_chat_report(
 pub unsafe extern "C" fn bvc_chat_drain(handle: *mut RuntimeHandle) -> *mut c_char {
     ffi_guard!("bvc_chat_drain", ptr::null_mut(), {
         if handle.is_null() {
-            set_last_error("handle is null");
+            FfiError::set_last_error("handle is null");
             return ptr::null_mut();
         }
 
@@ -1379,7 +1368,7 @@ pub unsafe extern "C" fn bvc_chat_drain(handle: *mut RuntimeHandle) -> *mut c_ch
         let body = match serde_json::to_string(&frames) {
             Ok(b) => b,
             Err(e) => {
-                set_last_error(&format!("Failed to encode chat frames: {}", e));
+                FfiError::set_last_error(&format!("Failed to encode chat frames: {}", e));
                 return ptr::null_mut();
             }
         };
@@ -1387,7 +1376,7 @@ pub unsafe extern "C" fn bvc_chat_drain(handle: *mut RuntimeHandle) -> *mut c_ch
         match CString::new(body) {
             Ok(c) => c.into_raw(),
             Err(e) => {
-                set_last_error(&format!("Failed to build C string: {}", e));
+                FfiError::set_last_error(&format!("Failed to build C string: {}", e));
                 ptr::null_mut()
             }
         }
@@ -1402,7 +1391,7 @@ pub unsafe extern "C" fn bvc_chat_drain(handle: *mut RuntimeHandle) -> *mut c_ch
 pub unsafe extern "C" fn bvc_chat_unregister(handle: *mut RuntimeHandle) -> c_int {
     ffi_guard!("bvc_chat_unregister", -1, {
         if handle.is_null() {
-            set_last_error("handle is null");
+            FfiError::set_last_error("handle is null");
             return -1;
         }
 
@@ -1411,7 +1400,7 @@ pub unsafe extern "C" fn bvc_chat_unregister(handle: *mut RuntimeHandle) -> c_in
         let service = match handle_ref.chat_service.read() {
             Ok(g) => g.as_ref().cloned(),
             Err(e) => {
-                set_last_error(&format!("Failed to read chat_service: {}", e));
+                FfiError::set_last_error(&format!("Failed to read chat_service: {}", e));
                 return -1;
             }
         };
@@ -1448,7 +1437,7 @@ pub unsafe extern "C" fn bvc_chat_unregister(handle: *mut RuntimeHandle) -> c_in
 pub unsafe extern "C" fn bvc_config_effective(handle: *mut RuntimeHandle) -> *mut c_char {
     ffi_guard!("bvc_config_effective", ptr::null_mut(), {
         if handle.is_null() {
-            set_last_error("handle is null");
+            FfiError::set_last_error("handle is null");
             return ptr::null_mut();
         }
 
@@ -1457,7 +1446,7 @@ pub unsafe extern "C" fn bvc_config_effective(handle: *mut RuntimeHandle) -> *mu
         match CString::new(handle_ref.resolved_config.clone()) {
             Ok(cstr) => cstr.into_raw(),
             Err(e) => {
-                set_last_error(&format!("Failed to create CString: {}", e));
+                FfiError::set_last_error(&format!("Failed to create CString: {}", e));
                 ptr::null_mut()
             }
         }

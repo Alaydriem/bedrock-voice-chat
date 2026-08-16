@@ -9,12 +9,10 @@ use chrono::Utc;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use futures_util::future::join_all;
 use std::sync::Arc;
+mod context;
 
-#[derive(Default, Clone)]
-struct AnalyticsContext {
-    connected_server: Option<String>,
-    player: Option<PlayerIdentity>,
-}
+use context::AnalyticsContext;
+
 
 pub struct AnalyticsService {
     providers: Vec<AnalyticsProviderType>,

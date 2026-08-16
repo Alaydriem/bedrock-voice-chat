@@ -9,11 +9,18 @@ pub mod recording;
 pub mod spatial;
 pub(crate) mod speaker_test;
 pub mod tone;
-pub(crate) mod types;
+mod device_cpal;
+mod resampling;
 
 pub(crate) mod stream;
 
+pub use common::consts::audio::BUFFER_SIZE;
+pub use common::structs::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
+
 pub use actions::AudioActionsManager;
+pub use device_cpal::AudioDeviceCpal;
+#[allow(unused_imports)]
+pub use resampling::AudioResampling;
 // Re-exported for the same reason as the watchdog below: the cue a mute change earns is a
 // decision rule worth testing without an audio device, and the tone it renders is the one
 // part of an audible cue a test can observe at all.

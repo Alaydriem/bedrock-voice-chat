@@ -1,17 +1,9 @@
+use common::response::JsonMessage;
 use common::structs::config::{HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse};
-use serde::{Deserialize, Serialize};
 
 use base64::{Engine as _, engine::general_purpose};
 
-use crate::auth::ncryptf;
-
-/// Client-side JsonMessage for deserializing server responses
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct JsonMessage<T> {
-    pub status: u16,
-    pub data: Option<T>,
-    pub message: Option<String>,
-}
+use crate::auth::NcryptfClient;
 
 const HYTALE_START_DEVICE_FLOW_ENDPOINT: &str = "api/auth/hytale/start-device-flow";
 
@@ -20,7 +12,7 @@ pub async fn start_hytale_device_flow(
     server: String,
 ) -> Result<HytaleDeviceFlowStartResponse, bool> {
     // Get ncryptf encryption key
-    let ek = match ncryptf::get_ek(server.clone()).await {
+    let ek = match NcryptfClient::get_ek(server.clone()).await {
         Ok(ek) => ek,
         Err(e) => {
             log::error!("Failed to get encryption key: {:?}", e);
@@ -53,7 +45,7 @@ pub async fn start_hytale_device_flow(
     );
 
     let endpoint = format!("{}/{}", &server, HYTALE_START_DEVICE_FLOW_ENDPOINT);
-    let client = ncryptf::get_reqwest_client();
+    let client = NcryptfClient::get_reqwest_client();
 
     match client.post(endpoint).headers(headers).send().await {
         Ok(response) => {
@@ -124,7 +116,7 @@ pub async fn poll_hytale_status(
     session_id: String,
 ) -> Result<HytaleDeviceFlowStatusResponse, bool> {
     // Get ncryptf encryption key
-    let ek = match ncryptf::get_ek(server.clone()).await {
+    let ek = match NcryptfClient::get_ek(server.clone()).await {
         Ok(ek) => ek,
         Err(e) => {
             log::error!("Failed to get encryption key: {:?}", e);
@@ -157,7 +149,7 @@ pub async fn poll_hytale_status(
     );
 
     let endpoint = format!("{}/api/auth/hytale/status", &server);
-    let client = ncryptf::get_reqwest_client();
+    let client = NcryptfClient::get_reqwest_client();
 
     match client.get(endpoint).headers(headers).send().await {
         Ok(response) => {

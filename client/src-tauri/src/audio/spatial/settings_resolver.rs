@@ -3,7 +3,7 @@ use tauri_plugin_store::StoreExt;
 
 use crate::audio::recording::renderer::{SettingsProvenance, SpatialRenderSettings};
 use crate::audio::stream::AudioStreamManager;
-use crate::audio::types::AudioDeviceType;
+use crate::audio::AudioDeviceType;
 
 /// Where a render's spatial settings come from.
 ///

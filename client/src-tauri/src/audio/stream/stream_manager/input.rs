@@ -7,7 +7,7 @@ use super::source::{AudioInputSource, CaptureConfig};
 use crate::NetworkPacket;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::RecoverySender;
-use crate::audio::types::{AudioDevice, BUFFER_SIZE};
+use crate::audio::{AudioDevice, BUFFER_SIZE};
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::BedrockPlayerStateCache;
 use anyhow::anyhow;
@@ -437,12 +437,12 @@ impl InputStream {
         let buffer_size = rodio::cpal::BufferSize::Default;
 
         #[cfg(not(any(target_os = "ios", target_os = "android")))]
-        let buffer_size = rodio::cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
+        let buffer_size = rodio::cpal::BufferSize::Fixed(crate::audio::BUFFER_SIZE);
 
         // Force 48 kHz if the source was not 48 kHz; the listener resamples to
         // match, so the Opus encoder and outgoing packets always run at 48 kHz.
-        let effective_sample_rate = if source_sample_rate != crate::audio::types::OPUS_SAMPLE_RATE {
-            crate::audio::types::OPUS_SAMPLE_RATE
+        let effective_sample_rate = if source_sample_rate != crate::audio::AudioResampling::OPUS_SAMPLE_RATE {
+            crate::audio::AudioResampling::OPUS_SAMPLE_RATE
         } else {
             source_sample_rate
         };

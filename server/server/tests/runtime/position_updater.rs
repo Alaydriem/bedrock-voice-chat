@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bvc_server_lib::runtime::position_updater::PositionUpdater;
 use bvc_server_lib::stream::quic::WebhookReceiver;
-use bvc_server_lib::stream::quic::connection_registry::{ConnectionRegistry, RoutedPacket};
+use bvc_server_lib::stream::quic::connection::{ConnectionRegistry, RoutedPacket};
 use common::Game;
 use common::PlayerEnum;
 use common::structs::packet::{MAX_DATAGRAM_SIZE, QuicNetworkPacket, QuicNetworkPacketData};

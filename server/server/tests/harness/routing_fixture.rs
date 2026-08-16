@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use bvc_server_lib::stream::quic::connection_registry::RoutedPacket;
+use bvc_server_lib::stream::quic::connection::RoutedPacket;
 use common::game_data::Dimension;
 use common::players::MinecraftPlayer;
 use common::structs::packet::{

@@ -1,5 +1,5 @@
 use crate::audio::AudioActionsManager;
-use crate::audio::types::AudioDeviceType;
+use crate::audio::AudioDeviceType;
 use common::structs::keybinds::{
     KeybindAction, KeybindConfig, PttEvent, VoiceMode, VoiceModeEvent,
 };

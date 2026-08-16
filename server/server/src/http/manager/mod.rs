@@ -192,7 +192,7 @@ impl RocketManager {
                 let mut rocket = rocket
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())
-                    .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))
+                    .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", RocketManager::migrate))
                     .mount(
                         "/assets",
                         rocket::fs::FileServer::from(&self.config.server.assets_path),
@@ -283,19 +283,21 @@ impl common::traits::StreamTrait for RocketManager {
     }
 }
 
-/// Migrate the database
-async fn migrate(rocket: rocket::Rocket<rocket::Build>) -> rocket::fairing::Result {
-    let conn = match AppDb::fetch(&rocket) {
-        Some(db) => &db.conn,
-        None => {
-            tracing::error!("Migration: Failed to fetch database connection from Rocket");
-            return Err(rocket);
-        }
-    };
+impl RocketManager {
+    /// Migrate the database
+    async fn migrate(rocket: rocket::Rocket<rocket::Build>) -> rocket::fairing::Result {
+        let conn = match AppDb::fetch(&rocket) {
+            Some(db) => &db.conn,
+            None => {
+                tracing::error!("Migration: Failed to fetch database connection from Rocket");
+                return Err(rocket);
+            }
+        };
 
-    match Migrator::up(conn, None).await {
-        Ok(_) => tracing::info!("Migration: All migrations applied successfully"),
-        Err(e) => tracing::error!("Migration: Failed to run migrations: {}", e),
+        match Migrator::up(conn, None).await {
+            Ok(_) => tracing::info!("Migration: All migrations applied successfully"),
+            Err(e) => tracing::error!("Migration: Failed to run migrations: {}", e),
+        }
+        Ok(rocket)
     }
-    Ok(rocket)
 }

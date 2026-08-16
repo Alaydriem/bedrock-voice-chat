@@ -1,7 +1,6 @@
 use common::structs::keybinds::VoiceMode as KeybindVoiceMode;
 use common::structs::network::ConnectionHealth;
 use common::traits::StreamTrait;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
@@ -20,78 +19,12 @@ pub use structs::{
     StateData, SuccessResponse, TargetsData, VoiceMode, VoiceModeGuard,
 };
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct WebSocketConfig {
-    pub enabled: bool,
-    pub localhost_only: bool,
-    pub port: u16,
-    pub key: String,
-}
+mod broadcaster;
+mod config;
 
-impl Default for WebSocketConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            // Loopback on desktop; a phone has nothing local to serve.
-            localhost_only: !cfg!(mobile),
-            port: 9595,
-            key: String::new(),
-        }
-    }
-}
+pub use broadcaster::WebSocketBroadcaster;
+pub use config::WebSocketConfig;
 
-/// Wrapper around a broadcast sender for sharing with Tauri managed state.
-/// UI commands (mute, recording) use this to push state updates to all connected WS clients.
-pub struct WebSocketBroadcaster {
-    pub commands: broadcast::Sender<String>,
-    // A separate channel so a one-per-second diagnostics push cannot lag a command subscriber out
-    // of its buffer, and so a command client that never asked for metrics is not sent any.
-    pub metrics: broadcast::Sender<String>,
-    // Retained rather than only broadcast, so a subscriber that upgrades mid-session is told the
-    // current state instead of waiting for a transition. A healthy client produces none for
-    // hours, and a failed one produces no metrics frames to infer anything from.
-    health: watch::Sender<ConnectionHealth>,
-}
-
-impl WebSocketBroadcaster {
-    /// Serialize a diagnostics snapshot and broadcast it to `/metrics` subscribers.
-    ///
-    /// The envelope is tagged. `ResponseData` is `#[serde(untagged)]`, so a consumer could not
-    /// distinguish a metrics frame from a state frame by shape alone if this rode on that enum.
-    pub fn broadcast_metrics(&self, snapshot: common::structs::metrics::LinkDiagnosticsSnapshot) {
-        let push = common::structs::metrics::MetricsPush::new(snapshot);
-        if let Ok(json) = serde_json::to_string(&push) {
-            let _ = self.metrics.send(json);
-        }
-    }
-
-    /// Broadcast a connection-health verdict to `/metrics` subscribers, and retain it for
-    /// whoever subscribes next.
-    ///
-    /// Rides the metrics channel rather than the command channel: it describes the link a metrics
-    /// subscriber is measuring, and a command client has `state` for what it cares about.
-    pub fn broadcast_health(&self, health: ConnectionHealth) {
-        let push = common::structs::metrics::HealthPush::new(health.clone());
-        let _ = self.health.send(health);
-        if let Ok(json) = serde_json::to_string(&push) {
-            let _ = self.metrics.send(json);
-        }
-    }
-
-    /// The last verdict published, for a subscriber that has just arrived.
-    pub fn latest_health(&self) -> ConnectionHealth {
-        self.health.borrow().clone()
-    }
-
-    /// Serialize a StateData DTO and broadcast to all connected WS clients.
-    pub fn broadcast_state(&self, state: StateData) {
-        let response = SuccessResponse::state(state);
-        if let Ok(json) = serde_json::to_string(&response) {
-            let _ = self.commands.send(json);
-        }
-    }
-}
 
 pub struct WebSocketManager {
     abort_handle: Option<AbortHandle>,
@@ -134,11 +67,11 @@ impl WebSocketManager {
 
     /// Extract a broadcaster handle for registration as Tauri managed state
     pub fn broadcaster(&self) -> WebSocketBroadcaster {
-        WebSocketBroadcaster {
-            commands: self.broadcast_tx.clone(),
-            metrics: self.metrics_tx.clone(),
-            health: self.health_tx.clone(),
-        }
+        WebSocketBroadcaster::new(
+            self.broadcast_tx.clone(),
+            self.metrics_tx.clone(),
+            self.health_tx.clone(),
+        )
     }
 
     /// The live connection registry, for the settings pane that lists them.
@@ -432,7 +365,8 @@ impl WebSocketManager {
                     let msg = match msg {
                         Some(Ok(msg)) => msg,
                         Some(Err(e)) => return Err(e.into()),
-                        None => return Ok(()), // client disconnected
+                        // client disconnected
+                        None => return Ok(()),
                     };
 
                     if !msg.is_text() && !msg.is_binary() {
@@ -540,8 +474,8 @@ impl WebSocketManager {
 
             Command::Mute { device } => {
                 let audio_device = match device {
-                    DeviceType::Input => crate::audio::types::AudioDeviceType::InputDevice,
-                    DeviceType::Output => crate::audio::types::AudioDeviceType::OutputDevice,
+                    DeviceType::Input => crate::audio::AudioDeviceType::InputDevice,
+                    DeviceType::Output => crate::audio::AudioDeviceType::OutputDevice,
                 };
 
                 let actions = app_handle.state::<crate::audio::AudioActionsManager>();

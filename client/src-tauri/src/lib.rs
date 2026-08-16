@@ -18,7 +18,7 @@ use tauri_plugin_store::StoreExt;
 use common::structs::DeepLink;
 use deep_links::DeepLinkHandler;
 
-mod analytics;
+pub mod analytics;
 pub mod android;
 // Re-exported for the integration test crate (a separate crate root that can
 // only reach `pub` items) to cover first-run and install-date resolution.
@@ -40,7 +40,7 @@ pub use discord::{
     DiscordLinkService, DiscordOAuth, DiscordRoleClient, DiscordTraitState, RoleCategory,
 };
 pub mod events;
-mod feature_flags;
+pub mod feature_flags;
 pub mod groups;
 pub use feature_flags::FeatureFlagService;
 pub use feature_flags::flagsmith::FlagsmithProvider;

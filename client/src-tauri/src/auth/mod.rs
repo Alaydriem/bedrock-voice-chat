@@ -1,10 +1,11 @@
-pub(crate) mod code_login;
+mod client;
 pub(crate) mod commands;
 mod hytale;
-pub(crate) mod login;
-mod ncryptf;
+mod ncryptf_client;
 mod session_service;
 
+pub(crate) use client::AuthClient;
+pub(crate) use ncryptf_client::NcryptfClient;
 pub(crate) use session_service::SessionService;
 
 #[cfg(desktop)]

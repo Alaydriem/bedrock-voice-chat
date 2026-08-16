@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU16, Ordering};
 
-use super::demux_error::DemuxError;
+use super::error::DemuxError;
 use super::loopback_port::LoopbackPort;
 
 // Where the API listener lives, shared between the demultiplexer and Rocket.

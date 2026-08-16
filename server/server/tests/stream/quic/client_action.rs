@@ -1,6 +1,6 @@
 use bvc_server_lib::services::ClientActionService;
 use bvc_server_lib::stream::quic::WebhookReceiver;
-use bvc_server_lib::stream::quic::connection_registry::{ConnectionRegistry, RoutedPacket};
+use bvc_server_lib::stream::quic::connection::{ConnectionRegistry, RoutedPacket};
 use bvc_server_lib::stream::quic::{CacheTrait, PlayerPreferenceCache, PlayerStateCache};
 use common::structs::audio::PlayerGainSettings;
 use common::structs::channel::{Channel, ChannelCollection};

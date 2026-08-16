@@ -9,7 +9,7 @@ use common::structs::packet::{
 
 use crate::services::ChannelMembershipService;
 use crate::stream::quic::WebhookReceiver;
-use crate::stream::quic::connection_registry::ConnectionRegistry;
+use crate::stream::quic::connection::ConnectionRegistry;
 use crate::stream::quic::{CacheTrait, PlayerPreferenceCache, PlayerStateCache};
 
 /// Applies inbound `ClientAction`s. Self/preference actions are delivered back to

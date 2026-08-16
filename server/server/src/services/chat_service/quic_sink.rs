@@ -6,7 +6,7 @@ use common::structs::packet::{
 };
 
 use super::sink::ChatSink;
-use crate::stream::quic::connection_registry::ConnectionRegistry;
+use crate::stream::quic::connection::ConnectionRegistry;
 
 /// Delivers a chat line to every voice connection standing in that world, and to nobody else.
 ///

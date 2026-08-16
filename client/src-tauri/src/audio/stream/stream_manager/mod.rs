@@ -16,7 +16,7 @@ use anyhow::anyhow;
 use common::structs::audio::StreamEvent;
 use std::sync::Arc;
 
-use crate::audio::types::AudioDevice;
+use crate::audio::AudioDevice;
 
 pub(crate) use audio_sink::AudioSinkType;
 pub(crate) use device_lease::DeviceLease;
@@ -27,48 +27,15 @@ pub(crate) use output::OutputStream;
 pub(crate) use sink::AudioOutputSink;
 pub(crate) use source::AudioInputSource;
 
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub(crate) enum AudioFrame {
-    F32(AudioFrameData<f32>),
-    I32(AudioFrameData<i32>),
-    I16(AudioFrameData<i16>),
-}
+mod audio_frame;
+mod audio_frame_data;
+mod mute_flags;
+mod noise_gate_flags;
 
-impl AudioFrame {
-    pub fn f32(self) -> Option<AudioFrameData<f32>> {
-        if let AudioFrame::F32(f) = self {
-            return Some(f);
-        }
-
-        None
-    }
-
-    #[allow(unused)]
-    pub fn i32(self) -> Option<AudioFrameData<i32>> {
-        if let AudioFrame::I32(f) = self {
-            return Some(f);
-        }
-
-        None
-    }
-
-    #[allow(unused)]
-    pub fn i16(self) -> Option<AudioFrameData<i16>> {
-        if let AudioFrame::I16(f) = self {
-            return Some(f);
-        }
-
-        None
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct AudioFrameData<T> {
-    pub pcm: Vec<T>,
-    /// Timestamp when audio was captured at the CPAL callback, for accurate recording timecode
-    pub captured_at_ms: u64,
-}
+pub(crate) use audio_frame::AudioFrame;
+pub(crate) use audio_frame_data::AudioFrameData;
+pub(crate) use mute_flags::MuteFlags;
+pub(crate) use noise_gate_flags::NoiseGateFlags;
 
 pub(crate) enum StreamTraitType {
     Input(InputStream),
@@ -162,55 +129,4 @@ impl StreamTraitType {
             Self::Output(_) => false,
         }
     }
-}
-
-// Live mute state, readable without locking the audio manager. Both flags are process-global
-// already; this exists so a diagnostic can observe them without reaching into the private stream
-// modules.
-pub(crate) struct MuteFlags;
-
-impl MuteFlags {
-    pub(crate) fn input_muted() -> bool {
-        input::MUTE_INPUT_STREAM.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    pub(crate) fn output_muted() -> bool {
-        output::MUTE_OUTPUT_STREAM.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    // Test-only setters. The flags are process-global and normally moved by a keybind, the UI, an
-    // in-game command or a WebSocket client; without these a test can only observe the default and
-    // so cannot tell a wired field from a hardcoded one.
-    #[cfg(any(test, feature = "e2e"))]
-    pub(crate) fn set_input_muted(muted: bool) {
-        input::MUTE_INPUT_STREAM.store(muted, std::sync::atomic::Ordering::Relaxed);
-    }
-
-    #[cfg(any(test, feature = "e2e"))]
-    pub(crate) fn set_output_muted(muted: bool) {
-        output::MUTE_OUTPUT_STREAM.store(muted, std::sync::atomic::Ordering::Relaxed);
-    }
-}
-
-// Whether the noise gate is bound to the capture path, readable without locking the audio
-// manager. Exists for the same reason as `MuteFlags`: a diagnostic has to observe the flag
-// the audio path actually reads, not the copy the settings screen holds. The two disagreeing
-// is precisely the fault this reports on.
-pub(crate) struct NoiseGateFlags;
-
-impl NoiseGateFlags {
-    pub(crate) fn enabled() -> bool {
-        input::USE_NOISE_GATE.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    // Test-only setter, for the same reason as the mute ones: without it a test can only
-    // observe the default and cannot tell a wired field from a hardcoded one.
-    #[cfg(any(test, feature = "e2e"))]
-    pub(crate) fn set_enabled(enabled: bool) {
-        input::USE_NOISE_GATE.store(enabled, std::sync::atomic::Ordering::Relaxed);
-    }
-}
-
-pub(crate) fn output_mute_state() -> bool {
-    output::MUTE_OUTPUT_STREAM.load(std::sync::atomic::Ordering::Relaxed)
 }

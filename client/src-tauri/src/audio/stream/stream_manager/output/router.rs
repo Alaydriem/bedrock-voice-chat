@@ -219,8 +219,8 @@ impl PacketRouter {
 
                 if let Err(e) = tauri::Emitter::emit(
                     &self.app_handle,
-                    crate::events::event::channel_event::CHANNEL_EVENT,
-                    crate::events::event::channel_event::ChannelEvent::new(
+                    crate::events::event::channel::CHANNEL_EVENT,
+                    crate::events::event::channel::ChannelEventPayload::new(
                         event_type.to_string(),
                         event.channel,
                         event.channel_name,

@@ -11,7 +11,7 @@ pub use player_state_cache::PlayerStateCache;
 pub use websocket_ticket_cache::{TicketIdentity, WebsocketTicketCache};
 
 use crate::services::{BedrockEventService, ClientActionService};
-use crate::stream::quic::connection_registry::ConnectionRegistry;
+use crate::stream::quic::connection::ConnectionRegistry;
 use crate::stream::quic::webhook_receiver::WebhookReceiver;
 use anyhow::Error;
 use common::structs::channel::{ChannelCollection, ChannelEvents};

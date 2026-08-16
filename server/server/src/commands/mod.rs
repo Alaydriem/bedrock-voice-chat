@@ -5,8 +5,6 @@ use std::fs;
 use std::{process::exit, sync::Arc};
 
 pub(crate) mod admin;
-pub(crate) mod admin_api_client;
-pub(crate) mod admin_api_error;
 pub(crate) mod login;
 pub(crate) mod logout;
 mod permission;

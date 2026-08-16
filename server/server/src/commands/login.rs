@@ -2,7 +2,7 @@ use clap::Parser;
 use common::Game;
 use common::request::CodeLoginRequest;
 
-use crate::commands::admin_api_client::AdminApiClient;
+use crate::commands::admin::AdminApiClient;
 use crate::identity::{Identity, IdentityStore};
 
 /// The code is the whole credential.

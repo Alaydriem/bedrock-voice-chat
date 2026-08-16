@@ -1,5 +1,5 @@
 use crate::analytics::AnalyticsService;
-use crate::auth::{code_login, hytale, login};
+use crate::auth::{AuthClient, hytale};
 use crate::keyring::KeyringService;
 use crate::structs::app_state::AppState;
 use common::response::LinkJavaIdentityResponse;
@@ -22,7 +22,7 @@ pub(crate) async fn server_login(
     code: String,
     redirect: String,
 ) -> Result<LoginResponse, String> {
-    let login_result = login::server_login(server.clone(), code, redirect).await;
+    let login_result = AuthClient::server_login(server.clone(), code, redirect).await;
 
     if let Ok(ref response) = login_result {
         let mut state = app_state.lock().await;
@@ -66,7 +66,7 @@ pub(crate) async fn code_login(
     server: String,
     code: String,
 ) -> Result<LoginResponse, String> {
-    let login_result = code_login::code_login(server.clone(), code)
+    let login_result = AuthClient::code_login(server.clone(), code)
         .await
         .map_err(|_| "Code login failed".to_string())?;
 

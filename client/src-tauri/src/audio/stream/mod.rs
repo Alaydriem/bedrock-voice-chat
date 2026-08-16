@@ -8,7 +8,7 @@ pub(crate) mod stream_manager;
 
 use crate::NetworkPacket;
 use crate::audio::recording::RecordingManager;
-use crate::audio::types::{AudioDevice, AudioDeviceType};
+use crate::audio::{AudioDevice, AudioDeviceType};
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::BedrockPlayerStateCache;
 #[cfg(feature = "bedrock-protocol")]
