@@ -41,15 +41,22 @@ const GROUPS: readonly Group[] = [
     rows: [
       { label: 'Bedrock Dedicated Server', support: 'full' },
       { label: 'Aternos and other hosts', support: 'full' },
-      { label: 'Realms', support: 'proxy' },
-      { label: 'Console, via the mobile app', support: 'full' },
+      { label: 'Realms', support: 'full' },
+      { label: 'Console, via the mobile app', support: 'full' }
     ],
   },
   {
     title: 'MINECRAFT JAVA',
     rows: [
       { label: 'Fabric', support: 'full' },
-      { label: 'Paper', support: 'full' },
+      { label: 'Paper', support: 'full' }
+    ],
+  },
+  {
+    title: 'INTEGRATIONS',
+    rows: [
+      { label: 'Rich API', support: 'full' },
+      { label: 'Simple Voice Chat', support: 'full' }
     ],
   },
 ];
@@ -62,7 +69,18 @@ registerPainter('matrix', ({ ctx, w, h }: PaintContext) => {
   const pad = Math.max(14, w * 0.05);
   const heights = GROUPS.map((g) => HEADER_H + 14 + g.rows.length * ROW_H + 8);
   const total = heights.reduce((a, b) => a + b, 0) + 12 * (GROUPS.length - 1);
-  let y = Math.max(pad, (h - total) / 2);
+
+  // The table is laid out in fixed pixels, but the canvas is sized by its CSS
+  // box. Adding a group grows the table and nothing grows the box, so without
+  // this the last group paints past the bottom edge and overflow:hidden eats
+  // it. Shrink to fit instead: a crowded table is legible, a missing row is
+  // not. The box also carries a min-height, so this only bites on the narrow
+  // end of the two-column range.
+  const fit = Math.min(1, (h - pad * 2) / total);
+  ctx.save();
+  ctx.translate((w * (1 - fit)) / 2, (h - total * fit) / 2);
+  ctx.scale(fit, fit);
+  let y = 0;
 
   const dot = 7;
   const dotGap = 3;
@@ -114,4 +132,6 @@ registerPainter('matrix', ({ ctx, w, h }: PaintContext) => {
 
     y += boxH + 12;
   });
+
+  ctx.restore();
 });

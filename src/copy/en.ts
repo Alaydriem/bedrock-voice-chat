@@ -96,7 +96,7 @@ export const en = {
       captionKey: '',
       captionValue: '',
       vizLabel:
-        'Support matrix covering Bedrock Dedicated Server, Aternos and other hosts, Realms, console, Fabric and Paper',
+        'Support matrix covering Bedrock Dedicated Server, Aternos and other hosts, Realms, console, Fabric, Paper, the Rich API and Simple Voice Chat',
     },
     proximity: {
       eyebrow: 'Proximity',
@@ -216,15 +216,15 @@ export const en = {
         cta: 'Install guide',
       },
       {
-        label: 'Skip the hosting',
+        label: 'Become a Member',
         title: 'Patreon and Youtube Members Server',
-        body: "Patreon and Youtube Members can link their Bedrock Dedicated Server instance to a shared server and experience BVC without hosting anything. This is a paid tier for people who would rather not run a server themselves. More information about this offering will be coming soon!",
-        meta: 'Tier Support Coming Soon',
+        body: "Become a member and link your current world to a members server, included with your membership.",
+        meta: 'Coming Soon',
         cta: 'See tiers',
       },
       {
         label: 'Your Own Hosted Instance',
-        title: 'Private servers for larger groups and events',
+        title: 'Private Servers',
         body: "Need your own dedicated server for a large group or event? This tier will give you a private instance of the server with dedicated resources and support.",
         meta: 'Coming Soon',
         cta: 'See tiers',

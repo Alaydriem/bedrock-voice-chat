@@ -11,6 +11,11 @@ interface Props {
   /** Accessible description. Visuals are decorative unless you give one. */
   label?: string;
   ratio?: string;
+  /**
+   * Floor in CSS pixels for visuals whose content is a fixed pixel size rather
+   * than a shape that scales. The ratio still sets the height above this.
+   */
+  minHeight?: number;
   /** Small monospace caption pinned to the bottom-left. */
   captionKey?: string;
   captionValue?: string;
@@ -22,6 +27,7 @@ const {
   kind,
   label,
   ratio = '4 / 3',
+  minHeight,
   captionKey,
   captionValue,
   frame = true,
@@ -29,7 +35,10 @@ const {
 } = Astro.props;
 ---
 
-<figure class:list={['viz', { framed: frame }, cls]} style={`--ratio:${ratio}`}>
+<figure
+  class:list={['viz', { framed: frame }, cls]}
+  style={`--ratio:${ratio};${minHeight ? `--minh:${minHeight}px` : ''}`}
+>
   <canvas
     data-cv={kind}
     role={label ? 'img' : 'presentation'}
@@ -51,6 +60,7 @@ const {
     position: relative;
     margin: 0;
     aspect-ratio: var(--ratio);
+    min-height: var(--minh, 0px);
     overflow: hidden;
     min-width: 0;
   }

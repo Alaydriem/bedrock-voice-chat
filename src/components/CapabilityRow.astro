@@ -18,11 +18,22 @@ interface Props {
   label: string;
   captionKey?: string;
   captionValue?: string;
+  /** Passed to Canvas for visuals drawn at a fixed pixel size. */
+  vizMinHeight?: number;
   facts?: readonly Fact[];
   id?: string;
 }
 
-const { eyebrow, kind, label, captionKey, captionValue, facts = [], id } = Astro.props;
+const {
+  eyebrow,
+  kind,
+  label,
+  captionKey,
+  captionValue,
+  vizMinHeight,
+  facts = [],
+  id,
+} = Astro.props;
 ---
 
 <div class="row" id={id} data-reveal>
@@ -31,6 +42,7 @@ const { eyebrow, kind, label, captionKey, captionValue, facts = [], id } = Astro
     label={label}
     captionKey={captionKey}
     captionValue={captionValue}
+    minHeight={vizMinHeight}
     class="rowviz"
   />
   <div class="body">
