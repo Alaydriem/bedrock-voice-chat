@@ -6,7 +6,7 @@ sidebar:
   order: 1
 ---
 
-Bedrock Voice Chat runs on Minecraft Java servers through a mod published on [Modrinth](https://modrinth.com/mod/bedrock-voice-chat) for both Fabric and PaperMC. Geyser servers are supported. See [Geyser](/wiki/platforms/geyser/).
+Bedrock Voice Chat runs on Minecraft Java servers through a mod published on [Modrinth](https://modrinth.com/mod/bedrock-voice-chat) for both Fabric and PaperMC. Geyser servers are supported. See [Geyser and Floodgate](/wiki/server/java-mod/integrations/geyser-and-floodgate/).
 
 ## Pick your loader
 
@@ -14,6 +14,10 @@ Bedrock Voice Chat runs on Minecraft Java servers through a mod published on [Mo
 - **[PaperMC](/wiki/server/java-mod/papermc/)** — `plugins/` directory, YAML config.
 
 The settings are identical. Only the file format and location differ.
+
+## Integrations
+
+The mod detects other plugins and mods at startup. See [Integrations](/wiki/server/java-mod/integrations/) for [Geyser and Floodgate](/wiki/server/java-mod/integrations/geyser-and-floodgate/) and [Simple Voice Chat](/wiki/server/java-mod/integrations/simple-voice-chat/).
 
 ## Pick your mode
 

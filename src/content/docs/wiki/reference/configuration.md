@@ -70,7 +70,7 @@ Provider-specific fields are validated at startup. A missing one is named in the
 
 | Key | Default | Description |
 |---|---|---|
-| `access_token` | — | Shared secret the Addon sends as `X-MC-Access-Token`. **Required.** |
+| `access_token` | — | Shared secret the Addon sends as `Authorization: Bearer`. **Required.** |
 | `client_id` | `a17f9693-f01f-4d1d-ad12-1f179478375d` | Microsoft OAuth2 client ID. **Do not change** — this is the public BVC client every released app authenticates against. |
 
 ## `server.features`

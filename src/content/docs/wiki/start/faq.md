@@ -24,7 +24,7 @@ Yes, with the mobile app running next to the console. There is no on-console cli
 
 ## Does it work with Geyser?
 
-Yes. Install the Java mod. Floodgate is auto-detected. [Geyser](/wiki/platforms/geyser/).
+Yes. Install the Java mod. Floodgate is auto-detected. [Geyser and Floodgate](/wiki/server/java-mod/integrations/geyser-and-floodgate/).
 
 ## Does it work with Simple Voice Chat?
 

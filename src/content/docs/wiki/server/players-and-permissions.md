@@ -62,7 +62,11 @@ bvc user banish -p Bob -g minecraft
 bvc user banish -p Bob -g minecraft --banish false
 ```
 
+Banishing revokes the player's certificate and closes their voice session. They are removed while connected.
+
 Banishing is reversible and keeps the record. There is no hard delete from the CLI.
+
+Unbanishing does not restore the revoked certificate. The player signs in and is issued a new one.
 
 ## Permissions
 

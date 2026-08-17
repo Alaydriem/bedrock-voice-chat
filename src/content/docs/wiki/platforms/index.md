@@ -18,7 +18,7 @@ Worlds hosted by the Minecraft game client are **not** supported. That covers LA
 |---|---|---|
 | **Bedrock Dedicated Server** | Yes | The [Addon](/wiki/server/bedrock-addon/). This is the path everything else is measured against. |
 | **Java — Fabric or Paper** | Yes | The [Java mod](/wiki/server/java-mod/), external or embedded. |
-| **Geyser / Floodgate** | Yes | The Java mod. Floodgate is auto-detected; nothing BVC-specific to configure. [Details](/wiki/platforms/geyser/). |
+| **Geyser / Floodgate** | Yes | The Java mod. Floodgate is auto-detected; nothing BVC-specific to configure. [Details](/wiki/server/java-mod/integrations/geyser-and-floodgate/). |
 | **Realms** | Yes | The [no-net Addon](/wiki/server/nonet-addon/) plus Bedrock Voice Chat Connect in the app. [Details](/wiki/platforms/realms/). |
 | **Aternos and other no-net hosts** | Yes | The no-net Addon plus Bedrock Voice Chat Connect. [Details](/wiki/platforms/aternos/). |
 | **Consoles** | Yes | The mobile app on the same network. The session appears under Worlds. [Details](/wiki/platforms/console-and-mobile/). |

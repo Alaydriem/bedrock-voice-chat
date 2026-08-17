@@ -36,7 +36,7 @@ If clients are on networks that block QUIC, publish the redundant port on 8443/U
 ## 3. Is the Addon relaying?
 
 ```bash
-curl -H "X-MC-Access-Token: <your token>" https://example.bedrockvc.stream/api/position
+curl -H "Authorization: Bearer <your token>" https://example.bedrockvc.stream/api/position
 ```
 
 Populated means the whole chain works. Empty means the game server is not sending.

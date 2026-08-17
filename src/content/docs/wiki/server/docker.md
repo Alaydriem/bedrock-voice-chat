@@ -51,9 +51,14 @@ Mount `/data` and keep it. It holds:
 
 - `config.hcl`
 - The SQLite database, if you are not using MySQL or Postgres
-- `certificates/` — the mTLS CA
 
-Losing the mTLS CA invalidates every client certificate already issued and forces everyone to sign in again. Back it up with the database, not separately.
+The database holds the mTLS certificate authority. Losing it invalidates every client certificate already issued and forces everyone to sign in again.
+
+`certificates/` does not have to survive a restart. The server writes the CA there at startup from the database, and repopulates an empty directory. Point `server.tls.certs_path` at a temporary directory where a persistent volume is inconvenient.
+
+:::caution
+Serving certificates are separate. A certificate and key given through `server.tls.certificate` and `server.tls.key` are read from the path you mount them at, and are not stored in the database.
+:::
 
 ## Running without a config file
 

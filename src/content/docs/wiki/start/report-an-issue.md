@@ -28,7 +28,7 @@ Most reports resolve there in under a minute.
 
 - Output of `curl https://<your-server>/api/config`
 - Whether **UDP** is open, not just TCP. This is the most common cause
-- Whether `curl -H "X-MC-Access-Token: <token>" https://<your-server>/api/position` returns data
+- Whether `curl -H "Authorization: Bearer <token>" https://<your-server>/api/position` returns data
 - How you are deployed. Docker, bare metal, or embedded in the Java mod
 
 **For a crash:** what you were doing, whether it reproduces, and the log if you have it.

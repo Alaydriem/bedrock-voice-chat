@@ -83,7 +83,7 @@ No line means the Addon is not running, or `bvc_server` is unset.
 Then check the server is receiving positions:
 
 ```bash
-curl -H "X-MC-Access-Token: <your token>" https://example.bedrockvc.stream/api/position
+curl -H "Authorization: Bearer <your token>" https://example.bedrockvc.stream/api/position
 ```
 
 An empty response means BDS is not relaying. A populated one means the whole chain works.

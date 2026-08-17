@@ -104,6 +104,14 @@ export default defineConfig({
                 'wiki/server/java-mod',
                 'wiki/server/java-mod/fabric',
                 'wiki/server/java-mod/papermc',
+                {
+                  label: 'Integrations',
+                  items: [
+                    'wiki/server/java-mod/integrations',
+                    'wiki/server/java-mod/integrations/geyser-and-floodgate',
+                    'wiki/server/java-mod/integrations/simple-voice-chat',
+                  ],
+                },
               ],
             },
             'wiki/server/players-and-permissions',
@@ -171,7 +179,8 @@ export default defineConfig({
 
     '/wiki/Bedrock-Realms-Support': '/wiki/platforms/realms/',
     '/wiki/Aternos-Support': '/wiki/platforms/aternos/',
-    '/wiki/Geyser-Support': '/wiki/platforms/geyser/',
+    '/wiki/Geyser-Support': '/wiki/server/java-mod/integrations/geyser-and-floodgate/',
+    '/wiki/platforms/geyser': '/wiki/server/java-mod/integrations/geyser-and-floodgate/',
     '/wiki/Mobile-and-Console-Support': '/wiki/platforms/console-and-mobile/',
     '/wiki/LAN-World-Support': '/wiki/platforms/lan-and-local-worlds/',
     '/wiki/Local-and-Self-Hosted-Worlds': '/wiki/platforms/lan-and-local-worlds/',

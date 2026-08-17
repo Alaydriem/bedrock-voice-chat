@@ -59,6 +59,15 @@ Every other removed key is **ignored, not rejected**. A leftover `relay` or `ser
 
 `voice.recording.enabled` takes the `BVC_RECORDING` environment override.
 
+## Scripts that call the API
+
+Two request shapes changed. A script of your own that calls either has to change with it. The Addon, the Java mods, and the client ship with the change.
+
+| Route | Change |
+|---|---|
+| `/api/position`, `/api/control`, `/api/state`, `/api/preferences`, `/api/audio/event`, the chat WebSocket | Send `Authorization: Bearer <token>` instead of `X-MC-Access-Token: <token>`. The token value is unchanged. |
+| `POST /api/bedrock/transfer` | Drop the `xuid` field. The body is `host` and `port`. |
+
 ## QUIC ports
 
 `server.advertised_quic_ports` publishes the UDP ports a client tries, in preference order. A non-empty list **replaces** `server.quic_port` as the set clients attempt. It does not add to it. An empty list leaves `quic_port` as the only published port.

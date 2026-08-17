@@ -1,9 +1,9 @@
 ---
-title: Geyser
+title: Geyser and Floodgate
 description: BVC on Geyser and Floodgate cross-platform servers.
 sidebar:
-  label: Geyser
-  order: 5
+  label: Geyser and Floodgate
+  order: 2
 ---
 
 Bedrock Voice Chat supports Geyser servers, letting your Bedrock and Java players hear each other in the same world. Install the [Java mod](/wiki/server/java-mod/) on Fabric or PaperMC and configure it as you would on any Java server.
