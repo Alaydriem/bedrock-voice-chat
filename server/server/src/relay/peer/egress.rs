@@ -31,7 +31,7 @@ impl PeerEgress {
             VoiceFrame {
                 speaker: speaker.clone(),
                 sample_rate: audio.sample_rate,
-                opus: audio.data.clone(),
+                opus: audio.data.to_vec(),
                 timestamp_ms: audio.timestamp(),
                 spatial: audio.spatial.unwrap_or(false),
                 jukebox,

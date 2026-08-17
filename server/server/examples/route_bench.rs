@@ -132,7 +132,7 @@ impl RouteBench {
             self.registry
                 .register(
                     i as u64,
-                    Game::Minecraft.membership_key(&Self::player_name(i)),
+                    Game::Minecraft.membership_key(&Self::player_name(i)).into(),
                     format!("bench-{i}"),
                     tx,
                 );
@@ -147,8 +147,8 @@ impl RouteBench {
             if self.args.channels {
                 let cluster = i / self.args.group_size.max(1);
                 self.registry.update_player_channel(
-                    format!("minecraft:{}", Self::player_name(i)),
-                    format!("chan{}", cluster),
+                    &format!("minecraft:{}", Self::player_name(i)),
+                    &format!("chan{}", cluster),
                 );
             }
         }

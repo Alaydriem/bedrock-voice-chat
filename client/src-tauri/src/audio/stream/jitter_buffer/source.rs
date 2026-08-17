@@ -83,7 +83,7 @@ impl JitterBufferSource {
                 .unwrap_or_default()
                 .as_millis() as u64;
             pending_recordings.push_back(PendingRecording {
-                opus_data: initial_packet.data.clone(),
+                opus_data: initial_packet.data.to_vec(),
                 emitter: initial_packet.emitter.clone(),
                 listener: initial_packet.listener.clone(),
                 sample_rate: initial_packet.sample_rate,
@@ -203,7 +203,7 @@ impl JitterBufferSource {
                             .unwrap_or_default()
                             .as_millis() as u64;
                         self.pending_recordings.push_back(PendingRecording {
-                            opus_data: packet.data.clone(),
+                            opus_data: packet.data.to_vec(),
                             emitter: packet.emitter.clone(),
                             listener: packet.listener.clone(),
                             sample_rate: packet.sample_rate,

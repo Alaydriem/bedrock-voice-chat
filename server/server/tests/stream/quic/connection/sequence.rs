@@ -81,8 +81,6 @@ fn a_packet_that_is_never_stamped_consumes_no_sequence_number() {
 
 #[test]
 fn a_stamped_envelope_survives_the_datagram_round_trip() {
-    // The field is last in the struct because postcard's format is positional. If it were moved,
-    // this is what would fail.
     let sequence = ConnectionSequence::new_shared();
     let mut packet = envelope();
     for _ in 0..300 {
@@ -90,7 +88,53 @@ fn a_stamped_envelope_survives_the_datagram_round_trip() {
         assert!(sequence_of(&bytes).is_some());
     }
 
-    // Past the single-byte varint boundary, so a multi-byte sequence is exercised too.
     let bytes = sequence.stamp(&mut packet).unwrap();
     assert_eq!(sequence_of(&bytes), Some(300));
+}
+
+#[test]
+fn patching_a_template_agrees_with_stamping_the_packet() {
+    // Fan-out encodes one envelope per frame and patches its sequence bytes per recipient. If
+    // `patch` ever disagreed with `stamp`, every listener would receive a subtly wrong datagram
+    // while the server logged nothing, so the two are held equal here.
+    let stamped_sequence = ConnectionSequence::new_shared();
+    let patched_sequence = ConnectionSequence::new_shared();
+
+    let mut template_packet = envelope();
+    template_packet.stamp(0);
+    let template = template_packet.to_datagram().expect("template serializes");
+
+    let mut packet = envelope();
+    for _ in 0..300 {
+        let stamped = stamped_sequence.stamp(&mut packet).expect("serializes");
+        let patched = patched_sequence.patch(&template).expect("patches");
+        assert_eq!(stamped, patched);
+    }
+}
+
+#[test]
+fn patching_advances_the_same_counter_stamping_does() {
+    // One connection reaches both paths -- broadcasts patch, single-recipient control messages
+    // stamp -- and a client reads one sequence stream. Two counters would look like loss.
+    let sequence = ConnectionSequence::new_shared();
+    let mut template_packet = envelope();
+    template_packet.stamp(0);
+    let template = template_packet.to_datagram().expect("template serializes");
+    let mut packet = envelope();
+
+    let first = sequence_of(&sequence.patch(&template).unwrap()).unwrap();
+    let second = sequence_of(&sequence.stamp(&mut packet).unwrap()).unwrap();
+    let third = sequence_of(&sequence.patch(&template).unwrap()).unwrap();
+
+    assert_eq!((first, second, third), (0, 1, 2));
+}
+
+#[test]
+fn a_template_too_short_to_hold_a_sequence_is_refused() {
+    // An envelope serialized without a sequence has no value bytes to overwrite -- an absent
+    // `Option` is a bare tag. Patching one would silently corrupt whatever followed, so a template
+    // that cannot hold the range is rejected rather than written into.
+    let sequence = ConnectionSequence::new_shared();
+
+    assert!(sequence.patch(&[1u8, 0, 0]).is_none());
 }

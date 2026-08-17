@@ -197,8 +197,8 @@ impl CacheManager {
 
                                 if let Some(registry) = &self.connection_registry {
                                     registry.update_player_channel(
-                                        channel_data.name.clone(),
-                                        channel_data.channel.clone(),
+                                        &channel_data.name,
+                                        &channel_data.channel,
                                     );
                                 }
 

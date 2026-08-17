@@ -27,10 +27,12 @@ impl OutputStream {
         self.packet_rx = Some(packet_rx);
     }
 
-    pub fn get_player_id(&self) -> Option<String> {
-        self.player_id.get().cloned()
+    // Borrows rather than clones. The send loop below names the player only on its error arms, and
+    // it runs once per outbound datagram, so resolving this by clone allocated a `String` per
+    // datagram to build a log line that almost never happens.
+    fn log_label(&self) -> &str {
+        self.player_id.get().map(String::as_str).unwrap_or("unknown")
     }
-
 }
 
 impl StreamTrait for OutputStream {
@@ -54,28 +56,34 @@ impl StreamTrait for OutputStream {
                     RoutedPacket::Serialized(bytes) => bytes,
                 };
 
-                let player = self.get_player_id().unwrap_or_else(|| "unknown".into());
-
                 match link.send(payload) {
                     SendOutcome::Ok => {}
                     SendOutcome::ConnectionClosed(emsg) => {
-                        tracing::error!("datagram_send_closed player={} err={}", player, emsg);
+                        tracing::error!(
+                            "datagram_send_closed player={} err={}",
+                            self.log_label(),
+                            emsg
+                        );
                         break;
                     }
                     SendOutcome::Capacity(emsg) => {
                         tracing::debug!(
                             "datagram send capacity issue player={} err={}",
-                            player,
+                            self.log_label(),
                             emsg
                         );
                     }
                     SendOutcome::Other(emsg) => {
-                        tracing::debug!("datagram send error player={} err={}", player, emsg);
+                        tracing::debug!(
+                            "datagram send error player={} err={}",
+                            self.log_label(),
+                            emsg
+                        );
                     }
                     SendOutcome::Fatal(emsg) => {
                         tracing::error!(
                             "datagram_send_query_failed player={} err={}",
-                            player,
+                            self.log_label(),
                             emsg
                         );
                         break;

@@ -99,11 +99,13 @@ impl InputStream {
     // Who this frame's ordering is tracked against. A relayed frame already carries the
     // originating server's stamp, which names the real speaker; a local player's does not
     // yet, and is this connection's own identity. Neither case reads a client's claim.
-    fn speaker_key(&self, packet: &QuicNetworkPacket) -> Option<String> {
+    //
+    // Borrowed from whichever of the two it came from, because this runs once per inbound
+    // datagram and the result is only used to read `last_seen_ts`, which is queryable by `&str`.
+    fn speaker_key<'a>(&'a self, packet: &'a QuicNetworkPacket) -> Option<&'a str> {
         packet
             .sender_identity()
-            .map(str::to_string)
-            .or_else(|| self.identity.clone())
+            .or_else(|| self.identity.as_deref())
     }
 
     fn decide_accept(last_seen: Option<i64>, ts: i64, jump_threshold_ms: i64) -> (bool, bool) {
@@ -160,7 +162,7 @@ impl StreamTrait for InputStream {
                                         if let (Some(ts), Some(key)) =
                                             (ts_opt, self.speaker_key(&packet))
                                         {
-                                            let last_seen = self.last_seen_ts.get(&key);
+                                            let last_seen = self.last_seen_ts.get(key);
                                             let (accept, large_jump) = Self::decide_accept(
                                                 last_seen,
                                                 ts,
@@ -178,8 +180,10 @@ impl StreamTrait for InputStream {
                                                 continue;
                                             }
 
-                                            // Update last seen timestamp for this speaker
-                                            self.last_seen_ts.insert(key.clone(), ts);
+                                            // Update last seen timestamp for this speaker.
+                                            // moka has no in-place update, so the key is owned
+                                            // here whether or not it is already present.
+                                            self.last_seen_ts.insert(key.to_string(), ts);
                                             if large_jump {
                                                 let prev = last_seen.unwrap_or(0);
                                                 let delta = ts - prev;

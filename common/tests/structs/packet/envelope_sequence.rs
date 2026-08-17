@@ -134,6 +134,78 @@ fn a_fully_stamped_envelope_costs_less_than_the_owner_it_replaced() {
     assert!(new_size < MAX_DATAGRAM_SIZE);
 }
 
+// An envelope with a realistic payload, so the offset assertions below are not made against a
+// datagram short enough to hide an off-by-one.
+fn audio_envelope() -> QuicNetworkPacket {
+    QuicNetworkPacket {
+        packet_type: PacketType::AudioFrame,
+        data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
+            vec![0x5a; 160],
+            48000,
+            None,
+            Some(true),
+        )),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn sequence_bytes_sit_at_a_fixed_offset() {
+    // The fan-out serializes one envelope per frame and rewrites `SEQ_VALUE_RANGE` for each
+    // recipient instead of re-encoding. That is only sound while `seq` is the first field and
+    // fixed-width. A field reorder or a dropped `fixint` attribute would break it silently — the
+    // datagram would still serialize, and the recipient would read a mangled packet.
+    let mut packet = audio_envelope();
+    packet.stamp(0);
+    let template = packet.to_datagram().expect("template serializes");
+
+    for value in [1u32, 2, 127, 128, 65_535, 16_777_216, u32::MAX] {
+        let mut patched = template.clone();
+        patched[QuicNetworkPacket::SEQ_VALUE_RANGE].copy_from_slice(&value.to_le_bytes());
+
+        let mut expected = audio_envelope();
+        expected.stamp(value);
+        let encoded = expected.to_datagram().expect("serializes");
+
+        assert_eq!(
+            patched, encoded,
+            "patching the sequence range diverges from a fresh encode at seq={value}"
+        );
+    }
+}
+
+#[test]
+fn the_sequence_occupies_a_constant_width_regardless_of_value() {
+    let mut small = audio_envelope();
+    small.stamp(1);
+    let mut large = audio_envelope();
+    large.stamp(u32::MAX);
+
+    assert_eq!(
+        small.to_datagram().unwrap().len(),
+        large.to_datagram().unwrap().len(),
+        "encoded length varies with the sequence value, so the field is still a varint"
+    );
+}
+
+#[test]
+fn an_absent_sequence_encodes_as_a_bare_tag() {
+    // The `None` case carries no value bytes at all, so a patcher must never assume the range is
+    // present. `ConnectionSequence` builds its template from a stamped envelope for this reason.
+    let unstamped = audio_envelope().to_datagram().expect("serializes");
+    let mut stamped_packet = audio_envelope();
+    stamped_packet.stamp(0);
+    let stamped = stamped_packet.to_datagram().expect("serializes");
+
+    assert_eq!(unstamped[QuicNetworkPacket::SEQ_TAG_OFFSET], 0);
+    assert_eq!(stamped[QuicNetworkPacket::SEQ_TAG_OFFSET], 1);
+    assert_eq!(
+        stamped.len() - unstamped.len(),
+        QuicNetworkPacket::SEQ_VALUE_RANGE.len(),
+        "a stamped envelope must cost exactly the fixed-width value"
+    );
+}
+
 #[test]
 fn a_client_built_packet_carries_no_identity() {
     // A packet a client builds carries no identity, because there is no field in which to declare

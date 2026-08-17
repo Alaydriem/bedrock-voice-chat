@@ -22,7 +22,9 @@ pub use pan_state::PanState;
 pub(crate) struct EncodedAudioFramePacket {
     pub timestamp: u64,
     pub sample_rate: u32,
-    pub data: Vec<u8>,
+    // `Bytes` because the router clones a whole packet per frame to hand it to playback, and the
+    // Opus payload is the only part of it worth copying.
+    pub data: bytes::Bytes,
     pub route: AudioSinkType,
     pub emitter: PlayerData,
     pub listener: PlayerData,

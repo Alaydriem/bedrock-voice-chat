@@ -25,9 +25,9 @@ pub struct ConnectionRegistry {
     connections: DashMap<u64, ConnectionEntry>,
     // canonical identity -> connection id, for O(1) point-to-point delivery
     // (`send_to_player`) without scanning all connections.
-    name_index: DashMap<String, u64>,
+    name_index: DashMap<Arc<str>, u64>,
     // canonical identity -> channel_id (one channel per player)
-    player_channel: DashMap<String, String>,
+    player_channel: DashMap<Arc<str>, Arc<str>>,
     // certificate fingerprint -> connection id. Revocation addresses a live session by the
     // credential it was opened with, so one identity holding two connections on two
     // certificates loses only the revoked one.
@@ -40,7 +40,7 @@ pub struct ConnectionRegistry {
     peer_plane: OnceLock<Arc<crate::relay::PeerPlane>>,
     // Consecutive reap sweeps each stale channel-membership key has been absent for.
     // Drives the grace-period reaper (`reap_stale_channels`).
-    channel_absent_ticks: DashMap<String, u32>,
+    channel_absent_ticks: DashMap<Arc<str>, u32>,
     // Guards the broadcast serialization-failure log. The inputs that cause a
     // failure recur every tick, so this site would otherwise emit at the
     // source's full rate.
@@ -109,7 +109,7 @@ impl ConnectionRegistry {
     // legitimately outlives a QUIC drop (until the reaper runs), so gauges that must
     // reflect *current* usage filter player_channel against this set. Both sides are keyed
     // on the same form, so the comparison is a plain lookup.
-    fn live_identities(&self) -> std::collections::HashSet<String> {
+    fn live_identities(&self) -> std::collections::HashSet<Arc<str>> {
         self.connections
             .iter()
             .map(|e| e.value().identity.clone())
@@ -118,7 +118,7 @@ impl ConnectionRegistry {
 
     fn active_channel_count(&self) -> i64 {
         let live = self.live_identities();
-        let distinct: std::collections::HashSet<String> = self
+        let distinct: std::collections::HashSet<Arc<str>> = self
             .player_channel
             .iter()
             .filter(|e| live.contains(e.key()))
@@ -160,13 +160,13 @@ impl ConnectionRegistry {
         const REAP_GRACE_SWEEPS: u32 = 2;
         let live = self.live_identities();
         self.channel_absent_ticks
-            .retain(|k, _| self.player_channel.contains_key(k));
+            .retain(|k, _| self.player_channel.contains_key(k.as_ref()));
 
-        let mut purge: Vec<String> = Vec::new();
+        let mut purge: Vec<Arc<str>> = Vec::new();
         for e in self.player_channel.iter() {
             let key = e.key();
             if live.contains(key) {
-                self.channel_absent_ticks.remove(key);
+                self.channel_absent_ticks.remove(key.as_ref());
             } else {
                 let mut n = self.channel_absent_ticks.entry(key.clone()).or_insert(0);
                 *n += 1;
@@ -185,7 +185,7 @@ impl ConnectionRegistry {
     pub fn register(
         &self,
         device: u64,
-        identity: String,
+        identity: Arc<str>,
         fingerprint: String,
         tx: mpsc::Sender<RoutedPacket>,
     ) {
@@ -262,52 +262,49 @@ impl ConnectionRegistry {
     }
 
     pub fn broadcast_to_all(&self, packet: QuicNetworkPacket) {
-        // Size is settled once up front rather than per recipient, because the split has to happen
-        // before anything is stamped: an oversized packet rejected inside the loop below would
-        // consume a sequence number on every connection and read at the receiver as loss. Probing
-        // with `u32::MAX` takes the widest encoding this field has, so a packet that fits here fits
-        // for every recipient however far its counter has advanced.
+        // Serialized once here and patched per recipient below. The encode doubles as the size
+        // check, and the check has to happen before anything is stamped: an oversized packet
+        // rejected inside the loop would consume a sequence number on every connection and read at
+        // the receiver as loss. The sequence is fixed-width, so the length this proves is the
+        // length every recipient's copy has.
         let mut probe = packet.clone();
         probe.stamp(u32::MAX);
-        if let Err(e) = probe.to_datagram() {
-            // A player list that does not fit is still deliverable in
-            // pieces; every consumer merges players by name, so splitting
-            // changes nothing observable. Dropping it whole would strand
-            // every client's positions until the roster shrank.
-            if let Some(halves) = Self::split_oversized(&packet) {
-                for half in halves {
-                    self.broadcast_to_all(half);
+        let template = match probe.to_datagram() {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                // A player list that does not fit is still deliverable in
+                // pieces; every consumer merges players by name, so splitting
+                // changes nothing observable. Dropping it whole would strand
+                // every client's positions until the roster shrank.
+                if let Some(halves) = Self::split_oversized(&packet) {
+                    for half in halves {
+                        self.broadcast_to_all(half);
+                    }
+                    return;
+                }
+
+                if packet.packet_type == PacketType::PlayerData {
+                    if let Some(metrics) = self.metrics.get() {
+                        metrics.record_position_oversize_drop();
+                    }
+                }
+
+                if let Some(suppressed) = self.oversized_broadcast_log.should_log() {
+                    tracing::error!(
+                        suppressed,
+                        packet_type = ?packet.packet_type,
+                        "Failed to serialize broadcast: {}",
+                        e
+                    );
                 }
                 return;
             }
-
-            if packet.packet_type == PacketType::PlayerData {
-                if let Some(metrics) = self.metrics.get() {
-                    metrics.record_position_oversize_drop();
-                }
-            }
-
-            if let Some(suppressed) = self.oversized_broadcast_log.should_log() {
-                tracing::error!(
-                    suppressed,
-                    packet_type = ?packet.packet_type,
-                    "Failed to serialize broadcast: {}",
-                    e
-                );
-            }
-            return;
-        }
+        };
 
         let mut dead_keys: Vec<u64> = Vec::new();
 
-        // Serialized per recipient rather than once, because each carries that connection's own
-        // sequence number. One postcard pass per listener replaces a `Bytes` refcount clone; at
-        // audio rates that is a fraction of a percent of a core, and it is what makes a gap at the
-        // receiver mean loss rather than routing.
-        let mut outbound = packet;
-
         for entry in self.connections.iter() {
-            let Some(bytes) = entry.value().sequence.stamp(&mut outbound) else {
+            let Some(bytes) = entry.value().sequence.patch(&template) else {
                 continue;
             };
 
@@ -379,7 +376,7 @@ impl ConnectionRegistry {
 
             // Most of the roster is not on voice at all; skipping the
             // non-connected majority is the entire saving.
-            if !self.name_index.contains_key(&identity) {
+            if !self.name_index.contains_key(identity.as_str()) {
                 continue;
             }
 
@@ -457,7 +454,7 @@ impl ConnectionRegistry {
     pub fn on_voice_identities(&self) -> std::collections::HashSet<String> {
         self.name_index
             .iter()
-            .map(|entry| entry.key().clone())
+            .map(|entry| entry.key().to_string())
             .collect()
     }
 
@@ -514,8 +511,9 @@ impl ConnectionRegistry {
         }
     }
 
-    pub fn update_player_channel(&self, identity: String, channel_id: String) {
-        self.player_channel.insert(identity, channel_id);
+    pub fn update_player_channel(&self, identity: &str, channel_id: &str) {
+        self.player_channel
+            .insert(Arc::from(identity), Arc::from(channel_id));
         self.push_gauges();
     }
 
@@ -525,7 +523,7 @@ impl ConnectionRegistry {
     }
 
     pub fn remove_channel(&self, channel_id: &str) {
-        self.player_channel.retain(|_, v| v != channel_id);
+        self.player_channel.retain(|_, v| v.as_ref() != channel_id);
         self.push_gauges();
     }
 
@@ -574,7 +572,7 @@ impl ConnectionRegistry {
             None => player_cache.get(sender_identity).await,
         };
 
-        let sender_channel: Option<String> =
+        let sender_channel: Option<Arc<str>> =
             self.player_channel.get(sender_identity).map(|r| r.clone());
 
         let original_spatial = audio_frame.spatial;
@@ -588,24 +586,39 @@ impl ConnectionRegistry {
             sender_channel,
         );
 
-        // Two envelope variants, held unserialized. Each recipient's datagram carries that
-        // connection's own sequence number, so serialization moves inside the loop below — after
-        // every decision not to send. A packet the router rejects for proximity or membership must
-        // not consume a sequence number, or the client reads a gap that was never loss.
-        let mut envelope_spatial = packet.clone();
-        if let QuicNetworkPacketData::AudioFrame(ref mut af) = envelope_spatial.data {
-            af.spatial = Some(true);
-        }
+        // Two envelope variants. Nothing differs between one recipient's datagram and another's
+        // except the sequence number, and that occupies a fixed byte range, so each variant is
+        // encoded at most once per frame and copied-and-patched per recipient.
+        //
+        // Built on first use rather than up front: a frame that only ever routes through a channel
+        // never encodes the spatial variant, and vice versa.
+        //
+        // Stamped with zero purely to make the sequence range present in the encoding —
+        // `ConnectionSequence::patch` overwrites it, and a packet the router rejects for proximity
+        // or membership still consumes no number, because the counter is only touched there.
+        let serialize_variant = |spatial: bool| -> Option<Vec<u8>> {
+            let mut envelope = packet.clone();
+            envelope.stamp(0);
+            if let QuicNetworkPacketData::AudioFrame(ref mut af) = envelope.data {
+                af.spatial = Some(spatial);
+            }
 
-        let mut envelope_channel = packet.clone();
-        if let QuicNetworkPacketData::AudioFrame(ref mut af) = envelope_channel.data {
-            af.spatial = Some(false);
-        }
+            match envelope.to_datagram() {
+                Ok(bytes) => Some(bytes),
+                Err(e) => {
+                    tracing::error!("failed to serialize audio envelope: {}", e);
+                    None
+                }
+            }
+        };
+
+        let mut template_spatial: Option<Vec<u8>> = None;
+        let mut template_channel: Option<Vec<u8>> = None;
 
         // Snapshot connections to release DashMap shard locks before any .await
         let snapshot: Vec<(
             u64,
-            String,
+            Arc<str>,
             u64,
             mpsc::Sender<RoutedPacket>,
             Arc<ConnectionSequence>,
@@ -632,16 +645,14 @@ impl ConnectionRegistry {
         let sender_hash = self.connection_name_hash(sender_identity);
 
         for (device, recipient_identity, recipient_hash, tx, sequence) in &snapshot {
-            if recipient_identity == sender_identity {
+            if recipient_identity.as_ref() == sender_identity {
                 continue;
             }
 
-            // Position data is required only by the proximity branch below, so a
-            // recipient that has not sent one is still eligible for channel audio.
-            let recipient_player = player_cache.get(recipient_identity).await;
-
-            let recipient_channel: Option<String> =
-                self.player_channel.get(recipient_identity).map(|r| r.clone());
+            let recipient_channel: Option<Arc<str>> = self
+                .player_channel
+                .get(recipient_identity.as_ref())
+                .map(|r| r.clone());
 
             // Channel membership is cross-game by design: a channel id is shared
             // across games, so `minecraft:Bob` and `hytale:Carol` in the same
@@ -670,12 +681,15 @@ impl ConnectionRegistry {
                 (true, InteractionRoute::Channel)
             } else {
                 // Proximity is the only branch that needs coordinates, so both sides
-                // must have reported a position to be compared at all.
+                // must have reported a position to be compared at all. The recipient's
+                // position is fetched here rather than above the branch because a
+                // channel delivery never reads it, and the fetch is an awaited cache
+                // lookup per recipient per frame.
                 let sp = match &sender_player {
                     Some(p) => p,
                     None => continue,
                 };
-                let rp = match &recipient_player {
+                let rp = match player_cache.get(recipient_identity.as_ref()).await {
                     Some(p) => p,
                     None => continue,
                 };
@@ -690,7 +704,7 @@ impl ConnectionRegistry {
                     broadcast_range
                 };
 
-                if let Err(e) = sp.can_communicate_with(rp, effective_range) {
+                if let Err(e) = sp.can_communicate_with(&rp, effective_range) {
                     tracing::debug!(
                         "Audio packet {} -> {} rejected: {}",
                         sender_identity,
@@ -707,13 +721,25 @@ impl ConnectionRegistry {
                 }
             };
 
-            let envelope = if use_channel_variant {
-                &mut envelope_channel
+            let template: &[u8] = if use_channel_variant {
+                if template_channel.is_none() {
+                    match serialize_variant(false) {
+                        Some(bytes) => template_channel = Some(bytes),
+                        None => continue,
+                    }
+                }
+                template_channel.as_deref().unwrap_or_default()
             } else {
-                &mut envelope_spatial
+                if template_spatial.is_none() {
+                    match serialize_variant(true) {
+                        Some(bytes) => template_spatial = Some(bytes),
+                        None => continue,
+                    }
+                }
+                template_spatial.as_deref().unwrap_or_default()
             };
 
-            let Some(bytes_to_send) = sequence.stamp(envelope) else {
+            let Some(bytes_to_send) = sequence.patch(template) else {
                 continue;
             };
 

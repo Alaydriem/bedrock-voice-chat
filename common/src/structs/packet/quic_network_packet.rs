@@ -5,6 +5,7 @@ use moka::future::Cache;
 use std::sync::Arc;
 
 use super::audio_frame_packet::AudioFramePacket;
+use super::envelope_sequence::EnvelopeSequence;
 use super::packet_sender::PacketSender;
 use super::packet_type::PacketType;
 use super::quic_network_packet_data::QuicNetworkPacketData;
@@ -13,11 +14,14 @@ pub const MAX_DATAGRAM_SIZE: usize = 1150;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct QuicNetworkPacket {
-    pub packet_type: PacketType,
-    pub data: QuicNetworkPacketData,
     // Monotonic per-connection sequence, assigned by the sender at the moment it queues this
     // datagram for one recipient. A gap at the receiver therefore means exactly one thing: the
     // sender sent it and it did not arrive.
+    //
+    // First field, and fixed-width, so its encoded bytes occupy a constant range at the head of
+    // every datagram whatever the packet carries. The audio fan-out serializes one envelope per
+    // frame and rewrites `SEQ_VALUE_RANGE` for each recipient rather than re-encoding per
+    // recipient, which is only sound while that range does not move.
     //
     // On the envelope rather than on the audio frame deliberately. A per-speaker sequence would be
     // gapped by the server's own routing — proximity, channel membership, deafen distance — and a
@@ -27,21 +31,20 @@ pub struct QuicNetworkPacket {
     // the embedded FFI path, the mods, and the client itself. A receiver reports loss as unmeasured
     // rather than zero when it is absent, so an unstamped peer never reads as a perfect link.
     //
-    // Adding this field was a BREAKING wire change, not an additive one, and `#[serde(default)]` is
-    // deliberately absent because it would imply otherwise. Postcard is not self-describing: a
-    // decoder expecting this byte runs off the end of a datagram produced without it. The direction
-    // that survives is only the harmless one — an old decoder ignores the trailing byte — which makes
-    // the break asymmetric and easy to miss during a rollout.
-    // `common/tests/structs/packet/envelope_sequence.rs` pins both directions.
-    pub seq: Option<u32>,
+    // Postcard is not self-describing and its format is positional, so the shape of this struct is
+    // a BREAKING wire change in both directions and `#[serde(default)]` is deliberately absent
+    // because it would imply otherwise.
+    // `common/tests/structs/packet/envelope_sequence.rs` pins both directions and this layout.
+    pub seq: Option<EnvelopeSequence>,
+    pub packet_type: PacketType,
+    pub data: QuicNetworkPacketData,
     /// Who sent this, as the server determined it from the mTLS certificate.
     ///
     /// Present on everything the server fans out and absent on everything a client sends,
     /// because a client has nothing to say about its own identity.
     ///
-    /// Last field deliberately, alongside `seq`. Postcard is positional, so an `Option` ahead of
-    /// `data` is read as the start of `data` by any decoder that does not expect it. Keeping both
-    /// optional fields at the tail confines that hazard to one place.
+    /// Last field deliberately. Postcard is positional, so an `Option` between `packet_type` and
+    /// `data` would be read as the start of `data` by any decoder that does not expect it.
     pub sender: Option<PacketSender>,
 }
 
@@ -68,14 +71,21 @@ impl Default for QuicNetworkPacket {
 }
 
 impl QuicNetworkPacket {
+    // Byte layout of the encoded `seq` field. Postcard is positional and this is the first field,
+    // so the `Option` tag sits at index 0 and the fixed-width value in 1..5. The fan-out rewrites
+    // exactly this range on an already-serialized envelope; `sequence_bytes_sit_at_a_fixed_offset`
+    // pins it.
+    pub const SEQ_TAG_OFFSET: usize = 0;
+    pub const SEQ_VALUE_RANGE: std::ops::Range<usize> = 1..5;
+
     // Stamps this envelope for one recipient. Called immediately before serialization, after every
     // decision not to send, so a suppressed packet consumes no number.
     pub fn stamp(&mut self, sequence: u32) {
-        self.seq = Some(sequence);
+        self.seq = Some(EnvelopeSequence(sequence));
     }
 
     pub fn sequence(&self) -> Option<u32> {
-        self.seq
+        self.seq.map(|s| s.0)
     }
 
     pub fn to_datagram(&self) -> Result<Vec<u8>, anyhow::Error> {

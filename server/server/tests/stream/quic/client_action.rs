@@ -23,8 +23,8 @@ fn route_self_delivers_to_actor_name_ignoring_wire_id() {
     let registry = ConnectionRegistry::new();
     let (tx_a, mut rx_a) = mpsc::channel(4);
     let (tx_b, mut rx_b) = mpsc::channel(4);
-    registry.register(1, "minecraft:Alice".to_string(), format!("fp-{}", 1), tx_a);
-    registry.register(2, "minecraft:Bob".to_string(), format!("fp-{}", 2), tx_b);
+    registry.register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx_a);
+    registry.register(2, "minecraft:Bob".into(), format!("fp-{}", 2), tx_b);
 
     let svc = ClientActionService::new(true);
     // The wire id says Bob, but the supplied actor is Alice — routing follows Alice.
@@ -71,7 +71,7 @@ fn reported_state(id: &str) -> QueryState {
 async fn delivered_self_action_echoes_into_reported_state() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    registry.register(1, "minecraft:Alice".to_string(), format!("fp-{}", 1), tx);
+    registry.register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx);
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
     player_state
@@ -137,7 +137,7 @@ async fn undelivered_self_action_leaves_reported_state_untouched() {
 async fn echo_never_fabricates_self_state_for_unreported_player() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    registry.register(1, "minecraft:Alice".to_string(), format!("fp-{}", 1), tx);
+    registry.register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx);
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
 
@@ -167,7 +167,7 @@ async fn echo_never_fabricates_self_state_for_unreported_player() {
 async fn delivered_preference_actions_upsert_into_preference_cache() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(8);
-    registry.register(1, "minecraft:Alice".to_string(), format!("fp-{}", 1), tx);
+    registry.register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx);
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
     let svc = ClientActionService::new(true);
@@ -219,7 +219,7 @@ async fn delivered_preference_actions_upsert_into_preference_cache() {
 async fn echoed_volume_is_clamped_to_the_shared_ceiling() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    registry.register(1, "minecraft:Alice".to_string(), format!("fp-{}", 1), tx);
+    registry.register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx);
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
     let svc = ClientActionService::new(true);
@@ -258,7 +258,7 @@ async fn echoed_volume_is_clamped_to_the_shared_ceiling() {
 async fn an_above_unity_volume_the_card_permits_survives_the_echo() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    registry.register(1, "minecraft:Alice".to_string(), format!("fp-{}", 1), tx);
+    registry.register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx);
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
     let svc = ClientActionService::new(true);
@@ -545,7 +545,7 @@ async fn one_identity_keys_both_self_delivery_and_group_membership() {
 
     let registry = ConnectionRegistry::new();
     let (tx, mut rx) = mpsc::channel(4);
-    registry.register(1, ACTOR.to_string(), format!("fp-{}", 1), tx);
+    registry.register(1, ACTOR.into(), format!("fp-{}", 1), tx);
     let channels = ChannelCollection::new(64);
     let (webhook, mut _wrx) = test_webhook();
     let svc = ClientActionService::new(true);

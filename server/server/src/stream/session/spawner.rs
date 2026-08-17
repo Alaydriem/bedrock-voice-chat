@@ -92,10 +92,12 @@ impl SessionSpawner {
             let registry = self.connection_registry.clone();
             let tx = packet_tx.clone();
             move |identity: String| {
-                if player_id_lock.set(identity.clone()).is_err() {
+                // Converted once here, at handshake, rather than per frame in the fan-out.
+                let shared: std::sync::Arc<str> = std::sync::Arc::from(identity.as_str());
+                if player_id_lock.set(identity).is_err() {
                     tracing::warn!("Player ID already set for connection");
                 }
-                registry.register(device, identity, fingerprint.clone(), tx.clone());
+                registry.register(device, shared, fingerprint.clone(), tx.clone());
             }
         };
 

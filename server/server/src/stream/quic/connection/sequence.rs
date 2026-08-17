@@ -24,11 +24,10 @@ impl ConnectionSequence {
         Arc::new(Self::default())
     }
 
-    // Stamps a copy of `packet` for this connection and serializes it.
+    // Stamps `packet` for this connection and serializes it.
     //
-    // Takes `&mut QuicNetworkPacket` rather than cloning, because the audio fan-out reuses one
-    // envelope across every recipient and a deep clone would copy the Opus payload per listener.
-    // Only the sequence field differs between recipients.
+    // For a delivery with a single recipient, where there is no second listener to amortise an
+    // encode across. Fan-out uses `patch` instead.
     //
     // Wraps at `u32::MAX`, which at ~50 datagrams/s is roughly 2.7 years on a single connection —
     // unreachable in practice, and the receiver re-baselines on a large backward jump regardless.
@@ -47,5 +46,31 @@ impl ConnectionSequence {
                 None
             }
         }
+    }
+
+    // Copies an already-serialized envelope and rewrites only its sequence bytes, so one packet
+    // going to N recipients is encoded once rather than N times.
+    //
+    // `template` must have been serialized with a sequence present, or the range written here is
+    // simply not in it — an absent `Option` encodes as a bare tag and no value bytes. Patching
+    // cannot change the length, so the datagram size ceiling still holds from the single encode
+    // that produced the template.
+    //
+    // The number is spent before the copy, on the same reasoning as `stamp`.
+    pub fn patch(&self, template: &[u8]) -> Option<Bytes> {
+        let sequence = self.next.fetch_add(1, Ordering::Relaxed);
+        let range = QuicNetworkPacket::SEQ_VALUE_RANGE;
+
+        if template.len() < range.end {
+            tracing::error!(
+                "envelope template of {} bytes is too short to carry a sequence",
+                template.len()
+            );
+            return None;
+        }
+
+        let mut buf = template.to_vec();
+        buf[range].copy_from_slice(&sequence.to_le_bytes());
+        Some(Bytes::from(buf))
     }
 }
