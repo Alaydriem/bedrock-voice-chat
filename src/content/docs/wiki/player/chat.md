@@ -52,11 +52,13 @@ The composer says why.
 - **Not connected.** Sign in to a server first.
 - **The server has no BVC Addon or mod.** Server mode needs one. Proxy and Realms sessions do not.
 - **The chat relay is down.** The mod reconnects on its own.
-- **Chat is disabled.** Some servers may disable the BVC chat sync feature.
+- **Chat is disabled on this server.** The server owner turned chat off. The dock stays on your dashboard, greyed out, and you cannot type in it. Nothing you do in the app turns it back on.
 
 ## For server operators
 
 Nothing to enable on the BVC server. Chat works wherever position relay does.
+
+To turn chat off, set `chat = false` in the `server.features` block of `config.hcl`, or set `BVC_CHAT=false`. Restart the server to apply it. See [config.hcl](/wiki/reference/configuration/).
 
 **Fabric and PaperMC** — set `enforce-secure-profile=false` in `server.properties`. Chat sync does not work with it enabled. Everything else is automatic in both external and embedded mode. The app shows your primary world's name.
 

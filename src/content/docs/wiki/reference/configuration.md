@@ -10,6 +10,8 @@ Every block and key Bedrock Voice Chat server accepts in `config.hcl`, with defa
 
 Every key also has an environment override; see [environment variables](/wiki/reference/environment-variables/). Precedence is **environment > config file > default**.
 
+`config.hcl` is read once at startup. Restart the server after editing it.
+
 ## Environment interpolation
 
 `${env.VAR}` is evaluated anywhere in the file:
@@ -75,8 +77,13 @@ Provider-specific fields are validated at startup. A missing one is named in the
 
 | Key | Default | Description |
 |---|---|---|
+| `chat` | `true` | Relay in-game chat between the game and the app. See [Chat](/wiki/player/chat/). |
 | `openapi_docs` | `false` | Serve `/openapi.json` and the API browser at `/docs`. |
 | `telemetry` | `true` | Anonymous usage metrics. See [privacy and telemetry](/wiki/server/privacy-and-telemetry/). |
+
+With `chat = false` the server relays nothing in either direction. Lines reported by the Addon are dropped, and messages sent from the app are refused. The Addon's chat socket still connects and then stays idle. No Addon or mod configuration changes.
+
+The app reads this at connect. The chat dock stays on the dashboard, greyed out, and reports `Chat is disabled on this server`.
 
 One-time code login (`POST /api/auth/code`, used by `bvc login`) is always enabled. Earlier releases gated it behind a `code_login` flag. That key no longer exists and is ignored if present.
 
