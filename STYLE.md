@@ -5,7 +5,7 @@ Two voices. Pick by directory.
 | Directory | Voice | Reader |
 |---|---|---|
 | `wiki/player/` | Apple Support | Wants to fix one thing and get back to playing |
-| `wiki/server/`, `wiki/reference/`, `wiki/creator/`, `wiki/platforms/` | Arch Wiki | Runs the thing, reads a table faster than a paragraph |
+| `wiki/server/`, `wiki/reference/`, `wiki/creator/`, `wiki/platforms/`, `wiki/upgrading/` | Arch Wiki | Runs the thing, reads a table faster than a paragraph |
 | `wiki/start/` | Apple Support | Has not installed anything yet |
 
 ## Both voices

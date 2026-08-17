@@ -112,6 +112,17 @@ export default defineConfig({
             'wiki/server/troubleshooting',
           ],
         },
+        // Newest release first, which autogenerate cannot express: it sorts on
+        // `sidebar.order` ascending, so each new guide would renumber every one
+        // below it. Adding a release means creating the page and adding one line
+        // directly under the overview.
+        {
+          label: 'Upgrading',
+          items: [
+            'wiki/upgrading',
+            'wiki/upgrading/beta-21',
+          ],
+        },
         { label: 'Where BVC works', items: [{ autogenerate: { directory: 'wiki/platforms' } }] },
         { label: 'Streaming & recording', items: [{ autogenerate: { directory: 'wiki/creator' } }] },
         // Listed explicitly so peering can sit in the work-in-progress group

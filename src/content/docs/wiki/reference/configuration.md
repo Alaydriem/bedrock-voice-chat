@@ -29,7 +29,7 @@ An unset referenced variable is a hard startup error. The server stops instead o
 | `listen` | `::` | Bind address. The IPv6 wildcard also serves IPv4 peers. |
 | `port` | `443` | HTTP/REST and login. The public port. The API listener binds a loopback port behind the TLS demultiplexer. |
 | `quic_port` | `443` | UDP/QUIC voice transport. |
-| `advertised_quic_ports` | `[]` | Additional public UDP ports clients should try, in preference order. Empty means only `quic_port`. Use when a proxy fronts the server on a different port. |
+| `advertised_quic_ports` | `[]` | Public UDP ports clients should try, in preference order. A non-empty list replaces `quic_port` as the published set. Empty means only `quic_port`. Use when a proxy fronts the server on a different port. |
 | `assets_path` | `./assets` | Static asset directory served by the API. |
 
 The default `::` gives QUIC a dual-stack socket on every platform. On Linux this follows `net.ipv6.bindv6only`, which defaults to `0`.
