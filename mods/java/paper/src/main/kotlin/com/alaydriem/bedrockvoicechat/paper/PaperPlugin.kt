@@ -139,7 +139,7 @@ class PaperPlugin : JavaPlugin(), Listener {
         )
         svcBridgeHost = host
 
-        service.registerPlugin(host.bridge(svcServerPeerlink(config)))
+        service.registerPlugin(host.bridge { svcServerPeerlink(config) })
     }
 
     /**
@@ -190,13 +190,25 @@ class PaperPlugin : JavaPlugin(), Listener {
         // Native libraries are resolved from the plugin data directory rather than
         // unpacked from the jar. Configured before anything can reach an FFI call,
         // which for the embedded server is its start below.
-        BvcNative.configure(
-            NativeLibraryProvider(
-                cacheRoot = dataFolder,
-                manifest = NativeManifest.fromResources(),
-                fetcher = HttpLibraryFetcher()
-            )
+        val provider = NativeLibraryProvider(
+            cacheRoot = dataFolder,
+            manifest = NativeManifest.fromResources(),
+            fetcher = HttpLibraryFetcher()
         )
+        BvcNative.configure(provider)
+
+        // The relay SDK is loaded by bare name by uniffi's generated bindings, so
+        // its directory has to be on JNA's search path before the first one runs.
+        // The first is BridgePeering, below, while the embedded grant is written.
+        if (SvcAvailability().isAvailable) {
+            try {
+                provider.prepareForBareNameLoad("bvc_relay_sdk")
+            } catch (e: Exception) {
+                logger.severe("Could not resolve the relay SDK library: ${e.message}")
+                logger.severe("The Simple Voice Chat bridge will not start.")
+                return
+            }
+        }
 
         // Initialize embedded server if configured
         var httpHandler: HttpRequestHandler? = null

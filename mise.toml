@@ -330,3 +330,105 @@ run = "cargo test -p common"
 description = "Regenerate ts-rs TypeScript bindings. This is the only sanctioned way to regenerate them."
 shell = "pwsh -NoLogo -Command"
 run = "cargo test -p common"
+
+[tasks.svc-native]
+description = "Stage the relay SDK cdylib where the native manifest and the runtime fetcher expect it. Required before any SVC bridge run: the native is not committed."
+shell = "pwsh -NoLogo -Command"
+run = '''
+$root = $env:MISE_PROJECT_ROOT
+
+if ($IsWindows) {
+  $lib = "bvc_relay_sdk.dll"; $platform = "windows-x64"
+} elseif ($IsMacOS) {
+  $lib = "libbvc_relay_sdk.dylib"; $platform = "darwin-arm64"
+} else {
+  $lib = "libbvc_relay_sdk.so"; $platform = "linux-x64"
+}
+
+cargo build -p bvc-relay-sdk
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+# Copied from the local debug build, not from a cross-compiled release directory.
+# The Gradle copyNative* tasks read the release triple paths, which a developer
+# building for their own machine has never produced.
+$src = Join-Path $root "target/debug/$lib"
+if (-not (Test-Path $src)) {
+  Write-Host "FAIL  cargo reported success but $src is missing."
+  exit 1
+}
+
+# The same directory as bvc_server_lib, not JNA's own prefix layout. That is what
+# generateNativeManifest hashes, what the skinny jar excludes, and what the runtime
+# provider resolves. Staging under a JNA prefix instead puts the library back in
+# every jar, which is what this arrangement exists to prevent.
+$destDir = Join-Path $root "mods/java/common/src/main/resources/native/$platform"
+New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+Copy-Item -LiteralPath $src -Destination (Join-Path $destDir $lib) -Force
+
+$mb = [math]::Round((Get-Item (Join-Path $destDir $lib)).Length / 1MB, 1)
+Write-Host "ok    staged $lib ($mb MB) -> native/$platform"
+'''
+
+[tasks.svc-paper]
+description = "Build the Paper plugin with the SVC bridge and start a local Paper server with it deployed. Requires PAPER_SERVER_PATH in mods/.env."
+dir = "mods"
+depends = ["svc-native"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn dev-server --paper"
+
+[tasks.svc-verify]
+description = "What to look for when testing the Simple Voice Chat bridge by hand. Prints only; runs nothing."
+shell = "pwsh -NoLogo -Command"
+run = '''
+Write-Host ""
+Write-Host "Simple Voice Chat bridge - manual verification"
+Write-Host "=============================================="
+Write-Host ""
+Write-Host "Nothing about this bridge has been exercised against a real Simple Voice"
+Write-Host "Chat instance. Every check below is a first run."
+Write-Host ""
+Write-Host "SETUP"
+Write-Host "  1. Simple Voice Chat server plugin in the Paper server's plugins/"
+Write-Host "  2. mise run svc-paper"
+Write-Host "  3. In plugins/BedrockVoiceChat/config.yml set use-embedded-server: true"
+Write-Host "     Embedded needs no peer link exchange."
+Write-Host ""
+Write-Host "STARTUP LOG - all four, in order"
+Write-Host "  Simple Voice Chat detected; bridging voice between SVC and BVC"
+Write-Host "  Minted this server's relay world identifier"
+Write-Host "  Simple Voice Chat server API acquired"
+Write-Host "  Simple Voice Chat bridge peered, declaring relay world <uuid>"
+Write-Host ""
+Write-Host "  The fourth line is the one that matters. Without it the bridge"
+Write-Host "  registered with Simple Voice Chat and never reached BVC."
+Write-Host ""
+Write-Host "AUDIO - four separate failures, test them separately"
+Write-Host "  [ ] SVC speaker  -> heard by a BVC app listener, quieter with distance"
+Write-Host "  [ ] BVC speaker  -> heard by an SVC listener, quieter with distance"
+Write-Host "  [ ] SVC -> SVC still works with no BVC involved"
+Write-Host "      If this broke, the microphone event is being cancelled."
+Write-Host "  [ ] Nether and Overworld players do NOT hear each other"
+Write-Host "      This is the case a hardcoded dimension used to get wrong."
+Write-Host ""
+Write-Host "FIRST SUSPECTS, most likely first"
+Write-Host "  UnsatisfiedLinkError naming bvc_relay_sdk"
+Write-Host "      The native is not staged. Run: mise run svc-native"
+Write-Host "  No 'Simple Voice Chat detected' line at all"
+Write-Host "      SVC loaded after BVC, or its API is not on the classpath."
+Write-Host "  Warned as not peered, with a peer block printed"
+Write-Host "      Embedded: the peer plane did not bind within 15 seconds."
+Write-Host "      External: svc-bridge-peerlink is unset."
+Write-Host "  Audio one way only"
+Write-Host "      The directions share only the session. Outbound is the"
+Write-Host "      microphone event; inbound is nextFrame into an audio channel."
+Write-Host "  Everyone silent, log clean"
+Write-Host "      Relay world mismatch. The receiving side drops silently."
+Write-Host ""
+Write-Host "STATE THAT PERSISTS BETWEEN RUNS"
+Write-Host "  plugins/BedrockVoiceChat/relay_world.txt"
+Write-Host "  plugins/BedrockVoiceChat/svc-bridge/node.key"
+Write-Host ""
+Write-Host "  Delete both to test the first-run path. Deleting node.key revokes"
+Write-Host "  this bridge on any BVC server that granted the old identity."
+Write-Host ""
+'''

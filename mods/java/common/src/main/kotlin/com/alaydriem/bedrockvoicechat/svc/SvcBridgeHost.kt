@@ -29,9 +29,6 @@ class SvcBridgeHost(
     private var peer: BvcPeer? = null
 
     @Volatile
-    private var pump: Thread? = null
-
-    @Volatile
     private var refresher: Thread? = null
 
     /**
@@ -41,16 +38,7 @@ class SvcBridgeHost(
      * has not granted this bridge yet, in which case the bridge still registers —
      * so SVC keeps working — and logs what they need to paste.
      */
-    fun bridge(serverPeerlink: String?): SvcBridge {
-        if (serverPeerlink.isNullOrBlank()) {
-            logger.warn(
-                "Simple Voice Chat is present but this bridge is not peered yet. " +
-                    "Add this block to the BVC server's config.hcl, then set " +
-                    "svc-bridge-peerlink in the mod config:\n{}",
-                peering.grantBlock()
-            )
-        }
-
+    fun bridge(serverPeerlink: () -> String?): SvcBridge {
         val outbound = OutboundTranslator(relayWorld, speakers)
 
         return SvcBridge(
@@ -72,10 +60,33 @@ class SvcBridgeHost(
         }
     }
 
-    private fun onServerApi(api: VoicechatServerApi, serverPeerlink: String?) {
+    /**
+     * Runs on SVC's event thread, so it does no blocking work itself.
+     *
+     * The peerlink is resolved on the background thread rather than here, because an
+     * embedded server binds its peer endpoint asynchronously: `BvcServerManager.start`
+     * spawns the server thread and waits 100 ms, which is not a guarantee the plane
+     * exists. Reading it eagerly would usually succeed on a fast machine and return
+     * null on a loaded one, leaving the bridge silently unpeered.
+     */
+    private fun onServerApi(api: VoicechatServerApi, serverPeerlink: () -> String?) {
         SvcCategories.register(api)
 
-        if (serverPeerlink.isNullOrBlank()) {
+        Thread({ openSession(api, serverPeerlink) }, "bvc-svc-connect").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun openSession(api: VoicechatServerApi, serverPeerlink: () -> String?) {
+        val link = awaitPeerlink(serverPeerlink)
+        if (link == null) {
+            logger.warn(
+                "Simple Voice Chat is present but this bridge is not peered. " +
+                    "Add this block to the BVC server's config.hcl, then set " +
+                    "svc-bridge-peerlink in the mod config:\n{}",
+                peering.grantBlock()
+            )
             return
         }
 
@@ -94,7 +105,7 @@ class SvcBridgeHost(
             BvcPeer.open(
                 SdkConfig(
                     nodeDir = nodeDir.absolutePath,
-                    peerlink = serverPeerlink,
+                    peerlink = link,
                     worlds = listOf(relayWorld.id()),
                     relayUrl = null,
                     inboxCapacity = INBOX_CAPACITY
@@ -103,22 +114,40 @@ class SvcBridgeHost(
         }
         peer = session
 
+        logger.info("Simple Voice Chat bridge peered, declaring relay world {}", relayWorld.id())
+
         // `nextFrame` parks when idle and returns null only once the session is
         // closed, so this is a blocking read rather than a poll.
-        pump = Thread({
-            runBlocking {
-                while (true) {
-                    val frame = session.nextFrame() ?: break
-                    inbound.inject(frame)
+        runBlocking {
+            while (true) {
+                val frame = session.nextFrame() ?: break
+                inbound.inject(frame)
+            }
+        }
+        logger.info("Simple Voice Chat bridge session ended")
+    }
+
+    /**
+     * Waits for the far side to have a link to give.
+     *
+     * An external server's link is configuration and is either there or not, so this
+     * returns on the first attempt. An embedded one is minted from a live endpoint
+     * that may still be binding, which is what the retries are for.
+     */
+    private fun awaitPeerlink(serverPeerlink: () -> String?): String? {
+        repeat(PEERLINK_ATTEMPTS) { attempt ->
+            serverPeerlink()?.takeIf { it.isNotBlank() }?.let { return it }
+
+            if (attempt < PEERLINK_ATTEMPTS - 1) {
+                try {
+                    Thread.sleep(PEERLINK_RETRY_MS)
+                } catch (e: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    return null
                 }
             }
-            logger.info("Simple Voice Chat bridge session ended")
-        }, "bvc-svc-inbound").apply {
-            isDaemon = true
-            start()
         }
-
-        logger.info("Simple Voice Chat bridge peered, declaring relay world {}", relayWorld.id())
+        return null
     }
 
     /**
@@ -156,19 +185,23 @@ class SvcBridgeHost(
         val session = peer ?: return
         peer = null
 
-        // Shuts the session down before joining, because the pump is parked in
-        // `nextFrame` and only an explicit shutdown releases it.
+        // The connect thread is parked in `nextFrame`, and only an explicit shutdown
+        // releases it. Interrupting would not: the park is inside the native session,
+        // not in a Java wait.
         runBlocking { session.shutdown() }
-        pump?.join(SHUTDOWN_WAIT_MS)
-        pump = null
     }
 
     companion object {
         private const val INBOX_CAPACITY: UInt = 64u
 
-        private const val SHUTDOWN_WAIT_MS: Long = 2000
-
         private const val REFRESH_INTERVAL_MS: Long = 2000
+
+        // Fifteen seconds in total. An embedded server that has not bound a peer
+        // endpoint by then is not slow, it is misconfigured — and the warning that
+        // follows tells the operator what to add.
+        private const val PEERLINK_ATTEMPTS: Int = 15
+
+        private const val PEERLINK_RETRY_MS: Long = 1000
 
         private val logger = LoggerFactory.getLogger("BVC SVC")
     }
