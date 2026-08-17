@@ -116,6 +116,7 @@ impl RocketHarness {
             .mount("/api/admin", admin_routes)
             .mount("/api", auth_routes)
             .mount("/api", control_routes)
+            .mount("/api", routes![routes::api::server_config::get_config])
             .mount("/metrics", routes![routes::metrics::metrics])
             .mount(
                 "/health",

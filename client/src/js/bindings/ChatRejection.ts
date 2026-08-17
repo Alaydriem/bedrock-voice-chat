@@ -6,4 +6,4 @@
  * Shared rather than server-local because the sender is told: a refusal that only the server
  * knows about is indistinguishable, from the composer, from a message that landed.
  */
-export type ChatRejection = "NoChannel" | { "WrongWorld": { current: string | null, } } | "NoWorld";
+export type ChatRejection = "NoChannel" | { "WrongWorld": { current: string | null, } } | "NoWorld" | "Disabled";

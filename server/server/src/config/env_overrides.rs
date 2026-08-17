@@ -131,6 +131,9 @@ impl EnvOverrides {
         if let Some(telemetry) = self.get_bool("BVC_TELEMETRY")? {
             config.server.features.telemetry = telemetry;
         }
+        if let Some(chat) = self.get_bool("BVC_CHAT")? {
+            config.server.features.chat = chat;
+        }
         Ok(())
     }
 

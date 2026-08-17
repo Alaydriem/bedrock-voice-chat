@@ -356,10 +356,17 @@ pub(crate) async fn bedrock_send_chat(
     text: String,
     state: State<'_, Mutex<BedrockState>>,
     chat_injector: State<'_, Arc<ChatInjector>>,
+    policy: State<'_, Arc<crate::chat::ChatPolicy>>,
 ) -> Result<(), String> {
     let text = text.trim().to_string();
     if text.is_empty() {
         return Err("Nothing to send.".to_string());
+    }
+
+    // Ahead of the session check: chat being off is the true reason, and reporting a missing
+    // connection would send somebody looking for a problem that is not there.
+    if !policy.is_enabled() {
+        return Err("Chat is disabled on this server.".to_string());
     }
 
     let state = state.lock().await;

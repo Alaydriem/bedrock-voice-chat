@@ -73,7 +73,7 @@ impl ChatSink for RecordingSink {
 // every `say` pushed twice and every line reported twice.
 #[tokio::test]
 async fn a_second_registration_for_a_world_displaces_the_first() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     let (tx_a, _rx_a) = tokio::sync::mpsc::channel(8);
     let (tx_b, _rx_b) = tokio::sync::mpsc::channel(8);
 
@@ -94,7 +94,7 @@ async fn a_second_registration_for_a_world_displaces_the_first() {
 // still connected, which is how one world accumulated five live sockets.
 #[tokio::test]
 async fn dropping_a_displaced_sender_closes_that_sockets_outbound_channel() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     let worlds = vec!["overworld".to_string(), "nether".to_string()];
 
     let (tx_a, mut rx_a) = tokio::sync::mpsc::channel(8);
@@ -118,7 +118,7 @@ async fn dropping_a_displaced_sender_closes_that_sockets_outbound_channel() {
 // registration: chat then stopped with nothing logged and no frame refused.
 #[tokio::test]
 async fn a_displaced_sockets_teardown_leaves_the_live_registration_alone() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
 
     let (tx_a, _rx_a) = tokio::sync::mpsc::channel(8);
     let first = svc.next_socket_id();
@@ -145,7 +145,7 @@ async fn a_displaced_sockets_teardown_leaves_the_live_registration_alone() {
 
 #[tokio::test]
 async fn availability_follows_registration() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     assert!(!svc.is_available("w1"));
 
     let (tx, _rx) = tokio::sync::mpsc::channel(8);
@@ -159,7 +159,7 @@ async fn availability_follows_registration() {
 
 #[tokio::test]
 async fn the_world_name_from_hello_is_retained_for_the_picker_label() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     let (tx, _rx) = tokio::sync::mpsc::channel(8);
     svc.register(svc.next_socket_id(), "w1".into(), "Survival".into(), tx);
 
@@ -168,7 +168,7 @@ async fn the_world_name_from_hello_is_retained_for_the_picker_label() {
 
 #[tokio::test]
 async fn an_app_send_to_a_world_with_no_channel_is_rejected() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
 
     let result = svc
         .on_app_send("minecraft:Alaydriem", "w1", "hello".into())
@@ -179,7 +179,7 @@ async fn an_app_send_to_a_world_with_no_channel_is_rejected() {
 
 #[tokio::test]
 async fn an_app_send_reaches_the_registered_socket_as_a_say_frame() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     let (tx, mut rx) = tokio::sync::mpsc::channel(8);
     svc.register(svc.next_socket_id(), "w1".into(), "Survival".into(), tx);
 
@@ -197,7 +197,7 @@ async fn an_app_send_reaches_the_registered_socket_as_a_say_frame() {
 // world-scoped, which is exactly why the sink is keyed on the world instead.
 #[tokio::test]
 async fn a_reported_line_is_labelled_with_the_world_it_came_from() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     let sink = RecordingSink::new();
     svc.add_sink(sink.clone());
 
@@ -221,7 +221,7 @@ async fn a_reported_line_is_labelled_with_the_world_it_came_from() {
 // because a programmatic broadcast does not fire the mod's chat listener.
 #[tokio::test]
 async fn an_app_send_is_also_fanned_out_to_clients() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     let sink = RecordingSink::new();
     svc.add_sink(sink.clone());
     let (tx, _rx) = tokio::sync::mpsc::channel(8);
@@ -239,7 +239,7 @@ async fn an_app_send_is_also_fanned_out_to_clients() {
 // the room spans.
 #[tokio::test]
 async fn a_room_spanning_several_world_ids_delivers_under_each() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     let sink = RecordingSink::new();
     svc.add_sink(sink.clone());
 
@@ -259,7 +259,7 @@ async fn a_room_spanning_several_world_ids_delivers_under_each() {
 // only under the id the client named leaves anyone in another dimension unable to see it.
 #[tokio::test]
 async fn an_app_send_reaches_every_id_the_room_spans() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     let sink = RecordingSink::new();
     svc.add_sink(sink.clone());
 
@@ -279,7 +279,7 @@ async fn an_app_send_reaches_every_id_the_room_spans() {
 // their own message disappear into a world that accepted it.
 #[tokio::test]
 async fn the_author_is_named_once_on_delivery() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     let sink = RecordingSink::new();
     svc.add_sink(sink.clone());
     let (tx, _rx) = tokio::sync::mpsc::channel(8);
@@ -300,7 +300,7 @@ async fn the_author_is_named_once_on_delivery() {
 // back to whoever happened to say it in game.
 #[tokio::test]
 async fn a_reported_line_names_no_author() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     let sink = RecordingSink::new();
     svc.add_sink(sink.clone());
 
@@ -314,7 +314,7 @@ async fn a_reported_line_names_no_author() {
 // client no longer predicting failures, this is the only surface a real one has.
 #[tokio::test]
 async fn an_unroutable_world_answers_the_sender() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     let sink = RecordingSink::new();
     svc.add_sink(sink.clone());
 
@@ -337,7 +337,7 @@ async fn an_unroutable_world_answers_the_sender() {
 // The refusal goes to the sender alone. Everyone else never saw the message.
 #[tokio::test]
 async fn a_refusal_is_not_fanned_out_to_the_world() {
-    let svc = ChatService::new_shared();
+    let svc = ChatService::new_shared(true);
     let sink = RecordingSink::new();
     svc.add_sink(sink.clone());
 
@@ -346,4 +346,79 @@ async fn a_refusal_is_not_fanned_out_to_the_world() {
         .await;
 
     assert!(sink.texts().is_empty(), "nothing may be delivered to a world");
+}
+
+#[tokio::test]
+async fn a_disabled_service_relays_nothing_a_mod_reports() {
+    let svc = ChatService::new_shared(false);
+    let sink = RecordingSink::new();
+    svc.add_sink(sink.clone());
+    let (tx, _rx) = tokio::sync::mpsc::channel(8);
+    svc.register_room(svc.next_socket_id(), &["w1".to_string()], "Survival".into(), tx);
+
+    svc.on_game_chat(&["w1".to_string()], "minecraft:Alaydriem".into(), "hello".into())
+        .await;
+
+    assert!(sink.texts().is_empty());
+}
+
+#[tokio::test]
+async fn a_disabled_service_relays_no_server_events() {
+    let svc = ChatService::new_shared(false);
+    let sink = RecordingSink::new();
+    svc.add_sink(sink.clone());
+    let (tx, _rx) = tokio::sync::mpsc::channel(8);
+    svc.register_room(svc.next_socket_id(), &["w1".to_string()], "Survival".into(), tx);
+
+    svc.on_game_event(&["w1".to_string()], "Alaydriem joined".into())
+        .await;
+
+    assert!(sink.texts().is_empty());
+}
+
+// A refusal the sender is not told about is indistinguishable, from the composer, from a
+// message that landed.
+#[tokio::test]
+async fn a_disabled_service_refuses_an_app_send_and_says_so() {
+    let svc = ChatService::new_shared(false);
+    let sink = RecordingSink::new();
+    svc.add_sink(sink.clone());
+    let (tx, _rx) = tokio::sync::mpsc::channel(8);
+    svc.register_room(svc.next_socket_id(), &["w1".to_string()], "Survival".into(), tx);
+
+    let result = svc
+        .on_app_send("minecraft:Alaydriem", "w1", "hello".into())
+        .await;
+
+    assert_eq!(result, Err(ChatRejection::Disabled));
+    assert!(sink.texts().is_empty());
+    let rejections = sink.rejections();
+    assert_eq!(rejections.len(), 1);
+    assert_eq!(rejections[0].0, "minecraft:Alaydriem");
+}
+
+#[tokio::test]
+async fn a_disabled_service_offers_no_rooms_even_when_a_mod_is_connected() {
+    let svc = ChatService::new_shared(false);
+    let (tx, _rx) = tokio::sync::mpsc::channel(8);
+    svc.register_room(svc.next_socket_id(), &["w1".to_string()], "Survival".into(), tx);
+
+    assert!(svc.rooms().is_empty());
+}
+
+// The polarity guard. Every assertion above passes against a service that never relays
+// anything at all, so one of them has to prove the enabled path still works.
+#[tokio::test]
+async fn an_enabled_service_still_relays() {
+    let svc = ChatService::new_shared(true);
+    let sink = RecordingSink::new();
+    svc.add_sink(sink.clone());
+    let (tx, _rx) = tokio::sync::mpsc::channel(8);
+    svc.register_room(svc.next_socket_id(), &["w1".to_string()], "Survival".into(), tx);
+
+    svc.on_game_chat(&["w1".to_string()], "minecraft:Alaydriem".into(), "hello".into())
+        .await;
+
+    assert_eq!(sink.texts(), vec!["hello".to_string()]);
+    assert_eq!(svc.rooms().len(), 1);
 }

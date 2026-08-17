@@ -239,3 +239,62 @@ describe('ChatManager world associations', () => {
         expect(get(manager.associations)).toEqual({ w1: 'One', w2: 'Two' });
     });
 });
+
+describe('ChatManager under a server that disabled chat', () => {
+    beforeEach(() => {
+        mockInvoke({
+            chat_enabled: () => false,
+            chat_worlds: () => [world('world-a', 'Overworld')],
+            chat_transport: () => 'server',
+            chat_send: () => null,
+            bedrock_send_chat: () => null,
+        });
+    });
+
+    test('the target reports disabled and the store says so', async () => {
+        const manager = new ChatManager('Alaydriem');
+
+        await manager.startLocal();
+
+        expect(get(manager.target).kind).toBe('disabled');
+        expect(get(manager.enabled)).toBe(false);
+        await manager.stop();
+    });
+
+    // The policy must survive the poll that would otherwise resolve a live world a moment
+    // later, or the dock states the reason and then contradicts itself.
+    test('a live world does not overwrite the policy', async () => {
+        vi.useFakeTimers();
+        try {
+            const manager = new ChatManager('Alaydriem');
+            await manager.startLocal();
+
+            await vi.advanceTimersByTimeAsync(ChatManager.AVAILABILITY_POLL_MS * 3);
+
+            expect(get(manager.target).kind).toBe('disabled');
+            await manager.stop();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    test('canSend is false', async () => {
+        const manager = new ChatManager('Alaydriem');
+        await manager.startLocal();
+
+        expect(get(manager.canSend)).toBe(false);
+        await manager.stop();
+    });
+
+    // The optimistic line exists so a sender can read back what nothing could carry. There is
+    // no later moment when this one lands, so rendering it would be the misleading answer.
+    test('a typed line is not rendered', async () => {
+        const manager = new ChatManager('Alaydriem');
+        await manager.startLocal();
+
+        await manager.send('hello');
+
+        expect(get(manager.lines)).toHaveLength(0);
+        await manager.stop();
+    });
+});

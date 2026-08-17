@@ -60,20 +60,25 @@
 
     // Only offered when the player is out of game with more than one world available.
     let canChoose = $derived(target.kind === "choose");
+    let disabled = $derived(target.kind === "disabled");
     let pickerOpen = $state(false);
 
     let label = $derived(
-        target.kind === "local" || target.kind === "unavailable"
+        target.kind === "local" ||
+            target.kind === "unavailable" ||
+            target.kind === "disabled"
             ? I18n.t("Server chat")
             : target.world.world_name,
     );
 
     let status = $derived(
-        target.kind === "unavailable"
-            ? { text: I18n.t("Off"), cls: "rad-status-chip--warn" }
-            : target.kind === "in-game"
-              ? { text: I18n.t("In game"), cls: "rad-status-chip--live" }
-              : { text: I18n.t("Live"), cls: "rad-status-chip--live" },
+        target.kind === "disabled"
+            ? { text: I18n.t("Disabled"), cls: "rad-status-chip--warn" }
+            : target.kind === "unavailable"
+              ? { text: I18n.t("Off"), cls: "rad-status-chip--warn" }
+              : target.kind === "in-game"
+                ? { text: I18n.t("In game"), cls: "rad-status-chip--live" }
+                : { text: I18n.t("Live"), cls: "rad-status-chip--live" },
     );
 </script>
 
@@ -99,16 +104,23 @@
         </div>
 
         <div class="rad-chat__body" bind:this={body} onscroll={trackScroll}>
-            <!--
-              Said in the scrollback rather than in a privacy notice, because the person
-              deciding what to type needs to know it then.
-            -->
-            <div class="rad-chat__note">
-                {I18n.t("History starts when you connect — nothing is stored")}
-            </div>
-            {#each lines as line, i (i)}
-                <ChatMessageRow {line} hue={hueOf(line.author ?? "")} />
-            {/each}
+            {#if disabled}
+                <!-- An empty log otherwise reads as "nothing said yet". -->
+                <div class="rad-chat__note">
+                    {I18n.t("Chat is disabled on this server")}
+                </div>
+            {:else}
+                <!--
+                  Said in the scrollback rather than in a privacy notice, because the person
+                  deciding what to type needs to know it then.
+                -->
+                <div class="rad-chat__note">
+                    {I18n.t("History starts when you connect — nothing is stored")}
+                </div>
+                {#each lines as line, i (i)}
+                    <ChatMessageRow {line} hue={hueOf(line.author ?? "")} />
+                {/each}
+            {/if}
         </div>
     </div>
 

@@ -190,6 +190,7 @@ impl AppBuilder {
         // cache mirrors the client. The identity is published by the
         // NetworkStreamManager when a QUIC stream comes up.
         app.manage(crate::control::ConnectionIdentity::new_shared());
+        app.manage(crate::chat::ChatPolicy::new_shared());
         let state_bus = crate::control::ControlStateBus::new();
         let state_rx = state_bus.subscribe();
         app.manage(state_bus);

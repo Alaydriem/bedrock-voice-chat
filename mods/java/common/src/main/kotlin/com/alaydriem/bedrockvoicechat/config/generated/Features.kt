@@ -9,4 +9,7 @@ class Features {
     @SerializedName("telemetry")
     var telemetry: Boolean? = null
 
+    @SerializedName("chat")
+    var chat: Boolean? = null
+
 }

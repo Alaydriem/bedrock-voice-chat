@@ -28,6 +28,9 @@ use crate::services::PlayerIdentityService;
 /// `CacheManager::set_webhook_receiver` and `ConnectionRegistry::set_peer_manager`. That is
 /// the house pattern, and it is what lets the unit tests exercise routing without a database.
 pub struct ChatService {
+    // Declared by the operator and fixed for the process. Chat that is off is off for
+    // everything the service can reach, including sinks it has never heard of.
+    enabled: bool,
     registry: ChatSocketRegistry,
     sinks: RwLock<Vec<Arc<dyn ChatSink>>>,
     // The raw presence handle rather than the whole `PlayerCache`: the service only needs
@@ -42,8 +45,9 @@ pub struct ChatService {
 }
 
 impl ChatService {
-    pub fn new() -> Self {
+    pub fn new(enabled: bool) -> Self {
         Self {
+            enabled,
             registry: ChatSocketRegistry::new(),
             sinks: RwLock::new(Vec::new()),
             players: OnceLock::new(),
@@ -57,8 +61,12 @@ impl ChatService {
         }
     }
 
-    pub fn new_shared() -> Arc<Self> {
-        Arc::new(Self::new())
+    pub fn new_shared(enabled: bool) -> Arc<Self> {
+        Arc::new(Self::new(enabled))
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
     }
 
     pub fn set_players(&self, players: Arc<moka::future::Cache<String, PlayerEnum>>) {
@@ -148,6 +156,9 @@ impl ChatService {
     /// Listing only worlds the player has been seen in left the composer dead on an empty
     /// server — the mod was connected and willing, and the app had no way to know.
     pub fn rooms(&self) -> Vec<(String, String)> {
+        if !self.enabled {
+            return Vec::new();
+        }
         self.registry.rooms()
     }
 
@@ -158,6 +169,10 @@ impl ChatService {
     /// dimension they are standing in, but history is recorded only under the canonical id:
     /// the picker lists rooms, and three entries for one server would be three lies.
     pub async fn on_game_chat(&self, worlds: &[String], author: String, text: String) {
+        if !self.enabled {
+            return;
+        }
+
         let Some(canonical) = worlds.first() else {
             return;
         };
@@ -180,6 +195,10 @@ impl ChatService {
     /// No author, so it renders as a system line — quieter, and unmistakable for a person
     /// talking. No history is recorded: nobody was speaking.
     pub async fn on_game_event(&self, worlds: &[String], text: String) {
+        if !self.enabled {
+            return;
+        }
+
         for world_uuid in worlds {
             let packet = ChatMessagePacket::new(
                 None,
@@ -209,6 +228,10 @@ impl ChatService {
             self.reject(author, &rejection, &text);
             rejection
         };
+
+        if !self.enabled {
+            return Err(refuse(ChatRejection::Disabled));
+        }
 
         // Resolve to the room rather than the id. On Paper and Fabric the id names a
         // dimension, and the room is all of them: a player standing in the nether is in the
@@ -286,6 +309,11 @@ impl ChatService {
     /// Throttled: positions arrive at 4 Hz and the row only needs to be fresh enough to order
     /// a list.
     pub async fn note_presence(&self, identity: &str, world_uuid: &str) {
+        // The rows serve a picker that will never be shown.
+        if !self.enabled {
+            return;
+        }
+
         let key = (identity.to_string(), world_uuid.to_string());
         if self.recently_recorded.get(&key).await.is_some() {
             return;
@@ -403,8 +431,3 @@ impl ChatService {
     }
 }
 
-impl Default for ChatService {
-    fn default() -> Self {
-        Self::new()
-    }
-}

@@ -11,7 +11,7 @@ pub mod paginated;
 pub mod websocket;
 
 pub use api::config::{
-    ApiConfigAge, ApiConfigBedrock, ApiConfigBedrockServer, ApiConfigCheckResponse,
+    ApiConfigAge, ApiConfigBedrock, ApiConfigBedrockServer, ApiConfigChat, ApiConfigCheckResponse,
     ApiConfigRecording, ApiConfigResponse,
 };
 pub use audio::{ApiError, AudioEventResponse, AudioFileResponse, AudioStreamTokenResponse};

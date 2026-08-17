@@ -28,7 +28,7 @@ msgstr ""
 msgid "{percent}% of the worst speaker's audio had to be reconstructed. They will sound rough."
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:67
+#: src/components/dashboard/ChatComposer.svelte:71
 msgid "{reason} — that message was not sent"
 msgstr ""
 
@@ -396,9 +396,14 @@ msgstr ""
 msgid "Channel event received with no payload"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:73
+#: src/components/dashboard/ChatComposer.svelte:81
 #: src/components/dashboard/DashboardScreen.svelte:342
 msgid "Chat"
+msgstr ""
+
+#: src/components/dashboard/ChatDock.svelte:110
+#: src/js/app/chat/ChatManager.ts:275
+msgid "Chat is disabled on this server"
 msgstr ""
 
 #: src/components/settings/panes/AboutPane.svelte:113
@@ -461,7 +466,7 @@ msgstr ""
 msgid "Close"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:96
+#: src/components/dashboard/ChatDock.svelte:101
 msgid "Close chat"
 msgstr ""
 
@@ -681,6 +686,10 @@ msgstr ""
 msgid "Diagnostics and privacy"
 msgstr ""
 
+#: src/components/dashboard/ChatDock.svelte:76
+msgid "Disabled"
+msgstr ""
+
 #: src/js/app/deepLinkHandlers/discordCallbackHandler.ts:33
 msgid "Discord callback missing token payload"
 msgstr ""
@@ -872,7 +881,7 @@ msgstr ""
 msgid "Held under the level that opens it, so a steady voice at the edge does not stutter."
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:107
+#: src/components/dashboard/ChatDock.svelte:118
 msgid "History starts when you connect — nothing is stored"
 msgstr ""
 
@@ -922,7 +931,7 @@ msgstr ""
 msgid "In earshot"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:75
+#: src/components/dashboard/ChatDock.svelte:80
 msgid "In game"
 msgstr ""
 
@@ -1063,7 +1072,7 @@ msgstr ""
 msgid "Listen on this device only"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:76
+#: src/components/dashboard/ChatDock.svelte:81
 #: src/components/settings/BedrockLog.svelte:72
 msgid "Live"
 msgstr ""
@@ -1093,11 +1102,11 @@ msgstr ""
 msgid "Match my system"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:41
+#: src/components/dashboard/ChatComposer.svelte:42
 msgid "Message {world}…"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:40
+#: src/components/dashboard/ChatComposer.svelte:41
 msgid "Message the server…"
 msgstr ""
 
@@ -1373,7 +1382,7 @@ msgstr ""
 msgid "Notifications and devices come next"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:73
+#: src/components/dashboard/ChatDock.svelte:78
 msgid "Off"
 msgstr ""
 
@@ -1816,7 +1825,7 @@ msgstr ""
 msgid "Select a server"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:92
+#: src/components/dashboard/ChatComposer.svelte:102
 msgid "Send"
 msgstr ""
 
@@ -1856,7 +1865,7 @@ msgstr ""
 msgid "Server Certificate Rejected"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:67
+#: src/components/dashboard/ChatDock.svelte:70
 msgid "Server chat"
 msgstr ""
 
@@ -2406,7 +2415,7 @@ msgstr ""
 msgid "What's involved"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:89
+#: src/components/dashboard/ChatDock.svelte:94
 msgid "Where this message goes"
 msgstr ""
 
@@ -2478,7 +2487,7 @@ msgstr ""
 msgid "You can connect anyway — if position is refused, this is why."
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:63
+#: src/components/dashboard/ChatComposer.svelte:67
 msgid "You moved out of {world} — that message was not sent"
 msgstr ""
 

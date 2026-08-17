@@ -14,6 +14,8 @@ pub struct Features {
     pub openapi_docs: bool,
     #[serde(default = "default_true")]
     pub telemetry: bool,
+    #[serde(default = "default_true")]
+    pub chat: bool,
 }
 
 impl Default for Features {
@@ -21,6 +23,7 @@ impl Default for Features {
         Features {
             openapi_docs: default_false(),
             telemetry: default_true(),
+            chat: default_true(),
         }
     }
 }

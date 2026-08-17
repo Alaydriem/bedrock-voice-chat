@@ -353,6 +353,7 @@ impl Api {
                             bedrock: Default::default(),
                             age: Default::default(),
                             recording: Default::default(),
+                            chat: Default::default(),
                         });
                     }
 

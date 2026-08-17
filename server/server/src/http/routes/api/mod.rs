@@ -7,7 +7,7 @@ pub(crate) mod gamerpic;
 pub mod health;
 pub(crate) mod chat;
 pub(crate) mod positions;
-pub(crate) mod server_config;
+pub mod server_config;
 pub mod state;
 pub mod websocket;
 

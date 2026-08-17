@@ -23,6 +23,8 @@ pub(crate) async fn stop_network_stream(
     analytics.clear_player();
     // Back to permissive: a disconnected client must not go on refusing under the
     // policy of the server it just left.
+    app.state::<std::sync::Arc<crate::chat::ChatPolicy>>()
+        .set_enabled(true);
     crate::audio::AudioActionsManager::new(app)
         .set_recording_allowed(true)
         .await;
@@ -66,6 +68,7 @@ pub(crate) async fn change_network_stream(
                 config.quic_port,
                 config.recording.enabled,
                 config.voice_websocket,
+                config.chat.enabled,
             )),
             Err(e) => {
                 warn!("Config fetch failed for {}; using stored port: {}", server, e);
@@ -82,14 +85,20 @@ pub(crate) async fn change_network_stream(
     // unasked server gives, and leaves the fallback transport worth trying. The two
     // wrong answers are not symmetric: assuming no fallback strands a player whose
     // UDP is blocked, while assuming one costs a TLS handshake that gets refused.
-    let (advertised_ports, advertised_scalar, recording_enabled, voice_websocket) =
-        advertised.unwrap_or((Vec::new(), 0, true, true));
+    let (advertised_ports, advertised_scalar, recording_enabled, voice_websocket, chat_enabled) =
+        advertised.unwrap_or((Vec::new(), 0, true, true, true));
 
     crate::audio::AudioActionsManager::new(app.clone())
         .set_recording_allowed(recording_enabled)
         .await;
     if !recording_enabled {
         info!("{} does not permit recording", server);
+    }
+
+    app.state::<std::sync::Arc<crate::chat::ChatPolicy>>()
+        .set_enabled(chat_enabled);
+    if !chat_enabled {
+        info!("{} has chat sync disabled", server);
     }
 
     let request = match ReachabilityPlanner::plan(

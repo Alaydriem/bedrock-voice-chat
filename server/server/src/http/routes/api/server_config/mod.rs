@@ -1,5 +1,7 @@
 use common::consts::version::PROTOCOL_VERSION;
-use common::response::{ApiConfigAge, ApiConfigBedrock, ApiConfigRecording, ApiConfigResponse};
+use common::response::{
+    ApiConfigAge, ApiConfigBedrock, ApiConfigChat, ApiConfigRecording, ApiConfigResponse,
+};
 use rocket::{State, serde::json::Json};
 use rocket_okapi::openapi;
 
@@ -59,6 +61,9 @@ pub async fn get_config(config: &State<Server>, voice: &State<Voice>) -> Json<Ap
         age: ApiConfigAge::from_minimum(config.age.minimum),
         recording: ApiConfigRecording {
             enabled: voice.recording.enabled,
+        },
+        chat: ApiConfigChat {
+            enabled: config.features.chat,
         },
     })
 }

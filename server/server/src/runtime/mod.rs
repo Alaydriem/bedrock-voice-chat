@@ -398,7 +398,8 @@ impl ServerRuntime {
 
         // Net-mode chat hub. Its dependencies arrive by setter rather than constructor so the
         // service's own tests can exercise routing without a database or a QUIC registry.
-        let chat_service = crate::services::ChatService::new_shared();
+        let chat_service =
+            crate::services::ChatService::new_shared(self.config.server.features.chat);
         chat_service.set_db(db_conn.clone());
         chat_service.set_identities(std::sync::Arc::new(identity_service.clone()));
         chat_service.set_players(cache_manager.players().inner_arc());

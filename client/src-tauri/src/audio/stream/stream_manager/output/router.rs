@@ -440,6 +440,15 @@ impl PacketRouter {
     /// Shaped to match what the no-net proxy path emits so the webview has one listener and
     /// one line format regardless of which implementation is live.
     async fn handle_chat_message(&self, data: &QuicNetworkPacket) {
+        // `try_state` rather than `state`: this router is constructed in paths that do not
+        // carry the full managed state, and a missing policy reads as permitted.
+        if let Some(policy) =
+            tauri::Manager::try_state::<std::sync::Arc<crate::chat::ChatPolicy>>(&self.app_handle)
+            && !policy.is_enabled()
+        {
+            return;
+        }
+
         let packet: Result<ChatMessagePacket, ()> = data.data.to_owned().try_into();
         let Ok(packet) = packet else {
             warn!("Could not decode chat message packet");

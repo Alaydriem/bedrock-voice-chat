@@ -3,6 +3,7 @@ mod api;
 mod audio;
 #[cfg(feature = "bedrock-protocol")]
 mod bedrock;
+mod chat;
 mod control;
 mod diagnostics;
 mod discord;

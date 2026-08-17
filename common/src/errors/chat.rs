@@ -21,4 +21,9 @@ pub enum ChatRejection {
     /// Named no world at all, so there was nothing to address.
     #[error("no world was named")]
     NoWorld,
+
+    /// The operator turned chat off. Retrying will never succeed, which `NoChannel` would
+    /// wrongly invite.
+    #[error("chat is disabled on this server")]
+    Disabled,
 }

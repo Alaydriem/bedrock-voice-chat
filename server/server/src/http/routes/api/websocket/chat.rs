@@ -89,6 +89,16 @@ pub fn chat(
                                     drop(previous);
                                 }
                                 registered = keys;
+
+                                // Without this an operator sees a healthy socket carrying
+                                // nothing, which is indistinguishable from a fault.
+                                if !service.is_enabled() {
+                                    tracing::info!(
+                                        worlds = ?registered,
+                                        socket = socket_id,
+                                        "chat is disabled; frames on this socket will be dropped"
+                                    );
+                                }
                             }
                             ChatFrame::Chat { author, text } => {
                                 if registered.is_empty() {

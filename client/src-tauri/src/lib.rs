@@ -31,6 +31,7 @@ pub mod audio;
 mod auth;
 #[cfg(feature = "bedrock-protocol")]
 pub mod bedrock;
+pub mod chat;
 mod commands;
 pub mod control;
 mod deep_links;
@@ -374,6 +375,7 @@ pub fn run() {
             crate::commands::bedrock::bedrock_start_proxy,
             crate::commands::bedrock::bedrock_send_chat,
             crate::commands::chat::chat_availability,
+            crate::commands::chat::chat_enabled,
             crate::commands::chat::chat_send,
             crate::commands::chat::chat_transport,
             crate::commands::chat::chat_worlds,
@@ -506,6 +508,21 @@ pub fn run() {
                     loop {
                         match chat_rx.recv().await {
                             Ok(line) => {
+                                // Resolved per line rather than captured here. This runs long
+                                // before `build_managed_state`, so reading the policy at setup
+                                // panics; by the time a line arrives it has been managed.
+                                // A missing policy reads as permitted.
+                                //
+                                // Skipped rather than ending the loop: the policy changes when
+                                // the client connects somewhere else, and a broken loop would
+                                // never relay again for the life of the process.
+                                let relay = tauri::Manager::try_state::<
+                                    std::sync::Arc<crate::chat::ChatPolicy>,
+                                >(&chat_emit_handle)
+                                .is_none_or(|policy| policy.is_enabled());
+                                if !relay {
+                                    continue;
+                                }
                                 let _ = chat_emit_handle.emit("bedrock-chat", &line);
                             }
                             Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,

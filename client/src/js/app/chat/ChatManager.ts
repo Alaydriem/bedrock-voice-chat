@@ -2,6 +2,7 @@ import { writable, derived, get, type Writable, type Readable } from 'svelte/sto
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { warn } from '@tauri-apps/plugin-log';
+import { I18n } from '$lib/i18n';
 import type { BedrockStatus } from '../../bindings/BedrockStatus';
 import { AppStore } from '../services/AppStore';
 import type { ChatTransport } from '../../bindings/ChatTransport';
@@ -26,6 +27,7 @@ export class ChatManager {
     private targetStore: Writable<ChatTarget>;
     private rejectionStore: Writable<ChatRejectionState | null>;
     private associationsStore: Writable<WorldAssociations>;
+    private enabledStore: Writable<boolean>;
 
     public readonly lines: Readable<ChatLine[]>;
     public readonly unread: Readable<number>;
@@ -33,6 +35,8 @@ export class ChatManager {
     public readonly rejection: Readable<ChatRejectionState | null>;
     /** Remembered `world_uuid` → the name the reader chose, for the label resolver. */
     public readonly associations: Readable<WorldAssociations>;
+    /** Whether the connected server relays chat at all. False only by an operator's decision. */
+    public readonly enabled: Readable<boolean>;
     public readonly canSend: Readable<boolean>;
 
     /**
@@ -77,13 +81,18 @@ export class ChatManager {
         this.targetStore = writable({ kind: 'unavailable', reason: 'Not connected' });
         this.rejectionStore = writable(null);
         this.associationsStore = writable({});
+        this.enabledStore = writable(true);
 
         this.lines = { subscribe: this.linesStore.subscribe };
         this.unread = { subscribe: this.unreadStore.subscribe };
         this.target = { subscribe: this.targetStore.subscribe };
         this.rejection = { subscribe: this.rejectionStore.subscribe };
         this.associations = { subscribe: this.associationsStore.subscribe };
-        this.canSend = derived(this.targetStore, ($t) => $t.kind !== 'unavailable');
+        this.enabled = { subscribe: this.enabledStore.subscribe };
+        this.canSend = derived(
+            this.targetStore,
+            ($t) => $t.kind !== 'unavailable' && $t.kind !== 'disabled',
+        );
     }
 
     /**
@@ -256,6 +265,18 @@ export class ChatManager {
      */
     private async refreshAvailability(): Promise<void> {
         try {
+            const enabled = await invoke<boolean>('chat_enabled').catch(() => true);
+            this.enabledStore.set(enabled);
+            if (!enabled) {
+                // Returned before transport and worlds are consulted. Neither can change the
+                // answer, and `chat_worlds` reaches the network to be told nothing.
+                this.targetStore.set({
+                    kind: 'disabled',
+                    reason: I18n.t('Chat is disabled on this server'),
+                });
+                return;
+            }
+
             // The declared addon mode is the signal, not the world list. A world only carries
             // `available` while its chat socket happens to be up, and treating that as the
             // net-mode answer routed a net world down the no-net path the moment BDS blinked.
@@ -285,6 +306,11 @@ export class ChatManager {
      * to the default a second after somebody used it.
      */
     private applyTarget(): void {
+        // A world pulse arriving between polls must not overwrite the operator's declaration.
+        if (!get(this.enabledStore)) {
+            return;
+        }
+
         if (!this.serverMode) {
             this.targetStore.set({ kind: 'local' });
             return;
@@ -322,13 +348,24 @@ export class ChatManager {
             return;
         }
 
+        // Read once, so the target that decides whether to render is the same one the send is
+        // addressed to. Two reads could straddle a poll and render a line against one target
+        // while dispatching it at another.
+        const target = get(this.targetStore);
+
+        // The one target that refuses. Everywhere else a line is rendered unconfirmed so the
+        // sender can read it back, which is right while a target may yet appear; here nothing
+        // will ever carry it, and an unconfirmed line would say otherwise.
+        if (target.kind === 'disabled') {
+            return;
+        }
+
         this.rejectionStore.set(null);
 
         // Rendered before anything is attempted, and never gated on a target. The sender must
         // see what they typed even when nothing can carry it — an unconfirmed line they can
         // read beats a line that was silently discarded because delivery was not provable.
         const id = this.appendPending(trimmed);
-        const target = get(this.targetStore);
 
         try {
             if (target.kind === 'local') {

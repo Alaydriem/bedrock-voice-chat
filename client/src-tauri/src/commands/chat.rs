@@ -6,6 +6,19 @@ use tokio::sync::Mutex;
 
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::BedrockState;
+use crate::chat::ChatPolicy;
+
+/// Whether the connected server relays chat at all.
+///
+/// Separate from `chat_availability` because the two answer different questions. Availability
+/// flaps with a session; this does not change until the client connects somewhere else, and
+/// the composer renders the two differently.
+#[tauri::command]
+pub(crate) async fn chat_enabled(
+    policy: State<'_, std::sync::Arc<ChatPolicy>>,
+) -> Result<bool, String> {
+    Ok(policy.is_enabled())
+}
 
 /// Whether chat can carry a message right now.
 ///
@@ -21,7 +34,14 @@ use crate::bedrock::BedrockState;
 #[tauri::command]
 pub(crate) async fn chat_availability(
     state: State<'_, Mutex<BedrockState>>,
+    policy: State<'_, std::sync::Arc<ChatPolicy>>,
 ) -> Result<ChatAvailability, String> {
+    if !policy.is_enabled() {
+        return Ok(ChatAvailability::unavailable(
+            "Chat is disabled on this server",
+        ));
+    }
+
     let state = state.lock().await;
 
     let proxy_live = state.proxy.as_ref().is_some_and(|p| !p.is_stopped());
@@ -41,7 +61,15 @@ pub(crate) async fn chat_availability(
 
 #[cfg(not(feature = "bedrock-protocol"))]
 #[tauri::command]
-pub(crate) async fn chat_availability() -> Result<ChatAvailability, String> {
+pub(crate) async fn chat_availability(
+    policy: State<'_, std::sync::Arc<ChatPolicy>>,
+) -> Result<ChatAvailability, String> {
+    if !policy.is_enabled() {
+        return Ok(ChatAvailability::unavailable(
+            "Chat is disabled on this server",
+        ));
+    }
+
     Ok(ChatAvailability::unavailable("Chat is not available"))
 }
 
@@ -54,7 +82,12 @@ pub(crate) async fn chat_availability() -> Result<ChatAvailability, String> {
 #[tauri::command]
 pub(crate) async fn chat_transport(
     state: State<'_, Mutex<BedrockState>>,
+    policy: State<'_, std::sync::Arc<ChatPolicy>>,
 ) -> Result<ChatTransport, String> {
+    if !policy.is_enabled() {
+        return Ok(ChatTransport::Server);
+    }
+
     let state = state.lock().await;
 
     // Realms are always no-net, so a live realm session owns its own chat the same way a
@@ -70,7 +103,9 @@ pub(crate) async fn chat_transport(
 
 #[cfg(not(feature = "bedrock-protocol"))]
 #[tauri::command]
-pub(crate) async fn chat_transport() -> Result<ChatTransport, String> {
+pub(crate) async fn chat_transport(
+    _policy: State<'_, std::sync::Arc<ChatPolicy>>,
+) -> Result<ChatTransport, String> {
     Ok(ChatTransport::Server)
 }
 
@@ -84,10 +119,15 @@ pub(crate) async fn chat_send(
     world_uuid: Option<String>,
     text: String,
     producer: State<'_, std::sync::Arc<flume::Sender<crate::NetworkPacket>>>,
+    policy: State<'_, std::sync::Arc<ChatPolicy>>,
 ) -> Result<(), String> {
     let text = text.trim().to_string();
     if text.is_empty() {
         return Err("Nothing to send.".to_string());
+    }
+
+    if !policy.is_enabled() {
+        return Err("Chat is disabled on this server.".to_string());
     }
 
     let packet = crate::NetworkPacket {
@@ -115,7 +155,14 @@ pub(crate) async fn chat_send(
 #[tauri::command]
 pub(crate) async fn chat_worlds(
     state: State<'_, Mutex<crate::structs::app_state::AppState>>,
+    policy: State<'_, std::sync::Arc<ChatPolicy>>,
 ) -> Result<Vec<common::structs::chat::ChatWorld>, String> {
+    // Ahead of the API call: a disabled server would answer this empty, and reaching the
+    // network to be told so costs a round trip on every poll.
+    if !policy.is_enabled() {
+        return Ok(Vec::new());
+    }
+
     let state = state.lock().await;
     let Some(api) = state.api_client.as_ref() else {
         return Ok(Vec::new());

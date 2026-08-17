@@ -1,12 +1,14 @@
 pub mod age;
 pub mod bedrock;
 mod check;
+pub mod chat;
 mod compatibility;
 pub mod recording;
 
 pub use age::ApiConfigAge;
 pub use bedrock::{ApiConfigBedrock, ApiConfigBedrockServer};
 pub use check::ApiConfigCheckResponse;
+pub use chat::ApiConfigChat;
 pub use compatibility::ProtocolCompatibility;
 pub use recording::ApiConfigRecording;
 
@@ -43,4 +45,6 @@ pub struct ApiConfigResponse {
     pub age: ApiConfigAge,
     #[serde(default)]
     pub recording: ApiConfigRecording,
+    #[serde(default)]
+    pub chat: ApiConfigChat,
 }

@@ -135,6 +135,20 @@ fn telemetry_parses_bool_or_errors() {
 }
 
 #[test]
+fn chat_parses_bool_or_errors() {
+    let config = apply(&[("BVC_CHAT", "false")], ApplicationConfig::default());
+    assert!(!config.server.features.chat);
+
+    let config = apply(&[("BVC_CHAT", "TRUE")], ApplicationConfig::default());
+    assert!(config.server.features.chat);
+
+    let err = EnvOverrides::from_vars(vars(&[("BVC_CHAT", "yes")]))
+        .apply(ApplicationConfig::default())
+        .expect_err("non-bool chat must error");
+    assert!(format!("{err}").contains("BVC_CHAT"));
+}
+
+#[test]
 fn database_fields_override() {
     let config = apply(
         &[
