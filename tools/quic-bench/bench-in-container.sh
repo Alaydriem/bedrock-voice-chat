@@ -41,6 +41,20 @@ stime_of() { awk '{print $15}' "/proc/$1/stat" 2>/dev/null || echo 0; }
 
 pct() { printf '%d.%02d%%' $(($1 / 100)) $(($1 % 100)); }
 
+# UDP counters from the container's own net namespace. These are what decide whether
+# socket buffer sizing is worth changing: if SndbufErrors and RcvbufErrors stay at
+# zero under load, the default buffers are not dropping anything and there is nothing
+# for a larger buffer to fix.
+udp_stat() {
+  awk -v want="$1" '
+    /^Udp:/ {
+      if (!hdr) { for (i = 2; i <= NF; i++) col[$i] = i; hdr = 1; next }
+      if (want in col) { print $col[want]; exit }
+    }
+    END { if (!found) print 0 }
+  ' /proc/net/snmp 2>/dev/null | head -1
+}
+
 gen_wav() {
   mkdir -p "$ROOT"
   [ -s "$WAV" ] && return 0
@@ -284,12 +298,18 @@ cell() {
   local up
   up=$(count_alive "$p")
 
-  local s0 s1 m0=0 m1=0
+  local s0 s1 m0=0 m1=0 sb0 rb0 ie0 sb1 rb1 ie1
   s0=$(cpu_of "$spid")
   [ -n "$mpid" ] && m0=$(cpu_of "$mpid")
+  sb0=$(udp_stat SndbufErrors)
+  rb0=$(udp_stat RcvbufErrors)
+  ie0=$(udp_stat InErrors)
   sleep "$WINDOW"
   s1=$(cpu_of "$spid")
   [ -n "$mpid" ] && m1=$(cpu_of "$mpid")
+  sb1=$(udp_stat SndbufErrors)
+  rb1=$(udp_stat RcvbufErrors)
+  ie1=$(udp_stat InErrors)
 
   local pps=$((1000 / frame)) dg spct mpct tot rss
   dg=$((s * pps * p))
@@ -298,9 +318,18 @@ cell() {
   tot=$((spct + mpct))
   rss=$(awk '/^VmRSS:/{print $2}' "/proc/$spid/status" 2>/dev/null)
 
-  printf '%-14s %-8s up=%2d/%2d dgram/s=%5d srv=%7s mer=%7s TOTAL=%7s rss=%3dMiB\n' \
+  local udrop
+  udrop=$(((sb1 - sb0) + (rb1 - rb0) + (ie1 - ie0)))
+
+  printf '%-14s %-8s up=%2d/%2d dgram/s=%5d srv=%7s mer=%7s TOTAL=%7s rss=%3dMiB udp_err=%d\n' \
     "${frame}ms $([ "$mer" = 1 ] && echo via-mer || echo direct)" "${p}p/${s}s" \
-    "$up" "$p" "$dg" "$(pct "$spct")" "$(pct "$mpct")" "$(pct "$tot")" "$((rss / 1024))"
+    "$up" "$p" "$dg" "$(pct "$spct")" "$(pct "$mpct")" "$(pct "$tot")" "$((rss / 1024))" \
+    "$udrop"
+
+  if [ "$udrop" -gt 0 ]; then
+    printf '   udp errors over the window: snd_buf=%d rcv_buf=%d in_errors=%d\n' \
+      "$((sb1 - sb0))" "$((rb1 - rb0))" "$((ie1 - ie0))"
+  fi
 
   [ "$up" -lt "$p" ] && report_first_failure "$p"
 

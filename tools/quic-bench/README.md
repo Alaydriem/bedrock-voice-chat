@@ -140,6 +140,35 @@ a figure from this harness rather than against prose elsewhere.
 | 2026-08-17 | same | **arm B** serialize-once fan-out, 4 runs | — | 9.60% mean | 27.70% mean (26.90–28.30) | −7.5% / −11.5% against A. |
 | 2026-08-17 | same | **arm C** B plus allocation removal, 2 runs | — | 9.45% mean | 27.34% mean (26.51–28.18) | −1.3% against B: inside noise. |
 
+### Cost model
+
+Five shapes, both arms, two rounds each, 20 ms frames, direct path. `dgram/s` is
+`speakers x 50 x players`. The 60%-speaking shapes are the realistic ones: a room
+with working mic gating does not have everybody transmitting at once.
+
+| Shape | dgram/s | arm A baseline | arm C optimized | Change |
+| --- | --- | --- | --- | --- |
+| 5p/3s | 750 | 6.46% | 6.24% | −3.5% |
+| 5p/5s | 1,250 | 10.38% | 9.45% | −8.9% |
+| 10p/6s | 3,000 | 19.79% | 18.13% | −8.4% |
+| 10p/10s | 5,000 | 31.30% | 27.34% | −12.6% |
+| 15p/9s | 6,750 | 38.98% | 34.27% | −12.1% |
+
+Least squares over those five points:
+
+```
+baseline   = 3.22% + 54.2 us per datagram/sec
+optimized  = 3.47% + 46.6 us per datagram/sec
+```
+
+The marginal cost per delivered datagram fell **14%**. The saving grows with fan-out
+breadth because it comes from serializing once per frame instead of once per
+recipient, which is why 5p/3s barely moves and 15p/9s moves most.
+
+**`udp_err` was 0 at every point in both arms** — no `SndbufErrors`, no
+`RcvbufErrors`, no `InErrors` over any 60 s window. Default socket buffers are
+dropping nothing at these rates.
+
 All three arms were built against s2n-quic 1.81. The pin moved to 1.86 later the same day, so
 re-measure A and C before comparing anything built after that.
 
