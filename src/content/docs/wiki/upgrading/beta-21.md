@@ -8,17 +8,37 @@ sidebar:
 
 Bedrock Voice Chat 1.0.0-beta.21 changes the voice protocol, replaces the peering system, and moves several configuration keys.
 
-## Before you start
+## Upgrade steps
+
+1. Back up the database.
+2. Stop the server.
+3. Add `addon_mode` to every entry in `server.bedrock.servers`. Use `"net"` or `"no_net"`. The server does not start without it.
+4. Delete the `server.bedrock.dns` and `relay` blocks from `config.hcl`. Both are ignored in this release, not rejected.
+5. Replace the server binary, or pull the new container image.
+6. Start the server. Migrations run at startup.
+7. Read the startup log before letting players connect.
+8. Update the Bedrock Addon to 1.0.0-beta.21.
+9. Publish the 1.0.0-beta.21 client. Older clients cannot connect.
 
 :::danger
-Back up the database **first**. The `drop_peer_link_permission` migration deletes every `peer_link` grant, and its rollback restores nothing. Which players held the grant is recorded nowhere else.
+Step 1 is not optional. Step 6 runs the `drop_peer_link_permission` migration, which deletes every `peer_link` grant. Its rollback restores nothing. Which players held the grant is recorded nowhere else.
 :::
+
+Three deployments carry extra steps.
+
+| Also running | Extra step |
+|---|---|
+| Java mod in embedded mode | Rewrite `embedded-config` as nested blocks before step 5. See [Java mod](#java-mod). |
+| Peering | Relink every pair with `bvc relay peerlink` after step 6. A 1.0.0-beta.20 peer link does not carry over. See [peering](#peering). |
+| Hytale Java mod | Remove it. It is no longer built. |
+
+No other existing key in `config.hcl` has to change.
 
 ## Voice protocol 3.0.0
 
 The voice protocol moves from `2.1.0` to `3.0.0`. Clients on 1.0.0-beta.20 and earlier cannot open a session against a 1.0.0-beta.21 server, and a 1.0.0-beta.21 client cannot open one against an older server. Only the major and minor are compared.
 
-Publish the client update alongside the server upgrade.
+No configuration controls this. Ship the server and the client together.
 
 ## Configuration changes
 
