@@ -45,6 +45,10 @@ pub struct ConnectionRegistry {
     // failure recur every tick, so this site would otherwise emit at the
     // source's full rate.
     oversized_broadcast_log: LogThrottle,
+    // Last time each speaker's PlayerEnum rode an outbound audio envelope. Keyed on the
+    // stamped sender identity so injected and relayed speakers share the cadence with
+    // local ones. Entries for departed speakers are reaped by reap_stale_channels.
+    sender_attach: DashMap<Arc<str>, Instant>,
 }
 
 impl Default for ConnectionRegistry {
@@ -64,7 +68,27 @@ impl ConnectionRegistry {
             peer_plane: OnceLock::new(),
             channel_absent_ticks: DashMap::new(),
             oversized_broadcast_log: LogThrottle::new(OVERSIZED_BROADCAST_LOG_INTERVAL),
+            sender_attach: DashMap::new(),
         }
+    }
+
+    // Clients rebuild a speaker's position from the last attached state, so this bounds
+    // only how stale that reconstruction can get. Positions reach this server at 4/s
+    // from the game; 62ms keeps one lost attach's replacement within two frames.
+    const SENDER_ATTACH_INTERVAL: Duration = Duration::from_millis(62);
+
+    // Whether this frame carries the speaker's PlayerEnum. True consumes the slot: the
+    // timestamp advances, so the next interval is measured from this frame.
+    fn sender_attach_due(&self, identity: &str, now: Instant) -> bool {
+        if let Some(mut last) = self.sender_attach.get_mut(identity) {
+            if now.duration_since(*last) < Self::SENDER_ATTACH_INTERVAL {
+                return false;
+            }
+            *last = now;
+            return true;
+        }
+        self.sender_attach.insert(Arc::from(identity), now);
+        true
     }
 
     // Installs the metrics service. Set once; a later install is ignored.
@@ -179,6 +203,10 @@ impl ConnectionRegistry {
             self.player_channel.remove(&key);
             self.channel_absent_ticks.remove(&key);
         }
+        // A speaker silent for minutes needs no cadence slot; their next frame re-creates
+        // one and attaches immediately, which is exactly the desired first-frame behavior.
+        self.sender_attach
+            .retain(|_, last| last.elapsed() < Duration::from_secs(300));
         self.push_gauges();
     }
 
@@ -578,6 +606,11 @@ impl ConnectionRegistry {
         let original_spatial = audio_frame.spatial;
         let has_sender = audio_frame.sender.is_some();
 
+        // The speaker's PlayerEnum rides a heartbeat rather than every frame; recipients
+        // reconstruct position from the last attached state. Per-speaker rather than
+        // per-recipient, so the one-encode-per-variant template sharing below holds.
+        let attach_sender = self.sender_attach_due(sender_identity, Instant::now());
+
         tracing::debug!(
             "route_audio_frame: sender={} original_spatial={:?} has_sender={} sender_channel={:?}",
             sender_identity,
@@ -601,6 +634,9 @@ impl ConnectionRegistry {
             envelope.stamp(0);
             if let QuicNetworkPacketData::AudioFrame(ref mut af) = envelope.data {
                 af.spatial = Some(spatial);
+                if !attach_sender {
+                    af.sender = None;
+                }
             }
 
             match envelope.to_datagram() {

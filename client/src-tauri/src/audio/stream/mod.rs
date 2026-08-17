@@ -4,7 +4,7 @@ pub(crate) mod capture_watchdog;
 pub mod jitter_buffer;
 pub(crate) mod level_bus;
 pub(crate) mod rebuild_breaker;
-pub(crate) mod stream_manager;
+pub mod stream_manager;
 
 use crate::NetworkPacket;
 use crate::audio::recording::RecordingManager;

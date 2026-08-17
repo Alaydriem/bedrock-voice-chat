@@ -334,3 +334,30 @@ async fn two_connections_for_one_identity_are_addressed_separately() {
     assert_eq!(reg.device_for_fingerprint(&"aa".repeat(32)), Some(1));
     assert_eq!(reg.device_for_fingerprint(&"bb".repeat(32)), Some(2));
 }
+
+// The speaker's PlayerEnum rides a heartbeat, not every frame: the client rebuilds
+// position from the last attached state, so re-sending it 50x/s was pure wire weight.
+#[tokio::test]
+async fn sender_attaches_on_heartbeat_not_every_frame() {
+    let reg = ConnectionRegistry::new();
+    let alice = RoutingFixture::player("Alice", 0.0, false);
+    let bob = RoutingFixture::player("Bob", 1.0, false);
+    let cache = RoutingFixture::player_cache(&[alice.clone(), bob]).await;
+
+    let (bob_tx, mut bob_rx) = mpsc::channel(16);
+    reg.register(2, "minecraft:Bob".into(), format!("fp-{}", 2), bob_tx);
+
+    let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
+
+    reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
+
+    let first = RoutingFixture::delivered_frame(&mut bob_rx).await.unwrap();
+    let second = RoutingFixture::delivered_frame(&mut bob_rx).await.unwrap();
+    let third = RoutingFixture::delivered_frame(&mut bob_rx).await.unwrap();
+    assert!(first.sender.is_some(), "first frame carries the speaker state");
+    assert!(second.sender.is_none(), "a frame inside the interval is thinned");
+    assert!(third.sender.is_some(), "the heartbeat re-attaches");
+}

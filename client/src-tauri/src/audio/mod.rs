@@ -12,7 +12,7 @@ pub mod tone;
 mod device_cpal;
 mod resampling;
 
-pub(crate) mod stream;
+pub mod stream;
 
 pub use common::consts::audio::BUFFER_SIZE;
 pub use common::structs::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};

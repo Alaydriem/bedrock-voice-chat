@@ -1,6 +1,7 @@
 use crate::AudioPacket;
 use crate::audio::stream::jitter_buffer::EncodedAudioFramePacket;
 use crate::audio::stream::stream_manager::AudioSinkType;
+use crate::audio::stream::stream_manager::output::SpeakerStateCache;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxBeaconCache;
 #[cfg(feature = "bedrock-protocol")]
@@ -46,6 +47,10 @@ pub(crate) struct PacketRouter {
     player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
     gain: Arc<GainProjection>,
     app_handle: tauri::AppHandle,
+    // Last-known state per speaker. The server attaches a speaker's PlayerEnum on a
+    // heartbeat rather than on every frame; frames between heartbeats are filled from
+    // here before anything downstream reads them.
+    speaker_states: SpeakerStateCache,
     #[cfg(feature = "bedrock-protocol")]
     beacon_cache: Option<Arc<JukeboxBeaconCache>>,
     #[cfg(feature = "bedrock-protocol")]
@@ -74,6 +79,7 @@ impl PacketRouter {
             player_presence_debounce,
             gain,
             app_handle,
+            speaker_states: SpeakerStateCache::new(),
             #[cfg(feature = "bedrock-protocol")]
             beacon_cache,
             #[cfg(feature = "bedrock-protocol")]
@@ -329,7 +335,13 @@ impl PacketRouter {
         let data: Result<AudioFramePacket, ()> = data.data.to_owned().try_into();
 
         match data {
-            Ok(data) => {
+            Ok(mut data) => {
+                // The server attaches the speaker's state on a heartbeat, not on every
+                // frame. Fill from the last-known state so everything below that reads
+                // the frame's sender sees a position either way.
+                if let Some(s) = &sender {
+                    data.sender = self.speaker_states.resolve(&s.identity, data.sender.take());
+                }
                 #[cfg(feature = "bedrock-protocol")]
                 if let Some(beacon_cache) = self.beacon_cache.as_ref() {
                     for meta in &data.metadata {

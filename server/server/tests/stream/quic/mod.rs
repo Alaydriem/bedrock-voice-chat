@@ -7,4 +7,5 @@ mod ingress_guards;
 mod ingress_stamping;
 mod path;
 mod player_cache;
+mod stream_manager;
 mod websocket_ticket_cache;

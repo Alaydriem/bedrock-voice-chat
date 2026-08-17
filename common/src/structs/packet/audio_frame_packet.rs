@@ -4,15 +4,13 @@ use serde::{Deserialize, Serialize};
 use super::audio_frame_metadata::AudioFrameMetadata;
 use super::quic_network_packet_data::QuicNetworkPacketData;
 
-// `Bytes` rather than `Vec<u8>` on the three byte fields. The server clones a frame's envelope
+// `Bytes` rather than `Vec<u8>` on the byte fields. The server clones a frame's envelope
 // once per spatial variant and the ingress path clones it again to attach the sender, so a copy
 // of the Opus payload is paid several times per frame; a `Bytes` clone is a refcount increment
 // instead. It costs nothing on the wire: `bytes` serializes through `serialize_bytes`, which is
 // exactly what `serde_bytes` did for `Vec<u8>`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AudioFramePacket {
-    encoded_length: Bytes,
-
     encoded_timestamp: Bytes,
 
     pub sample_rate: u32,
@@ -49,10 +47,7 @@ impl AudioFramePacket {
             .unwrap()
             .as_millis() as i64;
 
-        let length = data.len() as i32;
-
         Self {
-            encoded_length: Bytes::from(crate::encoding::Varint::encode(length)),
             encoded_timestamp: Bytes::from(crate::encoding::Varint::encode(timestamp)),
             sample_rate,
             // A move rather than a copy, so callers keep passing an owned `Vec` and pay nothing
@@ -69,12 +64,6 @@ impl AudioFramePacket {
         self
     }
 
-    pub fn length(&self) -> i32 {
-        crate::encoding::Varint::decode::<i32>(&self.encoded_length)
-            .unwrap_or((0, 0))
-            .0
-    }
-
     pub fn timestamp(&self) -> i64 {
         crate::encoding::Varint::decode::<i64>(&self.encoded_timestamp)
             .unwrap_or((0, 0))
@@ -83,10 +72,6 @@ impl AudioFramePacket {
 
     pub fn data_len(&self) -> usize {
         self.data.len()
-    }
-
-    pub fn encoded_length_size(&self) -> usize {
-        self.encoded_length.len()
     }
 
     pub fn encoded_timestamp_size(&self) -> usize {

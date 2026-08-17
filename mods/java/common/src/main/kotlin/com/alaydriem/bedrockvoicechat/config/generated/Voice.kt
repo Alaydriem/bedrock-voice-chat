@@ -12,6 +12,9 @@ class Voice {
     @SerializedName("datagram_recv_capacity")
     var datagramRecvCapacity: Long? = null
 
+    @SerializedName("send_batch_wait_micros")
+    var sendBatchWaitMicros: Long? = null
+
     @SerializedName("spatial_audio")
     var spatialAudio: SpatialAudioConfig? = null
 

@@ -33,6 +33,10 @@ P=${P:-10}
 S=${S:-10}
 TRACE_SECS=${TRACE_SECS:-15}
 BATCH_WAIT_MICROS=${BATCH_WAIT_MICROS:-}
+# Meridian worker count. Unset uses meridian's default (available cores - 2),
+# which on a large host makes the io_uring backend's per-worker wakeup tick the
+# dominant cost; set it to compare backends at a fixed worker count.
+MER_WORKERS=${MER_WORKERS:-}
 
 # Fields 14 and 15 of /proc/<pid>/stat are utime and stime in clock ticks.
 cpu_of() { awk '{print $14+$15}' "/proc/$1/stat" 2>/dev/null || echo 0; }
@@ -201,6 +205,7 @@ start_meridian() {
   cat > "$MERDIR/config.hcl" <<EOF
 listen            = "127.0.0.1:$MPORT"
 cid_prefix_length = 2
+${MER_WORKERS:+workers            = $MER_WORKERS}
 
 api {
   listen  = "127.0.0.1:$MAPIPORT"
@@ -340,8 +345,10 @@ cell() {
   # The client shares the wire format with the server. A `broadcast` binary built
   # before a packet-layout change decodes nothing, and the server then does almost
   # no work -- which reads as an enormous CPU win rather than as a broken run.
+  # grep -c prints "0" AND exits 1 on zero matches, so `|| echo 0` would yield two
+  # lines and break the -gt test below. head -1 keeps the count either way.
   local parse_failures
-  parse_failures=$(grep -c "Failed to parse session packet" "$SRV/server.log" 2>/dev/null || echo 0)
+  parse_failures=$( (grep -c "Failed to parse session packet" "$SRV/server.log" 2>/dev/null || echo 0) | head -1)
   if [ "$parse_failures" -gt 0 ]; then
     echo "   INVALID: server failed to parse $parse_failures inbound packets."
     echo "            The load client is a different wire version than the server."

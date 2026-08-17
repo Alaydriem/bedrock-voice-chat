@@ -90,4 +90,20 @@ impl RoutingFixture {
             _ => None,
         }
     }
+
+    // The full decoded audio frame a recipient received, for asserting fields beyond
+    // the spatial flag. None when nothing was delivered within the timeout.
+    pub async fn delivered_frame(rx: &mut mpsc::Receiver<RoutedPacket>) -> Option<AudioFramePacket> {
+        match tokio::time::timeout(Duration::from_millis(100), rx.recv()).await {
+            Ok(Some(RoutedPacket::Serialized(bytes))) => {
+                let packet =
+                    QuicNetworkPacket::from_datagram(&bytes).expect("routed datagram decodes");
+                match packet.data {
+                    QuicNetworkPacketData::AudioFrame(af) => Some(af),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
 }

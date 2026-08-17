@@ -21,6 +21,8 @@ pub(crate) struct SessionSpawner {
     broadcast_range: f32,
     deafen_distance: f32,
     webhook_receiver: WebhookReceiver,
+    // Microseconds each session's output loop waits to batch outbound datagrams.
+    send_batch_wait_micros: u64,
 }
 
 impl SessionSpawner {
@@ -34,6 +36,7 @@ impl SessionSpawner {
         broadcast_range: f32,
         deafen_distance: f32,
         webhook_receiver: WebhookReceiver,
+        send_batch_wait_micros: u64,
     ) -> Self {
         Self {
             connection_registry,
@@ -41,6 +44,7 @@ impl SessionSpawner {
             broadcast_range,
             deafen_distance,
             webhook_receiver,
+            send_batch_wait_micros,
         }
     }
 
@@ -50,6 +54,7 @@ impl SessionSpawner {
         broadcast_range: f32,
         deafen_distance: f32,
         webhook_receiver: WebhookReceiver,
+        send_batch_wait_micros: u64,
     ) -> Arc<Self> {
         Arc::new(Self::new(
             connection_registry,
@@ -57,6 +62,7 @@ impl SessionSpawner {
             broadcast_range,
             deafen_distance,
             webhook_receiver,
+            send_batch_wait_micros,
         ))
     }
 
@@ -81,7 +87,7 @@ impl SessionSpawner {
         if let Some(identity) = &player_identity {
             input_stream.set_identity(identity.clone(), device);
         }
-        let mut output_stream = OutputStream::new(Some(link));
+        let mut output_stream = OutputStream::new(Some(link), self.send_batch_wait_micros);
         output_stream.set_packet_receiver(packet_rx);
 
         // Registers this session under its authenticated identity. Both the identity and

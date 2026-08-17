@@ -19,7 +19,7 @@ mod packet_identity_stamp;
 pub mod path;
 pub mod peer;
 mod server_input_packet;
-pub(crate) mod stream_manager;
+pub mod stream_manager;
 mod webhook_receiver;
 
 use crate::config::ApplicationConfig;
@@ -114,6 +114,7 @@ impl QuicServerManager {
                     self.config.voice.spatial_audio.broadcast_range,
                     self.config.voice.spatial_audio.deafen_distance,
                     self.webhook_receiver.clone(),
+                    self.config.voice.send_batch_wait_micros,
                 )
             })
             .clone()

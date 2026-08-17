@@ -1,4 +1,7 @@
 mod router;
+pub mod speaker_state_cache;
+
+pub use speaker_state_cache::SpeakerStateCache;
 
 use super::JobSet;
 use super::sink_manager::SinkManager;

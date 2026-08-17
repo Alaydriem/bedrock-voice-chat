@@ -6,7 +6,7 @@ mod input;
 mod input_core;
 pub(crate) mod job_set;
 mod mono_to_panned;
-mod output;
+pub mod output;
 mod resampler;
 pub(crate) mod sink;
 mod sink_manager;
