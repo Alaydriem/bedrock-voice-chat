@@ -40,3 +40,6 @@ tracing = { version = "^0.1" }
 # `tokio` is what makes `async_runtime = "tokio"` available on an exported impl.
 # It does not imply `cli`, which the `bindgen` feature adds separately.
 uniffi = { version = "0.32.0", features = ["tokio"] }
+
+[dev-dependencies]
+tempfile = { version = "^3" }

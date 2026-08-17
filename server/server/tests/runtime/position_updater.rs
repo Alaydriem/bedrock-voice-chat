@@ -249,7 +249,7 @@ fn registry_with(
 
     for (i, name) in listeners.iter().enumerate() {
         let (tx, rx) = mpsc::channel(4096);
-        registry.register(i as u64, Game::Minecraft.membership_key(&name), tx);
+        registry.register(i as u64, Game::Minecraft.membership_key(&name), format!("fp-{}", i as u64), tx);
         receivers.push((name.clone(), rx));
     }
 

@@ -9,7 +9,8 @@
   "icon": "app-logo.png",
   "environment": "server",
   "entrypoints": {
-    "main": ["com.alaydriem.bedrockvoicechat.fabric.FabricMod"]
+    "main": ["com.alaydriem.bedrockvoicechat.fabric.FabricMod"],
+    "voicechat": ["com.alaydriem.bedrockvoicechat.fabric.svc.FabricSvcPlugin"]
   },
   "mixins": [
     "bedrock-voice-chat.mixins.json"

@@ -195,7 +195,7 @@ function startPositionPoster(config, gamertag, at) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-MC-Access-Token': config.token,
+          'Authorization': `Bearer ${config.token}`,
           Accept: 'application/json',
         },
         body,

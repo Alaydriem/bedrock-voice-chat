@@ -1,13 +1,14 @@
+use crate::http::guards::PlayerGuard;
 use std::sync::Arc;
 
 use common::structs::chat::{ChatMode, ChatWorld};
-use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
+use rocket::{State, http::Status, serde::json::Json};
 use rocket_okapi::openapi;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 
 use crate::http::openapi::{RouteSpec, TagDefinition};
 use crate::http::pool::Db;
-use crate::services::{AuthService, BedrockEventService, ChatService};
+use crate::services::{BedrockEventService, ChatService};
 
 inventory::submit! {
     TagDefinition {
@@ -36,13 +37,13 @@ inventory::submit! {
 #[openapi(tag = "Chat")]
 #[get("/chat/worlds")]
 pub async fn worlds(
-    cert: Certificate<'_>,
+    guard: PlayerGuard,
     db: Db<'_>,
     chat_service: &State<Arc<ChatService>>,
     bedrock_event_service: &State<Arc<BedrockEventService>>,
 ) -> Result<Json<Vec<ChatWorld>>, Status> {
     let conn = db.into_inner();
-    let player = AuthService::player_from_certificate(&cert, conn, None).await?;
+    let player = guard.player;
 
     let rows = entity::player_world::Entity::find()
         .filter(entity::player_world::Column::PlayerId.eq(player.id))

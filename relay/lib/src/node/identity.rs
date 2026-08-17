@@ -1,8 +1,10 @@
 use std::path::{Path, PathBuf};
 
-use iroh::{PublicKey, SecretKey};
+use iroh::{EndpointAddr, PublicKey, SecretKey};
 
 use super::identity_error::NodeIdentityError;
+use super::ticket::PeerTicket;
+use super::ticket_error::PeerTicketError;
 
 // A node's identity, persisted to disk.
 //
@@ -66,6 +68,20 @@ impl NodeIdentity {
         })?;
 
         Ok(Self { secret })
+    }
+
+    // A ticket naming this node and no addresses.
+    //
+    // That is the whole of what a granting peer needs: it authorizes by key and
+    // never dials back, because a node behind NAT is the case this subsystem
+    // exists to serve. Addresses here would be noise an operator copies and
+    // nothing reads.
+    //
+    // Distinct from `PeerEndpoint::ticket`, which reports where a *live* endpoint
+    // can be reached. This one answers before any endpoint is bound, which is what
+    // lets an operator be granted before the session they are being granted for.
+    pub fn peerlink(&self) -> Result<String, PeerTicketError> {
+        PeerTicket::mint(&EndpointAddr::new(self.node_id()))
     }
 
     pub fn node_id(&self) -> PublicKey {

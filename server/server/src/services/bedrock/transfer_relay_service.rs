@@ -76,7 +76,12 @@ impl TransferRelayService {
                                 xuid,
                             );
 
-                            let target = cache.get(&xuid).await;
+                            // Looked up by the name the verified Bedrock login chain
+                            // proved, which is the same identity the caller's certificate
+                            // CN carries. The xuid stays for logging and the
+                            // invalid-attempt counter, neither of which needs to match the
+                            // cache key.
+                            let target = cache.get(&player_name).await;
 
                             match target {
                                 Some(target) => {

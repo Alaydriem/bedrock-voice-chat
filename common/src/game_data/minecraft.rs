@@ -30,3 +30,18 @@ impl From<&str> for Dimension {
         }
     }
 }
+
+impl Dimension {
+    // The inverse of `From<&str>`, in the bare serde form. Named for the API rather
+    // than as a `Display` impl because the Bedrock id form carries a `minecraft:`
+    // prefix this deliberately omits, and the two are not interchangeable at a call
+    // site that feeds either back in.
+    pub fn as_api_str(&self) -> &'static str {
+        match self {
+            Dimension::Overworld => "overworld",
+            Dimension::TheNether => "nether",
+            Dimension::TheEnd => "the_end",
+            Dimension::Death => "death",
+        }
+    }
+}

@@ -100,7 +100,7 @@ jobs:
           cache-dependency-path: client/yarn.lock
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: x86_64-pc-windows-msvc
 
@@ -124,7 +124,7 @@ jobs:
         shell: powershell
         run: |
           Write-Host "Downloading ASIO SDK..."
-          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip" -OutFile "asiosdk.zip"
+          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip" -OutFile "asiosdk.zip"
           Expand-Archive -Path "asiosdk.zip" -DestinationPath "." -Force
           Get-ChildItem -Path "." -Name
           Write-Host "ASIO SDK downloaded and extracted"

@@ -15,10 +15,29 @@ import com.alaydriem.bedrockvoicechat.fabric.audio.FabricAudioPlayerManager
 import com.alaydriem.bedrockvoicechat.fabric.audio.JukeboxListener
 import com.alaydriem.bedrockvoicechat.fabric.commands.ControlCommands
 import com.alaydriem.bedrockvoicechat.fabric.commands.DiscCommand
+import com.alaydriem.bedrockvoicechat.config.ModConfig
+import com.alaydriem.bedrockvoicechat.config.generated.EmbeddedServerConfig
+import com.alaydriem.bedrockvoicechat.native.BvcNative
+import com.alaydriem.bedrockvoicechat.native.HostCapabilityCheck
+import com.alaydriem.bedrockvoicechat.native.HostCapabilitySender
+import com.alaydriem.bedrockvoicechat.native.HttpLibraryFetcher
+import com.alaydriem.bedrockvoicechat.native.NativeLibraryProvider
+import com.alaydriem.bedrockvoicechat.native.NativeManifest
+import com.alaydriem.bedrockvoicechat.fabric.svc.FabricSvcChannelFactory
+import com.alaydriem.bedrockvoicechat.fabric.svc.FabricSvcPlugin
+import com.alaydriem.bedrockvoicechat.fabric.svc.FabricSvcWiring
 import com.alaydriem.bedrockvoicechat.native.PositionSender
+import com.alaydriem.bedrockvoicechat.svc.BridgePeering
+import com.alaydriem.bedrockvoicechat.svc.EmbeddedGrant
+import com.alaydriem.bedrockvoicechat.svc.LiveClients
+import com.alaydriem.bedrockvoicechat.svc.RelayWorld
+import com.alaydriem.bedrockvoicechat.svc.SvcAvailability
+import com.alaydriem.bedrockvoicechat.svc.SvcBridgeHost
+import net.minecraft.server.MinecraftServer
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
 import com.alaydriem.bedrockvoicechat.server.BvcServerManager
 import net.fabricmc.api.ModInitializer
+import net.fabricmc.loader.api.FabricLoader
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
@@ -35,12 +54,107 @@ class FabricMod : ModInitializer {
     private lateinit var playerDataProvider: FabricPlayerDataProvider
 
     private var embeddedServer: BvcServerManager? = null
+    private var relayWorld: RelayWorld? = null
+    private var svcBridgeHost: SvcBridgeHost? = null
     private var chatChannel: ChatTransport? = null
     private var chatSocket: ChatChannel? = null
     private var positionSender: PositionSender? = null
     private var audioPlayerManager: FabricAudioPlayerManager? = null
     private var tickCounter = 0
     private var minimumPlayers = 1
+
+    /**
+     * Measures whether this host could run the skinny jar, on a daemon thread so it
+     * never delays startup and its result never affects the run.
+     *
+     * Gated by the operator's own `telemetry` key, and additionally by the embedded
+     * server's resolved setting when there is one. Off means no request is made at
+     * all, rather than one made and discarded.
+     */
+    private fun reportHostCapability(config: ModConfig, httpHandler: HttpRequestHandler?) {
+        val embedded = embeddedServer
+        val permitted = config.telemetry && (embedded == null || embedded.telemetryEnabled)
+        if (!permitted) {
+            return
+        }
+
+        Thread({
+            try {
+                val manifest = NativeManifest.fromResources()
+                val provider = NativeLibraryProvider(
+                    cacheRoot = FabricLoader.getInstance().configDir.resolve("bedrock-voice-chat").toFile(),
+                    manifest = manifest,
+                    fetcher = HttpLibraryFetcher()
+                )
+                val report = HostCapabilityCheck(
+                    provider, manifest, HttpLibraryFetcher(), manifest.release, true
+                ).run()
+                report?.let { HostCapabilitySender(httpHandler, embedded).send(it) }
+            } catch (e: Exception) {
+                logger.debug("Host capability check did not complete: {}", e.message)
+            }
+        }, "bvc-host-capability").apply { isDaemon = true }.start()
+    }
+
+    /**
+     * Builds the bridge and hands it to the entrypoint SVC will call.
+     *
+     * Runs at server start rather than mod init, because the channel factory and the
+     * speaker lookup both need levels and a player list that do not exist earlier.
+     *
+     * The availability check runs before any bridge class is touched, so a server
+     * without SVC never loads one — those classes name SVC types and would fail to
+     * link.
+     */
+    private fun startSvcBridge(server: MinecraftServer, config: ModConfig) {
+        if (!SvcAvailability().isAvailable) {
+            return
+        }
+
+        val world = relayWorld ?: return
+        val provider = playerDataProvider
+        val nodeDir = FabricLoader.getInstance().configDir
+            .resolve("bedrock-voice-chat")
+            .resolve("svc-bridge")
+            .toFile()
+        val wiring = FabricSvcWiring(server, provider)
+
+        val host = SvcBridgeHost(
+            relayWorld = world,
+            peering = BridgePeering(nodeDir),
+            nodeDir = nodeDir,
+            speakers = wiring::speaker,
+            liveClients = liveClients(config),
+            // The membership key the connection registry indexes, which is the same
+            // canonical name the position feed sends — a Bedrock player on a Geyser
+            // server by gamertag, not by their prefixed Java username.
+            identityOf = { id ->
+                server.playerList.getPlayer(id)?.let(provider::resolveCanonicalName)
+            },
+            channelFactory = { api -> FabricSvcChannelFactory(api, server) }
+        )
+        svcBridgeHost = host
+
+        FabricSvcPlugin.delegate = host.bridge(
+            embeddedServer?.serverPeerlink() ?: config.svcBridgePeerlink
+        )
+    }
+
+    /**
+     * Who already hears this server's audio through a BVC client.
+     *
+     * Embedded asks over FFI per call; external polls the API and reads a snapshot,
+     * because the audio path must not wait on a round trip.
+     */
+    private fun liveClients(config: ModConfig): LiveClients {
+        val embedded = embeddedServer
+        if (embedded != null) {
+            return LiveClients.direct(embedded::hasLiveClient)
+        }
+
+        val handler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
+        return LiveClients.polled(handler::liveClients)
+    }
 
     override fun onInitialize() {
         logger.info("Initializing Bedrock Voice Chat")
@@ -56,11 +170,41 @@ class FabricMod : ModInitializer {
         }
 
         minimumPlayers = config.minimumPlayers
-        playerDataProvider = FabricPlayerDataProvider()
+        // Beside the existing world_uuid_*.txt files, so everything this server
+        // mints for BVC lives in one directory.
+        relayWorld = RelayWorld(
+            FabricLoader.getInstance().configDir.resolve("bedrock-voice-chat").toFile()
+        )
+        playerDataProvider = FabricPlayerDataProvider(relayWorld = relayWorld)
+
+        // Native libraries are resolved from the mod's config directory rather than
+        // unpacked from the jar. Configured before anything can reach an FFI call,
+        // which for the embedded server is its start below.
+        BvcNative.configure(
+            NativeLibraryProvider(
+                cacheRoot = FabricLoader.getInstance().configDir.resolve("bedrock-voice-chat").toFile(),
+                manifest = NativeManifest.fromResources(),
+                fetcher = HttpLibraryFetcher()
+            )
+        )
 
         var controlSender: ControlSender? = null
+        var httpHandler: HttpRequestHandler? = null
 
         if (config.useEmbeddedServer) {
+            // Granted before the server starts, because authorization is read from
+            // config at startup. Applied only when SVC is present, so a server
+            // without it declares no peer it will never see.
+            if (SvcAvailability().isAvailable) {
+                val nodeDir = FabricLoader.getInstance().configDir
+                    .resolve("bedrock-voice-chat")
+                    .resolve("svc-bridge")
+                    .toFile()
+                config.embeddedConfig = (config.embeddedConfig ?: EmbeddedServerConfig()).also {
+                    EmbeddedGrant(BridgePeering(nodeDir)).applyTo(it)
+                }
+            }
+
             embeddedServer = BvcServerManager(config, configProvider)
             if (!embeddedServer!!.start()) {
                 logger.error("Failed to start embedded server - falling back to disabled state")
@@ -76,7 +220,7 @@ class FabricMod : ModInitializer {
             val quicPort = embeddedServer?.effectiveConfig()?.server?.quicPort
             logger.info("Bedrock Voice Chat using embedded server (QUIC port: {})", quicPort)
         } else {
-            val httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
+            httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
             positionSender = PositionSender(httpHandler, null)
             val audioEventSender = AudioEventSender(httpHandler, null)
             audioPlayerManager = FabricAudioPlayerManager(audioEventSender)
@@ -84,6 +228,8 @@ class FabricMod : ModInitializer {
 
             logger.info("Bedrock Voice Chat will connect to: {}", config.bvcServer)
         }
+
+        reportHostCapability(config, httpHandler)
 
         JukeboxListener(audioPlayerManager!!, playerDataProvider::getWorldUuid).register()
         DiscCommand.register()
@@ -142,12 +288,18 @@ class FabricMod : ModInitializer {
         // Fabric mints a world id per dimension while chat is server-wide.
         ServerLifecycleEvents.SERVER_STARTED.register { server ->
             startChatChannel(server, config)
+            startSvcBridge(server, config)
         }
 
         ServerLifecycleEvents.SERVER_STOPPING.register { _ ->
             chatChannel?.stop()
             chatChannel = null
             audioPlayerManager?.shutdown()
+            // Before the embedded server stops: the pump is parked in nextFrame,
+            // and only an explicit shutdown releases it.
+            svcBridgeHost?.shutdown()
+            svcBridgeHost = null
+            FabricSvcPlugin.delegate = null
             embeddedServer?.stop()
         }
     }

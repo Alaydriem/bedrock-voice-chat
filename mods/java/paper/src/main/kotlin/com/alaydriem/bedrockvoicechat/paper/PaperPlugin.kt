@@ -6,12 +6,29 @@ import com.alaydriem.bedrockvoicechat.chat.ChatChannel
 import com.alaydriem.bedrockvoicechat.chat.ChatTransport
 import com.alaydriem.bedrockvoicechat.chat.FfiChatTransport
 import com.alaydriem.bedrockvoicechat.config.ModConfig
+import com.alaydriem.bedrockvoicechat.config.generated.EmbeddedServerConfig
 import com.alaydriem.bedrockvoicechat.control.ControlSender
 import com.alaydriem.bedrockvoicechat.paper.chat.PaperChatListener
 import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
+import com.alaydriem.bedrockvoicechat.native.BvcNative
+import com.alaydriem.bedrockvoicechat.native.HostCapabilityCheck
+import com.alaydriem.bedrockvoicechat.native.HostCapabilitySender
+import com.alaydriem.bedrockvoicechat.native.HttpLibraryFetcher
+import com.alaydriem.bedrockvoicechat.native.NativeLibraryProvider
+import com.alaydriem.bedrockvoicechat.native.NativeManifest
 import com.alaydriem.bedrockvoicechat.native.PositionSender
+import com.alaydriem.bedrockvoicechat.paper.svc.PaperSvcChannelFactory
+import com.alaydriem.bedrockvoicechat.paper.svc.PaperSvcWiring
+import com.alaydriem.bedrockvoicechat.svc.BridgePeering
+import com.alaydriem.bedrockvoicechat.svc.EmbeddedGrant
+import com.alaydriem.bedrockvoicechat.svc.LiveClients
+import com.alaydriem.bedrockvoicechat.svc.RelayWorld
+import com.alaydriem.bedrockvoicechat.svc.SvcAvailability
+import com.alaydriem.bedrockvoicechat.svc.SvcBridgeHost
+import de.maxhenkel.voicechat.api.BukkitVoicechatService
+import java.io.File
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
 import com.alaydriem.bedrockvoicechat.paper.audio.JukeboxListener
 import com.alaydriem.bedrockvoicechat.paper.audio.PaperAudioPlayerManager
@@ -38,6 +55,8 @@ class PaperPlugin : JavaPlugin(), Listener {
     private lateinit var playerDataProvider: PaperPlayerDataProvider
 
     private var embeddedServer: BvcServerManager? = null
+    private var relayWorld: RelayWorld? = null
+    private var svcBridgeHost: SvcBridgeHost? = null
     private var positionSender: PositionSender? = null
     private var audioEventSender: AudioEventSender? = null
     private var controlSender: ControlSender? = null
@@ -48,6 +67,106 @@ class PaperPlugin : JavaPlugin(), Listener {
     private var minimumPlayers = 1
 
     @Suppress("UnstableApiUsage")
+    /**
+     * Measures whether this host could run the skinny jar, on a daemon thread so it
+     * never delays startup and its result never affects the run.
+     *
+     * Gated by the operator's own `telemetry` key, and additionally by the embedded
+     * server's resolved setting when there is one. Off means no request is made at
+     * all, rather than one made and discarded.
+     */
+    private fun reportHostCapability(config: ModConfig, httpHandler: HttpRequestHandler?) {
+        val embedded = embeddedServer
+        val permitted = config.telemetry && (embedded == null || embedded.telemetryEnabled)
+        if (!permitted) {
+            return
+        }
+
+        Thread({
+            try {
+                val manifest = NativeManifest.fromResources()
+                val provider = NativeLibraryProvider(
+                    cacheRoot = dataFolder,
+                    manifest = manifest,
+                    fetcher = HttpLibraryFetcher()
+                )
+                val report = HostCapabilityCheck(
+                    provider, manifest, HttpLibraryFetcher(), manifest.release, true
+                ).run()
+                report?.let { HostCapabilitySender(httpHandler, embedded).send(it) }
+            } catch (e: Exception) {
+                logger.fine("Host capability check did not complete: ${e.message}")
+            }
+        }, "bvc-host-capability").apply { isDaemon = true }.start()
+    }
+
+    /**
+     * Bridges Simple Voice Chat when it is present, and does nothing when it is not.
+     *
+     * The availability check runs before any bridge class is touched, so a server
+     * without SVC never loads one — those classes name SVC types and would fail to
+     * link.
+     */
+    private fun startSvcBridge(config: ModConfig) {
+        if (!SvcAvailability().isAvailable) {
+            return
+        }
+
+        val service = server.servicesManager.load(BukkitVoicechatService::class.java)
+        if (service == null) {
+            logger.warning("Simple Voice Chat is present but its service is not registered")
+            return
+        }
+
+        val world = relayWorld ?: return
+        val nodeDir = File(dataFolder, "svc-bridge")
+        val wiring = PaperSvcWiring(server, playerDataProvider)
+
+        // Embedded owns both sides, so the server it is about to start has already
+        // been granted this bridge in onEnable; external needs the operator to
+        // paste a link, and the host says so when it is missing.
+        val host = SvcBridgeHost(
+            relayWorld = world,
+            peering = BridgePeering(nodeDir),
+            nodeDir = nodeDir,
+            speakers = wiring::speaker,
+            liveClients = liveClients(config),
+            // The membership key the connection registry indexes, which is the same
+            // canonical name the position feed sends — a Bedrock player on a Geyser
+            // server by gamertag, not by their prefixed Java username.
+            identityOf = { id -> server.getPlayer(id)?.let(playerDataProvider::resolveCanonicalName) },
+            channelFactory = { api -> PaperSvcChannelFactory(api, server) }
+        )
+        svcBridgeHost = host
+
+        service.registerPlugin(host.bridge(svcServerPeerlink(config)))
+    }
+
+    /**
+     * Who already hears this server's audio through a BVC client.
+     *
+     * Embedded asks over FFI per call; external polls the API and reads a snapshot,
+     * because the audio path must not wait on a round trip.
+     */
+    private fun liveClients(config: ModConfig): LiveClients {
+        val embedded = embeddedServer
+        if (embedded != null) {
+            return LiveClients.direct(embedded::hasLiveClient)
+        }
+
+        val handler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
+        return LiveClients.polled(handler::liveClients)
+    }
+
+    /**
+     * The BVC server this bridge dials.
+     *
+     * Embedded reads the server's own link back over FFI once it is running;
+     * external takes the operator's configured value.
+     */
+    private fun svcServerPeerlink(config: ModConfig): String? =
+        embeddedServer?.serverPeerlink() ?: config.svcBridgePeerlink
+
     override fun onEnable() {
         logger.info("Initializing Bedrock Voice Chat")
 
@@ -65,10 +184,33 @@ class PaperPlugin : JavaPlugin(), Listener {
         }
 
         minimumPlayers = config.minimumPlayers
-        playerDataProvider = PaperPlayerDataProvider()
+        relayWorld = RelayWorld(dataFolder)
+        playerDataProvider = PaperPlayerDataProvider(relayWorld = relayWorld)
+
+        // Native libraries are resolved from the plugin data directory rather than
+        // unpacked from the jar. Configured before anything can reach an FFI call,
+        // which for the embedded server is its start below.
+        BvcNative.configure(
+            NativeLibraryProvider(
+                cacheRoot = dataFolder,
+                manifest = NativeManifest.fromResources(),
+                fetcher = HttpLibraryFetcher()
+            )
+        )
 
         // Initialize embedded server if configured
+        var httpHandler: HttpRequestHandler? = null
         if (config.useEmbeddedServer) {
+            // Granted before the server starts, because authorization is read from
+            // config at startup. Applied only when SVC is present, so a server
+            // without it declares no peer it will never see.
+            if (SvcAvailability().isAvailable) {
+                val nodeDir = File(dataFolder, "svc-bridge")
+                config.embeddedConfig = (config.embeddedConfig ?: EmbeddedServerConfig()).also {
+                    EmbeddedGrant(BridgePeering(nodeDir)).applyTo(it)
+                }
+            }
+
             embeddedServer = BvcServerManager(config, configProvider)
             if (!embeddedServer!!.start()) {
                 logger.severe("Failed to start embedded server - falling back to disabled state")
@@ -85,13 +227,16 @@ class PaperPlugin : JavaPlugin(), Listener {
             logger.info("Bedrock Voice Chat using embedded server (QUIC port: $quicPort)")
         } else {
             // External server mode: use HTTP handler
-            val httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
+            httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
             positionSender = PositionSender(httpHandler, null)
             audioEventSender = AudioEventSender(httpHandler, null)
             controlSender = ControlSender(httpHandler, null)
 
             logger.info("Bedrock Voice Chat will connect to: ${config.bvcServer}")
         }
+
+        reportHostCapability(config, httpHandler)
+        startSvcBridge(config)
 
         // Set up audio player manager
         val sender = audioEventSender!!
@@ -193,6 +338,11 @@ class PaperPlugin : JavaPlugin(), Listener {
         tickTask = null
         audioPlayerManager?.shutdown()
         audioPlayerManager = null
+        // Before the embedded server stops: the pump is parked in nextFrame, and
+        // only an explicit shutdown releases it. Left running, plugin disable would
+        // hang on a parked call.
+        svcBridgeHost?.shutdown()
+        svcBridgeHost = null
         embeddedServer?.stop()
         logger.info("Bedrock Voice Chat disabled")
     }

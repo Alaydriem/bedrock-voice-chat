@@ -13,7 +13,7 @@ use crate::harness::RoutingFixture;
 fn a_disconnect_clears_channel_membership() {
     let reg = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    reg.register(1, "minecraft:Alaydriem".to_string(), tx);
+    reg.register(1, "minecraft:Alaydriem".to_string(), format!("fp-{}", 1), tx);
     reg.update_player_channel("minecraft:Alaydriem".to_string(), "abc".to_string());
     assert_eq!(reg.channel_membership_count(), 1);
 
@@ -31,8 +31,8 @@ fn a_disconnect_clears_channel_membership() {
 fn a_stale_disconnect_leaves_a_reconnected_players_membership_alone() {
     let reg = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    reg.register(1, "minecraft:Alaydriem".to_string(), tx.clone());
-    reg.register(2, "minecraft:Alaydriem".to_string(), tx);
+    reg.register(1, "minecraft:Alaydriem".to_string(), format!("fp-{}", 1), tx.clone());
+    reg.register(2, "minecraft:Alaydriem".to_string(), format!("fp-{}", 2), tx);
     reg.update_player_channel("minecraft:Alaydriem".to_string(), "abc".to_string());
 
     reg.unregister(1);
@@ -44,7 +44,7 @@ fn a_stale_disconnect_leaves_a_reconnected_players_membership_alone() {
 fn reaper_purges_absent_channel_membership_after_grace() {
     let reg = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    reg.register(1, "minecraft:Alice".to_string(), tx.clone());
+    reg.register(1, "minecraft:Alice".to_string(), format!("fp-{}", 1), tx);
     reg.update_player_channel("minecraft:Alice".to_string(), "chan1".to_string());
     reg.update_player_channel("minecraft:Ghost".to_string(), "chan2".to_string());
     assert_eq!(reg.channel_membership_count(), 2);
@@ -65,7 +65,7 @@ fn reaper_resets_grace_when_player_reconnects() {
     reg.update_player_channel("minecraft:Bob".to_string(), "chan1".to_string());
 
     reg.reap_stale_channels(); // sweep 1 while Bob is absent
-    reg.register(9, "minecraft:Bob".to_string(), tx.clone()); // Bob reconnects
+    reg.register(9, "minecraft:Bob".to_string(), format!("fp-{}", 9), tx); // Bob reconnects
     reg.reap_stale_channels(); // Bob live now -> grace reset, not purged
 
     assert_eq!(reg.channel_membership_count(), 1);
@@ -79,7 +79,7 @@ async fn same_channel_recipient_receives_channel_variant_at_any_distance() {
     let cache = RoutingFixture::player_cache(&[alice.clone(), bob.clone()]).await;
 
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
+    reg.register(2, "minecraft:Bob".to_string(), format!("fp-{}", 2), bob_tx);
     reg.update_player_channel("minecraft:Alice".to_string(), "chan1".to_string());
     reg.update_player_channel("minecraft:Bob".to_string(), "chan1".to_string());
 
@@ -106,8 +106,8 @@ async fn same_channel_members_hear_each_other_without_position_data() {
 
     let (alice_tx, _alice_rx) = mpsc::channel(16);
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(1, "minecraft:Alice".to_string(), alice_tx);
-    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
+    reg.register(1, "minecraft:Alice".to_string(), format!("fp-{}", 1), alice_tx);
+    reg.register(2, "minecraft:Bob".to_string(), format!("fp-{}", 2), bob_tx);
     reg.update_player_channel("minecraft:Alice".to_string(), "chan1".to_string());
     reg.update_player_channel("minecraft:Bob".to_string(), "chan1".to_string());
 
@@ -131,8 +131,8 @@ async fn positionless_sender_outside_a_channel_is_not_routed() {
 
     let (alice_tx, _alice_rx) = mpsc::channel(16);
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(1, "minecraft:Alice".to_string(), alice_tx);
-    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
+    reg.register(1, "minecraft:Alice".to_string(), format!("fp-{}", 1), alice_tx);
+    reg.register(2, "minecraft:Bob".to_string(), format!("fp-{}", 2), bob_tx);
 
     let packet = RoutingFixture::audio_packet_without_position("minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
@@ -152,7 +152,7 @@ async fn in_range_recipient_receives_spatial_variant() {
     let cache = RoutingFixture::player_cache(&[alice.clone(), bob.clone()]).await;
 
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
+    reg.register(2, "minecraft:Bob".to_string(), format!("fp-{}", 2), bob_tx);
 
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
@@ -172,7 +172,7 @@ async fn out_of_range_recipient_receives_nothing() {
     let cache = RoutingFixture::player_cache(&[alice.clone(), bob.clone()]).await;
 
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
+    reg.register(2, "minecraft:Bob".to_string(), format!("fp-{}", 2), bob_tx);
 
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
@@ -187,7 +187,7 @@ async fn sender_does_not_receive_own_frame() {
     let cache = RoutingFixture::player_cache(&[alice.clone()]).await;
 
     let (alice_tx, mut alice_rx) = mpsc::channel(16);
-    reg.register(1, "minecraft:Alice".to_string(), alice_tx);
+    reg.register(1, "minecraft:Alice".to_string(), format!("fp-{}", 1), alice_tx);
 
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
@@ -204,7 +204,7 @@ async fn deafened_sender_is_limited_to_deafen_distance() {
     let cache = RoutingFixture::player_cache(&[alice.clone(), bob.clone()]).await;
 
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
+    reg.register(2, "minecraft:Bob".to_string(), format!("fp-{}", 2), bob_tx);
 
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 50.0, 10.0).await;
@@ -247,7 +247,7 @@ async fn synthetic_sender_audio_is_not_counted_as_an_interaction() {
     let cache = RoutingFixture::player_cache(&[jukebox.clone(), bob.clone()]).await;
 
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
+    reg.register(2, "minecraft:Bob".to_string(), format!("fp-{}", 2), bob_tx);
 
     let packet = RoutingFixture::audio_packet(jukebox, "Jukebox");
     reg.route_audio_frame(&packet, &cache, 30.0, 0.0).await;
@@ -279,8 +279,8 @@ async fn audio_between_two_connected_players_counts_both() {
 
     let (alice_tx, _alice_rx) = mpsc::channel(16);
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
-    reg.register(1, "minecraft:Alice".to_string(), alice_tx);
-    reg.register(2, "minecraft:Bob".to_string(), bob_tx);
+    reg.register(1, "minecraft:Alice".to_string(), format!("fp-{}", 1), alice_tx);
+    reg.register(2, "minecraft:Bob".to_string(), format!("fp-{}", 2), bob_tx);
 
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
     reg.route_audio_frame(&packet, &cache, 30.0, 0.0).await;
@@ -294,4 +294,43 @@ async fn audio_between_two_connected_players_counts_both() {
         2,
         "both the speaker and the listener are participants"
     );
+}
+
+// Revocation addresses a live session by the credential it was opened with, so one identity
+// holding two connections on two certificates loses only the revoked one.
+#[tokio::test]
+async fn a_connection_is_addressable_by_its_certificate_fingerprint() {
+    let reg = ConnectionRegistry::new();
+    let (tx, _rx) = tokio::sync::mpsc::channel(8);
+
+    reg.register(7, "minecraft:Steve".to_string(), "ab".repeat(32), tx);
+
+    assert_eq!(reg.device_for_fingerprint(&"ab".repeat(32)), Some(7));
+    assert_eq!(reg.device_for_fingerprint(&"cd".repeat(32)), None);
+}
+
+#[tokio::test]
+async fn unregistering_clears_the_fingerprint_index() {
+    let reg = ConnectionRegistry::new();
+    let (tx, _rx) = tokio::sync::mpsc::channel(8);
+    reg.register(7, "minecraft:Steve".to_string(), "ab".repeat(32), tx);
+
+    reg.unregister(7);
+
+    assert_eq!(reg.device_for_fingerprint(&"ab".repeat(32)), None);
+}
+
+// Two sessions for one player, on different certificates. Revoking one must leave the other
+// addressable, which is the whole reason the index is keyed on the credential.
+#[tokio::test]
+async fn two_connections_for_one_identity_are_addressed_separately() {
+    let reg = ConnectionRegistry::new();
+    let (tx_a, _rx_a) = tokio::sync::mpsc::channel(8);
+    let (tx_b, _rx_b) = tokio::sync::mpsc::channel(8);
+
+    reg.register(1, "minecraft:Steve".to_string(), "aa".repeat(32), tx_a);
+    reg.register(2, "minecraft:Steve".to_string(), "bb".repeat(32), tx_b);
+
+    assert_eq!(reg.device_for_fingerprint(&"aa".repeat(32)), Some(1));
+    assert_eq!(reg.device_for_fingerprint(&"bb".repeat(32)), Some(2));
 }

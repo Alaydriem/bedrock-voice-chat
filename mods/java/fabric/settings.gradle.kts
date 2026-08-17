@@ -15,5 +15,6 @@ rootProject.name = "bedrock-voice-chat-fabric"
 includeBuild("..") {
     dependencySubstitution {
         substitute(module("com.alaydriem:bedrock-voice-chat-common")).using(project(":common"))
+        substitute(module("com.alaydriem:bedrock-voice-chat-relay-sdk")).using(project(":relay-sdk"))
     }
 }

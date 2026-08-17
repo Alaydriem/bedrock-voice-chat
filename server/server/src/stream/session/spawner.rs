@@ -67,6 +67,9 @@ impl SessionSpawner {
         link: SessionLink,
         device: u64,
         player_identity: Option<String>,
+        // The certificate this session's handshake proved. Carried so a revocation can
+        // close the session it opened rather than every session the identity holds.
+        fingerprint: String,
     ) {
         let label = player_identity
             .clone()
@@ -92,7 +95,7 @@ impl SessionSpawner {
                 if player_id_lock.set(identity.clone()).is_err() {
                     tracing::warn!("Player ID already set for connection");
                 }
-                registry.register(device, identity, tx.clone());
+                registry.register(device, identity, fingerprint.clone(), tx.clone());
             }
         };
 

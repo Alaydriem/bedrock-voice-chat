@@ -31,7 +31,7 @@ export class NetAudioSender implements AudioSender {
         body,
         [
           ['Content-Type', 'application/json'],
-          ['X-MC-Access-Token', this.config.accessToken],
+          ['Authorization', `Bearer ${this.config.accessToken}`],
           ['Accept', 'application/json'],
         ],
         5,
@@ -77,7 +77,7 @@ export class NetAudioSender implements AudioSender {
         'Delete',
         undefined,
         [
-          ['X-MC-Access-Token', this.config.accessToken],
+          ['Authorization', `Bearer ${this.config.accessToken}`],
           ['Accept', 'application/json'],
         ],
         5,

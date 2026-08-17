@@ -5,7 +5,6 @@ use rocket::{
     State,
     data::{Data, ToByteUnit},
     http::Status,
-    mtls::Certificate,
 };
 use rocket_okapi::openapi;
 
@@ -13,10 +12,10 @@ use common::response::{AudioFileResponse, AudioStreamTokenResponse, PaginatedRes
 use common::structs::permission::Permission;
 
 use crate::config::{Audio, Permissions};
-use crate::http::guards::OriginalFilename;
+use crate::http::guards::{OriginalFilename, PlayerGuard};
 use crate::http::pool::Db;
 use crate::services::{
-    AudioFileService, AudioPlaybackService, AudioStreamTokenCache, AuthService, PermissionService,
+    AudioFileService, AudioPlaybackService, AudioStreamTokenCache, PermissionService,
 };
 
 // Skipped in the OpenAPI spec: the body is a raw `Data<'_>` stream, which okapi
@@ -24,7 +23,7 @@ use crate::services::{
 #[openapi(skip)]
 #[post("/file", data = "<data>")]
 pub async fn audio_file_upload(
-    identity: Certificate<'_>,
+    guard: PlayerGuard,
     filename: Option<OriginalFilename>,
     db: Db<'_>,
     config: &State<Audio>,
@@ -33,10 +32,7 @@ pub async fn audio_file_upload(
 ) -> CustomJsonResponse<AudioFileResponse> {
     let conn = db.into_inner();
 
-    let player = match AuthService::player_from_certificate(&identity, conn, None).await {
-        Ok(p) => p,
-        Err(status) => return CustomJsonResponse::error(status),
-    };
+    let player = guard.player;
 
     let perm_service = PermissionService::new(perm_config.defaults.clone());
     if !perm_service
@@ -74,7 +70,7 @@ pub async fn audio_file_upload(
 #[openapi(tag = "Audio")]
 #[get("/file?<page>&<page_size>&<sort_by>&<sort_order>&<search>")]
 pub async fn audio_file_list(
-    identity: Certificate<'_>,
+    _guard: PlayerGuard,
     db: Db<'_>,
     page: Option<u32>,
     page_size: Option<u32>,
@@ -84,9 +80,6 @@ pub async fn audio_file_list(
 ) -> CustomJsonResponse<PaginatedResponse<AudioFileResponse>> {
     let conn = db.into_inner();
 
-    if let Err(status) = AuthService::player_from_certificate(&identity, conn, None).await {
-        return CustomJsonResponse::error(status);
-    }
 
     let page = page.unwrap_or(0);
     let page_size = page_size.unwrap_or(20);
@@ -101,7 +94,7 @@ pub async fn audio_file_list(
 #[openapi(tag = "Audio")]
 #[delete("/file/<file_id>")]
 pub async fn audio_file_delete(
-    identity: Certificate<'_>,
+    guard: PlayerGuard,
     db: Db<'_>,
     playback_service: &State<Arc<AudioPlaybackService>>,
     config: &State<Audio>,
@@ -110,10 +103,7 @@ pub async fn audio_file_delete(
 ) -> Status {
     let conn = db.into_inner();
 
-    let player = match AuthService::player_from_certificate(&identity, conn, None).await {
-        Ok(p) => p,
-        Err(status) => return status,
-    };
+    let player = guard.player;
 
     let perm_service = PermissionService::new(perm_config.defaults.clone());
     if !perm_service
@@ -138,16 +128,13 @@ pub async fn audio_file_delete(
 #[openapi(tag = "Audio")]
 #[post("/file/<file_id>/token")]
 pub async fn audio_file_token(
-    identity: Certificate<'_>,
+    _guard: PlayerGuard,
     db: Db<'_>,
     token_cache: &State<AudioStreamTokenCache>,
     file_id: &str,
 ) -> CustomJsonResponse<AudioStreamTokenResponse> {
     let conn = db.into_inner();
 
-    if let Err(status) = AuthService::player_from_certificate(&identity, conn, None).await {
-        return CustomJsonResponse::error(status);
-    }
 
     match AudioFileService::exists(conn, file_id).await {
         Ok(true) => {}

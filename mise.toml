@@ -1,0 +1,332 @@
+[tools]
+node = "24"
+# yarn classic. The three JS projects (client, mods, mods/bds) all use yarn.lock v1
+# and `--frozen-lockfile`. Nothing else pinned it: CI relies on the runner's
+# preinstalled yarn, and locally it arrived with whichever node manager was on PATH.
+yarn = "1.22.22"
+
+# Every task sets `shell` explicitly. mise ignores windows_default_inline_shell_args
+# in a non-global config, so a project file cannot set the default; and mise's own
+# default on Windows is `cmd /c`. Naming pwsh per task keeps the guarantee in-repo.
+# No task names bash: mise can resolve bash to the WSL launcher, which runs in Linux
+# user-space where mise-managed Windows tools are not visible.
+
+[tasks.preflight]
+description = "Report environment problems by name before they surface as obscure build errors"
+shell = "pwsh -NoLogo -Command"
+run = '''
+$ok = $true
+
+if (-not $env:LIBCLANG_PATH) {
+  Write-Host "FAIL  LIBCLANG_PATH is not set. bindgen will fail without naming it."
+  Write-Host "      Expected something like: C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
+  $ok = $false
+} elseif (-not (Test-Path $env:LIBCLANG_PATH)) {
+  Write-Host "FAIL  LIBCLANG_PATH is set to a path that does not exist: $env:LIBCLANG_PATH"
+  $ok = $false
+} else {
+  Write-Host "ok    LIBCLANG_PATH  $env:LIBCLANG_PATH"
+}
+
+if (Get-Command pwsh -ErrorAction SilentlyContinue) {
+  Write-Host "ok    pwsh           $($PSVersionTable.PSVersion)"
+} else {
+  Write-Host "FAIL  pwsh is not on PATH. mise tasks are configured to run in PowerShell 7."
+  $ok = $false
+}
+
+if (Get-Command cargo-nextest -ErrorAction SilentlyContinue) {
+  Write-Host "ok    nextest        $((cargo nextest --version) -split ' ' | Select-Object -Index 1)"
+} else {
+  Write-Host "FAIL  cargo-nextest is not installed. Client tests require it; cargo test is not a substitute."
+  Write-Host "      Install with: cargo install cargo-nextest --locked"
+  $ok = $false
+}
+
+Write-Host "ok    node           $(node --version)"
+
+$pinned = (Select-String -Path "$env:MISE_PROJECT_ROOT/rust-toolchain.toml" -Pattern 'channel\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+$actual = (rustc --version).Split(' ')[1]
+if ($actual -eq $pinned) {
+  Write-Host "ok    rustc          $actual"
+} else {
+  Write-Host "FAIL  rustc is $actual but rust-toolchain.toml pins $pinned"
+  $ok = $false
+}
+
+if (Test-Path "$env:MISE_PROJECT_ROOT/client/src-tauri/ASIOSDK/host/asiodrivers.h") {
+  Write-Host "ok    ASIOSDK        present"
+} else {
+  Write-Host "FAIL  client/src-tauri/ASIOSDK is missing or incomplete. Run: mise run asio"
+  $ok = $false
+}
+
+if (-not $ok) { exit 1 }
+Write-Host ""
+Write-Host "preflight passed"
+'''
+
+[tasks.targets-report]
+description = "Size and age of every worktree's cargo target directories. Reads only."
+shell = "pwsh -NoLogo -Command"
+run = '''
+$here = (Resolve-Path $env:MISE_PROJECT_ROOT).Path
+$total = 0
+$rows = @()
+foreach ($line in (git worktree list --porcelain)) {
+  if ($line -notlike 'worktree *') { continue }
+  $wt = (($line -replace '^worktree ', '') -replace '/', '\')
+  if (-not (Test-Path $wt)) { continue }
+  foreach ($sub in 'target', 'server\target') {
+    $dir = Join-Path $wt $sub
+    if (-not (Test-Path $dir)) { continue }
+    $bytes = (Get-ChildItem $dir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+    if (-not $bytes) { $bytes = 0 }
+    $total += $bytes
+    $newest = (Get-ChildItem $dir -Recurse -File -ErrorAction SilentlyContinue |
+               Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+    $rows += [pscustomobject]@{
+      Worktree = (Split-Path $wt -Leaf)
+      Dir      = $sub
+      GB       = [math]::Round($bytes / 1GB, 2)
+      AgeDays  = if ($newest) { [math]::Round(((Get-Date) - $newest).TotalDays, 1) } else { 'n/a' }
+      Current  = if ($wt -eq $here) { 'yes' } else { '' }
+    }
+  }
+}
+if (-not $rows) { Write-Host "no target directories found"; exit 0 }
+$rows | Sort-Object GB -Descending | Format-Table -AutoSize | Out-String | Write-Host
+Write-Host ("total across worktrees: {0} GB" -f [math]::Round($total / 1GB, 2))
+Write-Host ("free on drive:          {0} GB" -f [math]::Round((Get-PSDrive C).Free / 1GB, 2))
+'''
+
+[tasks.clean-targets]
+description = "Delete cargo target dirs in worktrees untouched for N days. Dry-run unless --force."
+shell = "pwsh -NoLogo -Command"
+usage = '''
+arg "[days]" help="Only consider target dirs whose newest file is older than this many days (default 14)"
+flag "--force" help="Actually delete. Without this the task only reports what it would remove."
+'''
+run = '''
+$days  = if ($env:usage_days) { [double]$env:usage_days } else { 14 }
+$force = ($env:usage_force -eq 'true' -or $env:usage_force -eq '1')
+$here  = (Resolve-Path $env:MISE_PROJECT_ROOT).Path
+
+Write-Host ("threshold: older than {0} days   mode: {1}" -f $days, $(if ($force) { 'DELETE' } else { 'dry-run' }))
+Write-Host ("current worktree is always skipped: {0}" -f $here)
+Write-Host ""
+
+$freed = 0
+$found = $false
+foreach ($line in (git worktree list --porcelain)) {
+  if ($line -notlike 'worktree *') { continue }
+  $wt = (($line -replace '^worktree ', '') -replace '/', '\')
+  if (-not (Test-Path $wt)) { continue }
+  if ((Resolve-Path $wt).Path -eq $here) { continue }
+  foreach ($sub in 'target', 'server\target') {
+    $dir = Join-Path $wt $sub
+    if (-not (Test-Path $dir)) { continue }
+    $files = Get-ChildItem $dir -Recurse -File -ErrorAction SilentlyContinue
+    if (-not $files) { continue }
+    $newest = ($files | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+    $age = ((Get-Date) - $newest).TotalDays
+    $gb  = [math]::Round((($files | Measure-Object Length -Sum).Sum) / 1GB, 2)
+    if ($age -lt $days) {
+      Write-Host ("  keep    {0,-6} GB  {1,5:N1}d  {2}" -f $gb, $age, $dir)
+      continue
+    }
+    $found = $true
+    if ($force) {
+      Write-Host ("  DELETE  {0,-6} GB  {1,5:N1}d  {2}" -f $gb, $age, $dir)
+      Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction Continue
+      if (-not (Test-Path $dir)) { $freed += $gb } else { Write-Host "          FAILED - still present" }
+    } else {
+      Write-Host ("  would   {0,-6} GB  {1,5:N1}d  {2}" -f $gb, $age, $dir)
+      $freed += $gb
+    }
+  }
+}
+Write-Host ""
+if (-not $found) { Write-Host "nothing older than $days days"; exit 0 }
+if ($force) { Write-Host ("freed {0} GB" -f $freed) }
+else { Write-Host ("would free {0} GB - re-run with --force to delete" -f $freed) }
+'''
+
+[tasks.clean-incremental]
+description = "Delete cargo incremental caches in every worktree, including the current one. Dry-run unless --force."
+shell = "pwsh -NoLogo -Command"
+usage = '''
+flag "--force" help="Actually delete. Without this the task only reports what it would remove."
+'''
+run = '''
+$force = ($env:usage_force -eq 'true' -or $env:usage_force -eq '1')
+Write-Host ("mode: {0}" -f $(if ($force) { 'DELETE' } else { 'dry-run' }))
+Write-Host "Incremental caches are pure build state. Removing one costs a single"
+Write-Host "non-incremental rebuild of the local crates; deps/ is not touched."
+Write-Host ""
+
+$freed = 0
+foreach ($line in (git worktree list --porcelain)) {
+  if ($line -notlike 'worktree *') { continue }
+  $wt = (($line -replace '^worktree ', '') -replace '/', '\')
+  if (-not (Test-Path $wt)) { continue }
+  foreach ($root in 'target', 'server\target') {
+    $base = Join-Path $wt $root
+    if (-not (Test-Path $base)) { continue }
+    foreach ($inc in (Get-ChildItem $base -Directory -Force -ErrorAction SilentlyContinue |
+                      ForEach-Object { Join-Path $_.FullName 'incremental' } |
+                      Where-Object { Test-Path $_ })) {
+      $gb = [math]::Round(((Get-ChildItem $inc -Recurse -File -Force -ErrorAction SilentlyContinue |
+                            Measure-Object Length -Sum).Sum) / 1GB, 2)
+      if ($gb -eq 0) { continue }
+      if ($force) {
+        Write-Host ("  DELETE  {0,-7} GB  {1}" -f $gb, $inc)
+        Remove-Item -LiteralPath $inc -Recurse -Force -ErrorAction Continue
+        if (-not (Test-Path $inc)) { $freed += $gb } else { Write-Host "          FAILED - still present" }
+      } else {
+        Write-Host ("  would   {0,-7} GB  {1}" -f $gb, $inc)
+        $freed += $gb
+      }
+    }
+  }
+}
+Write-Host ""
+if ($freed -eq 0) { Write-Host "no incremental caches found"; exit 0 }
+if ($force) {
+  Write-Host ("freed {0} GB" -f $freed)
+  Write-Host ("free on drive now: {0} GB" -f [math]::Round((Get-PSDrive C).Free / 1GB, 2))
+  Write-Host "These regrow as you build. Re-run when targets-report shows them large again."
+} else {
+  Write-Host ("would free {0} GB - re-run with --force to delete" -f $freed)
+}
+'''
+
+[tasks.check-rust-pin]
+description = "Fail when rust-toolchain.toml and the workflow action refs disagree"
+shell = "pwsh -NoLogo -Command"
+run = '''
+$root = $env:MISE_PROJECT_ROOT
+$pinned = (Select-String -Path "$root/rust-toolchain.toml" -Pattern 'channel\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+Write-Host "rust-toolchain.toml pins $pinned"
+
+$esc = [regex]::Escape($pinned)
+$stale = Select-String -Path "$root/.github/workflows/*.yml" -Pattern "dtolnay/rust-toolchain@(?!$esc\b)"
+if ($stale) {
+  Write-Host "FAIL  workflow refs disagree with rust-toolchain.toml:"
+  $stale | ForEach-Object { Write-Host "      $($_.Filename):$($_.LineNumber)  $($_.Line.Trim())" }
+  exit 1
+}
+
+$count = (Select-String -Path "$root/.github/workflows/*.yml" -Pattern "dtolnay/rust-toolchain@$esc").Count
+Write-Host "ok    $count workflow refs agree on $pinned"
+'''
+
+[tasks.asio]
+description = "Download and extract the pinned Steinberg ASIO SDK if it is not already present"
+dir = "client/src-tauri"
+shell = "pwsh -NoLogo -Command"
+run = '''
+if (Test-Path "ASIOSDK") {
+  Write-Host "ASIOSDK already present, skipping download"
+  exit 0
+}
+$url = "https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip"
+$zip = Join-Path $env:TEMP "ASIO-SDK_2.3.4_2025-10-15.zip"
+Write-Host "Downloading $url"
+Invoke-WebRequest -Uri $url -OutFile $zip -TimeoutSec 180
+Expand-Archive -Path $zip -DestinationPath "." -Force
+Remove-Item $zip -Force
+if (-not (Test-Path "ASIOSDK/host/asiodrivers.h")) {
+  Write-Host "FAIL  Archive extracted but ASIOSDK/host/asiodrivers.h is missing."
+  Write-Host "      Steinberg may have changed the archive layout. Inspect the zip before proceeding."
+  exit 1
+}
+Write-Host "ASIOSDK extracted to client/src-tauri/ASIOSDK"
+'''
+
+[tasks.deps]
+description = "Install client JS dependencies and generate client/.svelte-kit via the prepare script"
+dir = "client"
+shell = "pwsh -NoLogo -Command"
+run = "yarn install --frozen-lockfile"
+
+[tasks.i18n]
+description = "Generate client/src-tauri/resources/i18n from the .po catalogs"
+dir = "client"
+depends = ["deps"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn i18n:build"
+sources = ["locales/**/*.po", "locales/**/*.pot", "scripts/i18n/**/*.mjs"]
+outputs = ["src-tauri/resources/i18n"]
+
+[tasks.frontend]
+description = "Build the SvelteKit frontend into client/build"
+dir = "client"
+depends = ["i18n"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn build"
+# No sources/outputs. `yarn build` runs preloader:build, which writes into
+# static/preloader/, so the task rewrites its own input and can never be current.
+# A wrong skip here leaves a stale client/build that the Tauri build embeds
+# silently, so this always runs.
+
+[tasks.setup]
+description = "Bootstrap a fresh worktree: ASIO SDK, JS dependencies, i18n resources, frontend build"
+depends = ["asio", "frontend"]
+shell = "pwsh -NoLogo -Command"
+run = 'Write-Host "Worktree ready. Run: mise run preflight"'
+
+[tasks.build-client]
+description = "Build the Tauri client. The Tauri CLI sets up the env that bare cargo does not."
+dir = "client"
+shell = "pwsh -NoLogo -Command"
+run = "yarn tauri build --debug --no-sign"
+
+[tasks.build-server]
+description = "Build the server"
+dir = "server/server"
+shell = "pwsh -NoLogo -Command"
+run = "cargo build"
+
+[tasks.check-common]
+description = "Type-check the shared crate"
+shell = "pwsh -NoLogo -Command"
+run = "cargo check -p common"
+
+# cdylib and e2e-bin deliberately declare no sources/outputs. mise would skip them
+# on a file-timestamp comparison layered over cargo's own change detection; when
+# that is wrong for e2e-bin the result is a stale binary, and every scenarios::*
+# test then fails on its own assertions, which reads exactly like a code regression.
+[tasks.cdylib]
+description = "Build the server cdylib the client e2e harness loads over FFI"
+dir = "server"
+shell = "pwsh -NoLogo -Command"
+run = "cargo build -p bedrock-voice-chat-server"
+
+[tasks.e2e-bin]
+description = "Build the e2e client binary the scenario tests spawn as a real process"
+shell = "pwsh -NoLogo -Command"
+run = "cargo build -p bvc-client-e2e"
+
+[tasks.test-client]
+description = "Run client tests. nextest runs each test in its own process; one long-lived cargo test process accumulates native FFI state until it faults."
+dir = "client/src-tauri"
+depends = ["cdylib", "e2e-bin"]
+shell = "pwsh -NoLogo -Command"
+run = "cargo nextest run --features e2e"
+
+[tasks.test-server]
+description = "Run server tests. -j4 is mandatory: every test in the http target boots a real Rocket listener plus a QUIC server."
+dir = "server/server"
+shell = "pwsh -NoLogo -Command"
+run = "cargo test -j4"
+
+[tasks.test-common]
+description = "Run tests for the shared crate"
+shell = "pwsh -NoLogo -Command"
+run = "cargo test -p common"
+
+[tasks.bindings]
+description = "Regenerate ts-rs TypeScript bindings. This is the only sanctioned way to regenerate them."
+shell = "pwsh -NoLogo -Command"
+run = "cargo test -p common"

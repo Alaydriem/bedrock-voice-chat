@@ -480,7 +480,7 @@ impl EmbeddedServer {
     }
 
     /// Trigger HTTP-driven jukebox playback at a world position, exactly as the
-    /// BDS mod does (`POST /api/audio/event` with X-MC-Access-Token). The JSON
+    /// BDS mod does (`POST /api/audio/event` with `Authorization: Bearer`). The JSON
     /// shape matches the mod's AudioPlayRequest: `game` is the serde(tag="game")
     /// GameAudioContext enum, nested. Returns (event_id, duration_ms).
     pub async fn jukebox_play(&self, audio_file_id: &str, x: f32, y: f32, z: f32) -> (String, u32) {
@@ -500,7 +500,7 @@ impl EmbeddedServer {
             .expect("build jukebox client");
         let resp = client
             .post(&url)
-            .header("X-MC-Access-Token", "test-token")
+            .header("Authorization", "Bearer test-token")
             .json(&body)
             .send()
             .await
@@ -528,7 +528,7 @@ impl EmbeddedServer {
             .expect("build jukebox client");
         let resp = client
             .delete(&url)
-            .header("X-MC-Access-Token", "test-token")
+            .header("Authorization", "Bearer test-token")
             .send()
             .await
             .expect("DELETE /api/audio/event");
@@ -554,7 +554,7 @@ impl EmbeddedServer {
             .expect("build control client");
         let resp = client
             .post(&url)
-            .header("X-MC-Access-Token", "test-token")
+            .header("Authorization", "Bearer test-token")
             .json(&body)
             .send()
             .await
@@ -580,7 +580,7 @@ impl EmbeddedServer {
             .expect("build control client");
         let resp = client
             .post(&url)
-            .header("X-MC-Access-Token", "test-token")
+            .header("Authorization", "Bearer test-token")
             .json(&body)
             .send()
             .await
@@ -605,7 +605,7 @@ impl EmbeddedServer {
             .expect("build state client");
         let resp = client
             .get(&url)
-            .header("X-MC-Access-Token", "test-token")
+            .header("Authorization", "Bearer test-token")
             .send()
             .await
             .expect("GET /api/state");
@@ -662,7 +662,7 @@ impl EmbeddedServer {
         let resp = client
             .get(&url)
             .query(&[("owner", owner), ("targets", targets)])
-            .header("X-MC-Access-Token", "test-token")
+            .header("Authorization", "Bearer test-token")
             .send()
             .await
             .expect("GET /api/preferences");

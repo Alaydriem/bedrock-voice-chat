@@ -5,6 +5,7 @@ import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.GameType
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.integration.FloodgateIntegration
+import com.alaydriem.bedrockvoicechat.svc.RelayWorld
 import org.bukkit.World
 import org.bukkit.entity.Player
 import org.slf4j.LoggerFactory
@@ -17,7 +18,11 @@ import java.util.concurrent.ConcurrentHashMap
  * Stores UUIDs and looks up fresh player references each tick to avoid stale entity references.
  */
 class PaperPlayerDataProvider(
-    private val floodgate: FloodgateIntegration = FloodgateIntegration()
+    private val floodgate: FloodgateIntegration = FloodgateIntegration(),
+    // Stamped on every player so this server can peer at all. A player without it
+    // has no world the peer boundary can scope, and their audio is refused there
+    // rather than carried into someone else's proximity.
+    private val relayWorld: RelayWorld? = null
 ) : PlayerDataProvider {
     private val log = LoggerFactory.getLogger("BedrockVoiceChat.Identity")
     private val loggedIdentities: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -67,7 +72,8 @@ class PaperPlayerDataProvider(
                         spectator = false,
                         worldUuid = player.location.world?.uid?.toString(),
                         alternativeIdentity = identity.alternative,
-                        playerUuid = playerUuid
+                        playerUuid = playerUuid,
+                        relayWorldUuid = relayWorld?.id()
                     )
                 } else {
                     // Normal player data
@@ -85,7 +91,8 @@ class PaperPlayerDataProvider(
                         spectator = player.gameMode == org.bukkit.GameMode.SPECTATOR,
                         worldUuid = location.world?.uid?.toString(),
                         alternativeIdentity = identity.alternative,
-                        playerUuid = playerUuid
+                        playerUuid = playerUuid,
+                        relayWorldUuid = relayWorld?.id()
                     )
                 }
             }

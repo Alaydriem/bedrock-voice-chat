@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 common = { path = "../../common", features = ["server"] }
 tokio = { version = "^1", features = ["full"] }
+tracing = { version = "^0.1" }
 sea-orm-migration = { version = "^2.0.0-rc.1", features = [
     "sqlx-mysql",
     "sqlx-postgres",

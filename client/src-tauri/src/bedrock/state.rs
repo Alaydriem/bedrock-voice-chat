@@ -131,7 +131,6 @@ impl BedrockState {
 
         let mut keepalive = TransferKeepAlive::new(
             server_url,
-            xuid,
             network_interface.to_string(),
             listen_port,
             client,

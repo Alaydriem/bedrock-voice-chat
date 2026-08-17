@@ -12,7 +12,9 @@ use anyhow::{Result, anyhow};
 use bvc_server_lib::config::ApplicationConfig;
 use bvc_server_lib::http::pool::AppDb;
 use bvc_server_lib::http::routes;
-use bvc_server_lib::services::{CertificateService, PlayerIdentityService};
+use bvc_server_lib::services::{
+    CertificateRevocationService, CertificateService, PlayerIdentityService,
+};
 use common::ncryptflib as ncryptf;
 use rocket::routes;
 use sea_orm_rocket::Database;
@@ -26,6 +28,12 @@ impl RocketHarness {
         cert_service: Arc<CertificateService>,
         identity_service: PlayerIdentityService,
         readiness: Arc<bvc_server_lib::runtime::ReadinessState>,
+        // Passed in rather than built here so the test holds the same instance Rocket does.
+        // Two instances would each carry their own cache, and a revocation written by a test
+        // would never be seen by the running server.
+        revocations: Arc<CertificateRevocationService>,
+        #[cfg(feature = "bedrock")]
+        transfer_cache: bvc_server_lib::services::bedrock::TransferTargetCache,
     ) -> Result<tokio::task::JoinHandle<()>> {
         // Production puts the demultiplexer on the public port and Rocket on loopback.
         // The harness dials Rocket directly, so `server.port` is where it must bind.
@@ -90,7 +98,22 @@ impl RocketHarness {
             routes::api::control::control,
             routes::api::state::get_state,
             routes::api::state::get_preferences,
+            routes::api::clients::live_clients,
         ];
+
+        // Player-authenticated routes. These are what exercise `PlayerGuard`, and the channel
+        // event dispositions, so they are mounted even though the admin/auth surface does not
+        // need them.
+        let channel_routes = routes![
+            routes::api::channel::create::channel_create,
+            routes::api::channel::channel_list,
+            routes::api::channel::delete::channel_delete,
+            routes::api::channel::event::channel_event,
+            routes::api::channel::rename::channel_rename,
+        ];
+
+        #[cfg(feature = "bedrock")]
+        let bedrock_routes = routes![routes::api::bedrock::transfer::register_transfer_target];
 
         let mut rocket = rocket::custom(figment)
             .manage(bvc_server_lib::services::HealthService::new_shared(
@@ -105,6 +128,7 @@ impl RocketHarness {
             .manage(voice)
             .manage(permissions)
             .manage(cert_service)
+            .manage(revocations)
             .manage(cache_wrapper)
             .manage(metrics)
             // No `peer` block, so no peer endpoint — which is the state every
@@ -116,6 +140,7 @@ impl RocketHarness {
             .mount("/api/admin", admin_routes)
             .mount("/api", auth_routes)
             .mount("/api", control_routes)
+            .mount("/api/channel", channel_routes)
             .mount("/api", routes![routes::api::server_config::get_config])
             .mount("/metrics", routes![routes::metrics::metrics])
             .mount(
@@ -125,6 +150,11 @@ impl RocketHarness {
                     routes::api::health::readiness::readiness,
                 ],
             );
+
+        #[cfg(feature = "bedrock")]
+        {
+            rocket = rocket.manage(transfer_cache).mount("/api", bedrock_routes);
+        }
 
         let handle = tokio::spawn(async move {
             let ignite = match rocket.ignite().await {

@@ -3,15 +3,15 @@ use entity::player;
 use rocket::{
     State, async_trait,
     http::Status,
-    mtls::Certificate,
     request::{FromRequest, Outcome, Request},
 };
 use rocket_okapi::r#gen::OpenApiGenerator;
 use rocket_okapi::request::{OpenApiFromRequest, RequestHeaderInput};
 
 use crate::config::Permissions;
+use crate::http::guards::PlayerGuard;
 use crate::http::pool::Db;
-use crate::services::{AuthService, PermissionService};
+use crate::services::PermissionService;
 
 mod error;
 
@@ -27,11 +27,17 @@ impl<'r> FromRequest<'r> for AdminGuard {
     type Error = AdminGuardError;
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let cert = match req.guard::<Certificate<'_>>().await {
-            Outcome::Success(c) => c,
-            Outcome::Error(_) | Outcome::Forward(_) => {
+        // Built on PlayerGuard rather than repeating its work, so certificate resolution and
+        // the revocation check happen in exactly one place.
+        let player = match req.guard::<PlayerGuard>().await {
+            Outcome::Success(guard) => guard.player,
+            Outcome::Error((s, _)) if s == Status::Unauthorized => {
                 return Outcome::Error((Status::Unauthorized, AdminGuardError::MissingCertificate));
             }
+            Outcome::Error((s, _)) => {
+                return Outcome::Error((s, AdminGuardError::PlayerNotFound));
+            }
+            Outcome::Forward(s) => return Outcome::Forward(s),
         };
 
         let db = match req.guard::<Db<'_>>().await {
@@ -42,23 +48,8 @@ impl<'r> FromRequest<'r> for AdminGuard {
 
         let conn = db.into_inner();
 
-        let player = match AuthService::player_from_certificate(&cert, conn, None).await {
-            Ok(p) => p,
-            Err(s) if s == Status::Forbidden => {
-                return Outcome::Error((Status::Forbidden, AdminGuardError::PlayerNotFound));
-            }
-            Err(s) => return Outcome::Error((s, AdminGuardError::Internal)),
-        };
-
-        if player.banished {
-            tracing::warn!(
-                "AdminGuard: rejecting banished player {} ({:?})",
-                player.gamertag.clone().unwrap_or_default(),
-                player.game,
-            );
-            return Outcome::Error((Status::Forbidden, AdminGuardError::Banished));
-        }
-
+        // No banished check here: `PlayerGuard` already refused one, so reaching this line
+        // means the caller is not banished.
         let perm_config = match req.guard::<&State<Permissions>>().await {
             Outcome::Success(p) => p,
             Outcome::Error((s, _)) => return Outcome::Error((s, AdminGuardError::Internal)),

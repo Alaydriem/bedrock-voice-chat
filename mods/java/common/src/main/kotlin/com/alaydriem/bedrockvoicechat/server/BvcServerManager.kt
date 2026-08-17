@@ -63,6 +63,17 @@ class BvcServerManager(
         get() = handle != null && serverThread?.isAlive == true
 
     /**
+     * Whether the embedded server resolved telemetry as enabled.
+     *
+     * A behavioural accessor rather than exposing the resolved config: the value is
+     * decided by defaults and `BVC_*` overrides inside the server, so asking it is
+     * the only way to know what it actually chose. Absent config reads as disabled,
+     * because a report that cannot be shown to be permitted must not be sent.
+     */
+    val telemetryEnabled: Boolean
+        get() = effectiveConfig?.server?.features?.telemetry == true
+
+    /**
      * Start the embedded BVC server.
      * @return true if started successfully, false otherwise
      */
@@ -266,6 +277,38 @@ class BvcServerManager(
     override fun chatReport(chatJson: String): Boolean {
         val h = handle ?: return false
         return BvcNative.chatReport(h, chatJson)
+    }
+
+    /**
+     * The embedded server's own peerlink, for a bridge running beside it.
+     *
+     * Minted from the live endpoint, so it carries a loopback address the bridge can
+     * dial. Null when the server declares no peers and binds no peer endpoint.
+     */
+    @Synchronized
+    fun serverPeerlink(): String? {
+        val h = handle ?: return null
+        return BvcNative.relayPeerlink(h)
+    }
+
+    /**
+     * Whether a player holds a live voice connection to this embedded server.
+     *
+     * The SVC bridge asks so it can leave those players out of its injection: one
+     * running both Simple Voice Chat and the BVC desktop client would otherwise hear
+     * every remote speaker twice.
+     */
+    @Synchronized
+    fun hasLiveClient(identity: String): Boolean {
+        val h = handle ?: return false
+        return BvcNative.hasLiveClient(h, identity)
+    }
+
+    /** Reports whether this host could fetch and write a native library. */
+    @Synchronized
+    fun hostCapability(reportJson: String): Boolean {
+        val h = handle ?: return false
+        return BvcNative.hostCapability(h, reportJson)
     }
 
     @Synchronized

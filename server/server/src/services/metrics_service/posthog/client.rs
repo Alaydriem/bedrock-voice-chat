@@ -52,6 +52,7 @@ impl PosthogClient {
             stop_reason: None,
             uptime_secs: None,
             heartbeat: None,
+            host_capability: None,
         };
         match event {
             TelemetryEvent::PlayerDisconnected { duration_secs, .. } => {
@@ -73,6 +74,9 @@ impl PosthogClient {
             } => {
                 props.uptime_secs = Some(*uptime_secs);
                 props.stop_reason = Some(stop_reason);
+            }
+            TelemetryEvent::ModHostCapability { report, .. } => {
+                props.host_capability = Some(report.clone());
             }
             _ => {}
         }

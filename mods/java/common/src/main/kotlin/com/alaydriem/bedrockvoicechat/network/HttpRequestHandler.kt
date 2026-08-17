@@ -28,7 +28,7 @@ class HttpRequestHandler(
         HttpRequest.newBuilder()
             .uri(URI.create(url))
             .timeout(Duration.ofSeconds(5))
-            .header("X-MC-Access-Token", accessToken)
+            .header("Authorization", "Bearer $accessToken")
 
     private fun jsonRequestBuilder(url: String): HttpRequest.Builder =
         requestBuilder(url)
@@ -72,6 +72,64 @@ class HttpRequestHandler(
             .exceptionally { ex ->
                 LOGGER.error("Failed to start audio playback: {}", ex.message)
                 callback(null)
+                null
+            }
+    }
+
+    /**
+     * The identities holding a live voice connection to the BVC server.
+     *
+     * Synchronous and called from a background refresh rather than from the audio
+     * path: the answer changes on connect and disconnect, not per frame.
+     *
+     * Null distinguishes "could not ask" from an empty list. They are not the same:
+     * an empty list means suppress nobody, and a failed request means we do not know
+     * — and a caller that conflated them would silently stop suppressing whenever
+     * the server was briefly unreachable.
+     */
+    fun liveClients(): List<String>? {
+        val request = requestBuilder("$serverUrl/api/clients/live")
+            .header("Accept", "application/json")
+            .GET()
+            .build()
+
+        return try {
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() !in 200..299) {
+                LOGGER.debug("BVC server returned {} for live clients", response.statusCode())
+                return null
+            }
+            GSON.fromJson(response.body(), Array<String>::class.java).toList()
+        } catch (e: Exception) {
+            LOGGER.debug("Failed to read live clients: {}", e.toString())
+            null
+        }
+    }
+
+    /**
+     * POSTs a host capability report.
+     *
+     * Fire and forget, and never retried. This is a measurement, so a host that
+     * cannot deliver it should not spend anything trying — and a failure to report
+     * is itself uninteresting, because the interesting failures are the ones the
+     * report already describes.
+     */
+    fun hostCapabilityAsync(reportJson: String) {
+        val request = jsonRequestBuilder("$serverUrl/api/telemetry/host-capability")
+            .POST(HttpRequest.BodyPublishers.ofString(reportJson))
+            .build()
+
+        httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+            .thenAccept { response ->
+                if (response.statusCode() !in 200..299) {
+                    LOGGER.debug(
+                        "BVC server returned {} on host capability report",
+                        response.statusCode()
+                    )
+                }
+            }
+            .exceptionally { ex ->
+                LOGGER.debug("Failed to send host capability report: {}", ex.message)
                 null
             }
     }

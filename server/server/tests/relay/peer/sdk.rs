@@ -7,6 +7,7 @@ use bvc_relay::peer::PeerEndpoint;
 use bvc_relay_sdk::{BvcPeer, SdkConfig, SdkFrame};
 use bvc_server_lib::config::PeerConfig;
 use bvc_server_lib::relay::{GrantTable, LocalClients, PeerPlane, PeerSink};
+use common::game_data::Dimension;
 use common::structs::packet::{PacketType, QuicNetworkPacket, QuicNetworkPacketData};
 use common::traits::player_data::PlayerData;
 use iroh::EndpointAddr;
@@ -128,6 +129,7 @@ fn outbound(world: &str) -> SdkFrame {
     SdkFrame {
         speaker: "BridgeSpeaker".to_string(),
         world: Some(world.to_string()),
+        dimension: "overworld".to_string(),
         x: 4.0,
         y: 64.0,
         z: -2.0,
@@ -179,6 +181,33 @@ async fn a_frame_sent_through_the_sdk_arrives_admitted_at_a_real_server() {
     assert!(
         packet.sender.is_some(),
         "the receiving server mints the envelope sender itself"
+    );
+}
+
+// The dimension gate on the receiving side is unconditional, so a frame that does
+// not carry the speaker's dimension asserts a wrong one rather than omitting it:
+// the speaker becomes inaudible to a listener beside them and audible to one a
+// world away. This is the regression guard for that.
+#[tokio::test]
+async fn a_frame_keeps_its_dimension_across_the_peer_boundary() {
+    let mut bridged = bridged(&[WORLD]).await;
+
+    let mut frame = outbound(WORLD);
+    frame.dimension = "nether".to_string();
+    bridged.peer.send(frame).expect("send");
+
+    let packet = tokio::time::timeout(Duration::from_secs(10), bridged.server_rx.recv())
+        .await
+        .expect("the server must publish within the timeout")
+        .expect("a packet");
+
+    let QuicNetworkPacketData::AudioFrame(audio) = &packet.data else {
+        panic!("expected an audio frame");
+    };
+
+    assert_eq!(
+        audio.sender.as_ref().expect("speaker").dimension(),
+        Some(Dimension::TheNether)
     );
 }
 

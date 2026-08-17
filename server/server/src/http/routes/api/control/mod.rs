@@ -1,5 +1,5 @@
 use crate::config::Voice;
-use crate::http::guards::MCAccessToken;
+use crate::http::guards::GameAccessToken;
 use crate::http::openapi::{CustomJsonResponse, RouteSpec, TagDefinition};
 use crate::services::{ClientActionService, PlayerIdentityService};
 use crate::stream::quic::{CacheManager, WebhookReceiver};
@@ -12,7 +12,7 @@ inventory::submit! {
     TagDefinition {
         name: "Control",
         description: "In-game audio control plane. The mod submits ClientActions on behalf \
-                      of the authenticated in-game player (X-MC-Access-Token).",
+                      of the authenticated in-game player (Authorization: Bearer).",
     }
 }
 
@@ -38,7 +38,7 @@ inventory::submit! {
 #[openapi(tag = "Control")]
 #[post("/control", data = "<action>")]
 pub async fn control(
-    _access_token: MCAccessToken,
+    _access_token: GameAccessToken,
     cache_manager: &State<CacheManager>,
     webhook_receiver: &State<WebhookReceiver>,
     identity_service: &State<PlayerIdentityService>,

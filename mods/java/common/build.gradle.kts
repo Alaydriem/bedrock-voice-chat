@@ -1,8 +1,13 @@
+// Fully qualifying this below does not work: the `java` extension the Kotlin DSL
+// adds shadows the `java` package inside the script body.
+import java.security.MessageDigest
+
 plugins {
     `java-library`
 }
 
 val archivesBaseName: String by project
+val voicechatApiVersion: String by project
 
 base {
     archivesName.set("$archivesBaseName-common")
@@ -12,6 +17,10 @@ repositories {
     maven {
         name = "OpenCollab"
         url = uri("https://repo.opencollab.dev/main/")
+    }
+    maven {
+        name = "Maxhenkel"
+        url = uri("https://maven.maxhenkel.de/repository/public")
     }
 }
 
@@ -27,6 +36,17 @@ dependencies {
 
     // Floodgate API for Geyser/Bedrock player detection (optional at runtime)
     compileOnly("org.geysermc.floodgate:api:2.2.5-SNAPSHOT")
+
+    // Simple Voice Chat, for the bridge. compileOnly rather than reflective like
+    // Floodgate, because the bridge implements VoicechatPlugin and receives
+    // callbacks — reflection can call an API but cannot be called back by one.
+    // Classes referencing it load only after SvcAvailability confirms it is there.
+    compileOnly("de.maxhenkel.voicechat:voicechat-api:$voicechatApiVersion")
+    testImplementation("de.maxhenkel.voicechat:voicechat-api:$voicechatApiVersion")
+
+    // The peer link the bridge sends over. `api` rather than `implementation`
+    // because SdkFrame appears in signatures the platform modules call.
+    api(project(":relay-sdk"))
 
     // slf4j is compileOnly above because platforms provide it; tests still load
     // classes that hold a logger, so it has to be on the test classpath.
@@ -69,10 +89,117 @@ tasks.register<Copy>("copyNativeWindows") {
     }
 }
 
-// Ensure processResources runs after native library copy tasks
-tasks.named("processResources") {
-    mustRunAfter("copyNativeWindows", "copyNativeLinuxX64", "copyNativeLinuxX64Cross",
-                 "copyNativeLinuxArm64", "copyNativeDarwinArm64")
+// The fat jar bundles every platform; the skinny jar carries only the manifest and
+// resolves at runtime. This flag is the only difference between the two artifacts.
+val bundleNatives = rootProject.hasProperty("bundled")
+
+val nativeResourceDir = layout.projectDirectory.dir("src/main/resources/native").asFile
+val generatedManifestDir = layout.buildDirectory.dir("generated/nativeManifest")
+
+// The release the manifest pins. CI passes the real tag; a local build gets "dev",
+// whose manifest resolves nothing and fails by name rather than by fetching from
+// a release that has nothing to do with this build.
+val nativeRelease = (project.findProperty("nativeRelease") as String?) ?: "dev"
+val nativeRepo = (project.findProperty("nativeRepo") as String?) ?: "alaydriem/bedrock-voice-chat"
+
+// One generator for local builds and for CI, so the digests a jar pins are always
+// of the files that build actually saw. Two implementations of this could disagree,
+// and the failure would be a jar that refuses every library it downloads.
+tasks.register("generateNativeManifest") {
+    group = "native"
+    description = "Writes native-manifest.json from the native libraries present"
+
+    // The copies write the very directory this hashes, so in a fat build they have
+    // to finish first. Without this the manifest pins whatever was on disk from an
+    // earlier build, and every download it describes would then fail verification.
+    if (bundleNatives) {
+        dependsOn("copyNativeLibraries")
+    }
+
+    inputs.dir(nativeResourceDir).optional(true)
+    inputs.property("release", nativeRelease)
+    inputs.property("repo", nativeRepo)
+    outputs.dir(generatedManifestDir)
+
+    doLast {
+        val libraries = linkedMapOf<String, MutableMap<String, Map<String, String>>>()
+
+        if (nativeResourceDir.isDirectory) {
+            for (platformDir in nativeResourceDir.listFiles().orEmpty().sortedBy { it.name }) {
+                if (!platformDir.isDirectory) continue
+                for (libFile in platformDir.listFiles().orEmpty().sortedBy { it.name }) {
+                    if (!libFile.isFile) continue
+
+                    val stem = libFile.name.substringBeforeLast('.')
+                    val extension = libFile.name.substringAfterLast('.')
+                    val library = stem.removePrefix("lib")
+                    val digest = MessageDigest.getInstance("SHA-256")
+                        .digest(libFile.readBytes())
+                        .joinToString("") { byte -> "%02x".format(byte) }
+
+                    libraries.getOrPut(library) { linkedMapOf() }[platformDir.name] = mapOf(
+                        "asset" to "$stem-${platformDir.name}.$extension",
+                        "sha256" to digest
+                    )
+                }
+            }
+        }
+
+        val manifest = mapOf(
+            "release" to nativeRelease,
+            "base_url" to "https://github.com/$nativeRepo/releases/download/$nativeRelease",
+            "libraries" to libraries
+        )
+
+        val outDir = generatedManifestDir.get().asFile
+        outDir.mkdirs()
+        File(outDir, "native-manifest.json").writeText(
+            groovy.json.JsonBuilder(manifest).toPrettyString() + "\n"
+        )
+    }
+}
+
+sourceSets.named("main") {
+    resources.srcDir(generatedManifestDir)
+}
+
+tasks.named<ProcessResources>("processResources") {
+    dependsOn("generateNativeManifest")
+
+    if (bundleNatives) {
+        dependsOn("copyNativeLibraries")
+    } else {
+        // Excluded at packaging rather than checked on disk, so a skinny build is
+        // correct on a working tree that still has libraries from an earlier fat
+        // build. Those files are gitignored and routinely present.
+        exclude("native/**")
+    }
+}
+
+// A skinny jar containing a native library is a silent regression: it would work
+// perfectly and ship the bytes this exists to remove.
+tasks.register("verifyNoBundledNatives") {
+    group = "verification"
+    description = "Fails if a skinny build packaged a native library"
+
+    dependsOn("processResources")
+
+    doLast {
+        if (bundleNatives) {
+            return@doLast
+        }
+        val packaged = File(layout.buildDirectory.get().asFile, "resources/main/native")
+        val found = packaged.walkTopDown().filter { it.isFile }.toList()
+        if (found.isNotEmpty()) {
+            throw GradleException(
+                "Skinny build packaged ${found.size} native libraries: ${found.joinToString { it.name }}"
+            )
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn("verifyNoBundledNatives")
 }
 
 // Task to copy Linux x64 native library (native build)

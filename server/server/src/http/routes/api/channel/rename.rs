@@ -6,25 +6,26 @@ use common::structs::{
         ChannelEventPacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     },
 };
-use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
+use crate::http::guards::PlayerGuard;
+use rocket::{State, http::Status, serde::json::Json};
 use rocket_okapi::openapi;
 
 /// Rename a channel.
 #[openapi(tag = "Channels")]
 #[patch("/<id>", data = "<name>")]
 pub async fn channel_rename(
-    identity: Certificate<'_>,
+    guard: PlayerGuard,
     cache_manager: &State<CacheManager>,
     webhook_receiver: &State<WebhookReceiver>,
     id: &str,
     name: Json<String>,
 ) -> CustomJsonResponse<bool> {
-    let user = match identity.subject().common_name() {
-        Some(user) => user.to_string(),
-        None => {
-            return CustomJsonResponse::error(Status::Forbidden);
-        }
+    // Derived from the resolved player rather than read off the certificate CN, so a
+    // legacy bare-gamertag certificate produces the same canonical identity as a current one.
+    let Some(gamertag) = guard.player.gamertag.clone() else {
+        return CustomJsonResponse::error(Status::Forbidden);
     };
+    let user = guard.player.game.membership_key(&gamertag);
 
     let channel_collection = cache_manager.get_channel_collection();
     let channel = match channel_collection.get(id).await {

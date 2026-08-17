@@ -27,6 +27,7 @@ pub async fn authenticate(
     cert_service: &State<Arc<CertificateService>>,
     identity_service: &State<PlayerIdentityService>,
     perm_config: &State<Permissions>,
+    revocations: &State<std::sync::Arc<crate::services::CertificateRevocationService>>,
 ) -> NcryptfJsonResponse<LoginResponse> {
     let conn = db.into_inner();
 
@@ -79,6 +80,7 @@ pub async fn authenticate(
         config.inner(),
         &cert_service,
         Some(&perm_service),
+        revocations.inner().as_ref(),
         gamertag.clone(),
         auth_result.gamerpic,
         Game::Minecraft,

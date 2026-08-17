@@ -6,9 +6,9 @@
 //! - 200 returning the player's own gamertag, game, cert NotAfter, and granted permissions
 //! - 403 when the cert resolves to no player (untrusted cert / unknown gamertag)
 //!
-//! Note: today the introspect handler does NOT check banished — banished is only enforced
-//! at AdminGuard. Banished players can still introspect themselves; this is intentional
-//! so a banished user can see WHY they're locked out.
+//! Introspect sits behind `PlayerGuard`, so a banished or revoked caller is refused here as
+//! well. An earlier iteration left it open so a locked-out player could read why; that is no
+//! longer the case. The guard's own tests cover both refusals.
 
 use crate::harness::http_client::MtlsClient;
 use crate::harness::server::ADMIN_GAMERTAG;

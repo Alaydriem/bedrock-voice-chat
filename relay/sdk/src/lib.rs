@@ -7,11 +7,13 @@
 pub mod config;
 pub mod error;
 pub mod frame;
+pub mod identity;
 pub mod peer;
 
 pub use config::SdkConfig;
 pub use error::SdkError;
 pub use frame::SdkFrame;
+pub use identity::BvcIdentity;
 pub use peer::BvcPeer;
 
 uniffi::setup_scaffolding!();

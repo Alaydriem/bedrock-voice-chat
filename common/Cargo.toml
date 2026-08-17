@@ -120,6 +120,9 @@ schemars = { workspace = true, optional = true }
 bedrock-protocol = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.12", optional = true }
 bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.12", optional = true }
 
+[dev-dependencies]
+rcgen = { version = "^0.14", features = ["x509-parser"] }
+
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 cpal = { version = "^0.17", optional = true, features = ["asio"] }
 

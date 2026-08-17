@@ -48,6 +48,35 @@ struct Args {
     /// Join or create a group (channel) on the server
     #[clap(long, default_value = "false")]
     group: bool,
+
+    /// Directory holding this client's ca.crt, test.crt and test.key. Defaults to
+    /// examples/certs/<hostname>, which allows only one identity per host.
+    #[clap(long)]
+    certs_dir: Option<String>,
+
+    /// Write received audio to this WAV path. Omitted means received frames are
+    /// decoded and discarded, and the receive loop runs until shutdown rather
+    /// than stopping at the 1000-packet cap that bounds the file.
+    #[clap(long)]
+    record: Option<String>,
+
+    /// Connect and receive without ever sending audio. Models a participant who
+    /// is present and listening but not talking, which is what fan-out costs are
+    /// measured against.
+    #[clap(long)]
+    listen_only: bool,
+
+    /// Opus frame duration in milliseconds. Sets the encoder frame, the send
+    /// cadence and therefore the packet rate: 20ms is 50 packets/sec, 40ms is 25.
+    /// Opus permits 10, 20, 40 and 60.
+    #[clap(long, default_value = "20")]
+    frame_ms: u32,
+
+    /// UDP port to dial instead of the `quic_port` the API reports. The API
+    /// reports the port the server bound, so reaching it through a fronting proxy
+    /// needs the proxy's port named here.
+    #[clap(long)]
+    quic_port: Option<u16>,
 }
 
 struct Spiral {
@@ -116,7 +145,10 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
     let (hostname, api_port) = parse_server_name(&args.server_name);
 
-    let certs_dir = format!("{}/examples/certs/{}", env!("CARGO_MANIFEST_DIR"), hostname);
+    let certs_dir = args
+        .certs_dir
+        .clone()
+        .unwrap_or_else(|| format!("{}/examples/certs/{}", env!("CARGO_MANIFEST_DIR"), hostname));
     let ca_path = format!("{}/ca.crt", certs_dir);
     let cert_path = format!("{}/test.crt", certs_dir);
     let key_path = format!("{}/test.key", certs_dir);
@@ -167,11 +199,11 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let quic_addr: SocketAddr =
-        tokio::net::lookup_host(format!("{}:{}", hostname, config.quic_port))
-            .await?
-            .next()
-            .ok_or("Failed to resolve hostname")?;
+    let dial_port = args.quic_port.map(u32::from).unwrap_or(config.quic_port);
+    let quic_addr: SocketAddr = tokio::net::lookup_host(format!("{}:{}", hostname, dial_port))
+        .await?
+        .next()
+        .ok_or("Failed to resolve hostname")?;
 
     println!("Resolved QUIC address: {}", quic_addr);
 
@@ -239,6 +271,7 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
     tasks.push(tokio::spawn({
         let connection = connection.clone();
         let shutdown = shutdown.clone();
+        let record = args.record.clone();
         async move {
             let mut count = 0;
             let mut decoder = opus2::Decoder::new(48000, opus2::Channels::Mono).unwrap();
@@ -250,9 +283,13 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
                 sample_rate: 48000,
             };
 
-            let file = File::create("C:\\Users\\charl\\Downloads\\sample_voice.wav").unwrap();
-            let writer = BufWriter::new(file);
-            let mut wav_writer = hound::WavWriter::new(writer, spec).unwrap();
+            let mut wav_writer = match record.as_deref() {
+                Some(path) => {
+                    let file = File::create(path).unwrap();
+                    Some(hound::WavWriter::new(BufWriter::new(file), spec).unwrap())
+                }
+                None => None,
+            };
 
             let mut last_packet_timestamp: Option<i64> = None;
             let expected_packet_interval_ms = 10;
@@ -284,17 +321,20 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
                                             gap_ms
                                         );
 
-                                        let silence_samples_mono = (gap_ms as f32 * 48.0) as usize;
-                                        for _ in 0..silence_samples_mono {
-                                            let _ = wav_writer.write_sample(0.0f32);
-                                            let _ = wav_writer.write_sample(0.0f32);
+                                        if let Some(w) = wav_writer.as_mut() {
+                                            let silence_samples_mono =
+                                                (gap_ms as f32 * 48.0) as usize;
+                                            for _ in 0..silence_samples_mono {
+                                                let _ = w.write_sample(0.0f32);
+                                                let _ = w.write_sample(0.0f32);
+                                            }
                                         }
                                     }
                                 }
 
                                 last_packet_timestamp = Some(packet_timestamp);
 
-                                let mut out = vec![0.0; 960];
+                                let mut out = vec![0.0; 2880];
                                 let out_len =
                                     match decoder.decode_float(&frame.data, &mut out, false) {
                                         Ok(s) => s,
@@ -304,18 +344,20 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
                                         }
                                     };
                                 if out_len > 0 {
-                                    for &sample in &out[..out_len] {
-                                        let clamped_sample = sample.clamp(-1.0, 1.0);
-                                        if let Err(e) = wav_writer.write_sample(clamped_sample) {
-                                            println!("Wav write sample error: {:?}", e);
-                                        }
-                                        if let Err(e) = wav_writer.write_sample(clamped_sample) {
-                                            println!("Wav write sample error: {:?}", e);
+                                    if let Some(w) = wav_writer.as_mut() {
+                                        for &sample in &out[..out_len] {
+                                            let clamped_sample = sample.clamp(-1.0, 1.0);
+                                            if let Err(e) = w.write_sample(clamped_sample) {
+                                                println!("Wav write sample error: {:?}", e);
+                                            }
+                                            if let Err(e) = w.write_sample(clamped_sample) {
+                                                println!("Wav write sample error: {:?}", e);
+                                            }
                                         }
                                     }
 
                                     count += 1;
-                                    if count == 1000 {
+                                    if wav_writer.is_some() && count == 1000 {
                                         break;
                                     }
                                     if count % 100 == 0 {
@@ -324,7 +366,7 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
                                 }
                             }
                         }
-                        if count == 1000 {
+                        if wav_writer.is_some() && count == 1000 {
                             break;
                         }
                     }
@@ -335,21 +377,32 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
             }
             println!("Receiving loop ended - processed {} packets", count);
 
-            if let Err(e) = wav_writer.finalize() {
-                println!("Wav write final error: {:?}", e);
-            } else {
-                println!("WAV file finalized successfully");
+            if let Some(w) = wav_writer {
+                if let Err(e) = w.finalize() {
+                    println!("Wav write final error: {:?}", e);
+                } else {
+                    println!("WAV file finalized successfully");
+                }
             }
         }
     }));
 
     let source_file = args.audio_file;
-    tasks.push(tokio::spawn({
+    if args.listen_only {
+        println!("listen-only: not sending audio");
+    }
+    if !args.listen_only {
+        tasks.push(tokio::spawn({
         let connection = connection.clone();
         let shutdown = shutdown.clone();
         let source_file = source_file.clone();
         let id = id.clone();
+        let frame_ms = args.frame_ms;
         async move {
+            // 48 samples per millisecond at 48kHz. The source is read as
+            // interleaved stereo and downmixed, so twice this is consumed per frame.
+            let frame_samples = 48 * frame_ms as usize;
+            let stereo_chunk = frame_samples * 2;
             #[cfg(target_os = "windows")]
             windows_targets::link!("winmm.dll" "system" fn timeBeginPeriod(uperiod: u32) -> u32);
             #[cfg(target_os = "windows")]
@@ -376,12 +429,12 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
             };
 
             #[cfg(target_os = "windows")]
-            let target_interval_ticks = (frequency as f64 * 20.0 / 1000.0) as i64;
+            let target_interval_ticks = (frequency as f64 * frame_ms as f64 / 1000.0) as i64;
 
             #[cfg(not(target_os = "windows"))]
             let start_time = Instant::now();
             #[cfg(not(target_os = "windows"))]
-            let target_interval = Duration::from_millis(20);
+            let target_interval = Duration::from_millis(frame_ms as u64);
 
             let client_id: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
 
@@ -394,7 +447,7 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
             let source = Decoder::new(file).unwrap();
 
             let sample_iter = source.into_iter();
-            let mut chunk_buffer: Vec<f32> = Vec::with_capacity(1920);
+            let mut chunk_buffer: Vec<f32> = Vec::with_capacity(stereo_chunk);
 
             let mut spiral = Spiral::new(0.5);
             println!("Starting streaming playback from file: {}", source_file);
@@ -409,11 +462,11 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
                 chunk_buffer.push(sample);
 
-                if chunk_buffer.len() < 1920 {
+                if chunk_buffer.len() < stereo_chunk {
                     continue;
                 }
 
-                let chunk_f32: Vec<f32> = chunk_buffer.drain(..1920).collect();
+                let chunk_f32: Vec<f32> = chunk_buffer.drain(..stereo_chunk).collect();
 
                 let mono_chunk_f32: Vec<f32> = chunk_f32
                     .chunks_exact(2)
@@ -426,9 +479,9 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
                     .collect();
 
                 let (_x, _y) = spiral.next().unwrap();
-                total_chunks = total_chunks + 1920;
+                total_chunks = total_chunks + stereo_chunk;
 
-                let s = encoder.encode_vec(&mono_chunk, 960).unwrap();
+                let s = encoder.encode_vec(&mono_chunk, frame_samples).unwrap();
 
                 let packet = QuicNetworkPacket {
                     sender: Some(common::structs::packet::PacketSender::new(
@@ -524,6 +577,7 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
             }
         }
     }));
+    }
 
     for task in tasks {
         _ = task.await;

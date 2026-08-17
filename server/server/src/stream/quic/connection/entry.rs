@@ -14,6 +14,10 @@ pub(crate) struct ConnectionEntry {
     // Precomputed hash of the identity for interaction measurement, so the audio
     // delivery path never hashes a recipient name per frame.
     pub name_hash: u64,
+    // The fingerprint this connection's handshake proved. Revocation addresses a live session
+    // by this rather than by identity, so one identity holding two connections on two
+    // certificates loses only the revoked one.
+    pub fingerprint: String,
     pub tx: mpsc::Sender<RoutedPacket>,
     pub connected_at: Instant,
 }

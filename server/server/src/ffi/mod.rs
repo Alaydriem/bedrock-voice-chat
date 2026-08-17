@@ -56,6 +56,8 @@ pub struct RuntimeHandle {
     db_conn: Arc<RwLock<Option<Arc<DatabaseConnection>>>>,
     /// Chat hub, for an embedded mod driving chat without a socket
     chat_service: Arc<RwLock<Option<Arc<crate::services::ChatService>>>>,
+    /// Metrics, for an embedded mod reporting facts about its own host
+    metrics: Arc<RwLock<Option<Arc<crate::services::MetricsService>>>>,
     /// Outbound `say` frames awaiting `bvc_chat_drain`.
     ///
     /// The embedded mod is the transport here, so the queue the WebSocket route would own
@@ -167,6 +169,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let audio_playback_service = runtime.get_audio_playback_service();
     let db_conn = runtime.get_db_conn();
     let chat_service = runtime.get_chat_service();
+    let metrics = runtime.get_metrics();
 
     let mut runtime_builder = tokio::runtime::Builder::new_multi_thread();
     runtime_builder.enable_all();
@@ -206,6 +209,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         audio_playback_service,
         db_conn,
         chat_service,
+        metrics,
         chat_outbound: Mutex::new(None),
         chat_rooms: Mutex::new(Vec::new()),
         chat_socket_id: AtomicU64::new(0),
@@ -1231,6 +1235,186 @@ pub unsafe extern "C" fn bvc_chat_register(
         }
         handle_ref.chat_socket_id.store(socket_id, Ordering::SeqCst);
 
+        0
+    })
+}
+
+/// This server's own peerlink, for a bridge running beside it.
+///
+/// Minted from the live endpoint, so it carries an address a bridge on the same host
+/// can dial. That is why it cannot be derived from the key file alone the way a
+/// bridge's own link can: the bridge dials the server, so it needs somewhere to go.
+///
+/// # Returns
+/// A newly allocated string the caller frees with `bvc_free_string`, or null when
+/// this server declares no peers and therefore binds no peer endpoint.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_relay_peerlink(handle: *mut RuntimeHandle) -> *mut c_char {
+    ffi_guard!("bvc_relay_peerlink", ptr::null_mut(), {
+        if handle.is_null() {
+            FfiError::set_last_error("handle is null");
+            return ptr::null_mut();
+        }
+
+        let handle_ref = unsafe { &*handle };
+
+        let cache_manager = match handle_ref.cache_manager.read() {
+            Ok(guard) => match guard.as_ref() {
+                Some(cm) => cm.clone(),
+                None => {
+                    FfiError::set_last_error("Server not started - cache_manager not available");
+                    return ptr::null_mut();
+                }
+            },
+            Err(e) => {
+                FfiError::set_last_error(&format!("Failed to read cache_manager: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let Some(registry) = cache_manager.get_connection_registry() else {
+            FfiError::set_last_error("connection registry not available");
+            return ptr::null_mut();
+        };
+
+        let Some(plane) = registry.peer_plane() else {
+            FfiError::set_last_error("this server declares no peers");
+            return ptr::null_mut();
+        };
+
+        let tokio_rt = match &handle_ref.tokio_runtime {
+            Some(rt) => rt,
+            None => {
+                FfiError::set_last_error("tokio runtime not available");
+                return ptr::null_mut();
+            }
+        };
+
+        match tokio_rt.block_on(plane.endpoint().ticket()) {
+            Ok(link) => match CString::new(link) {
+                Ok(s) => s.into_raw(),
+                Err(e) => {
+                    FfiError::set_last_error(&format!("peerlink contained a nul: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                FfiError::set_last_error(&format!("minting a peerlink failed: {}", e));
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
+/// Whether a player has a live voice connection to this server.
+///
+/// `identity` is the membership key, which is what the connection registry indexes.
+///
+/// The SVC bridge asks so it can leave those players out of its injection: a Java
+/// player running both Simple Voice Chat and the BVC desktop client would otherwise
+/// hear every remote speaker twice.
+///
+/// # Returns
+/// 1 when live, 0 when not, -1 on error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_has_live_client(
+    handle: *mut RuntimeHandle,
+    identity: *const c_char,
+) -> c_int {
+    ffi_guard!("bvc_has_live_client", -1, {
+        if handle.is_null() || identity.is_null() {
+            FfiError::set_last_error("handle or identity is null");
+            return -1;
+        }
+
+        let identity = match unsafe { CStr::from_ptr(identity) }.to_str() {
+            Ok(s) => s,
+            Err(e) => {
+                FfiError::set_last_error(&format!("Invalid UTF-8 in identity: {}", e));
+                return -1;
+            }
+        };
+
+        let handle_ref = unsafe { &*handle };
+
+        let cache_manager = match handle_ref.cache_manager.read() {
+            Ok(guard) => match guard.as_ref() {
+                Some(cm) => cm.clone(),
+                None => {
+                    FfiError::set_last_error("Server not started - cache_manager not available");
+                    return -1;
+                }
+            },
+            Err(e) => {
+                FfiError::set_last_error(&format!("Failed to read cache_manager: {}", e));
+                return -1;
+            }
+        };
+
+        let Some(registry) = cache_manager.get_connection_registry() else {
+            FfiError::set_last_error("connection registry not available");
+            return -1;
+        };
+
+        i32::from(registry.has_live_client(identity))
+    })
+}
+
+/// Report whether this host could fetch and write a native library.
+///
+/// `report_json` is a HostCapability: variant, platform, mod_version, fetch, write.
+/// Anything outside the known vocabulary is refused rather than forwarded.
+///
+/// The external mod reports the same fact over HTTP. Embedded has no socket to the
+/// server it is running in-process, so without this the embedded population — the
+/// one most likely to differ — would go unmeasured.
+///
+/// # Returns
+/// 0 on success, -1 on error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_host_capability(
+    handle: *mut RuntimeHandle,
+    report_json: *const c_char,
+) -> c_int {
+    ffi_guard!("bvc_host_capability", -1, {
+        if handle.is_null() || report_json.is_null() {
+            FfiError::set_last_error("handle or report_json is null");
+            return -1;
+        }
+
+        let json = match unsafe { CStr::from_ptr(report_json) }.to_str() {
+            Ok(s) => s,
+            Err(e) => {
+                FfiError::set_last_error(&format!("Invalid UTF-8 in report_json: {}", e));
+                return -1;
+            }
+        };
+
+        let report = match crate::services::HostCapability::parse(json) {
+            Ok(report) => report,
+            Err(e) => {
+                FfiError::set_last_error(&format!("Invalid HostCapability JSON: {}", e));
+                return -1;
+            }
+        };
+
+        let handle_ref = unsafe { &*handle };
+
+        let metrics = match handle_ref.metrics.read() {
+            Ok(guard) => match guard.as_ref() {
+                Some(metrics) => metrics.clone(),
+                None => {
+                    FfiError::set_last_error("metrics service is not available");
+                    return -1;
+                }
+            },
+            Err(e) => {
+                FfiError::set_last_error(&format!("Failed to read metrics: {}", e));
+                return -1;
+            }
+        };
+
+        metrics.record_host_capability(report);
         0
     })
 }

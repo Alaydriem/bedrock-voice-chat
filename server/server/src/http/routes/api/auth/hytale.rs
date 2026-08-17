@@ -75,6 +75,7 @@ pub async fn poll_status(
     config: &State<Server>,
     cert_service: &State<Arc<CertificateService>>,
     perm_config: &State<Permissions>,
+    revocations: &State<std::sync::Arc<crate::services::CertificateRevocationService>>,
     session_cache: &State<HytaleSessionCache>,
     session_id: HytaleSessionId,
 ) -> NcryptfJsonResponse<HytaleDeviceFlowStatusResponse> {
@@ -181,6 +182,7 @@ pub async fn poll_status(
                 config.inner(),
                 &cert_service,
                 Some(&perm_service),
+                revocations.inner().as_ref(),
                 auth_result.gamertag,
                 auth_result.gamerpic,
                 Game::Hytale,

@@ -1,6 +1,7 @@
 mod analytics;
 mod audio;
 mod bedrock;
+mod certificate;
 mod chat;
 mod control;
 mod i18n;

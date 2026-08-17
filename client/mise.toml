@@ -1,0 +1,4 @@
+# Java 21 is required by the Android Gradle Plugin, matching build-android.yml.
+# Node is inherited from the root config.
+[tools]
+java = "temurin-21"

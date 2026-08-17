@@ -88,3 +88,39 @@ fn a_speaker_with_no_world_keeps_none() {
     assert!(frame.world.is_none());
     assert!(VoiceFrame::from(frame).speaker.as_minecraft().is_some());
 }
+
+// The dimension gate in `can_communicate_with` is unconditional, so a frame that
+// does not carry the speaker's dimension does not merely omit one — it asserts a
+// wrong one, and the audio lands in the wrong world in both directions.
+#[test]
+fn a_frame_carries_the_speakers_dimension_across_both_conversions() {
+    let mut wire_frame = wire(Some("W1"));
+    if let PlayerEnum::Minecraft(player) = &mut wire_frame.speaker {
+        player.dimension = Dimension::TheNether;
+    }
+
+    let frame = SdkFrame::from(wire_frame);
+    assert_eq!(frame.dimension, "nether");
+
+    let back = VoiceFrame::from(frame);
+    assert_eq!(
+        back.speaker.as_minecraft().expect("minecraft").dimension,
+        Dimension::TheNether
+    );
+}
+
+// An unrecognised dimension resolves rather than failing: a bridge for a modded
+// dimension must still be audible somewhere, and the wire type has no variant for
+// "unknown".
+#[test]
+fn an_unrecognised_dimension_falls_back_rather_than_failing() {
+    let mut frame = SdkFrame::from(wire(Some("W1")));
+    frame.dimension = "someones_custom_dim".to_string();
+
+    let back = VoiceFrame::from(frame);
+
+    assert_eq!(
+        back.speaker.as_minecraft().expect("minecraft").dimension,
+        Dimension::Overworld
+    );
+}

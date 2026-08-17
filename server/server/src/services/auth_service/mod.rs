@@ -30,11 +30,15 @@ pub struct AuthService;
 
 impl AuthService {
     /// Resolve a player from an mTLS certificate CN.
-    /// Supports both new format "game:gamertag" and legacy "gamertag" (no game prefix).
+    ///
+    /// Supports both the current `game:gamertag` format and the legacy bare `gamertag`.
+    ///
+    /// The game comes from the certificate and nowhere else. An earlier signature let a
+    /// caller override it, which meant a route could tell this function that a certificate
+    /// meant something other than what it says.
     pub async fn player_from_certificate<C: ConnectionTrait>(
         cert: &rocket::mtls::Certificate<'_>,
         conn: &C,
-        game_hint: Option<&str>,
     ) -> Result<player::Model, rocket::http::Status> {
         let cn = match cert.subject().common_name() {
             Some(cn) => cn,
@@ -44,29 +48,16 @@ impl AuthService {
         };
 
         let (game_filter, gamertag) = match cn.split_once(':') {
-            Some((game, name)) => {
-                let effective_game = game_hint
-                    .map(|g| g.to_lowercase())
-                    .unwrap_or_else(|| game.to_lowercase());
-                (Some(effective_game), name.to_string())
-            }
+            Some((game, name)) => (game.to_lowercase(), name.to_string()),
             None => {
-                let effective_game = game_hint
-                    .map(|g| g.to_lowercase())
-                    .unwrap_or_else(|| "minecraft".to_string());
-                tracing::warn!(
-                    "player_from_certificate: legacy cert gamertag={}, effective_game={}",
-                    cn,
-                    effective_game
-                );
-                (Some(effective_game), cn.to_string())
+                tracing::warn!("player_from_certificate: legacy cert gamertag={}", cn);
+                ("minecraft".to_string(), cn.to_string())
             }
         };
 
-        let mut query = player::Entity::find().filter(player::Column::Gamertag.eq(&gamertag));
-        if let Some(ref game) = game_filter {
-            query = query.filter(player::Column::Game.eq(game));
-        }
+        let query = player::Entity::find()
+            .filter(player::Column::Gamertag.eq(&gamertag))
+            .filter(player::Column::Game.eq(game_filter.clone()));
 
         match query.one(conn).await {
             Ok(Some(player)) => Ok(player),
@@ -91,6 +82,9 @@ impl AuthService {
         config: &Server,
         cert_service: &CertificateService,
         permission_service: Option<&PermissionService>,
+        // Required rather than optional: there are two call sites, and an `Option` here
+        // would let a caller silently skip revoking the certificate it just replaced.
+        revocations: &crate::services::CertificateRevocationService,
         gamertag: String,
         gamerpic: String,
         game: Game,
@@ -143,6 +137,21 @@ impl AuthService {
                         (actual.certificate.clone(), actual.certificate_key.clone())
                     } else {
                         tracing::info!("Rotated certificate for player {} at login", gamertag);
+                        // Revoking the outgoing certificate is what makes a leaked one die
+                        // when its owner next rotates, and gives an operator a recovery
+                        // path for a suspected key compromise that is not banning the
+                        // victim. A warning rather than an error: the rotation itself
+                        // succeeded, and the player must not lose a login that worked.
+                        if let Err(e) = revocations
+                            .revoke_pem(conn, &actual.certificate, Some(actual.id), "rotated")
+                            .await
+                        {
+                            tracing::warn!(
+                                "Failed to revoke the rotated-out certificate for {}: {}",
+                                gamertag,
+                                e
+                            );
+                        }
                         (cert_pem, key_pem)
                     }
                 }
@@ -213,6 +222,7 @@ impl AuthService {
         payload: &CodeLoginRequest,
         config: &Server,
         cert_service: &Arc<CertificateService>,
+        revocations: &crate::services::CertificateRevocationService,
         perm_config_defaults: std::collections::HashMap<String, bool>,
     ) -> Result<LoginResponse, CodeLoginError> {
         let player_record = AuthCodeService::validate_and_consume_code(conn, &payload.code).await?;
@@ -223,6 +233,7 @@ impl AuthService {
             config,
             cert_service.as_ref(),
             Some(&perm_service),
+            revocations,
             player_record.gamertag.unwrap_or_default(),
             player_record.gamerpic.unwrap_or_default(),
             player_record.game,

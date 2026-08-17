@@ -133,6 +133,7 @@ impl RouteBench {
                 .register(
                     i as u64,
                     Game::Minecraft.membership_key(&Self::player_name(i)),
+                    format!("bench-{i}"),
                     tx,
                 );
 

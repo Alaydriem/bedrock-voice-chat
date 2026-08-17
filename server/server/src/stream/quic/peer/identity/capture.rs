@@ -37,6 +37,10 @@ impl Subscriber for PeerIdentityCapture {
         let Some(leaf) = chain.first() else {
             return;
         };
+        // Carried so the accept loop can authorize the certificate itself, not just the name
+        // written on it. This is the only place the verified chain is reachable.
+        context.set_leaf_der(leaf.to_vec());
+
         if let Some(cn) = CertificateCommonName::from_der(leaf) {
             context.set_cn(cn);
         }

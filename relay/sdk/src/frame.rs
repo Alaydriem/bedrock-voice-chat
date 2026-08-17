@@ -12,6 +12,18 @@ use common::{Coordinate, MinecraftPlayer, Orientation, PlayerEnum};
 pub struct SdkFrame {
     pub speaker: String,
     pub world: Option<String>,
+
+    // The api form: "overworld", "nether", "the_end".
+    //
+    // Carried because the dimension gate on the receiving side is unconditional,
+    // so a frame that omits it does not merely lack a field — it asserts a wrong
+    // one, and the audio is inaudible beside the listener and audible a world away.
+    //
+    // A string rather than a generated enum because both sides already speak this
+    // vocabulary: Kotlin's `Dimension.toApiString()` emits it and
+    // `Dimension::from(&str)` accepts it. A third representation would be a third
+    // thing to keep in step.
+    pub dimension: String,
     pub x: f32,
     pub y: f32,
     pub z: f32,
@@ -44,9 +56,20 @@ impl From<VoiceFrame> for SdkFrame {
         let world = frame.speaker.world_identifier().map(str::to_string);
         let position = frame.speaker.get_position().clone();
 
+        // A speaker whose game reports no dimension resolves to the default rather
+        // than to an empty string, which `Dimension::from` would read as Overworld
+        // anyway — this keeps that decision in one place.
+        let dimension = frame
+            .speaker
+            .dimension()
+            .unwrap_or_default()
+            .as_api_str()
+            .to_string();
+
         Self {
             speaker,
             world,
+            dimension,
             x: position.x,
             y: position.y,
             z: position.z,
@@ -74,7 +97,10 @@ impl From<SdkFrame> for VoiceFrame {
                     z: frame.z,
                 },
                 orientation: Orientation { x: 0.0, y: 0.0 },
-                dimension: Dimension::Overworld,
+                // An unrecognised name resolves to Overworld rather than failing:
+                // a modded dimension must still be audible somewhere, and the wire
+                // type has no variant meaning "unknown".
+                dimension: Dimension::from(frame.dimension.as_str()),
                 deafen: false,
                 spectator: false,
                 world_uuid: None,

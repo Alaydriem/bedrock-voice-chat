@@ -158,6 +158,11 @@ subprojects {
             name = "PaperMC"
             url = uri("https://repo.papermc.io/repository/maven-public/")
         }
+        // Simple Voice Chat's plugin API, for the optional SVC bridge.
+        maven {
+            name = "Maxhenkel"
+            url = uri("https://maven.maxhenkel.de/repository/public")
+        }
     }
 
     java {

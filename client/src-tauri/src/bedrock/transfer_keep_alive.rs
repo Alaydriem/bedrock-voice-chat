@@ -10,7 +10,6 @@ use tokio::task::{AbortHandle, JoinHandle};
 
 pub struct TransferKeepAlive {
     server_url: String,
-    xuid: String,
     host: String,
     port: u16,
     client: reqwest::Client,
@@ -22,14 +21,12 @@ pub struct TransferKeepAlive {
 impl TransferKeepAlive {
     pub fn new(
         server_url: String,
-        xuid: String,
         host: String,
         port: u16,
         client: reqwest::Client,
     ) -> Self {
         Self {
             server_url,
-            xuid,
             host,
             port,
             client,
@@ -93,7 +90,6 @@ impl TransferKeepAlive {
         self.shutdown_tx = Some(shutdown_tx);
 
         let server_url = self.server_url.clone();
-        let xuid = self.xuid.clone();
         let host = self.host.clone();
         let port = self.port;
         let client = self.client.clone();
@@ -104,8 +100,9 @@ impl TransferKeepAlive {
                     break;
                 }
 
+                // No subject: the server keys the target on the identity in our client
+                // certificate, so there is nothing here to get wrong or to forge.
                 let request = TransferTargetRequest {
-                    xuid: xuid.clone(),
                     host: host.clone(),
                     port,
                 };

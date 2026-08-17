@@ -129,13 +129,20 @@ jobs:
           echo "build-version=$BUILD_VERSION" >> $GITHUB_OUTPUT
           echo "artifact-name=bedrock-voice-chat-fabric-$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Build Fabric module
+      # The skinny jar packages no native library, but the libraries downloaded
+      # above must still be present: the manifest pins their digests, and a
+      # manifest generated without them would describe nothing the jar could ever
+      # resolve.
+      - name: Build Fabric module (skinny)
         working-directory: ./mods/java/fabric
         run: |
           chmod +x gradlew
-          ./gradlew :build --no-daemon -PmodVersion=${{ steps.mod-version.outputs.build-version }}
+          ./gradlew :build --no-daemon \
+            -PmodVersion=${{ steps.mod-version.outputs.build-version }} \
+            -PnativeRelease=mods-v${{ steps.mod-version.outputs.version }} \
+            -PnativeRepo=${{ github.repository }}
 
-      - name: Prepare artifact
+      - name: Stage the skinny jar
         shell: bash
         run: |
           cd mods/java/fabric/build/libs
@@ -144,20 +151,36 @@ jobs:
             echo "No JAR file found!"
             exit 1
           fi
-
-          echo "Found JAR: $JAR_FILE"
           ls -lh "$JAR_FILE"
-
-          # Copy to a consistent name for artifact upload
           cp "$JAR_FILE" ../../../../../bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar
 
-          echo "Prepared artifact: bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar"
+      - name: Build Fabric module (fat)
+        working-directory: ./mods/java/fabric
+        run: |
+          ./gradlew :build --no-daemon -Pbundled \
+            -PmodVersion=${{ steps.mod-version.outputs.build-version }} \
+            -PnativeRelease=mods-v${{ steps.mod-version.outputs.version }} \
+            -PnativeRepo=${{ github.repository }}
 
-      - name: Upload JAR artifact
+      - name: Stage the fat jar
+        shell: bash
+        run: |
+          cd mods/java/fabric/build/libs
+          JAR_FILE=$(find . -name "*.jar" ! -name "*-sources.jar" -type f | head -n 1)
+          if [ -z "$JAR_FILE" ]; then
+            echo "No JAR file found!"
+            exit 1
+          fi
+          ls -lh "$JAR_FILE"
+          cp "$JAR_FILE" ../../../../../bedrock-voice-chat-${{ steps.mod-version.outputs.version }}-bundled.jar
+
+      - name: Upload JAR artifacts
         uses: actions/upload-artifact@v5
         with:
           name: bedrock-voice-chat-fabric-${{ steps.mod-version.outputs.version }}
-          path: bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar
+          path: |
+            bedrock-voice-chat-${{ steps.mod-version.outputs.version }}.jar
+            bedrock-voice-chat-${{ steps.mod-version.outputs.version }}-bundled.jar
           retention-days: 30
 
       - name: Output artifact information

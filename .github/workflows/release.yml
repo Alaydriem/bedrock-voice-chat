@@ -530,8 +530,13 @@ jobs:
         with:
           token: ${{ secrets.MODRITH_PAT }}
           project: ${{ secrets.MODRITH_ID }}
-          files: ./artifacts/bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
-          primary-file: bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          # The bundled jar is primary: it carries every platform and cannot fail at
+          # first start. The skinny jar is published beside it for operators whose
+          # host can reach GitHub and who want the small download.
+          files: |-
+            ./artifacts/bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}-bundled.jar
+            ./artifacts/bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          primary-file: bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}-bundled.jar
           version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
           name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }} (Fabric)
           changelog: ${{ needs.prepare-mods-release.outputs.new_release_notes }}
@@ -545,6 +550,36 @@ jobs:
           game-versions: |-
             26.2
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
+
+  # Job 13b: Publish the native libraries the skinny jar resolves at runtime.
+  #
+  # Must run after the mod build, because the manifest baked into both jars pins
+  # these assets by digest and by name. A release whose assets are missing or
+  # misnamed produces a skinny jar that verifies nothing and downloads nothing.
+  upload-native-assets:
+    name: Upload native libraries to the mods release
+    needs: [prepare-mods-release, build-mod-paper]
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && needs.build-mod-paper.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download native release assets
+        uses: actions/download-artifact@v5
+        with:
+          name: native-release-assets
+          path: ./release-natives
+
+      - name: Upload to the mods release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="mods-v${{ needs.prepare-mods-release.outputs.new_release_version }}"
+          ls -lh ./release-natives
+          gh release upload "${TAG}" ./release-natives/* --clobber \
+            --repo ${{ github.repository }}
 
   # Job 14: Publish Paper to Modrinth
   publish-modrinth-paper:
@@ -570,8 +605,13 @@ jobs:
         with:
           token: ${{ secrets.MODRITH_PAT }}
           project: ${{ secrets.MODRITH_ID }}
-          files: ./artifacts/bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
-          primary-file: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          # The bundled jar is primary: it carries every platform and cannot fail at
+          # first start. The skinny jar is published beside it for operators whose
+          # host can reach GitHub and who want the small download.
+          files: |-
+            ./artifacts/bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}-bundled.jar
+            ./artifacts/bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          primary-file: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}-bundled.jar
           version: ${{ needs.prepare-mods-release.outputs.new_release_version }}-paper
           name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }} (Paper)
           changelog: ${{ needs.prepare-mods-release.outputs.new_release_notes }}

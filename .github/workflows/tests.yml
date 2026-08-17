@@ -126,7 +126,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: llvm-tools-preview
 
@@ -188,7 +188,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: llvm-tools-preview
 
@@ -244,7 +244,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: llvm-tools-preview
 
@@ -330,7 +330,7 @@ jobs:
           cache-dependency-path: client/yarn.lock
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: x86_64-pc-windows-msvc
           components: llvm-tools-preview
@@ -359,7 +359,7 @@ jobs:
         working-directory: ./client/src-tauri
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip" -OutFile "asiosdk.zip"
+          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip" -OutFile "asiosdk.zip"
           Expand-Archive -Path "asiosdk.zip" -DestinationPath "." -Force
 
       - name: Set up LIBCLANG environment
@@ -542,7 +542,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: x86_64-pc-windows-msvc
           components: llvm-tools-preview
@@ -638,7 +638,7 @@ jobs:
           cache-dependency-path: client/yarn.lock
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: x86_64-pc-windows-msvc
           components: llvm-tools-preview
@@ -668,7 +668,7 @@ jobs:
         working-directory: ./client/src-tauri
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip" -OutFile "asiosdk.zip"
+          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip" -OutFile "asiosdk.zip"
           Expand-Archive -Path "asiosdk.zip" -DestinationPath "." -Force
 
       - name: Set up LIBCLANG environment
@@ -754,7 +754,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           # llvm-profdata, to collapse this shard's profraw before upload.
           components: llvm-tools-preview
@@ -878,7 +878,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: llvm-tools-preview
 
@@ -969,7 +969,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: llvm-tools-preview
 
@@ -1065,7 +1065,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: llvm-tools-preview
 

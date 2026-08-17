@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use anyhow::{Result, anyhow};
 use bvc_server_lib::config::ApplicationConfig;
-use bvc_server_lib::services::CertificateService;
+use bvc_server_lib::services::{CertificateRevocationService, CertificateService};
 use common::Game;
 use common::structs::permission::PermissionEffect;
 use entity::player;
@@ -41,6 +41,9 @@ pub struct TestServer {
     pub admin_key: String,
     pub admin_id: i32,
     pub cert_service: Arc<CertificateService>,
+    pub revocations: Arc<CertificateRevocationService>,
+    #[cfg(feature = "bedrock")]
+    pub transfer_cache: bvc_server_lib::services::bedrock::TransferTargetCache,
     pub db: DatabaseConnection,
     pub readiness: Arc<bvc_server_lib::runtime::ReadinessState>,
     _tmp: TempDir,
@@ -129,11 +132,17 @@ impl TestServer {
         // The harness never boots QUIC, so the flag starts (and stays) false
         // unless a test raises it explicitly.
         let readiness = bvc_server_lib::runtime::ReadinessState::new_shared();
+        let revocations = CertificateRevocationService::new_shared();
+        #[cfg(feature = "bedrock")]
+        let transfer_cache = bvc_server_lib::services::bedrock::TransferTargetCache::new(300);
         let server_task = RocketHarness::launch(
             config,
             cert_service.clone(),
             identity_service,
             readiness.clone(),
+            revocations.clone(),
+            #[cfg(feature = "bedrock")]
+            transfer_cache.clone(),
         )
         .await?;
 
@@ -150,11 +159,24 @@ impl TestServer {
             admin_key,
             admin_id,
             cert_service,
+            revocations,
+            #[cfg(feature = "bedrock")]
+            transfer_cache,
             db,
             readiness,
             _tmp: tmp,
             _server_task: server_task,
         })
+    }
+
+    /// Revokes a certificate by its PEM, the way banning does.
+    ///
+    /// Writes through the same service instance Rocket holds, so the running server's cache
+    /// is invalidated rather than left holding a stale negative.
+    pub async fn revoke_certificate(&self, cert_pem: &str) -> Result<()> {
+        self.revocations
+            .revoke_pem(&self.db, cert_pem, None, "test")
+            .await
     }
 
     pub fn admin_client(&self) -> Result<reqwest::Client> {
@@ -171,10 +193,15 @@ impl TestServer {
         MtlsClient::no_identity(&self.ca_pem)
     }
 
+    /// Returns the certificate the player row actually holds.
+    ///
+    /// This used to sign a second, different certificate and hand that to the caller, so a
+    /// test client authenticated with a credential the server had no record of — matching
+    /// only by Common Name. Anything keyed on the certificate itself, such as revocation,
+    /// then had nothing to bite on.
     pub async fn issue_player(&self, gamertag: &str, game: &Game) -> Result<(String, String)> {
-        let _ = PlayerFixture::insert(&self.db, &self.cert_service, gamertag, game).await?;
-        let (c, k) = self.cert_service.sign_player_cert(gamertag, game)?;
-        Ok((c.pem(), k.serialize_pem()))
+        let player = PlayerFixture::insert(&self.db, &self.cert_service, gamertag, game).await?;
+        Ok((player.certificate, player.certificate_key))
     }
 
     // Issues a player AND grants it `permission` (Allow), returning its mTLS
@@ -187,8 +214,7 @@ impl TestServer {
     ) -> Result<(String, String)> {
         let player = PlayerFixture::insert(&self.db, &self.cert_service, gamertag, game).await?;
         PermissionFixture::upsert(&self.db, player.id, permission, PermissionEffect::Allow).await?;
-        let (c, k) = self.cert_service.sign_player_cert(gamertag, game)?;
-        Ok((c.pem(), k.serialize_pem()))
+        Ok((player.certificate, player.certificate_key))
     }
 
     pub async fn mark_banished(&self, gamertag: &str, game: &Game, banished: bool) -> Result<()> {

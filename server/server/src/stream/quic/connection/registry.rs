@@ -1,6 +1,7 @@
 use common::PlayerEnum;
 use common::structs::packet::{
-    PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData,
+    PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData, ServerErrorPacket,
+    ServerErrorType,
 };
 use common::traits::player_data::PlayerData;
 use dashmap::DashMap;
@@ -27,6 +28,10 @@ pub struct ConnectionRegistry {
     name_index: DashMap<String, u64>,
     // canonical identity -> channel_id (one channel per player)
     player_channel: DashMap<String, String>,
+    // certificate fingerprint -> connection id. Revocation addresses a live session by the
+    // credential it was opened with, so one identity holding two connections on two
+    // certificates loses only the revoked one.
+    fingerprint_index: DashMap<String, u64>,
     // Emits connect/disconnect counters + events. Installed after construction
     // rather than at build time.
     metrics: OnceLock<Arc<MetricsService>>,
@@ -54,6 +59,7 @@ impl ConnectionRegistry {
             connections: DashMap::new(),
             name_index: DashMap::new(),
             player_channel: DashMap::new(),
+            fingerprint_index: DashMap::new(),
             metrics: OnceLock::new(),
             peer_plane: OnceLock::new(),
             channel_absent_ticks: DashMap::new(),
@@ -69,6 +75,14 @@ impl ConnectionRegistry {
     // Installs the peer plane. Set once; a later install is ignored.
     pub fn set_peer_plane(&self, plane: Arc<crate::relay::PeerPlane>) {
         let _ = self.peer_plane.set(plane);
+    }
+
+    // The peer plane, for callers that need the endpoint rather than the routing.
+    //
+    // `None` means this server declares no peers, which is the ordinary case and
+    // not a fault: a server nobody bridges to never binds one.
+    pub fn peer_plane(&self) -> Option<Arc<crate::relay::PeerPlane>> {
+        self.peer_plane.get().cloned()
     }
 
     // Forwards a LOCAL-origin packet to peers granted the sender's relay world.
@@ -168,13 +182,22 @@ impl ConnectionRegistry {
         self.push_gauges();
     }
 
-    pub fn register(&self, device: u64, identity: String, tx: mpsc::Sender<RoutedPacket>) {
+    pub fn register(
+        &self,
+        device: u64,
+        identity: String,
+        fingerprint: String,
+        tx: mpsc::Sender<RoutedPacket>,
+    ) {
         tracing::info!(
             "Registering connection for player: {} (connections: {})",
             identity,
             self.connections.len() + 1
         );
         self.name_index.insert(identity.clone(), device);
+        if !fingerprint.is_empty() {
+            self.fingerprint_index.insert(fingerprint.clone(), device);
+        }
         let registered_name = identity.clone();
         let name_hash = InteractionTracker::hash_name(&identity);
         let replaced = self.connections.insert(
@@ -183,6 +206,7 @@ impl ConnectionRegistry {
                 identity,
                 sequence: ConnectionSequence::new_shared(),
                 name_hash,
+                fingerprint,
                 tx,
                 connected_at: Instant::now(),
             },
@@ -213,6 +237,8 @@ impl ConnectionRegistry {
                 .map(|v| *v == device)
                 .unwrap_or(false);
             self.name_index.remove_if(&entry.identity, |_, v| *v == device);
+            self.fingerprint_index
+                .remove_if(&entry.fingerprint, |_, v| *v == device);
             // Guarded for the same reason, and it was not. A close arriving after the player
             // has already reconnected dropped the live connection's channel membership, and
             // their audio silently reverted to proximity until they rejoined the channel.
@@ -383,6 +409,47 @@ impl ConnectionRegistry {
     /// than omitting those players and making them indistinguishable from nobody.
     // One index lookup, for the peer boundary to ask per packet whether a name a
     // peer used belongs to a player this server already serves.
+    /// Closes the session opened with this certificate, telling the client why first.
+    ///
+    /// Returns whether a live session was found. The message is sent before unregistering so
+    /// the client shows a reason rather than a bare disconnect; a client too old to decode it
+    /// is dropped anyway, which is a worse message and not a missed revocation.
+    pub fn revoke_session(&self, fingerprint: &str, reason: &str) -> bool {
+        let Some(device) = self.device_for_fingerprint(fingerprint) else {
+            return false;
+        };
+
+        let packet = QuicNetworkPacket {
+            packet_type: PacketType::ServerError,
+            data: QuicNetworkPacketData::ServerError(ServerErrorPacket {
+                error_type: ServerErrorType::CertificateRevoked {
+                    reason: reason.to_string(),
+                },
+                message: reason.to_string(),
+            }),
+            ..Default::default()
+        };
+
+        let identity = self
+            .connections
+            .get(&device)
+            .map(|entry| entry.value().identity.clone());
+        if let Some(identity) = identity {
+            self.send_to_player(&identity, &packet);
+        }
+
+        self.unregister(device);
+        true
+    }
+
+    /// The connection opened with this certificate, if it is still live.
+    ///
+    /// Keyed on the credential rather than the identity so revoking one certificate closes
+    /// only the session it opened.
+    pub fn device_for_fingerprint(&self, fingerprint: &str) -> Option<u64> {
+        self.fingerprint_index.get(fingerprint).map(|e| *e.value())
+    }
+
     pub fn has_live_client(&self, identity: &str) -> bool {
         self.name_index.contains_key(identity)
     }

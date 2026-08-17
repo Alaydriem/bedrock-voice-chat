@@ -1,5 +1,6 @@
 pub mod event;
 pub mod heartbeat_snapshot;
+pub mod host_capability;
 pub mod interaction;
 pub mod metric;
 pub mod posthog;
@@ -22,6 +23,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::services::metrics_service::event::TelemetryEvent;
 use crate::services::metrics_service::heartbeat_snapshot::HeartbeatSnapshot;
+use crate::services::metrics_service::host_capability::HostCapability;
 use crate::services::metrics_service::interaction::InteractionRoute;
 use crate::services::metrics_service::interaction::InteractionTracker;
 use crate::services::metrics_service::metric::Metric;
@@ -355,6 +357,19 @@ impl MetricsService {
             at: Utc::now(),
             uptime_secs: self.started_at.elapsed().as_secs(),
             stop_reason: "graceful",
+        });
+    }
+
+    /// Whether a Minecraft host could fetch and write a native library, reported by
+    /// the Java mod because the mod has no telemetry channel of its own.
+    ///
+    /// Gated by the same `features.telemetry` flag as everything else here. When it
+    /// is off the mod performs no check, so this is never called rather than called
+    /// and dropped — but `emit` drops it anyway if the sender is absent.
+    pub fn record_host_capability(&self, report: HostCapability) {
+        self.emit(TelemetryEvent::ModHostCapability {
+            at: Utc::now(),
+            report,
         });
     }
 

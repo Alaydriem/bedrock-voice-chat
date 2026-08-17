@@ -32,6 +32,7 @@ pub struct RocketManager {
     bedrock_event_service: Arc<BedrockEventService>,
     chat_service: Arc<crate::services::ChatService>,
     cert_service: Arc<CertificateService>,
+    revocations: Arc<crate::services::CertificateRevocationService>,
     hytale_session_cache: routes::api::HytaleSessionCache,
     audio_stream_token_cache: AudioStreamTokenCache,
     metrics: Arc<crate::services::MetricsService>,
@@ -60,6 +61,7 @@ impl RocketManager {
         bedrock_event_service: Arc<BedrockEventService>,
         chat_service: Arc<crate::services::ChatService>,
         cert_service: Arc<CertificateService>,
+        revocations: Arc<crate::services::CertificateRevocationService>,
         audio_stream_token_cache: Option<AudioStreamTokenCache>,
         metrics: Arc<crate::services::MetricsService>,
         readiness: Arc<crate::runtime::ReadinessState>,
@@ -78,6 +80,7 @@ impl RocketManager {
             bedrock_event_service,
             chat_service,
             cert_service,
+            revocations,
             hytale_session_cache: routes::api::HytaleSessionCache::new(),
             audio_stream_token_cache: audio_stream_token_cache
                 .unwrap_or_else(AudioStreamTokenCache::new),
@@ -173,6 +176,7 @@ impl RocketManager {
                     .manage(self.bedrock_event_service.clone())
                     .manage(self.chat_service.clone())
                     .manage(self.cert_service.clone())
+                    .manage(self.revocations.clone())
                     .manage(self.config.permissions.clone())
                     .manage(self.config.audio.clone())
                     .manage(self.hytale_session_cache.clone())

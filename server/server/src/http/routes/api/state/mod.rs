@@ -1,4 +1,4 @@
-use crate::http::guards::MCAccessToken;
+use crate::http::guards::GameAccessToken;
 use crate::http::openapi::{CustomJsonResponse, RouteSpec};
 use crate::stream::quic::{CacheManager, CacheTrait};
 use common::Game;
@@ -23,7 +23,7 @@ inventory::submit! {
 #[openapi(tag = "Control")]
 #[get("/state?<id>&<game>")]
 pub async fn get_state(
-    _access_token: MCAccessToken,
+    _access_token: GameAccessToken,
     cache_manager: &State<CacheManager>,
     id: String,
     // Mirrors the `game` on the control request. Optional for the same reason: the
@@ -55,7 +55,7 @@ pub async fn get_state(
 #[openapi(tag = "Control")]
 #[get("/preferences?<owner>&<game>&<targets>")]
 pub async fn get_preferences(
-    _access_token: MCAccessToken,
+    _access_token: GameAccessToken,
     cache_manager: &State<CacheManager>,
     owner: String,
     // Mirrors the `game` on `/state`, for the same reason: `owner` arrives bare from a

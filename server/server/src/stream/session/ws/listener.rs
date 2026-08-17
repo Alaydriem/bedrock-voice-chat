@@ -27,6 +27,10 @@ pub struct WebSocketListener {
     listener: TcpListener,
     acceptor: TlsAcceptor,
     spawner: Arc<SessionSpawner>,
+    /// The same instance the QUIC handshake and the HTTP guard hold, so a revocation is
+    /// visible on every ingress rather than only the one that wrote it.
+    authorization: Arc<crate::services::SessionAuthorizationService>,
+    database: Arc<sea_orm::DatabaseConnection>,
     devices: Arc<WebSocketDeviceId>,
     /// Counts connections refused before they became sessions. Installed after
     /// construction because the metrics service is built later in startup than this
@@ -63,6 +67,8 @@ impl WebSocketListener {
         key_path: &str,
         ca_path: &str,
         spawner: Arc<SessionSpawner>,
+        authorization: Arc<crate::services::SessionAuthorizationService>,
+        database: Arc<sea_orm::DatabaseConnection>,
     ) -> Result<(Self, SocketAddr), WebSocketListenerError> {
         // Named explicitly rather than taken from the process default: whether one is
         // installed depends on which other component initialised rustls first, and
@@ -93,6 +99,8 @@ impl WebSocketListener {
                 listener,
                 acceptor: TlsAcceptor::from(Arc::new(config)),
                 spawner,
+                authorization,
+                database,
                 devices: Arc::new(WebSocketDeviceId::new()),
                 metrics: None,
             },
@@ -124,11 +132,23 @@ impl WebSocketListener {
 
             let acceptor = self.acceptor.clone();
             let spawner = self.spawner.clone();
+            let authorization = self.authorization.clone();
+            let database = self.database.clone();
             let device = self.devices.next();
             let metrics = self.metrics.clone();
 
             tokio::spawn(async move {
-                match Self::serve(stream, peer, acceptor, spawner, device).await {
+                match Self::serve(
+                    stream,
+                    peer,
+                    acceptor,
+                    spawner,
+                    authorization,
+                    database,
+                    device,
+                )
+                .await
+                {
                     Ok(()) => {}
                     Err(e) => {
                         // Everything that fails before `serve` reaches the spawner is a
@@ -149,6 +169,8 @@ impl WebSocketListener {
         peer: SocketAddr,
         acceptor: TlsAcceptor,
         spawner: Arc<SessionSpawner>,
+        authorization: Arc<crate::services::SessionAuthorizationService>,
+        database: Arc<sea_orm::DatabaseConnection>,
         device: u64,
     ) -> Result<(), WebSocketListenerError> {
         let tls = acceptor
@@ -156,7 +178,25 @@ impl WebSocketListener {
             .await
             .map_err(|source| WebSocketListenerError::Handshake { peer, source })?;
 
-        let identity = Self::authenticated_identity(&tls)
+        let leaf_der = Self::presented_leaf(&tls)
+            .ok_or(WebSocketListenerError::UnusableIdentity { peer })?;
+        let fingerprint =
+            crate::services::SessionAuthorizationService::fingerprint(&leaf_der);
+
+        // Authorized the same way the QUIC handshake is, through the same service, so
+        // neither transport admits a population the other refuses.
+        let player = authorization
+            .authorize(database.as_ref(), &leaf_der)
+            .await
+            .map_err(|reason| {
+                tracing::warn!(%peer, "Refusing WebSocket session: {}", reason);
+                WebSocketListenerError::UnusableIdentity { peer }
+            })?;
+
+        let identity = player
+            .gamertag
+            .as_ref()
+            .map(|gamertag| player.game.membership_key(gamertag))
             .ok_or(WebSocketListenerError::UnusableIdentity { peer })?;
 
         let mut config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default();
@@ -234,7 +274,7 @@ impl WebSocketListener {
 
         let link = WsLink::new(device, inbound_rx, outbound_tx);
         spawner
-            .run(SessionLink::WebSocket(link), device, Some(identity))
+            .run(SessionLink::WebSocket(link), device, Some(identity), fingerprint)
             .await;
 
         reader.abort();
@@ -243,29 +283,17 @@ impl WebSocketListener {
         Ok(())
     }
 
-    /// The player identity this session proved, or `None` if it proved none.
+    /// The verified leaf certificate this session presented.
     ///
-    /// A peer CN is refused rather than accepted: peer links carry another server's
-    /// speakers over a relay path that is server-to-server QUIC by nature, and nothing
-    /// downstream of here would know the difference.
-    fn authenticated_identity(tls: &TlsStream<TcpStream>) -> Option<String> {
-        let common_name = tls
-            .get_ref()
+    /// Classification and authorization happen in `SessionAuthorizationService`, which the
+    /// QUIC handshake also uses — a peer CN is refused there rather than here, so the two
+    /// transports cannot drift into admitting different populations.
+    fn presented_leaf(tls: &TlsStream<TcpStream>) -> Option<Vec<u8>> {
+        tls.get_ref()
             .1
             .peer_certificates()
             .and_then(|chain| chain.first())
-            .and_then(|cert| CertificateCommonName::from_der(cert))?;
-
-        match ConnectionClassifier::classify(&common_name) {
-            ConnectionKind::Player { game, name } => Some(game.membership_key(&name)),
-            ConnectionKind::Rejected { identity } => {
-                tracing::warn!(
-                    %identity,
-                    "Refusing WebSocket session: certificate identity is not a valid player CN"
-                );
-                None
-            }
-        }
+            .map(|cert| cert.as_ref().to_vec())
     }
 
     fn client_verifier(

@@ -36,7 +36,7 @@ async fn control_create_group_with_token_returns_ok() {
     };
     let resp = client
         .post(format!("{}/api/control", env.base_url))
-        .header("X-MC-Access-Token", TOKEN)
+        .header("Authorization", format!("Bearer {TOKEN}"))
         .json(&body)
         .send()
         .await
@@ -60,7 +60,7 @@ async fn get_state_for_unknown_player_is_ok_and_guarded() {
     // With token, an unknown player yields a 200 (empty state).
     let resp = client
         .get(format!("{}/api/state?id=ghost", env.base_url))
-        .header("X-MC-Access-Token", TOKEN)
+        .header("Authorization", format!("Bearer {TOKEN}"))
         .send()
         .await
         .unwrap();
@@ -80,7 +80,7 @@ async fn control_join_unknown_group_is_not_found() {
     };
     let resp = client
         .post(format!("{}/api/control", env.base_url))
-        .header("X-MC-Access-Token", TOKEN)
+        .header("Authorization", format!("Bearer {TOKEN}"))
         .json(&body)
         .send()
         .await
@@ -103,7 +103,7 @@ async fn control_refuses_to_arm_recording_when_the_server_disallows_it() {
     };
     let resp = client
         .post(format!("{}/api/control", env.base_url))
-        .header("X-MC-Access-Token", TOKEN)
+        .header("Authorization", format!("Bearer {TOKEN}"))
         .json(&body)
         .send()
         .await
@@ -129,7 +129,7 @@ async fn control_always_allows_stopping_a_recording() {
     };
     let resp = client
         .post(format!("{}/api/control", env.base_url))
-        .header("X-MC-Access-Token", TOKEN)
+        .header("Authorization", format!("Bearer {TOKEN}"))
         .json(&body)
         .send()
         .await
@@ -153,7 +153,7 @@ async fn control_arms_recording_where_the_server_allows_it() {
     };
     let resp = client
         .post(format!("{}/api/control", env.base_url))
-        .header("X-MC-Access-Token", TOKEN)
+        .header("Authorization", format!("Bearer {TOKEN}"))
         .json(&body)
         .send()
         .await

@@ -64,10 +64,18 @@ pub struct QuicServerManager {
     shutdown_tx: Option<oneshot::Sender<()>>,
     shutdown_rx: Option<oneshot::Receiver<()>>,
     readiness: Option<Arc<crate::runtime::ReadinessState>>,
+    /// Required, not an optional setter. There is one call site, so requiring it means
+    /// the handshake cannot be left admitting revoked or banished certificates.
+    authorization: Arc<crate::services::SessionAuthorizationService>,
+    database: Arc<sea_orm::DatabaseConnection>,
 }
 
 impl QuicServerManager {
-    pub fn new(config: ApplicationConfig) -> Self {
+    pub fn new(
+        config: ApplicationConfig,
+        authorization: Arc<crate::services::SessionAuthorizationService>,
+        database: Arc<sea_orm::DatabaseConnection>,
+    ) -> Self {
         let connection_registry = Arc::new(ConnectionRegistry::new());
         let (webhook_tx, webhook_rx) = mpsc::unbounded_channel();
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -87,6 +95,8 @@ impl QuicServerManager {
             shutdown_tx: Some(shutdown_tx),
             shutdown_rx: Some(shutdown_rx),
             readiness: None,
+            authorization,
+            database,
         }
     }
 
@@ -387,6 +397,13 @@ impl QuicServerManager {
             .flatten()
     }
 
+    fn authenticated_leaf(connection: &Connection) -> Option<Vec<u8>> {
+        connection
+            .query_event_context(|ctx: &PeerIdentityContext| ctx.leaf_der())
+            .ok()
+            .flatten()
+    }
+
     // The close code sent to a connection whose identity cannot be trusted. The
     // client keys off this value to stop reconnecting instead of retrying forever.
     fn unauthorized_code() -> common::s2n_quic::application::Error {
@@ -418,20 +435,46 @@ impl QuicServerManager {
                 }
             };
 
-            let player_identity = match ConnectionClassifier::classify(&authenticated_cn) {
-                // The canonical identity is carried, not the bare name: it is the key every
-                // cache, the registry index and channel membership share.
-                ConnectionKind::Player { game, name } => Some(game.membership_key(&name)),
-                ConnectionKind::Rejected { identity } => {
+            // The certificate is authorized, not merely parsed. Before this, the CN was read
+            // and trusted, so any certificate this CA had ever signed opened a voice session
+            // whether or not the player still existed, was banished, or had been revoked.
+            let Some(leaf_der) = Self::authenticated_leaf(&connection) else {
+                tracing::error!(
+                    connection = %connection_id,
+                    "Refusing connection: no peer certificate could be read"
+                );
+                connection.close(Self::unauthorized_code());
+                continue;
+            };
+
+            let fingerprint =
+                crate::services::SessionAuthorizationService::fingerprint(&leaf_der);
+
+            let player = match self
+                .authorization
+                .authorize(self.database.as_ref(), &leaf_der)
+                .await
+            {
+                Ok(player) => player,
+                Err(reason) => {
                     tracing::warn!(
                         connection = %connection_id,
-                        identity = %identity,
-                        "Refusing connection: certificate identity is not a valid player CN"
+                        identity = %authenticated_cn,
+                        "Refusing connection: {}",
+                        reason
                     );
                     connection.close(Self::unauthorized_code());
                     continue;
                 }
             };
+
+            // The canonical identity is carried, not the bare name: it is the key every
+            // cache, the registry index and channel membership share. Composed from the
+            // resolved player so it cannot disagree with what the database holds.
+            let player_identity = player
+                .gamertag
+                .as_ref()
+                .map(|gamertag| player.game.membership_key(gamertag));
 
             tracing::info!(
                 connection = %connection_id,
@@ -451,6 +494,7 @@ impl QuicServerManager {
                         SessionLink::Quic(conn_arc),
                         device,
                         player_identity,
+                        fingerprint,
                     )
                     .await;
             });

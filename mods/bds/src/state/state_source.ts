@@ -57,7 +57,7 @@ export class NetStateSource implements PanelFeed {
     targets: string[],
   ): Promise<void> {
     const headers: Array<[string, string]> = [
-      ['X-MC-Access-Token', this.config.accessToken],
+      ['Authorization', `Bearer ${this.config.accessToken}`],
       ['Accept', 'application/json'],
     ];
 

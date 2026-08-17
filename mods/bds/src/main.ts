@@ -197,7 +197,7 @@ serverAdminConfig
             payload.toJSONString(),
             [
               ['Content-Type', 'application/json'],
-              ['X-MC-Access-Token', accessToken],
+              ['Authorization', `Bearer ${accessToken}`],
               ['Accept', 'application/json'],
             ],
             REQUEST_TIMEOUT,
@@ -230,7 +230,7 @@ serverAdminConfig
           payload.toJSONString(),
           [
             ['Content-Type', 'application/json'],
-            ['X-MC-Access-Token', accessToken],
+            ['Authorization', `Bearer ${accessToken}`],
             ['Accept', 'application/json'],
           ],
           REQUEST_TIMEOUT,

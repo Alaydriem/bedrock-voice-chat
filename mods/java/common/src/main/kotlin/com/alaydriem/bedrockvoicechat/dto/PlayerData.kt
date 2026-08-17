@@ -17,7 +17,17 @@ data class PlayerData(
     @SerializedName("alternative_identity")
     val alternativeIdentity: String? = null,
     @SerializedName("player_uuid")
-    val playerUuid: String? = null
+    val playerUuid: String? = null,
+    /**
+     * The world this server declares to its BVC peer.
+     *
+     * Distinct from [worldUuid], which is per-dimension and separates players
+     * within this server. This one is per-server and decides which peer link
+     * carries them. Absent means the player cannot be scoped to a relay world at
+     * all, and the peer boundary refuses their audio rather than guessing.
+     */
+    @SerializedName("relay_world_uuid")
+    val relayWorldUuid: String? = null
 ) {
     /**
      * Constructor for Minecraft players (Fabric/Paper).
@@ -32,7 +42,8 @@ data class PlayerData(
         spectator: Boolean = false,
         worldUuid: String? = null,
         alternativeIdentity: String? = null,
-        playerUuid: String? = null
+        playerUuid: String? = null,
+        relayWorldUuid: String? = null
     ) : this(
         name = name,
         coordinates = Coordinates(x, y, z),
@@ -42,7 +53,8 @@ data class PlayerData(
         deafen = deafen,
         spectator = spectator,
         alternativeIdentity = alternativeIdentity,
-        playerUuid = playerUuid
+        playerUuid = playerUuid,
+        relayWorldUuid = relayWorldUuid
     )
 
     /**
@@ -56,7 +68,8 @@ data class PlayerData(
         worldUuid: String,
         deafen: Boolean = false,
         spectator: Boolean = false,
-        playerUuid: String? = null
+        playerUuid: String? = null,
+        relayWorldUuid: String? = null
     ) : this(
         name = name,
         coordinates = Coordinates(x, y, z),
@@ -65,7 +78,8 @@ data class PlayerData(
         worldUuid = worldUuid,
         deafen = deafen,
         spectator = spectator,
-        playerUuid = playerUuid
+        playerUuid = playerUuid,
+        relayWorldUuid = relayWorldUuid
     )
 
     companion object {
@@ -81,7 +95,8 @@ data class PlayerData(
             dimension: Dimension,
             worldUuid: String?,
             alternativeIdentity: String? = null,
-            playerUuid: String? = null
+            playerUuid: String? = null,
+            relayWorldUuid: String? = null
         ): PlayerData = PlayerData(
             name = name,
             coordinates = Coordinates(PHANTOM_COORD, PHANTOM_COORD, PHANTOM_COORD),
@@ -91,7 +106,8 @@ data class PlayerData(
             deafen = false,
             spectator = true,
             alternativeIdentity = alternativeIdentity,
-            playerUuid = playerUuid
+            playerUuid = playerUuid,
+            relayWorldUuid = relayWorldUuid
         )
     }
 }

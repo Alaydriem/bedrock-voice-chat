@@ -110,7 +110,7 @@ export class ChatChannel {
 
       const url = this.serverUrl.replace(/^http/, 'ws') + '/api/websocket/chat';
       const client = await net.websocket.connect(url, [
-        new net.HttpHeader('X-MC-Access-Token', this.accessToken),
+        new net.HttpHeader('Authorization', `Bearer ${this.accessToken}`),
       ]);
 
       if (this.stopped) {

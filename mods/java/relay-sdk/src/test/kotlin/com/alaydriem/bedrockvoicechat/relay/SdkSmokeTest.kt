@@ -91,6 +91,7 @@ class SdkSmokeTest {
     private fun outboundFrame(jukebox: String?) = SdkFrame(
         speaker = "BridgeSpeaker",
         world = "W1",
+        dimension = "overworld",
         x = 4.0f,
         y = 64.0f,
         z = -2.0f,

@@ -3,6 +3,7 @@ pub mod analytics;
 pub mod app;
 pub mod audio;
 pub mod bedrock;
+pub mod certificate;
 pub mod channel;
 pub mod chat;
 pub mod config;

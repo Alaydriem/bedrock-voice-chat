@@ -1,4 +1,5 @@
 pub mod access_token;
+pub mod ca_store;
 pub mod ca_cert;
 pub mod readiness;
 pub mod position_updater;
@@ -11,6 +12,7 @@ use crate::services::{
 };
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 use common::traits::StreamTrait;
+pub use ca_store::CaStore;
 pub use readiness::ReadinessState;
 pub use state::RuntimeState;
 
@@ -35,6 +37,10 @@ pub struct ServerRuntime {
     cache_manager: Arc<RwLock<Option<crate::stream::quic::CacheManager>>>,
     /// Published for the FFI so an embedded mod can drive chat without a socket.
     chat_service: Arc<RwLock<Option<Arc<crate::services::ChatService>>>>,
+    /// Published for the FFI so an embedded mod can report facts about its own host.
+    /// An external mod reports the same facts over HTTP; embedded has no socket to
+    /// use, so it needs this or the population that matters most goes unmeasured.
+    metrics: Arc<RwLock<Option<Arc<crate::services::MetricsService>>>>,
     /// Player registrar for handling player registration (populated after start)
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
     /// Player identity service for cross-platform name resolution (populated after start)
@@ -55,6 +61,7 @@ impl ServerRuntime {
             webhook_receiver: Arc::new(RwLock::new(None)),
             cache_manager: Arc::new(RwLock::new(None)),
             chat_service: Arc::new(RwLock::new(None)),
+            metrics: Arc::new(RwLock::new(None)),
             player_registrar: Arc::new(RwLock::new(None)),
             identity_service: Arc::new(RwLock::new(None)),
             audio_playback_service: Arc::new(RwLock::new(None)),
@@ -154,14 +161,30 @@ impl ServerRuntime {
             common::consts::version::PROTOCOL_VERSION
         );
 
-        // The CA keypair is generated exactly once per deployment, so its absence
-        // here means this boot is the deployment's first.
-        let ca_minted = !std::path::Path::new(&self.config.server.tls.certs_path)
-            .join("ca.key")
-            .exists();
+        // The database connection and its schema are established before anything that needs
+        // them, which now includes the CA. Migrations otherwise run inside Rocket's ignite
+        // fairing, long after this point, so a table read here would not yet exist.
+        let db_conn = self.create_database_connection().await?;
+        let db_conn = Arc::new(db_conn);
+        {
+            use migration::MigratorTrait;
+            migration::Migrator::up(db_conn.as_ref(), None)
+                .await
+                .map_err(|e| anyhow!("running migrations: {}", e))?;
+        }
 
-        // Generate CA certificates
-        let (ca_pem, _ca_key_pem) = self.generate_ca().await?;
+        // The CA keypair is generated exactly once per deployment, so its absence from both
+        // the database and the certs directory means this boot is the deployment's first.
+        let ca_minted = !CaStore::exists(db_conn.as_ref()).await?
+            && !std::path::Path::new(&self.config.server.tls.certs_path)
+                .join("ca.key")
+                .exists();
+
+        // Database-backed, materialised to disk. The TLS stacks take file paths and read them
+        // once at ignite, so the bytes have to land somewhere readable — but the durable copy
+        // lives in the database, which is what lets a container run without a persistent
+        // volume.
+        let (ca_pem, _ca_key_pem) = self.generate_ca(db_conn.as_ref()).await?;
 
         // Resolve the Minecraft access token before any component clones the
         // config. Env and config values win; otherwise the persisted token is
@@ -194,13 +217,22 @@ impl ServerRuntime {
             acme_service = Some(Arc::new(service));
         }
 
-        // Create standalone database connection for FFI and shared services
-        let db_conn = self.create_database_connection().await?;
-        let db_conn = Arc::new(db_conn);
-
         // Create certificate manager (caches root CA)
         let cert_manager = CertificateService::new_shared(&self.config.server.tls.certs_path)?;
         let cert_service = Arc::new(CertificateService::new(&self.config.server.tls.certs_path)?);
+
+        // One instance for the whole process. The HTTP guard, the QUIC handshake and the
+        // WebSocket upgrade all consult it, and a second instance would carry its own cache —
+        // so a revocation written through one would be invisible to the others.
+        let certificate_revocations =
+            crate::services::CertificateRevocationService::new_shared();
+
+        // Authorizes the certificate presented at a QUIC or WebSocket handshake. Shares the
+        // revocation list above, so a ban written over HTTP is seen by both transports.
+        let session_authorization =
+            crate::services::SessionAuthorizationService::new_shared(
+                certificate_revocations.clone(),
+            );
 
         // Create player registrar for shared player registration logic
         let player_registrar = PlayerRegistrarService::new(db_conn.clone(), cert_manager);
@@ -227,7 +259,11 @@ impl ServerRuntime {
         }
 
         // QUIC server manager
-        let mut quic_manager = QuicServerManager::new(self.config.clone());
+        let mut quic_manager = QuicServerManager::new(
+            self.config.clone(),
+            session_authorization.clone(),
+            db_conn.clone(),
+        );
         let readiness_state = readiness::ReadinessState::new_shared();
         quic_manager.set_readiness(readiness_state.clone());
         let webhook_receiver = quic_manager.get_webhook_receiver().clone();
@@ -268,6 +304,10 @@ impl ServerRuntime {
             Some(cache_manager.player_state().clone()),
         );
         connection_registry.set_metrics(metrics.clone());
+
+        if let Ok(mut slot) = self.metrics.write() {
+            *slot = Some(metrics.clone());
+        }
 
         let heartbeat_shutdown = tokio_util::sync::CancellationToken::new();
         let heartbeat_handle = metrics.spawn_heartbeat(heartbeat_shutdown.clone());
@@ -448,6 +488,7 @@ impl ServerRuntime {
             bedrock_event_service,
             chat_service,
             cert_service,
+            certificate_revocations.clone(),
             Some(audio_stream_token_cache),
             metrics.clone(),
             readiness_state.clone(),
@@ -578,6 +619,8 @@ impl ServerRuntime {
             &self.config.server.tls.key,
             &format!("{}/ca.crt", self.config.server.tls.certs_path),
             quic_manager.session_spawner(),
+            session_authorization.clone(),
+            db_conn.clone(),
         )
         .await?;
         websocket_listener.set_metrics(metrics.clone());
@@ -740,6 +783,11 @@ impl ServerRuntime {
         self.chat_service.clone()
     }
 
+    /// Get a clone of the metrics Arc for external use (FFI)
+    pub fn get_metrics(&self) -> Arc<RwLock<Option<Arc<crate::services::MetricsService>>>> {
+        self.metrics.clone()
+    }
+
     /// Get a clone of the player registrar Arc for external use (FFI)
     pub fn get_player_registrar(&self) -> Arc<RwLock<Option<PlayerRegistrarService>>> {
         self.player_registrar.clone()
@@ -872,10 +920,13 @@ impl ServerRuntime {
     /// generated exactly once per deployment; the cert is re-signed with the
     /// same key whenever the configured SAN set drifts. Returns
     /// `(cert_pem, key_pem)`.
-    async fn generate_ca(&self) -> Result<(String, String), anyhow::Error> {
+    async fn generate_ca<C: sea_orm::ConnectionTrait>(
+        &self,
+        conn: &C,
+    ) -> Result<(String, String), anyhow::Error> {
         let mut san_names = self.config.server.tls.names.clone();
         san_names.append(&mut self.config.server.tls.ips.clone());
-        ca_cert::CaCertManager::new(&self.config.server.tls.certs_path).ensure(&san_names)
+        ca_store::CaStore::ensure(conn, &self.config.server.tls.certs_path, &san_names).await
     }
 }
 

@@ -5,7 +5,7 @@ use rocket::State;
 use rocket::futures::{SinkExt, StreamExt};
 use rocket_ws::{Channel, Message, WebSocket};
 
-use crate::http::guards::MCAccessToken;
+use crate::http::guards::GameAccessToken;
 use crate::services::ChatService;
 
 // Bounded. Chat that cannot keep up is dropped rather than buffered: a backlog delivered late
@@ -27,7 +27,7 @@ const OUTBOUND_CAPACITY: usize = 64;
 #[get("/websocket/chat")]
 pub fn chat(
     ws: WebSocket,
-    _access_token: MCAccessToken,
+    _access_token: GameAccessToken,
     chat_service: &State<Arc<ChatService>>,
 ) -> Channel<'static> {
     let service = Arc::clone(chat_service);

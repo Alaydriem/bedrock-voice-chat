@@ -125,7 +125,7 @@ class ChatChannel(
 
         HttpClient.newHttpClient()
             .newWebSocketBuilder()
-            .header("X-MC-Access-Token", accessToken)
+            .header("Authorization", "Bearer $accessToken")
             .buildAsync(uri, Listener())
             .whenComplete { ws, error ->
                 connecting.set(false)

@@ -19,7 +19,7 @@ admin_cert = "certs/admin.crt"
 admin_key  = "certs/admin.key"
 
 # The server's Minecraft mod access token (server config `minecraft.access_token`).
-# The CONTROLLER sends it as `X-MC-Access-Token` when advertising positions.
+# The CONTROLLER sends it as `Authorization: Bearer <token>` when advertising positions.
 # Required — without valid positions the server routes zero audio to the bots.
 access_token = "REPLACE_WITH_SERVER_MOD_ACCESS_TOKEN"
 

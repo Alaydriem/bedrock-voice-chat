@@ -507,6 +507,17 @@ impl PacketRouter {
                     info!("Publishing connection health: {:?}", health_event);
                     crate::network::HealthPublisher::publish(&self.app_handle, health_event);
                 }
+                // Reported as `Unauthorized` rather than a variant of its own: that state is
+                // already terminal, and retrying with a revoked certificate cannot succeed.
+                ServerErrorType::CertificateRevoked { ref reason } => {
+                    error!("Certificate revoked by the server: {}", reason);
+                    crate::network::HealthPublisher::publish(
+                        &self.app_handle,
+                        ConnectionHealth::Unauthorized {
+                            reason: reason.clone(),
+                        },
+                    );
+                }
             }
         }
     }

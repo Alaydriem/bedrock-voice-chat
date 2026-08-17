@@ -1,4 +1,4 @@
-mod transfer;
+pub mod transfer;
 
 use crate::http::openapi::{RouteSpec, TagDefinition};
 
