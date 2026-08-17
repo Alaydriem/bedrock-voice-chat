@@ -22,6 +22,14 @@ crate-type = ["cdylib", "lib"]
 [[bin]]
 name = "uniffi-bindgen"
 path = "src/bin/uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[features]
+# Off by default. `uniffi/cli` is what provides the bindgen binary, and it pulls
+# the whole code generator with it — askama, goblin, cargo_metadata and their
+# trees. Only the Gradle `generateBindings` task needs it, so a crate that merely
+# links this one to call it does not build a code generator to do so.
+bindgen = ["uniffi/cli"]
 
 [dependencies]
 bvc-relay = { path = "../lib" }
@@ -29,7 +37,6 @@ common = { path = "../../common", default-features = false }
 thiserror = { version = "^2" }
 tokio = { version = "^1", features = ["full"] }
 tracing = { version = "^0.1" }
-# `tokio` is what makes `async_runtime = "tokio"` available on an exported impl,
-# and `cli` is what provides the `uniffi-bindgen` binary. Neither implies the
-# other.
-uniffi = { version = "0.32.0", features = ["cli", "tokio"] }
+# `tokio` is what makes `async_runtime = "tokio"` available on an exported impl.
+# It does not imply `cli`, which the `bindgen` feature adds separately.
+uniffi = { version = "0.32.0", features = ["tokio"] }

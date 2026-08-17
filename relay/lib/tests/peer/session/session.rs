@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use bvc_relay::node::{NodeIdentity, PeerTicket};
@@ -7,6 +7,7 @@ use bvc_relay::peer::{Handshake, PeerAuthority, PeerEndpoint, PeerLink, PeerScop
 use common::game_data::Dimension;
 use common::structs::relay::Capability;
 use common::structs::relay::wire::datagram::VoiceFrame;
+use common::traits::player_data::PlayerData;
 use common::{Coordinate, MinecraftPlayer, Orientation, PlayerEnum};
 use tempfile::TempDir;
 
@@ -95,6 +96,62 @@ async fn acceptor(dir: &TempDir, burst: usize) -> (String, Arc<PeerEndpoint>) {
     });
 
     (ticket, endpoint)
+}
+
+// An acceptor that keeps what it is sent, so a test can assert on it.
+//
+// Separate from `acceptor` rather than a flag on it: that one exists to *send* on
+// a schedule, and the tests that use it are sensitive to how much it sends.
+async fn recording_acceptor(
+    dir: &TempDir,
+) -> (String, Arc<PeerEndpoint>, Arc<Mutex<Vec<VoiceFrame>>>) {
+    let identity =
+        NodeIdentity::load_or_create(dir.path().to_str().expect("path")).expect("identity");
+    let endpoint = Arc::new(
+        PeerEndpoint::bind(&identity, None)
+            .await
+            .expect("bind acceptor"),
+    );
+    let ticket = endpoint.ticket().await.expect("mint");
+    let received: Arc<Mutex<Vec<VoiceFrame>>> = Arc::new(Mutex::new(Vec::new()));
+
+    let listening = Arc::clone(&endpoint);
+    let sink = Arc::clone(&received);
+    tokio::spawn(async move {
+        while let Some(incoming) = listening.endpoint().accept().await {
+            let sink = Arc::clone(&sink);
+            tokio::spawn(async move {
+                let Ok(conn) = incoming.await else { return };
+                let Ok(accept) = Handshake::accept(&conn, &AcceptsAnyone).await else {
+                    return;
+                };
+                let Ok(link) = PeerLink::establish(conn, accept.worlds) else {
+                    return;
+                };
+
+                while let Ok(frame) = link.recv().await {
+                    sink.lock().expect("sink lock").push(frame);
+                }
+            });
+        }
+    });
+
+    (ticket, endpoint, received)
+}
+
+// `open` returns before the dial completes, so anything that sends has to wait
+// for the link rather than assume it.
+async fn await_connected(session: &PeerSession, timeout: Duration) -> bool {
+    let deadline = tokio::time::Instant::now() + timeout;
+
+    while tokio::time::Instant::now() < deadline {
+        if session.is_connected() {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    false
 }
 
 fn config(node_dir: &TempDir, peerlink: String) -> SessionConfig {
@@ -200,5 +257,65 @@ async fn open_succeeds_against_an_unreachable_peer() {
         .expect("open must not depend on the peer being up");
 
     assert!(!session.is_connected());
+    session.close().await;
+}
+
+// The direction a bridge exists for: its own players' audio reaching BVC.
+#[tokio::test]
+async fn a_session_sends_a_frame_to_its_peer() {
+    let acceptor_dir = TempDir::new().expect("tempdir");
+    let dialer_dir = TempDir::new().expect("tempdir");
+    let (ticket, _acceptor, received) = recording_acceptor(&acceptor_dir).await;
+
+    let session = PeerSession::open(config(&dialer_dir, ticket))
+        .await
+        .expect("open");
+
+    assert!(
+        await_connected(&session, Duration::from_secs(15)).await,
+        "the session never connected, so the send below would prove nothing"
+    );
+
+    session.send(frame(42)).expect("send");
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let got = loop {
+        if let Some(frame) = received.lock().expect("sink lock").first().cloned() {
+            break frame;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the peer never received the frame"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    };
+
+    assert_eq!(got.opus, vec![42]);
+    assert_eq!(got.speaker.get_name(), "Alice");
+    assert_eq!(got.speaker.world_identifier(), Some("W1"));
+
+    session.close().await;
+}
+
+// Dropping rather than queueing is the contract: voice held through an outage
+// arrives describing a moment that has passed. The caller is told so it can stop
+// encoding instead of feeding a link that is not there.
+#[tokio::test]
+async fn sending_without_a_link_is_refused_rather_than_queued() {
+    let unreachable_dir = TempDir::new().expect("tempdir");
+    let dialer_dir = TempDir::new().expect("tempdir");
+
+    let identity = NodeIdentity::load_or_create(unreachable_dir.path().to_str().expect("path"))
+        .expect("identity");
+    let ticket =
+        PeerTicket::mint(&iroh::EndpointAddr::new(identity.node_id())).expect("mint a ticket");
+
+    let session = PeerSession::open(config(&dialer_dir, ticket))
+        .await
+        .expect("open");
+
+    assert!(!session.is_connected());
+    assert!(session.send(frame(1)).is_err());
+
     session.close().await;
 }

@@ -119,7 +119,8 @@ tasks.register<Exec>("generateBindings") {
     }
 
     commandLine(
-        "cargo", "run", "-p", "bvc-relay-sdk", "--bin", "uniffi-bindgen", "--",
+        "cargo", "run", "-p", "bvc-relay-sdk", "--features", "bindgen",
+        "--bin", "uniffi-bindgen", "--",
         "generate", "--library", "target/$rustBuildMode/$libName",
         "--language", "kotlin",
         "--out-dir", "mods/java/relay-sdk/src/main/kotlin",

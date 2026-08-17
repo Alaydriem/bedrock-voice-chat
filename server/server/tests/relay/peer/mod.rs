@@ -4,3 +4,4 @@ mod ingest;
 mod jukebox;
 mod links;
 mod plane;
+mod sdk;

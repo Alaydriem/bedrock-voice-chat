@@ -91,6 +91,7 @@ async-channel = { version = "^2.3" }
 nanoid = { workspace = true }
 blake3 = { version = "^1.8" }
 hex = { version = "^0.4" }
+argon2 = { version = "^0.5" }
 redcon = { version = "^0.1" }
 rocket_cors = { version = "^0.6" }
 dryoc = { version = "^0.7" }
@@ -142,6 +143,9 @@ read-process-memory ={ version = "^0.1" }
 proc_mem = { version = "^0.1"}
 tempfile = { version = "^3" }
 ring = { version = "^0.17" }
+# Test-only. Lets the peer tests drive the object a plugin actually calls rather
+# than a hand-built frame that merely resembles what the SDK produces.
+bvc-relay-sdk = { path = "../../relay/sdk" }
 
 [target.'cfg(target_env = "musl")'.dependencies]
 libsqlite3-sys = { version = "^0.30", features = ["bundled"] }

@@ -6,14 +6,19 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import uniffi.bvc_relay_sdk.BvcPeer
 import uniffi.bvc_relay_sdk.SdkConfig
+import uniffi.bvc_relay_sdk.SdkException
+import uniffi.bvc_relay_sdk.SdkFrame
 import java.io.BufferedReader
 import java.nio.file.Files
 
@@ -22,17 +27,25 @@ import java.nio.file.Files
 // session is shut down. uniffi supports no cancellation, so the last of those
 // has no fallback — a plugin that cannot do it hangs on disable.
 class SdkSmokeTest {
-    private var echo: Process? = null
+    private var echoPeer: Process? = null
 
     @AfterEach
     fun stopEchoPeer() {
-        echo?.destroyForcibly()
+        echoPeer?.destroyForcibly()
     }
 
     // `burst` bounds how many frames the peer sends before going quiet. A test
     // asserting that a parked read is released cannot use a peer that never
     // stops talking; it would be asserting which of the two won a race.
-    private fun startEchoPeer(burst: Int? = null, jukebox: String? = null): String {
+    //
+    // `echo` reflects back whatever the peer is sent. Paired with `burst = 0` it
+    // makes the peer silent except for what it receives, so a frame arriving at
+    // the caller is unambiguously the one the caller just sent.
+    private fun startEchoPeer(
+        burst: Int? = null,
+        jukebox: String? = null,
+        echo: Boolean = false,
+    ): String {
         val binary = System.getProperty("bvc.echoPeer")
             ?: error("bvc.echoPeer system property is not set")
 
@@ -43,9 +56,12 @@ class SdkSmokeTest {
         if (jukebox != null) {
             command += listOf("--jukebox", jukebox)
         }
+        if (echo) {
+            command += "--echo"
+        }
 
         val process = ProcessBuilder(command).redirectErrorStream(false).start()
-        echo = process
+        echoPeer = process
 
         val reader = BufferedReader(process.inputStream.reader())
         return generateSequence { reader.readLine() }
@@ -60,6 +76,29 @@ class SdkSmokeTest {
         worlds = listOf("W1"),
         relayUrl = null,
         inboxCapacity = 8u,
+    )
+
+    // `open` returns before the dial completes, so a send issued straight after it
+    // would be refused for the right reason at the wrong moment.
+    private suspend fun awaitConnected(peer: BvcPeer, timeoutMs: Long) {
+        withTimeout(timeoutMs) {
+            while (!peer.isConnected()) {
+                delay(100)
+            }
+        }
+    }
+
+    private fun outboundFrame(jukebox: String?) = SdkFrame(
+        speaker = "BridgeSpeaker",
+        world = "W1",
+        x = 4.0f,
+        y = 64.0f,
+        z = -2.0f,
+        opus = byteArrayOf(7, 7, 7),
+        sampleRate = 48000u,
+        timestampMs = 1234L,
+        spatial = true,
+        jukebox = jukebox,
     )
 
     // An UnsatisfiedLinkError here means the native library is not resolvable, or
@@ -129,6 +168,68 @@ class SdkSmokeTest {
         val own = peer.peerlink()
         assertTrue(own.startsWith("bvcpeer"), "not a peer link: $own")
         assertNotEquals(peerlink, own, "reported the peer's link, not its own")
+
+        peer.shutdown()
+    }
+
+    // The direction a bridge exists for. The peer is silent except for what it is
+    // sent, so a frame arriving here is the one that just went out — proving the
+    // send crossed the FFI boundary, reached the wire, and came back.
+    @Test
+    fun `a sent frame reaches the peer and returns`() = runBlocking {
+        val peerlink = startEchoPeer(burst = 0, echo = true)
+        val peer = BvcPeer.open(config(peerlink))
+        awaitConnected(peer, 30_000)
+
+        peer.send(outboundFrame(jukebox = null))
+
+        val echoed = withTimeout(30_000) { peer.nextFrame() }
+
+        assertNotNull(echoed, "the peer never returned the frame that was sent")
+        assertEquals("BridgeSpeaker", echoed!!.speaker)
+        assertEquals("W1", echoed.world)
+        assertEquals(4.0f, echoed.x)
+        assertEquals(1234L, echoed.timestampMs)
+        assertArrayEquals(byteArrayOf(7, 7, 7), echoed.opus)
+
+        peer.shutdown()
+    }
+
+    // Outbound jukebox audio is a real case: a bridge carrying a playback into BVC
+    // must be able to say so, not only recognise one arriving.
+    @Test
+    fun `a sent jukebox id survives the round trip`() = runBlocking {
+        val peerlink = startEchoPeer(burst = 0, echo = true)
+        val peer = BvcPeer.open(config(peerlink))
+        awaitConnected(peer, 30_000)
+
+        peer.send(outboundFrame(jukebox = "evt-77"))
+
+        val echoed = withTimeout(30_000) { peer.nextFrame() }
+
+        assertNotNull(echoed)
+        assertEquals("evt-77", echoed!!.jukebox)
+
+        peer.shutdown()
+    }
+
+    // Refused rather than queued, and the refusal has to reach Kotlin as an
+    // exception rather than being swallowed into a silent success.
+    //
+    // The peer is started only to mint a well-formed link and is then killed, so
+    // the key is valid and nothing answers it.
+    @Test
+    fun `sending without a link throws rather than queueing`() = runBlocking {
+        val peerlink = startEchoPeer(burst = 0)
+        echoPeer?.destroyForcibly()
+        echoPeer?.waitFor()
+
+        val peer = BvcPeer.open(config(peerlink))
+
+        assertFalse(peer.isConnected())
+        assertThrows(SdkException::class.java) {
+            peer.send(outboundFrame(jukebox = null))
+        }
 
         peer.shutdown()
     }

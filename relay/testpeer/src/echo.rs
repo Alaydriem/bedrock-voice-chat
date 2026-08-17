@@ -35,9 +35,15 @@ impl EchoPeer {
     //
     // `jukebox` stamps every frame as a playback, so a binding test can check the
     // field arrives rather than trusting that it was encoded.
+    //
+    // `echo` reflects every received frame back verbatim. Paired with `--burst 0`
+    // it makes the peer silent except for what it is sent, so a returning frame is
+    // unambiguously the caller's own and needs no marker — and marking it would
+    // mean rewriting the speaker, which means matching its variant.
     pub async fn run(
         burst: Option<usize>,
         jukebox: Option<String>,
+        echo: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let dir = tempfile::tempdir()?;
         let identity = NodeIdentity::load_or_create(dir.path().to_str().ok_or("path")?)?;
@@ -60,14 +66,14 @@ impl EchoPeer {
                     return;
                 };
 
-                Self::talk(link, burst, jukebox).await;
+                Self::talk(link, burst, jukebox, echo).await;
             });
         }
 
         Ok(())
     }
 
-    async fn talk(link: PeerLink, burst: Option<usize>, jukebox: Option<String>) {
+    async fn talk(link: PeerLink, burst: Option<usize>, jukebox: Option<String>, echo: bool) {
         let mut ticker = tokio::time::interval(Self::TICK);
         let mut sent: usize = 0;
 
@@ -84,9 +90,13 @@ impl EchoPeer {
             }
         }
 
-        // Held open and quiet. Dropping the link closes the connection, which the
-        // far side reads as a disconnect and answers with a redial.
-        while link.recv().await.is_ok() {}
+        // Held open past the burst. Dropping the link closes the connection, which
+        // the far side reads as a disconnect and answers with a redial.
+        while let Ok(frame) = link.recv().await {
+            if echo && link.send(frame).is_err() {
+                return;
+            }
+        }
     }
 
     fn frame(marker: u8, jukebox: Option<String>) -> VoiceFrame {
