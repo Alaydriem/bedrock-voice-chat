@@ -57,6 +57,10 @@ class PaperPlugin : JavaPlugin(), Listener {
     private var embeddedServer: BvcServerManager? = null
     private var relayWorld: RelayWorld? = null
     private var svcBridgeHost: SvcBridgeHost? = null
+
+    // One instance: it caches its answer and logs on first resolve, so a second
+    // instance reports the same detection a second time.
+    private val svcAvailability = SvcAvailability()
     private var positionSender: PositionSender? = null
     private var audioEventSender: AudioEventSender? = null
     private var controlSender: ControlSender? = null
@@ -108,7 +112,7 @@ class PaperPlugin : JavaPlugin(), Listener {
      * link.
      */
     private fun startSvcBridge(config: ModConfig) {
-        if (!SvcAvailability().isAvailable) {
+        if (!svcAvailability.isAvailable) {
             return
         }
 
@@ -185,7 +189,14 @@ class PaperPlugin : JavaPlugin(), Listener {
 
         minimumPlayers = config.minimumPlayers
         relayWorld = RelayWorld(dataFolder)
-        playerDataProvider = PaperPlayerDataProvider(relayWorld = relayWorld)
+        // The bridge does not exist until Simple Voice Chat hands over its server API,
+        // several steps after this, so the provider reads it through the field rather than
+        // holding one. Before then, and on a server without Simple Voice Chat, nobody is
+        // bridged.
+        playerDataProvider = PaperPlayerDataProvider(
+            relayWorld = relayWorld,
+            bridgedVoice = { uuid -> svcBridgeHost?.isOnVoice(uuid) ?: false }
+        )
 
         // Native libraries are resolved from the plugin data directory rather than
         // unpacked from the jar. Configured before anything can reach an FFI call,
@@ -200,7 +211,7 @@ class PaperPlugin : JavaPlugin(), Listener {
         // The relay SDK is loaded by bare name by uniffi's generated bindings, so
         // its directory has to be on JNA's search path before the first one runs.
         // The first is BridgePeering, below, while the embedded grant is written.
-        if (SvcAvailability().isAvailable) {
+        if (svcAvailability.isAvailable) {
             try {
                 provider.prepareForBareNameLoad("bvc_relay_sdk")
             } catch (e: Exception) {
@@ -216,7 +227,7 @@ class PaperPlugin : JavaPlugin(), Listener {
             // Granted before the server starts, because authorization is read from
             // config at startup. Applied only when SVC is present, so a server
             // without it declares no peer it will never see.
-            if (SvcAvailability().isAvailable) {
+            if (svcAvailability.isAvailable) {
                 val nodeDir = File(dataFolder, "svc-bridge")
                 config.embeddedConfig = (config.embeddedConfig ?: EmbeddedServerConfig()).also {
                     EmbeddedGrant(BridgePeering(nodeDir)).applyTo(it)
@@ -252,7 +263,7 @@ class PaperPlugin : JavaPlugin(), Listener {
 
         // Set up audio player manager
         val sender = audioEventSender!!
-        audioPlayerManager = PaperAudioPlayerManager(sender, this)
+        audioPlayerManager = PaperAudioPlayerManager(sender, this, relayWorld)
 
         // Set server reference on data provider for player lookups
         playerDataProvider.server = server

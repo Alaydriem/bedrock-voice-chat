@@ -27,6 +27,9 @@ class NativeManifest(
     companion object {
         const val MANIFEST_NAME: String = "native-manifest.json"
 
+        /** What a build with no `-PnativeRelease` stamps. Nothing is published under it. */
+        const val DEV_RELEASE: String = "dev"
+
         private const val RESOURCE_PATH: String = "/$MANIFEST_NAME"
 
         fun parse(json: String): NativeManifest = Gson().fromJson(json, NativeManifest::class.java)

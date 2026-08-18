@@ -23,7 +23,16 @@ fn player(name: &str, x: f32, z: f32) -> PlayerEnum {
         alternative_identity: None,
         player_uuid: None,
         relay_world_uuid: None,
+        bridged_voice: false,
     })
+}
+
+fn bridged(name: &str, x: f32, z: f32) -> PlayerEnum {
+    let PlayerEnum::Minecraft(mut mc) = player(name, x, z) else {
+        unreachable!("player() builds a Minecraft player");
+    };
+    mc.bridged_voice = true;
+    PlayerEnum::Minecraft(mc)
 }
 
 fn hytale(name: &str, x: f32, z: f32) -> PlayerEnum {
@@ -135,4 +144,46 @@ fn voice_connections_are_tracked_separately_from_the_world() {
 
     assert!(world.is_on_voice("minecraft:OnVoice"));
     assert!(!world.is_on_voice("minecraft:GameOnly"));
+}
+
+/// A player whose voice connection belongs to a mod is on voice.
+///
+/// The connection registry counts only what this server terminates, so a Simple Voice Chat
+/// player is absent from it however audible they are. Reported as game-only, the client
+/// hides their volume control and tells everyone beside them that they cannot hear you —
+/// while their audio is arriving over the peer link.
+#[test]
+fn a_bridged_player_is_on_voice_without_a_connection_of_our_own() {
+    let world = index(
+        vec![bridged("Bridged", 0.0, 0.0), player("GameOnly", 5.0, 0.0)],
+        &[],
+    );
+
+    assert!(world.is_on_voice("minecraft:Bridged"));
+    assert!(!world.is_on_voice("minecraft:GameOnly"));
+}
+
+/// Bridged voice is added to the registry's set, never substituted for it.
+///
+/// Both populations share one server, so a set built from either source alone silently
+/// demotes the other's players to game-only.
+#[test]
+fn bridged_voice_does_not_displace_this_servers_own_connections() {
+    let world = index(
+        vec![bridged("Bridged", 0.0, 0.0), player("OnQuic", 5.0, 0.0)],
+        &["minecraft:OnQuic"],
+    );
+
+    assert!(world.is_on_voice("minecraft:Bridged"));
+    assert!(world.is_on_voice("minecraft:OnQuic"));
+}
+
+/// Keyed the same way the registry keys its own, or the two sources disagree about one
+/// person: a bare gamertag added here answers no to every lookup the feed makes.
+#[test]
+fn a_bridged_player_is_keyed_on_the_canonical_identity() {
+    let world = index(vec![bridged("Bridged", 0.0, 0.0)], &[]);
+
+    assert!(!world.is_on_voice("Bridged"));
+    assert!(world.is_on_voice("minecraft:Bridged"));
 }

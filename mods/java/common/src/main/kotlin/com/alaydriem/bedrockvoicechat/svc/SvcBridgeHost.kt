@@ -31,6 +31,11 @@ class SvcBridgeHost(
     @Volatile
     private var refresher: Thread? = null
 
+    @Volatile
+    private var serverApi: VoicechatServerApi? = null
+
+    private val announcedFirstFrame = java.util.concurrent.atomic.AtomicBoolean(false)
+
     /**
      * Builds the plugin SVC will register.
      *
@@ -48,10 +53,36 @@ class SvcBridgeHost(
         )
     }
 
+    /**
+     * Whether Simple Voice Chat currently holds a voice connection for this player.
+     *
+     * Asked rather than inferred from their packets. Packets answer who is speaking, so a
+     * connected player who is listening would read as having no voice connection at all,
+     * and would flip back to it every time they stopped talking.
+     *
+     * Re-fetched per call because a VoicechatConnection documents itself as a snapshot that
+     * does not track the connection it came from.
+     */
+    fun isOnVoice(player: UUID): Boolean =
+        serverApi?.getConnectionOf(player)?.isConnected == true
+
     private fun send(frame: uniffi.bvc_relay_sdk.SdkFrame) {
         val session = peer ?: return
         try {
             session.send(frame)
+
+            // Once, so a silent direction can be told apart from a rejected one.
+            // Without it, "no audio reaches BVC" looks identical whether Simple
+            // Voice Chat never delivered a packet or the far side refused every
+            // frame, and those have opposite fixes.
+            if (announcedFirstFrame.compareAndSet(false, true)) {
+                logger.info(
+                    "First voice frame sent to BVC: speaker={} world={} dimension={}",
+                    frame.speaker,
+                    frame.world,
+                    frame.dimension
+                )
+            }
         } catch (e: Exception) {
             // Not connected yet, or the link dropped. The session redials on its
             // own, and a speaker talking through an outage would otherwise log per
@@ -70,6 +101,7 @@ class SvcBridgeHost(
      * null on a loaded one, leaving the bridge silently unpeered.
      */
     private fun onServerApi(api: VoicechatServerApi, serverPeerlink: () -> String?) {
+        serverApi = api
         SvcCategories.register(api)
 
         Thread({ openSession(api, serverPeerlink) }, "bvc-svc-connect").apply {
@@ -181,6 +213,7 @@ class SvcBridgeHost(
     fun shutdown() {
         refresher?.interrupt()
         refresher = null
+        serverApi = null
 
         val session = peer ?: return
         peer = null

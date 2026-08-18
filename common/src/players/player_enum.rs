@@ -68,6 +68,14 @@ impl PlayerData for PlayerEnum {
         }
     }
 
+    fn has_bridged_voice(&self) -> bool {
+        match self {
+            PlayerEnum::Minecraft(p) => p.has_bridged_voice(),
+            PlayerEnum::Hytale(p) => p.has_bridged_voice(),
+            PlayerEnum::Generic(p) => p.has_bridged_voice(),
+        }
+    }
+
     fn dimension(&self) -> Option<Dimension> {
         match self {
             PlayerEnum::Minecraft(p) => p.dimension(),

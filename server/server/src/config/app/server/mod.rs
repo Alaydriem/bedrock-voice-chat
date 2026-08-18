@@ -38,7 +38,7 @@ fn default_quic_port() -> u32 {
 }
 
 fn default_advertised_quic_ports() -> Vec<u32> {
-    Vec::new()
+    [8443].to_vec()
 }
 
 fn default_assets_path() -> String {

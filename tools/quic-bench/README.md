@@ -311,6 +311,43 @@ a figure from this harness rather than against prose elsewhere.
 | 2026-08-17 | same | **arm D via Meridian (tokio)**, wait=0, 2 runs | — | — | srv 26.54% + mer 25.67% = 52.2% | Unbatched, the relay costs as much as the server: 2 syscalls + a task spawn + an alloc per forwarded packet. |
 | 2026-08-17 | same | **arm D via Meridian (tokio)**, wait=7500, 2 runs | — | — | srv 14.79% + mer 10.31% = 25.1% | Meridian −60% with ZERO meridian changes — it forwards 1:1, so the send batch's packet reduction passes straight through. The voice path halved. |
 
+### Plan-tier sweep at the shipped 7500 us wait (2026-08-17)
+
+Five shapes, three rounds, musl, direct path, `BATCH_WAIT_MICROS=7500`, binaries pinned
+as `bvc-bench-bins/{bvc-server,broadcast}.armd`. 10p/10s is the control: it reproduces
+the 13.38% arm-table figure, which is what validates the rest of the run.
+
+| dgram/s | shape | runs | median | spread |
+| --- | --- | --- | --- | --- |
+| 300 | 3p / 2 talking | 3.10 2.60 2.73 | **2.73%** | 0.50 |
+| 450 | 3p / 3 talking | 3.71 5.30 3.38 | **3.71%** | 1.92 |
+| 750 | 5p / 3 talking | 4.08 4.15 4.41 | 4.15% | 0.33 |
+| 3,000 | 10p / 6 talking | 11.58 11.18 11.85 | 11.58% | 0.67 |
+| 5,000 | 10p / 10 talking | 13.28 14.35 14.36 | 14.35% | 1.08 |
+
+**Do not fit one line through these.** Least squares gives `2.48% + 25.4 us` but the
+residuals reach +1.48pp at 3,000 — the curve is concave, because batching packs better as
+a room gets busier. Interpolate locally between neighbouring measured points instead.
+
+**Low-rate readings are noisy in relative terms.** 2.73% of a core over 60 s is about
+1.6 core-seconds, so clock-tick granularity and scheduler noise are visible: the 450 point
+spans 3.38–5.30. Treat the 3-player tier as 2.7–4.2% and size on the upper end.
+
+Derived per-tenant peaks and 4-core capacity at 65% utilisation:
+
+| Plan / shape | dgram/s | CPU | Source | Active per 4c | Raw $ at $60/box | Per player |
+| --- | --- | --- | --- | --- | --- | --- |
+| 3p / 2 talking | 300 | 2.73% | measured | 95 | $0.63 | 0.91% |
+| 3p / 3 talking | 450 | 3.71% | measured | 70 | $0.86 | 1.24% |
+| 11p / 7 talking | 3,850 | 12.76% | interpolated | 20 | $2.94 | 1.16% |
+| 11p / 11 talking | 6,050 | 15.80% | extrapolated | 17 | $3.65 | 1.44% |
+
+This supersedes any tier figure extrapolated from the single 10p/10s point. That
+extrapolation held the intercept at 3.47% and derived 19.8 us/datagram; the sweep shows
+the intercept nearer 2.5% and the slope nearer 25 us. The two errors cancelled at 5,000
+dgram/s — where the single point was taken — and diverged either side of it, over-stating
+the 3-player tier by 34% and under-stating 10p/6s by 17%.
+
 ### Cost model
 
 Five shapes, both arms, two rounds each, 20 ms frames, direct path. `dgram/s` is

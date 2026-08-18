@@ -27,7 +27,18 @@ data class PlayerData(
      * all, and the peer boundary refuses their audio rather than guessing.
      */
     @SerializedName("relay_world_uuid")
-    val relayWorldUuid: String? = null
+    val relayWorldUuid: String? = null,
+    /**
+     * Whether this player holds a voice connection with a bridge on this server rather
+     * than with BVC directly.
+     *
+     * The BVC server counts voice connections it terminates itself, so a bridged player
+     * reads as being in the world with no voice at all — and every BVC client beside them
+     * is told they cannot hear you, while they can. Only this mod can answer, so it says
+     * so here rather than leaving the server to guess from traffic.
+     */
+    @SerializedName("bridged_voice")
+    val bridgedVoice: Boolean = false
 ) {
     /**
      * Constructor for Minecraft players (Fabric/Paper).
@@ -43,7 +54,8 @@ data class PlayerData(
         worldUuid: String? = null,
         alternativeIdentity: String? = null,
         playerUuid: String? = null,
-        relayWorldUuid: String? = null
+        relayWorldUuid: String? = null,
+        bridgedVoice: Boolean = false
     ) : this(
         name = name,
         coordinates = Coordinates(x, y, z),
@@ -54,7 +66,8 @@ data class PlayerData(
         spectator = spectator,
         alternativeIdentity = alternativeIdentity,
         playerUuid = playerUuid,
-        relayWorldUuid = relayWorldUuid
+        relayWorldUuid = relayWorldUuid,
+        bridgedVoice = bridgedVoice
     )
 
     /**
@@ -69,7 +82,8 @@ data class PlayerData(
         deafen: Boolean = false,
         spectator: Boolean = false,
         playerUuid: String? = null,
-        relayWorldUuid: String? = null
+        relayWorldUuid: String? = null,
+        bridgedVoice: Boolean = false
     ) : this(
         name = name,
         coordinates = Coordinates(x, y, z),
@@ -79,7 +93,8 @@ data class PlayerData(
         deafen = deafen,
         spectator = spectator,
         playerUuid = playerUuid,
-        relayWorldUuid = relayWorldUuid
+        relayWorldUuid = relayWorldUuid,
+        bridgedVoice = bridgedVoice
     )
 
     companion object {

@@ -26,7 +26,13 @@ class NativeLibraryProvider(
 
     fun resolve(library: String): File {
         val entry = manifest.entry(library, platform)
-        val target = File(cacheDirectory(), entry.asset)
+
+        // Named for the library, not for the release asset. uniffi's bindings load
+        // by bare name through JNA, which matches on exactly `bvc_relay_sdk.dll`;
+        // a file called `bvc_relay_sdk-windows-x64.dll` is invisible to it however
+        // correct the search path is. The directory already carries the release and
+        // the platform, so the asset's suffix would only repeat them.
+        val target = File(cacheDirectory(), platform.fileNameFor(library))
 
         if (target.isFile && matches(target, entry.sha256)) {
             prune()
@@ -86,11 +92,24 @@ class NativeLibraryProvider(
         val fileName = platform.fileNameFor(library)
         val bundled = "/native/${platform.id}/$fileName"
 
-        return if (NativeLibraryProvider::class.java.getResource(bundled) != null) {
-            LibrarySource.Bundled(platform, fileName)
-        } else {
-            LibrarySource.Remote(fetcher, manifest.assetUrl(entry))
+        if (NativeLibraryProvider::class.java.getResource(bundled) != null) {
+            return LibrarySource.Bundled(platform, fileName)
         }
+
+        // A locally built jar pins no release, so there is nothing to download from
+        // and every fetch 404s. Saying that here is the difference between a
+        // developer reading a URL that was never meant to exist and knowing they
+        // built the wrong variant.
+        if (manifest.release == NativeManifest.DEV_RELEASE) {
+            throw NativeLibraryError.Fetch(
+                "io",
+                "$library is not in this jar and this is a local build, which pins no " +
+                    "release to download from. Rebuild with -Pbundled, or use " +
+                    "`mise run svc-paper` which does."
+            )
+        }
+
+        return LibrarySource.Remote(fetcher, manifest.assetUrl(entry))
     }
 
     private fun write(target: File, bytes: ByteArray) {

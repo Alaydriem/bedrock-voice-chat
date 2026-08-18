@@ -266,7 +266,7 @@ async fn emit_packets(players: &[PlayerEnum]) -> Vec<QuicNetworkPacket> {
     drop(receiver);
 
     let mut packets = Vec::new();
-    while let Some(packet) = webhook_rx.recv().await {
+    while let Some((packet, _origin)) = webhook_rx.recv().await {
         packets.push(packet);
     }
     packets

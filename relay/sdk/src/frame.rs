@@ -107,6 +107,7 @@ impl From<SdkFrame> for VoiceFrame {
                 alternative_identity: None,
                 player_uuid: None,
                 relay_world_uuid: frame.world,
+                bridged_voice: false,
             }),
             sample_rate: frame.sample_rate,
             opus: frame.opus,

@@ -44,12 +44,12 @@ pub use packet_identity_stamp::PacketIdentityStamp;
 pub use path::{PathObserver, PathObserverContext};
 pub use peer::identity::{PeerIdentityCapture, PeerIdentityContext};
 pub use server_input_packet::ServerInputPacket;
-pub use webhook_receiver::WebhookReceiver;
+pub use webhook_receiver::{PacketOrigin, WebhookReceiver};
 
 pub struct QuicServerManager {
     config: ApplicationConfig,
     connection_registry: Arc<ConnectionRegistry>,
-    webhook_rx: Option<mpsc::UnboundedReceiver<QuicNetworkPacket>>,
+    webhook_rx: Option<mpsc::UnboundedReceiver<(QuicNetworkPacket, PacketOrigin)>>,
     cache_manager: CacheManager,
     webhook_receiver: WebhookReceiver,
     /// Serves every accepted session. Shared with the WebSocket listener, which is what
@@ -269,7 +269,7 @@ impl StreamTrait for QuicServerManager {
 
         tokio::select! {
             _ = async {
-                while let Some(packet) = webhook_rx.recv().await {
+                while let Some((packet, origin)) = webhook_rx.recv().await {
                     // process_packet has no AudioFrame arm; skipping it avoids a
                     // full packet clone (audio payload included) per frame.
                     if packet.packet_type != PacketType::AudioFrame {
@@ -281,7 +281,13 @@ impl StreamTrait for QuicServerManager {
 
                     match packet.packet_type {
                         PacketType::AudioFrame => {
-                            connection_registry.forward_local_to_peers(&packet);
+                            // Only local audio goes back out to peers. Forwarding a
+                            // peer's own frame returns it to the sender, who hears
+                            // themselves; with two peers in one world it also loops
+                            // between them without end.
+                            if origin == PacketOrigin::Local {
+                                connection_registry.forward_local_to_peers(&packet);
+                            }
                             connection_registry
                                 .route_audio_frame(&packet, &player_cache, broadcast_range, deafen_distance)
                                 .await;

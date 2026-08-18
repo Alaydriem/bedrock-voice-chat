@@ -112,8 +112,12 @@ impl ConnectionRegistry {
     // Forwards a LOCAL-origin packet to peers granted the sender's relay world.
     //
     // A no-op when no peer is declared or the packet carries no relay world.
-    // Packets that arrived FROM a peer never reach here — the plane publishes
-    // them straight to its sink — which is what keeps relay single-hop.
+    //
+    // Peer-origin packets must never be passed here. They reach the same broadcast
+    // loop local ones do — the plane's sink feeds it — so the loop tags each packet
+    // with a `PacketOrigin` and calls this only for local ones. That tag is what
+    // keeps relay single-hop; without it a peer's frame is returned to the peer that
+    // sent it, and the speaker hears themselves.
     pub fn forward_local_to_peers(&self, packet: &QuicNetworkPacket) {
         if let Some(plane) = self.peer_plane.get() {
             plane.forward_local(packet);

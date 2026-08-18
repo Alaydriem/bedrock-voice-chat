@@ -35,7 +35,13 @@ class SvcBridge(
         registration.registerEvent(MicrophonePacketEvent::class.java, this::onMicrophonePacket)
     }
 
-    private fun onServerStarted(event: VoicechatServerStartedEvent) {
+    /**
+     * Public so a platform whose entrypoint is constructed before the bridge exists
+     * can register its own handlers and forward here once it does. Fabric does
+     * exactly that: Simple Voice Chat asks for events during mod initialisation,
+     * before a server and therefore before the bridge can be built.
+     */
+    fun onServerStarted(event: VoicechatServerStartedEvent) {
         onServerApi(event.voicechat)
         logger.info("Simple Voice Chat server API acquired")
     }
@@ -47,16 +53,38 @@ class SvcBridge(
      * never returns a peer's own frames to that peer — so there would be nothing to
      * deliver them instead and SVC players would go silent to each other.
      */
-    private fun onMicrophonePacket(event: MicrophonePacketEvent) {
+    fun onMicrophonePacket(event: MicrophonePacketEvent) {
         val speaker = event.senderConnection?.player?.uuid ?: return
+
+        // Announced once. A speaker Simple Voice Chat knows about and this server
+        // cannot locate produces no frame at all, which is indistinguishable from
+        // never having spoken unless it is said out loud.
+        if (announcedFirstPacket.compareAndSet(false, true)) {
+            logger.info("Receiving voice from Simple Voice Chat: speaker={}", speaker)
+        }
+
         val frame = outbound.translate(
             speaker,
             event.packet.opusEncodedData,
             System.currentTimeMillis()
-        ) ?: return
+        )
+
+        if (frame == null) {
+            if (announcedUnlocatable.compareAndSet(false, true)) {
+                logger.warn(
+                    "Cannot locate {} on this server, so their audio is not bridged",
+                    speaker
+                )
+            }
+            return
+        }
 
         onFrame(frame)
     }
+
+    private val announcedFirstPacket = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    private val announcedUnlocatable = java.util.concurrent.atomic.AtomicBoolean(false)
 
     companion object {
         const val PLUGIN_ID: String = "bedrock-voice-chat"

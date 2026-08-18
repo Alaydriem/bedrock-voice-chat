@@ -61,6 +61,14 @@ dependencies {
     implementation("com.alaydriem:bedrock-voice-chat-relay-sdk")
     include("com.alaydriem:bedrock-voice-chat-relay-sdk")
 
+    // The generated uniffi bindings expose suspending calls, so the SDK cannot load
+    // without these. Loom's `include` is an allowlist: arriving transitively from
+    // the SDK puts them on the compile classpath and not inside the jar, and the
+    // mod then fails at runtime with NoClassDefFoundError on BuildersKt.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    include("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    include("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2")
+
     // Kotlin (include to bundle in JAR)
     implementation(kotlin("stdlib"))
     include("org.jetbrains.kotlin:kotlin-stdlib:2.3.20")

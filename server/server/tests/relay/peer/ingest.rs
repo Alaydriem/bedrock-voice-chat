@@ -43,6 +43,7 @@ fn speaker(name: &str, world: Option<&str>) -> PlayerEnum {
         alternative_identity: None,
         player_uuid: None,
         relay_world_uuid: world.map(String::from),
+        bridged_voice: false,
     })
 }
 

@@ -19,6 +19,7 @@ fn player_at(name: &str, x: f32, z: f32, world: &str, dimension: Dimension, yaw:
         alternative_identity: None,
         player_uuid: None,
         relay_world_uuid: None,
+        bridged_voice: false,
     })
 }
 

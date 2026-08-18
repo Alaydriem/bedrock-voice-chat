@@ -70,6 +70,21 @@ val bvcRoot = rootProject.projectDir.parentFile.parentFile
 val rustBuildMode = if (rootProject.hasProperty("release")) "release" else "debug"
 val rustTargetDir = File(bvcRoot, "server/target/$rustBuildMode")
 
+// The relay SDK cdylib, built from the ROOT workspace rather than the server one.
+// Staged beside bvc_server_lib because that is the directory generateNativeManifest
+// hashes and the skinny jar excludes. Staging it under a JNA prefix instead makes it
+// invisible to both, and it ships in every jar.
+tasks.register<Copy>("copySdkNativeWindows") {
+    group = "native"
+    description = "Copy the Windows x64 relay SDK cdylib to resources"
+
+    dependsOn(":relay-sdk:buildSdkLibrary")
+    from(File(bvcRoot, "target/$rustBuildMode")) {
+        include("bvc_relay_sdk.dll")
+    }
+    into(layout.projectDirectory.dir("src/main/resources/native/windows-x64"))
+}
+
 // Task to copy Windows x64 native library
 tasks.register<Copy>("copyNativeWindows") {
     group = "native"
@@ -115,6 +130,13 @@ tasks.register("generateNativeManifest") {
     if (bundleNatives) {
         dependsOn("copyNativeLibraries")
     }
+
+    // Declared unconditionally, because this one is invoked directly rather than
+    // through the aggregate. A build that runs both in one graph without this is
+    // refused by Gradle for an undeclared dependency, and a build that runs them in
+    // separate invocations quietly gets the ordering right, so the failure only
+    // appears on one of the two loaders.
+    mustRunAfter("copySdkNativeWindows")
 
     inputs.dir(nativeResourceDir).optional(true)
     inputs.property("release", nativeRelease)
@@ -253,6 +275,7 @@ tasks.register("copyNativeLibraries") {
     description = "Copy all available native libraries to resources"
     dependsOn(
         "copyNativeWindows",
+        "copySdkNativeWindows",
         "copyNativeLinuxX64",
         "copyNativeLinuxArm64",
         "copyNativeDarwinArm64"

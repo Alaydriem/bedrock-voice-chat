@@ -37,6 +37,7 @@ fn speaker(name: &str) -> PlayerEnum {
         alternative_identity: None,
         player_uuid: None,
         relay_world_uuid: Some("W1".to_string()),
+        bridged_voice: false,
     })
 }
 

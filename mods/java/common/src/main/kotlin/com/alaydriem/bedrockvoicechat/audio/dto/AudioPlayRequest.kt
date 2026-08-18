@@ -14,5 +14,15 @@ data class GameAudioRequest(
     val coordinates: Coordinates,
     val dimension: String,
     @SerializedName("world_uuid")
-    val worldUuid: String
+    val worldUuid: String,
+    /**
+     * The world this server declares to its peers.
+     *
+     * Without it the synthetic speaker the server mints for a playback has no world
+     * identifier, and the peer boundary refuses to forward it. The playback then
+     * reaches this server's own clients and nothing bridged, which looks like a
+     * jukebox problem rather than a missing field.
+     */
+    @SerializedName("relay_world_uuid")
+    val relayWorldUuid: String? = null
 )

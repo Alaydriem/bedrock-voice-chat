@@ -262,6 +262,7 @@ impl AudioPlaybackService {
                         alternative_identity: None,
                         player_uuid: None,
                         relay_world_uuid: ctx.relay_world_uuid.clone(),
+                        bridged_voice: false,
                     }),
                     coordinates,
                     dimension,

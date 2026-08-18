@@ -24,11 +24,20 @@ pub struct WorldIndex {
 }
 
 impl WorldIndex {
+    /// `on_voice` carries the connections this server terminates itself. Players a mod
+    /// declares bridged are added here, because their connection is held by that mod and the
+    /// registry cannot see it — leaving them out reports somebody as being in the world with
+    /// no voice while their audio is arriving over the peer link.
     pub fn build(world: Vec<PlayerEnum>, on_voice: HashSet<String>, cell_size: f32) -> Self {
         let mut cells: HashMap<GridCell, Vec<PlayerEnum>> = HashMap::new();
         let mut by_identity = HashMap::with_capacity(world.len());
+        let mut on_voice = on_voice;
 
         for player in world {
+            if player.has_bridged_voice() {
+                on_voice.insert(player.identity());
+            }
+
             let cell = GridCell::of(player.get_position(), cell_size);
             // Keyed on the canonical identity, the same key `on_voice` uses. Keyed on the bare
             // in-game name, one game's player shadowed the other's in a world that hosts both,

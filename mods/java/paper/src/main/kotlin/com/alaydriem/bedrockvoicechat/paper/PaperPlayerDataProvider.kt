@@ -22,7 +22,12 @@ class PaperPlayerDataProvider(
     // Stamped on every player so this server can peer at all. A player without it
     // has no world the peer boundary can scope, and their audio is refused there
     // rather than carried into someone else's proximity.
-    private val relayWorld: RelayWorld? = null
+    private val relayWorld: RelayWorld? = null,
+    // Answers whether a bridge on this server holds the player's voice connection. The BVC
+    // server only counts the connections it terminates itself, so without this a bridged
+    // player is reported as being in the world with no voice, and every BVC client near
+    // them is told they cannot hear you.
+    private val bridgedVoice: (UUID) -> Boolean = { false }
 ) : PlayerDataProvider {
     private val log = LoggerFactory.getLogger("BedrockVoiceChat.Identity")
     private val loggedIdentities: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -92,7 +97,8 @@ class PaperPlayerDataProvider(
                         worldUuid = location.world?.uid?.toString(),
                         alternativeIdentity = identity.alternative,
                         playerUuid = playerUuid,
-                        relayWorldUuid = relayWorld?.id()
+                        relayWorldUuid = relayWorld?.id(),
+                        bridgedVoice = bridgedVoice(player.uniqueId)
                     )
                 }
             }

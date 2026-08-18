@@ -191,6 +191,7 @@ impl BedrockEventService {
             alternative_identity: None,
             player_uuid: None,
             relay_world_uuid: None,
+            bridged_voice: false,
         };
 
         PositionUpdater::broadcast_positions(
@@ -225,6 +226,7 @@ impl BedrockEventService {
             alternative_identity: None,
             player_uuid: None,
             relay_world_uuid: None,
+            bridged_voice: false,
         };
 
         PositionUpdater::broadcast_positions(

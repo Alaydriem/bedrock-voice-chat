@@ -20,6 +20,7 @@ fn wire(world: Option<&str>) -> VoiceFrame {
             alternative_identity: None,
             player_uuid: None,
             relay_world_uuid: world.map(str::to_string),
+            bridged_voice: false,
         }),
         sample_rate: 48000,
         opus: vec![9, 9],

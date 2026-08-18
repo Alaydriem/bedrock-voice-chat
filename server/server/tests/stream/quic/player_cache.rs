@@ -21,6 +21,7 @@ fn player(name: &str, world: Option<&str>) -> PlayerEnum {
         alternative_identity: None,
         player_uuid: None,
         relay_world_uuid: world.map(str::to_string),
+        bridged_voice: false,
     })
 }
 

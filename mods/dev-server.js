@@ -45,8 +45,12 @@ Configure paths in mods/.env (copy mods/.env.example to get started).
 `);
 }
 
+// `-Pbundled` is not optional for a local run. Without it the build produces the
+// skinny jar, whose manifest pins the release it was built against; a local build
+// has no release, so every library resolves to a URL that does not exist. A dev
+// machine is the offline case the bundled jar is for.
 function runGradle(cwd, tasks, release) {
-  const cmd = [gradlew, ...tasks];
+  const cmd = [gradlew, ...tasks, '-Pbundled'];
   if (release) cmd.push('-Prelease');
   const line = cmd.join(' ');
   console.log(`\n[dev-server] gradle (${path.basename(cwd)}): ${line}\n`);
@@ -141,7 +145,7 @@ function main() {
   if (platform === 'paper') {
     const paperRoot = requireEnv(env, 'PAPER_SERVER_PATH');
     if (!skipBuild) {
-      runGradle(javaDir, ['buildRustLibrary', ':common:copyNativeWindows', ':paper:shadowJar'], release);
+      runGradle(javaDir, ['buildRustLibrary', ':common:copyNativeWindows', ':common:copySdkNativeWindows', ':paper:shadowJar'], release);
       const jar = path.join(javaDir, 'paper', 'build', 'libs', `${base}-paper-${ver}.jar`);
       deployJar(jar, path.join(paperRoot, 'plugins'), `${base}-paper-`);
     }
@@ -153,7 +157,7 @@ function main() {
   if (platform === 'fabric') {
     const fabricRoot = requireEnv(env, 'FABRIC_SERVER_PATH');
     if (!skipBuild) {
-      runGradle(javaDir, ['buildRustLibrary', ':common:copyNativeWindows'], release);
+      runGradle(javaDir, ['buildRustLibrary', ':common:copyNativeWindows', ':common:copySdkNativeWindows'], release);
       runGradle(path.join(javaDir, 'fabric'), ['build'], release);
       const jar = path.join(javaDir, 'fabric', 'build', 'libs', `${base}-${ver}.jar`);
       deployJar(jar, path.join(fabricRoot, 'mods'), `${base}-`);

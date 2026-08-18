@@ -286,7 +286,10 @@ async fn an_above_unity_volume_the_card_permits_survives_the_echo() {
     assert_eq!(pref.volume, 1.25);
 }
 
-fn test_webhook() -> (WebhookReceiver, mpsc::UnboundedReceiver<QuicNetworkPacket>) {
+fn test_webhook() -> (
+    WebhookReceiver,
+    mpsc::UnboundedReceiver<(QuicNetworkPacket, bvc_server_lib::stream::quic::PacketOrigin)>,
+) {
     let (tx, rx) = mpsc::unbounded_channel();
     (WebhookReceiver::new(tx), rx)
 }
@@ -312,7 +315,7 @@ async fn join_group_adds_actor_and_fans_event() {
 
     let ch = channels.get(&id).await.unwrap();
     assert!(ch.players.contains(&"minecraft:Alice".to_string()));
-    let pkt = rx.try_recv().expect("a ChannelEvent must be fanned");
+    let (pkt, _origin) = rx.try_recv().expect("a ChannelEvent must be fanned");
     assert_eq!(pkt.packet_type, PacketType::ChannelEvent);
 }
 

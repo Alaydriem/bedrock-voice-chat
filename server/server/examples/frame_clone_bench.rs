@@ -55,6 +55,7 @@ impl CloneBench {
             alternative_identity: None,
             player_uuid: Some("11111111-1111-1111-1111-111111111111".to_string()),
             relay_world_uuid: None,
+            bridged_voice: false,
         });
 
         let packet = QuicNetworkPacket {

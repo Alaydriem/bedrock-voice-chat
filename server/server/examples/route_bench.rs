@@ -99,6 +99,7 @@ impl RouteBench {
             alternative_identity: None,
             player_uuid: None,
             relay_world_uuid: None,
+            bridged_voice: false,
         })
     }
 

@@ -37,6 +37,7 @@ fn frame() -> VoiceFrame {
             alternative_identity: None,
             player_uuid: None,
             relay_world_uuid: Some("W1".to_string()),
+            bridged_voice: false,
         }),
         sample_rate: 48000,
         opus: vec![3, 1, 4],

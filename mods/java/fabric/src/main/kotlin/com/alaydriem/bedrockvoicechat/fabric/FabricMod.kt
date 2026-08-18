@@ -56,6 +56,10 @@ class FabricMod : ModInitializer {
     private var embeddedServer: BvcServerManager? = null
     private var relayWorld: RelayWorld? = null
     private var svcBridgeHost: SvcBridgeHost? = null
+
+    // One instance: it caches its answer and logs on first resolve, so a second
+    // instance reports the same detection a second time.
+    private val svcAvailability = SvcAvailability()
     private var chatChannel: ChatTransport? = null
     private var chatSocket: ChatChannel? = null
     private var positionSender: PositionSender? = null
@@ -107,7 +111,7 @@ class FabricMod : ModInitializer {
      * link.
      */
     private fun startSvcBridge(server: MinecraftServer, config: ModConfig) {
-        if (!SvcAvailability().isAvailable) {
+        if (!svcAvailability.isAvailable) {
             return
         }
 
@@ -135,9 +139,11 @@ class FabricMod : ModInitializer {
         )
         svcBridgeHost = host
 
-        FabricSvcPlugin.delegate = host.bridge {
-            embeddedServer?.serverPeerlink() ?: config.svcBridgePeerlink
-        }
+        FabricSvcPlugin.attach(
+            host.bridge {
+                embeddedServer?.serverPeerlink() ?: config.svcBridgePeerlink
+            }
+        )
     }
 
     /**
@@ -175,7 +181,13 @@ class FabricMod : ModInitializer {
         relayWorld = RelayWorld(
             FabricLoader.getInstance().configDir.resolve("bedrock-voice-chat").toFile()
         )
-        playerDataProvider = FabricPlayerDataProvider(relayWorld = relayWorld)
+        // The bridge does not exist until the server starts, several steps after this, so
+        // the provider reads it through the field rather than holding one. Before then, and
+        // on a server without Simple Voice Chat, nobody is bridged.
+        playerDataProvider = FabricPlayerDataProvider(
+            relayWorld = relayWorld,
+            bridgedVoice = { uuid -> svcBridgeHost?.isOnVoice(uuid) ?: false }
+        )
 
         // Native libraries are resolved from the mod's config directory rather than
         // unpacked from the jar. Configured before anything can reach an FFI call,
@@ -190,7 +202,7 @@ class FabricMod : ModInitializer {
         // The relay SDK is loaded by bare name by uniffi's generated bindings, so
         // its directory has to be on JNA's search path before the first one runs.
         // The first is BridgePeering, below, while the embedded grant is written.
-        if (SvcAvailability().isAvailable) {
+        if (svcAvailability.isAvailable) {
             try {
                 provider.prepareForBareNameLoad("bvc_relay_sdk")
             } catch (e: Exception) {
@@ -207,7 +219,7 @@ class FabricMod : ModInitializer {
             // Granted before the server starts, because authorization is read from
             // config at startup. Applied only when SVC is present, so a server
             // without it declares no peer it will never see.
-            if (SvcAvailability().isAvailable) {
+            if (svcAvailability.isAvailable) {
                 val nodeDir = FabricLoader.getInstance().configDir
                     .resolve("bedrock-voice-chat")
                     .resolve("svc-bridge")
@@ -226,7 +238,7 @@ class FabricMod : ModInitializer {
 
             positionSender = PositionSender(null, embeddedServer)
             val audioEventSender = AudioEventSender(null, embeddedServer)
-            audioPlayerManager = FabricAudioPlayerManager(audioEventSender)
+            audioPlayerManager = FabricAudioPlayerManager(audioEventSender, relayWorld)
             controlSender = ControlSender(null, embeddedServer)
 
             val quicPort = embeddedServer?.effectiveConfig()?.server?.quicPort
@@ -235,7 +247,7 @@ class FabricMod : ModInitializer {
             httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
             positionSender = PositionSender(httpHandler, null)
             val audioEventSender = AudioEventSender(httpHandler, null)
-            audioPlayerManager = FabricAudioPlayerManager(audioEventSender)
+            audioPlayerManager = FabricAudioPlayerManager(audioEventSender, relayWorld)
             controlSender = ControlSender(httpHandler, null)
 
             logger.info("Bedrock Voice Chat will connect to: {}", config.bvcServer)
@@ -311,7 +323,7 @@ class FabricMod : ModInitializer {
             // and only an explicit shutdown releases it.
             svcBridgeHost?.shutdown()
             svcBridgeHost = null
-            FabricSvcPlugin.delegate = null
+            FabricSvcPlugin.detach()
             embeddedServer?.stop()
         }
     }

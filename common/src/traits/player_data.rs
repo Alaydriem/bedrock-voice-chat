@@ -37,6 +37,19 @@ pub trait PlayerData: Send + Sync {
         None
     }
 
+    /// Whether this player's voice connection is held by something other than this server.
+    ///
+    /// A bridged player never appears in the QUIC registry, because their client speaks to
+    /// the mod and their audio reaches us over the peer link. Without this the server's only
+    /// answer is "no voice connection", and the client tells everybody standing beside them
+    /// that they cannot hear you — while they are hearing you.
+    ///
+    /// Reported by the source that owns the other connection, never inferred from traffic:
+    /// traffic answers who is speaking, and a connected listener who is quiet answers no.
+    fn has_bridged_voice(&self) -> bool {
+        false
+    }
+
     /// This player's dimension, as the type anything positional is placed against.
     ///
     /// `None` means the player cannot be placed in one — either the game has no

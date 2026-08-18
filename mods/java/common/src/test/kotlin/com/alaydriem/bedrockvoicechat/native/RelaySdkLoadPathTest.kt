@@ -34,6 +34,22 @@ class RelaySdkLoadPathTest {
     // directory has to be on JNA's search path before the first binding call.
     // Nothing about that ordering is visible to the compiler: getting it wrong
     // surfaces only at runtime, as an UnsatisfiedLinkError with no obvious cause.
+    // JNA matches on the exact library file name. A cache file named after the
+    // release asset, `libbvc_relay_sdk-linux-x64.so`, is invisible to it no matter
+    // how correct the search path is, and the failure is an UnsatisfiedLinkError
+    // that names the plain library it could not find.
+    @Test
+    fun `the resolved file is named for the library, not for the release asset`(@TempDir cache: File) {
+        val provider = NativeLibraryProvider(cache, manifest(), FixedFetcher(payload), NativePlatform.LINUX_X64)
+
+        val resolved = provider.resolve("bvc_relay_sdk")
+
+        assertTrue(
+            resolved.name == "libbvc_relay_sdk.so",
+            "JNA looks for libbvc_relay_sdk.so, found ${resolved.name}"
+        )
+    }
+
     @Test
     fun `preparing a bare name load puts the cache directory on the jna search path`(@TempDir cache: File) {
         val provider = NativeLibraryProvider(cache, manifest(), FixedFetcher(payload), NativePlatform.LINUX_X64)
