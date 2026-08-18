@@ -33,15 +33,21 @@ class BridgePeering(
     }
 
     /**
-     * The block an operator pastes into the BVC server's `config.hcl`, and the same
-     * block the embedded path writes for itself.
+     * The block an operator pastes into the `server` block of the BVC server's
+     * `config.hcl`.
+     *
+     * `peers`, not `peer`. hcl-rs names the resulting map after the block identifier
+     * verbatim and the field it has to reach is `Server::peers`, so a `peer` block is
+     * valid HCL that lands in a key nothing reads — the server goes on reporting
+     * "peering is not configured" with the grant sitting in the file. It is nested
+     * under `server` for the same reason: that is where the field lives.
      *
      * `capabilities` is omitted deliberately: it defaults to `carry_speakers`, which
      * is exactly what a voice bridge needs, and naming it here would invite someone
      * to widen it by copying.
      */
     fun grantBlock(): String = """
-        peer "svc-bridge" {
+        peers "svc-bridge" {
           peerlink = "${peerlink()}"
         }
     """.trimIndent()

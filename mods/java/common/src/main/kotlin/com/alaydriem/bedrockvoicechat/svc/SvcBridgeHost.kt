@@ -130,8 +130,9 @@ class SvcBridgeHost(
         if (link == null) {
             logger.warn(
                 "Simple Voice Chat is present but this bridge is not peered. " +
-                    "Add this block to the BVC server's config.hcl, then set " +
-                    "svc-bridge-peerlink in the mod config:\n{}",
+                    "Add this block inside the `server` block of the BVC server's " +
+                    "config.hcl and restart it, then set svc-bridge-peerlink in the " +
+                    "mod config to what `bvc-server relay peerlink` prints:\n{}",
                 peering.grantBlock()
             )
             return

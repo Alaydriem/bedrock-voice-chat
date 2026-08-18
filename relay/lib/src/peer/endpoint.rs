@@ -41,9 +41,42 @@ impl PeerEndpoint {
         identity: &NodeIdentity,
         relay_url: Option<RelayUrl>,
     ) -> Result<Self, PeerError> {
+        Self::bind_on(identity, relay_url, None).await
+    }
+
+    /// Binds this endpoint, optionally on a port the operator chose.
+    ///
+    /// A ticket carries the addresses a peer will be dialled on, so the port is part
+    /// of what an operator pastes into the far side's config. Left to the operating
+    /// system it is a different port on every start, and the pasted value stops
+    /// resolving to anywhere the moment this process restarts — which is invisible
+    /// until someone tries to speak.
+    ///
+    /// Optional because a pinned port is a deployment decision, not a default: it is
+    /// one an operator has to open or forward, and a peer that only ever dials out
+    /// needs nothing of the sort.
+    pub async fn bind_on(
+        identity: &NodeIdentity,
+        relay_url: Option<RelayUrl>,
+        port: Option<u16>,
+    ) -> Result<Self, PeerError> {
         let mut builder = Endpoint::builder(Minimal)
             .secret_key(identity.secret_key().clone())
             .alpns(vec![Self::ALPN.to_vec()]);
+
+        if let Some(port) = port {
+            // The builder arrives pre-configured with an unspecified-address IPv4
+            // socket, and `bind_addr` adds rather than replaces. Clearing first is
+            // what makes this the only socket, and therefore the only port a ticket
+            // can advertise.
+            builder = builder
+                .clear_ip_transports()
+                .bind_addr(std::net::SocketAddr::from((
+                    std::net::Ipv4Addr::UNSPECIFIED,
+                    port,
+                )))
+                .map_err(|e| PeerError::Bind(e.to_string()))?;
+        }
 
         if let Some(url) = relay_url {
             // `RelayConfig` is non-exhaustive, so it is built through its

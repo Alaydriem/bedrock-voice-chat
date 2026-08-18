@@ -91,6 +91,7 @@ async fn bridged(granted: &[&str]) -> Bridged {
         Arc::new(NoLocals),
         Arc::new(ChannelSink(tx)),
         None,
+        None,
     )
     .await
     .expect("bind server plane");

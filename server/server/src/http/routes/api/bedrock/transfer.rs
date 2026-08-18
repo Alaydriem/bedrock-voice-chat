@@ -7,7 +7,6 @@ use rocket_okapi::openapi;
 
 use crate::config::Server;
 use crate::http::pool::Db;
-use crate::services::auth_service::AuthService;
 use crate::services::bedrock::TransferTargetCache;
 
 /// Register a Bedrock transfer target for the relay.
@@ -25,7 +24,7 @@ pub async fn register_transfer_target(
     server_config: &State<Server>,
     db: Db<'_>,
 ) -> Result<Json<TransferTargetResponse>, rocket::http::Status> {
-    let conn = db.into_inner();
+    let _conn = db.into_inner();
     let player = guard.player;
 
     // Asserted rather than assumed. This route is Bedrock-only, and the previous code told

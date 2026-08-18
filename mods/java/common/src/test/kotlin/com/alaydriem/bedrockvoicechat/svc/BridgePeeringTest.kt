@@ -19,19 +19,24 @@ class BridgePeeringTest {
 
         val block = peering.grantBlock()
 
-        assertTrue(block.contains("peer \"svc-bridge\""))
+        assertTrue(block.contains("peers \"svc-bridge\""))
         assertTrue(block.contains("bvcpeerAAAA"))
     }
 
-    // The block is pasted into an HCL file, so it has to be a `peer` block with a
-    // quoted label and a quoted value — not a fragment an operator has to repair.
+    // The block is pasted into an HCL file, so it has to be the block the server
+    // actually reads — not a fragment an operator has to repair.
+    //
+    // `peers`, not `peer`: hcl-rs names the map after the block identifier verbatim,
+    // and the field is `Server::peers`. A `peer` block parses as valid HCL and lands
+    // in a key nothing reads, so the server reports peering as unconfigured with the
+    // block sitting in the file.
     @Test
     fun `the grant block is shaped like the hcl it is pasted into`(@TempDir dir: File) {
         val block = BridgePeering(dir) { "bvcpeerAAAA" }.grantBlock()
 
         assertEquals(
             """
-            peer "svc-bridge" {
+            peers "svc-bridge" {
               peerlink = "bvcpeerAAAA"
             }
             """.trimIndent(),

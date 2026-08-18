@@ -40,8 +40,12 @@ impl PeerPlane {
         locals: Arc<dyn LocalClients>,
         sink: Arc<dyn PeerSink>,
         relay_url: Option<RelayUrl>,
+        // `server.peer_port`. Absent leaves the port to the operating system, which
+        // is a different one on every start — and this endpoint's port is part of
+        // the ticket an operator pastes into the far side's config.
+        port: Option<u16>,
     ) -> Result<Arc<Self>, PeerError> {
-        let endpoint = PeerEndpoint::bind(identity, relay_url).await?;
+        let endpoint = PeerEndpoint::bind_on(identity, relay_url, port).await?;
 
         Ok(Arc::new(Self {
             endpoint,

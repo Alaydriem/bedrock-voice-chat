@@ -50,6 +50,12 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       # The relay protocol is tied to the iroh release, and a mismatch fails when
       # a peer relays rather than when the image builds. This reads the version
       # the code is actually pinned to instead of trusting the Dockerfile default.

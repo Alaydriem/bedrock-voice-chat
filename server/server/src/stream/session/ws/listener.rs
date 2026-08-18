@@ -1,6 +1,5 @@
 use super::{WebSocketListenerError, WsLink};
 use common::structs::network::VoiceProtocol;
-use crate::stream::quic::{CertificateCommonName, ConnectionClassifier, ConnectionKind};
 use crate::stream::session::{SessionLink, SessionSpawner, WebSocketDeviceId};
 use bytes::Bytes;
 use futures_util::{SinkExt, StreamExt};

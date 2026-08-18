@@ -185,8 +185,13 @@ fn a_port_that_did_not_answer_sorts_below_one_that_did() {
     assert_eq!(ports, vec![443, 28280]);
 }
 
+// The advertised order is a routing instruction, not a preference, so latency must not
+// reorder ports that both answered. The advertised port is how a client is steered through
+// Meridian; the backend's own port is appended after it by `QuicPortSelection::resolve` and
+// is faster wherever it is directly reachable. Ranking these by latency walks the client
+// around the proxy that provides its tenant routing.
 #[test]
-fn the_faster_measured_port_leads_the_walk() {
+fn answering_ports_keep_the_order_the_operator_advertised() {
     let addr = v4(1);
     let measured = report(vec![
         EndpointReachability::new(SocketAddr::new(addr, 443), answered(90_000), None),
@@ -196,7 +201,7 @@ fn the_faster_measured_port_leads_the_walk() {
     let plan = CandidatePlan::build(&[addr], &[443, 8443], &measured);
     let ports: Vec<u16> = plan.candidates().iter().map(|c| c.port()).collect();
 
-    assert_eq!(ports, vec![8443, 443]);
+    assert_eq!(ports, vec![443, 8443]);
 }
 
 // With nothing measured to separate them the operator's order is the only statement
@@ -231,20 +236,20 @@ fn a_port_that_did_not_answer_is_reordered_and_never_removed() {
     assert_eq!(plan.candidates().len(), 2);
 }
 
-// A port is ranked by the best answer any address gave on it, so one dead address does
-// not sink a port that another address reaches instantly.
+// One address answering is enough for the port to count as reached, so a single dead
+// address cannot sink a port another address answers on.
 #[test]
-fn a_port_is_ranked_by_its_fastest_answering_address() {
-    let slow = v4(1);
-    let fast = v4(2);
+fn a_port_one_address_answered_outranks_a_port_none_answered() {
+    let first = v4(1);
+    let second = v4(2);
     let measured = report(vec![
-        EndpointReachability::new(SocketAddr::new(slow, 8443), ReachabilityOutcome::Silent, None),
-        EndpointReachability::new(SocketAddr::new(fast, 8443), answered(9_000), None),
-        EndpointReachability::new(SocketAddr::new(slow, 443), answered(80_000), None),
-        EndpointReachability::new(SocketAddr::new(fast, 443), answered(85_000), None),
+        EndpointReachability::new(SocketAddr::new(first, 443), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(SocketAddr::new(second, 443), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(SocketAddr::new(first, 8443), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(SocketAddr::new(second, 8443), answered(9_000), None),
     ]);
 
-    let plan = CandidatePlan::build(&[slow, fast], &[443, 8443], &measured);
+    let plan = CandidatePlan::build(&[first, second], &[443, 8443], &measured);
     let ports: Vec<u16> = plan.candidates().iter().map(|c| c.port()).collect();
 
     assert_eq!(ports, vec![8443, 8443, 443, 443]);

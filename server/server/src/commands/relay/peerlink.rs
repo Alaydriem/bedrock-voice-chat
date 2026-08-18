@@ -30,7 +30,7 @@ impl Config {
                 println!();
                 println!("node {}", resp.node_id);
                 println!();
-                println!("Add this to the other server's config.hcl:");
+                println!("Add this inside the `server` block of the other server's config.hcl:");
                 println!();
                 print!("{}", PeerBlock::render(&self.label, &resp.peerlink));
             }

@@ -45,6 +45,14 @@ fn default_assets_path() -> String {
     "./assets".to_string()
 }
 
+fn default_peer_port() -> Option<u16> {
+    Some(28284)
+}
+
+fn default_peer_relay() -> Option<String> {
+    Some("https://relay.bedrockvoicechat.com".to_string())
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Server {
     #[serde(default = "default_listen")]
@@ -81,8 +89,19 @@ pub struct Server {
     // The iroh relay peers reach this server through when they have no direct
     // path to it. Absent means peers must already hold a reachable address,
     // which is the same-host and local-network arrangement.
-    #[serde(default)]
+    #[serde(default = "default_peer_relay")]
     pub peer_relay_url: Option<String>,
+
+    // The UDP port the peer endpoint binds.
+    //
+    // Defaulted rather than left to the operating system, because this port is part
+    // of the ticket a peer is given: an ephemeral one changes on every restart and
+    // silently invalidates what the far side was already handed. A peer reached only
+    // through the relay does not depend on it.
+    //
+    // `0` asks for an ephemeral port back, the same way `quic_port` reads it.
+    #[serde(default = "default_peer_port")]
+    pub peer_port: Option<u16>,
 }
 
 impl Default for Server {
@@ -101,7 +120,8 @@ impl Default for Server {
             bedrock: BedrockConfig::default(),
             age: Age::default(),
             peers: std::collections::HashMap::new(),
-            peer_relay_url: None,
+            peer_relay_url: default_peer_relay(),
+            peer_port: default_peer_port(),
         }
     }
 }

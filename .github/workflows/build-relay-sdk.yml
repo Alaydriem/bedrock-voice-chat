@@ -73,6 +73,12 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.1
         with:

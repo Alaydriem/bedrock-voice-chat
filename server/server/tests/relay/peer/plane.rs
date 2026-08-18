@@ -120,6 +120,7 @@ async fn peered(world: &str) -> Pair {
         Arc::new(NoLocals),
         Arc::new(ChannelSink(tx)),
         None,
+        None,
     )
     .await
     .expect("bind acceptor");
@@ -130,6 +131,7 @@ async fn peered(world: &str) -> Pair {
         grants_for(acceptor_identity.node_id(), &[world]),
         Arc::new(NoLocals),
         Arc::new(ChannelSink(dead_tx)),
+        None,
         None,
     )
     .await

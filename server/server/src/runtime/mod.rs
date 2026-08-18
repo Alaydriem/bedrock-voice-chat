@@ -184,7 +184,7 @@ impl ServerRuntime {
         // once at ignite, so the bytes have to land somewhere readable — but the durable copy
         // lives in the database, which is what lets a container run without a persistent
         // volume.
-        let (ca_pem, _ca_key_pem) = self.generate_ca(db_conn.as_ref()).await?;
+        let (_ca_pem, _ca_key_pem) = self.generate_ca(db_conn.as_ref()).await?;
 
         // Resolve the Minecraft access token before any component clones the
         // config. Env and config values win; otherwise the persisted token is
@@ -334,15 +334,12 @@ impl ServerRuntime {
             let identity =
                 bvc_relay::node::NodeIdentity::load_or_create(&self.config.server.tls.certs_path)?;
 
-            let relay_url = match self.config.server.peer_relay_url.as_deref() {
-                Some(raw) => match raw.parse() {
+            let relay_url = match &self.config.server.peer_relay_url {
+                Some(url) => match url.parse() {
                     Ok(url) => Some(url),
-                    Err(e) => {
-                        tracing::error!("server.peer_relay_url {raw:?} is not a URL: {e}");
-                        return Err(anyhow::anyhow!("invalid server.peer_relay_url"));
-                    }
+                    Err(_) => None
                 },
-                None => None,
+                None => None
             };
 
             let plane = crate::relay::PeerPlane::bind(
@@ -351,6 +348,7 @@ impl ServerRuntime {
                 connection_registry.clone(),
                 Arc::new(webhook_receiver.clone()),
                 relay_url,
+                self.config.server.peer_port,
             )
             .await?;
 
@@ -361,6 +359,26 @@ impl ServerRuntime {
                 peers = grants.len(),
                 "peering enabled"
             );
+
+            // Minted off the boot path rather than on it: `ticket()` waits up to two
+            // seconds for iroh to report this endpoint's addresses, and the listeners
+            // behind this line should not wait with it.
+            //
+            // Logged because the peer link is what the far side actually needs, and
+            // `node_id` above is not it. An operator reading only the startup log had
+            // to discover `bvc-server relay peerlink` to get the one string the other
+            // side's config requires.
+            let announced = plane.clone();
+            tokio::spawn(async move {
+                match announced.endpoint().ticket().await {
+                    Ok(peerlink) => {
+                        tracing::info!(peerlink = %peerlink, "this server's peer link")
+                    }
+                    Err(e) => tracing::warn!(
+                        "could not mint this server's peer link ({e});                          `bvc-server relay peerlink` asks again on demand"
+                    ),
+                }
+            });
 
             plane.spawn_accept_loop();
             connection_registry.set_peer_plane(plane.clone());
@@ -477,7 +495,7 @@ impl ServerRuntime {
         let api_bind = crate::demux::ApiBind::reserve()?;
 
         // Create Rocket manager
-        let mut rocket_manager = RocketManager::new(
+        let rocket_manager = RocketManager::new(
             self.config.clone(),
             api_bind.clone(),
             webhook_receiver,
