@@ -32,20 +32,40 @@ If you're using an external Bedrock Voice Chat server, you'll need to run one se
 3. Start the game server. You'll see output that looks similar to the following
 
    ```
-   peer "svc-bridge" {
+   peers "svc-bridge" {
      peerlink = "bvcpeer..."
    }
    ```
-4. Add that block to the BVC server's `config.hcl` and restart the BVC server.
-5. Read the BVC server's own link:
+
+4. Add that block to the BVC server's `config.hcl` under the servers section, and restart the BVC server.
+
+   ```hcl
+   server {
+      tls {}
+      bedrock {}
+
+      peers "svc-bridge" {
+         peerlink = "bvcpeer..."
+      }
+   }
+   ```
+5. When BVC starts, you'll see a log message that looks as follows. This is Bedrock Voice Chat's peer link code.
 
    ```
-   bvc-server relay peerlink
+   INFO bvc_server_lib::runtime: this server's peer link peerlink=bvcpeer....
    ```
+   :::tip[Manual Peerlink]
+      You can also fetch the peer link code via the CLI
+
+      ```
+      bvc-server relay peerlink
+      ```
+   :::
+
 6. Set it in the mod config and restart the game server:
 
    ```
-   svc-bridge-peerlink: "bvcpeer..."
+   svc-bridge-peerlink: "bvcpeer...the-link-you-saw-in-bvc-server-startup-logs"
    ```
 
 ## Settings
