@@ -14,13 +14,41 @@ class SvcChannelsTest {
     // position per frame.
     @Test
     fun `a speaker who is a live player here gets an entity channel`() {
-        val factory = FakeChannelFactory(livePlayers = setOf("Steve"))
+        val factory = FakeChannelFactory(livePlayers = TestBodies.living("Steve"))
         val channels = SvcChannels(factory, SvcSpeakers { false })
 
         channels.channelFor(TestFrames.speech("Steve"))
 
         assertEquals(1, factory.entityChannels)
         assertEquals(0, factory.locationalChannels)
+    }
+
+    // SVC's clients key their talk cache on the channel id, and its name tag
+    // renderer asks that cache for the entity's own UUID. Opened under any other id
+    // the audio still plays and the speaking indicator appears over nobody, which is
+    // how a BVC player came to talk under a disconnected mark.
+    @Test
+    fun `an entity channel is opened under the body's own UUID`() {
+        val factory = FakeChannelFactory(livePlayers = TestBodies.living("Steve"))
+        val channels = SvcChannels(factory, SvcSpeakers { false })
+
+        val channel = channels.channelFor(TestFrames.speech("Steve"))
+
+        assertEquals(TestBodies.of("Steve"), channel!!.id)
+    }
+
+    // A speaker with no body here has no UUID to borrow, and the name-derived id is
+    // what makes a reopened channel the same channel to SVC and its clients.
+    @Test
+    fun `a locational channel keeps its derived id across a reopen`() {
+        val factory = FakeChannelFactory()
+        val channels = SvcChannels(factory, SvcSpeakers { false })
+
+        val first = channels.channelFor(TestFrames.speech("Alex"))!!.id
+        channels.forget("Alex")
+        val second = channels.channelFor(TestFrames.speech("Alex"))!!.id
+
+        assertEquals(first, second)
     }
 
     // Deployment case 1: the speaker is on a different Minecraft server, so there

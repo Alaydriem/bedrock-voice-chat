@@ -5,6 +5,7 @@ import de.maxhenkel.voicechat.api.VoicechatServerApi
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel
 import org.bukkit.Server
 import org.bukkit.World
+import org.bukkit.entity.Player
 import java.util.UUID
 
 /**
@@ -16,15 +17,18 @@ import java.util.UUID
  */
 class PaperSvcChannelFactory(
     private val api: VoicechatServerApi,
-    private val server: Server
+    private val server: Server,
+    // The inverse of the naming the frame's speaker came from. Matching the raw
+    // profile name here instead is not the same lookup, and it fails silently:
+    // the speaker falls back to a fixed position, which sounds almost right and
+    // animates nobody.
+    private val bodyOf: (String) -> Player?
 ) : SvcChannelFactory {
 
-    override fun entityChannel(id: UUID, speaker: String): AudioChannel? {
-        // Exact match: a prefix match would attach a remote speaker's audio to
-        // whichever local player happened to share the start of their name.
-        val player = server.getPlayerExact(speaker) ?: return null
+    override fun entityChannel(speaker: String): AudioChannel? {
+        val player = bodyOf(speaker) ?: return null
 
-        return api.createEntityAudioChannel(id, api.fromEntity(player))
+        return api.createEntityAudioChannel(player.uniqueId, api.fromEntity(player))
     }
 
     override fun locationalChannel(

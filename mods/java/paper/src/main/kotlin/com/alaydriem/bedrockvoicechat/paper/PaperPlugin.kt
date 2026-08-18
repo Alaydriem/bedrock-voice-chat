@@ -135,11 +135,22 @@ class PaperPlugin : JavaPlugin(), Listener {
             nodeDir = nodeDir,
             speakers = wiring::speaker,
             liveClients = liveClients(config),
-            // The membership key the connection registry indexes, which is the same
-            // canonical name the position feed sends — a Bedrock player on a Geyser
-            // server by gamertag, not by their prefixed Java username.
-            identityOf = { id -> server.getPlayer(id)?.let(playerDataProvider::resolveCanonicalName) },
-            channelFactory = { api -> PaperSvcChannelFactory(api, server) }
+            // The membership keys the connection registry indexes, `game:gamertag`.
+            // The prefix is what makes each one a key the server can answer; without
+            // it every lookup returns no rather than erroring. Plural because a
+            // linked Bedrock player is known by both their Java account name and
+            // their Xbox gamertag, and registers under whichever their BVC login
+            // carried.
+            identitiesOf = { id ->
+                server.getPlayer(id)
+                    ?.let(playerDataProvider::resolveMembershipKeys)
+                    ?: emptyList()
+            },
+            onlinePlayers = { server.onlinePlayers.map { it.uniqueId } },
+            onServerThread = { task -> server.scheduler.runTask(this, task) },
+            channelFactory = { api ->
+                PaperSvcChannelFactory(api, server, playerDataProvider::findByIdentity)
+            }
         )
         svcBridgeHost = host
 

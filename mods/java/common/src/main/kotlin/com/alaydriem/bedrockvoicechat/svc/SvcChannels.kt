@@ -63,15 +63,13 @@ class SvcChannels(
     private fun keyFor(frame: SdkFrame): String = frame.jukebox ?: frame.speaker
 
     private fun open(frame: SdkFrame): AudioChannel? {
-        val id = channelId(keyFor(frame))
-
         // A playback is a block, not a body, so it never resolves to an entity.
         if (frame.jukebox == null) {
-            factory.entityChannel(id, frame.speaker)?.let { return it }
+            factory.entityChannel(frame.speaker)?.let { return it }
         }
 
         return factory.locationalChannel(
-            id,
+            channelId(keyFor(frame)),
             frame.dimension,
             frame.x.toDouble(),
             frame.y.toDouble(),
@@ -82,6 +80,9 @@ class SvcChannels(
     /**
      * Derived from the key rather than random, so a channel that has to be reopened
      * is the same channel to SVC and to its clients.
+     *
+     * Locational channels only. A speaker with a body here gets that body's UUID,
+     * which is what SVC's name tag renderer looks the channel up by.
      */
     private fun channelId(key: String): UUID =
         UUID.nameUUIDFromBytes(key.toByteArray(StandardCharsets.UTF_8))

@@ -11,10 +11,20 @@ pub struct CandidatePlan {
 }
 
 impl CandidatePlan {
-    // Ordered attempt list: port order is the operator's, family order is the
-    // probe's verdict, and measured latency breaks ties inside a family. A negative
-    // verdict changes order only — every candidate stays, so a wrong verdict costs
-    // time and never connectivity.
+    // Ordered attempt list: ports the probe reached lead ports it did not, the operator's
+    // order decides between ports of equal standing, family order is the probe's verdict,
+    // and measured latency breaks ties inside a family. A negative verdict changes order
+    // only — every candidate stays, so a wrong verdict costs time and never connectivity.
+    //
+    // A port that answered nothing used to lead the walk purely because it was advertised
+    // first, and cost a full handshake budget before the walk reached a port that answers
+    // instantly — with the report saying so already in hand.
+    //
+    // Ports that all answered keep the operator's order rather than racing on latency,
+    // because that order is a routing instruction and not a preference. The advertised
+    // port is how clients are steered through Meridian, and the backend's own port is
+    // reachable and faster wherever it is exposed; ranking those two by latency would walk
+    // every client around the proxy that provides their tenant routing.
     //
     // Every candidate gets the same budget. A shorter one for the fallback family bounded
     // the walk, but it also meant the attempt made after the preferred family had already
@@ -26,9 +36,14 @@ impl CandidatePlan {
             .iter()
             .any(|ip| AddressFamily::of(ip) == AddressFamily::Ipv6);
 
+        // Stable, so the operator's order decides within each group: among the ports that
+        // answered, and among the ports that did not.
+        let mut ports = ports.to_vec();
+        ports.sort_by_key(|port| !Self::answered_on(addrs, *port, reachability));
+
         let mut candidates = Vec::new();
 
-        for port in ports {
+        for port in &ports {
             for family in preference.order() {
                 let mut of_family: Vec<&IpAddr> = addrs
                     .iter()
@@ -54,6 +69,14 @@ impl CandidatePlan {
             candidates,
             v6_socket,
         }
+    }
+
+    // One address answering is the whole of what this asks. Requiring more would let a
+    // single dead address sink a port that another address reaches instantly.
+    fn answered_on(addrs: &[IpAddr], port: u16, reachability: &ServerReachability) -> bool {
+        addrs
+            .iter()
+            .any(|ip| reachability.rtt_for(ip, port).is_some())
     }
 
     pub fn requires_v6_socket(&self) -> bool {

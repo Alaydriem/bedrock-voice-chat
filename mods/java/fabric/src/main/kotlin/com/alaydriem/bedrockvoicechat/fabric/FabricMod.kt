@@ -129,13 +129,22 @@ class FabricMod : ModInitializer {
             nodeDir = nodeDir,
             speakers = wiring::speaker,
             liveClients = liveClients(config),
-            // The membership key the connection registry indexes, which is the same
-            // canonical name the position feed sends — a Bedrock player on a Geyser
-            // server by gamertag, not by their prefixed Java username.
-            identityOf = { id ->
-                server.playerList.getPlayer(id)?.let(provider::resolveCanonicalName)
+            // The membership keys the connection registry indexes, `game:gamertag`.
+            // The prefix is what makes each one a key the server can answer; without
+            // it every lookup returns no rather than erroring. Plural because a
+            // linked Bedrock player is known by both their Java account name and
+            // their Xbox gamertag, and registers under whichever their BVC login
+            // carried.
+            identitiesOf = { id ->
+                server.playerList.getPlayer(id)
+                    ?.let(provider::resolveMembershipKeys)
+                    ?: emptyList()
             },
-            channelFactory = { api -> FabricSvcChannelFactory(api, server) }
+            onlinePlayers = { server.playerList.players.map { it.uuid } },
+            onServerThread = { task -> server.execute(task) },
+            channelFactory = { api ->
+                FabricSvcChannelFactory(api, server, provider::findByIdentity)
+            }
         )
         svcBridgeHost = host
 

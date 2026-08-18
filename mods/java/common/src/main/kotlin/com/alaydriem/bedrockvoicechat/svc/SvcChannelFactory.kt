@@ -18,8 +18,14 @@ interface SvcChannelFactory {
     /**
      * A channel tracking a live body on this server, or null when the speaker is
      * not a player here.
+     *
+     * The channel id is the body's own UUID, which is why it is not passed in.
+     * Simple Voice Chat's clients key their talk cache on the channel id and its
+     * name tag renderer asks that cache for the entity's UUID, so the two matching
+     * is what puts the speaking indicator over the right head. Any other id plays
+     * the audio correctly and animates nobody.
      */
-    fun entityChannel(id: UUID, speaker: String): AudioChannel?
+    fun entityChannel(speaker: String): AudioChannel?
 
     /**
      * A channel at a fixed point, for a speaker with no body here. Null when the

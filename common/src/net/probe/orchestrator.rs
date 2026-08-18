@@ -3,10 +3,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use moka::future::Cache;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 
 use super::{HttpsProbe, MeasuredLeg, NegotiationProbe, WsVoiceProbe};
+use crate::net::NetTimeouts;
 use crate::structs::reachability::{
     AddressFamily, AddressFamilyPreference, EndpointReachability, ReachabilityOutcome,
     ReachabilityRequest, ReachabilityVerdict, ServerReachability,
@@ -149,15 +150,24 @@ impl ReachabilityProbe {
     ) -> ServerReachability {
         let mut tasks = JoinSet::new();
 
+        // Stops the QUIC legs that are still running once one of them has answered. Only
+        // they are cancelled: the fallback's round trip decides which transport the
+        // connect dials, and the HTTPS leg is what separates a blocked path from a host
+        // that is not there.
+        let (settle_tx, settle_rx) = watch::channel(false);
+        let settle_tx = Arc::new(settle_tx);
+
         for addr in &request.addrs {
             for port in &request.quic_ports {
                 let dest = SocketAddr::new(*addr, *port);
                 let server_name = request.host.clone();
+                let settled = settle_rx.clone();
                 tasks.spawn(async move {
-                    MeasuredLeg::Quic(Self::measure_quic(dest, server_name).await)
+                    MeasuredLeg::Quic(Self::measure_quic(dest, server_name, settled).await)
                 });
             }
         }
+        drop(settle_rx);
 
         for addr in &request.addrs {
             let url = request.https_url.clone();
@@ -188,9 +198,27 @@ impl ReachabilityProbe {
         let mut ws = Vec::new();
         let mut announced = false;
 
+        let mut settling = false;
+
         while let Some(joined) = tasks.join_next().await {
             match joined {
-                Ok(MeasuredLeg::Quic(endpoint)) => quic.push(endpoint),
+                Ok(MeasuredLeg::Quic(endpoint)) => {
+                    // One answer is the whole of what the walk needs. An endpoint still
+                    // escalating to a handshake probe can only sort below this one, and
+                    // waiting for it to exhaust its budget is what made a dead advertised
+                    // port cost seconds on every launch.
+                    let answered = endpoint.outcome().answered();
+                    quic.push(endpoint);
+
+                    if answered && !settling {
+                        settling = true;
+                        let settle_tx = settle_tx.clone();
+                        tokio::spawn(async move {
+                            tokio::time::sleep(NetTimeouts::PROBE_SETTLE).await;
+                            let _ = settle_tx.send(true);
+                        });
+                    }
+                }
                 Ok(MeasuredLeg::Https(endpoint)) => https.push(endpoint),
                 Ok(MeasuredLeg::Ws(endpoint)) => ws.push(endpoint),
                 Err(_) => continue,
@@ -222,10 +250,38 @@ impl ReachabilityProbe {
         )
     }
 
+    // Abandoned the moment a sibling endpoint has answered and settled. The result is
+    // recorded as silence, which is what it is: within the time this probe was given, this
+    // endpoint said nothing. It still sorts last rather than being dropped, and the walk
+    // still dials it if the endpoint that did answer fails to carry a session.
+    async fn measure_quic(
+        dest: SocketAddr,
+        server_name: String,
+        mut settled: watch::Receiver<bool>,
+    ) -> EndpointReachability {
+        tokio::select! {
+            biased;
+
+            endpoint = Self::probe_quic(dest, server_name) => endpoint,
+            _ = Self::settled(&mut settled) => {
+                EndpointReachability::new(dest, ReachabilityOutcome::Silent, None)
+            }
+        }
+    }
+
+    // Never resolves once the sender is gone. A dropped sender means the measurement is
+    // already finishing, and resolving here would report silence about an endpoint whose
+    // own probe was about to answer.
+    async fn settled(settled: &mut watch::Receiver<bool>) {
+        if settled.wait_for(|done| *done).await.is_err() {
+            std::future::pending::<()>().await;
+        }
+    }
+
     // Escalates only when it has to. The negotiation probe costs one round trip and
     // no certificates; the handshake probe costs a TLS exchange but carries SNI,
     // which is the only way to reach a server behind an SNI-routing proxy.
-    async fn measure_quic(dest: SocketAddr, server_name: String) -> EndpointReachability {
+    async fn probe_quic(dest: SocketAddr, server_name: String) -> EndpointReachability {
         let negotiation = NegotiationProbe::probe(dest).await;
 
         if negotiation.answered() || matches!(negotiation, ReachabilityOutcome::NoRoute) {

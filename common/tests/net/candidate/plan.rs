@@ -41,8 +41,9 @@ fn ipv4_preferred() -> ServerReachability {
     ])
 }
 
-// The operator's port order is a deliberate statement about which way in they want
-// used. Family is the tiebreak inside a port, never the other way round.
+// Family is the tiebreak inside a port, never the other way round. Here the measured
+// port also leads, so this says nothing about port order on its own — the cases below
+// cover that.
 #[test]
 fn candidates_are_ordered_by_port_then_family() {
     let plan = CandidatePlan::build(&[v6(1), v4(1)], &[443, 8443], &ipv6_preferred());
@@ -165,4 +166,86 @@ fn a_plan_with_no_addresses_is_empty() {
     let plan = CandidatePlan::build(&[], &[443], &ipv4_preferred());
 
     assert!(plan.is_empty());
+}
+
+// The defect this ordering exists to end. A server advertising a port that nothing
+// answers on, ahead of one that answers instantly, spent a full handshake budget on the
+// dead one before reaching the live one — after the probe had already measured both.
+#[test]
+fn a_port_that_did_not_answer_sorts_below_one_that_did() {
+    let addr = v4(1);
+    let measured = report(vec![
+        EndpointReachability::new(SocketAddr::new(addr, 28280), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(SocketAddr::new(addr, 443), answered(16_000), None),
+    ]);
+
+    let plan = CandidatePlan::build(&[addr], &[28280, 443], &measured);
+    let ports: Vec<u16> = plan.candidates().iter().map(|c| c.port()).collect();
+
+    assert_eq!(ports, vec![443, 28280]);
+}
+
+#[test]
+fn the_faster_measured_port_leads_the_walk() {
+    let addr = v4(1);
+    let measured = report(vec![
+        EndpointReachability::new(SocketAddr::new(addr, 443), answered(90_000), None),
+        EndpointReachability::new(SocketAddr::new(addr, 8443), answered(12_000), None),
+    ]);
+
+    let plan = CandidatePlan::build(&[addr], &[443, 8443], &measured);
+    let ports: Vec<u16> = plan.candidates().iter().map(|c| c.port()).collect();
+
+    assert_eq!(ports, vec![8443, 443]);
+}
+
+// With nothing measured to separate them the operator's order is the only statement
+// available about which way in they intend, so it still decides.
+#[test]
+fn the_operator_order_survives_when_no_port_was_measured() {
+    let addr = v4(1);
+    let measured = report(vec![EndpointReachability::new(
+        SocketAddr::new(addr, 443),
+        ReachabilityOutcome::Silent,
+        None,
+    )]);
+
+    let plan = CandidatePlan::build(&[addr], &[8443, 443], &measured);
+    let ports: Vec<u16> = plan.candidates().iter().map(|c| c.port()).collect();
+
+    assert_eq!(ports, vec![8443, 443]);
+}
+
+// Ordering is the only thing a measurement may change. A silent port is still dialled,
+// because a probe that was wrong must cost time and never connectivity.
+#[test]
+fn a_port_that_did_not_answer_is_reordered_and_never_removed() {
+    let addr = v4(1);
+    let measured = report(vec![
+        EndpointReachability::new(SocketAddr::new(addr, 28280), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(SocketAddr::new(addr, 443), answered(16_000), None),
+    ]);
+
+    let plan = CandidatePlan::build(&[addr], &[28280, 443], &measured);
+
+    assert_eq!(plan.candidates().len(), 2);
+}
+
+// A port is ranked by the best answer any address gave on it, so one dead address does
+// not sink a port that another address reaches instantly.
+#[test]
+fn a_port_is_ranked_by_its_fastest_answering_address() {
+    let slow = v4(1);
+    let fast = v4(2);
+    let measured = report(vec![
+        EndpointReachability::new(SocketAddr::new(slow, 8443), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(SocketAddr::new(fast, 8443), answered(9_000), None),
+        EndpointReachability::new(SocketAddr::new(slow, 443), answered(80_000), None),
+        EndpointReachability::new(SocketAddr::new(fast, 443), answered(85_000), None),
+    ]);
+
+    let plan = CandidatePlan::build(&[slow, fast], &[443, 8443], &measured);
+    let ports: Vec<u16> = plan.candidates().iter().map(|c| c.port()).collect();
+
+    assert_eq!(ports, vec![8443, 8443, 443, 443]);
 }

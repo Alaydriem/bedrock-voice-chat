@@ -27,18 +27,24 @@ impl NetTimeouts {
     /// which has the full budget.
     pub const NEGOTIATION: Duration = Duration::from_millis(750);
 
-    /// How long QUIC runs alone before the WebSocket alternative is also dialled.
+    /// How far the fallback has to beat QUIC before it is preferred over it.
     ///
-    /// A head start rather than a dead heat: a WebSocket attempt that wins costs the
-    /// server a handshake and a registered session for a link nobody uses. Where QUIC
-    /// works, this expires after QUIC has already won and the alternative never opens.
-    pub const WEBSOCKET_HEAD_START: Duration = Duration::from_secs(1);
+    /// A margin rather than a comparison, because the faster answer is not always the
+    /// better path. The fallback costs a TCP handshake and a TLS handshake where QUIC
+    /// costs one round trip, so distance inflates the fallback more than it inflates
+    /// QUIC — a player who is merely far away can never open a gap this wide, and keeps
+    /// QUIC. A gap this wide means QUIC is losing Initials and backing off, which is a
+    /// degraded path rather than a distant one, and voice carried over it is worse than
+    /// voice carried over TCP.
+    pub const WEBSOCKET_PREFERENCE_MARGIN: Duration = Duration::from_secs(2);
 
-    /// How long a QUIC attempt may keep running once WebSocket is connected and waiting.
+    /// How long the QUIC legs of a probe may keep running after one of them has answered.
     ///
-    /// Matched to `HANDSHAKE`: anything shorter hands the session to WebSocket while a
-    /// distant QUIC handshake is still inside the budget this file grants it.
-    pub const QUIC_OVERTAKE: Duration = Self::HANDSHAKE;
+    /// The answer that matters is already in hand at this point: an endpoint that answers
+    /// later sorts below one that answered sooner, and one that never answers sorts last.
+    /// The grace exists only so endpoints that are genuinely close together are all
+    /// measured, rather than the first to land deciding the address family alone.
+    pub const PROBE_SETTLE: Duration = Duration::from_millis(250);
 
     /// One HTTPS request, for the probe that establishes a server answers at all.
     ///

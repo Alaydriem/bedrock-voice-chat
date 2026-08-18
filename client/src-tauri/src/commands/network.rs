@@ -1,7 +1,7 @@
 use crate::analytics::AnalyticsService;
 use crate::{NetworkStreamManager, structs::app_state::AppState};
 use common::consts::version::PROTOCOL_VERSION;
-use common::net::{CandidatePlan, ReachabilityPlanner};
+use common::net::{CandidatePlan, NetTimeouts, ReachabilityPlanner};
 use common::response::api::config::ProtocolCompatibility;
 use common::response::LoginResponse;
 use common::structs::reachability::ServerReachability;
@@ -132,6 +132,7 @@ pub(crate) async fn change_network_stream(
     family_preference.set(report.preference());
 
     let plan = CandidatePlan::build(&resolved, &ports, &report);
+    let choice = report.voice_choice(NetTimeouts::WEBSOCKET_PREFERENCE_MARGIN);
 
     info!(
         "QUIC candidates for {} ({:?}): {:?}",
@@ -141,6 +142,17 @@ pub(crate) async fn change_network_stream(
             .iter()
             .map(|c| c.dial())
             .collect::<Vec<_>>()
+    );
+
+    // Both measurements, beside the choice they produced. A transport picked against
+    // expectation is answerable from one line rather than from the timing of the lines
+    // after it.
+    info!(
+        "Voice transport for {}: {:?} (QUIC {:?} us, fallback {:?} us)",
+        server_fqdn,
+        choice,
+        report.best_rtt_micros(),
+        report.fallback_rtt_micros()
     );
 
     let mut network_stream = network_stream.lock().await;
@@ -164,7 +176,7 @@ pub(crate) async fn change_network_stream(
             server_fqdn.clone(),
             server.clone(),
             plan,
-            report.any_quic_answered(),
+            choice,
             voice_websocket,
             identity,
             data.certificate_ca,

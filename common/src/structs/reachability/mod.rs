@@ -4,6 +4,7 @@ mod family;
 mod outcome;
 mod request;
 mod verdict;
+mod voice_choice;
 
 pub use certificate::ObservedCertificate;
 pub use endpoint::EndpointReachability;
@@ -11,9 +12,11 @@ pub use family::{AddressFamily, AddressFamilyPreference};
 pub use outcome::{AnsweredVia, ReachabilityOutcome};
 pub use request::ReachabilityRequest;
 pub use verdict::ReachabilityVerdict;
+pub use voice_choice::VoiceChoice;
 
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, SocketAddr};
+use std::time::Duration;
 use ts_rs::TS;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -167,6 +170,29 @@ impl ServerReachability {
     // true strands a player who could have been talking.
     pub fn voice_fallback_answered(&self) -> bool {
         self.verdict == ReachabilityVerdict::VoiceFallback
+    }
+
+    /// Which transport this connect should dial.
+    ///
+    /// QUIC wins every tie and every close call. It is displaced only when the fallback
+    /// answered faster by more than `margin`, which no amount of distance can produce —
+    /// the fallback costs more round trips than QUIC on the same path, so distance
+    /// inflates it further. A gap that wide is a QUIC path that is retransmitting, and
+    /// carrying voice over it is worse than carrying voice over TCP.
+    pub fn voice_choice(&self, margin: Duration) -> VoiceChoice {
+        match (self.best_rtt_micros, self.fallback_rtt_micros) {
+            (Some(quic), Some(fallback)) => {
+                let margin = u32::try_from(margin.as_micros()).unwrap_or(u32::MAX);
+                if fallback.saturating_add(margin) < quic {
+                    VoiceChoice::WebSocket
+                } else {
+                    VoiceChoice::Quic
+                }
+            }
+            (Some(_), None) => VoiceChoice::Quic,
+            (None, Some(_)) => VoiceChoice::WebSocket,
+            (None, None) => VoiceChoice::None,
+        }
     }
 
     // Whether either transport can carry voice to this server from this network.

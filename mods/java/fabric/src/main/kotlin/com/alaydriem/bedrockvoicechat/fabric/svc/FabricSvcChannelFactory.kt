@@ -5,6 +5,7 @@ import de.maxhenkel.voicechat.api.VoicechatServerApi
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerLevel
+import net.minecraft.server.level.ServerPlayer
 import java.util.UUID
 
 /**
@@ -16,17 +17,18 @@ import java.util.UUID
  */
 class FabricSvcChannelFactory(
     private val api: VoicechatServerApi,
-    private val server: MinecraftServer
+    private val server: MinecraftServer,
+    // The inverse of the naming the frame's speaker came from. Matching the raw
+    // profile name here instead is not the same lookup, and it fails silently:
+    // the speaker falls back to a fixed position, which sounds almost right and
+    // animates nobody.
+    private val bodyOf: (String) -> ServerPlayer?
 ) : SvcChannelFactory {
 
-    override fun entityChannel(id: UUID, speaker: String): AudioChannel? {
-        // Matched on the canonical name the position feed uses, so a Bedrock player
-        // on a Geyser server resolves by gamertag rather than by their prefixed
-        // Java username.
-        val player = server.playerList.players.firstOrNull { it.gameProfile.name == speaker }
-            ?: return null
+    override fun entityChannel(speaker: String): AudioChannel? {
+        val player = bodyOf(speaker) ?: return null
 
-        return api.createEntityAudioChannel(id, api.fromEntity(player))
+        return api.createEntityAudioChannel(player.uuid, api.fromEntity(player))
     }
 
     override fun locationalChannel(

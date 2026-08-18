@@ -1,3 +1,5 @@
+mod voice_choice;
+
 use common::structs::reachability::{
     AddressFamily, AddressFamilyPreference, AnsweredVia, EndpointReachability, ReachabilityOutcome,
     ReachabilityVerdict, ServerReachability,

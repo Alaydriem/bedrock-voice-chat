@@ -15,7 +15,7 @@ use crate::AudioPacket;
 use crate::NetworkPacket;
 use crate::diagnostics::{LinkSession, QuicLinkStats, QuicStatsSubscriber, TransportStats};
 use common::net::CandidatePlan;
-use common::net::NetTimeouts;
+use common::structs::reachability::VoiceChoice;
 use common::net::ConnectCandidate;
 use common::s2n_quic::Client;
 use common::s2n_quic::Connection;
@@ -106,13 +106,15 @@ impl NetworkStreamManager {
         server_fqdn: String,
         server_url: String,
         plan: CandidatePlan,
-        // The reachability probe's verdict on UDP. When it is `false` the probe has
-        // already spent a full handshake budget proving nothing answers, and walking the
-        // same endpoints again would spend a second one on the player's clock.
-        quic_reachable: bool,
+        // Which transport the reachability report says to dial. The probe has already
+        // measured both, so the choice costs nothing here — where dialling both to find
+        // out spent a head start on every connect and a registered session on the server
+        // for every player who ended up on QUIC anyway.
+        choice: VoiceChoice,
         // Whether this server carries voice over WebSocket at all, from
-        // `ApiConfigResponse::voice_websocket`. On a server that does not, QUIC is the whole
-        // of voice: there is nothing to race it against and nothing to fall back to.
+        // `ApiConfigResponse::voice_websocket`. It is a capability rather than a
+        // measurement: it says whether falling back is possible when the chosen transport
+        // turns out not to carry, not whether the fallback is preferred.
         voice_websocket: bool,
         identity: String,
         ca_cert: String,
@@ -174,60 +176,19 @@ impl NetworkStreamManager {
             (client, plan)
         };
 
-        // A host that has already degraded a QUIC session skips the walk entirely. Probing
-        // it again would say "reachable" — that is exactly the signal a degrading network
-        // defeats — and the walk would then hand back a session that stops carrying audio a
-        // minute later.
-        let link = if !voice_websocket {
-            // QUIC is the whole of voice here, so a demotion and a negative probe change
-            // nothing about what is left to try. The walk runs alone rather than against
-            // an alternative that does not exist.
-            if !quic_reachable {
-                log::error!(
-                    "{server_fqdn} advertises no WebSocket voice transport and no QUIC endpoint answered"
-                );
-                return Err(Box::new(ConnectFailure::Unreachable {
-                    detail: "no voice transport is reachable on this server".to_string(),
-                }));
-            }
-
-            log::info!("{server_fqdn} carries voice over QUIC only");
-            self.connect_quic_alone(&client, &plan, &server_fqdn, &server_url, &ca_cert)
-                .await?
-        } else if self.transport_verdict.is_demoted(&server_fqdn) {
-            log::info!("QUIC is demoted for {server_fqdn}; connecting over WebSocket");
-            self.connect_websocket(&server_url, &ca_cert, &cert, &key)
-                .await?
-        } else if !quic_reachable {
-            // The reachability probe already spent a full handshake budget establishing
-            // that nothing answers on UDP. Walking the same endpoints again would spend a
-            // second one rediscovering it, and the player waits through both.
-            log::info!(
-                "no QUIC endpoint answered the probe for {server_fqdn}; connecting over WebSocket"
-            );
-            self.transport_verdict.demote(&server_fqdn);
-            self.connect_websocket(&server_url, &ca_cert, &cert, &key)
-                .await?
-        } else {
-            // The probe said UDP answers, so QUIC is worth attempting — but a probe that
-            // answered is not a session that carried. The two transports race from here,
-            // and the loser costs nothing.
-            let mut outcome = ConnectOutcome::new();
-            let raced = self
-                .race_transports(
-                    &client,
-                    &plan,
-                    &server_fqdn,
-                    &server_url,
-                    &ca_cert,
-                    &cert,
-                    &key,
-                    &mut outcome,
-                )
-                .await;
-            self.report_connect_outcome(&outcome, &server_url);
-            raced?
-        };
+        let link = self
+            .connect_chosen(
+                &client,
+                &plan,
+                &server_fqdn,
+                &server_url,
+                &ca_cert,
+                &cert,
+                &key,
+                choice,
+                voice_websocket,
+            )
+            .await?;
 
         self.health_manager.reset();
 
@@ -269,18 +230,19 @@ impl NetworkStreamManager {
         Ok(())
     }
 
-    /// Runs both transports against each other and returns whichever carried a session.
+    /// Dials the transport the reachability report chose, and falls to the other only if
+    /// that dial does not carry.
     ///
-    /// QUIC is given a head start, so on any path where it works the WebSocket attempt is
-    /// never made: the delay expires after QUIC has already won. That matters on the
-    /// server, which would otherwise perform a TLS handshake and register a session for a
-    /// link nobody ends up using, once per connecting player.
+    /// The report has already measured both paths, so the choice is free here. Dialling
+    /// both to discover the same answer cost every connect a head start it spent waiting,
+    /// and cost the server a TLS handshake and a registered session for every player who
+    /// ended up on QUIC regardless.
     ///
-    /// When the WebSocket attempt does win, QUIC keeps running for the remainder of its
-    /// handshake budget and takes the session if it lands. Preferring the faster answer
-    /// unconditionally would move a merely distant player onto TCP for being distant.
+    /// A measurement is not a session, which is what the second attempt is for. It runs
+    /// against the probe's own verdict deliberately: a verdict that was wrong must cost
+    /// time and never connectivity.
     #[allow(clippy::too_many_arguments)]
-    async fn race_transports(
+    async fn connect_chosen(
         &self,
         client: &Client,
         plan: &CandidatePlan,
@@ -289,101 +251,73 @@ impl NetworkStreamManager {
         ca_cert: &str,
         cert: &str,
         key: &str,
-        outcome: &mut ConnectOutcome,
+        choice: VoiceChoice,
+        voice_websocket: bool,
     ) -> Result<DatagramLink, ConnectFailure> {
-        let quic = async { Self::connect_first_available(client, plan, server_fqdn, outcome).await };
-        tokio::pin!(quic);
+        match choice {
+            VoiceChoice::None => {
+                log::error!("no voice transport answered the probe for {server_fqdn}");
+                Err(ConnectFailure::Unreachable {
+                    detail: "no voice transport is reachable on this server".to_string(),
+                })
+            }
 
-        let websocket = async {
-            tokio::time::sleep(NetTimeouts::WEBSOCKET_HEAD_START).await;
-            self.connect_websocket(server_url, ca_cert, cert, key).await
-        };
-        tokio::pin!(websocket);
+            // A host that has already degraded a QUIC session skips the walk however well
+            // it measures. Probing it again says "reachable" — that is exactly the signal
+            // a degrading network defeats — and the walk would hand back a session that
+            // stops carrying audio a minute later.
+            VoiceChoice::Quic
+                if voice_websocket && self.transport_verdict.is_demoted(server_fqdn) =>
+            {
+                log::info!("QUIC is demoted for {server_fqdn}; connecting over WebSocket");
+                self.connect_websocket(server_url, ca_cert, cert, key).await
+            }
 
-        tokio::select! {
-            // Biased so a QUIC handshake landing in the same instant as the WebSocket one
-            // is still preferred, rather than left to scheduler order.
-            biased;
-
-            attempt = &mut quic => {
-                match attempt {
-                    Ok((connection, winner)) => {
-                        self.adopt_quic(connection, winner, server_url, ca_cert)
-                            .map_err(|detail| ConnectFailure::Unreachable { detail })
-                    }
-                    // Every listener validates the client certificate against the same CA, so a
-                    // rejection here is a rejection the WebSocket transport will repeat. Racing
-                    // it would spend the head start and the dial budget reproducing an answer
-                    // already in hand.
-                    //
-                    // QUIC keeps its standing either way: a rejected certificate says nothing
-                    // about whether UDP reaches this server.
+            VoiceChoice::Quic => {
+                match self
+                    .connect_quic(client, plan, server_fqdn, server_url, ca_cert)
+                    .await
+                {
+                    Ok(link) => Ok(link),
+                    // Every listener validates the client certificate against the same CA,
+                    // so a rejection here is a rejection the WebSocket transport repeats.
+                    // QUIC keeps its standing either way: a rejected certificate says
+                    // nothing about whether UDP reaches this server.
                     Err(failure) if failure.is_certificate() => Err(failure),
-                    // Every candidate failed inside the head start. The API answered — this
-                    // client fetched its configuration over it — so TCP reaches the server
-                    // and only UDP does not.
-                    Err(failure) => {
+                    Err(failure) if voice_websocket => {
                         log::warn!(
                             "no QUIC candidate carried a session ({}); using WebSocket",
                             failure.detail()
                         );
                         self.transport_verdict.demote(server_fqdn);
-                        Ok(websocket.await?)
+                        self.connect_websocket(server_url, ca_cert, cert, key).await
                     }
+                    Err(failure) => Err(failure),
                 }
             }
 
-            link = &mut websocket => {
-                let link = link?;
-                log::info!(
-                    "the WebSocket transport connected first; giving QUIC {:?} to overtake",
-                    NetTimeouts::QUIC_OVERTAKE
-                );
-
-                match tokio::time::timeout(NetTimeouts::QUIC_OVERTAKE, &mut quic).await {
-                    Ok(Ok((connection, winner))) => {
-                        log::info!("QUIC overtook the WebSocket transport; using QUIC");
-                        self.adopt_quic(connection, winner, server_url, ca_cert)
-                            .map_err(|detail| ConnectFailure::Unreachable { detail })
-                    }
-                    // The WebSocket link already connected, and it is dropped rather than used.
-                    // Its handshake and QUIC's disagree about a certificate they both validate
-                    // against the same CA, and a session built on that disagreement hides the
-                    // fault for its whole length. The credential probe at the command boundary
-                    // decides what it means.
-                    Ok(Err(failure)) if failure.is_certificate() => Err(failure),
-                    // QUIC failed outright while an alternative was already in hand. That
-                    // is evidence, so it is recorded for the rest of the run.
-                    Ok(Err(failure)) => {
+            VoiceChoice::WebSocket => {
+                match self.connect_websocket(server_url, ca_cert, cert, key).await {
+                    Ok(link) => Ok(link),
+                    Err(failure) if failure.is_certificate() => Err(failure),
+                    Err(failure) => {
                         log::warn!(
-                            "no QUIC candidate carried a session ({}); using WebSocket",
+                            "the fallback path did not carry a session ({}); walking the QUIC plan",
                             failure.detail()
                         );
-                        self.transport_verdict.demote(server_fqdn);
-                        Ok(link)
-                    }
-                    // QUIC neither succeeded nor failed inside its budget. Slow is not the
-                    // same as broken, so this session runs on WebSocket and the next one
-                    // races again from scratch — no verdict is recorded.
-                    Err(_) => {
-                        log::warn!(
-                            "QUIC did not answer within {:?} while the WebSocket transport was ready; using WebSocket for this session",
-                            NetTimeouts::QUIC_OVERTAKE
-                        );
-                        Ok(link)
+                        self.connect_quic(client, plan, server_fqdn, server_url, ca_cert)
+                            .await
                     }
                 }
             }
         }
     }
 
-    /// Walks the QUIC plan with no alternative running beside it.
+    /// Walks the QUIC plan, in candidate order, until one carries a session.
     ///
-    /// For a server with no WebSocket voice transport, where the race would spend its head
-    /// start and then dial a listener that is not there. The outcome is still reported: a
-    /// walk that reached the server on its third candidate is as diagnostic here as it is
-    /// under the race.
-    async fn connect_quic_alone(
+    /// The outcome is reported whether or not it succeeds: a walk that reached the server
+    /// on its third candidate is as diagnostic as one that reached nothing.
+    async fn connect_quic(
         &self,
         client: &Client,
         plan: &CandidatePlan,

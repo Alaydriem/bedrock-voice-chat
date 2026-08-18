@@ -53,11 +53,12 @@ class FakeAudioChannel(private val id: UUID) : AudioChannel {
 /**
  * A channel factory that opens fakes and counts which kind was asked for.
  *
- * `livePlayers` decides whether a speaker has a body here, which is the whole
- * entity-versus-locational question.
+ * `livePlayers` maps a speaker to the UUID of their body here, which decides both
+ * the entity-versus-locational question and — because the real factories key an
+ * entity channel on the body itself — the id the channel is opened under.
  */
 class FakeChannelFactory(
-    private val livePlayers: Set<String> = emptySet(),
+    private val livePlayers: Map<String, UUID> = emptyMap(),
     val knownDimensions: MutableSet<String> = mutableSetOf("overworld", "nether", "the_end")
 ) : SvcChannelFactory {
 
@@ -65,12 +66,10 @@ class FakeChannelFactory(
     var locationalChannels: Int = 0
     val opened: MutableList<FakeAudioChannel> = mutableListOf()
 
-    override fun entityChannel(id: UUID, speaker: String): AudioChannel? {
-        if (!livePlayers.contains(speaker)) {
-            return null
-        }
+    override fun entityChannel(speaker: String): AudioChannel? {
+        val body = livePlayers[speaker] ?: return null
         entityChannels += 1
-        return FakeAudioChannel(id).also { opened.add(it) }
+        return FakeAudioChannel(body).also { opened.add(it) }
     }
 
     override fun locationalChannel(
@@ -86,6 +85,14 @@ class FakeChannelFactory(
         locationalChannels += 1
         return FakeAudioChannel(id).also { opened.add(it) }
     }
+}
+
+/** Stable per-name UUIDs, so a test can name a body and assert on it. */
+object TestBodies {
+
+    fun of(name: String): UUID = UUID.nameUUIDFromBytes("body:$name".toByteArray())
+
+    fun living(vararg names: String): Map<String, UUID> = names.associateWith(::of)
 }
 
 /** Frames shaped the way the bridge produces them. */

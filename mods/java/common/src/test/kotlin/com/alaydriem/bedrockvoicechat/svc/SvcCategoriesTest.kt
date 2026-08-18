@@ -47,7 +47,7 @@ class SvcCategoriesTest {
     // when a player happens to share the synthetic speaker's name.
     @Test
     fun `a playback never takes an entity channel`() {
-        val factory = FakeChannelFactory(livePlayers = setOf("jukebox-1"))
+        val factory = FakeChannelFactory(livePlayers = TestBodies.living("jukebox-1"))
 
         channels(factory).channelFor(TestFrames.jukebox("jukebox-1", "event-7"))
 

@@ -22,14 +22,16 @@ class SvcBridgeHost(
     private val nodeDir: File,
     private val speakers: (UUID) -> SpeakerSnapshot?,
     private val liveClients: LiveClients,
-    private val identityOf: (UUID) -> String?,
+    private val identitiesOf: (UUID) -> List<String>,
+    private val onlinePlayers: () -> List<UUID>,
+    private val onServerThread: (Runnable) -> Unit,
     private val channelFactory: (VoicechatServerApi) -> SvcChannelFactory
 ) {
     @Volatile
     private var peer: BvcPeer? = null
 
     @Volatile
-    private var refresher: Thread? = null
+    private var reconciler: Thread? = null
 
     @Volatile
     private var serverApi: VoicechatServerApi? = null
@@ -62,9 +64,22 @@ class SvcBridgeHost(
      *
      * Re-fetched per call because a VoicechatConnection documents itself as a snapshot that
      * does not track the connection it came from.
+     *
+     * A player with a live BVC client is excluded, because [SvcPresence] is what put the
+     * connected mark on them. Reading it back would return our own claim to the BVC server
+     * as though Simple Voice Chat had made it, and the moment their BVC client closed they
+     * would be reported as holding a bridged connection that never existed.
      */
     fun isOnVoice(player: UUID): Boolean =
-        serverApi?.getConnectionOf(player)?.isConnected == true
+        serverApi?.getConnectionOf(player)?.isConnected == true && !hasLiveBvcClient(player)
+
+    /**
+     * Any of a player's identities holding a connection means the player is on one.
+     * A linked Bedrock player is known by two names and their BVC client registers
+     * under whichever the Xbox Live login carried, which the mod cannot predict.
+     */
+    private fun hasLiveBvcClient(player: UUID): Boolean =
+        identitiesOf(player).any(liveClients::isLive)
 
     private fun send(frame: uniffi.bvc_relay_sdk.SdkFrame) {
         val session = peer ?: return
@@ -124,11 +139,9 @@ class SvcBridgeHost(
 
         // Resolved per delivery rather than per channel, so a player who opens or
         // closes their BVC client mid-session is handled without reopening anything.
-        val speakerFilter = SvcSpeakers { listener ->
-            identityOf(listener)?.let { liveClients.isLive(it) } ?: false
-        }
+        val speakerFilter = SvcSpeakers(::hasLiveBvcClient)
 
-        startRefreshing()
+        startReconciling(api)
 
         val channels = SvcChannels(channelFactory(api), speakerFilter)
         val inbound = InboundTranslator(channels, SampleRateGuard())
@@ -183,36 +196,61 @@ class SvcBridgeHost(
     }
 
     /**
-     * Keeps the external snapshot current.
+     * Keeps both views of who is on a BVC client current.
      *
-     * Only the polled source needs this; embedded answers per call. The interval is
-     * a compromise the failure mode forgives: a player who has just connected their
-     * BVC client may hear a speaker twice for up to that long, which is briefly
-     * annoying, where suppressing too eagerly would be silence.
+     * Refreshing the snapshot is the polled source's need alone; embedded answers per
+     * call. Reconciling the connected mark is needed either way, because Simple Voice
+     * Chat resets it whenever a player's real state changes.
+     *
+     * The interval is a compromise the failure mode forgives on both counts: a player
+     * who has just opened their BVC client may hear a speaker twice for up to that
+     * long, and may wear the disconnected mark for as long again. Suppressing or
+     * marking more eagerly costs silence and a wrong mark respectively.
      */
-    private fun startRefreshing() {
-        if (!liveClients.isPolled || refresher != null) {
+    private fun startReconciling(api: VoicechatServerApi) {
+        if (reconciler != null) {
             return
         }
 
-        refresher = Thread({
+        val presence = SvcPresence(
+            onlinePlayers = onlinePlayers,
+            hasLiveBvcClient = ::hasLiveBvcClient,
+            setConnected = { player, connected ->
+                api.getConnectionOf(player)?.setConnected(connected)
+            }
+        )
+
+        reconciler = Thread({
             while (!Thread.currentThread().isInterrupted) {
-                liveClients.refresh()
+                if (liveClients.isPolled) {
+                    liveClients.refresh()
+                }
+
+                // Posted rather than run here: the sweep reads the online player
+                // list, which belongs to the server thread.
                 try {
-                    Thread.sleep(REFRESH_INTERVAL_MS)
+                    onServerThread(Runnable { presence.reconcile() })
+                } catch (e: Exception) {
+                    // A server on its way down refuses work. Nothing to correct
+                    // and nobody left to see the mark.
+                    logger.debug("Skipping a presence sweep: {}", e.toString())
+                }
+
+                try {
+                    Thread.sleep(RECONCILE_INTERVAL_MS)
                 } catch (e: InterruptedException) {
                     Thread.currentThread().interrupt()
                 }
             }
-        }, "bvc-svc-live-clients").apply {
+        }, "bvc-svc-presence").apply {
             isDaemon = true
             start()
         }
     }
 
     fun shutdown() {
-        refresher?.interrupt()
-        refresher = null
+        reconciler?.interrupt()
+        reconciler = null
         serverApi = null
 
         val session = peer ?: return
@@ -227,7 +265,7 @@ class SvcBridgeHost(
     companion object {
         private const val INBOX_CAPACITY: UInt = 64u
 
-        private const val REFRESH_INTERVAL_MS: Long = 2000
+        private const val RECONCILE_INTERVAL_MS: Long = 2000
 
         // Fifteen seconds in total. An embedded server that has not bound a peer
         // endpoint by then is not slow, it is misconfigured — and the warning that
