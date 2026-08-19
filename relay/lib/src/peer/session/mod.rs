@@ -34,6 +34,16 @@ pub struct PeerSession {
 }
 
 impl PeerSession {
+    // One dial attempt. Generous, because a relay-assisted path legitimately takes
+    // several round trips to establish, and short enough that a hung dial cannot
+    // outlast the backoff schedule it is supposed to be feeding.
+    const DIAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+
+    // How many consecutive failures pass between reports. The first is always
+    // reported; this keeps a relay that is down overnight from writing a line every
+    // thirty seconds forever.
+    const FAILURES_PER_REPORT: u32 = 10;
+
     pub async fn open(config: SessionConfig) -> Result<Arc<Self>, PeerError> {
         let addr = PeerTicket::parse(&config.peerlink)
             .map_err(|e| PeerError::Bind(format!("peerlink: {e}")))?;
@@ -100,6 +110,7 @@ impl PeerSession {
 
         tokio::spawn(async move {
             let mut backoff = Backoff::new();
+            let mut failures: u32 = 0;
 
             loop {
                 if session.cancel.is_cancelled() {
@@ -109,9 +120,24 @@ impl PeerSession {
                 match session.connect_once(addr.clone()).await {
                     Ok(link) => {
                         backoff.reset();
+                        failures = 0;
                         session.pump(link).await;
                     }
-                    Err(e) => tracing::debug!("peer dial failed: {e}"),
+                    Err(e) => {
+                        // The first failure and then one in every
+                        // `FAILURES_PER_REPORT` afterwards. At debug this said nothing
+                        // at any level an operator runs, so a relay that was down read
+                        // as a bridge sitting idle rather than one retrying.
+                        if failures % Self::FAILURES_PER_REPORT == 0 {
+                            tracing::warn!(
+                                "peer dial failed ({e}); retrying (attempt {})",
+                                failures + 1
+                            );
+                        } else {
+                            tracing::debug!("peer dial failed: {e}");
+                        }
+                        failures += 1;
+                    }
                 }
 
                 *session.link.lock().expect("link lock") = None;
@@ -130,12 +156,18 @@ impl PeerSession {
     }
 
     async fn connect_once(&self, addr: EndpointAddr) -> Result<PeerLink, PeerError> {
-        let conn = self
-            .endpoint
-            .endpoint()
-            .connect(addr, PeerEndpoint::ALPN)
-            .await
-            .map_err(|e| PeerError::Transport(e.to_string()))?;
+        // Bounded, because the dial loop's backoff only runs between attempts. A dial
+        // that never returns — a relay that accepts the connection and then answers
+        // nothing is the case — parks the loop inside this call, and the retry that
+        // was supposed to happen never does. The bridge then looks idle rather than
+        // disconnected, with nothing further logged either way.
+        let conn = tokio::time::timeout(
+            Self::DIAL_TIMEOUT,
+            self.endpoint.endpoint().connect(addr, PeerEndpoint::ALPN),
+        )
+        .await
+        .map_err(|_| PeerError::Transport(format!("dial timed out after {:?}", Self::DIAL_TIMEOUT)))?
+        .map_err(|e| PeerError::Transport(e.to_string()))?;
 
         let accepted = Handshake::dial(&conn, self.worlds.clone()).await?;
         let link = PeerLink::establish(conn, accepted.worlds)?;

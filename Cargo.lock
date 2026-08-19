@@ -1527,6 +1527,7 @@ version = "0.1.0"
 dependencies = [
  "common",
  "data-encoding",
+ "dotenvy",
  "iroh",
  "iroh-relay",
  "postcard",

@@ -59,6 +59,92 @@ Bedrock Voice Chat has 3 components
 
 All 3 components are mandatory. Be sure to checkout the Wiki for more information: https://github.com/Alaydriem/bedrock-voice-chat/wiki
 
+## Building from Source
+
+Builds and tests run through [mise](https://mise.jdx.dev/). Every build, test and maintenance
+command in this repository is a mise task that sets the working directory, the toolchain and the
+mandatory flags for you. A bare `cargo build` or `yarn tauri build` misses at least one of those
+and fails with an error that does not name its cause.
+
+### Prerequisites
+
+Install these yourself:
+
+| Requirement | Notes |
+| --- | --- |
+| [mise](https://mise.jdx.dev/getting-started.html) | Supplies node, yarn and the two Java versions. Everything below assumes it is on `PATH` |
+| Rust | Pinned by `rust-toolchain.toml`; `rustup` installs the pinned version automatically |
+| `cargo-nextest` | `cargo install cargo-nextest --locked`. Client tests require it — `cargo test` is not a substitute |
+| Visual Studio 2022 Build Tools with Clang (Windows) | Set `LIBCLANG_PATH`, for example `C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib` |
+
+mise provides node, yarn, Java 21 for the Android client build, and Java 25 for the Java mods.
+You do not install those separately.
+
+### First build
+
+```bash
+git clone https://github.com/Alaydriem/bedrock-voice-chat
+cd bedrock-voice-chat
+
+mise trust && mise trust client/mise.toml && mise trust mods/java/mise.toml
+mise run setup
+mise run preflight
+```
+
+`mise trust` is required once per checkout, per config file — mise refuses to read a config it has
+not been told to trust. `mise run setup` downloads the Steinberg ASIO SDK, installs the client JS
+dependencies, builds the i18n resources and builds the SvelteKit frontend; it takes about
+15 seconds. `mise run preflight` then reports anything still missing by name, rather than letting
+a build fail on it later.
+
+### Tasks
+
+Run `mise run <task>` from anywhere in the checkout. `mise tasks` lists all of them with
+descriptions.
+
+| Task | What it does |
+| --- | --- |
+| `mise run build-client` | Builds the Tauri desktop client |
+| `mise run build-server` | Builds the voice chat server |
+| `mise run check-common` | Type-checks the shared `common` crate |
+| `mise run test-client [filter]` | Runs the client test suite, building the server cdylib and e2e binary first |
+| `mise run test-server` | Runs the server test suite |
+| `mise run test-common` | Runs the shared crate tests |
+| `mise run bindings` | Regenerates the ts-rs TypeScript bindings in `client/src/js/bindings/` |
+| `mise run frontend` | Builds the SvelteKit frontend into `client/build` |
+| `mise run preflight` | Reports environment problems by name |
+| `mise run targets-report` | Reports the size and age of the cargo target directories |
+| `mise run clean-incremental` | Reclaims cargo incremental caches. Dry-run unless you pass `--force` |
+| `mise run clean-targets [days]` | Deletes target directories idle for N days. Dry-run unless you pass `--force` |
+
+Tasks declare their own dependencies, so asking for the end product is enough: `test-client`
+builds what it needs first, and `frontend` installs dependencies and builds the i18n catalogs
+first.
+
+Rust builds in this repository are large. `mise run targets-report` shows what the cargo target
+directories currently cost, and `clean-incremental` reclaims the incremental caches — pure build
+state, at the price of one non-incremental rebuild.
+
+### Minecraft mods
+
+The Bedrock behavior pack and the Java mods build from `mods/` with yarn:
+
+```bash
+cd mods
+yarn install
+yarn dev-build        # Java mods (native library, Paper)
+yarn dev-build-all    # the above plus Fabric and the BDS packs
+yarn dev-server --bds # build, deploy and start a local server: --bds, --paper or --fabric
+```
+
+`yarn dev-server` reads your local server paths from `mods/.env`; copy `mods/.env.example` to get
+started. mise supplies the Java toolchain for these builds from `mods/java/mise.toml`.
+
+Two mise tasks cover the Simple Voice Chat bridge specifically: `mise run svc-native` stages the
+relay SDK native library (it is not committed, and the bridge fails without it), and
+`mise run svc-paper` builds the Paper plugin with the bridge and starts a Paper server with it
+deployed.
+
 ## Telemetry & Metrics
 
 The Bedrock Voice Chat server exposes operational metrics and, optionally, sends anonymous aggregate usage data.

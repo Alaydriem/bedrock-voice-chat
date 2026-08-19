@@ -959,6 +959,7 @@ dependencies = [
  "dashmap 6.2.1",
  "deadqueue",
  "dirs",
+ "dotenvy",
  "dryoc",
  "entity",
  "faccess",
@@ -1210,6 +1211,7 @@ version = "0.1.0"
 dependencies = [
  "common",
  "data-encoding",
+ "dotenvy",
  "iroh",
  "iroh-relay",
  "postcard",

@@ -43,6 +43,17 @@ jobs:
   natives:
     name: Build ${{ matrix.label }}
     runs-on: ${{ matrix.runner }}
+    env:
+      # Compiled into `bvc-relay`, which this cdylib links, and presented to the
+      # iroh relay as a bearer token. This is the build that reaches the Java mods:
+      # they download this native rather than compiling any Rust, so a token absent
+      # here is a token absent from every mod.
+      #
+      # Not a secret — it ships inside the binary — so an unset value is not a
+      # failure: it expands to empty, which `PeerEndpoint::access_token` treats as
+      # absent, and the native then reaches a relay that admits everyone. That keeps
+      # a fork building without this repository's secrets.
+      BVC_RELAY_ACCESS_TOKEN: ${{ secrets.RELAY_ACCESS_TOKEN }}
     strategy:
       fail-fast: false
       matrix:

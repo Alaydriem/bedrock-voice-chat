@@ -169,10 +169,15 @@ The classes in `common/src/main/kotlin/com/alaydriem/bedrockvoicechat/config/gen
 are generated from the Rust `ApplicationConfig`. **Do not edit them.** Adding a
 field to the server config and not regenerating fails the drift test.
 
+Any mise task that builds the server regenerates them first, so a normal
+`mise run build-server` keeps them current. To regenerate on their own:
+
 ```bash
-cd server/server
-UPDATE_KOTLIN_CONFIG=1 cargo nextest run kotlin_export
+mise run kotlin-config
 ```
+
+CI runs the same test in its reporting direction (`mise run kotlin-config-check`),
+which fails on a stale mirror instead of rewriting it.
 
 The generator lives in `server/server/src/config/kotlin_export/`. Everything in
 the server config is exported by default; the carve-outs are an explicit list in

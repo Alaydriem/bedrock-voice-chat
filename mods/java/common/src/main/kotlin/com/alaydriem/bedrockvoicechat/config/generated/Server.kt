@@ -42,4 +42,7 @@ class Server {
     @SerializedName("peer_relay_url")
     var peerRelayUrl: String? = null
 
+    @SerializedName("peer_port")
+    var peerPort: Int? = null
+
 }

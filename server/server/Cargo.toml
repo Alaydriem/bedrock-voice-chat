@@ -129,6 +129,7 @@ constant_time_eq = "0.4"
 
 [build-dependencies]
 built = { version = "^0.7", features = ["git2", "chrono", "semver"] }
+dotenvy = { version = "^0.15" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { version = "0.1.0" }

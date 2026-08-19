@@ -28,3 +28,6 @@ tracing = { version = "^0.1" }
 
 [dev-dependencies]
 tempfile = { version = "^3" }
+
+[build-dependencies]
+dotenvy = { version = "^0.15" }

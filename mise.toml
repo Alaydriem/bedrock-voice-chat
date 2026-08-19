@@ -282,9 +282,23 @@ dir = "client"
 shell = "pwsh -NoLogo -Command"
 run = "yarn tauri build --debug --no-sign"
 
+[tasks.kotlin-config]
+description = "Regenerate the Kotlin config mirror the Java mods compile against. The Rust config is the source of truth; the .kt files are output."
+dir = "server/server"
+shell = "pwsh -NoLogo -Command"
+env = { UPDATE_KOTLIN_CONFIG = "1" }
+run = "cargo nextest run --test integration -E 'test(kotlin_export)'"
+
+[tasks.kotlin-config-check]
+description = "Fail when the checked-in Kotlin config mirror does not match the Rust config. Reports drift rather than hiding it by rewriting the files, which is what CI needs."
+dir = "server/server"
+shell = "pwsh -NoLogo -Command"
+run = "cargo nextest run --test integration -E 'test(kotlin_export)'"
+
 [tasks.build-server]
 description = "Build the server"
 dir = "server/server"
+depends = ["kotlin-config"]
 shell = "pwsh -NoLogo -Command"
 run = "cargo build"
 
@@ -300,6 +314,7 @@ run = "cargo check -p common"
 [tasks.cdylib]
 description = "Build the server cdylib the client e2e harness loads over FFI"
 dir = "server"
+depends = ["kotlin-config"]
 shell = "pwsh -NoLogo -Command"
 run = "cargo build -p bedrock-voice-chat-server"
 

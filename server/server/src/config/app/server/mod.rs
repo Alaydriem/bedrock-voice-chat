@@ -38,7 +38,7 @@ fn default_quic_port() -> u32 {
 }
 
 fn default_advertised_quic_ports() -> Vec<u32> {
-    [28280].to_vec()
+    vec![443, 28280]
 }
 
 fn default_assets_path() -> String {
@@ -217,8 +217,12 @@ impl Server {
     // Public UDP ports a client should try, in the operator's preferred order.
     // Deliberately independent of `quic_port`: the server binds one socket, but a
     // fronting proxy and a direct port publish can both deliver to it, so
-    // reachability is many-to-one. An empty list means the bind port is the only
-    // way in.
+    // reachability is many-to-one.
+    //
+    // The default names both public ways in, so a client whose network drops UDP/443
+    // has a second port to try without the operator configuring anything. A list in
+    // `config.hcl` replaces it outright — including the bind port, which is why an
+    // operator who moves `quic_port` names the list as well.
     pub fn quic_ports(&self) -> Vec<u32> {
         if self.advertised_quic_ports.is_empty() {
             return vec![self.quic_port];
