@@ -301,3 +301,104 @@ html {
     -webkit-text-fill-color: currentColor;
   }
 }
+
+/* The launch phases. Class names, dot size and colours are the /server preflight's,
+   hand-mirrored here because this file cannot import: the same state has to look the
+   same on both surfaces or the vocabulary is only shared in name. */
+.app-preloader-steps {
+  max-width: 26rem;
+  margin: 1rem auto 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  contain: layout;
+}
+
+.app-preloader-step {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 3px 2px;
+  /* --font-rad-mono: a readout, as the status row above it is */
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  /* --text-rad-sm */
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
+.app-preloader-step-dot {
+  flex: none;
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  /* --radius-rad-pill */
+  border-radius: 999px;
+  /* --color-rad-line-2 */
+  background: #5b4487;
+  transition: background 0.3s;
+}
+
+.app-preloader-step-name {
+  flex: none;
+  /* --color-rad-faint */
+  color: #b3a4d0;
+}
+
+/* Whatever the phase has to say for itself — a port, a transport, a reason it was
+   skipped. Truncated rather than wrapped, so a long note cannot reflow the card. */
+.app-preloader-step-note {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /* --color-rad-line-2 */
+  color: #5b4487;
+}
+
+.app-preloader-step.is-run .app-preloader-step-dot {
+  /* --color-rad-brand-lift */
+  background: #bb8dfa;
+  animation: app-preloader-pulse 0.9s ease-in-out infinite;
+}
+
+.app-preloader-step.is-run .app-preloader-step-name {
+  /* --color-rad-tx */
+  color: #fbf8ff;
+}
+
+.app-preloader-step.is-ok .app-preloader-step-dot {
+  /* --color-rad-ok */
+  background: #5ce383;
+}
+
+.app-preloader-step.is-warn .app-preloader-step-dot {
+  /* --color-rad-warn */
+  background: #ffcf4d;
+}
+
+.app-preloader-step.is-bad .app-preloader-step-dot {
+  /* --color-rad-fault */
+  background: #ff8266;
+}
+
+/* Hollow rather than absent: a phase that never ran must not read as one still to come. */
+.app-preloader-step.is-skip .app-preloader-step-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px #5b4487;
+}
+
+.app-preloader-step.is-skip .app-preloader-step-name {
+  /* --color-rad-line-2 */
+  color: #5b4487;
+}
+
+@keyframes app-preloader-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}

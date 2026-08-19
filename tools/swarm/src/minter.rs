@@ -1,6 +1,7 @@
 use serde_json::json;
 
 use crate::config::SwarmConfig;
+use crate::error_chain::ErrorChain;
 
 /// Provisions bot players and single-use login codes through the admin API.
 /// Holds a reqwest client bound to the admin mTLS identity; the server rejects
@@ -12,10 +13,26 @@ pub struct CodeMinter {
 
 impl CodeMinter {
     pub fn new(config: &SwarmConfig) -> Result<Self, anyhow::Error> {
-        let cert = std::fs::read(&config.admin_cert)
-            .map_err(|e| anyhow::anyhow!("reading admin_cert {}: {}", config.admin_cert, e))?;
-        let key = std::fs::read(&config.admin_key)
-            .map_err(|e| anyhow::anyhow!("reading admin_key {}: {}", config.admin_key, e))?;
+        Self::from_paths(
+            &config.server,
+            config.ca.as_deref(),
+            &config.admin_cert,
+            &config.admin_key,
+        )
+    }
+
+    /// The same minter for a caller that holds the four values without a `SwarmConfig`
+    /// around them.
+    pub fn from_paths(
+        server: &str,
+        ca: Option<&str>,
+        admin_cert: &str,
+        admin_key: &str,
+    ) -> Result<Self, anyhow::Error> {
+        let cert = std::fs::read(admin_cert)
+            .map_err(|e| anyhow::anyhow!("reading admin_cert {}: {}", admin_cert, e))?;
+        let key = std::fs::read(admin_key)
+            .map_err(|e| anyhow::anyhow!("reading admin_key {}: {}", admin_key, e))?;
 
         // reqwest::Identity::from_pem wants the cert and key concatenated in one PEM.
         let mut identity_pem = cert.clone();
@@ -28,10 +45,10 @@ impl CodeMinter {
             .use_rustls_tls()
             .identity(identity);
 
-        if let Some(ca_path) = &config.ca {
-            let ca = std::fs::read(ca_path)
+        if let Some(ca_path) = ca {
+            let ca_bytes = std::fs::read(ca_path)
                 .map_err(|e| anyhow::anyhow!("reading ca {}: {}", ca_path, e))?;
-            let ca_cert = reqwest::Certificate::from_pem(&ca)
+            let ca_cert = reqwest::Certificate::from_pem(&ca_bytes)
                 .map_err(|e| anyhow::anyhow!("parsing ca {}: {}", ca_path, e))?;
             builder = builder.add_root_certificate(ca_cert);
         }
@@ -42,7 +59,7 @@ impl CodeMinter {
 
         Ok(Self {
             client,
-            server: config.server.trim_end_matches('/').to_string(),
+            server: server.trim_end_matches('/').to_string(),
         })
     }
 
@@ -54,7 +71,7 @@ impl CodeMinter {
             .json(&json!({ "gamertag": gamertag, "game": "minecraft" }))
             .send()
             .await
-            .map_err(|e| anyhow::anyhow!("create user {}: {}", gamertag, e))?;
+            .map_err(|e| anyhow::anyhow!("create user {}: {}", gamertag, ErrorChain::of(&e)))?;
 
         let status = resp.status().as_u16();
         if status == 201 || status == 409 {
@@ -81,7 +98,7 @@ impl CodeMinter {
             }))
             .send()
             .await
-            .map_err(|e| anyhow::anyhow!("mint code {}: {}", gamertag, e))?;
+            .map_err(|e| anyhow::anyhow!("mint code {}: {}", gamertag, ErrorChain::of(&e)))?;
 
         let status = resp.status().as_u16();
         if status != 200 {

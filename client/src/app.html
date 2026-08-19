@@ -67,6 +67,37 @@
               >Getting things ready…</span
             >
           </div>
+          <!-- The phases of a launch, revealed with the status line rather than at first
+               paint: a launch that finishes inside three seconds never shows them. Written by
+               BootProgress in the bundle through `window.__bvcBootStep`, and named and
+               coloured like the /server preflight so one vocabulary describes both. -->
+          <ul id="app-preloader-steps" class="app-preloader-steps app-preloader-quiet">
+            <li class="app-preloader-step" data-step="Session">
+              <span class="app-preloader-step-dot"></span>
+              <span class="app-preloader-step-name">Session</span>
+              <span class="app-preloader-step-note"></span>
+            </li>
+            <li class="app-preloader-step" data-step="Server">
+              <span class="app-preloader-step-dot"></span>
+              <span class="app-preloader-step-name">Server</span>
+              <span class="app-preloader-step-note"></span>
+            </li>
+            <li class="app-preloader-step" data-step="Permissions">
+              <span class="app-preloader-step-dot"></span>
+              <span class="app-preloader-step-name">Permissions</span>
+              <span class="app-preloader-step-note"></span>
+            </li>
+            <li class="app-preloader-step" data-step="Voice path">
+              <span class="app-preloader-step-dot"></span>
+              <span class="app-preloader-step-name">Voice path</span>
+              <span class="app-preloader-step-note"></span>
+            </li>
+            <li class="app-preloader-step" data-step="Audio">
+              <span class="app-preloader-step-dot"></span>
+              <span class="app-preloader-step-name">Audio</span>
+              <span class="app-preloader-step-note"></span>
+            </li>
+          </ul>
           <div id="app-preloader-actions" class="app-preloader-actions" hidden>
             <p class="app-preloader-hint">The app may be stuck.</p>
             <a

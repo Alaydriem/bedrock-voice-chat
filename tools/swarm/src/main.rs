@@ -4,6 +4,7 @@ mod bot_proc;
 mod bridge_codec;
 mod config;
 mod controller;
+mod error_chain;
 mod job;
 mod lxd_client;
 mod lxd_config;
@@ -11,6 +12,7 @@ mod metrics_scrape;
 mod minter;
 mod position_sender;
 mod report;
+mod scene;
 mod target_spec;
 mod tone;
 
@@ -24,6 +26,7 @@ use crate::config::SwarmConfig;
 use crate::controller::SwarmController;
 use crate::job::AgentJob;
 use crate::minter::CodeMinter;
+use crate::scene::{SceneConfig, SceneDirector};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -43,6 +46,12 @@ async fn main() -> Result<(), anyhow::Error> {
         Command::Controller(a) => {
             let config = SwarmConfig::load(&a.config)?;
             SwarmController::prepare(config, a.codes).await?.run().await
+        }
+        Command::Scene(a) => {
+            let config = SceneConfig::load(&a.config)?;
+            SceneDirector::new(config, a.scenario, a.speaking, a.chat, a.chat_preview)
+                .run()
+                .await
         }
     }
 }

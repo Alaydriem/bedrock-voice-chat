@@ -46,6 +46,29 @@ const STATUS_PHRASES = [
 /** As many of the cast as `ProximityRing` places in the app. */
 const CAST_COUNT = 4;
 
+/*
+ * The phase states, in the `/server` preflight's own vocabulary and its own class
+ * names. Sharing the names is the point: a phase that is amber here and amber there
+ * means the same thing, and the two surfaces cannot drift in meaning without one of
+ * them failing to render.
+ */
+const STEP_CLASS_FOR: Record<string, string> = {
+    running: "is-run",
+    ok: "is-ok",
+    warn: "is-warn",
+    bad: "is-bad",
+    skipped: "is-skip",
+};
+
+const STEP_CLASSES = Object.values(STEP_CLASS_FOR);
+
+declare global {
+    interface Window {
+        /** Installed by this file, called by `BootProgress` in the app bundle. */
+        __bvcBootStep?: (name: string, state: string, note?: string) => void;
+    }
+}
+
 class AppPreloaderController {
     private readonly root: HTMLElement;
     private readonly markEl: HTMLCanvasElement | null;
@@ -53,6 +76,7 @@ class AppPreloaderController {
     private readonly headlineEl: HTMLElement | null;
     private readonly statusEl: HTMLElement | null;
     private readonly actionsEl: HTMLElement | null;
+    private readonly stepsEl: HTMLElement | null;
 
     private ring: RingBinding | null = null;
     private stopSources: (() => void) | null = null;
@@ -65,6 +89,7 @@ class AppPreloaderController {
         this.headlineEl = root.querySelector<HTMLElement>("#app-preloader-headline");
         this.statusEl = root.querySelector<HTMLElement>("#app-preloader-status");
         this.actionsEl = root.querySelector<HTMLElement>("#app-preloader-actions");
+        this.stepsEl = root.querySelector<HTMLElement>("#app-preloader-steps");
     }
 
     private isDismissed(): boolean {
@@ -156,6 +181,38 @@ class AppPreloaderController {
         this.frameEl?.classList.remove(QUIET_CLASS);
         this.statusEl?.classList.remove(QUIET_CLASS);
         this.headlineEl?.classList.remove(QUIET_CLASS);
+        this.stepsEl?.classList.remove(QUIET_CLASS);
+    }
+
+    /**
+     * The one way the app bundle reaches this overlay.
+     *
+     * A global function rather than an event or an import, because this file is
+     * deliberately outside the bundle: it is the only script guaranteed to be running
+     * when a launch hangs, which is the whole reason it exists. Its tag is synchronous
+     * and precedes the app, so the receiver is installed before anything can call it,
+     * and a call after dismissal finds no element and does nothing.
+     *
+     * Phase names come from the markup's `data-step`, so an unknown one is ignored
+     * rather than silently creating a row nobody styled.
+     */
+    private acceptSteps(): void {
+        const list = this.stepsEl;
+        if (!list) return;
+
+        window.__bvcBootStep = (name: string, state: string, note?: string) => {
+            const row = list.querySelector<HTMLElement>(`[data-step="${CSS.escape(name)}"]`);
+            if (!row) return;
+
+            for (const cls of STEP_CLASSES) row.classList.remove(cls);
+            const applied = STEP_CLASS_FOR[state];
+            if (applied) row.classList.add(applied);
+
+            const noteEl = row.querySelector<HTMLElement>(".app-preloader-step-note");
+            if (noteEl && noteEl.textContent !== (note ?? "")) {
+                noteEl.textContent = note ?? "";
+            }
+        };
     }
 
     private armHatch(): void {
@@ -247,6 +304,7 @@ class AppPreloaderController {
         this.watchMarkSize();
         this.startMark();
         this.startStatus();
+        this.acceptSteps();
         this.armHatch();
     }
 }

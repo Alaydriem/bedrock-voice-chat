@@ -190,7 +190,7 @@ msgstr ""
 msgid "Almost there…"
 msgstr ""
 
-#: src/js/app/dashboard.ts:702
+#: src/js/app/dashboard.ts:719
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
@@ -224,7 +224,7 @@ msgstr ""
 msgid "Audio output"
 msgstr ""
 
-#: src/js/app/dashboard.ts:310
+#: src/js/app/dashboard.ts:319
 msgid "Audio permission denied"
 msgstr ""
 
@@ -419,7 +419,7 @@ msgstr ""
 msgid "Checking"
 msgstr ""
 
-#: src/js/app/dashboard.ts:306
+#: src/js/app/dashboard.ts:315
 msgid "Checking audio permission..."
 msgstr ""
 
@@ -786,7 +786,7 @@ msgstr ""
 msgid "Failed to link Java identity."
 msgstr ""
 
-#: src/js/app/dashboard.ts:288
+#: src/js/app/dashboard.ts:296
 msgid "Failed to refresh server state, using cached permissions"
 msgstr ""
 
@@ -810,7 +810,7 @@ msgstr ""
 msgid "For a bug report. Written to your Documents folder."
 msgstr ""
 
-#: src/js/app/dashboard.ts:333
+#: src/js/app/dashboard.ts:344
 msgid "Foreground service could not be started."
 msgstr ""
 
@@ -944,7 +944,7 @@ msgstr ""
 msgid "In public group channel"
 msgstr ""
 
-#: src/js/app/dashboard.ts:373
+#: src/js/app/dashboard.ts:386
 #: src/js/app/managers/ChannelManager.ts:390
 msgid "In public voice chat"
 msgstr ""
@@ -1086,7 +1086,7 @@ msgstr ""
 msgid "Login failed. Please check your server URL and try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:701
+#: src/js/app/dashboard.ts:718
 msgid "Logout Failed"
 msgstr ""
 
@@ -1204,7 +1204,7 @@ msgstr ""
 msgid "NO ANSWER · CONN01"
 msgstr ""
 
-#: src/js/app/dashboard.ts:831
+#: src/js/app/dashboard.ts:854
 msgid "No current server found in store!"
 msgstr ""
 
@@ -1365,7 +1365,7 @@ msgstr ""
 msgid "Notification access was refused"
 msgstr ""
 
-#: src/js/app/dashboard.ts:317
+#: src/js/app/dashboard.ts:327
 msgid "Notification permission denied - notifications may not be visible"
 msgstr ""
 
@@ -2060,7 +2060,7 @@ msgstr ""
 msgid "Stop"
 msgstr ""
 
-#: src/js/app/dashboard.ts:180
+#: src/js/app/dashboard.ts:183
 msgid "Stopped recording that was active before page refresh"
 msgstr ""
 

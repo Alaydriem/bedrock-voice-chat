@@ -26,6 +26,7 @@ import { NearbyManager } from './dashboard/NearbyManager';
 import { PlayerLevelSources } from './dashboard/PlayerLevelSources';
 import type { ScreenLanding } from './shell/ScreenLanding';
 import { BootTimeline } from './shell/BootTimeline';
+import { BootProgress } from './shell/BootProgress';
 import Analytics from './analytics';
 import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
@@ -165,6 +166,8 @@ export default class Dashboard extends BVCApp {
     async initialize(): Promise<ScreenLanding> {
         const timeline = BootTimeline.shared();
         timeline.mark("dashboard route mounted");
+        const progress = BootProgress.shared();
+        progress.step("Session", "running");
 
         this.store = await AppStore.load();
         this.platformDetector = new PlatformDetector();
@@ -228,10 +231,15 @@ export default class Dashboard extends BVCApp {
             }
         }
         timeline.mark("is_certificate_expired");
+        progress.step("Session", "ok");
+        progress.step("Server", "running");
 
         if (currentServer && !(await this.answers(currentServer))) {
+            progress.step("Server", "bad", "no response");
+            progress.skipFrom("Voice path");
             return this.redirect("/error?code=CONN01");
         }
+        progress.step("Server", "ok");
         timeline.mark("reachability (public /api/config)");
 
         // Initialize managers with dependency injection
@@ -299,6 +307,7 @@ export default class Dashboard extends BVCApp {
             timeline.mark("is_stopped x2");
 
             if (isInputStreamStopped || isOutputStreamStopped) {
+                progress.step("Permissions", "running");
                 await this.shutdown();
                 timeline.mark("shutdown (audio teardown)");
 
@@ -308,6 +317,7 @@ export default class Dashboard extends BVCApp {
 
                 if (!audioPermission.granted) {
                     warn(I18n.t("Audio permission denied"));
+                    progress.step("Permissions", "bad", "microphone denied");
                     return this.redirect("/error?code=PERM1");
                 }
 
@@ -315,6 +325,7 @@ export default class Dashboard extends BVCApp {
 
                 if (!notificationGranted.granted) {
                     warn(I18n.t("Notification permission denied - notifications may not be visible"));
+                    progress.step("Permissions", "bad", "notifications denied");
                     return this.redirect("/error?code=PERM2");
                 }
 
@@ -331,10 +342,12 @@ export default class Dashboard extends BVCApp {
 
                     if (!serviceResult.started) {
                         warn(I18n.t("Foreground service could not be started."));
+                        progress.step("Permissions", "bad", "background service");
                         return this.redirect("/error?code=SERV01");
                     }
                 }
 
+                progress.step("Permissions", "ok");
                 timeline.mark("permissions + foreground service (OS)");
 
                 // Initialize audio devices and network stream
@@ -372,6 +385,10 @@ export default class Dashboard extends BVCApp {
                     title: "Bedrock Voice Chat",
                     message: I18n.t("In public voice chat")
                 });
+            } else {
+                // Nothing was asked of the operating system: both streams were already
+                // running, which is what a warm re-entry looks like.
+                progress.step("Permissions", "skipped", "already granted");
             }
         }
 
@@ -798,8 +815,10 @@ export default class Dashboard extends BVCApp {
 
                 BootTimeline.shared().mark("stream metadata + api_get_config (pre-connect)");
 
+                BootProgress.shared().step("Voice path", "running");
                 await this.changeNetworkStream(currentServer, credentials);
                 BootTimeline.shared().mark(">>> QUIC HANDSHAKE (change_network_stream) <<<");
+                BootProgress.shared().step("Audio", "running");
 
                 await this.updateAudioDevice("OutputDevice");
                 await this.updateAudioDevice("InputDevice");
@@ -808,21 +827,25 @@ export default class Dashboard extends BVCApp {
                     const errStr = String(e);
                     if (errStr.includes("INCOMPATIBLE_DEVICE")) {
                         error(`Incompatible audio device: ${e}`);
+                        BootProgress.shared().step("Audio", "bad", "incompatible device");
                         this.redirect("/error?code=AUDI01");
                         return;
                     }
                     if (errStr.includes("NO_INPUT_DEVICE")) {
                         error(`No input device available: ${e}`);
+                        BootProgress.shared().step("Audio", "bad", "no input device");
                         this.redirect("/error?code=AUDI02");
                         return;
                     }
                     if (errStr.includes("NO_OUTPUT_DEVICE")) {
                         error(`No output device available: ${e}`);
+                        BootProgress.shared().step("Audio", "bad", "no output device");
                         this.redirect("/error?code=AUDI03");
                         return;
                     }
                     error(`Audio device error: ${e}`);
                 });
+                BootProgress.shared().step("Audio", "ok");
                 BootTimeline.shared().mark("change_audio_device (stream start)");
             }).catch((e) => {
                 error(`Error updating current player: ${e}`);
@@ -860,24 +883,30 @@ export default class Dashboard extends BVCApp {
         try {
             await invoke("change_network_stream", { server: currentServer, data: credentials });
             info(`Changed network stream to ${currentServer}`);
+            BootProgress.shared().step("Voice path", "ok");
         } catch (e) {
             const errStr = String(e);
             if (errStr.includes("DNS_FAIL")) {
                 error(`DNS resolution failed: ${e}`);
+                BootProgress.shared().step("Voice path", "bad", "DNS lookup failed");
                 this.redirect("/error?code=DNS01");
             } else if (errStr.includes("CERT_INVALID")) {
                 // Both certificate branches are checked ahead of QUIC_FAIL: the firewall advice
                 // QUIC01 gives would send the user to fix something that is not broken.
                 error(`Server certificate rejected, credentials cleared: ${e}`);
+                BootProgress.shared().step("Voice path", "bad", "certificate rejected");
                 this.redirect("/error?code=CERT01");
             } else if (errStr.includes("SERVER_CERT")) {
                 error(`Server voice certificate is misconfigured, credentials kept: ${e}`);
+                BootProgress.shared().step("Voice path", "bad", "server certificate");
                 this.redirect("/error?code=CERT02");
             } else if (errStr.includes("QUIC_FAIL")) {
                 error(`QUIC connection failed: ${e}`);
+                BootProgress.shared().step("Voice path", "bad", "no voice transport");
                 this.redirect("/error?code=QUIC01");
             } else {
                 error(`Error changing network stream: ${e}`);
+                BootProgress.shared().step("Voice path", "bad", "connect failed");
                 this.redirect("/error?code=CONN01");
             }
         }

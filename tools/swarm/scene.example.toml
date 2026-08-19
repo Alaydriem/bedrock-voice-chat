@@ -1,0 +1,120 @@
+# scene.toml — stage a named roster against a running BVC server and hold it there.
+#
+#   swarm scene --config scene.toml --scenario five-in-range
+#
+# Nothing here runs Minecraft. The server's position cache is fed directly, so the app
+# renders a populated world with no game session, no mod and no realm — which is what
+# makes a screenshot reproducible across desktop, Android, iOS and iPad.
+#
+# Scenarios:
+#   one-in-range      1 player, close in
+#   five-in-range     5 players spread across the ring
+#   twenty-in-range   20 players, all inside the near tier
+#   group-and-range   a real group plus 3 players in range who are not in it
+#
+# Add --chat to feed the world's chat as well: the staged players talking to each other, plus
+# system lines (deaths, advancements, visitors joining and leaving). Costs no processes and no
+# admin identity. --chat-preview N prints the log and exits without touching the server.
+#
+# The first three need only the four required fields below. `group-and-range`, and the
+# `--speaking` flag, connect real headless clients and additionally need `admin_cert`,
+# `admin_key` and `client_bin`.
+
+# The BVC server the app is signed in to.
+server = "https://local.bedrockvc.stream:443"
+
+# Server CA cert (PEM). Omit when the server's cert is publicly trusted.
+# ca = "../../certificates/ca.crt"
+
+# The server's `minecraft.access_token`, from config.hcl. Sent as a Bearer token.
+access_token = "REPLACE_WITH_SERVER_MOD_ACCESS_TOKEN"
+
+# Your gamertag, exactly as the app is signed in.
+#
+# Staged at the origin facing yaw 0, which is what makes every bearing mean what it
+# says. The position feed answers nothing for an observer it cannot find in the world,
+# so a mismatch here reads as an empty ring rather than as an error.
+observer = "Alaydriem"
+
+# The names that appear, consumed in order by whichever scenario runs. Never generated:
+# these names go to the store in a screenshot, so a scenario that wants more than this
+# list holds fails and names the shortfall.
+#
+# twenty-in-range needs 20. group-and-range needs 3 plus `group_bots`.
+players = [
+  "DiamondDelver",
+  "RedstoneRae",
+  "CreeperCoda",
+  "PistonPip",
+  "EnderPearlEve",
+  "ObsidianOx",
+  "SpruceScout",
+  "GlowBerryGus",
+  "MineshaftMia",
+  "BlazeRodney",
+  "LapisLuna",
+  "TuffTinker",
+  "CopperCoil",
+  "AmethystAsh",
+  "DripstoneDan",
+  "EchoShardEli",
+  "PrismarinePia",
+  "SculkSage",
+  "WardenWatch",
+  "BeaconBex",
+  "ElytraEve",
+  "CobbleKing",
+  "NetherRoach",
+  "QuartzQuinn",
+]
+
+# --- Optional ------------------------------------------------------------------
+
+# Matched against the observer's dimension by the scope rule. A mismatch filters
+# everybody out silently.
+# dimension = "overworld"
+
+# The world every staged player declares, and the chat room's id.
+#
+# Shared by everyone in the scene, so it filters nobody out of proximity — the scope rule
+# only rejects a pair when both sides declare a world and the two differ. Chat needs it: the
+# server delivers a line only to players whose own world matches the room's, so an unset
+# world means --chat reaches nobody.
+# world_uuid = "8f14e45f-ea8f-4b62-9f2a-1c0d7e3b4a55"
+
+# The world's display name, which labels the chat picker.
+# world_name = "Overworld Survival"
+
+# Milliseconds between simulated chat lines, with --chat.
+# chat_period_ms = 2500
+
+# How often the roster is re-advertised. The server drops a player 15 s after their last
+# report, so this cannot be much lower. 4 Hz is the real mod cadence.
+# position_hz = 4
+
+# The server's `voice.spatial_audio.broadcast_range`. Distances are derived from it, so
+# a server that changed the value needs it changed here or players staged as near land
+# in the far tier.
+# voice_range = 48.0
+
+# --- Only for group-and-range and --speaking -----------------------------------
+
+# An admin mTLS identity, for minting the players this tool connects. See the swarm
+# README for pulling one out of the server database.
+# admin_cert = "certs/admin.crt"
+# admin_key  = "certs/admin.key"
+
+# The headless client, one process per connected player.
+#   mise run e2e-bin
+# client_bin = "../../target/debug/bvc_client_e2e"
+
+# The channel the group scenario creates. Join it by this name from the app — the server
+# shows a group only to its own members, so without joining it will not be in your rail.
+#
+# Defaults to "End Raid". Others on hand: Nether Run, Mining Crew, Redstone Guild,
+# Elytra Wing, Stronghold Dig, Ancient Debris, Wither Squad.
+# group_name = "End Raid"
+
+# Members this tool connects. You joining from the app adds one more, so 3 reads as a
+# four-member group; set 2 for a group of exactly three including yourself.
+# group_bots = 3

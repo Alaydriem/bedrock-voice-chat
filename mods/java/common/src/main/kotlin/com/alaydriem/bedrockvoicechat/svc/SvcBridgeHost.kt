@@ -160,7 +160,26 @@ class SvcBridgeHost(
         }
         peer = session
 
-        logger.info("Simple Voice Chat bridge peered, declaring relay world {}", relayWorld.id())
+        // `open` returns once the endpoint is bound and the dial loop is spawned, not
+        // once a link exists. Claiming to be peered there described this side of the
+        // bridge only, and it is the one line an operator is told to look for.
+        logger.info("Simple Voice Chat bridge connecting to BVC")
+
+        if (awaitConnected(session)) {
+            logger.info(
+                "Simple Voice Chat bridge peered, declaring relay world {}",
+                relayWorld.id()
+            )
+        } else {
+            // Not a failure. The dial loop keeps retrying and frames flow the moment one
+            // lands, so this reports the state rather than abandoning the session.
+            logger.warn(
+                "Simple Voice Chat bridge is not peered yet and is still dialling BVC; " +
+                    "declaring relay world {}. Voice does not cross the bridge until it " +
+                    "connects.",
+                relayWorld.id()
+            )
+        }
 
         // `nextFrame` parks when idle and returns null only once the session is
         // closed, so this is a blocking read rather than a poll.
@@ -171,6 +190,27 @@ class SvcBridgeHost(
             }
         }
         logger.info("Simple Voice Chat bridge session ended")
+    }
+
+    /**
+     * Waits for the dial loop to actually carry a link.
+     *
+     * Bounded by one dial budget: the session gives a dial fifteen seconds before it
+     * abandons that attempt and backs off, so waiting longer here reports nothing a
+     * reader could not already infer from the silence.
+     */
+    private fun awaitConnected(session: BvcPeer): Boolean {
+        repeat(CONNECT_ATTEMPTS) {
+            if (session.isConnected()) return true
+
+            try {
+                Thread.sleep(CONNECT_RETRY_MS)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return false
+            }
+        }
+        return session.isConnected()
     }
 
     /**
@@ -274,6 +314,13 @@ class SvcBridgeHost(
         private const val PEERLINK_ATTEMPTS: Int = 15
 
         private const val PEERLINK_RETRY_MS: Long = 1000
+
+        // One dial budget. `PeerSession` gives a dial fifteen seconds before it gives
+        // up on that attempt and backs off, so this waits exactly as long as the first
+        // attempt can take and no longer.
+        private const val CONNECT_ATTEMPTS: Int = 15
+
+        private const val CONNECT_RETRY_MS: Long = 1000
 
         private val logger = LoggerFactory.getLogger("BVC SVC")
     }
