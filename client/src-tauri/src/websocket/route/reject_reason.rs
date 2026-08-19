@@ -5,6 +5,7 @@
 pub enum RejectReason {
     MissingKey,
     InvalidKey,
+    InvalidRoute,
 }
 
 impl RejectReason {
@@ -12,6 +13,7 @@ impl RejectReason {
         match self {
             Self::MissingKey => "missing authentication key",
             Self::InvalidKey => "invalid authentication key",
+            Self::InvalidRoute => "this listener does not serve that path",
         }
     }
 }

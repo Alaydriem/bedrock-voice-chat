@@ -1,4 +1,5 @@
 use super::RejectReason;
+use crate::websocket::ListenerKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WebSocketRoute {
@@ -8,6 +9,9 @@ pub enum WebSocketRoute {
     // A push-only diagnostics stream. Authentication has to happen at the upgrade because there
     // is no inbound message to carry a key.
     Metrics,
+    // Every push frame this client produces, on one socket. Authenticated at the upgrade,
+    // because a push-only endpoint has no inbound message to carry a credential.
+    Events,
 }
 
 impl WebSocketRoute {
@@ -18,10 +22,11 @@ impl WebSocketRoute {
         match self {
             Self::Command => "command",
             Self::Metrics => "metrics",
+            Self::Events => "events",
         }
     }
 
-    pub fn resolve(uri: &str, configured_key: &str) -> Result<Self, RejectReason> {
+    pub fn resolve(uri: &str, kind: ListenerKind, credential: &str) -> Result<Self, RejectReason> {
         let (path, query) = match uri.split_once('?') {
             Some((path, query)) => (path, Some(query)),
             None => (uri, None),
@@ -34,22 +39,42 @@ impl WebSocketRoute {
             other => other.strip_suffix('/').unwrap_or(other),
         };
 
-        // Only `/metrics` is routed specially. Everything else is the command protocol, because
-        // that is what the previous `accept_async` did — it never inspected the path at all, so an
-        // integration connecting to `/ws` or using an absolute-form request target upgraded fine.
-        // Rejecting those would break third-party clients silently at the handshake, and the
-        // command protocol authenticates per message regardless of the path it arrived on.
-        if path != "/metrics" {
-            return Ok(Self::Command);
+        // The internal listener serves one route. Everything else is refused rather than
+        // falling through to the command protocol, which nothing in the webview speaks.
+        if kind == ListenerKind::Internal {
+            if path != "/events" {
+                return Err(RejectReason::InvalidRoute);
+            }
+            return Self::authenticated(Self::Events, query, credential);
         }
 
-        if configured_key.is_empty() {
-            return Ok(Self::Metrics);
+        match path {
+            "/events" => Self::authenticated(Self::Events, query, credential),
+            "/metrics" => Self::authenticated(Self::Metrics, query, credential),
+            // Everything else is the command protocol, because that is what the previous
+            // `accept_async` did — it never inspected the path at all, so an integration
+            // connecting to `/ws` or using an absolute-form request target upgraded fine.
+            // Rejecting those would break third-party clients silently at the handshake, and the
+            // command protocol authenticates per message regardless of the path it arrived on.
+            _ => Ok(Self::Command),
         }
+    }
 
+    /// A push route's credential check, which has to happen at the upgrade.
+    ///
+    /// An empty configured credential accepts, matching what `/metrics` already did: a user who
+    /// has not set a key has not asked for authentication.
+    fn authenticated(
+        route: Self,
+        query: Option<&str>,
+        credential: &str,
+    ) -> Result<Self, RejectReason> {
+        if credential.is_empty() {
+            return Ok(route);
+        }
         match Self::key_from_query(query) {
             None => Err(RejectReason::MissingKey),
-            Some(key) if key == configured_key => Ok(Self::Metrics),
+            Some(key) if key == credential => Ok(route),
             Some(_) => Err(RejectReason::InvalidKey),
         }
     }

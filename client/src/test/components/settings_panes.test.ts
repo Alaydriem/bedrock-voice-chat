@@ -455,57 +455,49 @@ describe("LibraryPane preview", () => {
 });
 
 describe("WebSocketPane", () => {
-    function server(running: boolean, extra: Record<string, (args: never) => unknown> = {}) {
+    function server(extra: Record<string, (args: never) => unknown> = {}) {
         mockInvoke({
-            is_websocket_running: () => running,
             websocket_clients: () => [],
             update_websocket_config: () => null,
-            start_websocket_server: () => null,
-            stop_websocket_server: () => null,
+            restart_websocket_external: () => null,
             generate_encryption_key: () => "a-token",
             bedrock_list_interfaces: () => [{ name: "wlan0", ip: "192.168.1.24", is_ipv4: true }],
             ...extra,
         });
     }
 
-    // A refused bind used to be swallowed. The toggle went back to off with nothing said,
-    // which reads as "the setting does not persist" and sends everybody looking in the
-    // wrong place.
-    it("says why a start failed", async () => {
-        server(false, {
-            start_websocket_server: () => {
-                throw new Error("Address already in use");
-            },
-        });
+    /**
+     * There is no enable step to gate the pane behind any more.
+     *
+     * The server is bound for the life of the process, so an address and a token are always
+     * facts about a listener that exists — where before they described one that might not be
+     * there. Hiding them was correct then and would be a blank pane now.
+     */
+    it("shows the address and the token without an enable step", async () => {
+        server();
         const view = mount(WebSocketPane);
-        await waitFor(() => expect(view.text()).toContain("Stopped"));
-
-        view.host
-            .querySelector<HTMLElement>('[aria-label="Enable the WebSocket server"]')
-            ?.click();
-        await waitFor(() => expect(view.text()).toContain("Address already in use"));
-    });
-
-    // Nothing below the switch means anything while the server is off, and an address
-    // shown for a server that is not listening is an address that does not work.
-    it("hides the address and the token while the server is off", async () => {
-        server(false);
-        const view = mount(WebSocketPane);
-        await waitFor(() => expect(view.text()).toContain("Stopped"));
-        expect(view.text()).not.toContain("Access token");
-        expect(view.text()).not.toContain("Connected clients");
-    });
-
-    it("shows the address once it is listening", async () => {
-        server(true);
-        const view = mount(WebSocketPane);
-        await waitFor(() => expect(view.text()).toContain("Listening"));
-        expect(view.text()).toContain("Access token");
+        await waitFor(() => expect(view.text()).toContain("Access token"));
+        const address = view.host.querySelector<HTMLInputElement>('[aria-label="Address"]');
+        expect(address?.value).toContain("ws://127.0.0.1");
         expect(view.text()).toContain("Connected clients");
     });
 
+    // The loopback address is the one that works while the server answers only this device, so
+    // the network candidates must not be offered until they can be reached.
+    it("offers the network addresses only once external access is allowed", async () => {
+        server();
+        const view = mount(WebSocketPane);
+        await waitFor(() => expect(view.text()).toContain("Address"));
+        expect(view.text()).not.toContain("192.168.1.24");
+
+        view.host
+            .querySelector<HTMLElement>('[aria-label="Allow external connections"]')
+            ?.click();
+        await waitFor(() => expect(view.text()).toContain("192.168.1.24"));
+    });
+
     it("says so when nothing has connected yet", async () => {
-        server(true);
+        server();
         const view = mount(WebSocketPane);
         await waitFor(() => expect(view.text()).toContain("Nothing is connected yet"));
     });

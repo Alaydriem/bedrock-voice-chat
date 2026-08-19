@@ -261,10 +261,22 @@ run = [
   "yarn --cwd mods/bds install --frozen-lockfile",
 ]
 
-[tasks.i18n]
-description = "Generate client/src-tauri/resources/i18n from the .po catalogs"
+[tasks.i18n-extract]
+description = "Rewrite client/locales/bvc.pot from the strings in the frontend sources"
 dir = "client"
 depends = ["deps"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn i18n:extract"
+# The frontend sources are the real input here, and the catalogue is the output. Declared as its
+# own task rather than folded into `i18n` because `i18n` lists the .pot among its sources: a task
+# that rewrote one of its own sources could never be current, so every build would re-extract.
+sources = ["src/**/*.ts", "src/**/*.svelte", "scripts/i18n/**/*.mjs"]
+outputs = ["locales/bvc.pot"]
+
+[tasks.i18n]
+description = "Extract the catalogue, then generate client/src-tauri/resources/i18n from the .po files"
+dir = "client"
+depends = ["deps", "i18n-extract"]
 shell = "pwsh -NoLogo -Command"
 run = "yarn i18n:build"
 sources = ["locales/**/*.po", "locales/**/*.pot", "scripts/i18n/**/*.mjs"]
@@ -507,3 +519,100 @@ Write-Host "  Delete both to test the first-run path. Deleting node.key revokes"
 Write-Host "  this bridge on any BVC server that granted the old identity."
 Write-Host ""
 '''
+
+[tasks.test-frontend]
+description = "Run the client Vitest suite"
+dir = "client"
+depends = ["deps"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn test"
+
+[tasks.android-network-config]
+description = "Write the Android network security config that permits cleartext to loopback only. Mandatory: without it the webview cannot reach the app's own push channel in a release build."
+shell = "pwsh -NoLogo -Command"
+run = '''
+$root = $env:MISE_PROJECT_ROOT
+$main = Join-Path $root "client/src-tauri/gen/android/app/src/main"
+if (-not (Test-Path $main)) {
+  Write-Host "FAIL  $main does not exist. Run 'yarn tauri android init' in client/ first."
+  exit 1
+}
+
+$xmlDir = Join-Path $main "res/xml"
+New-Item -ItemType Directory -Force -Path $xmlDir | Out-Null
+
+# Cleartext stays refused everywhere except this device's own loopback, where the
+# app's internal push channel listens. Widening usesCleartextTraffic instead would
+# permit cleartext to every host, which is what this file exists to avoid.
+$config = @'
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>
+'@
+Set-Content -Path (Join-Path $xmlDir "network_security_config.xml") -Value $config -Encoding utf8NoBOM
+
+$manifestPath = Join-Path $main "AndroidManifest.xml"
+$manifest = Get-Content -Raw -Path $manifestPath
+if ($manifest -match 'android:networkSecurityConfig') {
+  Write-Host "ok    manifest already references the network security config"
+} else {
+  $anchor = 'android:usesCleartextTraffic="${usesCleartextTraffic}"'
+  if (-not $manifest.Contains($anchor)) {
+    Write-Host "FAIL  could not find the usesCleartextTraffic attribute to anchor against."
+    Write-Host "      Tauri may have changed the generated manifest. Inspect $manifestPath."
+    exit 1
+  }
+  $replacement = $anchor + "`n        android:networkSecurityConfig=`"@xml/network_security_config`""
+  $manifest = $manifest.Replace($anchor, $replacement)
+  Set-Content -Path $manifestPath -Value $manifest -Encoding utf8NoBOM
+  Write-Host "ok    added networkSecurityConfig to the manifest"
+}
+Write-Host "ok    android network security config written"
+'''
+
+[tasks.android-network-config-check]
+description = "Fail on a missing or altered Android network security config instead of rewriting it. The direction CI runs."
+shell = "pwsh -NoLogo -Command"
+run = '''
+$root = $env:MISE_PROJECT_ROOT
+$main = Join-Path $root "client/src-tauri/gen/android/app/src/main"
+$xml = Join-Path $main "res/xml/network_security_config.xml"
+$manifestPath = Join-Path $main "AndroidManifest.xml"
+$failed = $false
+
+if (-not (Test-Path $xml)) {
+  Write-Host "FAIL  $xml is missing. Run: mise run android-network-config"
+  $failed = $true
+} else {
+  $content = Get-Content -Raw -Path $xml
+  foreach ($needle in @('cleartextTrafficPermitted="false"', '<domain includeSubdomains="false">127.0.0.1</domain>')) {
+    if (-not $content.Contains($needle)) {
+      Write-Host "FAIL  $xml no longer contains: $needle"
+      $failed = $true
+    }
+  }
+}
+
+if (-not (Test-Path $manifestPath)) {
+  Write-Host "FAIL  $manifestPath is missing. Run 'yarn tauri android init' in client/."
+  $failed = $true
+} elseif (-not (Get-Content -Raw -Path $manifestPath).Contains('android:networkSecurityConfig')) {
+  Write-Host "FAIL  the manifest does not reference the network security config. Run: mise run android-network-config"
+  $failed = $true
+}
+
+if ($failed) { exit 1 }
+Write-Host "ok    android network security config present and intact"
+'''
+
+[tasks.build-android]
+description = "Build the Android debug APK. Depends on the network security config, without which the app's push channel is unreachable on device."
+dir = "client"
+depends = ["bindings", "android-network-config"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn tauri android build --debug --apk --target aarch64"

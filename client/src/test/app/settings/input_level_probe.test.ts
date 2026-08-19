@@ -1,47 +1,62 @@
 import { get } from "svelte/store";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invokeCalls, mockInvoke } from "../../tauri";
 
-/** The app-event bus, under the test's control, so "a session is capturing" is expressible. */
-const listeners = new Map<string, (event: { payload: unknown }) => void>();
-let unlistened = 0;
+/** The push channel, under the test's control, so "a session is capturing" is expressible. */
+class FakeSocket {
+    static instances: FakeSocket[] = [];
+    onopen: (() => void) | null = null;
+    onmessage: ((event: { data: string }) => void) | null = null;
+    onclose: ((event: { code: number }) => void) | null = null;
+    onerror: (() => void) | null = null;
+    readyState = 0;
+    closed = false;
 
-vi.mock("@tauri-apps/api/event", () => ({
-    listen: async (event: string, run: (e: { payload: unknown }) => void) => {
-        listeners.set(event, run);
-        return () => {
-            unlistened += 1;
-            listeners.delete(event);
-        };
-    },
-}));
+    constructor(readonly url: string) {
+        FakeSocket.instances.push(this);
+    }
+
+    open(): void {
+        this.readyState = 1;
+        this.onopen?.();
+    }
+
+    deliver(frame: unknown): void {
+        this.onmessage?.({ data: JSON.stringify(frame) });
+    }
+
+    close(): void {
+        this.closed = true;
+        this.readyState = 3;
+    }
+}
+
+vi.stubGlobal("WebSocket", FakeSocket);
 
 const { InputLevelProbe } = await import("../../../js/app/settings/InputLevelProbe");
 const { LevelFeed } = await import("../../../js/app/dashboard/LevelFeed");
+const { EventChannel } = await import("../../../js/app/events/EventChannel");
 
-/** What a stream this probe started emits: the unquantised amplitude. */
-function emitRaw(rms: number, gateOpen = false): void {
-    listeners.get("audio-input-level")?.({ payload: { rms, gate_open: gateOpen } });
+const ENDPOINT = { port: 5555, token: "tok" };
+
+function socket(): FakeSocket | undefined {
+    return FakeSocket.instances.find((s) => !s.closed);
 }
 
-/** The backend's answer to the feed's verification probe: one snapshot, through the listener. */
-function answerProbe(): void {
-    listeners.get("audio-levels")?.({
-        payload: { own: { speaking: false, loudness: 0 }, peers: {} },
-    });
+/** What a stream this probe started publishes: the unquantised amplitude. */
+function emitRaw(rms: number, gateOpen = false): void {
+    socket()?.deliver({ type: "input_level", data: { rms, gate_open: gateOpen } });
 }
 
 /** What a live session publishes: a quantised step and a speaking flag. */
 function emitSession(loudness: number, speaking = true): void {
-    listeners.get("audio-levels")?.({
-        payload: { own: { speaking, loudness }, peers: {} },
-    });
+    socket()?.deliver({ type: "levels", data: { own: { speaking, loudness }, peers: {} } });
 }
 
 /**
- * Let the shared feed's registration land.
+ * Let the channel's socket land.
  *
- * `subscribe` opens it without awaiting — the caller gets a sink immediately and the listener
+ * `subscribe` opens it without awaiting — the caller gets a sink immediately and the socket
  * follows — so a test that emits on the next line emits into nothing.
  */
 async function settle(): Promise<void> {
@@ -52,17 +67,34 @@ function meterCalls(): number {
     return invokeCalls().filter((c) => c.cmd === "start_input_meter").length;
 }
 
+/**
+ * Probes are stopped between tests.
+ *
+ * `LevelFeed` and `EventChannel` are both shared, so a probe left subscribed leaves the next
+ * test's feed holding a subscription against a socket this file has already thrown away.
+ */
+const opened: Array<{ stop: () => Promise<void> }> = [];
+
+function probing(): InstanceType<typeof InputLevelProbe> {
+    const probe = new InputLevelProbe();
+    opened.push(probe);
+    return probe;
+}
+
 describe("InputLevelProbe", () => {
     beforeEach(() => {
-        listeners.clear();
-        unlistened = 0;
-        LevelFeed.shared().forgetRegistrationForTest();
+        FakeSocket.instances = [];
+        EventChannel.shared().resetForTest();
         mockInvoke({
+            websocket_internal_endpoint: () => ENDPOINT,
             input_capture_active: () => false,
             start_input_meter: () => null,
             stop_input_meter: () => null,
-            probe_audio_levels: () => answerProbe(),
         });
+    });
+
+    afterEach(async () => {
+        while (opened.length > 0) await opened.pop()?.stop();
     });
 
     /**
@@ -72,9 +104,13 @@ describe("InputLevelProbe", () => {
      * the air because somebody opened a settings pane.
      */
     it("does not start a stream when a session is already capturing", async () => {
-        mockInvoke({ input_capture_active: () => true, stop_input_meter: () => null });
+        mockInvoke({
+            websocket_internal_endpoint: () => ENDPOINT,
+            input_capture_active: () => true,
+            stop_input_meter: () => null,
+        });
 
-        const probe = new InputLevelProbe();
+        const probe = probing();
         await probe.start();
 
         expect(meterCalls()).toBe(0);
@@ -95,12 +131,16 @@ describe("InputLevelProbe", () => {
     it("does not start a stream over a silent session, however long it stays silent", async () => {
         vi.useFakeTimers();
         try {
-            mockInvoke({ input_capture_active: () => true, stop_input_meter: () => null });
+            mockInvoke({
+                websocket_internal_endpoint: () => ENDPOINT,
+                input_capture_active: () => true,
+                stop_input_meter: () => null,
+            });
 
-            const probe = new InputLevelProbe();
+            const probe = probing();
             await probe.start();
 
-            // Nothing emitted at all: the session is up and the room is quiet.
+            // Nothing published at all: the session is up and the room is quiet.
             await vi.advanceTimersByTimeAsync(60_000);
 
             expect(meterCalls()).toBe(0);
@@ -112,7 +152,7 @@ describe("InputLevelProbe", () => {
     // The pane reached before connecting, where nothing is capturing and the meter would sit
     // flat forever — which reads as a dead microphone rather than as no session.
     it("starts its own stream when nothing is capturing, and stops that one", async () => {
-        const probe = new InputLevelProbe();
+        const probe = probing();
         await probe.start();
 
         expect(meterCalls()).toBe(1);
@@ -123,12 +163,12 @@ describe("InputLevelProbe", () => {
 
     it("shows a live session's level without owning a stream", async () => {
         mockInvoke({
+            websocket_internal_endpoint: () => ENDPOINT,
             input_capture_active: () => true,
             stop_input_meter: () => null,
-            probe_audio_levels: () => answerProbe(),
         });
 
-        const probe = new InputLevelProbe();
+        const probe = probing();
         await probe.start();
         await settle();
 
@@ -139,8 +179,9 @@ describe("InputLevelProbe", () => {
     });
 
     it("shows the unquantised amplitude from a stream it started", async () => {
-        const probe = new InputLevelProbe();
+        const probe = probing();
         await probe.start();
+        await settle();
 
         emitRaw(0.4, true);
         expect(get(probe.rms)).toBe(0.4);
@@ -156,13 +197,14 @@ describe("InputLevelProbe", () => {
      */
     it("leaves a session alone when it cannot find out whether one is running", async () => {
         mockInvoke({
+            websocket_internal_endpoint: () => ENDPOINT,
             input_capture_active: () => {
                 throw new Error("no audio manager");
             },
             stop_input_meter: () => null,
         });
 
-        const probe = new InputLevelProbe();
+        const probe = probing();
         await probe.start();
 
         expect(meterCalls()).toBe(0);
@@ -178,11 +220,12 @@ describe("InputLevelProbe", () => {
             answer = resolve;
         });
         mockInvoke({
+            websocket_internal_endpoint: () => ENDPOINT,
             input_capture_active: () => pending,
             stop_input_meter: () => null,
         });
 
-        const probe = new InputLevelProbe();
+        const probe = probing();
         const starting = probe.start();
         await probe.stop();
         answer(false);
@@ -195,13 +238,14 @@ describe("InputLevelProbe", () => {
     // telling those two apart is the only reason the ring is on the screen.
     it("reports a refused stream as unreadable rather than as silence", async () => {
         mockInvoke({
+            websocket_internal_endpoint: () => ENDPOINT,
             input_capture_active: () => false,
             start_input_meter: () => {
                 throw new Error("device is held by another application");
             },
         });
 
-        const probe = new InputLevelProbe();
+        const probe = probing();
         await probe.start();
 
         expect(get(probe.available)).toBe(false);
@@ -209,50 +253,43 @@ describe("InputLevelProbe", () => {
 });
 
 /**
- * The pane must not open a second `audio-levels` registration.
+ * The pane must not open a second socket.
  *
  * It used to `listen` for itself, so a window with settings open held two registrations for one
- * event and tore one of them down on the way out. The dashboard's is a singleton opened once at
- * boot; the pane's is opened and dropped on every visit, which is why the pane's meter always
- * worked and the pill did not. Going through the shared feed leaves exactly one registration in
- * the window however many meters are reading it, and closing the pane drops a sink rather than
- * a listener.
+ * event and tore one of them down on the way out. The dashboard's was a singleton opened once at
+ * boot; the pane's was opened and dropped on every visit, which is why the pane's meter always
+ * worked and the pill did not. Going through the shared feed and the shared channel leaves
+ * exactly one socket in the window however many meters are reading it, and closing the pane
+ * drops a sink rather than the transport.
  */
 describe("the pane's share of the level feed", () => {
     beforeEach(() => {
-        listeners.clear();
-        LevelFeed.shared().forgetRegistrationForTest();
-    });
-
-    function levelRegistrations(): number {
-        return [...listeners.keys()].filter((e) => e === "audio-levels").length;
-    }
-
-    it("adds no registration of its own for audio-levels", async () => {
+        FakeSocket.instances = [];
+        EventChannel.shared().resetForTest();
         mockInvoke({
+            websocket_internal_endpoint: () => ENDPOINT,
             input_capture_active: () => true,
-            probe_audio_levels: () => answerProbe(),
             stop_input_meter: () => null,
         });
+    });
 
-        const before = levelRegistrations();
-        const probe = new InputLevelProbe();
+    afterEach(async () => {
+        while (opened.length > 0) await opened.pop()?.stop();
+    });
+
+    it("opens no socket of its own", async () => {
+        const probe = probing();
         await probe.start();
+        await settle();
 
-        // One shared registration at most, whoever opened it.
-        expect(levelRegistrations()).toBeLessThanOrEqual(Math.max(before, 1));
+        // One shared socket at most, whoever opened it.
+        expect(FakeSocket.instances).toHaveLength(1);
 
         await probe.stop();
     });
 
     it("still shows a live session's level through the shared feed", async () => {
-        mockInvoke({
-            input_capture_active: () => true,
-            probe_audio_levels: () => answerProbe(),
-            stop_input_meter: () => null,
-        });
-
-        const probe = new InputLevelProbe();
+        const probe = probing();
         await probe.start();
         await settle();
 
@@ -265,17 +302,11 @@ describe("the pane's share of the level feed", () => {
 
     // Closing the pane must not take the dashboard's levels with it.
     it("leaves the feed delivering after the pane closes", async () => {
-        mockInvoke({
-            input_capture_active: () => true,
-            probe_audio_levels: () => answerProbe(),
-            stop_input_meter: () => null,
-        });
-
         const seen: unknown[] = [];
         const off = LevelFeed.shared().subscribe((s) => seen.push(s));
         await settle();
 
-        const probe = new InputLevelProbe();
+        const probe = probing();
         await probe.start();
         await settle();
         await probe.stop();

@@ -1,10 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { warn } from "@tauri-apps/plugin-log";
 import { type Readable, type Writable, writable } from "svelte/store";
 import type { InputLevel } from "../../bindings/InputLevel";
 import { LevelFeed } from "../dashboard/LevelFeed";
 import { LevelSteps } from "../dashboard/LevelSteps";
+import { EventChannel } from "../events/EventChannel";
 
 /**
  * The microphone level for a screen that may or may not have a session behind it.
@@ -27,8 +27,9 @@ import { LevelSteps } from "../dashboard/LevelSteps";
  * the pane's meter always worked and the pill did not survive a visit. As a sink, closing the
  * pane returns the audience to the dashboard alone and leaves the registration untouched.
  *
- * `audio-input-level` stays its own listener: it is emitted only by a stream this probe
- * started, nothing else reads it, and it carries the unquantised amplitude calibration wants.
+ * The `input_level` frames stay a separate subscription: they are published only by a stream
+ * this probe started, nothing else reads them, and they carry the unquantised amplitude
+ * calibration wants.
  */
 export class InputLevelProbe {
     private readonly rmsStore: Writable<number>;
@@ -41,7 +42,7 @@ export class InputLevelProbe {
     /** False only when this probe started a stream and the backend refused. */
     public readonly available: Readable<boolean>;
 
-    private unlisteners: UnlistenFn[] = [];
+    private unlisteners: Array<() => void> = [];
     private running = false;
     /** Whether the stream being metered is ours to stop. */
     private owned = false;
@@ -67,9 +68,9 @@ export class InputLevelProbe {
                 }),
             );
             this.unlisteners.push(
-                await listen<InputLevel>("audio-input-level", (event) => {
-                    this.rmsStore.set(event.payload.rms);
-                    this.gateOpenStore.set(event.payload.gate_open);
+                EventChannel.shared().subscribe<InputLevel>("input_level", (level) => {
+                    this.rmsStore.set(level.rms);
+                    this.gateOpenStore.set(level.gate_open);
                 }),
             );
         } catch (e) {

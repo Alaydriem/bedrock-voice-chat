@@ -243,7 +243,6 @@ fn main() {
                 "player_presence",
                 "recording:started",
                 "recording:stopped",
-                "connection_health",
             ];
             for name in FORWARDED_UI_EVENTS {
                 let event_name = (*name).to_string();
@@ -252,6 +251,40 @@ fn main() {
                         event: event_name.clone(),
                         payload: event.payload().to_string(),
                     });
+                });
+            }
+
+            // The push channel, surfaced under the same `UiEvent` name the webview subscribes
+            // to. These frames do not travel as Tauri events, so listening for one would
+            // observe nothing — a scenario asserting on health has to read the channel the app
+            // reads.
+            //
+            // `levels` and `input_level` are deliberately filtered out for the reason
+            // `audio-activity` is absent above: they arrive at meter rate and would flood the
+            // bridge.
+            const FORWARDED_PUSH_FRAMES: &[&str] = &["health", "metrics"];
+            if let Some(broadcaster) =
+                tauri::Manager::try_state::<bvc_client_lib::websocket::WebSocketBroadcaster>(
+                    &handle,
+                )
+            {
+                let mut frames = broadcaster.events.subscribe();
+                tauri::async_runtime::spawn(async move {
+                    while let Ok(json) = frames.recv().await {
+                        let Ok(envelope) = serde_json::from_str::<serde_json::Value>(&json) else {
+                            continue;
+                        };
+                        let Some(kind) = envelope.get("type").and_then(|v| v.as_str()) else {
+                            continue;
+                        };
+                        if !FORWARDED_PUSH_FRAMES.contains(&kind) {
+                            continue;
+                        }
+                        StdoutBridge::emit(&OutMsg::UiEvent {
+                            event: kind.to_string(),
+                            payload: json.clone(),
+                        });
+                    }
                 });
             }
 

@@ -9,6 +9,7 @@ import BootOverlay from './shell/BootOverlay';
 import { BootTimeline } from './shell/BootTimeline';
 import type { DeepLink } from '../bindings/DeepLink';
 import type { ConnectionHealth } from '../bindings/ConnectionHealth';
+import { EventChannel } from './events/EventChannel';
 
 /**
  * Audio stream recovery event payload from the Rust backend
@@ -34,7 +35,7 @@ export default class BVCApp {
     private static deepLinkRegistered = false;
 
     private deepLinkUnlisten: UnlistenFn | null = null;
-    private connectionHealthUnlisten: UnlistenFn | null = null;
+    private connectionHealthUnlisten: (() => void) | null = null;
     private audioRecoveryUnlisten: UnlistenFn | null = null;
     private initialized = false;
     /**
@@ -135,24 +136,20 @@ export default class BVCApp {
      * Synchronously register the connection health listener for version mismatch handling
      */
     private setupConnectionHealthListener(): void {
-        listen<ConnectionHealth>('connection_health', (event) => {
-            if (event.payload.status === 'VersionMismatch') {
-                const payload = event.payload as { status: 'VersionMismatch', client_version: string, server_version: string, client_too_old: boolean };
+        this.connectionHealthUnlisten = EventChannel.shared().subscribe<ConnectionHealth>('health', (health) => {
+            if (health.status === 'VersionMismatch') {
+                const payload = health as { status: 'VersionMismatch', client_version: string, server_version: string, client_too_old: boolean };
                 const errorCode = payload.client_too_old ? 'VER01' : 'VER02';
                 warn(`BVCApp: Version mismatch detected: client=${payload.client_version}, server=${payload.server_version}, redirecting to ${errorCode}`);
                 // Replaced, not pushed: the screen this leaves is a dashboard on a link
                 // that has already failed, so back must not return to it.
                 window.location.replace(`/error?code=${errorCode}`);
             }
-            if (event.payload.status === 'Unauthorized') {
-                const payload = event.payload as { status: 'Unauthorized', reason: string };
+            if (health.status === 'Unauthorized') {
+                const payload = health as { status: 'Unauthorized', reason: string };
                 warn(`BVCApp: Server refused the connection identity: ${payload.reason}`);
                 window.location.replace('/error?code=AUTH01');
             }
-        }).then((unlisten) => {
-            this.connectionHealthUnlisten = unlisten;
-        }).catch((err) => {
-            logError(`BVCApp: Failed to register connection health listener: ${err}`);
         });
     }
 

@@ -62,7 +62,7 @@ pub(crate) struct InputStream {
     input_stats: Arc<crate::diagnostics::InputPipelineStats>,
     // Where this microphone's level goes in a session, and the only thing that publishes it.
     levels: Arc<crate::audio::stream::level_bus::LevelBus>,
-    // Whether to also emit the unquantised `audio-input-level` at capture rate. True only for
+    // Whether to also publish the unquantised capture level at capture rate. True only for
     // the setup screen's metering stream; see `listener`.
     raw_levels: bool,
     #[cfg(feature = "bedrock-protocol")]
@@ -367,7 +367,7 @@ impl InputStream {
         let level_tx = self.raw_levels.then_some(level_tx);
         let level_handle = self.app_handle.clone();
         tokio::spawn(async move {
-            use tauri::Emitter;
+            use tauri::Manager;
             let mut batch_timer = tokio::time::interval(Duration::from_millis(100));
             let mut pending: Option<InputLevel> = None;
 
@@ -390,8 +390,10 @@ impl InputStream {
                     }
                     _ = batch_timer.tick() => {
                         if let Some(level) = pending.take() {
-                            if let Err(e) = level_handle.emit("audio-input-level", &level) {
-                                log::warn!("Failed to emit input level: {}", e);
+                            if let Some(broadcaster) = level_handle
+                                .try_state::<crate::websocket::WebSocketBroadcaster>()
+                            {
+                                broadcaster.broadcast_input_level(level);
                             }
                         }
                     }

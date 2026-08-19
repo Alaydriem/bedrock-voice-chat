@@ -674,15 +674,6 @@ impl LinkDiagnosticsService {
     }
 
     fn publish(&self, app_handle: &tauri::AppHandle, snapshot: LinkDiagnosticsSnapshot) {
-        use tauri::Emitter;
-
-        if let Err(e) = app_handle.emit(
-            crate::events::event::LINK_DIAGNOSTICS,
-            &snapshot,
-        ) {
-            log::debug!("Failed to emit link diagnostics: {}", e);
-        }
-
         if let Some(broadcaster) =
             tauri::Manager::try_state::<crate::websocket::WebSocketBroadcaster>(app_handle)
         {

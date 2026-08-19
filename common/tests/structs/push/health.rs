@@ -1,4 +1,4 @@
-use common::structs::metrics::{HealthPush, MetricsPush};
+use common::structs::push::{HealthPush, MetricsPush};
 use common::structs::network::ConnectionHealth;
 
 // The discriminant is the contract. A consumer reads both frame kinds off one socket, and

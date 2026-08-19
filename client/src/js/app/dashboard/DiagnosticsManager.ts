@@ -1,10 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { UnlistenFn } from '@tauri-apps/api/event';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { warn } from '@tauri-apps/plugin-log';
 import { type Readable, type Writable, writable } from 'svelte/store';
 import type { ConnectionHealth } from '../../bindings/ConnectionHealth';
 import type { LinkDiagnosticsSnapshot } from '../../bindings/LinkDiagnosticsSnapshot';
+import { EventChannel } from '../events/EventChannel';
 
 /** What the link is doing, as far as the dashboard is concerned. */
 export interface LinkHealth {
@@ -32,7 +31,7 @@ export interface LinkHealth {
 export class DiagnosticsManager {
     private readonly snapshotStore: Writable<LinkDiagnosticsSnapshot | null>;
     private readonly healthStore: Writable<LinkHealth>;
-    private unlisteners: UnlistenFn[] = [];
+    private unlisteners: Array<() => void> = [];
 
     public readonly snapshot: Readable<LinkDiagnosticsSnapshot | null>;
     public readonly health: Readable<LinkHealth>;
@@ -68,21 +67,16 @@ export class DiagnosticsManager {
             warn(`DiagnosticsManager: could not read the initial snapshot: ${e}`);
         }
 
-        const webview = getCurrentWebviewWindow();
-        try {
-            this.unlisteners.push(
-                await webview.listen<LinkDiagnosticsSnapshot>('link_diagnostics', (event) =>
-                    this.snapshotStore.set(event.payload),
-                ),
-            );
-            this.unlisteners.push(
-                await webview.listen<ConnectionHealth>('connection_health', (event) =>
-                    this.healthStore.set(DiagnosticsManager.toHealth(event.payload)),
-                ),
-            );
-        } catch (e) {
-            warn(`DiagnosticsManager: could not subscribe: ${e}`);
-        }
+        this.unlisteners.push(
+            EventChannel.shared().subscribe<LinkDiagnosticsSnapshot>('metrics', (snapshot) =>
+                this.snapshotStore.set(snapshot),
+            ),
+        );
+        this.unlisteners.push(
+            EventChannel.shared().subscribe<ConnectionHealth>('health', (health) =>
+                this.healthStore.set(DiagnosticsManager.toHealth(health)),
+            ),
+        );
     }
 
     /**

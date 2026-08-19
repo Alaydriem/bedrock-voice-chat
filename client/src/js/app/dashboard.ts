@@ -33,7 +33,7 @@ import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
 import { NoiseGateModel } from './settings/NoiseGateModel.ts';
 import type { ApiConfigCheckResponse } from '../bindings/ApiConfigCheckResponse.ts';
 import type { ServerListEntry } from '../bindings/ServerListEntry.ts';
-import type { WebSocketConfig } from './managers/settings/WebSocketConfig';
+import { WebSocketSettingsManager } from './managers/settings/WebSocketSettingsManager';
 import GameNameUtils from './utils/GameNameUtils';
 
 import {
@@ -246,22 +246,14 @@ export default class Dashboard extends BVCApp {
         await this.initializeManagers();
         timeline.mark("initializeManagers");
 
-        // Start the websocket server if on desktop and is enabled
-        if (!await this.platformDetector.checkMobile()) {
-            const websocketConfig = await this.store.get<WebSocketConfig>("websocket_server");
-            if (websocketConfig?.enabled) {
-                await invoke<boolean>('is_websocket_running').then(async (isRunning) => {
-                    if (!isRunning) {
-                        await invoke('start_websocket_server').catch((e) => {
-                            error(`Error starting WebSocket server: ${e}`);
-                        });
-                    }
-                }).catch((e) => {
-                    error(`Error auto-starting WebSocket server: ${e}`);
-                });
-            }
-        }
-        timeline.mark("websocket server (desktop only)");
+        // The operator-facing server is always on, so there is no enable flag left to consult.
+        // What boot still owes it is a token: nothing else mints one now that the enable step is
+        // gone, and the listener declines to bind without it. Initializing the manager here is
+        // what gives a fresh install a working server before anyone opens its settings pane.
+        await new WebSocketSettingsManager().initialize().catch((e) => {
+            error(`Error preparing the WebSocket server: ${e}`);
+        });
+        timeline.mark("websocket server");
 
         // Every platform, not just desktop.
         //

@@ -1,21 +1,21 @@
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { warn } from '@tauri-apps/plugin-log';
 import type { InputLevel } from '../../bindings/InputLevel';
+import { EventChannel } from '../events/EventChannel';
 
 /**
  * The microphone level on the setup device screen.
  *
  * Setup runs before the dashboard has started a session stream, so nothing is
- * capturing yet and `audio-input-level` would never fire. This asks the backend for a
+ * capturing yet and no `input_level` frame would ever be published. This asks the backend for a
  * capture-only stream: the same CPAL path, gate and processing core the session uses,
  * with no encoder and no network attached.
  *
- * The listener is registered before the stream is asked to start, so the first frames
- * are not dropped on the floor while the subscription is still resolving.
+ * The subscription is opened before the stream is asked to start, so the first frames
+ * are not dropped on the floor while the channel is still connecting.
  */
 export default class InputMeter {
-    private unlisten: UnlistenFn | null = null;
+    private unlisten: (() => void) | null = null;
     private running = false;
 
     constructor(private readonly onlevel: (level: InputLevel) => void) {}
@@ -29,8 +29,8 @@ export default class InputMeter {
         if (this.running) return true;
         this.running = true;
 
-        this.unlisten = await listen<InputLevel>('audio-input-level', (event) =>
-            this.onlevel(event.payload),
+        this.unlisten = EventChannel.shared().subscribe<InputLevel>('input_level', (level) =>
+            this.onlevel(level),
         );
 
         try {

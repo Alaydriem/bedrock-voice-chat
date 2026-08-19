@@ -70,7 +70,6 @@ pub mod players;
 mod structs;
 #[cfg(feature = "e2e")]
 pub mod testkit;
-pub mod spike;
 pub mod websocket;
 
 // Re-exported for the e2e test bin (a separate crate root that can only reach
@@ -164,16 +163,6 @@ pub fn run() {
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();
 
-    // THROWAWAY. The second candidate transport for the meter pivot. Delete with `crate::spike`.
-    //
-    // Registered on the builder rather than in `setup`: a scheme has to exist before the webview
-    // is created, and `setup` runs after it.
-    let spike_push = crate::spike::PushProtocol::new_shared();
-    let mut builder = builder.register_asynchronous_uri_scheme_protocol(
-        crate::spike::PushProtocol::SCHEME,
-        move |_ctx, _request, responder| spike_push.handle(responder),
-    );
-
     // For desktop applications, enforce only a single running instance at a time
     #[cfg(desktop)]
     {
@@ -257,10 +246,6 @@ pub fn run() {
             })
             .build())
         .invoke_handler(tauri::generate_handler![
-            // THROWAWAY spike probe. Delete with `crate::spike`.
-            crate::commands::spike::spike_probe_start,
-            crate::commands::spike::spike_probe_stats,
-            crate::commands::spike::spike_push_served,
             commands::diagnostics::get_link_diagnostics,
             commands::diagnostics::get_diagnostics_report,
             commands::diagnostics::reset_link_diagnostics,
@@ -307,7 +292,6 @@ pub fn run() {
             crate::commands::audio::get_current_players,
             crate::commands::audio::restart_audio_stream,
             crate::commands::audio::input_capture_active,
-            crate::commands::audio::probe_audio_levels,
             crate::commands::audio::start_input_meter,
             crate::commands::audio::stop_input_meter,
             crate::commands::audio::test_output_device,
@@ -350,9 +334,8 @@ pub fn run() {
             crate::api::commands::api_get_player_gamerpic,
             // WebSocket Server
             crate::commands::websocket::update_websocket_config,
-            crate::commands::websocket::start_websocket_server,
-            crate::commands::websocket::stop_websocket_server,
-            crate::commands::websocket::is_websocket_running,
+            crate::commands::websocket::restart_websocket_external,
+            crate::commands::websocket::websocket_internal_endpoint,
             crate::commands::websocket::websocket_clients,
             crate::commands::websocket::generate_encryption_key,
             // Analytics

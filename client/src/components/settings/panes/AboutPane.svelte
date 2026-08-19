@@ -11,8 +11,6 @@
     import { UpdateStatus, type UpdateState } from "../../../js/app/settings/UpdateStatus";
     import type { AppInfo } from "../../../js/bindings/AppInfo";
     import { I18n } from "$lib/i18n";
-    // THROWAWAY. Delete with js/app/spike and src-tauri/src/spike.
-    import { LoopbackProbe } from "../../../js/app/spike/LoopbackProbe";
 
     interface Props {
         /** Shared with the shell, which badges the nav from the same object. */
@@ -94,22 +92,6 @@
                 : "Not checked yet.",
     );
 
-    // THROWAWAY probe state. Delete with the card below.
-    let probeOutput = $state("");
-    let probeRunning = $state(false);
-
-    async function runProbe(): Promise<void> {
-        probeRunning = true;
-        probeOutput = "Running…";
-        try {
-            probeOutput = await new LoopbackProbe().run();
-        } catch (e) {
-            probeOutput = `The probe itself failed: ${e instanceof Error ? e.message : String(e)}`;
-        } finally {
-            probeRunning = false;
-        }
-    }
-
     async function copy(text: string): Promise<void> {
         await navigator.clipboard?.writeText(text).catch(() => {});
     }
@@ -155,33 +137,6 @@
                 </button>
             </dd>
         </dl>
-    </div>
-
-    <!-- THROWAWAY. Loopback WebSocket feasibility probe. Delete this card, js/app/spike and
-         src-tauri/src/spike together once the answer is recorded. -->
-    <div class="rad-card">
-        <div class="rad-card__head">Loopback probe (temporary)</div>
-        <SettingRow
-            label="Run the loopback WebSocket probe"
-            note="Checks whether this device lets the app talk to its own socket. Run it, then copy the result."
-        >
-            {#snippet control()}
-                <button class="rad-btn" disabled={probeRunning} onclick={() => void runProbe()}>
-                    {probeRunning ? "Running…" : "Run probe"}
-                </button>
-                <button
-                    class="rad-icon-btn"
-                    disabled={!probeOutput}
-                    onclick={() => void copy(probeOutput)}
-                    aria-label="Copy probe result"
-                >
-                    <Icon name="copy" />
-                </button>
-            {/snippet}
-        </SettingRow>
-        {#if probeOutput}
-            <pre style="white-space: pre-wrap; word-break: break-all; font-size: 11px; padding: 12px; margin: 0; overflow-x: auto;">{probeOutput}</pre>
-        {/if}
     </div>
 
     <div class="rad-card">

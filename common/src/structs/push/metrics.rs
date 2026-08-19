@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::LinkDiagnosticsSnapshot;
+use crate::structs::metrics::LinkDiagnosticsSnapshot;
 
 // The WebSocket push envelope.
 //

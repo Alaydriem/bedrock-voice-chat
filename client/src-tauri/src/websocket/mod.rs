@@ -1,5 +1,8 @@
 use common::structs::keybinds::VoiceMode as KeybindVoiceMode;
+use common::structs::audio::LevelSnapshot;
 use common::structs::network::ConnectionHealth;
+use common::structs::push::KeepalivePush;
+use common::structs::websocket::InternalEndpoint;
 use common::traits::StreamTrait;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
@@ -21,9 +24,11 @@ pub use structs::{
 
 mod broadcaster;
 mod config;
+mod listener_kind;
 
 pub use broadcaster::WebSocketBroadcaster;
 pub use config::WebSocketConfig;
+pub use listener_kind::ListenerKind;
 
 
 pub struct WebSocketManager {
@@ -33,8 +38,14 @@ pub struct WebSocketManager {
     app_handle: AppHandle,
     broadcast_tx: broadcast::Sender<String>,
     metrics_tx: broadcast::Sender<String>,
+    events_tx: broadcast::Sender<String>,
     health_tx: watch::Sender<ConnectionHealth>,
+    levels_tx: watch::Sender<LevelSnapshot>,
     clients: Arc<WebSocketClients>,
+    internal_abort: Option<AbortHandle>,
+    internal_shutdown: Option<watch::Sender<bool>>,
+    internal_port: Option<u16>,
+    internal_token: String,
 }
 
 impl WebSocketManager {
@@ -49,6 +60,10 @@ impl WebSocketManager {
         // Deeper than the command channel: this carries one frame per second, so a subscriber
         // that stalls briefly should fall behind rather than be dropped.
         let (metrics_tx, _) = broadcast::channel(64);
+        // The same depth as the metrics channel, and for the same reason: a subscriber that
+        // stalls briefly should fall behind rather than be dropped.
+        let (events_tx, _) = broadcast::channel(64);
+        let (levels_tx, _) = watch::channel(LevelSnapshot::silent());
         // Disconnected until something says otherwise. `Connected` as the initial value would
         // tell the first subscriber the link is up before any connection has been attempted.
         let (health_tx, _) = watch::channel(ConnectionHealth::Disconnected);
@@ -60,8 +75,14 @@ impl WebSocketManager {
             app_handle,
             broadcast_tx,
             metrics_tx,
+            events_tx,
             health_tx,
+            levels_tx,
             clients: WebSocketClients::new_shared(),
+            internal_abort: None,
+            internal_shutdown: None,
+            internal_port: None,
+            internal_token: Self::mint_token(),
         }
     }
 
@@ -71,6 +92,8 @@ impl WebSocketManager {
             self.broadcast_tx.clone(),
             self.metrics_tx.clone(),
             self.health_tx.clone(),
+            self.events_tx.clone(),
+            self.levels_tx.clone(),
         )
     }
 
@@ -81,6 +104,61 @@ impl WebSocketManager {
 
     pub fn update_config(&mut self, config: WebSocketConfig) {
         self.config = Some(config);
+    }
+
+    /// Characters a token is drawn from. URL-safe, so it survives a query string untouched.
+    const TOKEN_ALPHABET: &'static [u8] =
+        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+    const TOKEN_LEN: usize = 32;
+
+    fn mint_token() -> String {
+        use rand::RngExt;
+        let mut rng = rand::rng();
+        (0..Self::TOKEN_LEN)
+            .map(|_| {
+                let index = rng.random_range(0..Self::TOKEN_ALPHABET.len());
+                Self::TOKEN_ALPHABET[index] as char
+            })
+            .collect()
+    }
+
+    /// The port and token the webview dials, once the internal listener is up.
+    pub fn internal_endpoint(&self) -> Option<InternalEndpoint> {
+        self.internal_port.map(|port| InternalEndpoint {
+            port,
+            token: self.internal_token.clone(),
+        })
+    }
+
+    /// Bind the app's own push listener on an ephemeral loopback port.
+    ///
+    /// Ephemeral rather than the configured port, so a conflict on the operator port cannot take
+    /// the meters with it. Idempotent: a second call returns the endpoint already bound.
+    pub async fn start_internal(&mut self) -> Result<InternalEndpoint, anyhow::Error> {
+        if let Some(endpoint) = self.internal_endpoint() {
+            return Ok(endpoint);
+        }
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let port = listener.local_addr()?.port();
+
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        self.internal_shutdown = Some(shutdown_tx);
+        let handle = self
+            .spawn_accept_loop(
+                listener,
+                ListenerKind::Internal,
+                self.internal_token.clone(),
+                shutdown_rx,
+            )
+            .await?;
+
+        self.internal_abort = Some(handle);
+        self.internal_port = Some(port);
+        log::info!("internal push listener bound on 127.0.0.1:{}", port);
+        self.internal_endpoint()
+            .ok_or_else(|| anyhow::anyhow!("internal listener bound but reported no endpoint"))
     }
 }
 
@@ -96,8 +174,13 @@ impl StreamTrait for WebSocketManager {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("WebSocket config not set"))?;
 
-        if !config.enabled {
-            return Err(anyhow::anyhow!("WebSocket server is not enabled"));
+        // No enable switch to consult any more; the token is what a bind requires. A fresh
+        // install has none until the settings manager mints one, and a listener that answered
+        // without one would accept any caller that reached the port.
+        if config.key.trim().is_empty() {
+            return Err(anyhow::anyhow!(
+                "the WebSocket server has no access token yet"
+            ));
         }
 
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
@@ -143,25 +226,45 @@ impl WebSocketManager {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("No config available"))?;
 
-        let host = if config.localhost_only {
-            "127.0.0.1"
-        } else {
-            "0.0.0.0"
-        };
-        let addr = format!("{}:{}", host, config.port);
+        let addr = format!("{}:{}", config.bind_host(), config.port);
+        let credential = config.key.clone();
         let listener = tokio::net::TcpListener::bind(&addr).await?;
-        let config = config.clone();
+
+        self.spawn_accept_loop(listener, ListenerKind::External, credential, shutdown_rx)
+            .await
+    }
+
+    /// How often an `/events` connection is told it is still alive.
+    ///
+    /// Paced against the client's own liveness deadline rather than against any cost: on
+    /// loopback a frame this size is free, and the deadline has to be a multiple of this so a
+    /// single late tick is not read as a dead channel.
+    const EVENTS_KEEPALIVE: std::time::Duration = std::time::Duration::from_secs(5);
+
+    /// The accept path both listeners share.
+    ///
+    /// `kind` and `credential` are what separate them, and both have to travel with the
+    /// connection rather than be inferred: the streams are split before either is needed again.
+    async fn spawn_accept_loop(
+        &self,
+        listener: tokio::net::TcpListener,
+        kind: ListenerKind,
+        credential: String,
+        shutdown_rx: watch::Receiver<bool>,
+    ) -> Result<AbortHandle, anyhow::Error> {
         let app_handle = self.app_handle.clone();
         let broadcast_tx = self.broadcast_tx.clone();
         let metrics_tx = self.metrics_tx.clone();
+        let events_tx = self.events_tx.clone();
         let clients = self.clients.clone();
 
         let handle = tokio::spawn(async move {
             while let Ok((stream, _)) = listener.accept().await {
                 let app_handle = app_handle.clone();
-                let key = config.key.clone();
+                let credential = credential.clone();
                 let broadcast_tx = broadcast_tx.clone();
                 let metrics_tx = metrics_tx.clone();
+                let events_tx = events_tx.clone();
                 let shutdown_rx = shutdown_rx.clone();
                 let clients = clients.clone();
 
@@ -169,9 +272,11 @@ impl WebSocketManager {
                     if let Err(e) = Self::handle_connection(
                         stream,
                         app_handle,
-                        key,
+                        kind,
+                        credential,
                         broadcast_tx,
                         metrics_tx,
+                        events_tx,
                         shutdown_rx,
                         clients,
                     )
@@ -204,9 +309,11 @@ impl WebSocketManager {
     async fn handle_connection(
         stream: tokio::net::TcpStream,
         app_handle: AppHandle,
-        auth_key: String,
+        kind: ListenerKind,
+        credential: String,
         broadcast_tx: broadcast::Sender<String>,
         metrics_tx: broadcast::Sender<String>,
+        events_tx: broadcast::Sender<String>,
         shutdown_rx: watch::Receiver<bool>,
         clients: Arc<WebSocketClients>,
     ) -> Result<(), anyhow::Error> {
@@ -221,7 +328,7 @@ impl WebSocketManager {
         // upgrade outright, rather than accepting a client that then waits forever.
         let resolved: Arc<StdMutex<Option<WebSocketRoute>>> = Arc::new(StdMutex::new(None));
         let captured = resolved.clone();
-        let key_for_callback = auth_key.clone();
+        let key_for_callback = credential.clone();
 
         // The only self-description a client offers, and the handshake is the only place
         // it is available.
@@ -238,7 +345,7 @@ impl WebSocketManager {
             {
                 *slot = value.to_string();
             }
-            match WebSocketRoute::resolve(&uri, &key_for_callback) {
+            match WebSocketRoute::resolve(&uri, kind, &key_for_callback) {
                 Ok(route) => {
                     if let Ok(mut slot) = captured.lock() {
                         *slot = Some(route);
@@ -267,7 +374,9 @@ impl WebSocketManager {
         // Held for the life of the connection. Dropping it releases the registration,
         // which is the only way to cover all three exits: an error, the shutdown watch,
         // and a peer that simply went away.
-        let registration = ClientRegistration::new(clients, &name, route.as_str());
+        let registration = kind
+            .registers_clients()
+            .then(|| ClientRegistration::new(clients, &name, route.as_str()));
 
         match route {
             WebSocketRoute::Metrics => {
@@ -278,14 +387,22 @@ impl WebSocketManager {
 
                 Self::serve_metrics(ws_stream, metrics_tx, shutdown_rx, health).await
             }
+            WebSocketRoute::Events => {
+                let seed = app_handle
+                    .try_state::<WebSocketBroadcaster>()
+                    .map(|broadcaster| broadcaster.seed_frames())
+                    .unwrap_or_default();
+
+                Self::serve_events(ws_stream, events_tx, shutdown_rx, seed).await
+            }
             WebSocketRoute::Command => {
                 Self::serve_commands(
                     ws_stream,
                     app_handle,
-                    auth_key,
+                    credential,
                     broadcast_tx,
                     shutdown_rx,
-                    &registration,
+                    registration.as_ref(),
                 )
                 .await
             }
@@ -308,7 +425,7 @@ impl WebSocketManager {
         // Sent before anything is forwarded, so a subscriber knows the current state rather than
         // inferring it from an absence of frames. A healthy client produces no transition for
         // hours, and a failed one produces no metrics frames to read anything from at all.
-        let push = common::structs::metrics::HealthPush::new(initial_health);
+        let push = common::structs::push::HealthPush::new(initial_health);
         if let Ok(json) = serde_json::to_string(&push) {
             write
                 .send(tokio_tungstenite::tungstenite::Message::Text(json.into()))
@@ -345,13 +462,80 @@ impl WebSocketManager {
         }
     }
 
+    /// Push only. Inbound frames other than close are ignored, because this endpoint has no
+    /// commands.
+    ///
+    /// The seed is sent before anything is forwarded. Without it a subscriber that arrives
+    /// between changes is told nothing: the level publisher never re-sends silence and health
+    /// is published on change, so a reconnecting window would hold defaults until somebody
+    /// spoke.
+    async fn serve_events(
+        ws_stream: tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+        events_tx: broadcast::Sender<String>,
+        mut shutdown_rx: watch::Receiver<bool>,
+        seed: Vec<String>,
+    ) -> Result<(), anyhow::Error> {
+        use futures_util::{SinkExt, StreamExt};
+
+        let (mut write, mut read) = ws_stream.split();
+        let mut events_rx = events_tx.subscribe();
+
+        for frame in seed {
+            write
+                .send(tokio_tungstenite::tungstenite::Message::Text(frame.into()))
+                .await?;
+        }
+
+        let keepalive = serde_json::to_string(&KeepalivePush::new())?;
+        let mut heartbeat = tokio::time::interval(Self::EVENTS_KEEPALIVE);
+        heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        // The first tick is immediate and the seed frames have just gone out, so it is skipped
+        // rather than paced against.
+        heartbeat.tick().await;
+
+        loop {
+            tokio::select! {
+                _ = heartbeat.tick() => {
+                    write
+                        .send(tokio_tungstenite::tungstenite::Message::Text(keepalive.clone().into()))
+                        .await?;
+                }
+
+                frame = read.next() => {
+                    match frame {
+                        Some(Ok(msg)) if msg.is_close() => return Ok(()),
+                        Some(Ok(_)) => continue,
+                        Some(Err(e)) => return Err(e.into()),
+                        None => return Ok(()),
+                    }
+                }
+
+                result = events_rx.recv() => {
+                    match result {
+                        Ok(json) => {
+                            write
+                                .send(tokio_tungstenite::tungstenite::Message::Text(json.into()))
+                                .await?;
+                        }
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            log::warn!("Events subscriber lagged by {} frames", n);
+                        }
+                        Err(broadcast::error::RecvError::Closed) => return Ok(()),
+                    }
+                }
+
+                _ = shutdown_rx.changed() => return Ok(()),
+            }
+        }
+    }
+
     async fn serve_commands(
         ws_stream: tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
         app_handle: AppHandle,
         auth_key: String,
         broadcast_tx: broadcast::Sender<String>,
         mut shutdown_rx: watch::Receiver<bool>,
-        registration: &ClientRegistration,
+        registration: Option<&ClientRegistration>,
     ) -> Result<(), anyhow::Error> {
         use futures_util::{SinkExt, StreamExt};
 
@@ -396,7 +580,9 @@ impl WebSocketManager {
 
                     // Counted once it has been accepted and authenticated. Counting every
                     // inbound frame would report rejected traffic as work done.
-                    registration.count_command();
+                    if let Some(registration) = registration {
+                        registration.count_command();
+                    }
 
                     // Check if this is a state-changing command
                     let is_state_changing = matches!(

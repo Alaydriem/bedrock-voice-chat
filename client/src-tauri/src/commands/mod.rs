@@ -22,4 +22,3 @@ pub(crate) mod recordings;
 #[cfg(desktop)]
 pub(crate) mod updater;
 pub(crate) mod websocket;
-pub(crate) mod spike;

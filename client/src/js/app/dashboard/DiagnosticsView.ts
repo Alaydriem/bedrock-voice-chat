@@ -5,6 +5,13 @@ import type { LinkDiagnosticsSnapshot } from '../../bindings/LinkDiagnosticsSnap
 import type { VoiceMode } from '$radial/core/controllers/SelfState';
 import type { VoiceDiagnostics } from './SelfController';
 
+/** What the push channel is doing, as the panel needs to describe it. */
+export interface ChannelState {
+    connected: boolean;
+    lastFrameAgoMs: number | null;
+    attempts: number;
+}
+
 /**
  * The backend's snapshot, as the status panel's view type.
  *
@@ -17,6 +24,40 @@ import type { VoiceDiagnostics } from './SelfController';
 export class DiagnosticsView {
     /** Neither zero nor a guess. */
     private static readonly UNKNOWN = '—';
+
+    /** How long the channel may be quiet before silence is worth reporting. */
+    private static readonly CHANNEL_QUIET_MS = 5000;
+
+    /**
+     * Whether this window is being told anything at all.
+     *
+     * Every other row on this panel is rendered from a frame that arrived over this channel, so
+     * none of them can report the channel being down — they simply stop changing, which is
+     * indistinguishable from a quiet room. This row is the one that can say it.
+     */
+    static channelRow(state: ChannelState): [string, string] {
+        if (!state.connected) {
+            const retries =
+                state.attempts > 0
+                    ? `  ← ${state.attempts} reconnect attempt${state.attempts === 1 ? '' : 's'} so far`
+                    : '  ← nothing is being pushed to this window';
+            return ['Push channel', `not connected${retries}`];
+        }
+
+        if (state.lastFrameAgoMs === null) {
+            return ['Push channel', 'connected  ← nothing has arrived on it yet'];
+        }
+
+        if (state.lastFrameAgoMs > DiagnosticsView.CHANNEL_QUIET_MS) {
+            const seconds = Math.round(state.lastFrameAgoMs / 1000);
+            return [
+                'Push channel',
+                `connected, but nothing has arrived for ${seconds}s  ← the socket is open and idle`,
+            ];
+        }
+
+        return ['Push channel', `connected, last frame ${state.lastFrameAgoMs}ms ago`];
+    }
 
     static input(
         snapshot: LinkDiagnosticsSnapshot,
@@ -272,7 +313,7 @@ export class DiagnosticsView {
      * from QUIC's packet numbers and stays out of the verdict — counting it there would read
      * the same loss as two separate problems.
      */
-    static extraGroups(snapshot: LinkDiagnosticsSnapshot): KvGroup[] {
+    static extraGroups(snapshot: LinkDiagnosticsSnapshot, channel: ChannelState): KvGroup[] {
         const link = snapshot.link;
         const downlink =
             link.downlink_loss_pct === null || link.downlink_loss_pct === undefined
@@ -290,15 +331,14 @@ export class DiagnosticsView {
                 ],
             },
             {
-                // Not a network figure, and not under any of the subsystems, because it belongs
-                // to none of them. On a phone every one of these is a unit of main-thread work
-                // on the same thread that paints the meters they feed, so it is the number that
-                // decides whether the meters can keep up — and the only way to tell a change
-                // that halved the traffic from one that did nothing.
+                // Neither a network figure nor a device one. It reports what this client chose
+                // to publish, which is the only thing that distinguishes a meter with nothing
+                // to draw from a meter that is not drawing.
                 title: 'Interface',
                 rows: [
+                    DiagnosticsView.channelRow(channel),
                     [
-                        'Meter updates',
+                        'Level updates',
                         `${DiagnosticsView.round(snapshot.meter_events_per_sec)}/s` +
                             (snapshot.meter_events_per_sec === 0 ? '  (nobody is speaking)' : ''),
                     ],

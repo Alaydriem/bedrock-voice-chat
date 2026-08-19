@@ -7,6 +7,7 @@ use crate::audio::AudioBackend;
 use crate::audio::stream::stream_manager::sink::AudioOutputSink;
 use crate::audio::stream::stream_manager::source::AudioInputSource;
 use crate::{Receiver, Sender};
+use common::traits::StreamTrait;
 use std::sync::Arc;
 use tauri::Manager;
 use tauri::async_runtime::Mutex;
@@ -46,10 +47,6 @@ impl AppBuilder {
             .map(|dir| dir.join("resources").join("i18n"))
             .unwrap_or_default();
         app.manage(crate::i18n::LocalizationService::new(resource_dir));
-
-        // THROWAWAY. Delete with `crate::spike`.
-        app.manage(crate::spike::LoopbackProbe::new_shared());
-        app.manage(crate::spike::PushProtocol::new_shared());
 
         // This is our audio producer and consumer
         // The producer is responsible for getting audio from the raw input device, then sending it to the consumer
@@ -172,6 +169,24 @@ impl AppBuilder {
         let ws_broadcaster = ws_manager.broadcaster();
         app.manage(ws_broadcaster);
         app.manage(Mutex::new(ws_manager));
+
+        // Bound at start rather than on demand: the first screen that wants a meter must find
+        // the channel already listening, and nothing else in the app has a reason to start it.
+        let handle_for_internal = handle.clone();
+        tauri::async_runtime::spawn(async move {
+            let manager = handle_for_internal.state::<Mutex<crate::websocket::WebSocketManager>>();
+            let mut manager = manager.lock().await;
+            if let Err(cause) = manager.start_internal().await {
+                log::error!("could not bind the internal push listener: {cause}");
+            }
+
+            // The operator-facing listener has no enable switch either. It declines until a
+            // token exists, which on a fresh install is the settings manager's first save, so
+            // this is a start rather than a requirement.
+            if let Err(cause) = manager.start().await {
+                log::info!("the WebSocket server did not bind at start: {cause}");
+            }
+        });
 
         // AudioActionsManager handles mute, deafen, and recording state changes for both user-initiated actions (keybinds) and API calls
         let audio_actions = crate::audio::AudioActionsManager::new(handle.clone());

@@ -3,32 +3,63 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockInvoke } from "../../tauri";
 import type { ConnectionHealth } from "../../../js/bindings/ConnectionHealth";
 
-const listeners = new Map<string, (event: { payload: unknown }) => void>();
+class FakeSocket {
+    static instances: FakeSocket[] = [];
+    onopen: (() => void) | null = null;
+    onmessage: ((event: { data: string }) => void) | null = null;
+    onclose: ((event: { code: number }) => void) | null = null;
+    onerror: (() => void) | null = null;
+    readyState = 0;
+    closed = false;
 
-vi.mock("@tauri-apps/api/webviewWindow", () => ({
-    getCurrentWebviewWindow: () => ({
-        listen: async (event: string, run: (e: { payload: unknown }) => void) => {
-            listeners.set(event, run);
-            return () => listeners.delete(event);
-        },
-    }),
-}));
+    constructor(readonly url: string) {
+        FakeSocket.instances.push(this);
+    }
+
+    open(): void {
+        this.readyState = 1;
+        this.onopen?.();
+    }
+
+    deliver(frame: unknown): void {
+        this.onmessage?.({ data: JSON.stringify(frame) });
+    }
+
+    close(): void {
+        this.closed = true;
+        this.readyState = 3;
+    }
+}
+
+vi.stubGlobal("WebSocket", FakeSocket);
 
 const { DiagnosticsManager } = await import("../../../js/app/dashboard/DiagnosticsManager");
+const { EventChannel } = await import("../../../js/app/events/EventChannel");
+
+async function settle(): Promise<void> {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+}
 
 /**
  * @param snapshot what `get_link_diagnostics` answers. Null is not "no data yet": the backend
  *   returns nothing precisely while the session is disconnected, so it is the seed for health.
  */
 async function started(snapshot: unknown = null) {
-    mockInvoke({ get_link_diagnostics: () => snapshot });
+    mockInvoke({
+        get_link_diagnostics: () => snapshot,
+        websocket_internal_endpoint: () => ({ port: 5555, token: "tok" }),
+    });
     const manager = new DiagnosticsManager();
     await manager.start();
+    await settle();
+    FakeSocket.instances[0]?.open();
     return manager;
 }
 
 function report(health: ConnectionHealth): void {
-    listeners.get("connection_health")?.({ payload: health });
+    FakeSocket.instances[0]?.deliver({ type: "health", data: health });
 }
 
 /**
@@ -41,7 +72,15 @@ function report(health: ConnectionHealth): void {
  */
 describe("DiagnosticsManager health", () => {
     beforeEach(() => {
-        listeners.clear();
+        FakeSocket.instances = [];
+        EventChannel.shared().resetForTest();
+    });
+
+    it("takes health from the push channel", async () => {
+        const manager = await started({ link: {} });
+        report({ status: "Disconnected" });
+
+        expect(get(manager.health)).toMatchObject({ connected: false, reconnecting: false });
     });
 
     // `connection_health` arrives on change rather than on a clock, so a link that was already up

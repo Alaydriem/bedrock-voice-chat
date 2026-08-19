@@ -63,6 +63,7 @@ describe("DiagnosticsView", () => {
     it("treats an unmeasured downlink as unmeasured rather than as zero loss", () => {
         const rows = DiagnosticsView.extraGroups(
             snapshot({ downlink_loss_pct: null, uplink_loss_pct: 2 }),
+            { connected: true, lastFrameAgoMs: 100, attempts: 0 },
         );
         const loss = rows.find((group) => group.title === "Loss, by direction");
 
@@ -163,5 +164,37 @@ describe("Diagnostics.verdict", () => {
         const input = DiagnosticsView.input(snapshot({}, { transport: null }), extra);
 
         expect(input.transport).toBeNull();
+    });
+});
+
+describe("DiagnosticsView.channelRow", () => {
+    it("names a channel that never opened", () => {
+        const [, value] = DiagnosticsView.channelRow({
+            connected: false,
+            lastFrameAgoMs: null,
+            attempts: 3,
+        });
+        expect(value).toContain("not connected");
+        expect(value).toContain("3");
+    });
+
+    it("reports a live channel with the age of its last frame", () => {
+        const [, value] = DiagnosticsView.channelRow({
+            connected: true,
+            lastFrameAgoMs: 400,
+            attempts: 0,
+        });
+        expect(value).toContain("connected");
+    });
+
+    // Connected with nothing arriving is the state that used to be indistinguishable from a
+    // muted microphone, so it gets its own wording rather than reading as healthy.
+    it("distinguishes connected-but-silent from connected-and-carrying", () => {
+        const [, value] = DiagnosticsView.channelRow({
+            connected: true,
+            lastFrameAgoMs: 30_000,
+            attempts: 0,
+        });
+        expect(value).toContain("nothing has arrived");
     });
 });

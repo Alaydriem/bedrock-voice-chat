@@ -13,6 +13,7 @@
     import type { VoiceDiagnostics } from "../../js/app/dashboard/SelfController";
     import type { VoiceMode } from "$radial/core/controllers/SelfState";
     import { DiagnosticsView } from "../../js/app/dashboard/DiagnosticsView";
+    import { EventChannel } from "../../js/app/events/EventChannel";
 
     interface Props {
         snapshot: LinkDiagnosticsSnapshot | null;
@@ -122,7 +123,14 @@
         if (!grid) return;
         const labels = DiagnosticsCopy.labels();
         const link = input && snapshot
-            ? [...Diagnostics.groups(input, labels), ...DiagnosticsView.extraGroups(snapshot)]
+            ? [
+                  ...Diagnostics.groups(input, labels),
+                  ...DiagnosticsView.extraGroups(snapshot, {
+                      connected: EventChannel.shared().connected,
+                      lastFrameAgoMs: EventChannel.shared().lastFrameAgoMs,
+                      attempts: EventChannel.shared().attempts,
+                  }),
+              ]
             : [];
         grid.update([
             DiagnosticsView.voiceGroup(

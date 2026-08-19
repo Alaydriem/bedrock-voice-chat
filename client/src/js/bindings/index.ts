@@ -67,11 +67,14 @@ export type { HytaleDeviceFlowStartResponse } from './HytaleDeviceFlowStartRespo
 export type { HytaleDeviceFlowStatusResponse } from './HytaleDeviceFlowStatusResponse';
 export type { IapOffer } from './IapOffer';
 export type { InputLevel } from './InputLevel';
+export type { InputLevelPush } from './InputLevelPush';
+export type { InternalEndpoint } from './InternalEndpoint';
 export type { IntrospectResponse } from './IntrospectResponse';
 export type { KeybindConfig } from './KeybindConfig';
 export type { Keypair } from './Keypair';
 export type { LanguagePack } from './LanguagePack';
 export type { LevelSnapshot } from './LevelSnapshot';
+export type { LevelsPush } from './LevelsPush';
 export type { LinkDiagnostics } from './LinkDiagnostics';
 export type { LinkDiagnosticsSnapshot } from './LinkDiagnosticsSnapshot';
 export type { LinkJavaIdentityRequest } from './LinkJavaIdentityRequest';
