@@ -31,7 +31,7 @@ An unset referenced variable is a hard startup error. The server stops instead o
 | `listen` | `::` | Bind address. The IPv6 wildcard also serves IPv4 peers. |
 | `port` | `443` | HTTP/REST and login. The public port. The API listener binds a loopback port behind the TLS demultiplexer. |
 | `quic_port` | `443` | UDP/QUIC voice transport. |
-| `advertised_quic_ports` | `[]` | Public UDP ports clients should try, in preference order. A non-empty list replaces `quic_port` as the published set. Empty means only `quic_port`. Use when a proxy fronts the server on a different port. |
+| `advertised_quic_ports` | `[443, 28280]` | Public UDP ports clients should try, in preference order. The list replaces `quic_port` as the published set; it does not extend it. Set it explicitly when a proxy fronts the server on a different port, or when `quic_port` is moved — the default does not follow the bind port. An explicitly empty list publishes `quic_port` alone. |
 | `assets_path` | `./assets` | Static asset directory served by the API. |
 
 The default `::` gives QUIC a dual-stack socket on every platform. On Linux this follows `net.ipv6.bindv6only`, which defaults to `0`.
@@ -95,7 +95,7 @@ Work in progress. The shape changes between releases. See [peering](/wiki/refere
 
 ```hcl
 server {
-    peer "partner-smp" {
+    peers "partner-smp" {
         peerlink     = "<base32 peer link>"
         worlds       = ["overworld"]
         capabilities = ["carry_speakers"]
@@ -142,11 +142,19 @@ An unrecognised value stops startup and names the value.
 
 | Key | Default | Description |
 |---|---|---|
-| `peer_relay_url` | — | The iroh relay peers reach this server through when no direct path exists. |
+| `peer_relay_url` | `https://relay.bedrockvoicechat.com` | The iroh relay peers reach this server through when no direct path exists. |
 
-Leave it unset when both servers share a host or a local network. Both reach each other at an address the peer link already carries.
+Set it to your own relay to keep peer traffic off the public one. Set it to an empty value where both servers share a host or a local network and reach each other at an address the peer link already carries.
 
 See [deploying a peer relay](/wiki/server/peer-relay/).
+
+## `server.peer_port`
+
+| Key | Default | Description |
+|---|---|---|
+| `peer_port` | `28284` | UDP port the peer endpoint binds. `0` requests an ephemeral port. |
+
+The peer link carries this port. An ephemeral port changes on every restart, which invalidates a link the far side has already been given, so the port is fixed by default. Open or forward it wherever peers reach this server directly.
 
 ## `server.cors`
 

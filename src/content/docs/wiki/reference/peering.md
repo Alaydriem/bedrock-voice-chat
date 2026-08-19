@@ -34,7 +34,7 @@ Restart both.
 
 ```hcl
 server {
-    peer "server-b" {
+    peers "server-b" {
         peerlink = "<the value server B printed>"
     }
 }
