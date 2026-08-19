@@ -64,11 +64,11 @@ msgstr ""
 msgid "A friend runs the server"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:338
+#: src/js/app/error/FaultCatalog.ts:369
 msgid "A new version (v{version}) of Bedrock Voice Chat is available. This will download and install the update immediately."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:266
+#: src/js/app/error/FaultCatalog.ts:297
 msgid "A new version of Bedrock Voice Chat is available. This will download and install the update immediately."
 msgstr ""
 
@@ -95,13 +95,17 @@ msgstr ""
 
 #: src/components/server/PreflightPanel.svelte:114
 #: src/js/app/error/FaultCatalog.ts:225
-#: src/js/app/error/FaultCatalog.ts:287
+#: src/js/app/error/FaultCatalog.ts:318
 #: src/js/app/settings/SettingsCatalogue.ts:28
 msgid "Account"
 msgstr ""
 
 #: src/components/login/SignInScreen.svelte:61
 msgid "Acquiring"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:257
+msgid "Action needed"
 msgstr ""
 
 #: src/components/dashboard/ChatTargetPicker.svelte:28
@@ -203,7 +207,7 @@ msgstr ""
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:301
+#: src/js/app/error/FaultCatalog.ts:332
 msgid "An unexpected error occurred. Please try again or contact support if the problem persists."
 msgstr ""
 
@@ -211,7 +215,7 @@ msgstr ""
 msgid "Android and iOS both require a notification to let an app hold the microphone in the background. Without it your voice cuts out the moment BVC leaves the screen — which is every moment you are actually playing."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:169
+#: src/components/settings/panes/AboutPane.svelte:214
 msgid "Anonymous usage statistics and crash reports help us improve the app. No personal data is sent."
 msgstr ""
 
@@ -265,7 +269,7 @@ msgstr ""
 msgid "Auto — mirror the backend"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:272
+#: src/js/app/error/FaultCatalog.ts:303
 msgid "Available now"
 msgstr ""
 
@@ -280,7 +284,7 @@ msgstr ""
 msgid "Back to Dashboard"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:310
+#: src/js/app/error/FaultCatalog.ts:341
 msgid "Back to Home"
 msgstr ""
 
@@ -342,7 +346,7 @@ msgstr ""
 msgid "Both can be changed later in settings. Talk for a moment and the mark beside this fills out as your voice passes the noise gate."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:120
+#: src/components/settings/panes/AboutPane.svelte:138
 msgid "Build"
 msgstr ""
 
@@ -366,8 +370,13 @@ msgstr ""
 msgid "can sign in again. They are issued a new certificate on their next sign-in; the revoked one stays revoked."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:308
+#: src/js/app/error/FaultCatalog.ts:339
 msgid "Can't continue"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:243
+#: src/js/app/error/FaultCatalog.ts:259
+msgid "Can't save"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:109
@@ -434,12 +443,12 @@ msgstr ""
 msgid "Chat is disabled on this server"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:113
+#: src/components/settings/panes/AboutPane.svelte:131
 #: src/components/settings/panes/ConnectPane.svelte:227
 msgid "Check again"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:219
+#: src/components/settings/panes/AboutPane.svelte:264
 msgid "Check for new features and entitlements"
 msgstr ""
 
@@ -447,7 +456,7 @@ msgstr ""
 msgid "Check the name, and that your server is online and running."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:107
+#: src/components/settings/panes/AboutPane.svelte:125
 msgid "Checking"
 msgstr ""
 
@@ -466,8 +475,10 @@ msgstr ""
 #: src/js/app/error/FaultCatalog.ts:215
 #: src/js/app/error/FaultCatalog.ts:231
 #: src/js/app/error/FaultCatalog.ts:246
-#: src/js/app/error/FaultCatalog.ts:261
+#: src/js/app/error/FaultCatalog.ts:262
+#: src/js/app/error/FaultCatalog.ts:277
 #: src/js/app/error/FaultCatalog.ts:292
+#: src/js/app/error/FaultCatalog.ts:323
 msgid "Choose Different Server"
 msgstr ""
 
@@ -544,7 +555,7 @@ msgstr ""
 msgid "Commands"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:128
+#: src/components/settings/panes/AboutPane.svelte:146
 msgid "Commit"
 msgstr ""
 
@@ -596,7 +607,7 @@ msgstr ""
 msgid "Connection type"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:259
+#: src/js/app/error/FaultCatalog.ts:290
 msgid "Contact your server operator."
 msgstr ""
 
@@ -625,7 +636,7 @@ msgstr ""
 msgid "Copy address"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:134
+#: src/components/settings/panes/AboutPane.svelte:152
 msgid "Copy commit"
 msgstr ""
 
@@ -641,7 +652,7 @@ msgstr ""
 msgid "Copy message →"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:186
+#: src/components/settings/panes/AboutPane.svelte:231
 msgid "Copy platform ID"
 msgstr ""
 
@@ -676,6 +687,14 @@ msgstr ""
 
 #: src/components/settings/panes/ManagePlayersPane.svelte:264
 msgid "Couldn't load the players"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:260
+msgid "Create a Login keyring, then sign in again"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:235
+msgid "Credentials Could Not Be Saved"
 msgstr ""
 
 #: src/components/settings/NoiseGate.svelte:64
@@ -738,7 +757,7 @@ msgstr ""
 msgid "Devices come next"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:165
+#: src/components/settings/panes/AboutPane.svelte:210
 msgid "Diagnostics and privacy"
 msgstr ""
 
@@ -754,7 +773,7 @@ msgstr ""
 msgid "Dismiss"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:146
+#: src/components/settings/panes/AboutPane.svelte:191
 msgid "Display language"
 msgstr ""
 
@@ -875,7 +894,7 @@ msgstr ""
 msgid "Finish setup"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:203
+#: src/components/settings/panes/AboutPane.svelte:248
 msgid "For a bug report. Written to your Documents folder."
 msgstr ""
 
@@ -956,7 +975,7 @@ msgstr ""
 msgid "History starts when you connect — nothing is stored"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:294
+#: src/js/app/error/FaultCatalog.ts:325
 msgid "How do I unlock this?"
 msgstr ""
 
@@ -989,7 +1008,7 @@ msgid "I'm just looking"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:210
-#: src/js/app/error/FaultCatalog.ts:241
+#: src/js/app/error/FaultCatalog.ts:272
 msgid "Identity"
 msgstr ""
 
@@ -1038,7 +1057,7 @@ msgstr ""
 msgid "Input device"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:110
+#: src/components/settings/panes/AboutPane.svelte:128
 msgid "Install"
 msgstr ""
 
@@ -1095,7 +1114,7 @@ msgstr ""
 msgid "Keybinds"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:143
+#: src/components/settings/panes/AboutPane.svelte:188
 msgid "Language"
 msgstr ""
 
@@ -1144,7 +1163,7 @@ msgstr ""
 msgid "Live"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:290
+#: src/js/app/error/FaultCatalog.ts:321
 msgid "Locked"
 msgstr ""
 
@@ -1178,7 +1197,7 @@ msgstr ""
 msgid "Manage Players"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:155
+#: src/components/settings/panes/AboutPane.svelte:200
 msgid "Match my system"
 msgstr ""
 
@@ -1252,7 +1271,7 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:289
+#: src/js/app/error/FaultCatalog.ts:320
 msgid "NEEDS UNLOCKING"
 msgstr ""
 
@@ -1260,7 +1279,7 @@ msgstr ""
 msgid "New group"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:271
+#: src/js/app/error/FaultCatalog.ts:302
 msgid "New version"
 msgstr ""
 
@@ -1295,6 +1314,14 @@ msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:101
 msgid "No Input Device Found"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:258
+msgid "NO KEYRING"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:250
+msgid "No Keyring Available"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:102
@@ -1381,7 +1408,7 @@ msgstr ""
 #: src/js/app/error/FaultCatalog.ts:167
 #: src/js/app/error/FaultCatalog.ts:182
 #: src/js/app/error/FaultCatalog.ts:197
-#: src/js/app/error/FaultCatalog.ts:258
+#: src/js/app/error/FaultCatalog.ts:289
 msgid "Not connected"
 msgstr ""
 
@@ -1407,6 +1434,10 @@ msgstr ""
 msgid "NOT REGISTERED"
 msgstr ""
 
+#: src/js/app/error/FaultCatalog.ts:242
+msgid "NOT SAVED"
+msgstr ""
+
 #: src/js/app/managers/settings/KeybindsManager.ts:130
 msgid "Not set"
 msgstr ""
@@ -1416,7 +1447,7 @@ msgid "NOT VERIFIED"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:226
-#: src/js/app/error/FaultCatalog.ts:288
+#: src/js/app/error/FaultCatalog.ts:319
 msgid "Not yet"
 msgstr ""
 
@@ -1440,7 +1471,7 @@ msgstr ""
 msgid "Nothing is recorded or sent anywhere until you are in a voice session, and the noise gate keeps silence off the wire entirely."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:291
+#: src/js/app/error/FaultCatalog.ts:322
 msgid "Nothing is wrong with your setup"
 msgstr ""
 
@@ -1603,7 +1634,7 @@ msgstr ""
 msgid "Places each voice where it was standing and writes every track in stereo. Off writes each track flat and centred, straight from the recording with nothing re-encoded."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:181
+#: src/components/settings/panes/AboutPane.svelte:226
 msgid "Platform ID"
 msgstr ""
 
@@ -1690,7 +1721,7 @@ msgid "Profile and sign-out"
 msgstr ""
 
 #: src/components/server/PreflightPanel.svelte:141
-#: src/components/settings/panes/AboutPane.svelte:124
+#: src/components/settings/panes/AboutPane.svelte:142
 #: src/js/app/dashboard/DiagnosticsCopy.ts:41
 msgid "Protocol"
 msgstr ""
@@ -1699,7 +1730,7 @@ msgstr ""
 msgid "Proximity range"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:101
+#: src/components/settings/panes/AboutPane.svelte:119
 msgid "Proximity voice for Minecraft Bedrock. Source available."
 msgstr ""
 
@@ -1737,11 +1768,11 @@ msgstr ""
 msgid "Ready"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:273
+#: src/js/app/error/FaultCatalog.ts:304
 msgid "READY"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:274
+#: src/js/app/error/FaultCatalog.ts:305
 msgid "Ready to install"
 msgstr ""
 
@@ -1802,8 +1833,8 @@ msgstr ""
 msgid "Recordings"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:194
-#: src/components/settings/panes/AboutPane.svelte:230
+#: src/components/settings/panes/AboutPane.svelte:239
+#: src/components/settings/panes/AboutPane.svelte:275
 msgid "Refresh"
 msgstr ""
 
@@ -1815,7 +1846,7 @@ msgstr ""
 msgid "Regenerate"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:126
+#: src/components/settings/panes/AboutPane.svelte:144
 msgid "Release"
 msgstr ""
 
@@ -1923,7 +1954,7 @@ msgstr ""
 msgid "Save"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:202
+#: src/components/settings/panes/AboutPane.svelte:247
 msgid "Save the logs to a file"
 msgstr ""
 
@@ -1939,6 +1970,11 @@ msgstr ""
 msgid "Search sounds"
 msgstr ""
 
+#: src/js/app/error/FaultCatalog.ts:241
+#: src/js/app/error/FaultCatalog.ts:256
+msgid "Secure storage"
+msgstr ""
+
 #: src/components/server/ServerListScreen.svelte:58
 msgid "Select a server"
 msgstr ""
@@ -1947,8 +1983,8 @@ msgstr ""
 msgid "Send"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:168
-#: src/components/settings/panes/AboutPane.svelte:174
+#: src/components/settings/panes/AboutPane.svelte:213
+#: src/components/settings/panes/AboutPane.svelte:219
 msgid "Send anonymous usage and crash reports"
 msgstr ""
 
@@ -1966,7 +2002,7 @@ msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:40
 #: src/js/app/error/FaultCatalog.ts:151
-#: src/js/app/error/FaultCatalog.ts:256
+#: src/js/app/error/FaultCatalog.ts:287
 #: src/js/app/settings/SettingsCatalogue.ts:39
 msgid "Server"
 msgstr ""
@@ -1976,11 +2012,11 @@ msgstr ""
 msgid "Server address"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:250
+#: src/js/app/error/FaultCatalog.ts:281
 msgid "Server Certificate Misconfigured"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:235
+#: src/js/app/error/FaultCatalog.ts:266
 msgid "Server Certificate Rejected"
 msgstr ""
 
@@ -2066,7 +2102,7 @@ msgid "Sign in →"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:214
-#: src/js/app/error/FaultCatalog.ts:245
+#: src/js/app/error/FaultCatalog.ts:276
 msgid "Sign In Again"
 msgstr ""
 
@@ -2104,7 +2140,7 @@ msgstr ""
 msgid "SIGNED IN WITH XBOX LIVE"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:243
+#: src/js/app/error/FaultCatalog.ts:274
 msgid "Signed out"
 msgstr ""
 
@@ -2129,7 +2165,7 @@ msgstr ""
 msgid "Someone already set it up"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:300
+#: src/js/app/error/FaultCatalog.ts:331
 msgid "Something Went Wrong"
 msgstr ""
 
@@ -2166,7 +2202,7 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:277
+#: src/js/app/error/FaultCatalog.ts:308
 msgid "Stay on This Version"
 msgstr ""
 
@@ -2204,11 +2240,11 @@ msgstr ""
 msgid "System default"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:309
+#: src/js/app/error/FaultCatalog.ts:340
 msgid "Take a screenshot of this page and report a issue in Discord"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:275
+#: src/js/app/error/FaultCatalog.ts:306
 msgid "Takes about a minute on a normal connection"
 msgstr ""
 
@@ -2329,11 +2365,11 @@ msgstr ""
 msgid "This server has not granted you account access. Join the Minecraft server in-game at least once so it can register you, or ask the server operator to add you."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:236
+#: src/js/app/error/FaultCatalog.ts:267
 msgid "This server's security certificate does not match the one this device was issued. Your saved sign-in for it has been removed. Sign in again to get fresh credentials. If it keeps happening, the server operator needs to fix their certificate configuration."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:282
+#: src/js/app/error/FaultCatalog.ts:313
 msgid "To use Bedrock Voice Chat, a parent or guardian needs to turn it on for your device. Ask them to help you unlock it -- then you're good to go!"
 msgstr ""
 
@@ -2367,7 +2403,9 @@ msgstr ""
 #: src/js/app/error/FaultCatalog.ts:184
 #: src/js/app/error/FaultCatalog.ts:199
 #: src/js/app/error/FaultCatalog.ts:230
-#: src/js/app/error/FaultCatalog.ts:260
+#: src/js/app/error/FaultCatalog.ts:245
+#: src/js/app/error/FaultCatalog.ts:261
+#: src/js/app/error/FaultCatalog.ts:291
 #: src/js/app/error/FaultCatalog.ts:79
 msgid "Try Again"
 msgstr ""
@@ -2401,15 +2439,15 @@ msgstr ""
 msgid "Unban this player?"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:307
+#: src/js/app/error/FaultCatalog.ts:338
 msgid "UNEXPECTED"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:183
+#: src/components/settings/panes/AboutPane.svelte:228
 msgid "Uniquely identifies your build for experimental features + analytics."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:306
+#: src/js/app/error/FaultCatalog.ts:337
 msgid "Unknown"
 msgstr ""
 
@@ -2429,12 +2467,12 @@ msgstr ""
 msgid "UNRESOLVED"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:242
-#: src/js/app/error/FaultCatalog.ts:257
+#: src/js/app/error/FaultCatalog.ts:273
+#: src/js/app/error/FaultCatalog.ts:288
 msgid "UNTRUSTED"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:265
+#: src/js/app/error/FaultCatalog.ts:296
 msgid "Update Available"
 msgstr ""
 
@@ -2442,7 +2480,7 @@ msgstr ""
 msgid "Update Bedrock Voice Chat to the latest version"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:276
+#: src/js/app/error/FaultCatalog.ts:307
 msgid "Update Now"
 msgstr ""
 
@@ -2462,7 +2500,7 @@ msgstr ""
 msgid "Uploaded sounds can be played on a Jukeboxes"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:342
+#: src/js/app/error/FaultCatalog.ts:373
 msgid "v{version}"
 msgstr ""
 
@@ -2470,7 +2508,7 @@ msgstr ""
 msgid "Verifying the signature…"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:122
+#: src/components/settings/panes/AboutPane.svelte:140
 msgid "Version"
 msgstr ""
 
@@ -2569,7 +2607,7 @@ msgstr ""
 msgid "We couldn't reach"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:281
+#: src/js/app/error/FaultCatalog.ts:312
 msgid "We need a grown-ups help to get started"
 msgstr ""
 
@@ -2628,7 +2666,7 @@ msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:64
 #: src/components/login/NoServerScreen.svelte:92
-#: src/components/settings/panes/AboutPane.svelte:246
+#: src/components/settings/panes/AboutPane.svelte:291
 #: src/routes/error/+page.svelte:165
 #: src/routes/uireview/+page.svelte:386
 msgid "Wiki"
@@ -2678,7 +2716,7 @@ msgstr ""
 msgid "You don't have permission to access this server"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:244
+#: src/js/app/error/FaultCatalog.ts:275
 msgid "You don't have permission to access this server."
 msgstr ""
 
@@ -2691,6 +2729,14 @@ msgstr ""
 #: src/js/app/settings/ManagePlayersView.ts:206
 #: src/js/app/settings/ManagePlayersView.ts:219
 msgid "You no longer hold the admin permission."
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:236
+msgid "You signed in, but this device could not save your credentials to its secure storage, so the sign-in could not be completed. This is usually temporary. Try again, and if it keeps happening, restart your device."
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:251
+msgid "You signed in, but this device has no unlocked keyring to store your credentials in, so the sign-in could not be completed. On Linux, open Passwords and Keys, create a password keyring named Login, and set it as the default. If your system signs you in automatically, turning that off and signing in with your password will create the keyring for you."
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:271
@@ -2711,6 +2757,10 @@ msgstr ""
 
 #: src/components/settings/XboxSignIn.svelte:51
 msgid "Your code"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:244
+msgid "Your device's secure storage rejected the write"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:85
@@ -2757,7 +2807,7 @@ msgstr ""
 msgid "Your server operator needs to update BVC"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:251
+#: src/js/app/error/FaultCatalog.ts:282
 msgid "Your sign-in for this server is still valid, but its voice connection presented a certificate this device cannot verify. Only the server operator can fix this. Your saved sign-in has been kept."
 msgstr ""
 

@@ -1,6 +1,7 @@
 mod analytics;
 mod api;
 mod audio;
+mod auth;
 #[cfg(feature = "bedrock-protocol")]
 mod bedrock;
 mod chat;

@@ -37,6 +37,7 @@ pub(crate) async fn server_login(
         let mut kr = keyring.lock().await;
         if let Err(e) = kr.store_credentials(&server, response) {
             log::error!("Failed to store credentials in keyring: {}", e);
+            return Err(e.to_string());
         }
     }
 
@@ -82,6 +83,7 @@ pub(crate) async fn code_login(
     let mut kr = keyring.lock().await;
     if let Err(e) = kr.store_credentials(&server, &login_result) {
         log::error!("Failed to store credentials in keyring: {}", e);
+        return Err(e.to_string());
     }
 
     Ok(login_result)
@@ -120,6 +122,7 @@ pub(crate) async fn poll_hytale_status(
                 let mut kr = keyring.lock().await;
                 if let Err(e) = kr.store_credentials(&server, login_response) {
                     log::error!("Failed to store credentials in keyring: {}", e);
+                    return Err(false);
                 }
             }
         }

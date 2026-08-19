@@ -50,7 +50,7 @@ impl AuthClient {
             HeaderValue::from_str(&general_purpose::STANDARD.encode(kp.get_public_key())).unwrap(),
         );
 
-        let endpoint = format!("{}/{}", &server, super::ncryptf_client::AUTH_ENDPOINT);
+        let endpoint = super::ServerEndpoint::join(&server, super::ncryptf_client::AUTH_ENDPOINT);
         let client = NcryptfClient::get_reqwest_client();
 
         match client
@@ -142,7 +142,7 @@ impl AuthClient {
             HeaderValue::from_str(&general_purpose::STANDARD.encode(kp.get_public_key())).unwrap(),
         );
 
-        let endpoint = format!("{}/{}", &server, Self::CODE_AUTH_ENDPOINT);
+        let endpoint = super::ServerEndpoint::join(&server, Self::CODE_AUTH_ENDPOINT);
         let client = NcryptfClient::get_reqwest_client();
 
         match client

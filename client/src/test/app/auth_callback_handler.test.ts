@@ -190,3 +190,75 @@ describe("exchanging an authorization code", () => {
     expect(spent.set).toHaveBeenCalledWith("login_error", expect.any(String));
   });
 });
+
+/**
+ * The sign-in succeeded and the credentials could not be persisted. Retrying cannot help until
+ * the device's secure storage is fixed, so it is a terminal screen with the remedy rather than an
+ * inline warning on the login form.
+ *
+ * The Rust command prefixes the fault code, so the webview classifies on a code this app owns
+ * rather than on a platform message it does not control.
+ */
+describe("a credential write that failed", () => {
+  let replaced: string[];
+
+  beforeEach(() => {
+    window.history.replaceState({}, "", "/login");
+    replaced = [];
+    vi.spyOn(window.location, "replace").mockImplementation((url: string | URL) => {
+      replaced.push(String(url));
+    });
+  });
+
+  function failingWith(message: string) {
+    mockInvoke({
+      server_login: () => {
+        throw new Error(message);
+      },
+    });
+  }
+
+  it("sends an unusable keyring to the keyring fault screen", async () => {
+    failingWith(
+      "AUTH04: Failed to set keyring password for gamerpic: Platform error: Couldn't access platform storage: Secret Service: no result found",
+    );
+
+    await new AuthCallbackHandler(store() as never).handle(callback("CODE_K1"));
+
+    expect(replaced).toContain("/error?code=AUTH04");
+  });
+
+  it("sends any other storage failure to the generic storage fault screen", async () => {
+    failingWith(
+      "AUTH03: Failed to set keyring password for gamerpic: Platform error: no space left on device",
+    );
+
+    await new AuthCallbackHandler(store() as never).handle(callback("CODE_K2"));
+
+    expect(replaced).toContain("/error?code=AUTH03");
+  });
+
+  /**
+   * A platform message can contain "denied". Reaching the 403 branch it would tell someone to
+   * join the Minecraft server in-game to fix their keyring, so the storage branch has to be
+   * tested before it.
+   */
+  it("does not mistake a storage message containing 'denied' for an access denial", async () => {
+    failingWith("AUTH03: Platform error: access is denied");
+
+    await new AuthCallbackHandler(store() as never).handle(callback("CODE_K3"));
+
+    expect(replaced).toContain("/error?code=AUTH03");
+    expect(replaced).not.toContain("/error?code=AUTH02");
+  });
+
+  // The single-use code must not be left looking replayable on a launch that follows.
+  it("clears the pending callback", async () => {
+    failingWith("AUTH04: Secret Service: no result found");
+    const shared = store();
+
+    await new AuthCallbackHandler(shared as never).handle(callback("CODE_K4"));
+
+    expect(shared.delete).toHaveBeenCalledWith("pending_deep_link");
+  });
+});

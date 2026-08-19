@@ -123,7 +123,14 @@ export class AuthCallbackHandler {
         } catch (e) {
             logError(`AuthCallbackHandler: Login failed: ${e}`);
             const errorStr = String(e).toLowerCase();
-            if (errorStr.includes("403") || errorStr.includes("forbidden") || errorStr.includes("denied") || errorStr.includes("banned") || errorStr.includes("whitelist")) {
+            // Ahead of the 403 chain: a platform storage message can contain "denied", and
+            // classified as an access denial it would tell someone to join the Minecraft server
+            // in-game to fix their keyring.
+            if (errorStr.includes("auth04")) {
+                await this.failStorage("AUTH04");
+            } else if (errorStr.includes("auth03")) {
+                await this.failStorage("AUTH03");
+            } else if (errorStr.includes("403") || errorStr.includes("forbidden") || errorStr.includes("denied") || errorStr.includes("banned") || errorStr.includes("whitelist")) {
                 await this.denyLogin();
             } else if (errorStr.includes("401")) {
                 // The sign-in did not complete. Sending someone to check their server URL
@@ -261,6 +268,21 @@ export class AuthCallbackHandler {
             logError(`AuthCallbackHandler: Failed to clear pending deep link: ${e}`);
         }
         window.location.replace("/error?code=AUTH02");
+    }
+
+    /**
+     * The sign-in succeeded and the credentials could not be persisted. Not recoverable by
+     * retrying until the device's secure storage is fixed, so it gets a hard error page with
+     * the remedy rather than an inline login-form warning.
+     */
+    private async failStorage(code: string): Promise<void> {
+        try {
+            await this.store.delete(this.PENDING_KEY);
+            await this.store.save();
+        } catch (e) {
+            logError(`AuthCallbackHandler: Failed to clear pending deep link: ${e}`);
+        }
+        window.location.replace(`/error?code=${code}`);
     }
 
     /**

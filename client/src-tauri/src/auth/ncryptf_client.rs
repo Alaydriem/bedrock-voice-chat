@@ -4,15 +4,15 @@ use std::time::Duration;
 use tauri_plugin_http::reqwest;
 
 #[allow(unused)]
-pub const CONFIG_ENDPOINT: &'static str = "/api/config";
-pub const AUTH_ENDPOINT: &'static str = "/api/auth/minecraft";
-pub const NCRYPTF_EK_ENDPOINT: &'static str = "/ncryptf/ek";
+pub const CONFIG_ENDPOINT: &'static str = "api/config";
+pub const AUTH_ENDPOINT: &'static str = "api/auth/minecraft";
+pub const NCRYPTF_EK_ENDPOINT: &'static str = "ncryptf/ek";
 
 pub struct NcryptfClient;
 
 impl NcryptfClient {
     pub(crate) async fn get_ek(server: String) -> Result<ExportableEncryptionKeyData, anyhow::Error> {
-        let endpoint = format!("{}/{}", server, NCRYPTF_EK_ENDPOINT);
+        let endpoint = super::ServerEndpoint::join(&server, NCRYPTF_EK_ENDPOINT);
 
         let client = Self::get_reqwest_client();
         let ek: ExportableEncryptionKeyData = client

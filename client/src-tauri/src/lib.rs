@@ -29,6 +29,9 @@ pub use api::FetchCache;
 pub mod app_builder;
 pub mod audio;
 mod auth;
+// Re-exported for the integration test crate (a separate crate root that can only reach
+// `pub` items) to cover how a server URL and an API path are joined.
+pub use auth::ServerEndpoint;
 #[cfg(feature = "bedrock-protocol")]
 pub mod bedrock;
 pub mod chat;
@@ -57,7 +60,7 @@ pub mod keybinds;
 mod keyring;
 // Re-exported for the integration test crate (a separate crate root that can only reach
 // `pub` items) to cover how a platform keystore failure is classified.
-pub use keyring::{KeyringFault, KeyringFaultKind};
+pub use keyring::{CredentialWriteSet, KeyringFault, KeyringFaultKind};
 mod logging;
 // Public for the one behavioural seam the integration tests need: `TransportVerdict`,
 // whose contract is that a demotion outlives the reconnect that produced it. That cannot
