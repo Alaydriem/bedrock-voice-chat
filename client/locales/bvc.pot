@@ -1569,7 +1569,7 @@ msgstr ""
 msgid "Privacy Notice"
 msgstr ""
 
-#: src/components/dashboard/SelfControls.svelte:71
+#: src/components/dashboard/SelfControls.svelte:76
 msgid "Profile and sign-out"
 msgstr ""
 
@@ -1674,7 +1674,7 @@ msgstr ""
 msgid "Recorded"
 msgstr ""
 
-#: src/components/dashboard/SelfControls.svelte:72
+#: src/components/dashboard/SelfControls.svelte:77
 msgid "Recording is off on this server"
 msgstr ""
 

@@ -35,6 +35,12 @@
      * same reason as `identityLabel`.
      */
     captureBlockedLabel?: string;
+    /**
+     * Whether this platform records at all. Unlike `recordAllowed`, which is a server
+     * answer worth showing as a disabled control, a platform that cannot record has no
+     * question for the reader to act on, so the button is absent rather than dimmed.
+     */
+    showRecord?: boolean;
     /** Renders the phone capsule instead of the desktop pill. */
     capsule?: boolean;
   }
@@ -54,6 +60,7 @@
     identityLabel = "Profile and sign-out",
     recordBlockedLabel = "Recording is off on this server",
     captureBlockedLabel = "Your microphone could not be opened",
+    showRecord = true,
     capsule = false,
   }: Props = $props();
 
@@ -123,7 +130,7 @@
     <Icon name={state.deafened ? "headoff" : "head"} />
   </button>
 
-  {#if !capsule}
+  {#if !capsule && showRecord}
     <!-- Disabled rather than absent: a creator should be able to see that the feature
          exists and that this server is why it is not available. -->
     <button

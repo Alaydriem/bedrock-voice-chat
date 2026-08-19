@@ -5,6 +5,7 @@
     import type { SelfSnapshot } from "$radial/core/controllers/SelfState";
     import type { LevelSource } from "$radial/core/sources/LevelSource";
     import type { SelfController } from "../../js/app/dashboard/SelfController";
+    import PlatformDetector from "../../js/app/utils/PlatformDetector";
 
     interface Props {
         controller: SelfController;
@@ -37,6 +38,10 @@
     }: Props = $props();
 
     const source: LevelSource = $derived(controller.micSource);
+
+    // Recording is a desktop control. Read synchronously rather than awaited, so the button
+    // is never rendered for a frame on a platform that does not offer it.
+    const desktop = !new PlatformDetector().mobile();
 
     /**
      * The elapsed timer, ticked here rather than by the controller.
@@ -75,6 +80,7 @@
     {source}
     {groupName}
     {recordTime}
+    showRecord={desktop}
     {capsule}
     {onmute}
     {ondeafen}

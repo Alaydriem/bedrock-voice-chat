@@ -19,7 +19,7 @@ function snapshot(mode: VoiceMode, over: Partial<SelfSnapshot> = {}): SelfSnapsh
     };
 }
 
-function mount(state: SelfSnapshot) {
+function mount(state: SelfSnapshot, over: Record<string, unknown> = {}) {
     const host = document.createElement("div");
     document.body.append(host);
     const onmute = vi.fn();
@@ -27,7 +27,7 @@ function mount(state: SelfSnapshot) {
     const onrecord = vi.fn();
     render(SelfPill as never, {
         target: host,
-        props: { name: "Alaydriem", state, onmute, onhold, onrecord },
+        props: { name: "Alaydriem", state, onmute, onhold, onrecord, ...over },
     } as never);
     // By class, not by label: the label is one of the things under test, and finding the
     // control by the string it is asserted to have makes the assertion circular.
@@ -159,6 +159,25 @@ describe("SelfPill record button", () => {
         record.click();
 
         expect(onrecord).not.toHaveBeenCalled();
+    });
+
+    // Absent rather than disabled, which is the opposite of the rule above it. A server that
+    // disallows recording is a setting the reader can go and change; a platform that does not
+    // record is not, so a dimmed control here would send them looking for a switch that does
+    // not exist.
+    it("omits the record button where the platform does not record", () => {
+        const { host } = mount(snapshot("activated", { recordAllowed: true }), {
+            showRecord: false,
+        });
+
+        expect(host.querySelector(".rad-self__btn--record")).toBeNull();
+    });
+
+    it("keeps the mic and deafen controls when the record button is omitted", () => {
+        const { host, mic } = mount(snapshot("activated"), { showRecord: false });
+
+        expect(mic).not.toBeNull();
+        expect(host.querySelector(".rad-self__btn--deafen")).not.toBeNull();
     });
 });
 

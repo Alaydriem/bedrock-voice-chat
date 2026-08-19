@@ -444,6 +444,46 @@
   color: var(--color-rad-faint);
 }
 
+/* On a phone the six controls on this row share the width of one card, and the name is the
+   only one of them that can give: it ellipsised down to a few characters while the slider
+   kept a full track. Two rows instead — who they are across the top, how loud they are
+   across the bottom. Forget stays with the name, because it is what to do with the player
+   rather than with their volume. */
+@container rad (max-width: 560px) {
+  .rad-recent-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 8px;
+    padding: 12px 0;
+  }
+
+  .rad-recent-row__id {
+    grid-area: 1 / 1;
+  }
+
+  .rad-recent-row__text {
+    grid-area: 1 / 2;
+  }
+
+  .rad-recent-row > .rad-icon-btn {
+    grid-area: 1 / 3;
+    justify-self: end;
+  }
+
+  .rad-recent-row > .rad-player__mute {
+    grid-area: 2 / 1;
+  }
+
+  .rad-recent-row > .rad-range {
+    grid-area: 2 / 2;
+  }
+
+  .rad-recent-row > .rad-player__percent {
+    grid-area: 2 / 3;
+  }
+}
+
 /* ---- a group row's members ----
  * Who is in there, rather than how loud it is. A channel's audio reaches its members and
  * nobody else, so a client outside one has nothing to measure — the faces are the honest
@@ -1426,6 +1466,21 @@
 .rad-status__read {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* The scope is a fixed 292px column and the readout beside it carries whole sentences, so the
+   two stop fitting well above the phone breakpoint. A tablet sits in that gap: wide enough for
+   the desktop branch of every other rule, too narrow for this panel side by side. Stacking is
+   width-driven rather than platform-driven because a small desktop window has the same gap. */
+@container rad (max-width: 1024px) {
+  .rad-status__body {
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .rad-status__scope {
+    flex: 0 0 auto;
+  }
 }
 
 @container rad (max-width: 560px) {

@@ -27,7 +27,7 @@
     "test:watch": "vitest",
     "bindings:index": "node scripts/generate-bindings-index.mjs",
     "bindings:check": "node scripts/generate-bindings-index.mjs && git diff --exit-code --quiet src/js/bindings/index.ts",
-    "tauri:ios:init": "tauri ios init && cp src-tauri/Info.ios.plist src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Info.plist && cp -R src-tauri/icons/Assets.xcassets src-tauri/gen/apple/ && node ../.github/scripts/patch-apple-plists.js && node ../.github/scripts/patch-entitlements.js",
+    "tauri:ios:init": "tauri ios init && cp src-tauri/Info.ios.plist src-tauri/gen/apple/bedrock-voice-chat-client_iOS/Info.plist && rm -rf src-tauri/gen/apple/Assets.xcassets && cp -R src-tauri/icons/Assets.xcassets src-tauri/gen/apple/ && node ../.github/scripts/patch-apple-plists.js && node ../.github/scripts/patch-entitlements.js",
     "asyncapi-docs": "cargo run --manifest-path ../common/websocket-types/Cargo.toml --bin generate-asyncapi-docs"
   },
   "license": "UNLICENSED",
