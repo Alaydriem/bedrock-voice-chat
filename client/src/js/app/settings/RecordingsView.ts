@@ -49,10 +49,13 @@ export class RecordingsView {
         return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`;
     }
 
-    /** Megabytes until a gigabyte. */
+    /** Bytes, then kilobytes, then megabytes until a gigabyte. */
     static size(bytes: number): string {
-        if (!Number.isFinite(bytes) || bytes <= 0) return "0 MB";
-        const mb = bytes / (1024 * 1024);
+        if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
+        if (bytes < 1024) return `${Math.round(bytes)} B`;
+        const kb = bytes / 1024;
+        if (kb < 1024) return `${Math.round(kb)} KB`;
+        const mb = kb / 1024;
         return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`;
     }
 

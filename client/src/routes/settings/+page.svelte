@@ -28,7 +28,7 @@
 
     $effect(() => {
         const asked = page.url.hash.replace(/^#/, "");
-        pane = SettingsCatalogue.find(asked, false)?.id ?? SettingsCatalogue.fallback;
+        pane = SettingsCatalogue.resolve(asked, false)?.id ?? SettingsCatalogue.fallback;
     });
 </script>
 

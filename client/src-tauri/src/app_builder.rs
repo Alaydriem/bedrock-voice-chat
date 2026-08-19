@@ -47,6 +47,10 @@ impl AppBuilder {
             .unwrap_or_default();
         app.manage(crate::i18n::LocalizationService::new(resource_dir));
 
+        // THROWAWAY. Delete with `crate::spike`.
+        app.manage(crate::spike::LoopbackProbe::new_shared());
+        app.manage(crate::spike::PushProtocol::new_shared());
+
         // This is our audio producer and consumer
         // The producer is responsible for getting audio from the raw input device, then sending it to the consumer
         // The consumer lives in the networking thread, consumes the audio, then sends it to the server

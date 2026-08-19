@@ -123,6 +123,14 @@
   gap: 12px;
 }
 
+/* Stacked, the column share no longer describes anything — as a flex-basis it becomes a
+   height — and flex-end holds the control against the right edge under a left-aligned
+   label. The same reset the narrow container makes, for the same reason. */
+.rad-row--stack > .rad-row__control {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+}
+
 /* ---- an identifier, in full ----
  * The platform id, on the About pane and on every fault screen. It wraps rather than
  * clips: the whole value is what support asks for, and two thirds of a uuid identifies

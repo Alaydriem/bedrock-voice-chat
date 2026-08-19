@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DiagnosticsView } from "../../../js/app/dashboard/DiagnosticsView";
 import type { VoiceDiagnostics } from "../../../js/app/dashboard/SelfController";
 import type { MicActivity } from "../../../js/app/dashboard/PlayerLevelSources";
+import type { MeterProbeSnapshot } from "../../../radial/core/canvas/MeterProbe";
 import type { VoiceRuntimeState } from "../../../js/bindings/VoiceRuntimeState";
 
 /**
@@ -31,6 +32,26 @@ function mic(over: Partial<MicActivity> = {}): MicActivity {
         eventsPerSecond: 10,
         lastRms: 0.041,
         silentForMs: 90,
+        ownListeners: 1,
+        sinkHeld: true,
+        ...over,
+    };
+}
+
+/**
+ * The meter ledger, defaulted for the same reason as `backend()` — and one binding by default,
+ * because a case that says nothing about how many canvases share the name is not asking about
+ * that.
+ */
+function meter(over: Partial<MeterProbeSnapshot> = {}): MeterProbeSnapshot {
+    return {
+        mounted: true,
+        bindings: 1,
+        levels: 400,
+        lastLevel: 0.62,
+        levelAgeMs: 300,
+        paints: 900,
+        paintAgeMs: 40,
         ...over,
     };
 }
@@ -209,7 +230,7 @@ describe("the capture stream row", () => {
             mic: mic({ attached: false, events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }),
         });
         const said = row(detached, "Capture stream", undefined, 50);
-        expect(said).toContain("failed to register");
+        expect(said).toContain("no registration");
         expect(said).not.toContain("not running");
     });
 });
@@ -235,50 +256,29 @@ describe("the self meter row", () => {
 
     it("says the pill is not mounted rather than inventing a state", () => {
         expect(
-            meterRow({ mounted: false, levels: 0, lastLevel: 0, levelAgeMs: null, paints: 0, paintAgeMs: null }),
+            meterRow(meter({ mounted: false, levels: 0, lastLevel: 0, levelAgeMs: null, paints: 0, paintAgeMs: null })),
         ).toContain("not mounted");
     });
 
     it("reports a mounted meter that nothing has pushed to", () => {
         expect(
-            meterRow({ mounted: true, levels: 0, lastLevel: 0, levelAgeMs: null, paints: 0, paintAgeMs: null }),
+            meterRow(meter({ levels: 0, lastLevel: 0, levelAgeMs: null, paints: 0, paintAgeMs: null })),
         ).toContain("no levels");
     });
 
     it("blames the renderer when levels arrived and nothing was ever painted", () => {
-        const said = meterRow({
-            mounted: true,
-            levels: 40,
-            lastLevel: 0.5,
-            levelAgeMs: 300,
-            paints: 0,
-            paintAgeMs: null,
-        });
+        const said = meterRow(meter({ levels: 40, lastLevel: 0.5, paints: 0, paintAgeMs: null }));
         expect(said).toContain("none were painted");
         expect(said).toContain("renderer");
     });
 
     it("blames the renderer when painting stopped while levels keep arriving", () => {
-        const said = meterRow({
-            mounted: true,
-            levels: 400,
-            lastLevel: 0.5,
-            levelAgeMs: 300,
-            paints: 90,
-            paintAgeMs: 9000,
-        });
+        const said = meterRow(meter({ lastLevel: 0.5, paints: 90, paintAgeMs: 9000 }));
         expect(said).toContain("stopped painting");
     });
 
     it("reports a painting meter with its level", () => {
-        const said = meterRow({
-            mounted: true,
-            levels: 400,
-            lastLevel: 0.62,
-            levelAgeMs: 300,
-            paints: 900,
-            paintAgeMs: 40,
-        });
+        const said = meterRow(meter());
         expect(said).toContain("painting");
         expect(said).toContain("0.62");
     });
@@ -299,5 +299,202 @@ describe("the voice group before it can report", () => {
         });
         expect(failed.rows[0]?.[1]).toContain("could not read");
         expect(failed.rows[0]?.[1]).toContain("command not found");
+    });
+});
+
+/**
+ * The copy button produces the text a support conversation is answered from, and it is
+ * rendered in the backend — so it ends at the bridge. It could say three level messages a
+ * second were sent and nothing about whether this window received or drew any of them, which
+ * are the two layers that have failed on their own. A reader given that report is sent back to
+ * the microphone, which is the one part that was working.
+ */
+describe("the window section of the copied report", () => {
+    const painting = meter();
+
+    it("carries the two rows the backend cannot see", () => {
+        const said = DiagnosticsView.windowSection(voice(), 50, painting);
+        expect(said).toContain("Capture stream");
+        expect(said).toContain("Self meter");
+    });
+
+    /**
+     * One measurement, one wording. A second renderer for the copied text is a second thing
+     * to keep in step, and the report is read precisely when nobody can see the screen it is
+     * supposed to agree with.
+     */
+    it("says exactly what the rows on screen say", () => {
+        const v = voice({ mic: mic({ events: 300, lastRms: 0.02, silentForMs: 4200 }) });
+        const said = DiagnosticsView.windowSection(v, 50, painting);
+        const onScreen = DiagnosticsView.voiceGroup(v, undefined, 50, painting).rows;
+
+        for (const label of ["Capture stream", "Self meter"]) {
+            const shown = onScreen.find(([name]) => name === label)?.[1] ?? "";
+            expect(shown).not.toBe("");
+            expect(said).toContain(shown);
+        }
+    });
+
+    /**
+     * The meter ledger is kept in this window and owes nothing to the backend probe, so a
+     * probe that has not answered yet must not take the one row that can still be measured
+     * down with it.
+     */
+    it("still reports the meter when the backend has not been read", () => {
+        const said = DiagnosticsView.windowSection(
+            null,
+            null,
+            meter({ lastLevel: 0.5, paints: 90, paintAgeMs: 9000 }),
+        );
+        expect(said).toContain("Self meter");
+        expect(said).toContain("stopped painting");
+    });
+});
+
+/**
+ * Rates and ages cannot be compared between two captures.
+ *
+ * `eventsPerSecond` is a cumulative average and `paintAgeMs` is the moment of the read, so a
+ * feed that died and a feed that is idle produce nearly the same text, and two reports taken
+ * a few seconds apart read as identical whichever it was. The counts are the only figures a
+ * reader can subtract, which is the whole job when a report arrives without the screen.
+ */
+describe("figures that can be compared between two captures", () => {
+    it("reports how many level events have arrived, not only their rate", () => {
+        const said = row(voice({ mic: mic({ events: 412 }) }), "Capture stream");
+        expect(said).toContain("412 events");
+    });
+
+    it("reports levels against paints while the meter is working", () => {
+        const said = DiagnosticsView.voiceGroup(
+            voice(),
+            undefined,
+            50,
+            meter({ levels: 412, paints: 388 }),
+        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+
+        expect(said).toContain("412 levels");
+        expect(said).toContain("388 paints");
+    });
+
+    /**
+     * The dashboard mounts the pill twice — a capsule for a phone, a floating one for desktop
+     * — and both register the same name, so the ledger merges them. "It is painting" is then a
+     * claim about whichever canvas painted rather than about the one being looked at.
+     */
+    it("says when more than one binding is behind the numbers", () => {
+        const said = DiagnosticsView.voiceGroup(
+            voice(),
+            undefined,
+            50,
+            meter({ bindings: 2 }),
+        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+
+        expect(said).toContain("2 bindings");
+    });
+
+    it("says nothing extra when one binding owns the name", () => {
+        const said = DiagnosticsView.voiceGroup(
+            voice(),
+            undefined,
+            50,
+            meter(),
+        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+
+        expect(said).not.toContain("bindings");
+    });
+});
+
+/**
+ * The fault a merged ledger cannot otherwise show.
+ *
+ * A binding keeps whichever `LevelSource` object it was handed at construction. If the source
+ * being pushed to is no longer that object, the meter sits at rest with everything else in the
+ * readout healthy: events arrive, the feed is attached, the level is measured — and the pill is
+ * subscribed to something nobody writes to. Counting the live source's listeners against the
+ * bindings that exist is the only place the two can be compared.
+ */
+describe("the meter's subscription to the live source", () => {
+    it("names the fault when bindings exist and none is subscribed", () => {
+        const said = DiagnosticsView.voiceGroup(
+            voice({ mic: mic({ ownListeners: 0 }) }),
+            undefined,
+            50,
+            meter({ bindings: 2 }),
+        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+
+        expect(said).toContain("0 of 2");
+    });
+
+    // Two meters share the name and one is attached to the live source. A check that only
+    // fires at zero stays silent through exactly the case the dashboard produces: the pill is
+    // mounted twice, and it is the visible one that can be the orphan.
+    it("names the fault when only some of the bindings are subscribed", () => {
+        const said = DiagnosticsView.voiceGroup(
+            voice({ mic: mic({ ownListeners: 1 }) }),
+            undefined,
+            50,
+            meter({ bindings: 2 }),
+        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+
+        expect(said).toContain("1 of 2");
+    });
+
+    it("says nothing when every binding is subscribed", () => {
+        const said = DiagnosticsView.voiceGroup(
+            voice({ mic: mic({ ownListeners: 2 }) }),
+            undefined,
+            50,
+            meter({ bindings: 2 }),
+        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+
+        expect(said).not.toContain("subscribed to the live source");
+    });
+
+    // No bindings at all is "not mounted", which the row already says in its own words. An
+    // unsubscribed-source warning there would blame a wiring fault for an absent pill.
+    it("does not raise it when no binding is mounted", () => {
+        const said = DiagnosticsView.voiceGroup(
+            voice({ mic: mic({ ownListeners: 0 }) }),
+            undefined,
+            50,
+            meter({ mounted: false, bindings: 0, levels: 0, paints: 0 }),
+        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+
+        expect(said).toContain("not mounted");
+        expect(said).not.toContain("subscribed to the live source");
+    });
+});
+
+/**
+ * Two ways to have no levels, fixed in different places.
+ *
+ * `attached` was one boolean over both: the fan-out holding a sink, and the feed holding a
+ * registration. False could mean the feed lost its listener with the screen still asking for
+ * levels, or the screen stopped asking at all — and the recovery for the first (drop and
+ * re-open) does nothing for the second, because it declines to register for an empty audience.
+ * A reader told only "not attached" tries the fix that cannot work.
+ */
+describe("telling a lost registration from a lost audience", () => {
+    it("names the feed when the fan-out is still asking", () => {
+        const said = row(
+            voice({ mic: mic({ attached: false, sinkHeld: true, events: 0, eventsPerSecond: 0, silentForMs: null }) }),
+            "Capture stream",
+        );
+        expect(said).toContain("no registration");
+    });
+
+    it("names the fan-out when nothing is asking", () => {
+        const said = row(
+            voice({ mic: mic({ attached: false, sinkHeld: false, events: 0, eventsPerSecond: 0, silentForMs: null }) }),
+            "Capture stream",
+        );
+        expect(said).toContain("not subscribed");
+    });
+
+    it("says neither while levels are arriving", () => {
+        const said = row(voice(), "Capture stream");
+        expect(said).not.toContain("no registration");
+        expect(said).not.toContain("not subscribed");
     });
 });

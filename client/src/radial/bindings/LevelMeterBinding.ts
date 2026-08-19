@@ -149,8 +149,16 @@ export class LevelMeterBinding implements Binding {
     this.#rest.invalidate();
   }
 
+  /**
+   * Called more than once for one binding: `LevelMeter` releases it from both its effect's
+   * teardown and its `onDestroy`, and either can run first. Everything below is idempotent on
+   * its own, but the probe is a count — a second release would take a canvas off the ledger
+   * that was never on it.
+   */
   destroy(): void {
-    this.#stop?.();
+    if (!this.#stop) return;
+    if (this.#options.probe) MeterProbe.release(this.#options.probe);
+    this.#stop();
     this.#stop = null;
     this.#unsubscribe?.();
     this.#unsubscribe = null;

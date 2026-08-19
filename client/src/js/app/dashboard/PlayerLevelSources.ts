@@ -7,8 +7,17 @@ import GameNameUtils from '../utils/GameNameUtils';
 
 /** Whether levels are reaching this window, and what your own last measured. */
 export interface MicActivity {
-    /** Whether the underlying subscription is registered. */
+    /** Whether the underlying subscription is registered, end to end. */
     readonly attached: boolean;
+    /**
+     * Whether this fan-out is still asking the feed for levels.
+     *
+     * Split from `attached` because the two failures are fixed in different places: a feed that
+     * lost its listener is re-opened, and a fan-out that stopped subscribing has to be started.
+     * Re-opening does nothing for the second — the feed declines to register for an empty
+     * audience — so a readout that cannot tell them apart sends the reader to the wrong one.
+     */
+    readonly sinkHeld: boolean;
     readonly events: number;
     /** Snapshots that arrived and could not be handled. Never the same fault as none arriving. */
     readonly failures: number;
@@ -17,6 +26,13 @@ export interface MicActivity {
     readonly lastRms: number;
     /** Milliseconds since the last snapshot, or null if none has ever arrived. */
     readonly silentForMs: number | null;
+    /**
+     * How many meters are listening to the source this pushes your own level into.
+     *
+     * Zero while a pill is mounted means the pill is holding a different source object — one
+     * nothing writes to — and every other figure here stays healthy while its meter sits flat.
+     */
+    readonly ownListeners: number;
 }
 
 /**
@@ -97,11 +113,13 @@ export class PlayerLevelSources {
         const elapsed = this.startedAt ? (performance.now() - this.startedAt) / 1000 : 0;
         return {
             attached: this.unlisten !== null && LevelFeed.shared().attached,
+            sinkHeld: this.unlisten !== null,
             events: this.received,
             failures: this.failures,
             eventsPerSecond: elapsed > 0 ? this.received / elapsed : 0,
             lastRms: this.lastOwn,
             silentForMs: this.lastPush ? performance.now() - this.lastPush : null,
+            ownListeners: this.ownSource.listeners,
         };
     }
 

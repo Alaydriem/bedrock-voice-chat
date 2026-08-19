@@ -3,7 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { warn } from "@tauri-apps/plugin-log";
 import { type Readable, type Writable, writable } from "svelte/store";
 import type { InputLevel } from "../../bindings/InputLevel";
-import type { LevelSnapshot } from "../../bindings/LevelSnapshot";
+import { LevelFeed } from "../dashboard/LevelFeed";
 import { LevelSteps } from "../dashboard/LevelSteps";
 
 /**
@@ -20,9 +20,15 @@ import { LevelSteps } from "../dashboard/LevelSteps";
  * and looked exactly like a dead capture — opening the audio pane in silence tore down a
  * working session every time.
  *
- * A live session's level comes from `audio-levels`, the same event the dashboard meter uses.
- * `audio-input-level` is emitted only by a stream this probe started, and carries the
- * unquantised amplitude that calibration wants.
+ * A live session's level comes from `audio-levels`, the same event the dashboard meter uses —
+ * and through the same `LevelFeed`, not a second registration for it. A pane that registered
+ * for itself put two listeners on one event in the window and dropped one of them on the way
+ * out, every visit; the dashboard's is opened once at boot and never re-opened, which is why
+ * the pane's meter always worked and the pill did not survive a visit. As a sink, closing the
+ * pane returns the audience to the dashboard alone and leaves the registration untouched.
+ *
+ * `audio-input-level` stays its own listener: it is emitted only by a stream this probe
+ * started, nothing else reads it, and it carries the unquantised amplitude calibration wants.
  */
 export class InputLevelProbe {
     private readonly rmsStore: Writable<number>;
@@ -55,9 +61,9 @@ export class InputLevelProbe {
 
         try {
             this.unlisteners.push(
-                await listen<LevelSnapshot>("audio-levels", (event) => {
-                    this.rmsStore.set(LevelSteps.toLevel(event.payload.own));
-                    this.gateOpenStore.set(event.payload.own.speaking);
+                LevelFeed.shared().subscribe((snapshot) => {
+                    this.rmsStore.set(LevelSteps.toLevel(snapshot.own));
+                    this.gateOpenStore.set(snapshot.own.speaking);
                 }),
             );
             this.unlisteners.push(

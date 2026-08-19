@@ -15,7 +15,7 @@ export class SettingsRoute {
     static paneOf(pathname: string, mobile = false): string {
         if (!pathname.startsWith(this.base)) return SettingsCatalogue.fallback;
         const id = pathname.slice(this.base.length).replace(/^\/+|\/+$/g, "");
-        return SettingsCatalogue.find(id, mobile)?.id ?? SettingsCatalogue.fallback;
+        return SettingsCatalogue.resolve(id, mobile)?.id ?? SettingsCatalogue.fallback;
     }
 
     /** True when the path names a pane rather than the section list. */

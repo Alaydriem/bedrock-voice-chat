@@ -1,4 +1,5 @@
 pub(crate) mod about;
+pub(crate) mod admin;
 pub(crate) mod analytics;
 pub(crate) mod audio;
 pub(crate) mod audio_library;
@@ -21,3 +22,4 @@ pub(crate) mod recordings;
 #[cfg(desktop)]
 pub(crate) mod updater;
 pub(crate) mod websocket;
+pub(crate) mod spike;

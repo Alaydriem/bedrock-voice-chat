@@ -121,9 +121,50 @@ export class DiagnosticsView {
                 ],
                 ['Hold', ptt ? (backend.pttActive ? 'held' : 'released') : 'n/a in open mic'],
                 ['Capture stream', DiagnosticsView.captureStream(mic, capturing ?? null)],
-                ...(meter ? [['Self meter', DiagnosticsView.selfMeter(meter)] as [string, string]] : []),
+                ...(meter
+                    ? [['Self meter', DiagnosticsView.selfMeter(meter, mic.ownListeners)] as [string, string]]
+                    : []),
             ],
         };
+    }
+
+    /** The width the backend's own report indents its values to, so the two read as one text. */
+    private static readonly REPORT_LABEL_WIDTH = 18;
+
+    /**
+     * The two rows the copied report cannot otherwise carry.
+     *
+     * `get_diagnostics_report` is rendered in the backend, so it ends at the bridge: it can say
+     * three level messages a second were sent and nothing about whether this window received or
+     * drew any of them. Those are the two layers that fail on their own, and a report missing
+     * them sends the reader back to the microphone — the one part that was working.
+     *
+     * Taken from `voiceGroup` rather than rendered again, so the copied text and the rows on
+     * screen cannot disagree about the same measurement.
+     */
+    static windowSection(
+        voice: VoiceDiagnostics | null,
+        capturing: number | null,
+        meter: MeterProbeSnapshot,
+    ): string {
+        // The meter ledger is kept in this window and owes nothing to the backend probe, so an
+        // unanswered probe must not take the row that can still be measured down with it.
+        const rows: ReadonlyArray<readonly [string, string]> = voice?.backend
+            ? DiagnosticsView.voiceGroup(voice, undefined, capturing, meter).rows.filter(
+                  ([label]) => label === 'Capture stream' || label === 'Self meter',
+              )
+            : [
+                  ['Capture stream', 'not read yet'],
+                  ['Self meter', DiagnosticsView.selfMeter(meter, voice?.mic.ownListeners ?? null)],
+              ];
+
+        return [
+            'This window',
+            ...rows.map(
+                ([label, value]) =>
+                    `  ${label.padEnd(DiagnosticsView.REPORT_LABEL_WIDTH)}${value}`,
+            ),
+        ].join('\n');
     }
 
     /**
@@ -136,12 +177,30 @@ export class DiagnosticsView {
      */
     private static readonly METER_STALL_MS = 2000;
 
-    private static selfMeter(meter: MeterProbeSnapshot): string {
+    private static selfMeter(meter: MeterProbeSnapshot, ownListeners: number | null): string {
         if (!meter.mounted) {
             return 'not mounted  ← no pill has registered a meter in this window';
         }
+        // Fewer listeners on the live source than there are meters claiming this name. Zero is
+        // not the only fault: the pill is mounted twice — a capsule for a phone, a floating one
+        // for desktop — so one can be attached while the other, possibly the visible one, is
+        // holding a source object nothing writes to. Every other figure here stays healthy
+        // through it, because the levels do reach the window. Every other figure in this group stays healthy
+        // through it, because the level does reach the window — it reaches a source object the
+        // pill stopped holding, and only a remount can bind it to the current one.
+        //
+        // `null` is unmeasured rather than none: the count comes from the live source, and
+        // before the backend probe answers there is nothing to read it from. Treating that as
+        // zero would report this fault on every panel opened early.
+        if (meter.bindings > 0 && ownListeners !== null && ownListeners < meter.bindings) {
+            return `${ownListeners} of ${meter.bindings} bindings subscribed to the live source  ← the rest are bound to one nothing pushes to`;
+        }
+        // Merged counts. Which canvas painted is then unanswerable from the numbers alone, and
+        // the dashboard mounts the pill twice on purpose — a capsule for a phone, a floating
+        // one for desktop — so this is a normal reading rather than a fault on its own.
+        const shared = meter.bindings > 1 ? `  ← ${meter.bindings} bindings share this meter` : '';
         if (meter.levels === 0) {
-            return 'no levels have reached it  ← the feed above decides whether that is a fault';
+            return `no levels have reached it  ← the feed above decides whether that is a fault`;
         }
         if (meter.paints === 0) {
             return `${meter.levels} levels arrived and none were painted  ← the renderer is not drawing them`;
@@ -150,12 +209,13 @@ export class DiagnosticsView {
             meter.levelAgeMs !== null && meter.levelAgeMs < DiagnosticsView.METER_STALL_MS;
         const paintsStale =
             meter.paintAgeMs === null || meter.paintAgeMs > DiagnosticsView.METER_STALL_MS;
+        const counts = `${meter.levels} levels, ${meter.paints} paints`;
         if (levelsFresh && paintsStale) {
-            return `stopped painting ${Math.round((meter.paintAgeMs ?? 0) / 1000)}s ago  ← levels are still arriving`;
+            return `stopped painting ${Math.round((meter.paintAgeMs ?? 0) / 1000)}s ago — ${counts}  ← levels are still arriving`;
         }
         const age =
             meter.paintAgeMs === null ? '' : `, ${Math.round(meter.paintAgeMs / 1000)}s ago`;
-        return `painting — last level ${meter.lastLevel.toFixed(2)}${age}`;
+        return `painting — ${counts}, last level ${meter.lastLevel.toFixed(2)}${age}${shared}`;
     }
 
     /**
@@ -174,7 +234,9 @@ export class DiagnosticsView {
      */
     private static captureStream(mic: VoiceDiagnostics['mic'], capturing: number | null): string {
         if (!mic.attached) {
-            return 'not attached  ← the level listener failed to register in this window';
+            return mic.sinkHeld
+                ? 'no registration  ← this window is asking for levels and the feed holds no listener'
+                : 'not subscribed  ← the level fan-out stopped asking, so re-registering would fix nothing';
         }
         // Above the event count, because it is the stronger statement: events arrived and this
         // window could not read them, which no amount of looking at the transport will explain.
@@ -191,7 +253,10 @@ export class DiagnosticsView {
         // The meter's own level, not an RMS. It was labelled `rms` and stopped being one when
         // levels became quantised steps — and it is the number that says whether a still meter
         // is being told to be still or is failing to draw what it was told.
-        const rate = `${mic.eventsPerSecond.toFixed(1)}/s`;
+        // The count leads, because it is the only figure on this row a reader can subtract. The
+        // rate is a cumulative average, so a feed that stopped keeps reporting what it built up
+        // before it died, and two reports taken a few seconds apart look the same either way.
+        const rate = `${mic.events} events, ${mic.eventsPerSecond.toFixed(1)}/s`;
         const level =
             mic.lastRms > 0 ? `level ${mic.lastRms.toFixed(2)}` : 'level 0  ← reported as not speaking';
         const stale = mic.silentForMs !== null && mic.silentForMs > 1000;

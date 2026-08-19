@@ -52,6 +52,20 @@ describe("RecordingsView.size", () => {
     it("switches to gigabytes only once there is one", () => {
         expect(RecordingsView.size(1.6 * 1024 * 1024 * 1024)).toBe("1.6 GB");
     });
+
+    // A short session weighs well under a megabyte, and "0 MB" reads as a broken recording
+    // rather than a small one.
+    it("drops to kilobytes below a megabyte", () => {
+        expect(RecordingsView.size(340 * 1024)).toBe("340 KB");
+    });
+
+    it("drops to bytes below a kilobyte", () => {
+        expect(RecordingsView.size(512)).toBe("512 B");
+    });
+
+    it("says nothing was written for an empty session", () => {
+        expect(RecordingsView.size(0)).toBe("0 KB");
+    });
 });
 
 describe("RecordingsView.row", () => {

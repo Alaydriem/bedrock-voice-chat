@@ -250,6 +250,17 @@ dir = "client"
 shell = "pwsh -NoLogo -Command"
 run = "yarn install --frozen-lockfile"
 
+[tasks.mods-deps]
+description = "Install the JS dependencies the mod dev servers need, in mods/ and mods/bds/"
+shell = "pwsh -NoLogo -Command"
+# Two projects, not one. `mods/` is a single dependency used by jukebox-test;
+# `mods/bds/` carries the esbuild/typescript toolchain that `yarn run pack`
+# needs, and a fresh worktree fails there rather than in mods/.
+run = [
+  "yarn --cwd mods install --frozen-lockfile",
+  "yarn --cwd mods/bds install --frozen-lockfile",
+]
+
 [tasks.i18n]
 description = "Generate client/src-tauri/resources/i18n from the .po catalogs"
 dir = "client"
@@ -279,6 +290,11 @@ run = 'Write-Host "Worktree ready. Run: mise run preflight"'
 [tasks.build-client]
 description = "Build the Tauri client. The Tauri CLI sets up the env that bare cargo does not."
 dir = "client"
+# bindings, not frontend. `yarn tauri build` runs the frontend build itself as
+# beforeBuildCommand, so declaring it here would build it twice. That same
+# ordering is why bindings cannot be generated in-band: beforeBuildCommand runs
+# before cargo, so the TypeScript has to already be on disk when Vite reads it.
+depends = ["bindings"]
 shell = "pwsh -NoLogo -Command"
 run = "yarn tauri build --debug --no-sign"
 
@@ -320,6 +336,11 @@ run = "cargo build -p bedrock-voice-chat-server"
 
 [tasks.e2e-bin]
 description = "Build the e2e client binary the scenario tests spawn as a real process"
+# client/e2e-harness/tauri.conf.json sets frontendDist ../build. Without
+# client/build, generate_context! panics with `The frontendDist configuration is
+# set to "../build" but this path doesn't exist`, and nothing else in this graph
+# builds it for the harness.
+depends = ["frontend"]
 shell = "pwsh -NoLogo -Command"
 run = "cargo build -p bvc-client-e2e"
 
@@ -342,9 +363,15 @@ shell = "pwsh -NoLogo -Command"
 run = "cargo test -p common"
 
 [tasks.bindings]
-description = "Regenerate ts-rs TypeScript bindings. This is the only sanctioned way to regenerate them."
+description = "Regenerate the ts-rs TypeScript bindings and the barrel that re-exports them. The only sanctioned way to regenerate them."
 shell = "pwsh -NoLogo -Command"
-run = "cargo test -p common"
+# The barrel is derived from whatever ts-rs left in the directory, so it runs
+# second. ts-rs emits one file per type and no index; a hand-maintained barrel
+# listed 32 of 88 types before this step existed.
+run = [
+  "cargo test -p common",
+  "yarn --cwd client bindings:index",
+]
 
 [tasks.svc-native]
 description = "Stage the relay SDK cdylib where the native manifest and the runtime fetcher expect it. Required before any SVC bridge run: the native is not committed."
@@ -384,12 +411,45 @@ $mb = [math]::Round((Get-Item (Join-Path $destDir $lib)).Length / 1MB, 1)
 Write-Host "ok    staged $lib ($mb MB) -> native/$platform"
 '''
 
-[tasks.svc-paper]
-description = "Build the Paper plugin with the SVC bridge and start a local Paper server with it deployed. Requires PAPER_SERVER_PATH in mods/.env."
+# The three dev-server tasks below build the mod, deploy it to a local test
+# server and then attach that server to the terminal. Flags reach dev-server.js
+# after a `--` separator: `mise run dev-bds -- --no-net`, `-- --release`,
+# `-- --no-build`. Server paths come from mods/.env; copy mods/.env.example.
+#
+# The two Java tasks wrap their run line in `mise x java@temurin-25` so gradlew
+# gets JAVA_HOME from the pin rather than whatever java is first on PATH — on
+# this machine that is Android Studio's bundled JDK 21, which is not what
+# mods/java/mise.toml asks for. A task-level `tools = { java = ... }` would be
+# the obvious way to say this and is silently inert in mise 2026.8.2: the task
+# runs, and java stays at the ambient version. The version here duplicates
+# mods/java/mise.toml; change both together.
+
+[tasks.dev-bds]
+description = "Build the BDS packs, deploy them and start Bedrock Dedicated Server. Requires BDS_SERVER_PATH in mods/.env."
 dir = "mods"
-depends = ["svc-native"]
+# No svc-native: Simple Voice Chat is a Java-side bridge and does not exist on
+# Bedrock. The pack build is pure TypeScript, which is what mods-deps supplies.
+depends = ["mods-deps"]
 shell = "pwsh -NoLogo -Command"
-run = "yarn dev-server --paper"
+run = "yarn dev-server --bds"
+
+[tasks.dev-paper]
+description = "Build the Paper plugin with the SVC bridge, deploy it and start a local Paper server. Requires PAPER_SERVER_PATH in mods/.env."
+alias = "svc-paper"
+dir = "mods"
+depends = ["mods-deps", "svc-native"]
+shell = "pwsh -NoLogo -Command"
+run = "mise x java@temurin-25 -- yarn dev-server --paper"
+
+[tasks.dev-fabric]
+description = "Build the Fabric mod with the SVC bridge, deploy it and start a local Fabric server. Requires FABRIC_SERVER_PATH in mods/.env."
+dir = "mods"
+# Same svc-native requirement as Paper: the Fabric path runs the same
+# buildRustLibrary and copySdkNativeWindows Gradle tasks, which read the release
+# triple paths a local debug build has never produced.
+depends = ["mods-deps", "svc-native"]
+shell = "pwsh -NoLogo -Command"
+run = "mise x java@temurin-25 -- yarn dev-server --fabric"
 
 [tasks.svc-verify]
 description = "What to look for when testing the Simple Voice Chat bridge by hand. Prints only; runs nothing."
@@ -404,7 +464,7 @@ Write-Host "Chat instance. Every check below is a first run."
 Write-Host ""
 Write-Host "SETUP"
 Write-Host "  1. Simple Voice Chat server plugin in the Paper server's plugins/"
-Write-Host "  2. mise run svc-paper"
+Write-Host "  2. mise run dev-paper"
 Write-Host "  3. In plugins/BedrockVoiceChat/config.yml set use-embedded-server: true"
 Write-Host "     Embedded needs no peer link exchange."
 Write-Host ""

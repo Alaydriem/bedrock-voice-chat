@@ -196,3 +196,144 @@ describe("LevelFeed", () => {
         expect(seen.length).toBeGreaterThan(0);
     });
 });
+
+/**
+ * Measured on a live client: all four `audio-levels` registrations the page had ever made read
+ * `callbackAlive: false` at once, with the dashboard still mounted and subscribed. Only
+ * `_unlisten` deletes a callback, so the feed had torn its own registration down and never put
+ * one back — and nothing noticed, because verification runs when a registration is opened and
+ * never again. The meters stayed flat until the page was reloaded.
+ *
+ * An audience with nothing registered to feed it is the state that must not persist.
+ */
+describe("a registration lost while the audience remains", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        registrations.length = 0;
+        phantomsAhead = 0;
+        unlistenThrowsOnPhantom = false;
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it("re-opens without waiting for a new subscriber", async () => {
+        healthyProbe();
+        const feed = new LevelFeed();
+        const seen: unknown[] = [];
+        feed.subscribe((snapshot) => seen.push(snapshot));
+        await flush();
+        expect(feed.attached).toBe(true);
+
+        // What the live client was found in: the audience is still here, the registration is not.
+        feed.forgetRegistrationForTest();
+        expect(feed.attached).toBe(false);
+
+        await vi.advanceTimersByTimeAsync(LevelFeed.WATCH_MS + 10);
+
+        expect(feed.attached).toBe(true);
+        const speaking = { own: { speaking: true, loudness: 3 }, peers: {} };
+        emitLevels(speaking);
+        expect(seen).toContain(speaking);
+    });
+
+    // The audience left for good. Re-opening for nobody is a listener the page pays for and
+    // never reads, and the feed is meant to close when the last screen goes.
+    it("does not re-open once the last subscriber has gone", async () => {
+        healthyProbe();
+        const feed = new LevelFeed();
+        const off = feed.subscribe(() => {});
+        await flush();
+        off();
+
+        const before = registrations.length;
+        await vi.advanceTimersByTimeAsync(LevelFeed.WATCH_MS * 3);
+
+        expect(registrations).toHaveLength(before);
+        expect(feed.attached).toBe(false);
+    });
+
+    it("leaves a healthy registration alone", async () => {
+        healthyProbe();
+        const feed = new LevelFeed();
+        feed.subscribe(() => {});
+        await flush();
+
+        const before = registrations.length;
+        await vi.advanceTimersByTimeAsync(LevelFeed.WATCH_MS * 3);
+
+        expect(registrations).toHaveLength(before);
+        expect(feed.attached).toBe(true);
+    });
+});
+
+/**
+ * Unbind and rebind on demand, for a moment the app already knows about.
+ *
+ * The settings pane registers its own `audio-levels` listener on every mount, and that one
+ * always works — a fresh registration is never the broken one. The dashboard's is a singleton
+ * opened once at boot, so when it is the one that came loose there is nothing to notice. This
+ * gives the screen closing over it the same fresh start the pane gets for free.
+ */
+describe("resyncing the registration on demand", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        registrations.length = 0;
+        phantomsAhead = 0;
+        unlistenThrowsOnPhantom = false;
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it("replaces a held registration with a fresh, verified one", async () => {
+        healthyProbe();
+        const feed = new LevelFeed();
+        const seen: unknown[] = [];
+        feed.subscribe((snapshot) => seen.push(snapshot));
+        await flush();
+        const first = registrations[0];
+
+        await feed.resync();
+        await flush();
+
+        expect(first.dropped).toBe(true);
+        expect(feed.attached).toBe(true);
+        expect(registrations.length).toBeGreaterThan(1);
+
+        const speaking = { own: { speaking: true, loudness: 3 }, peers: {} };
+        emitLevels(speaking);
+        expect(seen).toContain(speaking);
+    });
+
+    it("opens one when the registration was already lost", async () => {
+        healthyProbe();
+        const feed = new LevelFeed();
+        feed.subscribe(() => {});
+        await flush();
+        feed.forgetRegistrationForTest();
+
+        await feed.resync();
+        await flush();
+
+        expect(feed.attached).toBe(true);
+    });
+
+    // Nothing is listening, so a registration would be one the page pays for and never reads.
+    it("does nothing when there is no audience", async () => {
+        healthyProbe();
+        const feed = new LevelFeed();
+        const off = feed.subscribe(() => {});
+        await flush();
+        off();
+        const before = registrations.length;
+
+        await feed.resync();
+        await flush();
+
+        expect(registrations).toHaveLength(before);
+        expect(feed.attached).toBe(false);
+    });
+});

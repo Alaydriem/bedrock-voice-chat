@@ -32,6 +32,7 @@ inventory::submit! {
             rocket_okapi::openapi_get_routes_spec![
                 settings:
                     user::create::create_user,
+                    user::list::list_users,
                     user::banish::banish_user,
                     user::generate_code::generate_code,
                     permission::set::set_permission,

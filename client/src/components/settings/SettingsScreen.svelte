@@ -14,7 +14,10 @@
     import AudioPane from "./panes/AudioPane.svelte";
     import KeybindsPane from "./panes/KeybindsPane.svelte";
     import LibraryPane from "./panes/LibraryPane.svelte";
+    import ManagePlayersPane from "./panes/ManagePlayersPane.svelte";
     import PlayersPane from "./panes/PlayersPane.svelte";
+    import { ViewerPermissionsManager } from "../../js/app/managers/ViewerPermissionsManager";
+    import type { Permission } from "../../js/bindings/Permission";
     import ConnectPane from "./panes/ConnectPane.svelte";
     import RecordingsPane from "./panes/RecordingsPane.svelte";
     import WebSocketPane from "./panes/WebSocketPane.svelte";
@@ -82,20 +85,36 @@
         }
         return bedrock;
     }
+    /**
+     * What this viewer is allowed to do, which decides whether the admin pane exists.
+     *
+     * Loaded from the keyring first so the sidebar is right on the first frame, then
+     * refreshed from the server, which is what makes a permission granted mid-session
+     * appear without a sign-out.
+     */
+    const viewerPermissions = new ViewerPermissionsManager();
+    let permissions = $state<readonly Permission[]>([]);
+    let unpermissions: (() => void) | null = null;
+
     let updateBadge = $state(false);
 
-    const groups = $derived(SettingsCatalogue.groups(mobile));
-    const current = $derived(SettingsCatalogue.find(pane, mobile) ?? SettingsCatalogue.all[0]);
+    const groups = $derived(SettingsCatalogue.groups(mobile, permissions));
+    const current = $derived(
+        SettingsCatalogue.find(pane, mobile, permissions) ?? SettingsCatalogue.all[0],
+    );
     const badged = $derived(updateBadge ? "about" : null);
 
     let unbadge: (() => void) | null = null;
 
     onMount(() => {
         unbadge = updates.badge.subscribe((v) => (updateBadge = v));
+        unpermissions = viewerPermissions.permissions.subscribe((v) => (permissions = v));
+        void viewerPermissions.load().then(() => viewerPermissions.refresh());
     });
 
     onDestroy(() => {
         unbadge?.();
+        unpermissions?.();
         bedrock?.destroy();
     });
 
@@ -174,6 +193,8 @@
                         <AudioPane {mobile} />
                     {:else if current.id === "players"}
                         <PlayersPane />
+                    {:else if current.id === "manage-players"}
+                        <ManagePlayersPane />
                     {:else if current.id === "recordings"}
                         <RecordingsPane />
                     {:else if current.id === "library"}

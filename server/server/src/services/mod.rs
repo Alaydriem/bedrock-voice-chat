@@ -6,6 +6,7 @@ pub mod bedrock;
 pub use bedrock::{TransferRelayService, TransferTargetCache};
 
 pub mod acme;
+pub mod admin_user_service;
 pub mod audio_file_service;
 pub mod audio_playback_service;
 pub mod audio_stream_token_cache;
@@ -28,6 +29,7 @@ pub mod player_registrar_service;
 pub mod position_feed;
 pub mod position_service;
 
+pub use admin_user_service::AdminUserService;
 pub use audio_file_service::{AudioFileError, AudioFileService};
 pub use audio_playback_service::{AudioPlaybackService, EjectScheduler};
 pub use audio_stream_token_cache::AudioStreamTokenCache;

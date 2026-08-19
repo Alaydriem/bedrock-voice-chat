@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
+#[ts(export, export_to = "./../../client/src/js/bindings/")]
 #[serde(rename_all = "lowercase")]
 pub enum PermissionEffect {
     Allow,

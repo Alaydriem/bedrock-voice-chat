@@ -110,8 +110,11 @@ descriptions.
 | `mise run test-client [filter]` | Runs the client test suite, building the server cdylib and e2e binary first |
 | `mise run test-server` | Runs the server test suite |
 | `mise run test-common` | Runs the shared crate tests |
-| `mise run bindings` | Regenerates the ts-rs TypeScript bindings in `client/src/js/bindings/` |
+| `mise run bindings` | Regenerates the ts-rs TypeScript bindings in `client/src/js/bindings/`, and the barrel that re-exports them |
 | `mise run frontend` | Builds the SvelteKit frontend into `client/build` |
+| `mise run dev-bds` | Builds and deploys the BDS packs, then starts a local Bedrock Dedicated Server |
+| `mise run dev-paper` | Builds and deploys the Paper plugin, then starts a local Paper server |
+| `mise run dev-fabric` | Builds and deploys the Fabric mod, then starts a local Fabric server |
 | `mise run preflight` | Reports environment problems by name |
 | `mise run targets-report` | Reports the size and age of the cargo target directories |
 | `mise run clean-incremental` | Reclaims cargo incremental caches. Dry-run unless you pass `--force` |
@@ -119,7 +122,8 @@ descriptions.
 
 Tasks declare their own dependencies, so asking for the end product is enough: `test-client`
 builds what it needs first, and `frontend` installs dependencies and builds the i18n catalogs
-first.
+first. Flags for the underlying tool go after a `--` separator, so mise does not read them as
+its own: `mise run dev-bds -- --no-net`.
 
 Rust builds in this repository are large. `mise run targets-report` shows what the cargo target
 directories currently cost, and `clean-incremental` reclaims the incremental caches — pure build
@@ -127,23 +131,28 @@ state, at the price of one non-incremental rebuild.
 
 ### Minecraft mods
 
-The Bedrock behavior pack and the Java mods build from `mods/` with yarn:
+Each platform has a task that builds the mod, deploys it to your local test server and then
+starts that server attached to your terminal. Ctrl+C stops it; re-run to rebuild and restart.
 
 ```bash
-cd mods
-yarn install
-yarn dev-build        # Java mods (native library, Paper)
-yarn dev-build-all    # the above plus Fabric and the BDS packs
-yarn dev-server --bds # build, deploy and start a local server: --bds, --paper or --fabric
+mise run dev-bds      # Bedrock Dedicated Server
+mise run dev-paper    # Paper, with the Simple Voice Chat bridge
+mise run dev-fabric   # Fabric, with the Simple Voice Chat bridge
 ```
 
-`yarn dev-server` reads your local server paths from `mods/.env`; copy `mods/.env.example` to get
-started. mise supplies the Java toolchain for these builds from `mods/java/mise.toml`.
+Server paths come from `mods/.env`; copy `mods/.env.example` to get started. The tasks install
+the yarn dependencies and, for Paper and Fabric, stage the relay SDK native library first — that
+library is not committed and the bridge fails without it. Pass `-- --release`, `-- --no-build`, or
+(BDS only) `-- --no-net` to change what they do.
 
-Two mise tasks cover the Simple Voice Chat bridge specifically: `mise run svc-native` stages the
-relay SDK native library (it is not committed, and the bridge fails without it), and
-`mise run svc-paper` builds the Paper plugin with the bridge and starts a Paper server with it
-deployed.
+`mise run svc-paper` still works as an alias for `dev-paper`. `mise run svc-native` stages the
+relay native on its own, and `mise run svc-verify` prints the manual checklist for testing the
+bridge by hand.
+
+To build the mods without starting a server, `mods/` also exposes `yarn dev-build` (native
+library and Paper) and `yarn dev-build-all` (adds Fabric and the BDS packs). Run these from
+`mods/java/` or wrap them in `mise x java@temurin-25 --`, so gradlew gets the pinned JDK instead
+of whatever java is first on `PATH`.
 
 ## Telemetry & Metrics
 

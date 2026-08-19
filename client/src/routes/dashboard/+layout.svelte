@@ -4,6 +4,7 @@
   import { onDestroy, onMount, setContext, type Snippet } from "svelte";
   import { get } from "svelte/store";
   import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+  import { LevelFeed } from "../../js/app/dashboard/LevelFeed";
   import { error as logError, info } from "@tauri-apps/plugin-log";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
@@ -62,6 +63,24 @@
    * knowing about the others.
    */
   const coverOpen = $derived(page.url.pathname.startsWith(SettingsRoute.base));
+
+  /**
+   * Re-register the level listener when settings stops covering the meters.
+   *
+   * The pane's own meter registers a fresh `audio-levels` listener on every mount, which is why
+   * that one always works. The dashboard's is a singleton opened once at boot, and when it is
+   * the one that came loose nothing notices — verification runs when a registration opens and
+   * never again. This gives it the same fresh start on the closing edge.
+   *
+   * `LevelFeed`'s own watchdog is what covers every other way it can be lost, including a
+   * sheet closing over the meters.
+   */
+  let coverWasOpen = false;
+  $effect(() => {
+    const closing = coverWasOpen && !coverOpen;
+    coverWasOpen = coverOpen;
+    if (closing) void LevelFeed.shared().resync();
+  });
 
   let app = $state<Dashboard | null>(null);
   let presence: PlayerPresenceManager | undefined;
@@ -515,9 +534,16 @@
     }
   }
 
-  async function copyReport(): Promise<void> {
+  /**
+   * The backend's report, plus the rows only the page can measure.
+   *
+   * `get_diagnostics_report` is rendered in Rust and ends at the bridge, so on its own it
+   * reports a healthy microphone feeding a window that may have received or drawn none of it.
+   */
+  async function copyReport(windowSection: string): Promise<void> {
     const report = await diagnostics.report();
-    if (report) await navigator.clipboard.writeText(report).catch(() => {});
+    if (!report) return;
+    await navigator.clipboard.writeText(`${report}\n${windowSection}\n`).catch(() => {});
   }
 </script>
 

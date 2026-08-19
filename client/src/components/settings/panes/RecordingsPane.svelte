@@ -28,10 +28,10 @@
     let chosen = $state<ReadonlySet<string>>(new Set());
 
     /**
-     * On by default: a recording is of a session somebody was in, and what they heard is the
-     * thing worth keeping. Turning it off is the choice to mix it yourself.
+     * Off by default: a flat track is the recording as it was captured, with nothing
+     * re-encoded. Turning it on is the choice to place each voice where it was standing.
      */
-    let spatial = $state(true);
+    let spatial = $state(false);
 
     /**
      * A run belongs to the session, not to the screen that started it, so leaving mid-run

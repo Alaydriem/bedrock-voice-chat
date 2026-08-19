@@ -204,6 +204,21 @@
   border-radius: var(--radius-rad-block);
 }
 
+/* The same blocks as a control, for a table row that is opened by them. Quiet until
+   hovered, like the kebab it stands in for. */
+button.rad-matrix__blocks {
+  padding: 5px 4px;
+  border: 0;
+  border-radius: var(--radius-rad-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+button.rad-matrix__blocks:hover {
+  background: var(--color-rad-panel);
+}
+
 .rad-matrix__tag {
   font-family: var(--font-rad-mono);
   font-size: var(--text-rad-mono-xs);

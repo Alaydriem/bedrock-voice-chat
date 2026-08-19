@@ -46,9 +46,19 @@ export class LevelFeed {
     /** Pause before replacing a failed registration, doubled every attempt. */
     static readonly RETRY_BASE_MS = 250;
 
+    /**
+     * How often a feed with an audience checks that it still holds a registration.
+     *
+     * The check is a null test on a field, so the period is set by how long a flat meter is
+     * tolerable rather than by what it costs. Nothing crosses the bridge unless it finds the
+     * registration gone.
+     */
+    static readonly WATCH_MS = 5_000;
+
     #sinks = new Set<LevelSink>();
     #unlisten: UnlistenFn | null = null;
     #starting: Promise<void> | null = null;
+    #watch: ReturnType<typeof setInterval> | null = null;
     #received = 0;
     // The verification in flight, told about the next arrival. One at a time by construction:
     // attempts are sequential inside a single #openVerified.
@@ -79,10 +89,72 @@ export class LevelFeed {
     subscribe(sink: LevelSink): () => void {
         this.#sinks.add(sink);
         void this.#open();
+        this.#watchRegistration();
         return () => {
             this.#sinks.delete(sink);
-            if (this.#sinks.size === 0) this.#close();
+            if (this.#sinks.size === 0) {
+                this.#close();
+                this.#stopWatching();
+            }
         };
+    }
+
+    /**
+     * Put a registration back when the audience still has one and the feed does not.
+     *
+     * Every path that drops a registration is supposed to open another, and one of them does
+     * not: a teardown that lands while `#openVerified` is between registering and verifying
+     * clears `#unlisten` under it, and the attempt that then succeeds returns without noticing
+     * it is no longer the held one. Nothing owns the result — the sinks are still subscribed,
+     * the feed holds nothing, and only a new subscriber would re-open it. On a dashboard that
+     * mounts its subscribers once, there is no new subscriber, so the meters stay flat for the
+     * life of the page.
+     *
+     * Measured that way on a live client: four `audio-levels` registrations, every callback
+     * deleted, the dashboard still subscribed.
+     *
+     * Verification cannot cover this — it runs when a registration is opened, and the fault is
+     * that none is.
+     */
+    #watchRegistration(): void {
+        if (this.#watch !== null || typeof setInterval === 'undefined') return;
+        this.#watch = setInterval(() => {
+            if (this.#sinks.size === 0 || this.#unlisten || this.#starting) return;
+            void warn('LevelFeed: the audio-levels registration was lost; re-opening it');
+            void this.#open();
+        }, LevelFeed.WATCH_MS);
+    }
+
+    #stopWatching(): void {
+        if (this.#watch === null) return;
+        clearInterval(this.#watch);
+        this.#watch = null;
+    }
+
+    /**
+     * Throw away the current registration and open a fresh, verified one.
+     *
+     * For a moment the app already knows about — a screen that was covering the meters closing.
+     * The settings pane's own meter registers on every mount and is therefore never the broken
+     * one; this gives the dashboard's long-lived registration the same fresh start rather than
+     * leaving it to a watchdog to notice, or to a reload.
+     *
+     * Waits out a registration that is already opening rather than racing it, and does nothing
+     * for an empty audience: a registration nobody reads is one the page pays for every emit.
+     */
+    async resync(): Promise<void> {
+        if (this.#sinks.size === 0) return;
+        if (this.#starting) {
+            await this.#starting;
+            return;
+        }
+        this.#close();
+        await this.#open();
+    }
+
+    /** Drop the registration while keeping the audience, which is the state this recovers from. */
+    forgetRegistrationForTest(): void {
+        this.#unlisten = null;
     }
 
     async #open(): Promise<void> {

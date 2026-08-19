@@ -25,7 +25,11 @@
         visiblePlayers: number;
         reconnecting: boolean;
         onreconnect: () => void;
-        oncopy: () => void;
+        /**
+         * Copy the report. Handed the rows only this window can measure, because the report
+         * itself is rendered in the backend and ends at the bridge.
+         */
+        oncopy: (windowSection: string) => void;
         /** Restarts every counter from now, for measuring a change against what it changed. */
         onreset: () => void;
         onclose: () => void;
@@ -76,6 +80,22 @@
      * reset that only zeroed the backend would leave seventy seconds of pre-reset round trips
      * drawn on screen — the one part of the panel still showing the old session.
      */
+    /**
+     * The measurements the copied text is missing, gathered where they are already read.
+     *
+     * The same three values the Voice group is drawn from, so the report a support
+     * conversation is answered from says what the panel said.
+     */
+    function copy(): void {
+        oncopy(
+            DiagnosticsView.windowSection(
+                voice,
+                snapshot?.mic.capture_frames_per_sec ?? null,
+                MeterProbe.read("self"),
+            ),
+        );
+    }
+
     function pressReset(): void {
         ready = false;
         seeded = [];
@@ -130,7 +150,7 @@
           panel was the one pushed off the edge, leaving no way out of it at all.
         -->
         <span class="rad-status__actions">
-            <button class="rad-status__act" aria-label={I18n.t("Copy report")} onclick={oncopy}>
+            <button class="rad-status__act" aria-label={I18n.t("Copy report")} onclick={copy}>
                 <Icon name="copy" />
                 <span class="rad-status__act-label">{I18n.t("Copy report")}</span>
             </button>

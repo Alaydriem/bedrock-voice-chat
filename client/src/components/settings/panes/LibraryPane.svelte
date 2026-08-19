@@ -3,7 +3,7 @@
     import { invoke } from "@tauri-apps/api/core";
     import { open } from "@tauri-apps/plugin-dialog";
     import { readFile } from "@tauri-apps/plugin-fs";
-    import { AppStore } from "../../../js/app/services/AppStore";
+    import { ViewerPermissionsManager } from "../../../js/app/managers/ViewerPermissionsManager";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import StatusChip from "$radial/components/StatusChip.svelte";
@@ -40,20 +40,10 @@
     const canManage = $derived(SoundLibraryView.canManage(permissions));
     const pages = $derived(SoundLibraryView.pageCount(total, PAGE_SIZE));
 
+    const viewer = new ViewerPermissionsManager();
+
     async function loadPermissions(): Promise<void> {
-        try {
-            const store = await AppStore.load();
-            const server = await store.get<string>("current_server");
-            if (!server) return;
-            const raw = await invoke<string>("get_credential", {
-                server,
-                key: "server_permissions",
-            });
-            permissions = raw ? (JSON.parse(raw).allowed ?? []) : [];
-        } catch {
-            // A failed read grants nothing.
-            permissions = [];
-        }
+        permissions = await viewer.load();
     }
 
     async function load(): Promise<void> {

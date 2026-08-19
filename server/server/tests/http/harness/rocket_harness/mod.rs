@@ -48,6 +48,7 @@ impl RocketHarness {
 
         let admin_routes = routes![
             routes::api::admin::user::create::create_user,
+            routes::api::admin::user::list::list_users,
             routes::api::admin::user::banish::banish_user,
             routes::api::admin::user::generate_code::generate_code,
             routes::api::admin::permission::set::set_permission,

@@ -14,6 +14,15 @@ describe("SettingsRoute", () => {
         expect(SettingsRoute.paneOf("/dashboard/settings/connect/")).toBe("connect");
     });
 
+    // Path-to-pane resolution cannot know the viewer's permissions: they load
+    // asynchronously from the keyring, and this is a synchronous derivation off the URL.
+    // Gating here sent every navigation to a permission-gated pane to the fallback, which
+    // reads as a sidebar item that does nothing. The gate belongs in SettingsScreen, where
+    // the permissions are known.
+    it("resolves a permission-gated pane, because the route layer holds no permissions", () => {
+        expect(SettingsRoute.paneOf("/dashboard/settings/manage-players")).toBe("manage-players");
+    });
+
     it("falls back when the path names no pane", () => {
         expect(SettingsRoute.paneOf("/dashboard/settings")).toBe("account");
         expect(SettingsRoute.paneOf("/dashboard")).toBe("account");

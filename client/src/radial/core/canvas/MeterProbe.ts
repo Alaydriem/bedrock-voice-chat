@@ -2,6 +2,13 @@
 export interface MeterProbeSnapshot {
     /** Whether any binding has ever registered under this name. */
     readonly mounted: boolean;
+    /**
+     * How many bindings hold this name right now.
+     *
+     * More than one means the counts below are merged, so "it is painting" is a claim about
+     * whichever canvas painted rather than about the one being looked at.
+     */
+    readonly bindings: number;
     /** Audible levels handed to the binding by its source. Silence is not counted. */
     readonly levels: number;
     readonly lastLevel: number;
@@ -13,6 +20,7 @@ export interface MeterProbeSnapshot {
 }
 
 interface MeterRecord {
+    bindings: number;
     levels: number;
     lastLevel: number;
     levelAt: number | null;
@@ -37,15 +45,31 @@ export class MeterProbe {
 
     /** Announce a binding under this name, so "mounted, silent" reads apart from "absent". */
     static register(name: string): void {
-        if (!MeterProbe.#records.has(name)) {
-            MeterProbe.#records.set(name, {
-                levels: 0,
-                lastLevel: 0,
-                levelAt: null,
-                paints: 0,
-                paintAt: null,
-            });
+        const record = MeterProbe.#records.get(name);
+        if (record) {
+            record.bindings += 1;
+            return;
         }
+        MeterProbe.#records.set(name, {
+            bindings: 1,
+            levels: 0,
+            lastLevel: 0,
+            levelAt: null,
+            paints: 0,
+            paintAt: null,
+        });
+    }
+
+    /**
+     * Give up a binding's claim on this name, from its `destroy`.
+     *
+     * The counts stay: they are the evidence a stall was measured by, and a meter that was
+     * remounted is the same meter. Only the number of canvases behind them changes.
+     */
+    static release(name: string): void {
+        const record = MeterProbe.#records.get(name);
+        if (!record) return;
+        record.bindings = Math.max(0, record.bindings - 1);
     }
 
     /** Record a level the binding was handed. Silence is ignored: the meter is fed a zero
@@ -69,11 +93,20 @@ export class MeterProbe {
     static read(name: string): MeterProbeSnapshot {
         const record = MeterProbe.#records.get(name);
         if (!record) {
-            return { mounted: false, levels: 0, lastLevel: 0, levelAgeMs: null, paints: 0, paintAgeMs: null };
+            return {
+                mounted: false,
+                bindings: 0,
+                levels: 0,
+                lastLevel: 0,
+                levelAgeMs: null,
+                paints: 0,
+                paintAgeMs: null,
+            };
         }
         const now = performance.now();
         return {
             mounted: true,
+            bindings: record.bindings,
             levels: record.levels,
             lastLevel: record.lastLevel,
             levelAgeMs: record.levelAt === null ? null : now - record.levelAt,

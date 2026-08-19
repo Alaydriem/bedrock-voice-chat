@@ -1,3 +1,4 @@
+pub(crate) mod admin;
 pub(crate) mod audio_library;
 pub(crate) mod chat;
 pub(crate) mod commands;

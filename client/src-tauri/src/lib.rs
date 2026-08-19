@@ -55,6 +55,9 @@ mod iap;
 pub use crate::iap::store::StoreProvider;
 pub mod keybinds;
 mod keyring;
+// Re-exported for the integration test crate (a separate crate root that can only reach
+// `pub` items) to cover how a platform keystore failure is classified.
+pub use keyring::{KeyringFault, KeyringFaultKind};
 mod logging;
 // Public for the one behavioural seam the integration tests need: `TransportVerdict`,
 // whose contract is that a demotion outlives the reconnect that produced it. That cannot
@@ -64,6 +67,7 @@ pub mod players;
 mod structs;
 #[cfg(feature = "e2e")]
 pub mod testkit;
+pub mod spike;
 pub mod websocket;
 
 // Re-exported for the e2e test bin (a separate crate root that can only reach
@@ -157,6 +161,16 @@ pub fn run() {
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();
 
+    // THROWAWAY. The second candidate transport for the meter pivot. Delete with `crate::spike`.
+    //
+    // Registered on the builder rather than in `setup`: a scheme has to exist before the webview
+    // is created, and `setup` runs after it.
+    let spike_push = crate::spike::PushProtocol::new_shared();
+    let mut builder = builder.register_asynchronous_uri_scheme_protocol(
+        crate::spike::PushProtocol::SCHEME,
+        move |_ctx, _request, responder| spike_push.handle(responder),
+    );
+
     // For desktop applications, enforce only a single running instance at a time
     #[cfg(desktop)]
     {
@@ -240,6 +254,10 @@ pub fn run() {
             })
             .build())
         .invoke_handler(tauri::generate_handler![
+            // THROWAWAY spike probe. Delete with `crate::spike`.
+            crate::commands::spike::spike_probe_start,
+            crate::commands::spike::spike_probe_stats,
+            crate::commands::spike::spike_push_served,
             commands::diagnostics::get_link_diagnostics,
             commands::diagnostics::get_diagnostics_report,
             commands::diagnostics::reset_link_diagnostics,
@@ -358,6 +376,14 @@ pub fn run() {
             crate::commands::audio_library::delete_audio_file,
             crate::auth::commands::refresh_server_state,
             crate::commands::audio_library::get_audio_stream_url,
+            // Admin
+            crate::commands::admin::admin_list_users,
+            crate::commands::admin::admin_create_user,
+            crate::commands::admin::admin_set_banished,
+            crate::commands::admin::admin_list_permissions,
+            crate::commands::admin::admin_set_permission,
+            crate::commands::admin::admin_clear_permission,
+            crate::commands::admin::api_introspect,
             // Keyring
             crate::commands::keyring::store_credentials,
             crate::commands::keyring::get_credentials,

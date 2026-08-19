@@ -14,6 +14,9 @@
 <script lang="ts">
     import { flushSync, onMount } from "svelte";
     import { warn } from "@tauri-apps/plugin-log";
+    // THROWAWAY. Delete with js/app/spike.
+    import { info } from "@tauri-apps/plugin-log";
+    import { LoopbackProbe } from "../js/app/spike/LoopbackProbe";
     import { SentryManager } from "../js/sentry";
     import { ReactivityProbe } from "../js/app/services/ReactivityProbe.svelte";
     import { ReactivityWatchdog } from "../js/app/services/ReactivityWatchdog";
@@ -28,6 +31,15 @@
         // last one to run. This marks the whole tree being up, not the layout alone.
         BootTimeline.shared().mark("svelte tree mounted");
         SentryManager.initialize();
+
+        // THROWAWAY. One automatic run so the answer reaches logcat without anybody pressing
+        // anything; the About pane's button is for the platforms where a log is not to hand.
+        void new LoopbackProbe()
+            .run()
+            .then((report) => {
+                for (const line of report.split(/\r?\n/)) void info(`SPIKE ${line}`);
+            })
+            .catch((e) => void warn(`SPIKE probe failed: ${e}`));
 
         // A long suspension on Android can wedge Svelte's scheduler: taps land, handlers
         // run, nothing paints. The watchdog probes on every return to visibility and
