@@ -1483,6 +1483,22 @@
   }
 }
 
+/* The same stack on a tablet, at any width.
+ *
+ * An iPad in landscape is wider than the rule above, so the split pane came back on the
+ * device with the least room for it: the readout's sentences overflowed their half-width
+ * column and the panel scrolled sideways. A container query cannot tell that device from a
+ * desktop window of the same size, which is what the frame's platform class is for. The
+ * scope goes on top and the readout takes the full width, as it does on a phone. */
+.rad-frame--mobile .rad-status__body {
+  flex-direction: column;
+  gap: 18px;
+}
+
+.rad-frame--mobile .rad-status__scope {
+  flex: 0 0 auto;
+}
+
 @container rad (max-width: 560px) {
   .rad-dash-top {
     height: 60px;

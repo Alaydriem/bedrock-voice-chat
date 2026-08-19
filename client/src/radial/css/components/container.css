@@ -558,6 +558,13 @@
   gap: 18px 30px;
 }
 
+/* A grid item's automatic minimum size is its content, so a group whose longest row does not
+   fit the column pushes past it instead of wrapping — and the panel around it, which scrolls
+   for its own height, then scrolls sideways as well. */
+.rad-kv-group {
+  min-width: 0;
+}
+
 .rad-kv-group__head {
   margin-bottom: 6px;
   padding-bottom: 8px;

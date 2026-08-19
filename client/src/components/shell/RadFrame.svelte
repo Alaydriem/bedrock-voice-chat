@@ -1,10 +1,24 @@
 <script lang="ts">
     import type { Snippet } from "svelte";
+    import PlatformDetector from "../../js/app/utils/PlatformDetector";
 
     interface Props {
         children: Snippet;
     }
     let { children }: Props = $props();
+
+    /**
+     * The mobile build. Not the same as a narrow window, which is a container query.
+     *
+     * The kit decides everything else against `@container rad`, and that is the right
+     * default — but a container query cannot tell a tablet from a desktop window of the
+     * same width, and a tablet in landscape is wider than every breakpoint the kit has.
+     * The rules that need the difference read it from this class.
+     *
+     * Read synchronously. `plugin-os` returns a value injected at startup, so awaiting it
+     * only guarantees a first frame rendered as desktop before the right one replaces it.
+     */
+    const mobile = new PlatformDetector().mobile();
 </script>
 
 <!--
@@ -16,7 +30,7 @@
   ancestor and holds nothing but the grain and whichever screen is current.
 -->
 <div class="rad-app-stage">
-    <div class="rad-frame rad-frame--fluid">
+    <div class="rad-frame rad-frame--fluid" class:rad-frame--mobile={mobile}>
         <div class="rad-grain"></div>
         {@render children()}
     </div>
