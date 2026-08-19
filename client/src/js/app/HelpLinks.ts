@@ -11,7 +11,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
  * navigated to GitHub is a dead end with no way back.
  */
 export default class HelpLinks {
-  static readonly WIKI = "https://github.com/alaydriem/bedrock-voice-chat";
+  static readonly WIKI = "https://www.bedrockvoicechat.com/wiki";
   static readonly DISCORD = "https://discord.gg/WGXy5kBP9E";
   static readonly PRIVACY =
     "https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md";

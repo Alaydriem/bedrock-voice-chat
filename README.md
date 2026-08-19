@@ -31,7 +31,7 @@ Bedrock Voice Chat is an client app + addon for Minecraft Bedrock edition that p
 
 ## Getting Started
 
-[www.bedrockvoicechat.com](https://www.bedrockvoicechat.com) is your source for getting started, finding the most recent download, and getting information on how to run and manage Bedrock Voice Chat. Be sure to checkout the wiki at: https://github.com/Alaydriem/bedrock-voice-chat/wiki for comprehensive documentation.
+[www.bedrockvoicechat.com](https://www.bedrockvoicechat.com) is your source for getting started, finding the most recent download, and getting information on how to run and manage Bedrock Voice Chat. Be sure to checkout the wiki at: https://www.bedrockvoicechat.com/wiki for comprehensive documentation.
 
 For operators running cross-server voice relay (Realms Connect / Proxy Connect with multiple BVC servers sharing a world), see [docs/relay-performance.md](docs/relay-performance.md) for bandwidth and scaling guidance.
 
@@ -57,7 +57,7 @@ Bedrock Voice Chat has 3 components
 2. A Bedrock Voice Chat Server you need to host and maintain that ties position data and audio data together
 3. And a native client for Windows, iOS, and Android.
 
-All 3 components are mandatory. Be sure to checkout the Wiki for more information: https://github.com/Alaydriem/bedrock-voice-chat/wiki
+All 3 components are mandatory. Be sure to checkout the Wiki for more information: https://www.bedrockvoicechat.com/wiki
 
 ## Building from Source
 

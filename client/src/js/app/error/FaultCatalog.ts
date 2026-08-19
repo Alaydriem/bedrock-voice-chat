@@ -295,7 +295,7 @@ export default class FaultCatalog {
         primaryAction: { label: I18n.t("Choose Different Server"), url: "/" },
         secondaryAction: {
           label: I18n.t("How do I unlock this?"),
-          url: "https://github.com/Alaydriem/bedrock-voice-chat/wiki/Age-Signals-&-Declared-Age-Ranges",
+          url: "https://www.bedrockvoicechat.com/wiki/player/parents-and-age/",
         },
       },
       DEFAULT: {
