@@ -1,4 +1,4 @@
-import { info, warn } from '@tauri-apps/plugin-log';
+import { debug, info, warn } from '@tauri-apps/plugin-log';
 import type { LevelSnapshot } from '../../bindings/LevelSnapshot';
 import { EventChannel } from '../events/EventChannel';
 
@@ -59,7 +59,7 @@ export class LevelFeed {
         this.#off ??= EventChannel.shared().subscribe<LevelSnapshot>('levels', (snapshot) =>
             this.#deliver(snapshot),
         );
-        void info(`LevelFeed: ${owner} subscribed (${this.#sinks.size} holding)`);
+        void debug(`LevelFeed: ${owner} subscribed (${this.#sinks.size} holding)`);
 
         let released = false;
         return () => {
@@ -68,7 +68,7 @@ export class LevelFeed {
             this.#sinks.delete(sink);
             this.#owners.delete(sink);
             if (this.#sinks.size > 0) {
-                void info(
+                void debug(
                     `LevelFeed: ${owner} released; still held by ${[...this.#owners.values()].join(', ')}`,
                 );
                 return;

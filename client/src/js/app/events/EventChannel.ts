@@ -204,7 +204,7 @@ export class EventChannel {
         socket.onopen = () => {
             this.#attempts = 0;
             this.#aliveAt = Date.now();
-            void info('EventChannel: push channel open');
+            void debug('EventChannel: push channel open');
         };
         socket.onmessage = (event) => this.#deliver(event.data);
         // A webview exposes no reason for either, so both are treated as a dropped socket and

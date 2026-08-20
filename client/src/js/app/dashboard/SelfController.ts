@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { info, warn } from '@tauri-apps/plugin-log';
+import { debug, info, warn } from '@tauri-apps/plugin-log';
 import type { Store } from '@tauri-apps/plugin-store';
 import { writable, type Readable, type Writable } from 'svelte/store';
 import { MeterProbe } from '$radial/core/canvas/MeterProbe';
@@ -150,7 +150,7 @@ export class SelfController {
               : meter.mounted && meter.levels > 0 && meter.paints === 0
                 ? 'NO-PAINTS'
                 : 'OK';
-        void info(
+        void debug(
             `meter self-check: ${verdict} — feed attached=${mic.attached} events=${mic.events} ` +
                 `rate=${mic.eventsPerSecond.toFixed(1)}/s ownLevel=${mic.lastRms.toFixed(2)} | ` +
                 `pill mounted=${meter.mounted} levels=${meter.levels} paints=${meter.paints}`,
