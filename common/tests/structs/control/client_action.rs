@@ -10,15 +10,15 @@ fn action(id: &str, game: Option<Game>) -> ClientAction {
 }
 
 // A group action keys channel membership on the actor's canonical identity. Deriving that
-// from a hardcoded game puts a Hytale player's membership under a Minecraft key, which the
-// audio router then never finds.
+// from a hardcoded game rather than the declared one puts a player's membership under the
+// wrong key, which the audio router then never finds.
 #[test]
 fn the_actor_key_uses_the_declared_game() {
-    assert_eq!(action("Alaydriem", Some(Game::Hytale)).actor_key(), "hytale:Alaydriem");
     assert_eq!(
         action("Alaydriem", Some(Game::Minecraft)).actor_key(),
         "minecraft:Alaydriem"
     );
+    assert_eq!(action("Alaydriem", None).actor_key(), "minecraft:Alaydriem");
 }
 
 // The BDS and Java encoders do not consume `common`, so a mod that predates the field keeps

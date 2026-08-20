@@ -1,7 +1,6 @@
 mod client;
 pub(crate) mod commands;
 mod endpoint;
-mod hytale;
 mod ncryptf_client;
 mod session_service;
 

@@ -1,3 +1,4 @@
+import { info, warn } from '@tauri-apps/plugin-log';
 import type { LevelSnapshot } from '../../bindings/LevelSnapshot';
 import { EventChannel } from '../events/EventChannel';
 
@@ -20,6 +21,14 @@ export class LevelFeed {
     static #shared: LevelFeed | null = null;
 
     #sinks = new Set<LevelSink>();
+    /**
+     * Who each sink belongs to, for the log.
+     *
+     * A shared fan-out whose last consumer leaves stops delivering to everybody, and until this
+     * existed there was no way to see which consumer did it: the feed reported itself attached,
+     * the socket stayed open, and one screen's meters simply never moved again.
+     */
+    #owners = new Map<LevelSink, string>();
     #off: (() => void) | null = null;
     #received = 0;
 
@@ -44,15 +53,30 @@ export class LevelFeed {
      * The channel subscription opens on the first sink and closes after the last one leaves, so
      * a screen that is gone stops costing a delivery.
      */
-    subscribe(sink: LevelSink): () => void {
+    subscribe(sink: LevelSink, owner = 'unknown'): () => void {
         this.#sinks.add(sink);
+        this.#owners.set(sink, owner);
         this.#off ??= EventChannel.shared().subscribe<LevelSnapshot>('levels', (snapshot) =>
             this.#deliver(snapshot),
         );
+        void info(`LevelFeed: ${owner} subscribed (${this.#sinks.size} holding)`);
 
+        let released = false;
         return () => {
+            if (released) return;
+            released = true;
             this.#sinks.delete(sink);
-            if (this.#sinks.size > 0) return;
+            this.#owners.delete(sink);
+            if (this.#sinks.size > 0) {
+                void info(
+                    `LevelFeed: ${owner} released; still held by ${[...this.#owners.values()].join(', ')}`,
+                );
+                return;
+            }
+            // The moment every meter in the window goes still. Logged as a fault because the
+            // feed cannot tell a screen that meant to leave from one that lost its subscription
+            // and is still on screen expecting levels.
+            void warn(`LevelFeed: ${owner} released the last sink; the channel subscription is gone`);
             this.#off?.();
             this.#off = null;
             this.#received = 0;

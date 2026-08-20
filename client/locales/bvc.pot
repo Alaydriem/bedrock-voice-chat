@@ -72,7 +72,7 @@ msgstr ""
 msgid "A new version of Bedrock Voice Chat is available. This will download and install the update immediately."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:163
+#: src/components/settings/panes/AudioPane.svelte:161
 msgid "A short tone when you mute or deafen, and a rising one when you turn either back on. It falls for off and rises for on, so you can tell without looking at the window."
 msgstr ""
 
@@ -112,12 +112,12 @@ msgstr ""
 msgid "active now"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:460
+#: src/components/settings/panes/ManagePlayersPane.svelte:457
 msgid "Add"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:230
-#: src/components/settings/panes/ManagePlayersPane.svelte:427
+#: src/components/settings/panes/ManagePlayersPane.svelte:227
+#: src/components/settings/panes/ManagePlayersPane.svelte:424
 msgid "Add a player"
 msgstr ""
 
@@ -132,11 +132,11 @@ msgstr ""
 msgid "Add a sound"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:270
+#: src/components/settings/panes/ManagePlayersPane.svelte:267
 msgid "Add one and they can sign in to this server."
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:237
+#: src/components/settings/panes/ManagePlayersPane.svelte:234
 msgid "Add player"
 msgstr ""
 
@@ -146,7 +146,7 @@ msgid "Add the mod to your world"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:194
-#: src/components/settings/panes/ManagePlayersPane.svelte:280
+#: src/components/settings/panes/ManagePlayersPane.svelte:277
 msgid "Added"
 msgstr ""
 
@@ -185,7 +185,7 @@ msgstr ""
 msgid "All"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:514
+#: src/components/settings/panes/ManagePlayersPane.svelte:511
 msgid "Allow"
 msgstr ""
 
@@ -208,7 +208,7 @@ msgstr ""
 msgid "Almost there…"
 msgstr ""
 
-#: src/js/app/dashboard.ts:711
+#: src/js/app/dashboard.ts:705
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
@@ -258,16 +258,8 @@ msgstr ""
 msgid "AuthCallbackHandler: Authorization code already exchanged"
 msgstr ""
 
-#: src/js/app/login.ts:786
-msgid "Authentication error. Please try again."
-msgstr ""
-
 #: src/js/app/deepLinkHandlers/authCallbackHandler.ts:101
 msgid "Authentication failed. Please try again."
-msgstr ""
-
-#: src/js/app/login.ts:781
-msgid "Authorization denied. Please try again."
 msgstr ""
 
 #: src/components/settings/ProxyServerEditor.svelte:124
@@ -314,16 +306,16 @@ msgstr ""
 msgid "Background Audio Couldn't Start"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:488
+#: src/components/settings/panes/ManagePlayersPane.svelte:485
 msgid "Ban"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:331
-#: src/components/settings/panes/ManagePlayersPane.svelte:387
+#: src/components/settings/panes/ManagePlayersPane.svelte:328
+#: src/components/settings/panes/ManagePlayersPane.svelte:384
 msgid "Ban {name}"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:470
+#: src/components/settings/panes/ManagePlayersPane.svelte:467
 msgid "Ban this player?"
 msgstr ""
 
@@ -371,7 +363,7 @@ msgstr ""
 msgid "BVC server + world mod · installed once"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:475
+#: src/components/settings/panes/ManagePlayersPane.svelte:472
 msgid "can sign in again. They are issued a new certificate on their next sign-in; the revoked one stays revoked."
 msgstr ""
 
@@ -394,8 +386,8 @@ msgid "Can't start"
 msgstr ""
 
 #: src/components/dashboard/GroupRow.svelte:296
-#: src/components/settings/panes/ManagePlayersPane.svelte:454
-#: src/components/settings/panes/ManagePlayersPane.svelte:486
+#: src/components/settings/panes/ManagePlayersPane.svelte:451
+#: src/components/settings/panes/ManagePlayersPane.svelte:483
 #: src/components/settings/panes/PlayersPane.svelte:340
 #: src/components/settings/panes/RecordingsPane.svelte:291
 #: src/components/settings/ProxyServerEditor.svelte:154
@@ -434,7 +426,7 @@ msgstr ""
 msgid "Channel"
 msgstr ""
 
-#: src/js/app/managers/ChannelManager.ts:518
+#: src/js/app/managers/ChannelManager.ts:514
 msgid "Channel event received with no payload"
 msgstr ""
 
@@ -488,7 +480,7 @@ msgid "Choose Different Server"
 msgstr ""
 
 #: src/components/audio/AudioDeviceSelector.svelte:85
-#: src/components/settings/panes/AudioPane.svelte:73
+#: src/components/settings/panes/AudioPane.svelte:67
 msgid "Chosen by the system"
 msgstr ""
 
@@ -686,11 +678,11 @@ msgstr ""
 msgid "Could not resolve the server address. Check that the server URL is correct and that your internet connection is working. If you are using a custom DNS provider, ensure it can resolve the server hostname."
 msgstr ""
 
-#: src/js/app/managers/settings/AccountManager.ts:113
+#: src/js/app/managers/settings/AccountManager.ts:112
 msgid "Could not retrieve Java username."
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:264
+#: src/components/settings/panes/ManagePlayersPane.svelte:261
 msgid "Couldn't load the players"
 msgstr ""
 
@@ -706,11 +698,11 @@ msgstr ""
 msgid "Cut my mic when I am not speaking"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:513
+#: src/components/settings/panes/ManagePlayersPane.svelte:510
 msgid "Default"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:500
+#: src/components/settings/panes/ManagePlayersPane.svelte:497
 msgid "Default follows this server's configuration. Allow and deny override it."
 msgstr ""
 
@@ -737,7 +729,7 @@ msgstr ""
 msgid "Delete this sound?"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:515
+#: src/components/settings/panes/ManagePlayersPane.svelte:512
 msgid "Deny"
 msgstr ""
 
@@ -745,15 +737,11 @@ msgstr ""
 msgid "Device"
 msgstr ""
 
-#: src/js/app/login.ts:776
-msgid "Device code expired. Please try again."
-msgstr ""
-
 #: src/components/login/GateScreen.svelte:107
 msgid "Device setup continues after sign-in"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:68
+#: src/components/settings/panes/AudioPane.svelte:62
 #: src/components/setup/DevicesScreen.svelte:37
 msgid "Devices"
 msgstr ""
@@ -790,7 +778,7 @@ msgstr ""
 msgid "Do both installs yourself. The guide covers the server and the mod, start to finish, in about fifteen minutes."
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:523
+#: src/components/settings/panes/ManagePlayersPane.svelte:520
 msgid "Done"
 msgstr ""
 
@@ -863,7 +851,7 @@ msgstr ""
 msgid "Exporting…"
 msgstr ""
 
-#: src/js/app/managers/settings/AccountManager.ts:121
+#: src/js/app/managers/settings/AccountManager.ts:120
 msgid "Failed to link Java identity."
 msgstr ""
 
@@ -916,12 +904,12 @@ msgid "FULL VOLUME · ANY DISTANCE"
 msgstr ""
 
 #: src/components/server/PreflightPanel.svelte:120
-#: src/components/settings/panes/ManagePlayersPane.svelte:279
+#: src/components/settings/panes/ManagePlayersPane.svelte:276
 msgid "Game"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:439
-#: src/components/settings/panes/ManagePlayersPane.svelte:440
+#: src/components/settings/panes/ManagePlayersPane.svelte:436
+#: src/components/settings/panes/ManagePlayersPane.svelte:437
 msgid "Gamertag"
 msgstr ""
 
@@ -972,7 +960,7 @@ msgstr ""
 msgid "How do I unlock this?"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:136
+#: src/components/settings/panes/AudioPane.svelte:134
 msgid "How hard voices are pushed left and right by where their speaker is standing. At 0% everyone is centred; distance still governs volume either way."
 msgstr ""
 
@@ -980,7 +968,7 @@ msgstr ""
 msgid "How long it stays open after you stop talking."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:193
+#: src/components/settings/panes/AudioPane.svelte:191
 msgid "How loud jukebox music plays before distance is applied. Every jukebox keeps its own position and its own falloff, so this scales what distance already decided."
 msgstr ""
 
@@ -1006,7 +994,7 @@ msgid "Identity"
 msgstr ""
 
 #: src/components/dashboard/DashboardScreen.svelte:335
-#: src/routes/dashboard/+layout.svelte:624
+#: src/routes/dashboard/+layout.svelte:633
 msgid "In earshot"
 msgstr ""
 
@@ -1018,13 +1006,13 @@ msgstr ""
 msgid "In game, run"
 msgstr ""
 
-#: src/js/app/managers/ChannelManager.ts:310
-#: src/js/app/managers/ChannelManager.ts:351
+#: src/js/app/managers/ChannelManager.ts:306
+#: src/js/app/managers/ChannelManager.ts:347
 msgid "In public group channel"
 msgstr ""
 
 #: src/js/app/dashboard.ts:378
-#: src/js/app/managers/ChannelManager.ts:390
+#: src/js/app/managers/ChannelManager.ts:386
 msgid "In public voice chat"
 msgstr ""
 
@@ -1088,13 +1076,13 @@ msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:52
 #: src/components/dashboard/JukeboxChip.svelte:73
-#: src/components/settings/panes/AudioPane.svelte:192
-#: src/components/settings/panes/AudioPane.svelte:211
+#: src/components/settings/panes/AudioPane.svelte:190
+#: src/components/settings/panes/AudioPane.svelte:209
 msgid "Jukebox volume"
 msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:64
-#: src/components/settings/panes/AudioPane.svelte:176
+#: src/components/settings/panes/AudioPane.svelte:174
 msgid "Jukeboxes"
 msgstr ""
 
@@ -1120,7 +1108,7 @@ msgid "last seen {n} min ago"
 msgstr ""
 
 #: src/components/dashboard/GroupRow.svelte:193
-#: src/routes/dashboard/+layout.svelte:617
+#: src/routes/dashboard/+layout.svelte:626
 msgid "Leave"
 msgstr ""
 
@@ -1160,11 +1148,11 @@ msgstr ""
 msgid "Login failed. Please check your server URL and try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:710
+#: src/js/app/dashboard.ts:704
 msgid "Logout Failed"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:480
+#: src/components/settings/panes/ManagePlayersPane.svelte:477
 msgid "loses voice access now. Their certificate is revoked and their live session is closed, so unbanning them requires them to sign in again."
 msgstr ""
 
@@ -1231,22 +1219,22 @@ msgstr ""
 msgid "MS RTT"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:180
+#: src/components/settings/panes/AudioPane.svelte:178
 msgid "Music from jukeboxes in the world. Voices are not affected."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:162
-#: src/components/settings/panes/AudioPane.svelte:168
+#: src/components/settings/panes/AudioPane.svelte:160
+#: src/components/settings/panes/AudioPane.svelte:166
 msgid "Mute and deafen sounds"
 msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:43
-#: src/components/settings/panes/AudioPane.svelte:179
-#: src/components/settings/panes/AudioPane.svelte:185
+#: src/components/settings/panes/AudioPane.svelte:177
+#: src/components/settings/panes/AudioPane.svelte:183
 msgid "Mute jukeboxes"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:198
+#: src/components/settings/panes/AudioPane.svelte:196
 msgid "Muted"
 msgstr ""
 
@@ -1291,7 +1279,7 @@ msgstr ""
 msgid "NO ANSWER · CONN01"
 msgstr ""
 
-#: src/js/app/dashboard.ts:846
+#: src/js/app/dashboard.ts:840
 msgid "No current server found in store!"
 msgstr ""
 
@@ -1324,11 +1312,11 @@ msgstr ""
 msgid "No Output Device Found"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:269
+#: src/components/settings/panes/ManagePlayersPane.svelte:266
 msgid "No player on this server has that in their name."
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:267
+#: src/components/settings/panes/ManagePlayersPane.svelte:264
 msgid "No players yet"
 msgstr ""
 
@@ -1362,7 +1350,7 @@ msgid "Nobody you have changed has that name."
 msgstr ""
 
 #: src/components/settings/NoiseGate.svelte:70
-#: src/components/settings/panes/AudioPane.svelte:222
+#: src/components/settings/panes/AudioPane.svelte:220
 #: src/js/app/dashboard/DiagnosticsCopy.ts:28
 msgid "Noise gate"
 msgstr ""
@@ -1400,7 +1388,7 @@ msgstr ""
 msgid "Not connected"
 msgstr ""
 
-#: src/js/app/managers/settings/AccountManager.ts:86
+#: src/js/app/managers/settings/AccountManager.ts:85
 msgid "Not connected to a server."
 msgstr ""
 
@@ -1463,7 +1451,7 @@ msgstr ""
 msgid "Nothing is wrong with your setup"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:267
+#: src/components/settings/panes/ManagePlayersPane.svelte:264
 msgid "Nothing matches that"
 msgstr ""
 
@@ -1536,7 +1524,7 @@ msgstr ""
 msgid "Online"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:232
+#: src/components/settings/panes/ManagePlayersPane.svelte:229
 msgid "Only players on this list can sign in to this server."
 msgstr ""
 
@@ -1601,12 +1589,12 @@ msgstr ""
 msgid "Per-player volume 0–150%"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:498
+#: src/components/settings/panes/ManagePlayersPane.svelte:495
 msgid "Permissions for {name}"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:296
-#: src/components/settings/panes/ManagePlayersPane.svelte:363
+#: src/components/settings/panes/ManagePlayersPane.svelte:293
+#: src/components/settings/panes/ManagePlayersPane.svelte:360
 msgid "Permissions for {name} — {state}"
 msgstr ""
 
@@ -1626,11 +1614,11 @@ msgstr ""
 msgid "Platform ID"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:258
+#: src/components/settings/panes/ManagePlayersPane.svelte:255
 msgid "player"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:278
+#: src/components/settings/panes/ManagePlayersPane.svelte:275
 msgid "Player"
 msgstr ""
 
@@ -1642,7 +1630,7 @@ msgstr ""
 msgid "Player presence event received with no payload"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:258
+#: src/components/settings/panes/ManagePlayersPane.svelte:255
 #: src/js/app/settings/RecordingTracksView.ts:13
 msgid "players"
 msgstr ""
@@ -1651,23 +1639,22 @@ msgstr ""
 msgid "Players"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:198
+#: src/components/settings/panes/AudioPane.svelte:196
 msgid "Playing"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:101
+#: src/components/settings/panes/AudioPane.svelte:99
 msgid "Plays a chime through the device you listen on, not through whatever the browser would pick."
 msgstr ""
 
-#: src/js/app/login.ts:312
+#: src/js/app/login.ts:309
 msgid "Please enter a server URL"
 msgstr ""
 
+#: src/js/app/login.ts:319
 #: src/js/app/login.ts:322
-#: src/js/app/login.ts:325
-#: src/js/app/login.ts:454
-#: src/js/app/login.ts:662
-#: src/js/app/login.ts:712
+#: src/js/app/login.ts:441
+#: src/js/app/login.ts:643
 msgid "Please enter a valid server URL"
 msgstr ""
 
@@ -1946,8 +1933,8 @@ msgstr ""
 msgid "Save the logs to a file"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:252
-#: src/components/settings/panes/ManagePlayersPane.svelte:253
+#: src/components/settings/panes/ManagePlayersPane.svelte:249
+#: src/components/settings/panes/ManagePlayersPane.svelte:250
 #: src/components/settings/panes/PlayersPane.svelte:210
 #: src/components/settings/panes/PlayersPane.svelte:211
 msgid "Search players"
@@ -2016,15 +2003,11 @@ msgstr ""
 msgid "Server check"
 msgstr ""
 
-#: src/js/app/login.ts:727
-msgid "Server not reachable"
-msgstr ""
-
 #: src/js/app/error/FaultCatalog.ts:145
 msgid "Server Update Required"
 msgstr ""
 
-#: src/js/app/login.ts:319
+#: src/js/app/login.ts:316
 msgid "Server URL must use HTTPS"
 msgstr ""
 
@@ -2059,8 +2042,8 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:314
-#: src/components/settings/panes/ManagePlayersPane.svelte:375
+#: src/components/settings/panes/ManagePlayersPane.svelte:311
+#: src/components/settings/panes/ManagePlayersPane.svelte:372
 msgid "Settings for {name}"
 msgstr ""
 
@@ -2161,8 +2144,8 @@ msgstr ""
 msgid "Sound"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:135
-#: src/components/settings/panes/AudioPane.svelte:152
+#: src/components/settings/panes/AudioPane.svelte:133
+#: src/components/settings/panes/AudioPane.svelte:150
 msgid "Spatial panning"
 msgstr ""
 
@@ -2224,7 +2207,7 @@ msgstr ""
 msgid "Supported"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:77
+#: src/components/settings/panes/AudioPane.svelte:71
 msgid "System default"
 msgstr ""
 
@@ -2236,19 +2219,19 @@ msgstr ""
 msgid "Takes about a minute on a normal connection"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:93
+#: src/components/settings/panes/AudioPane.svelte:87
 msgid "Talk for a moment. The mark fills out as it hears you."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:92
+#: src/components/settings/panes/AudioPane.svelte:86
 msgid "Test my microphone"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:100
+#: src/components/settings/panes/AudioPane.svelte:98
 msgid "Test playback"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:89
+#: src/components/settings/panes/AudioPane.svelte:83
 msgid "Test your devices"
 msgstr ""
 
@@ -2291,7 +2274,7 @@ msgstr ""
 msgid "The operator has turned voice recording off, so the record button is unavailable while you are connected here."
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:95
+#: src/components/settings/panes/ManagePlayersPane.svelte:92
 msgid "The server did not answer when we asked for its players."
 msgstr ""
 
@@ -2317,7 +2300,7 @@ msgstr ""
 msgid "The update could not be installed. Try again, or download the new version by hand."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:128
+#: src/components/settings/panes/AudioPane.svelte:126
 msgid "The voice mode did not change."
 msgstr ""
 
@@ -2325,7 +2308,7 @@ msgstr ""
 msgid "The WebSocket server lets you drive BVC from other software, such as a Stream Deck. It answers only this device unless you allow external connections."
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:429
+#: src/components/settings/panes/ManagePlayersPane.svelte:426
 msgid "Their gamertag, spelled as Xbox spells it. Only players on this list can sign in to this server."
 msgstr ""
 
@@ -2418,16 +2401,16 @@ msgstr ""
 msgid "Unable to establish a voice connection to the server. The server may be offline, unreachable, or your certificates may have expired. Please try again."
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:488
+#: src/components/settings/panes/ManagePlayersPane.svelte:485
 msgid "Unban"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:328
-#: src/components/settings/panes/ManagePlayersPane.svelte:386
+#: src/components/settings/panes/ManagePlayersPane.svelte:325
+#: src/components/settings/panes/ManagePlayersPane.svelte:383
 msgid "Unban {name}"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:470
+#: src/components/settings/panes/ManagePlayersPane.svelte:467
 msgid "Unban this player?"
 msgstr ""
 
@@ -2516,7 +2499,7 @@ msgstr ""
 msgid "View privacy statement"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:110
+#: src/components/settings/panes/AudioPane.svelte:108
 msgid "Voice"
 msgstr ""
 
@@ -2545,7 +2528,7 @@ msgstr ""
 msgid "Voice has to keep running"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:112
+#: src/components/settings/panes/AudioPane.svelte:110
 msgid "Voice mode"
 msgstr ""
 
@@ -2716,7 +2699,7 @@ msgstr ""
 msgid "You moved out of {world} — that message was not sent"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:222
+#: src/components/settings/panes/ManagePlayersPane.svelte:219
 #: src/js/app/settings/ManagePlayersView.ts:193
 #: src/js/app/settings/ManagePlayersView.ts:206
 #: src/js/app/settings/ManagePlayersView.ts:219
@@ -2783,7 +2766,7 @@ msgstr ""
 msgid "Your PC, a VPS, or a home box"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:74
+#: src/components/settings/panes/AudioPane.svelte:68
 msgid "Your phone routes voice to whatever you last connected. Plug in a headset and it follows — there is nothing to pick here."
 msgstr ""
 

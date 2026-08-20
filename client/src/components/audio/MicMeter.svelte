@@ -5,10 +5,8 @@
         /**
          * The level to draw, 0 to 1, already on the meter's own scale.
          *
-         * A display level rather than an RMS. The two callers no longer measure the same
-         * thing — one reads a live session's published level, the other the raw amplitude of
-         * a stream it started — so scaling belongs where the units are known. Scaling here as
-         * well pinned the ring at full for anybody in a session.
+         * A display level rather than an RMS: the caller measures the raw amplitude of the
+         * metering stream it started, so scaling belongs where the units are known.
          */
         level: number;
         /** Whether audio is reaching the encoder right now. */
@@ -19,13 +17,8 @@
          * quiet microphone is the whole point of the meter, and a flat mark says both.
          */
         available?: boolean;
-        /**
-         * `pane` fills a positioned visual half, which is how setup uses it. `card` is a
-         * fixed-size ring beside its own reading, for a settings row.
-         */
-        layout?: "pane" | "card";
     }
-    let { level, speaking, available = true, layout = "pane" }: Props = $props();
+    let { level, speaking, available = true }: Props = $props();
 
     /**
      * The mark's amplitude is the reading. Reaching its full silhouette is what tells
@@ -55,6 +48,9 @@
 </script>
 
 <!--
+  Setup's microphone test, which is the one screen that opens a capture of its own — the audio
+  settings pane draws the session's capture with a bare mark instead.
+
   The same ring the empty states use, so a microphone test and "nobody is here" are
   visibly the same object rather than two different widgets.
 
@@ -64,30 +60,15 @@
   which reads as one steady object turning rather than a second thing competing for
   attention.
 -->
-{#if layout === "pane"}
-    <div class="rad-visual">
-        <Ring
-            mode={available ? "live" : "empty"}
-            gain={gain}
-            ringStill={true}
-            spin={0.12}
-            class="rad-ring--fill"
-        />
-        <span class="rad-caption">
-            <span class="rad-label">{label}</span>
-        </span>
-    </div>
-{:else}
-    <div class="rad-mic-meter">
-        <Ring
-            mode={available ? "live" : "empty"}
-            gain={gain}
-            ringStill={true}
-            spin={0.12}
-            size={104}
-        />
-        <span class="rad-mic-meter__text">
-            <span class="rad-label">{label}</span>
-        </span>
-    </div>
-{/if}
+<div class="rad-visual">
+    <Ring
+        mode={available ? "live" : "empty"}
+        gain={gain}
+        ringStill={true}
+        spin={0.12}
+        class="rad-ring--fill"
+    />
+    <span class="rad-caption">
+        <span class="rad-label">{label}</span>
+    </span>
+</div>

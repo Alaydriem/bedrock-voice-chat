@@ -56,8 +56,7 @@ export class AccountManager {
 
             if (!currentServer) return;
 
-            const game = await store.get<string>("active_game");
-            this.activeGameStore.set((game === "hytale") ? "hytale" : "minecraft");
+            this.activeGameStore.set("minecraft");
 
             this.gamertagStore.set(await invoke<string>("get_credential", { server: currentServer, key: "gamertag" }).catch(() => ""));
             this.gamerpicStore.set(await invoke<string>("get_credential", { server: currentServer, key: "gamerpic" }).catch(() => ""));

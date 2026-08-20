@@ -66,29 +66,6 @@ fn minecraft_facing_west_emitter_south_pans_left() {
     assert!(pan > 0.5, "Expected positive pan (left), got {}", pan);
 }
 
-// Hytale yaw 0 faces north (-Z), so its left is west (-X) — the opposite side from Minecraft.
-#[test]
-fn hytale_facing_north_emitter_west_pans_left() {
-    let (pan, _) = heard(at(-20.0, 0.0, 0.0), 0.0, Game::Hytale);
-
-    assert!(pan > 0.5, "Expected positive pan (left), got {}", pan);
-}
-
-#[test]
-fn hytale_facing_north_emitter_east_pans_right() {
-    let (pan, _) = heard(at(20.0, 0.0, 0.0), 0.0, Game::Hytale);
-
-    assert!(pan < -0.5, "Expected negative pan (right), got {}", pan);
-}
-
-#[test]
-fn the_two_games_pan_opposite_sides_for_the_same_geometry() {
-    let (minecraft, _) = heard(at(20.0, 0.0, 0.0), 0.0, Game::Minecraft);
-    let (hytale, _) = heard(at(20.0, 0.0, 0.0), 0.0, Game::Hytale);
-
-    assert!(minecraft * hytale < 0.0);
-}
-
 #[test]
 fn close_range_suppresses_panning() {
     let config = SpatialAudioConfig::default();

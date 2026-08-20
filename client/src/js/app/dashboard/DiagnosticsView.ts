@@ -25,8 +25,14 @@ export class DiagnosticsView {
     /** Neither zero nor a guess. */
     private static readonly UNKNOWN = '—';
 
-    /** How long the channel may be quiet before silence is worth reporting. */
-    private static readonly CHANNEL_QUIET_MS = 5000;
+    /**
+     * How long the channel may be quiet before silence is worth reporting.
+     *
+     * Above the listener's five-second keepalive, so a single late frame is not reported as a
+     * fault, and below the deadline `EventChannel` replaces the socket on — the row describes a
+     * channel on its way out rather than one that has already been swapped.
+     */
+    private static readonly CHANNEL_QUIET_MS = 12_000;
 
     /**
      * Whether this window is being told anything at all.
@@ -52,7 +58,7 @@ export class DiagnosticsView {
             const seconds = Math.round(state.lastFrameAgoMs / 1000);
             return [
                 'Push channel',
-                `connected, but nothing has arrived for ${seconds}s  ← the socket is open and idle`,
+                `connected, but nothing has arrived for ${seconds}s  ← the channel is being replaced`,
             ];
         }
 

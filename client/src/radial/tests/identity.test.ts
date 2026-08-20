@@ -80,10 +80,11 @@ describe("PlayerHue", () => {
     assert.equal(PlayerHue.of("minecraft:Alaydriem"), PlayerHue.of("MINECRAFT:alaydriem"));
   });
 
-  it("separates the same name on different games", () => {
-    // The same gamertag on two games is two identities as far as certificates go.
+  it("separates the same name under different game prefixes", () => {
+    // The hue is keyed on the whole canonical identity, so the same gamertag under two
+    // prefixes is two identities as far as certificates go.
     const a = PlayerHue.columnOf("minecraft:Alaydriem");
-    const b = PlayerHue.columnOf("hytale:Alaydriem");
+    const b = PlayerHue.columnOf("othergame:Alaydriem");
     assert.notEqual(a, b);
   });
 

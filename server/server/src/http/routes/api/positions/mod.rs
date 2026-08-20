@@ -16,7 +16,7 @@ use crate::{
 inventory::submit! {
     TagDefinition {
         name: "Positions",
-        description: "Player position updates from game mods. Used by the Minecraft/Hytale \
+        description: "Player position updates from game mods. Used by the Minecraft \
                       server plugin to push player coordinates for spatial audio calculations.",
     }
 }

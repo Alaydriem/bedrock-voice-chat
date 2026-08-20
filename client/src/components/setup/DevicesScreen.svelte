@@ -10,7 +10,7 @@
     interface Props {
         step: number;
         total: number;
-        /** Post-gate RMS, 0 to 1, from the audio-input-level event. */
+        /** Post-gate RMS, 0 to 1, from the `input_level` push frames. */
         inputLevel: number;
         gateOpen: boolean;
         /**
@@ -41,7 +41,7 @@
 
     <div class="rad-split">
         <div class="rad-visual-pane">
-            <MicMeter level={LevelScale.fromRms(inputLevel)} speaking={gateOpen} {available} layout="pane" />
+            <MicMeter level={LevelScale.fromRms(inputLevel)} speaking={gateOpen} {available} />
         </div>
         <div class="rad-content-pane rad-content-pane--top">
             <span class="rad-label rad-rise" style="--d: 50">03 · Devices</span>

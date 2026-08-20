@@ -51,11 +51,8 @@
     });
     let newGamertag = $state("");
     /**
-     * Every player this build can whitelist is a Minecraft player.
-     *
-     * `Game` still carries `Hytale` and the server still accepts it, so this is a hidden
-     * choice rather than a removed one: restoring the picker is putting the control back
-     * around this value.
+     * Every player this build can whitelist is a Minecraft player, and it is the only game
+     * `Game` carries. Adding a second one is putting a picker back around this value.
      */
     const newGame: Game = "minecraft";
     let addError = $state("");

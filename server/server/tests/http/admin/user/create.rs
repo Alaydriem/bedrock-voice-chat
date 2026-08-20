@@ -97,34 +97,6 @@ async fn returns_201_on_fresh_gamertag() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn returns_201_on_cross_game_duplicate() {
-    let env = TestServer::start().await.unwrap();
-    let client = env.admin_client().unwrap();
-
-    let first = client
-        .post(format!("{}{}", env.base_url, ENDPOINT))
-        .json(&CreateUserRequest {
-            gamertag: "Eve".into(),
-            game: Game::Minecraft,
-        })
-        .send()
-        .await
-        .unwrap();
-    HttpAssert::status(first.status().as_u16(), 201);
-
-    let second = client
-        .post(format!("{}{}", env.base_url, ENDPOINT))
-        .json(&CreateUserRequest {
-            gamertag: "Eve".into(),
-            game: Game::Hytale,
-        })
-        .send()
-        .await
-        .unwrap();
-    HttpAssert::status(second.status().as_u16(), 201);
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn returns_409_on_duplicate() {
     let env = TestServer::start().await.unwrap();
     let client = env.admin_client().unwrap();

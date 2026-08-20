@@ -75,7 +75,10 @@ export class PlayerLevelSources {
         this.received = 0;
         this.failures = 0;
         this.startedAt = performance.now();
-        this.unlisten = LevelFeed.shared().subscribe((snapshot) => this.receive(snapshot));
+        this.unlisten = LevelFeed.shared().subscribe(
+            (snapshot) => this.receive(snapshot),
+            'PlayerLevelSources',
+        );
 
         this.sweep = setInterval(() => this.decay(), PlayerLevelSources.SWEEP_MS);
     }

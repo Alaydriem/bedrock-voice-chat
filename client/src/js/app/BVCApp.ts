@@ -69,12 +69,20 @@ export default class BVCApp {
      * The listeners this instance registered are process-wide, so they outlive the
      * document unless something releases them. `pagehide` covers the webview cases
      * `beforeunload` misses on mobile.
+     *
+     * Document teardown only. `popstate` was in this list and is not a teardown: it fires on a
+     * move *within* the document, and settings is a child route left by popping history — so
+     * closing the settings cover ran the whole session teardown while the dashboard was still
+     * on screen. Every level consumer was unsubscribed, the self controller and both managers
+     * were dropped, the layout was never destroyed so nothing re-initialised, and `isCleanedUp`
+     * latched so it never recovered. The meters were flat for the life of the page, with the
+     * link still up and levels still arriving, which is why it read as a rendering fault for so
+     * long.
      */
     private registerCleanupEvents(): void {
         const cleanup = () => this.safeCleanup();
         window.addEventListener('beforeunload', cleanup);
         window.addEventListener('pagehide', cleanup);
-        window.addEventListener('popstate', cleanup);
         window.addEventListener('unload', cleanup);
     }
 

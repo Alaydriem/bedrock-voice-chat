@@ -7,7 +7,7 @@
     import Toggle from "$radial/components/Toggle.svelte";
     import StatusChip from "$radial/components/StatusChip.svelte";
     import AudioDeviceSelector from "../../audio/AudioDeviceSelector.svelte";
-    import MicMeter from "../../audio/MicMeter.svelte";
+    import LevelMeter from "$radial/components/LevelMeter.svelte";
     import PlaybackTest from "../../audio/PlaybackTest.svelte";
     import NoiseGate from "../NoiseGate.svelte";
     import { AudioSettingsManager } from "../../../js/app/managers/settings/AudioSettingsManager";
@@ -36,9 +36,6 @@
     let jukeboxGain = $state(100);
     let jukeboxMuted = $state(false);
     let muteCues = $state(true);
-    let inputLevel = $state(0);
-    let gateOpen = $state(false);
-    let meterAvailable = $state(true);
 
     const unsubs: Array<() => void> = [];
 
@@ -49,9 +46,6 @@
         unsubs.push(audio.jukeboxGain.subscribe((v) => (jukeboxGain = v)));
         unsubs.push(audio.jukeboxMuted.subscribe((v) => (jukeboxMuted = v)));
         unsubs.push(audio.muteCues.subscribe((v) => (muteCues = v)));
-        unsubs.push(probe.rms.subscribe((v) => (inputLevel = v)));
-        unsubs.push(probe.gateOpen.subscribe((v) => (gateOpen = v)));
-        unsubs.push(probe.available.subscribe((v) => (meterAvailable = v)));
         // The layout initialises the shared instance; only a standalone one needs it here.
         if (!shared) void audio.initialize();
         void probe.start();
@@ -93,7 +87,11 @@
             note={I18n.t("Talk for a moment. The mark fills out as it hears you.")}
             stack
         >
-            <MicMeter level={inputLevel} speaking={gateOpen} available={meterAvailable} layout="card" />
+            <!-- The mark alone, centred. The row's own label and note already say what this is
+                 and what to do with it, so a caption under it said the same thing twice. -->
+            <div class="rad-mic-meter">
+                <LevelMeter source={probe.source} cell={3} />
+            </div>
         </SettingRow>
 
         <SettingRow

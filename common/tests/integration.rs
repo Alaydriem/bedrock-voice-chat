@@ -1,4 +1,3 @@
-mod auth;
 mod encoding;
 mod net;
 mod players;

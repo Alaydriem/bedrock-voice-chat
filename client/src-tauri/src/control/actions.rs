@@ -89,8 +89,8 @@ impl ControlActionsManager {
     ///
     /// The only looseness kept is casing, and only on the gamertag: what a mod reports varies
     /// in case from what the certificate carried. The game prefix still has to match exactly,
-    /// because `minecraft:Bob` and `hytale:Bob` are two people — a prefix-insensitive match
-    /// would let a control action from one game mute someone in the other.
+    /// because the same gamertag under two game prefixes is two people — a prefix-insensitive
+    /// match would let a control action from one game mute someone in the other.
     ///
     /// Candidates are ordered by authority (tracked voice names before store keys), so the
     /// first case-insensitive hit wins. An unknown target parks under its composed canonical

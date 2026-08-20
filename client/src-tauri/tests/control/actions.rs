@@ -36,13 +36,13 @@ fn case_variance_in_the_gamertag_resolves_to_the_tracked_casing() {
 
 #[test]
 fn the_game_prefix_must_match_exactly() {
-    // `minecraft:Bob` and `hytale:Bob` are two people. A prefix-insensitive match would let a
-    // control action from one game mute somebody in the other, which is the collision the
-    // canonical key exists to prevent.
+    // `minecraft:Bob` and `othergame:Bob` are two people. A prefix-insensitive match would
+    // let a control action from one game mute somebody in the other, which is the collision
+    // the canonical key exists to prevent.
     assert_eq!(
-        ControlActionsManager::canonicalize_target("Bob", &Game::Minecraft, &["hytale:Bob"]),
+        ControlActionsManager::canonicalize_target("Bob", &Game::Minecraft, &["othergame:Bob"]),
         "minecraft:Bob",
-        "a hytale candidate must not answer for a minecraft target"
+        "a candidate under another game prefix must not answer for a minecraft target"
     );
 }
 
@@ -62,14 +62,6 @@ fn an_unknown_target_parks_under_its_canonical_form() {
     // would be written and then never resolve; the canonical form resolves as soon as that
     // player is tracked.
     assert_eq!(resolve("Ghost", &["minecraft:Alice"]), "minecraft:Ghost");
-}
-
-#[test]
-fn a_hytale_action_composes_a_hytale_key() {
-    assert_eq!(
-        ControlActionsManager::canonicalize_target("Carol", &Game::Hytale, &["hytale:Carol"]),
-        "hytale:Carol"
-    );
 }
 
 // The reserved jukebox target is not a player and must survive composition untouched. Composed

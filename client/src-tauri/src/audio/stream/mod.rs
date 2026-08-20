@@ -96,17 +96,6 @@ impl AudioStreamManager {
         self.session_config.clone()
     }
 
-    /// Whether the session's own capture stream is running right now.
-    ///
-    /// Asked rather than inferred. The settings meter used to decide this by waiting to see
-    /// whether level events arrived, which stopped being sound the moment levels were only
-    /// published on change: a quiet room and a dead capture then look identical, and guessing
-    /// wrong costs a live stream — `start_input_metering` runs `init`, which tears the session
-    /// capture down and rebuilds it with no network sender attached.
-    pub fn input_capture_active(&self) -> bool {
-        self.input.capture_expected()
-    }
-
     /// The meter bus, for the diagnostics service to report its published-message count.
     pub fn levels(&self) -> Arc<level_bus::LevelBus> {
         self.levels.clone()
@@ -433,7 +422,7 @@ impl AudioStreamManager {
 
     /// The only thing that publishes meter levels to the webview.
     ///
-    /// There were two, each on a fixed 100 ms timer: the capture path's `audio-input-level` and
+    /// There were two, each on a fixed 100 ms timer: the capture path's raw level and
     /// the mixer's `audio-activity`. Twenty messages a second between them, whether or not
     /// anything had changed. On Android every one of those is a unit of main-thread work —
     /// dequeue, marshal a JavaScript string over JNI, evaluate it — on the same thread that

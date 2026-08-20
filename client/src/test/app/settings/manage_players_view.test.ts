@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ManagePlayersView } from "../../../js/app/settings/ManagePlayersView";
 import type { AdminUserRow } from "../../../js/bindings/AdminUserRow";
+import type { Game } from "../../../js/bindings/Game";
 import type { PermissionEntry } from "../../../js/bindings/PermissionEntry";
 
 function user(overrides: Record<string, unknown> = {}): AdminUserRow {
@@ -126,8 +127,11 @@ describe("ManagePlayersView.gameLabel", () => {
         expect(ManagePlayersView.gameLabel("minecraft")).toBe("Minecraft");
     });
 
+    // `Game` carries one member, so the compiler says this value cannot occur. The roster
+    // arrives as JSON from the server, which is not bound by that claim, so the label still
+    // has to render something a reader can use rather than throwing or rendering nothing.
     it("names a game it does not know rather than rendering nothing", () => {
-        expect(ManagePlayersView.gameLabel("hytale")).toBe("Hytale");
+        expect(ManagePlayersView.gameLabel("valheim" as Game)).toBe("Valheim");
     });
 });
 
@@ -197,9 +201,10 @@ describe("ManagePlayersView.isSelf", () => {
         );
     });
 
-    // Two players in different games can share a gamertag, and they are not the same person.
-    it("does not match the same gamertag in another game", () => {
-        expect(ManagePlayersView.isSelf(ManagePlayersView.row(user({ game: "hytale" })), me)).toBe(
+    // Two players under different game prefixes can share a gamertag, and they are not the
+    // same person.
+    it("does not match the same gamertag under another game prefix", () => {
+        expect(ManagePlayersView.isSelf(ManagePlayersView.row(user({ game: "othergame" })), me)).toBe(
             false,
         );
     });

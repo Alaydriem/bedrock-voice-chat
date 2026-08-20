@@ -110,30 +110,6 @@ async fn search_narrows_the_page_and_the_total() {
     assert_eq!(body["items"][0]["gamertag"].as_str().unwrap(), "Carol");
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_game_filter_excludes_the_other_game() {
-    let env = TestServer::start().await.unwrap();
-    let _ = env.issue_player("Bob", &Game::Minecraft).await.unwrap();
-    let _ = env.issue_player("Hyt", &Game::Hytale).await.unwrap();
-
-    let resp = env
-        .admin_client()
-        .unwrap()
-        .get(format!("{}{}?game=hytale", env.base_url, ENDPOINT))
-        .send()
-        .await
-        .unwrap();
-    let body: serde_json::Value = resp.json().await.unwrap();
-
-    let names: Vec<String> = body["items"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|row| row["gamertag"].as_str().unwrap().to_string())
-        .collect();
-    assert_eq!(names, vec!["Hyt".to_string()]);
-}
-
 // A banned player is the one an operator most needs to find, in order to unban them.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_banished_player_is_listed_with_the_flag_set() {

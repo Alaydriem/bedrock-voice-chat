@@ -77,12 +77,12 @@ describe("GroupsView", () => {
     });
 
     // The creator and this client's own name both come from a certificate Common Name, so the
-    // game is part of the answer. A comparison that ignored it would hand somebody the rename
-    // and close buttons for a group created by their namesake in the other game.
-    it("does not own a group created by the same gamertag in another game", () => {
+    // game prefix is part of the answer. A comparison that ignored it would hand somebody the
+    // rename and close buttons for a group created by their namesake under another prefix.
+    it("does not own a group created by the same gamertag under another game prefix", () => {
         const view = new GroupsView();
         const rows = view.rows(
-            [channel("theirs", "Theirs", [], "hytale:Alaydriem")],
+            [channel("theirs", "Theirs", [], "othergame:Alaydriem")],
             null,
             "minecraft:Alaydriem",
         );

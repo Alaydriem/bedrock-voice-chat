@@ -352,37 +352,15 @@
 }
 
 /* ---- the microphone meter, on a settings row ----
- * The same ring the setup screen fills a whole pane with, at a size a card can hold. Its
- * caption moves beside it rather than sitting over it: the pane version has a corner to
- * park in and a row does not.
+ * The mark alone, centred in the row. No ring and no caption: the row's own label and note
+ * say what the control is and what to do with it, and a second caption under the mark changed
+ * length as you spoke, which moved everything below it.
  */
 
 .rad-mic-meter {
   display: flex;
-  align-items: center;
-  gap: 18px;
+  justify-content: center;
   margin-top: 12px;
-}
-
-.rad-mic-meter__text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-/*
-  The caption changes while you talk, and its states are not the same length — long enough
-  that one wraps to a second line where another does not. That moved the reading under it, and
-  everything below the meter with it, every time somebody said a word.
-
-  Two lines are reserved so the block is the same height in every state, including the longest
-  one ("Cannot open that microphone"). Reserving rather than clipping, because a caption that
-  wraps is fine and a caption that jumps is not.
-*/
-.rad-mic-meter__text .rad-label {
-  display: block;
-  line-height: 1.35;
-  min-height: 2.7em;
 }
 
 /* ---- a record, on its own screen ----

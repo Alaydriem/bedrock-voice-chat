@@ -498,25 +498,17 @@ pub(crate) async fn restart_audio_stream(
     Ok(())
 }
 
-/// Capture only to drive the level meter on the setup screen. Emits
-/// `audio-input-level` exactly as a session stream does, and transmits nothing.
+/// Capture only to drive the level meter on the setup screen, which runs before any session
+/// exists. Publishes `input_level` frames and transmits nothing.
+///
+/// The only remaining caller of the metering path. The audio settings pane reads the shared
+/// level feed instead, because a pane that claimed a stream replaced the session's capture
+/// and left nothing running when it stopped.
 ///
 /// The device comes from `AppState`, which is the same place the device selector reads
 /// its preselected value from. The stream manager keeps its own copy and has none until
 /// `init`, so metering the selection means handing it over rather than assuming the
 /// manager already knows it.
-/// Whether a session capture stream is already running.
-///
-/// The settings meter asks this before starting one of its own. Inferring it from the arrival
-/// of level events cost a live capture every time somebody opened the audio pane once levels
-/// stopped being published on a fixed clock.
-#[tauri::command]
-pub(crate) async fn input_capture_active(
-    asm: State<'_, Mutex<AudioStreamManager>>,
-) -> Result<bool, String> {
-    Ok(asm.lock().await.input_capture_active())
-}
-
 #[tauri::command]
 pub(crate) async fn start_input_meter(
     state: State<'_, Mutex<AppState>>,

@@ -48,8 +48,6 @@ impl SpatialCalculator {
             let (left_x, left_z) = match game {
                 // Minecraft: yaw 0 = South (+Z), clockwise
                 Game::Minecraft => (yaw_rad.cos(), yaw_rad.sin()),
-                // Hytale: yaw 0 = North (-Z), counter-clockwise
-                Game::Hytale => (-yaw_rad.cos(), yaw_rad.sin()),
             };
 
             dir_x * left_x + dir_z * left_z

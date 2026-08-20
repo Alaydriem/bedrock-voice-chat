@@ -125,6 +125,67 @@ describe("EventChannel", () => {
         expect(EventChannel.shared().connected).toBe(false);
     });
 
+    /**
+     * A socket that is open and delivering nothing is the failure this channel exists to
+     * survive. Android suspends one that way: `readyState` stays 1, no close event ever comes,
+     * and every meter reads flat with nothing anywhere reporting a fault.
+     */
+    it("replaces a socket that has gone silent", async () => {
+        EventChannel.shared().subscribe("levels", () => {});
+        await settle();
+        FakeSocket.instances[0].open();
+
+        await vi.advanceTimersByTimeAsync(EventChannel.LIVENESS_MS + EventChannel.WATCHDOG_MS);
+        await settle();
+        await vi.advanceTimersByTimeAsync(EventChannel.RETRY_BASE_MS);
+        await settle();
+
+        expect(FakeSocket.instances[0].closed).toBe(true);
+        expect(FakeSocket.instances).toHaveLength(2);
+    });
+
+    // The listener's keepalive is what makes silence mean something. While it arrives, a channel
+    // nobody is speaking on must be left alone — a reconnect every fifteen seconds on an idle
+    // client would be worse than the fault being watched for.
+    it("leaves a channel alone while keepalives arrive", async () => {
+        EventChannel.shared().subscribe("levels", () => {});
+        await settle();
+        FakeSocket.instances[0].open();
+
+        for (let elapsed = 0; elapsed < EventChannel.LIVENESS_MS * 3; elapsed += 5_000) {
+            await vi.advanceTimersByTimeAsync(5_000);
+            FakeSocket.instances[0].deliver({ type: "keepalive" });
+        }
+
+        expect(FakeSocket.instances).toHaveLength(1);
+        expect(FakeSocket.instances[0].closed).toBe(false);
+    });
+
+    /**
+     * The failure this guards is silent and permanent.
+     *
+     * A handle released twice used to consult its own emptied Set, find it at zero, and delete
+     * whichever registration had replaced it. Every later frame of that kind was dropped while
+     * its subscriber still held a handle and still reported itself attached — one meter dead
+     * for the life of the page, every other kind on the same socket working perfectly.
+     */
+    it("a released handle cannot orphan the subscription that replaced it", async () => {
+        const stale = EventChannel.shared().subscribe("levels", () => {});
+        await settle();
+        FakeSocket.instances[0].open();
+        stale();
+
+        const seen: unknown[] = [];
+        EventChannel.shared().subscribe("levels", (d) => seen.push(d));
+        await settle();
+        FakeSocket.instances.at(-1)?.open();
+
+        stale();
+
+        FakeSocket.instances.at(-1)?.deliver({ type: "levels", data: { own: {}, peers: {} } });
+        expect(seen).toHaveLength(1);
+    });
+
     it("closes the socket when the last subscriber leaves", async () => {
         const off = EventChannel.shared().subscribe("levels", () => {});
         await settle();

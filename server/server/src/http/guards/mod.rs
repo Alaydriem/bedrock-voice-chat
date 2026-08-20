@@ -4,9 +4,6 @@ mod access_token;
 mod admin;
 pub(crate) use admin::AdminGuard;
 
-mod hytale_session_id;
-pub(crate) use hytale_session_id::HytaleSessionId;
-
 mod game_access_token;
 pub(crate) use game_access_token::GameAccessToken;
 

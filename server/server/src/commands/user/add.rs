@@ -13,7 +13,7 @@ pub struct Config {
     #[clap(short, long)]
     pub player: String,
 
-    /// The game type (minecraft or hytale)
+    /// The game type (minecraft)
     #[clap(short, long, value_enum)]
     pub game: Game,
 }

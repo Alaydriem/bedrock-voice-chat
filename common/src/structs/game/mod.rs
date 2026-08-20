@@ -26,16 +26,12 @@ pub enum Game {
     #[serde(rename = "minecraft")]
     #[cfg_attr(feature = "server", sea_orm(string_value = "minecraft"))]
     Minecraft,
-    #[serde(rename = "hytale")]
-    #[cfg_attr(feature = "server", sea_orm(string_value = "hytale"))]
-    Hytale,
 }
 
 impl Game {
     pub fn as_str(&self) -> &'static str {
         match self {
             Game::Minecraft => "minecraft",
-            Game::Hytale => "hytale",
         }
     }
 
@@ -43,7 +39,6 @@ impl Game {
     pub fn from_tag(tag: &str) -> Option<Game> {
         match tag {
             "minecraft" => Some(Game::Minecraft),
-            "hytale" => Some(Game::Hytale),
             _ => None,
         }
     }

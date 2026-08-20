@@ -1,9 +1,19 @@
 use crate::errors::CommunicationError;
 use crate::game_data::Dimension;
-use crate::players::{GenericPlayer, HytalePlayer, MinecraftPlayer};
+use crate::players::{GenericPlayer, MinecraftPlayer};
 use crate::traits::player_data::{PlayerData, SpatialPlayer};
 use crate::{Coordinate, Game, Orientation};
 use serde::{Deserialize, Serialize};
+
+// Inert values for the Reserved slot. Returned rather than panicked on, because Reserved is
+// reachable by decoding a datagram from a build that still sends a player at index 1, and a
+// panic there lands on the QUIC hot path.
+static RESERVED_COORDINATE: Coordinate = Coordinate {
+    x: 0.0,
+    y: 0.0,
+    z: 0.0,
+};
+static RESERVED_ORIENTATION: Orientation = Orientation { x: 0.0, y: 0.0 };
 
 /// Type-safe enum for storing heterogeneous player types
 /// Dispatches to game-specific implementations
@@ -15,7 +25,10 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 pub enum PlayerEnum {
     Minecraft(MinecraftPlayer),
-    Hytale(HytalePlayer),
+    // Holds postcard index 1 so Generic keeps index 2. Produced only by decoding a datagram
+    // from a build that still sends a player here; it carries no data and is dropped where
+    // players enter the position path.
+    Reserved,
     Generic(GenericPlayer),
 }
 
@@ -23,7 +36,7 @@ impl PlayerData for PlayerEnum {
     fn get_name(&self) -> &str {
         match self {
             PlayerEnum::Minecraft(p) => p.get_name(),
-            PlayerEnum::Hytale(p) => p.get_name(),
+            PlayerEnum::Reserved => "",
             PlayerEnum::Generic(p) => p.get_name(),
         }
     }
@@ -31,7 +44,7 @@ impl PlayerData for PlayerEnum {
     fn get_position(&self) -> &Coordinate {
         match self {
             PlayerEnum::Minecraft(p) => p.get_position(),
-            PlayerEnum::Hytale(p) => p.get_position(),
+            PlayerEnum::Reserved => &RESERVED_COORDINATE,
             PlayerEnum::Generic(p) => p.get_position(),
         }
     }
@@ -39,15 +52,17 @@ impl PlayerData for PlayerEnum {
     fn get_orientation(&self) -> &Orientation {
         match self {
             PlayerEnum::Minecraft(p) => p.get_orientation(),
-            PlayerEnum::Hytale(p) => p.get_orientation(),
+            PlayerEnum::Reserved => &RESERVED_ORIENTATION,
             PlayerEnum::Generic(p) => p.get_orientation(),
         }
     }
 
+    // Deafened, so anything that reaches this before the ingestion filter treats it as
+    // somebody who receives no audio rather than as a silent listener.
     fn is_deafened(&self) -> bool {
         match self {
             PlayerEnum::Minecraft(p) => p.is_deafened(),
-            PlayerEnum::Hytale(p) => p.is_deafened(),
+            PlayerEnum::Reserved => true,
             PlayerEnum::Generic(p) => p.is_deafened(),
         }
     }
@@ -55,7 +70,7 @@ impl PlayerData for PlayerEnum {
     fn get_game(&self) -> Game {
         match self {
             PlayerEnum::Minecraft(p) => p.get_game(),
-            PlayerEnum::Hytale(p) => p.get_game(),
+            PlayerEnum::Reserved => Game::Minecraft,
             PlayerEnum::Generic(p) => p.get_game(),
         }
     }
@@ -63,7 +78,7 @@ impl PlayerData for PlayerEnum {
     fn world_identifier(&self) -> Option<&str> {
         match self {
             PlayerEnum::Minecraft(p) => p.world_identifier(),
-            PlayerEnum::Hytale(p) => p.world_identifier(),
+            PlayerEnum::Reserved => None,
             PlayerEnum::Generic(p) => p.world_identifier(),
         }
     }
@@ -71,7 +86,7 @@ impl PlayerData for PlayerEnum {
     fn has_bridged_voice(&self) -> bool {
         match self {
             PlayerEnum::Minecraft(p) => p.has_bridged_voice(),
-            PlayerEnum::Hytale(p) => p.has_bridged_voice(),
+            PlayerEnum::Reserved => false,
             PlayerEnum::Generic(p) => p.has_bridged_voice(),
         }
     }
@@ -79,7 +94,7 @@ impl PlayerData for PlayerEnum {
     fn dimension(&self) -> Option<Dimension> {
         match self {
             PlayerEnum::Minecraft(p) => p.dimension(),
-            PlayerEnum::Hytale(p) => p.dimension(),
+            PlayerEnum::Reserved => None,
             PlayerEnum::Generic(p) => p.dimension(),
         }
     }
@@ -107,27 +122,32 @@ impl PlayerEnum {
             });
         }
 
-        // Dispatch to the game-specific implementation
+        // Dispatch to the game-specific implementation. Agreeing on the game does not imply
+        // agreeing on the variant: Reserved and a Generic player carrying Game::Minecraft
+        // both report Minecraft, so a mismatched pair is out of scope rather than impossible.
         match self {
             PlayerEnum::Minecraft(mc_self) => {
                 if let PlayerEnum::Minecraft(mc_other) = other {
                     mc_self.can_communicate_with(mc_other, range)
                 } else {
-                    unreachable!("Game mismatch already checked above")
+                    Err(CommunicationError::OutOfRange {
+                        distance: f32::INFINITY,
+                        max_range: range,
+                    })
                 }
             }
-            PlayerEnum::Hytale(hy_self) => {
-                if let PlayerEnum::Hytale(hy_other) = other {
-                    hy_self.can_communicate_with(hy_other, range)
-                } else {
-                    unreachable!("Game mismatch already checked above")
-                }
-            }
+            PlayerEnum::Reserved => Err(CommunicationError::OutOfRange {
+                distance: f32::INFINITY,
+                max_range: range,
+            }),
             PlayerEnum::Generic(gen_self) => {
                 if let PlayerEnum::Generic(gen_other) = other {
                     gen_self.can_communicate_with(gen_other, range)
                 } else {
-                    unreachable!("Game mismatch already checked above")
+                    Err(CommunicationError::OutOfRange {
+                        distance: f32::INFINITY,
+                        max_range: range,
+                    })
                 }
             }
         }
@@ -141,12 +161,13 @@ impl PlayerEnum {
         }
     }
 
-    /// Helper to get Hytale player if this is a Hytale player
-    pub fn as_hytale(&self) -> Option<&HytalePlayer> {
-        match self {
-            PlayerEnum::Hytale(h) => Some(h),
-            _ => None,
-        }
+    /// Whether this is the reserved slot rather than a player.
+    ///
+    /// True only for a value decoded from a build that still sends a player at postcard
+    /// index 1. Callers that place players in the world drop these instead of indexing them,
+    /// because the slot carries no position, name or game to index on.
+    pub fn is_reserved(&self) -> bool {
+        matches!(self, PlayerEnum::Reserved)
     }
 
     /// Helper to get Generic player if this is a Generic player
@@ -165,11 +186,11 @@ impl PlayerEnum {
         }
     }
 
-    /// Get the platform UUID if one exists (e.g., Hytale UUID, Minecraft Java UUID)
+    /// Get the platform UUID if one exists (e.g., Minecraft Java UUID)
     pub fn get_player_uuid(&self) -> Option<&str> {
         match self {
             PlayerEnum::Minecraft(mc) => mc.player_uuid.as_deref(),
-            PlayerEnum::Hytale(h) => h.player_uuid.as_deref(),
+            PlayerEnum::Reserved => None,
             PlayerEnum::Generic(_) => None,
         }
     }
@@ -178,7 +199,7 @@ impl PlayerEnum {
     pub fn set_name(&mut self, name: String) {
         match self {
             PlayerEnum::Minecraft(mc) => mc.name = name,
-            PlayerEnum::Hytale(h) => h.name = name,
+            PlayerEnum::Reserved => {}
             PlayerEnum::Generic(g) => g.name = name,
         }
     }
@@ -192,7 +213,7 @@ impl PlayerEnum {
     pub fn world_uuid(&self) -> Option<&str> {
         match self {
             PlayerEnum::Minecraft(mc) => mc.world_uuid.as_deref(),
-            PlayerEnum::Hytale(h) => h.world_uuid.as_deref(),
+            PlayerEnum::Reserved => None,
             PlayerEnum::Generic(_) => None,
         }
     }
@@ -201,7 +222,7 @@ impl PlayerEnum {
     pub fn set_world_uuid(&mut self, world_uuid: Option<String>) {
         match self {
             PlayerEnum::Minecraft(mc) => mc.world_uuid = world_uuid,
-            PlayerEnum::Hytale(h) => h.world_uuid = world_uuid,
+            PlayerEnum::Reserved => {}
             PlayerEnum::Generic(_) => {}
         }
     }

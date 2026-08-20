@@ -60,8 +60,8 @@ export class GroupsView {
                     members: GroupsView.members(channel),
                     joined: channel.id === joinedId,
                     // Exact. The creator is the certificate's Common Name and so is `self`, and a
-                    // comparison that tolerated the bare form would hand the close button for
-                    // `hytale:Bob`'s group to `minecraft:Bob`.
+                    // comparison that tolerated the bare form would hand the close button for one
+                    // game prefix's group to the same gamertag under another.
                     owned: self !== '' && channel.creator === self,
                     activeAt,
                     stirring: activeAt !== null && $now - activeAt < GroupsView.STIR_MS,

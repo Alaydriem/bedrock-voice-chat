@@ -7,7 +7,6 @@ import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import { stopForegroundService, isServiceRunning } from 'tauri-plugin-audio-permissions';
-import { ServerListStore } from './services/ServerListStore';
 import MinecraftAuthUrl from './auth/MinecraftAuthUrl';
 import FinishWatchdog from './login/FinishWatchdog';
 import BVCApp from './BVCApp.ts';
@@ -15,7 +14,6 @@ import HelpLinks from './HelpLinks';
 import Analytics from './analytics';
 import PlatformDetector from './utils/PlatformDetector.ts';
 import { AddServerRoute } from './server/AddServerRoute';
-import type { HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse, LoginResponse, ServerListEntry } from '../bindings/index.ts';
 import type { LoginPageState } from './login/LoginPageState';
 import { AppStore } from "./services/AppStore";
 
@@ -67,9 +65,9 @@ export type LoginState = 'idle' | 'connecting' | 'error';
 
 /**
  * Which sign-in path an attempt uses. `ms` opens the Microsoft OAuth flow in
- * the external browser; `hytale` starts the device-code flow.
+ * the external browser.
  */
-export type LoginKind = 'ms' | 'hytale';
+export type LoginKind = 'ms';
 
 export default class Login extends BVCApp {
   private static readonly CODE_LOGIN_PATTERN = /^(https?:\/\/)?code@/;
@@ -85,7 +83,6 @@ export default class Login extends BVCApp {
   readonly AUTH_ENDPOINT = "/api/auth";
   readonly NCRYPTF_EK_ENDPOINT = "/ncryptf/ek";
 
-  private hytalePollingInterval: number | null = null;
 
   private isMobileStore: Writable<boolean>;
   private appVersionStore: Writable<string>;
@@ -393,8 +390,7 @@ export default class Login extends BVCApp {
     this.formErrorStore.set(message);
     this.serverInputInvalidStore.set(true);
 
-    // A non-empty error arriving mid-flow (e.g. a Hytale device-flow poll
-    // expiring or being denied after we've handed off to the browser) must not
+    // A non-empty error arriving after we've handed off to the browser must not
     // be swallowed by the connecting view - drop back to idle so the inline
     // message is actually visible.
     if (get(this.loginStateStore) !== 'idle') {
@@ -403,15 +399,6 @@ export default class Login extends BVCApp {
       this.isFinishingStore.set(false);
       this.loginStateStore.set('idle');
     }
-  }
-
-  /**
-   * Cancel an in-progress Hytale device-flow poll. Used when the user backs
-   * out of the "connecting" handoff view so we don't keep polling a flow they
-   * abandoned.
-   */
-  public cancelHytalePolling(): void {
-    this.stopHytalePolling();
   }
 
   public setServerInput(value: string): void {
@@ -467,14 +454,11 @@ export default class Login extends BVCApp {
     this.loginStateStore.set('connecting');
 
     const myAttempt = ++this.attemptId;
-    const result = kind === 'hytale'
-      ? await this.loginWithHytale(value)
-      : await this.login(value);
+    const result = await this.login(value);
 
     // The user cancelled (or started a fresh attempt) while this one was in
-    // flight - don't reapply its result. Undo any polling it may have kicked off.
+    // flight - don't reapply its result.
     if (myAttempt !== this.attemptId) {
-      this.cancelHytalePolling();
       return;
     }
 
@@ -499,12 +483,10 @@ export default class Login extends BVCApp {
   /**
    * Manual escape from the connecting/handoff view (e.g. the user closed the
    * external sign-in window without finishing, or chose a different server).
-   * Stops any Hytale polling and clears transient errors before returning to
-   * the editable idle form.
+   * Clears transient errors before returning to the editable idle form.
    */
   public returnToIdle(): void {
     this.attemptId++;
-    this.cancelHytalePolling();
     this.clearError();
     this.clearFinishWatchdog();
     this.isHandoffStore.set(false);
@@ -553,7 +535,6 @@ export default class Login extends BVCApp {
 
   public teardownLoginFlow(): void {
     this.clearFinishWatchdog();
-    this.stopHytalePolling();
   }
 
   private applyResult(result: LoginAttemptResult): void {
@@ -702,133 +683,5 @@ export default class Login extends BVCApp {
   private async openUrlWithLogging(url: string): Promise<void> {
     info(`Opening URL: ${url}`);
     await openUrl(url);
-  }
-
-  async loginWithHytale(rawValue: string): Promise<LoginAttemptResult> {
-    this.clearError();
-
-    const validation = this.validateServerUrl(rawValue);
-    if (!validation.valid) {
-      this.reportError(validation.error || I18n.t("Please enter a valid server URL"));
-      return { status: 'invalid' };
-    }
-
-    const serverUrl = this.sanitizeServerUrl(rawValue);
-
-    try {
-      const configResponse = await this.fetchWithTimeout(serverUrl + this.CONFIG_ENDPOINT);
-
-      if (configResponse.status === 403) {
-        warn("Server returned 403 Forbidden");
-        return { status: 'error', sanitized: serverUrl };
-      }
-
-      if (configResponse.status !== 200) {
-        throw new Error(I18n.t("Server not reachable"));
-      }
-
-      const response = await invoke<HytaleDeviceFlowStartResponse>("start_hytale_device_flow", {
-        server: serverUrl,
-      });
-
-      info(`Hytale Device flow started, session_id: ${response.session_id}, user_code: ${response.user_code}`);
-
-      const store = await AppStore.load();
-      await store.set("hytale_session_id", response.session_id);
-      await store.set("auth_state_endpoint", serverUrl);
-      await store.save();
-
-      await this.openUrlWithLogging(response.verification_uri_complete);
-
-      this.startHytalePolling(serverUrl, response.session_id, response.interval);
-      return { status: 'redirecting', sanitized: serverUrl };
-    } catch (e) {
-      warn(`Hytale login failed: ${String(e)}`);
-      return { status: 'error', sanitized: serverUrl };
-    }
-  }
-
-  private startHytalePolling(server: string, sessionId: string, interval: number) {
-    const pollInterval = Math.max(interval, 5) * 1000;
-    info(`Starting Hytale polling with interval: ${pollInterval}ms`);
-
-    this.hytalePollingInterval = window.setInterval(async () => {
-      try {
-        const response = await invoke<HytaleDeviceFlowStatusResponse>("poll_hytale_status", {
-          server: server,
-          sessionId: sessionId,
-        });
-
-        info(`Hytale poll response status: ${response.status}`);
-
-        switch (response.status) {
-          case "Pending":
-            break;
-          case "Success":
-            this.stopHytalePolling();
-            if (response.login_response) {
-              await this.handleHytaleSuccess(server, response.login_response);
-            }
-            break;
-          case "Expired":
-            warn("Hytale device code expired");
-            this.stopHytalePolling();
-            this.reportError(I18n.t("Device code expired. Please try again."));
-            break;
-          case "Denied":
-            warn("Hytale authorization denied");
-            this.stopHytalePolling();
-            this.reportError(I18n.t("Authorization denied. Please try again."));
-            break;
-          case "Error":
-            error("Hytale auth error");
-            this.stopHytalePolling();
-            this.reportError(I18n.t("Authentication error. Please try again."));
-            break;
-        }
-      } catch (e) {
-        error(`Hytale polling error: ${String(e)}`);
-        this.stopHytalePolling();
-      }
-    }, pollInterval);
-  }
-
-  private stopHytalePolling() {
-    if (this.hytalePollingInterval !== null) {
-      info("Stopping Hytale polling");
-      window.clearInterval(this.hytalePollingInterval);
-      this.hytalePollingInterval = null;
-    }
-  }
-
-  private async handleHytaleSuccess(server: string, loginResponse: LoginResponse) {
-    try {
-      const store = await AppStore.load();
-
-      await store.set("current_server", server);
-      await store.set("current_player", loginResponse.gamertag);
-      await store.set("active_game", "hytale");
-
-      const serverList = await store.get("server_list") as ServerListEntry[] | null;
-      const servers = serverList || [];
-
-      const existing = servers.find(s => s.server === server);
-      if (existing) {
-        existing.game = "hytale";
-      } else {
-        servers.push({ server: server, player: loginResponse.gamertag, game: "hytale" });
-      }
-      await store.set("server_list", servers);
-      ServerListStore.mirrorServerCount(servers);
-
-      await store.delete("hytale_session_id");
-      await store.save();
-
-      Analytics.track("LoginCompleted", { game_type: "hytale" });
-      // Replaced, not pushed: the sign-in is spent and going back to it signs nobody in.
-      window.location.replace("/setup");
-    } catch (e) {
-      error(`Failed to save login data: ${String(e)}`);
-    }
   }
 }

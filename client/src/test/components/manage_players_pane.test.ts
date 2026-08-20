@@ -300,23 +300,6 @@ describe("ManagePlayersPane", () => {
         expect(query.page_size).toBe(8);
     });
 
-    // Hytale is still in the `Game` enum and the server still accepts it. It must not be
-    // offered anywhere in this pane, in the roster or in the add-player form.
-    it("offers no Hytale anywhere", async () => {
-        mockInvoke({
-            api_introspect: () => ({ permissions: ["admin"] }),
-            get_credential: () => JSON.stringify({ allowed: ["admin"] }),
-            admin_list_users: () => page([user()]),
-        });
-
-        const pane = mount();
-        await waitFor(() => expect(pane.text()).toContain("Bob"));
-        expect(pane.text()).not.toContain("Hytale");
-
-        await fireEvent.click(pane.byText("Add player")!);
-        expect(pane.text()).not.toContain("Hytale");
-    });
-
     // The strip is the way in, so the row no longer carries a separate gear.
     it("opens the permission editor from the strip", async () => {
         mockInvoke({

@@ -33,7 +33,6 @@ pub struct RocketManager {
     chat_service: Arc<crate::services::ChatService>,
     cert_service: Arc<CertificateService>,
     revocations: Arc<crate::services::CertificateRevocationService>,
-    hytale_session_cache: routes::api::HytaleSessionCache,
     audio_stream_token_cache: AudioStreamTokenCache,
     metrics: Arc<crate::services::MetricsService>,
     readiness: Arc<crate::runtime::ReadinessState>,
@@ -81,7 +80,6 @@ impl RocketManager {
             chat_service,
             cert_service,
             revocations,
-            hytale_session_cache: routes::api::HytaleSessionCache::new(),
             audio_stream_token_cache: audio_stream_token_cache
                 .unwrap_or_else(AudioStreamTokenCache::new),
             metrics,
@@ -179,7 +177,6 @@ impl RocketManager {
                     .manage(self.revocations.clone())
                     .manage(self.config.permissions.clone())
                     .manage(self.config.audio.clone())
-                    .manage(self.hytale_session_cache.clone())
                     .manage(self.audio_stream_token_cache.clone())
                     .manage(self.metrics.clone())
                     .manage(self.peer_plane.clone());

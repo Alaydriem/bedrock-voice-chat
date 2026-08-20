@@ -65,7 +65,7 @@ export class AudioActivityManager {
                     activityData[name] = LevelSteps.toLevel(level);
                 }
                 this.processActivityUpdate(activityData);
-            });
+            }, 'AudioActivityManager');
         } catch (e) {
             error(`AudioActivityManager: Failed to initialize audio activity listener: ${e}`);
         }

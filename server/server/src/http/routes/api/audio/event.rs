@@ -23,12 +23,11 @@ pub async fn audio_event_play(
     let conn = db.into_inner();
     let request = request.into_inner();
 
-    if let GameAudioContext::Minecraft(ctx) = &request.game {
-        if !ctx.world_uuid.is_empty() {
-            bedrock_event_service
-                .notify_addon_http(&ctx.world_uuid)
-                .await;
-        }
+    let GameAudioContext::Minecraft(ctx) = &request.game;
+    if !ctx.world_uuid.is_empty() {
+        bedrock_event_service
+            .notify_addon_http(&ctx.world_uuid)
+            .await;
     }
 
     match playback_service.start_playback(conn, request).await {

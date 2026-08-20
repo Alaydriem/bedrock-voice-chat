@@ -63,7 +63,7 @@ export class PlayerManager {
      *
      * Canonical rather than bare because this key reaches the persisted gain store and the
      * mixer, both of which resolve settings by canonical identity. It also cannot collide:
-     * `minecraft:Bob` and `hytale:Bob` are two people, and a bare key merges them.
+     * the same gamertag under two game prefixes is two people, and a bare key merges them.
      *
      * Public because the same composition has to be available to anything comparing a name
      * against these keys — the channel manager compares against certificate-form membership,

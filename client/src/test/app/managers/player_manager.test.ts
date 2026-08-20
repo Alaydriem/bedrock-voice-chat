@@ -16,22 +16,12 @@ describe("PlayerManager identity", () => {
         expect(get(manager.activePlayers).map((p) => p.name)).toEqual(["minecraft:Petra"]);
     });
 
-    // Two games can carry the same gamertag, and they are two people. A self-comparison that
-    // ignored the game would silently hide one of them from the roster.
-    it("keeps the same gamertag from another game on the roster", () => {
-        const manager = new PlayerManager("Alaydriem", "minecraft");
-        manager.add("minecraft:Alaydriem");
-        manager.add("hytale:Alaydriem");
-
-        expect(get(manager.activePlayers).map((p) => p.name)).toEqual(["hytale:Alaydriem"]);
-    });
-
     // The gamertag arrives a second time once credentials are settled, by a different route.
     it("composes a gamertag set after construction", () => {
-        const manager = new PlayerManager("", "hytale");
+        const manager = new PlayerManager("", "minecraft");
         manager.setCurrentUser("Alaydriem");
 
-        expect(manager.getCurrentUser()).toBe("hytale:Alaydriem");
+        expect(manager.getCurrentUser()).toBe("minecraft:Alaydriem");
     });
 
     // An empty name is not a player. Prefixing it would produce a key that matches nobody and

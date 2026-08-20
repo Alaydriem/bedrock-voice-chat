@@ -52,10 +52,9 @@ pub trait PlayerData: Send + Sync {
 
     /// This player's dimension, as the type anything positional is placed against.
     ///
-    /// `None` means the player cannot be placed in one — either the game has no
-    /// notion of a dimension, or it has its own type that is not this one. Hytale
-    /// is the second case: it carries `game_data::hytale::Dimension`, a different
-    /// type, so it answers `None` here rather than pretending to convert.
+    /// `None` means the player cannot be placed in one — either the game has no notion of
+    /// a dimension, or it has its own type that is not this one. A game in the second case
+    /// answers `None` here rather than pretending to convert.
     ///
     /// On the trait for the same reason as `world_identifier` — a caller reaching
     /// for a concrete variant to read it is how a behaviour ends up quietly

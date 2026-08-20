@@ -422,6 +422,12 @@ impl PacketRouter {
                 let current_player_name = self.metadata.get("current_player").await;
 
                 for player in data.players {
+                    // The reserved slot is not a player. Its name is empty, so inserting it
+                    // would park an entry under "" that the router then treats as a speaker.
+                    if player.is_reserved() {
+                        continue;
+                    }
+
                     let player_name = player.get_name().to_string();
 
                     // The client's own world, which nothing else surfaces. It arrives on every

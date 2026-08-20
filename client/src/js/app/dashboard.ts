@@ -605,7 +605,6 @@ export default class Dashboard extends BVCApp {
 
         if (avatarElement && this.store) {
             let avatarSrc = "";
-            const activeGame = await this.store.get<string>("active_game");
 
             if (this.currentServerCredentials?.gamerpic) {
                 try {
@@ -620,12 +619,7 @@ export default class Dashboard extends BVCApp {
                     avatarSrc = await imageCache.getImage(options);
                 } catch (err) {
                     warn(`Dashboard: Failed to fetch/decode player avatar: ${err}`);
-                    if (activeGame === "hytale") {
-                        avatarSrc = "/images/hytale-avatar.jpg";
-                    }
                 }
-            } else if (activeGame === "hytale") {
-                avatarSrc = "/images/hytale-avatar.jpg";
             }
 
             avatarElement.setAttribute("src", avatarSrc);

@@ -1,143 +1,79 @@
-import { invoke } from "@tauri-apps/api/core";
-import { warn } from "@tauri-apps/plugin-log";
-import { type Readable, type Writable, writable } from "svelte/store";
-import type { InputLevel } from "../../bindings/InputLevel";
+import type { LevelSource } from "$radial/core/sources/LevelSource";
+import { PushLevelSource } from "$radial/core/sources/LevelSource";
+import type { LevelSnapshot } from "../../bindings/LevelSnapshot";
 import { LevelFeed } from "../dashboard/LevelFeed";
 import { LevelSteps } from "../dashboard/LevelSteps";
-import { EventChannel } from "../events/EventChannel";
 
 /**
- * The microphone level for a screen that may or may not have a session behind it.
+ * The microphone level for the audio pane, read from the capture the pill already draws.
  *
- * `start_input_meter` is not free: it runs `AudioStreamManager::init`, which stops and replaces
- * the input stream — and the replacement meters without transmitting. Starting one over a live
- * session takes the microphone off the air, so whether a session is already capturing has to be
- * answered correctly every time.
+ * This used to start a capture of its own. `start_input_meter` runs `AudioStreamManager::init`,
+ * which *replaces* the input stream with one that meters without transmitting — so a pane that
+ * claimed one took the microphone off the air, and `stop_input_meter` on the way out left
+ * nothing capturing at all. The pill went flat for the rest of the session while the pane's own
+ * meter kept working, because every visit built a fresh capture for it. That asymmetry read as a
+ * rendering fault for a long time; it was two different microphones.
  *
- * It is now *asked*, not inferred. This waited a second and a half to see whether level events
- * arrived and claimed a stream when none did, which was sound only while levels were published
- * on a fixed clock. They are now published on change, so a quiet room produces no events at all
- * and looked exactly like a dead capture — opening the audio pane in silence tore down a
- * working session every time.
- *
- * A live session's level comes from `audio-levels`, the same event the dashboard meter uses —
- * and through the same `LevelFeed`, not a second registration for it. A pane that registered
- * for itself put two listeners on one event in the window and dropped one of them on the way
- * out, every visit; the dashboard's is opened once at boot and never re-opened, which is why
- * the pane's meter always worked and the pill did not survive a visit. As a sink, closing the
- * pane returns the audience to the dashboard alone and leaves the registration untouched.
- *
- * The `input_level` frames stay a separate subscription: they are published only by a stream
- * this probe started, nothing else reads them, and they carry the unquantised amplitude
- * calibration wants.
+ * Nothing is claimed now. The levels arriving on the push channel are absolute state about
+ * whoever is capturing, so a screen that wants to show them subscribes and reads — the same
+ * frames, the same `LevelFeed`, the same source type the pill's meter consumes. A flat mark here
+ * is therefore the truth rather than an artefact: nothing is capturing, which is what the pane
+ * should be saying.
  */
 export class InputLevelProbe {
-    private readonly rmsStore: Writable<number>;
-    private readonly gateOpenStore: Writable<boolean>;
-    private readonly availableStore: Writable<boolean>;
+    /**
+     * How long without a level before the meter is returned to rest.
+     *
+     * A capture that dies mid-word leaves the last amplitude standing, and a mark held at
+     * half-height reads as somebody still talking — the one thing a meter must never say.
+     * Longer than the backend's keepalive-while-speaking, so a quiet room is not mistaken for a
+     * dead capture: levels are published on change and silence is never re-sent.
+     */
+    static readonly SILENCE_MS = 4_000;
 
-    /** Post-gate RMS, 0 to 1. */
-    public readonly rms: Readable<number>;
-    public readonly gateOpen: Readable<boolean>;
-    /** False only when this probe started a stream and the backend refused. */
-    public readonly available: Readable<boolean>;
+    private readonly levelSource = new PushLevelSource();
+
+    /** What the meter consumes. The same contract the pill's meter is bound to. */
+    public readonly source: LevelSource = this.levelSource;
 
     private unlisteners: Array<() => void> = [];
     private running = false;
-    /** Whether the stream being metered is ours to stop. */
-    private owned = false;
-
-    constructor() {
-        this.rmsStore = writable(0);
-        this.gateOpenStore = writable(false);
-        this.availableStore = writable(true);
-        this.rms = { subscribe: this.rmsStore.subscribe };
-        this.gateOpen = { subscribe: this.gateOpenStore.subscribe };
-        this.available = { subscribe: this.availableStore.subscribe };
-    }
+    private watchdog: ReturnType<typeof setInterval> | null = null;
+    private lastLevelAt = 0;
 
     async start(): Promise<void> {
         if (this.running) return;
         this.running = true;
 
-        try {
-            this.unlisteners.push(
-                LevelFeed.shared().subscribe((snapshot) => {
-                    this.rmsStore.set(LevelSteps.toLevel(snapshot.own));
-                    this.gateOpenStore.set(snapshot.own.speaking);
-                }),
-            );
-            this.unlisteners.push(
-                EventChannel.shared().subscribe<InputLevel>("input_level", (level) => {
-                    this.rmsStore.set(level.rms);
-                    this.gateOpenStore.set(level.gate_open);
-                }),
-            );
-        } catch (e) {
-            // Nothing can arrive without the subscription, so claiming a stream would only
-            // start a capture nobody reads. Reported as unreadable, which is what it is —
-            // and not raised, because the rest of the pane still works.
-            this.availableStore.set(false);
-            await warn(`Could not subscribe to the input level: ${e}`);
-            return;
-        }
+        this.lastLevelAt = performance.now();
+        this.unlisteners.push(
+            LevelFeed.shared().subscribe((snapshot) => this.receive(snapshot), 'InputLevelProbe'),
+        );
 
-        if (await this.sessionIsCapturing()) return;
-        await this.claim();
+        this.watchdog = setInterval(() => this.judge(), InputLevelProbe.SILENCE_MS);
     }
 
-    /**
-     * Whether something is already capturing, asked of the backend.
-     *
-     * A failure answers "yes" rather than "no". Being wrong in that direction shows an empty
-     * meter on a screen that has other things on it; being wrong the other way takes a working
-     * microphone off the air.
-     */
-    private async sessionIsCapturing(): Promise<boolean> {
-        try {
-            return await invoke<boolean>("input_capture_active");
-        } catch (e) {
-            await warn(`Could not ask whether a capture is running: ${e}`);
-            return true;
-        }
+    private receive(snapshot: LevelSnapshot): void {
+        this.lastLevelAt = performance.now();
+        this.levelSource.push(LevelSteps.toLevel(snapshot.own));
     }
 
-    /**
-     * Start a capture-only stream, because nothing else is capturing.
-     *
-     * Reached before a session exists — the settings screen opened from the server list, or a
-     * pane visited before connecting. The failure is reported rather than raised: a meter that
-     * could not start looks exactly like a microphone picking up nothing, and telling those
-     * two apart is what the meter is for.
-     */
-    private async claim(): Promise<void> {
-        if (!this.running) return;
-        try {
-            await invoke("start_input_meter");
-            this.owned = true;
-        } catch (e) {
-            this.availableStore.set(false);
-            await warn(`Could not start the input meter: ${e}`);
-        }
+    private judge(): void {
+        if (performance.now() - this.lastLevelAt <= InputLevelProbe.SILENCE_MS) return;
+        this.levelSource.push(0);
     }
 
     async stop(): Promise<void> {
         if (!this.running) return;
         this.running = false;
 
-        if (this.owned) {
-            this.owned = false;
-            try {
-                await invoke("stop_input_meter");
-            } catch (e) {
-                await warn(`Could not stop the input meter: ${e}`);
-            }
+        if (this.watchdog !== null) {
+            clearInterval(this.watchdog);
+            this.watchdog = null;
         }
 
         for (const off of this.unlisteners) off();
         this.unlisteners = [];
-        this.rmsStore.set(0);
-        this.gateOpenStore.set(false);
-        this.availableStore.set(true);
+        this.levelSource.push(0);
     }
 }

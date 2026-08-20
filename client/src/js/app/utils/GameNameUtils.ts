@@ -1,4 +1,4 @@
-const GAME_PREFIXES = ['minecraft:', 'hytale:'];
+const GAME_PREFIXES = ['minecraft:'];
 
 export default class GameNameUtils {
     /**

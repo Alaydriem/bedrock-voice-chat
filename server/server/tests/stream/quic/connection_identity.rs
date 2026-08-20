@@ -12,13 +12,15 @@ fn minecraft_player_cn_yields_game_and_bare_name() {
     );
 }
 
+// A game this build once issued certificates for must be refused like any other unknown
+// tag. Coercing a retired prefix to the only remaining game would let a certificate
+// issued for it resolve onto a Minecraft identity and inherit that player's membership.
 #[test]
-fn hytale_player_cn_yields_game_and_bare_name() {
+fn a_retired_game_prefix_is_rejected() {
     assert_eq!(
         ConnectionClassifier::classify("hytale:Alex"),
-        ConnectionKind::Player {
-            game: Game::Hytale,
-            name: "Alex".to_string(),
+        ConnectionKind::Rejected {
+            identity: "hytale:Alex".to_string(),
         }
     );
 }

@@ -15,5 +15,3 @@ pub mod websocket;
 
 #[cfg(feature = "bedrock")]
 pub mod bedrock;
-
-pub use auth::HytaleSessionCache;

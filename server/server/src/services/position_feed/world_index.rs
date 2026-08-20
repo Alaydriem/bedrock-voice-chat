@@ -34,6 +34,13 @@ impl WorldIndex {
         let mut on_voice = on_voice;
 
         for player in world {
+            // The reserved slot is not a player: it has no position to bucket and no identity
+            // to key on, so indexing it would put an entry under the empty identity that
+            // nothing looks up and everything near the origin collides with.
+            if player.is_reserved() {
+                continue;
+            }
+
             if player.has_bridged_voice() {
                 on_voice.insert(player.identity());
             }

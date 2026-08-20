@@ -22,8 +22,7 @@ pub mod traits;
 
 // Re-export error types
 pub use errors::{
-    CommunicationError, GameError, GenericCommunicationError, HytaleCommunicationError,
-    MinecraftCommunicationError,
+    CommunicationError, GameError, GenericCommunicationError, MinecraftCommunicationError,
 };
 
 #[cfg(feature = "net")]
@@ -52,6 +51,6 @@ pub use structs::players::PlayerSource;
 pub use structs::recording::{RecordingPlayerData, SessionManifest};
 
 // Re-export new player system types
-pub use game_data::{Dimension, GameDataCollection, HytaleDimension};
-pub use players::{GenericPlayer, HytalePlayer, MinecraftPlayer, PlayerEnum};
+pub use game_data::{Dimension, GameDataCollection};
+pub use players::{GenericPlayer, MinecraftPlayer, PlayerEnum};
 pub use traits::player_data::{PlayerData as PlayerDataTrait, SpatialPlayer};

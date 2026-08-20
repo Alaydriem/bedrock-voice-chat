@@ -262,8 +262,6 @@ pub fn run() {
             // Authentication
             crate::auth::commands::server_login,
             crate::auth::commands::logout,
-            crate::auth::commands::start_hytale_device_flow,
-            crate::auth::commands::poll_hytale_status,
             crate::auth::commands::code_login,
             crate::auth::commands::link_java_identity,
             // Environment Variable Data
@@ -291,7 +289,6 @@ pub fn run() {
             crate::commands::audio::is_recording,
             crate::commands::audio::get_current_players,
             crate::commands::audio::restart_audio_stream,
-            crate::commands::audio::input_capture_active,
             crate::commands::audio::start_input_meter,
             crate::commands::audio::stop_input_meter,
             crate::commands::audio::test_output_device,

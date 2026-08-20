@@ -1,12 +1,9 @@
 use crate::analytics::AnalyticsService;
-use crate::auth::{AuthClient, hytale};
+use crate::auth::AuthClient;
 use crate::keyring::KeyringService;
 use crate::structs::app_state::AppState;
 use common::response::LinkJavaIdentityResponse;
 use common::response::LoginResponse;
-use common::structs::config::{
-    HytaleAuthStatus, HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse,
-};
 use std::sync::Arc;
 use tauri::{State, async_runtime::Mutex};
 
@@ -87,48 +84,6 @@ pub(crate) async fn code_login(
     }
 
     Ok(login_result)
-}
-
-#[tauri::command(async)]
-pub(crate) async fn start_hytale_device_flow(
-    server: String,
-) -> Result<HytaleDeviceFlowStartResponse, bool> {
-    hytale::start_hytale_device_flow(server).await
-}
-
-#[tauri::command(async)]
-#[tracing::instrument(skip(app_state, keyring))]
-pub(crate) async fn poll_hytale_status(
-    app_state: State<'_, Mutex<AppState>>,
-    keyring: State<'_, Mutex<KeyringService>>,
-    server: String,
-    session_id: String,
-) -> Result<HytaleDeviceFlowStatusResponse, bool> {
-    let poll_result = hytale::poll_hytale_status(server.clone(), session_id).await;
-
-    if let Ok(ref response) = poll_result {
-        if response.status == HytaleAuthStatus::Success {
-            if let Some(ref login_response) = response.login_response {
-                let mut state = app_state.lock().await;
-                state
-                    .initialize_api_client(
-                        server.clone(),
-                        login_response.certificate_ca.clone(),
-                        login_response.certificate.clone()
-                            + &login_response.certificate_key.clone(),
-                    )
-                    .await;
-
-                let mut kr = keyring.lock().await;
-                if let Err(e) = kr.store_credentials(&server, login_response) {
-                    log::error!("Failed to store credentials in keyring: {}", e);
-                    return Err(false);
-                }
-            }
-        }
-    }
-
-    poll_result
 }
 
 #[tauri::command(async)]

@@ -88,7 +88,7 @@ impl SinkManager {
         // Peer activity folded into the shared bus rather than emitted from here.
         //
         // This used to be a second emitter on its own 100 ms timer, publishing `audio-activity`
-        // alongside the capture path's `audio-input-level`. Two webview messages every tenth of
+        // alongside the capture path's raw level. Two webview messages every tenth of
         // a second, for information that is always read together — and on Android each of those
         // is a unit of main-thread work competing with the rendering of the very meters they
         // feed. Now the levels are collected here and one publisher decides when they are worth

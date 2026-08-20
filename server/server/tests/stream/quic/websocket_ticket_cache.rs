@@ -100,32 +100,6 @@ async fn replacement_does_not_disturb_another_identity() {
     );
 }
 
-// The same gamertag on two games is two identities, so their tickets must be
-// independent.
-#[tokio::test]
-async fn replacement_is_keyed_by_game_as_well_as_gamertag() {
-    let cache = CacheManager::new();
-    let tickets = cache.websocket_tickets();
-
-    let minecraft = tickets
-        .issue(TicketIdentity {
-            gamertag: "Alice".to_string(),
-            game: Game::Minecraft,
-        })
-        .await;
-    tickets
-        .issue(TicketIdentity {
-            gamertag: "Alice".to_string(),
-            game: Game::Hytale,
-        })
-        .await;
-
-    assert!(
-        tickets.redeem(&minecraft).await.is_some(),
-        "a different game must not supersede the Minecraft ticket"
-    );
-}
-
 // Every clone of the manager shares one ticket store. Rocket hands each route a
 // clone, so a ticket issued while serving the mint request has to be redeemable
 // while serving the upgrade.

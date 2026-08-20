@@ -269,15 +269,11 @@ export default class ChannelManager {
         }
     }
 
+    // Minecraft is the only game, so this answers without consulting the store. It stays
+    // async and nullable because callers compose the canonical `game:gamertag` key from it,
+    // and that composition is what a second game would change.
     private async getActiveGame(): Promise<Game | null> {
-        try {
-            const activeGame = await this.store.get("active_game") as string | null;
-            if (activeGame === 'hytale') return 'hytale';
-            if (activeGame === 'minecraft') return 'minecraft';
-            return 'minecraft';
-        } catch {
-            return 'minecraft';
-        }
+        return 'minecraft';
     }
 
     async joinChannel(channelId: string, currentUser: string): Promise<boolean> {

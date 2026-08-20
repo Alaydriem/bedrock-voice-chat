@@ -916,7 +916,7 @@ pub unsafe extern "C" fn bvc_client_action(
 /// # Arguments
 /// * `handle` - Handle from `bvc_server_create()`
 /// * `gamertag` - Player gamertag to provision
-/// * `game` - Game type (e.g. "minecraft", "hytale")
+/// * `game` - Game type (e.g. "minecraft")
 /// * `ttl_secs` - Lifetime of the generated code in seconds
 ///
 /// # Returns
@@ -968,7 +968,6 @@ pub unsafe extern "C" fn bvc_provision_login_code(
 
     let game_type = match game_str {
         "minecraft" => Game::Minecraft,
-        "hytale" => Game::Hytale,
         other => {
             FfiError::set_last_error(&format!("Invalid game '{}'", other));
             return ptr::null_mut();
@@ -1088,7 +1087,6 @@ pub unsafe extern "C" fn bvc_provision_websocket_ticket(
 
     let game_type = match unsafe { CStr::from_ptr(game) }.to_str() {
         Ok("minecraft") => Game::Minecraft,
-        Ok("hytale") => Game::Hytale,
         Ok(other) => {
             FfiError::set_last_error(&format!("Invalid game '{}'", other));
             return ptr::null_mut();

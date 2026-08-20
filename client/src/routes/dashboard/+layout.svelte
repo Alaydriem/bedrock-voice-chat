@@ -63,6 +63,7 @@
    */
   const coverOpen = $derived(page.url.pathname.startsWith(SettingsRoute.base));
 
+
   let app = $state<Dashboard | null>(null);
   let presence: PlayerPresenceManager | undefined;
   const diagnostics = new DiagnosticsManager();
@@ -198,7 +199,7 @@
    * The group wins because it is the stronger statement. Compared on the canonical identity,
    * which both lists now carry: channel membership from the certificate's Common Name, the
    * position feed from the same composition. On the bare gamertag this would also have hidden
-   * `hytale:Bob` from earshot because `minecraft:Bob` was in the group.
+   * one game prefix's Bob from earshot because the same gamertag under another was in the group.
    */
   const groupTags = $derived(new Set(groupRoster.map((member) => member.name)));
   const earshot = $derived<readonly NearbyPlayer[]>(

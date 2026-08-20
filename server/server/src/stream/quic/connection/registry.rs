@@ -695,9 +695,9 @@ impl ConnectionRegistry {
                 .map(|r| r.clone());
 
             // Channel membership is cross-game by design: a channel id is shared
-            // across games, so `minecraft:Bob` and `hytale:Carol` in the same
-            // channel hear each other. Only the fallback proximity path below is
-            // gated to same-game (different games have unrelated coordinate
+            // across games, so two members carrying different game prefixes in the
+            // same channel hear each other. Only the fallback proximity path below
+            // is gated to same-game (different games have unrelated coordinate
             // spaces, so spatial routing between them is meaningless).
             let in_same_channel = match (&sender_channel, &recipient_channel) {
                 (Some(sc), Some(rc)) => sc == rc,

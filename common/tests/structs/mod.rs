@@ -4,6 +4,7 @@ mod bedrock;
 mod certificate;
 mod chat;
 mod control;
+mod game;
 mod i18n;
 mod iap;
 mod metrics;

@@ -10,7 +10,7 @@ pub use eject_scheduler::EjectScheduler;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use common::players::{HytalePlayer, MinecraftPlayer};
+use common::players::MinecraftPlayer;
 use common::request::{AudioPlayRequest, GameAudioContext};
 use common::response::AudioEventResponse;
 use common::{Orientation, PlayerEnum};
@@ -76,7 +76,6 @@ impl AudioPlaybackService {
                 ctx.coordinates.z,
                 request.audio_file_id
             ),
-            GameAudioContext::Hytale(_) => format!("hytale:{}", request.audio_file_id),
         };
 
         if let Some(existing_event_id) = self.dedup_cache.get(&dedup_key).await {
@@ -122,7 +121,6 @@ impl AudioPlaybackService {
             GameAudioContext::Minecraft(ctx) => {
                 Some((ctx.world_uuid.clone(), ctx.coordinates.clone()))
             }
-            GameAudioContext::Hytale(_) => None,
         };
         let (synthetic_player, position, dimension) =
             Self::build_synthetic_player(&jukebox_name, request.game);
@@ -266,27 +264,6 @@ impl AudioPlaybackService {
                     }),
                     coordinates,
                     dimension,
-                )
-            }
-            GameAudioContext::Hytale(_ctx) => {
-                let coordinates = common::Coordinate {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                };
-                (
-                    PlayerEnum::Hytale(HytalePlayer {
-                        name: jukebox_name.to_string(),
-                        coordinates: coordinates.clone(),
-                        orientation: Orientation { x: 0.0, y: 0.0 },
-                        world_uuid: None,
-                        dimension: Default::default(),
-                        deafen: false,
-                        spectator: false,
-                        player_uuid: None,
-                    }),
-                    coordinates,
-                    Default::default(),
                 )
             }
         }

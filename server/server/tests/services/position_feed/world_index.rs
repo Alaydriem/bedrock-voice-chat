@@ -2,9 +2,8 @@ use std::collections::HashSet;
 
 use bvc_server_lib::services::WorldIndex;
 use common::game_data::Dimension;
-use common::players::{HytalePlayer, MinecraftPlayer};
-use common::traits::player_data::PlayerData;
-use common::{Coordinate, HytaleDimension, Orientation, PlayerEnum};
+use common::players::MinecraftPlayer;
+use common::{Coordinate, Orientation, PlayerEnum};
 
 const WORLD: &str = "8f14e45f-ea8f-4b62-9f2a-1c0d7e3b4a55";
 
@@ -35,19 +34,6 @@ fn bridged(name: &str, x: f32, z: f32) -> PlayerEnum {
     PlayerEnum::Minecraft(mc)
 }
 
-fn hytale(name: &str, x: f32, z: f32) -> PlayerEnum {
-    PlayerEnum::Hytale(HytalePlayer {
-        name: name.to_string(),
-        coordinates: Coordinate { x, y: 64.0, z },
-        orientation: Orientation { x: 0.0, y: 0.0 },
-        dimension: HytaleDimension::default(),
-        deafen: false,
-        spectator: false,
-        world_uuid: Some(WORLD.to_string()),
-        player_uuid: None,
-    })
-}
-
 fn index(players: Vec<PlayerEnum>, on_voice: &[&str]) -> WorldIndex {
     let voice: HashSet<String> = on_voice.iter().map(|n| (*n).to_string()).collect();
     WorldIndex::build(players, voice, CELL)
@@ -72,22 +58,19 @@ fn a_bare_gamertag_finds_nobody() {
     assert!(world.observer("minecraft:Alice").is_some());
 }
 
-/// One server can host both games at once, and then a shared gamertag is two people.
-///
-/// Keyed on the bare name, whichever of them the world reported second replaced the first, and
-/// the loser's socket was served the winner's neighbours — somebody else's view of the world.
+/// The reserved slot is not a player. It carries no identity and no position, so indexing
+/// it would answer `observer("")` and bucket into the cell at the origin, where it would
+/// be offered as a neighbour to everyone standing near 0,0.
 #[test]
-fn the_same_gamertag_in_two_games_is_two_observers() {
+fn a_reserved_slot_is_dropped_rather_than_indexed() {
     let world = index(
-        vec![player("Alaydriem", 0.0, 0.0), hytale("Alaydriem", 5_000.0, 0.0)],
+        vec![player("Alaydriem", 0.0, 0.0), PlayerEnum::Reserved],
         &[],
     );
 
-    assert_eq!(world.len(), 2);
-    let mc = world.observer("minecraft:Alaydriem").expect("minecraft");
-    let ht = world.observer("hytale:Alaydriem").expect("hytale");
-    assert_eq!(mc.get_position().x, 0.0);
-    assert_eq!(ht.get_position().x, 5_000.0);
+    assert_eq!(world.len(), 1);
+    assert!(world.observer("").is_none());
+    assert!(world.observer("minecraft:Alaydriem").is_some());
 }
 
 // The neighbour lookup exists to replace a walk of the whole world, so somebody far away

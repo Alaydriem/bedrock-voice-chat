@@ -99,8 +99,7 @@ export class ViewerPermissionsManager {
                 key: "gamertag",
             });
             if (!gamertag) return;
-            const game = await store.get<string>("active_game");
-            this.identityStore.set({ gamertag, game: game === "hytale" ? "hytale" : "minecraft" });
+            this.identityStore.set({ gamertag, game: "minecraft" });
         } catch {
             // Unknown, which is what the store already says.
         }

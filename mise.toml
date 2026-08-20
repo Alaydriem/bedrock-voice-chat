@@ -285,7 +285,11 @@ outputs = ["src-tauri/resources/i18n"]
 [tasks.frontend]
 description = "Build the SvelteKit frontend into client/build"
 dir = "client"
-depends = ["i18n"]
+# bindings, and as a dependency of this rather than of each consumer. Vite compiles the
+# TypeScript that imports js/bindings, so the bindings have to be current and settled before
+# it reads them. Listed as a sibling on a consumer instead, mise is free to run the two in
+# parallel and vite can read the directory midway through the prune.
+depends = ["i18n", "bindings"]
 shell = "pwsh -NoLogo -Command"
 run = "yarn build"
 # No sources/outputs. `yarn build` runs preloader:build, which writes into
@@ -377,13 +381,53 @@ run = "cargo test -p common"
 [tasks.bindings]
 description = "Regenerate the ts-rs TypeScript bindings and the barrel that re-exports them. The only sanctioned way to regenerate them."
 shell = "pwsh -NoLogo -Command"
-# The barrel is derived from whatever ts-rs left in the directory, so it runs
-# second. ts-rs emits one file per type and no index; a hand-maintained barrel
-# listed 32 of 88 types before this step existed.
-run = [
-  "cargo test -p common",
-  "yarn --cwd client bindings:index",
-]
+# Three steps in one shell because the prune needs the timestamp the run started with,
+# and each entry of a `run` array is its own process.
+#
+# ts-rs only ever writes. It has no notion of a type that used to exist, so deleting one in
+# Rust leaves its .ts behind, and the barrel below re-exports whatever is in the directory —
+# which is how three Hytale bindings survived the type being deleted and kept resolving in
+# TypeScript. The prune is what makes generation authoritative over the directory.
+#
+# By mtime rather than by a manifest: ts-rs opens every exported type with File::create, so
+# each live binding is rewritten on every run and anything left with an older timestamp is,
+# by definition, no longer generated. index.ts is swept up with them and rebuilt in the last
+# step, which is also why the prune has to precede the barrel and not follow it.
+run = '''
+$bindings = Join-Path $env:MISE_PROJECT_ROOT "client/src/js/bindings"
+
+$start = Get-Date
+cargo test -p common
+# Mandatory. A failed cargo run rewrites nothing, so every file predates $start and the
+# prune below would empty the directory rather than tidy it.
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Get-ChildItem $bindings -Filter *.ts |
+  Where-Object { $_.LastWriteTime -lt $start } |
+  ForEach-Object { Write-Host "pruned $($_.Name)"; Remove-Item $_.FullName }
+
+yarn --cwd client bindings:index
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+'''
+
+[tasks.bindings-check]
+description = "Fail when the committed ts-rs bindings do not match the Rust source. Reports drift rather than hiding it, the direction CI needs."
+depends = ["bindings"]
+shell = "pwsh -NoLogo -Command"
+# Compares against git rather than in memory, which is where this differs from
+# kotlin-config-check: the Kotlin exporter returns filename-to-content and can be checked
+# without touching the tree, while ts-rs only writes to disk. So the regeneration above runs
+# first and this reports what it changed.
+run = '''
+git diff --exit-code -- client/src/js/bindings/
+if ($LASTEXITCODE -ne 0) {
+  Write-Host ""
+  Write-Host "FAIL  The committed bindings disagree with the Rust source."
+  Write-Host "      The diff above is the regeneration. Review and commit it."
+  exit 1
+}
+Write-Host "bindings are current"
+'''
 
 [tasks.svc-native]
 description = "Stage the relay SDK cdylib where the native manifest and the runtime fetcher expect it. Required before any SVC bridge run: the native is not committed."
