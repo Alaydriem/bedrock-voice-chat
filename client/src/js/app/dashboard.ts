@@ -932,10 +932,11 @@ export default class Dashboard extends BVCApp {
             }
         });
         this.eventUnlisteners = [];
-    }
 
-    async shutdown() {
-        await this.cleanup();
-        await super.shutdown();
+        // Last, and it was missing: the base holds this instance's deep-link, connection-health
+        // and audio-recovery listeners, and they are process-wide — nothing else releases them.
+        // Skipping it left a second audio-recovery handler live after every teardown, so one
+        // device error invoked `restart_audio_stream` twice.
+        await super.cleanup();
     }
 }

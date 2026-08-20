@@ -994,7 +994,7 @@ msgid "Identity"
 msgstr ""
 
 #: src/components/dashboard/DashboardScreen.svelte:335
-#: src/routes/dashboard/+layout.svelte:633
+#: src/routes/dashboard/+layout.svelte:625
 msgid "In earshot"
 msgstr ""
 
@@ -1108,7 +1108,7 @@ msgid "last seen {n} min ago"
 msgstr ""
 
 #: src/components/dashboard/GroupRow.svelte:193
-#: src/routes/dashboard/+layout.svelte:626
+#: src/routes/dashboard/+layout.svelte:618
 msgid "Leave"
 msgstr ""
 
