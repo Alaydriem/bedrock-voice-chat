@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { info, warn } from '@tauri-apps/plugin-log';
+import { debug, info, warn } from '@tauri-apps/plugin-log';
 import type { InternalEndpoint } from '../../bindings/InternalEndpoint';
 
 export type EventSink<T> = (data: T) => void;
