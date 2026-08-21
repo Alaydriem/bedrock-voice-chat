@@ -81,7 +81,10 @@ impl AudioProcessor {
                     self.decode_error_count += 1;
 
                     if self.decode_error_count >= 10 {
-                        warn!("Multiple consecutive decode errors, resetting decoder");
+                        curia::warn!("multiple consecutive decode errors, resetting decoder", {
+                            defect: crate::logging::Defect::DecoderResetLoop,
+                            io: "output",
+                        });
                         self.reset_decoder()?;
                     }
 

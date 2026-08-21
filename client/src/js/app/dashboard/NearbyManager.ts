@@ -1,6 +1,6 @@
 import { type Readable, type Writable, derived, get, writable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
-import { warn } from '@tauri-apps/plugin-log';
+import { warn } from '@charlesportwoodii/tauri-plugin-curia';
 import { PlayerHue } from '$radial/core/sources/PlayerHue';
 import type { PositionSnapshot } from '../../bindings/PositionSnapshot';
 import type { RelativePosition } from '../../bindings/RelativePosition';

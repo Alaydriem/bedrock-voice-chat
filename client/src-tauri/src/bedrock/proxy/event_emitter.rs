@@ -81,10 +81,16 @@ impl BedrockEventEmitter {
         match self.tx.try_send(packet) {
             Ok(()) => trace!("Bedrock position queued for QUIC transport"),
             Err(flume::TrySendError::Full(_)) => {
-                warn!("Network packet queue full; dropping bedrock position");
+                curia::warn!("network packet queue full; dropping bedrock position", {
+                    defect: crate::logging::Defect::PositionFeedStalled,
+                    game: "bedrock",
+                });
             }
             Err(flume::TrySendError::Disconnected(_)) => {
-                warn!("Network packet channel disconnected; dropping bedrock position");
+                curia::warn!("network packet channel disconnected; dropping bedrock position", {
+                    defect: crate::logging::Defect::PositionFeedStalled,
+                    game: "bedrock",
+                });
             }
         }
     }

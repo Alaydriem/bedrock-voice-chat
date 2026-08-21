@@ -15,15 +15,22 @@
     let allowExternal = $state(false);
     let port = $state("8444");
     let authKey = $state("");
+    let boundPort = $state<number | null>(null);
     let clients = $state<readonly WebSocketClientInfo[]>([]);
     let interfaces = $state<readonly NetworkInterface[]>([]);
 
+    // What the listener answers on, which is the configured port unless something else held
+    // it. Every address offered for copying is built from this and never from `port`, or the
+    // pane hands out an address that refuses the connection.
+    const servingPort = $derived(boundPort === null ? port : String(boundPort));
+    const movedPort = $derived(boundPort !== null && String(boundPort) !== port.trim());
+
     // Bound to every interface, `0.0.0.0` is not connectable. Which address to hand out is
     // not decidable here, so every plausible one is listed.
-    const reachable = $derived(ListenAddress.candidates(interfaces, Number(port) || 0));
+    const reachable = $derived(ListenAddress.candidates(interfaces, Number(servingPort) || 0));
     let now = $state(Math.floor(Date.now() / 1000));
 
-    const address = $derived(`ws://127.0.0.1:${port}`);
+    const address = $derived(`ws://127.0.0.1:${servingPort}`);
 
     const unsubs: Array<() => void> = [];
     let poll: ReturnType<typeof setInterval> | null = null;
@@ -40,6 +47,7 @@
         unsubs.push(ws.allowExternal.subscribe((v) => (allowExternal = v)));
         unsubs.push(ws.websocketPort.subscribe((v) => (port = v)));
         unsubs.push(ws.authKey.subscribe((v) => (authKey = v)));
+        unsubs.push(ws.boundPort.subscribe((v) => (boundPort = v)));
         void ws.initialize();
         void invoke<NetworkInterface[]>("bedrock_list_interfaces")
             .then((v) => (interfaces = v))
@@ -89,7 +97,12 @@
 
         <SettingRow
             label={I18n.t("Port")}
-            note={I18n.t("Changing it restarts the server and drops anything connected.")}
+            note={movedPort
+                ? I18n.tf(
+                      "Port {port} was in use, so the server is answering on {bound} instead. It returns to {port} once that port is free.",
+                      { port, bound: String(boundPort) },
+                  )
+                : I18n.t("Changing it restarts the server and drops anything connected.")}
         >
             {#snippet control()}
                 <span class="rad-input" style="width: 104px">

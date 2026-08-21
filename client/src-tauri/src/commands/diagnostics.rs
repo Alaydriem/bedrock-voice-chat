@@ -36,3 +36,17 @@ pub(crate) async fn reset_link_diagnostics(
     service.reset_stats();
     Ok(())
 }
+
+// Dev-only. The release build has no caller and no button, but the guard is here
+// too so a stray invoke cannot pump synthetic data into production Sentry.
+#[tauri::command]
+pub(crate) async fn logging_smoke_test() -> Result<(), String> {
+    use common::consts::variant::Variant;
+
+    if Variant::get() != Variant::Dev {
+        return Err("logging smoke test is dev-only".to_string());
+    }
+
+    crate::logging::LoggingSmokeTest::run();
+    Ok(())
+}

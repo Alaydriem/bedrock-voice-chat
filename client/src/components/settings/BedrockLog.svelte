@@ -16,6 +16,18 @@
 
     let lines = $state<readonly BedrockLogEntry[]>([]);
     let open = $state(false);
+    let showDebug = $state(false);
+
+    // The sink captures at debug so the buffer holds everything; the view
+    // decides what is worth showing.
+    let visible = $derived(
+        showDebug
+            ? lines
+            : lines.filter((entry) => {
+                  const value = entry.level.toLowerCase();
+                  return !value.startsWith("debug") && !value.startsWith("trace");
+              }),
+    );
 
     let body = $state<HTMLElement | null>(null);
 
@@ -32,7 +44,7 @@
 
     // Follows the tail only when already at the tail.
     $effect(() => {
-        void lines.length;
+        void visible.length;
         if (!body || !open) return;
         const atTail = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
         if (atTail) body.scrollTop = body.scrollHeight;
@@ -78,7 +90,7 @@
 
     <div class="rad-disclosure__body">
         <div class="rad-log" bind:this={body}>
-            {#each lines as entry, i (`${entry.timestamp_ms}-${i}`)}
+            {#each visible as entry, i (`${entry.timestamp_ms}-${i}`)}
                 <div class="rad-log__line">
                     <span class="rad-log__ts">{stamp(entry)}</span>
                     <span class="rad-log__level rad-log__level--{level(entry)}">
@@ -98,6 +110,10 @@
             <button class="rad-btn" onclick={() => void copy()}>
                 <Icon name="copy" /> {I18n.t("Copy")}
             </button>
+            <label class="rad-log__toggle">
+                <input type="checkbox" bind:checked={showDebug} />
+                {I18n.t("Show debug")}
+            </label>
             <button class="rad-btn" onclick={() => bedrock.clearLogs()}>{I18n.t("Clear")}</button>
         </div>
     </div>

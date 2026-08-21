@@ -15,7 +15,7 @@
   import InputMeter from "../../js/app/setup/InputMeter";
   import SpeakerTest from "../../js/app/setup/SpeakerTest";
   import BootOverlay from "../../js/app/shell/BootOverlay";
-  import { error } from "@tauri-apps/plugin-log";
+  import { error } from "@charlesportwoodii/tauri-plugin-curia";
 
   const SCREENS = ["microphone", "notifications", "devices"] as const;
   const TOTAL = SCREENS.length;

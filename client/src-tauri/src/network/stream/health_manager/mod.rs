@@ -257,7 +257,10 @@ impl ConnectionHealthManager {
             );
         }
 
-        log::error!("Failed to reconnect after {} attempts", config.max_attempts);
+        curia::error!("failed to reconnect", {
+            defect: crate::logging::Defect::QuicHandshakeFailed,
+            attempts: config.max_attempts,
+        });
         HealthPublisher::publish(app_handle, ConnectionHealth::Failed);
     }
 

@@ -82,7 +82,7 @@ impl InputProcessCore {
                 let current_settings = NOISE_GATE_SETTINGS.lock().unwrap();
                 match serde_json::from_value::<NoiseGateSettings>(current_settings.clone()) {
                     Ok(settings) => {
-                        log::info!("Updating noise gate settings: {:?}", settings);
+                        log::debug!("Updating noise gate settings: {:?}", settings);
                         self.gate.update(
                             settings.open_threshold,
                             settings.close_threshold,

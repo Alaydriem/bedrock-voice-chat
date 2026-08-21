@@ -2,7 +2,7 @@ import { writable, derived, get, type Writable, type Readable } from 'svelte/sto
 import { invoke } from '@tauri-apps/api/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { info, error, debug, warn } from '@tauri-apps/plugin-log';
+import { info, error, debug, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import type { PlayerGainSettings } from '../../bindings/PlayerGainSettings';
 import type { PlayerSettingsRow } from '../../bindings/PlayerSettingsRow';
 import type { PlayerSource } from '../../bindings/PlayerSource';

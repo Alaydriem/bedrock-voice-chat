@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { debug, info, warn } from '@tauri-apps/plugin-log';
+import { debug, info, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import type { PositionSnapshot } from '../../bindings/PositionSnapshot';
 import type { WebsocketTicketResponse } from '../../bindings/WebsocketTicketResponse';
 

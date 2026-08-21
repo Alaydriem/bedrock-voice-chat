@@ -76,7 +76,7 @@ vi.mock("@tauri-apps/api/event", () => ({
     emit: async () => {},
 }));
 
-vi.mock("@tauri-apps/plugin-log", () => ({
+vi.mock("@charlesportwoodii/tauri-plugin-curia", () => ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),

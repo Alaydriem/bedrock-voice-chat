@@ -33,9 +33,11 @@ impl TransportVerdict {
             .unwrap_or(false);
 
         if inserted {
-            log::warn!(
-                "QUIC demoted for {host}: the WebSocket transport will be preferred for the rest of this run"
-            );
+            curia::warn!("QUIC demoted; the WebSocket transport is preferred for the rest of this run", {
+                defect: crate::logging::Defect::TransportFellBack,
+                transport: "wss",
+                connected_server: host.clone(),
+            });
         }
     }
 

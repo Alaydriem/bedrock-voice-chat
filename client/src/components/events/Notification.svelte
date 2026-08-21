@@ -2,7 +2,7 @@
   import { I18n } from "$lib/i18n";
     import { onDestroy } from "svelte";
     import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-    import { info } from "@tauri-apps/plugin-log";
+    import { info } from "@charlesportwoodii/tauri-plugin-curia";
 
     /**
      * Backend notifications, as a toast.

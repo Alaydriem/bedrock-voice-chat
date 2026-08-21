@@ -1,4 +1,4 @@
-import { warn } from '@tauri-apps/plugin-log';
+import { warn } from '@charlesportwoodii/tauri-plugin-curia';
 import type { UpdateStatus } from '../settings/UpdateStatus';
 
 interface UpdatePollerOptions {

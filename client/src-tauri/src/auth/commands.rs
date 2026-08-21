@@ -33,7 +33,10 @@ pub(crate) async fn server_login(
 
         let mut kr = keyring.lock().await;
         if let Err(e) = kr.store_credentials(&server, response) {
-            log::error!("Failed to store credentials in keyring: {}", e);
+            curia::error!("failed to store credentials in keyring", {
+                defect: crate::logging::Defect::KeyringWriteFailed,
+                error: e.to_string(),
+            });
             return Err(e.to_string());
         }
     }
@@ -79,7 +82,10 @@ pub(crate) async fn code_login(
 
     let mut kr = keyring.lock().await;
     if let Err(e) = kr.store_credentials(&server, &login_result) {
-        log::error!("Failed to store credentials in keyring: {}", e);
+        curia::error!("failed to store credentials in keyring", {
+            defect: crate::logging::Defect::KeyringWriteFailed,
+            error: e.to_string(),
+        });
         return Err(e.to_string());
     }
 

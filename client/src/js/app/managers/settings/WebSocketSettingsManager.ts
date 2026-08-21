@@ -1,6 +1,6 @@
 import { writable, type Readable, type Writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
-import { error } from "@tauri-apps/plugin-log";
+import { error } from "@charlesportwoodii/tauri-plugin-curia";
 import { Store } from "@tauri-apps/plugin-store";
 import Analytics from "../../analytics";
 import PlatformDetector from "../../utils/PlatformDetector";
@@ -29,6 +29,8 @@ export class WebSocketSettingsManager {
     public readonly websocketPort: Readable<string>;
     private authKeyStore: Writable<string>;
     public readonly authKey: Readable<string>;
+    private boundPortStore: Writable<number | null>;
+    public readonly boundPort: Readable<number | null>;
 
     private store: Store | null = null;
 
@@ -43,6 +45,8 @@ export class WebSocketSettingsManager {
         this.websocketPort = { subscribe: this.websocketPortStore.subscribe };
         this.authKeyStore = writable("");
         this.authKey = { subscribe: this.authKeyStore.subscribe };
+        this.boundPortStore = writable(null);
+        this.boundPort = { subscribe: this.boundPortStore.subscribe };
     }
 
     async initialize(): Promise<void> {
@@ -121,6 +125,10 @@ export class WebSocketSettingsManager {
      * The rebind is part of saving rather than a separate step a caller can forget: every field
      * here — the port, the token, the reach — is read at bind time and nowhere else, so a saved
      * change that did not rebind would show a setting the running listener does not have.
+     *
+     * The rebind answers with the port it reached, which is not always the one saved: something
+     * else holding the configured port moves the listener to a neighbour. `boundPort` is the
+     * only address a plugin can be pointed at.
      */
     private async saveConfig(): Promise<void> {
         const allowExternal = this.currentAllowExternal();
@@ -136,8 +144,9 @@ export class WebSocketSettingsManager {
         await invoke("update_websocket_config", { config });
 
         try {
-            await invoke("restart_websocket_external");
+            this.boundPortStore.set(await invoke<number>("restart_websocket_external"));
         } catch (e) {
+            this.boundPortStore.set(null);
             error(`Failed to rebind the WebSocket server: ${e}`);
         }
     }

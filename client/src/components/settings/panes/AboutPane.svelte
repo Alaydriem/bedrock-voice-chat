@@ -11,6 +11,7 @@
     import { UpdateStatus, type UpdateState } from "../../../js/app/settings/UpdateStatus";
     import type { AppInfo } from "../../../js/bindings/AppInfo";
     import { I18n } from "$lib/i18n";
+    import { LoggingSmokeTest } from "../../../js/app/LoggingSmokeTest";
 
     interface Props {
         /** Shared with the shell, which badges the nav from the same object. */
@@ -34,13 +35,31 @@
     let activeLocale = $state("auto");
     let locale = $state<LocaleManager | null>(null);
 
+    let isDev = $state(false);
+    let smoking = $state(false);
+    let smokeResult = $state("");
+
     const unsubs: Array<() => void> = [];
     let destroyed = false;
+
+    async function runSmokeTest(): Promise<void> {
+        smoking = true;
+        smokeResult = "";
+        try {
+            await LoggingSmokeTest.run();
+            smokeResult = I18n.t("Sent. Check Sentry and the log file.");
+        } catch (e) {
+            smokeResult = String(e);
+        } finally {
+            smoking = false;
+        }
+    }
 
     onMount(() => {
         unsubs.push(about.appInfo.subscribe((v) => (info = v)));
         unsubs.push(about.telemetry.subscribe((v) => (telemetry = v)));
         unsubs.push(about.isMobile.subscribe((v) => (mobile = v)));
+        unsubs.push(about.isDev.subscribe((v) => (isDev = v)));
         unsubs.push(about.isExporting.subscribe((v) => (exporting = v)));
         unsubs.push(about.platformId.subscribe((v) => (platformId = v)));
         unsubs.push(about.isRefreshingPlatformId.subscribe((v) => (refreshingPlatformId = v)));
@@ -232,6 +251,25 @@
             {/snippet}
         </SettingRow>
     </div>
+
+    {#if isDev}
+        <div class="rad-card">
+            <div class="rad-card__head">{I18n.t("Developer")}</div>
+
+            <SettingRow
+                label={I18n.t("Logging smoke test")}
+                note={smokeResult ||
+                    I18n.t("Emits one line per logging invariant, from the webview and from Rust.")}
+            >
+                {#snippet control()}
+                    <button class="rad-btn" disabled={smoking} onclick={() => void runSmokeTest()}>
+                        <Icon name="terminal" />
+                        {smoking ? I18n.t("Sending") : I18n.t("Run")}
+                    </button>
+                {/snippet}
+            </SettingRow>
+        </div>
+    {/if}
 
     <div class="rad-link-grid">
         {#each about.links as link (link.url)}

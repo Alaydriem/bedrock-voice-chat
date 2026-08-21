@@ -10,7 +10,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::analytics::{AnalyticsService, PlatformId};
 use crate::commands::env::get_variant;
 use crate::feature_flags::FeatureFlagService;
-use crate::logging::{SentryLogger, Telemetry};
+use crate::logging::Telemetry;
 use crate::structs::app_state::AppState;
 
 #[tauri::command]
@@ -33,11 +33,11 @@ pub(crate) async fn get_telemetry(telemetry: State<'_, Arc<Telemetry>>) -> Resul
 pub(crate) async fn set_telemetry(
     value: bool,
     telemetry: State<'_, Arc<Telemetry>>,
-    sentry_logger: State<'_, Arc<SentryLogger>>,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<(), String> {
+    // SentrySink reads Telemetry live on every emit, so there is nothing else
+    // to flip here.
     telemetry.set(value);
-    sentry_logger.set(value);
 
     let store = state.lock().await.get_store().clone();
     store.set("telemetry", value);

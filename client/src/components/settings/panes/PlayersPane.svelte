@@ -3,7 +3,7 @@
     import { invoke } from "@tauri-apps/api/core";
     import type { UnlistenFn } from "@tauri-apps/api/event";
     import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-    import { error } from "@tauri-apps/plugin-log";
+    import { error } from "@charlesportwoodii/tauri-plugin-curia";
     import { onDestroy, onMount } from "svelte";
     import { Coalescer } from "../../../js/app/utils/Coalescer";
     import Icon from "$radial/components/Icon.svelte";

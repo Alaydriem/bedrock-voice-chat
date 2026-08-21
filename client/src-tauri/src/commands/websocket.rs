@@ -11,13 +11,19 @@ use tauri::async_runtime::Mutex;
 ///
 /// The internal listener is untouched. It has no user-visible settings, and rebinding it would
 /// drop the meters for a change that has nothing to do with them.
+///
+/// Answers with the port it landed on rather than nothing. The configured port is a preference,
+/// so the caller cannot assume the setting it just saved is the address to hand out.
 #[tauri::command]
 pub async fn restart_websocket_external(
     ws_manager: State<'_, Mutex<WebSocketManager>>,
-) -> Result<(), String> {
+) -> Result<u16, String> {
     let mut manager = ws_manager.lock().await;
     manager.stop().await.map_err(|e| e.to_string())?;
-    manager.start().await.map_err(|e| e.to_string())
+    manager.start().await.map_err(|e| e.to_string())?;
+    manager
+        .external_port()
+        .ok_or_else(|| "the WebSocket server started but reported no port".to_string())
 }
 
 #[tauri::command]

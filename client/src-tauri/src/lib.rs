@@ -6,7 +6,7 @@ pub(crate) use audio::AudioStreamManager;
 pub(crate) use audio::recording::RecordingManager;
 use common::consts::variant::{Variant};
 pub(crate) use flume::{Receiver, Sender};
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 pub use network::NetworkPacket;
 pub(crate) use network::NetworkStreamManager;
 use std::sync::Arc;
@@ -61,7 +61,7 @@ mod keyring;
 // Re-exported for the integration test crate (a separate crate root that can only reach
 // `pub` items) to cover how a platform keystore failure is classified.
 pub use keyring::{CredentialWriteSet, KeyringFault, KeyringFaultKind};
-mod logging;
+pub mod logging;
 // Public for the one behavioural seam the integration tests need: `TransportVerdict`,
 // whose contract is that a demotion outlives the reconnect that produced it. That cannot
 // be observed from outside the crate any other way.
@@ -183,12 +183,8 @@ pub fn run() {
     // audio library's upload is a file picker.
     builder = builder.plugin(tauri_plugin_dialog::init());
 
-    let sentry_logger = Arc::new(logging::SentryLogger::new(true));
-
     #[cfg(feature = "bedrock-protocol")]
     let bedrock_log_channel = Arc::new(crate::bedrock::proxy::log::BedrockLogChannel::new());
-    #[cfg(feature = "bedrock-protocol")]
-    let bedrock_log_sender = bedrock_log_channel.sender();
 
     #[cfg(feature = "bedrock-protocol")]
     let bedrock_connect_error_channel = Arc::new(crate::bedrock::BedrockConnectErrorChannel::new());
@@ -200,36 +196,7 @@ pub fn run() {
     let bedrock_chat_injector = crate::bedrock::ChatInjector::new_shared();
 
     builder
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .level(
-                    std::env::var("LOG_LEVEL")
-                        .ok()
-                        .and_then(|s| s.parse::<log::LevelFilter>().ok())
-                        .unwrap_or(log::LevelFilter::Info),
-                )
-                .level_for("webrtc", log::LevelFilter::Warn)
-                .level_for("webrtc_ice", log::LevelFilter::Warn)
-                .level_for("webrtc_sctp", log::LevelFilter::Warn)
-                .level_for("webrtc_mdns", log::LevelFilter::Warn)
-                .level_for("webrtc_dtls", log::LevelFilter::Warn)
-                .level_for("dtls", log::LevelFilter::Warn)
-                .targets([
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stderr),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Dispatch({
-                        let dispatch = fern::Dispatch::new()
-                            .chain(Box::new(sentry_logger.clone()) as Box<dyn log::Log>);
-                        #[cfg(feature = "bedrock-protocol")]
-                        let dispatch = dispatch.chain(Box::new(
-                            crate::bedrock::proxy::log::BedrockLogger::new(bedrock_log_sender.clone()),
-                        ) as Box<dyn log::Log>);
-                        dispatch
-                    })),
-                ])
-                .build()
-        )
+        .plugin(tauri_plugin_curia::init())
         .plugin(tauri_plugin_audio_permissions::init())
         .plugin(tauri_plugin_age_signals::init())
         .plugin(tauri_plugin_keyring::init())
@@ -255,6 +222,7 @@ pub fn run() {
             // About
             crate::commands::about::get_app_info,
             crate::commands::about::export_logs,
+            crate::commands::diagnostics::logging_smoke_test,
             crate::commands::about::get_telemetry,
             crate::commands::about::set_telemetry,
             crate::commands::about::get_platform_id,
@@ -420,7 +388,6 @@ pub fn run() {
             crate::commands::iap::iap_refresh,
         ])
         .setup(move |app| {
-            let sentry_logger = sentry_logger.clone();
             // Set Windows timer resolution for high-precision audio timing
             #[cfg(target_os = "windows")]
             {
@@ -437,13 +404,13 @@ pub fn run() {
                 unsafe {
                     NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
                     let current_ms = current_res as f64 / 10_000.0;
-                    info!("Current Windows timer resolution: {:.2}ms", current_ms);
+                    debug!("Current Windows timer resolution: {:.2}ms", current_ms);
 
                     timeBeginPeriod(1);
 
                     NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
                     let new_ms = current_res as f64 / 10_000.0;
-                    info!("Set Windows timer resolution to 1ms (actual: {:.2}ms)", new_ms);
+                    debug!("Set Windows timer resolution to 1ms (actual: {:.2}ms)", new_ms);
 
                     if new_ms > 2.0 {
                         warn!("WARNING: Timer resolution is degraded ({:.2}ms). This will cause audio jitter!", new_ms);
@@ -452,30 +419,121 @@ pub fn run() {
                 }
             }
 
-            info!("BVC Variant {:?}", crate::commands::env::get_variant());
-            info!("Protocol Version: {}", common::consts::version::PROTOCOL_VERSION);
+            debug!("BVC Variant {:?}", crate::commands::env::get_variant());
+            debug!("Protocol Version: {}", common::consts::version::PROTOCOL_VERSION);
             let sentry_enabled = sentry::Hub::current().client().map(|c| c.is_enabled()).unwrap_or(false);
-            info!("Sentry: {}", if sentry_enabled { "initialized" } else { "not configured (DSN missing or invalid)" });
+            debug!("Sentry: {}", if sentry_enabled { "initialized" } else { "not configured (DSN missing or invalid)" });
             let store = app.store("store.json")?;
 
             let telemetry = Arc::new(crate::logging::Telemetry::new(store.get("telemetry").and_then(|v| v.as_bool()).unwrap_or(true)));
 
-            sentry_logger.set(telemetry.is_enabled());
+            let log_context = crate::logging::LogContext::new_shared();
 
-            let telemetry_filter = telemetry.clone();
-            use tracing_subscriber::prelude::*;
-            let registry = tracing_subscriber::registry()
-                .with(
-                    sentry::integrations::tracing::layer()
-                        .with_filter(tracing_subscriber::filter::dynamic_filter_fn(move |_, _| {
-                            telemetry_filter.is_enabled()
-                        }))
-                );
+            let mut sinks = vec![crate::logging::LogSinkType::Console(
+                tauri_plugin_curia::ConsoleSink::new(
+                    curia::Level::Info,
+                    crate::logging::HumanFormatter::new().formatter(),
+                ),
+            )];
+
+            // Logging must never take the app down with it. An unwritable log
+            // directory degrades to console-only and says so once, rather than
+            // aborting startup.
+            match app.path().app_log_dir().map_err(|e| e.to_string()).and_then(|dir| {
+                tauri_plugin_curia::FileSink::new(
+                    dir,
+                    "bedrock-voice-chat".to_string(),
+                    curia::Level::Debug,
+                    crate::logging::JsonFormatter::new(log_context.clone()).formatter(),
+                )
+                .map_err(|e| e.to_string())
+            }) {
+                Ok(file) => sinks.push(crate::logging::LogSinkType::File(file)),
+                Err(e) => eprintln!("log file unavailable, continuing without it: {e}"),
+            }
+
+            if sentry_enabled {
+                let sentry_sink = Arc::new(crate::logging::SentrySink::new(
+                    telemetry.clone(),
+                    log_context.clone(),
+                    curia::Level::Info,
+                ));
+                app.manage(sentry_sink.clone());
+                sinks.push(crate::logging::LogSinkType::Sentry(sentry_sink));
+            }
+
+            // Feeds the Connect pane's log view. Registered at Debug so the
+            // buffer holds everything and the view decides what to show.
             #[cfg(feature = "bedrock-protocol")]
-            let registry = registry.with(crate::bedrock::proxy::log::BedrockTracingLayer::new(
-                bedrock_log_channel.sender(),
+            sinks.push(crate::logging::LogSinkType::Bedrock(
+                crate::logging::BedrockSink::new(
+                    bedrock_log_channel.sender(),
+                    std::env::var("LOG_LEVEL")
+                        .ok()
+                        .and_then(|s| match s.to_lowercase().as_str() {
+                            "error" => Some(curia::Level::Error),
+                            "warn" => Some(curia::Level::Warn),
+                            "info" => Some(curia::Level::Info),
+                            "debug" => Some(curia::Level::Debug),
+                            "trace" => Some(curia::Level::Trace),
+                            _ => None,
+                        })
+                        .unwrap_or(curia::Level::Debug),
+                ),
             ));
-            registry.init();
+
+            curia::Logger::install(Box::new(curia::Dispatcher::new(sinks)))
+                .map_err(|e| e.to_string())?;
+
+            // Restores the policy tauri_plugin_log's .level() / .level_for()
+            // carried. Without it every dependency's debug output reaches every
+            // sink: h2 and rustls alone will fill the log file.
+            let max_level = std::env::var("LOG_LEVEL")
+                .ok()
+                .and_then(|s| match s.to_lowercase().as_str() {
+                    "error" => Some(curia::Level::Error),
+                    "warn" => Some(curia::Level::Warn),
+                    "info" => Some(curia::Level::Info),
+                    "debug" => Some(curia::Level::Debug),
+                    "trace" => Some(curia::Level::Trace),
+                    _ => None,
+                })
+                .unwrap_or(curia::Level::Info);
+
+            let bridge = curia::TracingBridge::to_global()
+                .with_max_level(max_level)
+                .with_target_level("webrtc", curia::Level::Warn)
+                .with_target_level("webrtc_ice", curia::Level::Warn)
+                .with_target_level("webrtc_sctp", curia::Level::Warn)
+                .with_target_level("webrtc_mdns", curia::Level::Warn)
+                .with_target_level("webrtc_dtls", curia::Level::Warn)
+                .with_target_level("dtls", curia::Level::Warn)
+                .with_target_level("h2", curia::Level::Warn)
+                .with_target_level("hyper", curia::Level::Warn)
+                .with_target_level("rustls", curia::Level::Warn)
+                .with_target_level("tokio_util", curia::Level::Warn)
+                // The Connect pane wants this traffic in full; the Sentry sink
+                // excludes it by target rather than by level.
+                .with_target_level("bedrock_protocol", curia::Level::Debug)
+                .with_target_level("bedrock_client", curia::Level::Debug)
+                .with_target_level("bedrock_network", curia::Level::Debug)
+                .with_target_level("bedrock_server", curia::Level::Debug)
+                .with_target_level("rust_raknet", curia::Level::Debug)
+                .with_target_level("raknet", curia::Level::Debug)
+                .with_target_level("rakrs", curia::Level::Debug);
+
+            use tracing_subscriber::prelude::*;
+            tracing_subscriber::registry().with(bridge).init();
+
+            // Dependencies still emitting through the log crate. Only one global
+            // log logger can exist, so a plugin that registers its own wins the
+            // race and every log:: event downstream is lost. Silent loss is worse
+            // than the noise of saying so.
+            if curia::TracingBridge::install_log_capture().is_err() {
+                eprintln!(
+                    "log capture unavailable: another component already registered a global log logger; log:: events will not reach the sinks"
+                );
+            }
 
             #[cfg(feature = "bedrock-protocol")]
             {
@@ -562,7 +620,7 @@ pub fn run() {
                 let _ = store.save();
             }
             let install_id = marker.install_id.clone();
-            log::info!("Platform ID: {}", install_id);
+            log::debug!("Platform ID: {}", install_id);
 
             // One identity, shared by analytics and feature flags, so the About pane can
             // replace it without a restart.
@@ -587,7 +645,7 @@ pub fn run() {
                             )
                         )
                     );
-                    info!("PostHog analytics provider configured");
+                    debug!("PostHog analytics provider configured");
                 }
             }
 
@@ -597,7 +655,7 @@ pub fn run() {
                         analytics::sentry::Provider::new(),
                     ),
                 );
-                info!("Sentry analytics provider configured");
+                debug!("Sentry analytics provider configured");
             }
 
             let analytics_service = Arc::new(analytics_service);
@@ -680,7 +738,7 @@ pub fn run() {
             // Register event handler for incoming deep links (when app is already running)
             let app_handle = handle.clone();
             app.deep_link().on_open_url(move |event| {
-                info!("on_open_url callback fired");
+                debug!("on_open_url callback fired");
                 for url in event.urls() {
                     info!(
                         "Processing deep link URL from on_open_url: {}",
@@ -740,7 +798,6 @@ pub fn run() {
 
             let app_state = AppState::new(store.clone(), handle.clone());
             app.manage(telemetry);
-            app.manage(sentry_logger);
             app.manage(Mutex::new(app_state));
 
             handle.plugin(tauri_plugin_iap::init())?;
@@ -889,6 +946,13 @@ pub fn run() {
                     players
                         .flush()
                         .unwrap_or_else(|e| log::warn!("Final player settings flush failed: {e}"));
+                }
+
+                // Drains the queued tail before the Sentry guard drops. Last
+                // events of a session are the ones worth having.
+                if let Some(sentry_sink) = app_handle.try_state::<Arc<crate::logging::SentrySink>>()
+                {
+                    sentry_sink.shutdown();
                 }
             }
         });

@@ -1195,6 +1195,7 @@ dependencies = [
  "bytes",
  "chrono",
  "common",
+ "curia",
  "dirs",
  "dotenvy",
  "enum_dispatch",
@@ -1239,6 +1240,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-age-signals",
  "tauri-plugin-audio-permissions",
+ "tauri-plugin-curia",
  "tauri-plugin-deep-link",
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
@@ -1246,7 +1248,6 @@ dependencies = [
  "tauri-plugin-http",
  "tauri-plugin-iap",
  "tauri-plugin-keyring",
- "tauri-plugin-log",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-os",
@@ -2573,6 +2574,21 @@ checksum = "7d5515a3834141de9eafb9717ad39eea8247b5674e6066c404e8c4b365d2a29e"
 dependencies = [
  "cmov",
  "subtle",
+]
+
+[[package]]
+name = "curia"
+version = "0.1.0"
+source = "git+https://github.com/charlesportwoodii/curia?tag=0.1.0#f1c1f928671bdc3721267febc68024299e071966"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tracing",
+ "tracing-core",
+ "tracing-log",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -7203,6 +7219,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "oslog"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "80d2043d1f61d77cb2f4b1f7b7b2295f40507f5f8e9d1c8bf10a1ca5f97a3969"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "ouroboros"
 version = "0.18.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11152,6 +11177,25 @@ dependencies = [
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "tauri-plugin-curia"
+version = "0.1.0"
+source = "git+https://github.com/charlesportwoodii/tauri-plugin-curia?tag=0.1.0#e3726a22e712ff2923a400c545999ec9868f7260"
+dependencies = [
+ "android_logger",
+ "chrono",
+ "curia",
+ "flume",
+ "log",
+ "oslog",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.20",
+ "time",
 ]
 
 [[package]]

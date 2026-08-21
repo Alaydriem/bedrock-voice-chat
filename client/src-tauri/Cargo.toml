@@ -65,7 +65,8 @@ tauri-plugin-keyring = { git = "https://github.com/charlesportwoodii/tauri-plugi
 tauri-plugin-store = { version = "^2" }
 tauri-plugin-dialog = { version = "^2" }
 tauri-plugin-notification = { version = "^2" }
-tauri-plugin-log = { version = "^2" }
+curia = { git = "https://github.com/charlesportwoodii/curia", tag = "0.1.0" }
+tauri-plugin-curia = { git = "https://github.com/charlesportwoodii/tauri-plugin-curia", tag = "0.1.0" }
 tauri-plugin-os = { version = "^2" }
 once_cell = { version = "^1.21", features = ["atomic-polyfill"] }
 reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"], default-features = false }

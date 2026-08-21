@@ -1,6 +1,6 @@
 import { I18n } from "$lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
-import { info, error as logError } from "@tauri-apps/plugin-log";
+import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
 import type { DeepLinkOutcome } from "../deepLinkRouter.ts";
 
 export class DiscordCallbackHandler {

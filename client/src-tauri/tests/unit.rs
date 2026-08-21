@@ -14,6 +14,7 @@ mod i18n;
 mod iap;
 mod keybinds;
 mod keyring;
+mod logging;
 mod network;
 mod players;
 mod websocket;

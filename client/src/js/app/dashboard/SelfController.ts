@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { debug, info, warn } from '@tauri-apps/plugin-log';
+import { debug, info, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import type { Store } from '@tauri-apps/plugin-store';
 import { writable, type Readable, type Writable } from 'svelte/store';
 import { MeterProbe } from '$radial/core/canvas/MeterProbe';

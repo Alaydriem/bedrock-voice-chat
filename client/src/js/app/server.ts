@@ -1,4 +1,4 @@
-import { info } from '@tauri-apps/plugin-log';
+import { info } from '@charlesportwoodii/tauri-plugin-curia';
 
 import BVCApp from './BVCApp.ts';
 

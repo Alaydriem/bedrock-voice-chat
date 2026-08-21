@@ -1,5 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store';
-import { info, error as logError } from '@tauri-apps/plugin-log';
+import { info, error as logError } from '@charlesportwoodii/tauri-plugin-curia';
 import { AuthCallbackHandler } from './deepLinkHandlers/authCallbackHandler.ts';
 import { DiscordCallbackHandler } from './deepLinkHandlers/discordCallbackHandler.ts';
 

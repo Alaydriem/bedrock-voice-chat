@@ -1,5 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store';
-import { info } from '@tauri-apps/plugin-log';
+import { info } from '@charlesportwoodii/tauri-plugin-curia';
 import Analytics from '../analytics';
 import { AppStore } from '../services/AppStore';
 import type { SetupState } from '../../bindings/SetupState';

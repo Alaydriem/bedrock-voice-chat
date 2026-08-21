@@ -1,5 +1,5 @@
 import { checkPermission, requestPermission, PermissionType, type PermissionResponse } from 'tauri-plugin-audio-permissions';
-import { error as logError } from '@tauri-apps/plugin-log';
+import { error as logError } from '@charlesportwoodii/tauri-plugin-curia';
 
 /**
  * Wraps a promise with a timeout

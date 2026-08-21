@@ -284,12 +284,12 @@ impl AudioStreamManager {
             let (after, attempt) = match breaker.observe_failure(&device_type) {
                 RebuildVerdict::Retry { after, attempt } => (after, attempt),
                 RebuildVerdict::Open => {
-                    log::error!(
-                        "{:?} could not be opened after {} attempts and will not be retried: {}",
-                        device_type,
-                        RebuildBreaker::MAX_ATTEMPTS,
-                        reason
-                    );
+                    curia::error!("device could not be opened and will not be retried", {
+                        defect: crate::logging::Defect::AudioDeviceRebuildFailed,
+                        io: if is_input { "input" } else { "output" },
+                        attempts: RebuildBreaker::MAX_ATTEMPTS,
+                        error: reason.to_string(),
+                    });
                     if is_input {
                         availability.set(false);
                     }
@@ -402,12 +402,16 @@ impl AudioStreamManager {
                     continue;
                 }
 
-                log::warn!(
-                    "Capture stream delivered no frames for {}s and reported no error; rebuilding it",
-                    Self::CAPTURE_DEAD_AFTER as u64 * Self::CAPTURE_POLL.as_secs()
-                );
+                curia::warn!("capture stream delivered no frames and reported no error; rebuilding", {
+                    io: "input",
+                    quiet_secs: Self::CAPTURE_DEAD_AFTER as u64 * Self::CAPTURE_POLL.as_secs(),
+                });
                 if let Err(e) = asm.restart(AudioDeviceType::InputDevice).await {
-                    log::error!("Capture watchdog could not rebuild the input stream: {:?}", e);
+                    curia::error!("capture watchdog could not rebuild the input stream", {
+                        defect: crate::logging::Defect::AudioDeviceRebuildFailed,
+                        io: "input",
+                        error: e.to_string(),
+                    });
                 }
             }
         });

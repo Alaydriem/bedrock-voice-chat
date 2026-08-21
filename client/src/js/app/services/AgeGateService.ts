@@ -1,5 +1,5 @@
 import { ageSignal } from "tauri-plugin-age-signals";
-import { warn } from "@tauri-apps/plugin-log";
+import { warn } from "@charlesportwoodii/tauri-plugin-curia";
 import type { AgeGateDecision } from "../../bindings/AgeGateDecision";
 import type FeatureFlagService from "./FeatureFlagService";
 

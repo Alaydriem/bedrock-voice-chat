@@ -13,7 +13,7 @@
 
 <script lang="ts">
     import { flushSync, onMount } from "svelte";
-    import { warn } from "@tauri-apps/plugin-log";
+    import { warn } from "@charlesportwoodii/tauri-plugin-curia";
     import { SentryManager } from "../js/sentry";
     import { ReactivityProbe } from "../js/app/services/ReactivityProbe.svelte";
     import { ReactivityWatchdog } from "../js/app/services/ReactivityWatchdog";

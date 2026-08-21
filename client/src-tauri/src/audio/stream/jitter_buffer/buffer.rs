@@ -1,4 +1,3 @@
-use log::error;
 use rodio::Source;
 use std::num::NonZero;
 use std::sync::atomic::AtomicBool;
@@ -35,9 +34,8 @@ impl JitterBuffer {
         let buffer_capacity = ((buffer_size_ms / 20) as usize).max(5); // Minimum 5 frames (20ms each)
 
         log::info!(
-            "[{}] Creating jitter buffer with activity detection for player '{}', capacity: {} frames ({}ms), sample_rate: {}Hz",
+            "[{}] Creating jitter buffer with activity detection for player, capacity: {} frames ({}ms), sample_rate: {}Hz",
             identifier,
-            player_name,
             buffer_capacity,
             buffer_size_ms,
             sample_rate
@@ -97,7 +95,10 @@ impl Iterator for JitterBuffer {
         if let Ok(mut source) = self.source.lock() {
             source.next()
         } else {
-            error!("Failed to lock jitter buffer source");
+            curia::error!("failed to lock the jitter buffer source", {
+                defect: crate::logging::Defect::JitterBufferStarved,
+                io: "output",
+            });
             None
         }
     }

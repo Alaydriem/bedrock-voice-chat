@@ -1,6 +1,6 @@
 import { I18n } from "$lib/i18n";
 import { fetch } from '@tauri-apps/plugin-http';
-import { info, error, warn } from '@tauri-apps/plugin-log';
+import { info, error, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import { Store } from '@tauri-apps/plugin-store';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { getVersion } from '@tauri-apps/api/app';

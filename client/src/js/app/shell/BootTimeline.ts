@@ -1,4 +1,4 @@
-import { debug, info } from '@tauri-apps/plugin-log';
+import { debug, info } from '@charlesportwoodii/tauri-plugin-curia';
 
 interface BootMark {
     readonly name: string;

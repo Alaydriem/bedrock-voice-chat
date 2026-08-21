@@ -5,7 +5,7 @@ import { I18n } from "../../../lib/i18n";
 
 const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
-vi.mock("@tauri-apps/plugin-log", () => ({ error: vi.fn(async () => {}) }));
+vi.mock("@charlesportwoodii/tauri-plugin-curia", () => ({ error: vi.fn(async () => {}) }));
 
 const RUSSIAN = {
   v: 1,

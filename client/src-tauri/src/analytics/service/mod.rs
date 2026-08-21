@@ -81,6 +81,12 @@ impl AnalyticsService {
         }
     }
 
+    // The JSON log and the analytics batch must carry the same session id, or
+    // the two surfaces cannot be correlated during triage.
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
     pub fn set_user(&self, user_id: &str) {
         for provider in &self.providers {
             provider.set_user(user_id);

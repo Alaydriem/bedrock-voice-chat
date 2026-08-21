@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { warn } from '@tauri-apps/plugin-log';
+import { warn } from '@charlesportwoodii/tauri-plugin-curia';
 import { type Readable, type Writable, writable } from 'svelte/store';
 import type { ConnectionHealth } from '../../bindings/ConnectionHealth';
 import type { LinkDiagnosticsSnapshot } from '../../bindings/LinkDiagnosticsSnapshot';

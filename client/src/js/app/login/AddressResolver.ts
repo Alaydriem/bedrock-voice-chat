@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { warn } from '@tauri-apps/plugin-log';
+import { warn } from '@charlesportwoodii/tauri-plugin-curia';
 import { writable, type Readable, type Writable } from 'svelte/store';
 import type { RingMode } from '$radial/bindings/RingBinding';
 import type { ProtocolCompatibility } from '../../bindings/ProtocolCompatibility';

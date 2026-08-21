@@ -181,7 +181,11 @@ impl common::traits::StreamTrait for OutputStream {
         {
             Ok(job) => jobs.push(job),
             Err(e) => {
-                error!("output sender encountered an error: {:?}", e);
+                curia::error!("output sender failed to start", {
+                    defect: crate::logging::Defect::AudioDeviceLost,
+                    io: "output",
+                    error: e.to_string(),
+                });
                 return Err(e);
             }
         };
@@ -198,7 +202,11 @@ impl common::traits::StreamTrait for OutputStream {
         {
             Ok(job) => jobs.push(job),
             Err(e) => {
-                error!("output sender encountered an error: {:?}", e);
+                curia::error!("output listener failed to start", {
+                    defect: crate::logging::Defect::AudioDeviceLost,
+                    io: "output",
+                    error: e.to_string(),
+                });
                 return Err(e);
             }
         };
@@ -328,7 +336,7 @@ impl OutputStream {
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         let current_player_name = match metadata.get("current_player").await {
             Some(name) => {
-                log::info!("Starting playback for current player: '{}'", name);
+                log::info!("Starting playback for current player");
                 name
             }
             None => {

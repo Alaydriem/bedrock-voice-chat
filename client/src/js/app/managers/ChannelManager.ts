@@ -2,7 +2,7 @@ import { I18n } from "$lib/i18n";
 import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { info, error as logError, debug, warn } from '@tauri-apps/plugin-log';
+import { info, error as logError, debug, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import { Store } from '@tauri-apps/plugin-store';
 import type { Channel } from '../../bindings/Channel';
 import type { ChannelEvent } from '../../bindings/ChannelEvent';
@@ -175,7 +175,10 @@ export default class ChannelManager {
             this.isLoadingStore.set(false);
             this.lastFetchTimeStore.set(Date.now());
         } catch (error) {
-            logError(`Error fetching channels: ${error}`);
+            logError("failed to fetch channels", {
+                defect: "ChannelJoinFailed",
+                error: String(error),
+            });
             this.isLoadingStore.set(false);
             this.handleError(error);
         }
@@ -200,7 +203,11 @@ export default class ChannelManager {
 
             return channel;
         } catch (error) {
-            logError(`Failed to fetch channel ${channelId}: ${error}`);
+            logError("failed to fetch channel", {
+                defect: "ChannelJoinFailed",
+                channel_id: channelId,
+                error: String(error),
+            });
             return null;
         }
     }
@@ -495,7 +502,10 @@ export default class ChannelManager {
                 this.handleChannelEvent(event);
             });
         } catch (error) {
-            logError(`Failed to start channel event listener: ${error}`);
+            logError("failed to start the channel event listener", {
+                defect: "ChannelJoinFailed",
+                error: String(error),
+            });
             this.handleError(error);
         }
     }

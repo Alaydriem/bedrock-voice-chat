@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { info, warn } from "@tauri-apps/plugin-log";
+import { info, warn } from "@charlesportwoodii/tauri-plugin-curia";
 import { mockInvoke } from "../../tauri";
 
 /** Every socket the feed has opened, in order, so a redial is observable. */

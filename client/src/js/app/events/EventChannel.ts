@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { debug, info, warn } from '@tauri-apps/plugin-log';
+import { debug, info, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import type { InternalEndpoint } from '../../bindings/InternalEndpoint';
 
 export type EventSink<T> = (data: T) => void;
@@ -221,7 +221,7 @@ export class EventChannel {
         try {
             envelope = JSON.parse(String(raw)) as Envelope;
         } catch (e) {
-            void warn(`EventChannel: could not parse a frame: ${e}`);
+            void debug(`EventChannel: could not parse a frame: ${e}`);
             return;
         }
         if (typeof envelope.type !== 'string') return;
@@ -236,7 +236,7 @@ export class EventChannel {
             try {
                 (sink as EventSink<unknown>)(envelope.data);
             } catch (e) {
-                void warn(`EventChannel: a sink for ${envelope.type} failed: ${e}`);
+                void debug(`EventChannel: a sink for ${envelope.type} failed: ${e}`);
             }
         }
     }
@@ -258,7 +258,7 @@ export class EventChannel {
         const now = Date.now();
         if (now - last < EventChannel.UNCLAIMED_LOG_MS) return;
         this.#unclaimedAt.set(kind, now);
-        void warn(`EventChannel: ${kind} frames are arriving with nothing subscribed to them`);
+        void debug(`EventChannel: ${kind} frames are arriving with nothing subscribed to them`);
     }
 
     /** A socket that is no longer ours must not be able to schedule a retry over a live one. */
@@ -276,7 +276,7 @@ export class EventChannel {
             EventChannel.RETRY_MAX_MS,
         );
         this.#attempts += 1;
-        void warn(`EventChannel: ${reason}; retrying in ${delay}ms`);
+        void debug(`EventChannel: ${reason}; retrying in ${delay}ms`);
         this.#timer = setTimeout(() => {
             this.#timer = null;
             void this.#open();

@@ -4,7 +4,7 @@
   import { onDestroy, onMount, setContext, type Snippet } from "svelte";
   import { get } from "svelte/store";
   import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-  import { error as logError, info } from "@tauri-apps/plugin-log";
+  import { error as logError, info } from "@charlesportwoodii/tauri-plugin-curia";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import Cover from "../../components/shell/Cover.svelte";

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { warn } from '@tauri-apps/plugin-log';
+import { warn } from '@charlesportwoodii/tauri-plugin-curia';
 import type { ApiConfigCheckResponse } from '../../../bindings/ApiConfigCheckResponse';
 import type { LoginResponse } from '../../../bindings/LoginResponse';
 import type { ServerReachability } from '../../../bindings/ServerReachability';

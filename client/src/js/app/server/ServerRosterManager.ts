@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { error as logError, info, warn } from '@tauri-apps/plugin-log';
+import { error as logError, info, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import type { LoginResponse } from '../../bindings/LoginResponse';
 import { get, writable, type Readable, type Writable } from 'svelte/store';
 import ImageCache from '../components/imageCache';

@@ -148,14 +148,20 @@ impl Recorder {
             ) {
                 Ok(w) => w,
                 Err(e) => {
-                    error!("Failed to initialize WAL: {:?}", e);
+                    curia::error!("failed to initialize the recording WAL", {
+                        defect: crate::logging::Defect::RecordingWalFailed,
+                        error: e.to_string(),
+                    });
                     return;
                 }
             };
 
             // Write initial manifest
             if let Err(e) = Self::write_manifest(&recording_path, &manifest).await {
-                error!("Failed to write initial manifest: {:?}", e);
+                curia::error!("failed to write the initial recording manifest", {
+                    defect: crate::logging::Defect::RecordingManifestFailed,
+                    error: e.to_string(),
+                });
             }
 
             let mut batch_buffer: Vec<(String, RawRecordingData)> = Vec::new();
@@ -246,7 +252,10 @@ impl Recorder {
                             manifest.participants = participants.players();
                             manifest.jukebox_participants = participants.jukebox();
                             if let Err(e) = Self::write_manifest(&recording_path, &manifest).await {
-                                error!("Failed to update manifest: {:?}", e);
+                                curia::error!("failed to update the recording manifest", {
+                                    defect: crate::logging::Defect::RecordingManifestFailed,
+                                    error: e.to_string(),
+                                });
                             } else {
                                 manifest_dirty = false;
                             }
@@ -269,7 +278,10 @@ impl Recorder {
             }
 
             if let Err(e) = wal.sync() {
-                error!("Failed final WAL sync: {:?}", e);
+                curia::error!("final recording WAL sync failed", {
+                    defect: crate::logging::Defect::RecordingWalFailed,
+                    error: e.to_string(),
+                });
             }
 
             // Update manifest with final timestamp and duration
@@ -285,7 +297,10 @@ impl Recorder {
 
             // Write final manifest
             if let Err(e) = Self::write_manifest(&recording_path, &manifest).await {
-                error!("Failed to write final manifest: {:?}", e);
+                curia::error!("failed to write the final recording manifest", {
+                    defect: crate::logging::Defect::RecordingManifestFailed,
+                    error: e.to_string(),
+                });
             }
 
             info!("Recording session {} fully finalized", manifest.session_id);

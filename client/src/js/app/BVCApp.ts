@@ -1,5 +1,5 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { info, warn, error as logError } from '@tauri-apps/plugin-log';
+import { info, warn, error as logError } from '@charlesportwoodii/tauri-plugin-curia';
 import { invoke } from "@tauri-apps/api/core";
 import { Store } from '@tauri-apps/plugin-store';
 import { DeepLinkRouter } from './deepLinkRouter.ts';

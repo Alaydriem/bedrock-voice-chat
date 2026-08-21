@@ -256,7 +256,10 @@ impl NetworkStreamManager {
     ) -> Result<DatagramLink, ConnectFailure> {
         match choice {
             VoiceChoice::None => {
-                log::error!("no voice transport answered the probe for {server_fqdn}");
+                curia::error!("no voice transport answered the probe", {
+                    defect: crate::logging::Defect::QuicHandshakeFailed,
+                    connected_server: server_fqdn.to_string(),
+                });
                 Err(ConnectFailure::Unreachable {
                     detail: "no voice transport is reachable on this server".to_string(),
                 })
@@ -386,7 +389,11 @@ impl NetworkStreamManager {
                 // client whose UDP is blocked only ever reaches this path, and classifying it
                 // as unreachable would mean stale credentials could never be discovered there.
                 if crate::network::CredentialFault::in_tls_chain(&e) {
-                    log::error!("the WebSocket voice transport rejected a certificate: {e}");
+                    curia::error!("the voice transport rejected a certificate", {
+                        defect: crate::logging::Defect::CertificateRejected,
+                        transport: "wss",
+                        error: e.to_string(),
+                    });
                     ConnectFailure::Certificate {
                         detail: e.to_string(),
                     }

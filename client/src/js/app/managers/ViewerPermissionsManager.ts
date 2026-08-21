@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { error as logError } from "@tauri-apps/plugin-log";
+import { error as logError } from "@charlesportwoodii/tauri-plugin-curia";
 import { writable, type Readable, type Writable } from "svelte/store";
 import type { IntrospectResponse } from "../../bindings/IntrospectResponse";
 import type { Permission } from "../../bindings/Permission";

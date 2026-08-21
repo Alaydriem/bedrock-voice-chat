@@ -1,7 +1,7 @@
 import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { warn } from '@tauri-apps/plugin-log';
+import { warn } from '@charlesportwoodii/tauri-plugin-curia';
 import { I18n } from '$lib/i18n';
 import type { BedrockStatus } from '../../bindings/BedrockStatus';
 import { AppStore } from '../services/AppStore';

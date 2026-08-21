@@ -2,7 +2,7 @@ import { I18n } from "$lib/i18n";
 import { writable, type Readable, type Writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { error } from "@tauri-apps/plugin-log";
+import { error } from "@charlesportwoodii/tauri-plugin-curia";
 import { Store } from "@tauri-apps/plugin-store";
 import Analytics from "../../analytics";
 import PlatformDetector from "../../utils/PlatformDetector";
@@ -23,6 +23,8 @@ export class AboutManager {
     public readonly isReady: Readable<boolean>;
     private isMobileStore: Writable<boolean>;
     public readonly isMobile: Readable<boolean>;
+    private isDevStore: Writable<boolean>;
+    public readonly isDev: Readable<boolean>;
 
     private isExportingStore: Writable<boolean>;
     public readonly isExporting: Readable<boolean>;
@@ -84,6 +86,8 @@ export class AboutManager {
         this.isReady = { subscribe: this.isReadyStore.subscribe };
         this.isMobileStore = writable(false);
         this.isMobile = { subscribe: this.isMobileStore.subscribe };
+        this.isDevStore = writable(false);
+        this.isDev = { subscribe: this.isDevStore.subscribe };
 
         this.isExportingStore = writable(false);
         this.isExporting = { subscribe: this.isExportingStore.subscribe };
@@ -126,6 +130,14 @@ export class AboutManager {
             this.platformIdStore.set(await invoke<string>("get_platform_id"));
         } catch (e) {
             error(`Failed to get app info: ${e}`);
+        }
+
+        // Gates developer-only controls. A failure here means "not dev" rather
+        // than an unhandled rejection: the pane must render either way.
+        try {
+            this.isDevStore.set((await invoke<string>("get_variant")) === "dev");
+        } catch {
+            this.isDevStore.set(false);
         }
 
         await this.loadDiscord();

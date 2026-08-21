@@ -156,6 +156,12 @@
   resolved "https://registry.yarnpkg.com/@bcoe/v8-coverage/-/v8-coverage-1.0.2.tgz#bbe12dca5b4ef983a0d0af4b07b9bc90ea0ababa"
   integrity sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==
 
+"@charlesportwoodii/tauri-plugin-curia@git+https://github.com/charlesportwoodii/tauri-plugin-curia.git#0.1.0":
+  version "0.1.0"
+  resolved "git+https://github.com/charlesportwoodii/tauri-plugin-curia.git#e3726a22e712ff2923a400c545999ec9868f7260"
+  dependencies:
+    "@tauri-apps/api" "^2.11.0"
+
 "@choochmeque/tauri-plugin-iap-api@0.10.0-rc.1":
   version "0.10.0-rc.1"
   resolved "https://registry.yarnpkg.com/@choochmeque/tauri-plugin-iap-api/-/tauri-plugin-iap-api-0.10.0-rc.1.tgz#c99a156b36d1e24dbe3b37e73c6d6b1030b57a4b"
@@ -614,13 +620,6 @@
   version "2.5.9"
   resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-http/-/plugin-http-2.5.9.tgz#f612a86239b95f6b2d5d211e26d512176c9f490b"
   integrity sha512-lCiY0+vs4HvIUSvZrBs8TC3TiCB0MOPRmiUjTq4prW7SlcJE2jdLeT6KBsJrT9Tlplufl7W1pY6SFAO3gCWxDA==
-  dependencies:
-    "@tauri-apps/api" "^2.11.0"
-
-"@tauri-apps/plugin-log@^2":
-  version "2.9.0"
-  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-log/-/plugin-log-2.9.0.tgz#47faedfef55b09adae53c90555c6e103f6fd49b6"
-  integrity sha512-Ql8okrnsguk0eDq1GvRfttFV5KaeW/7vcao6bdbkXCRJ1+2sWE15ZJvJVEKVANrOKy1mRngqC3IFIAP+wP5qSw==
   dependencies:
     "@tauri-apps/api" "^2.11.0"
 

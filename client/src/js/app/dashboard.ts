@@ -1,7 +1,7 @@
 import { I18n } from "$lib/i18n";
 
 import { Store } from '@tauri-apps/plugin-store';
-import { info, error, warn } from '@tauri-apps/plugin-log';
+import { info, error, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
@@ -251,7 +251,9 @@ export default class Dashboard extends BVCApp {
         // gone, and the listener declines to bind without it. Initializing the manager here is
         // what gives a fresh install a working server before anyone opens its settings pane.
         await new WebSocketSettingsManager().initialize().catch((e) => {
-            error(`Error preparing the WebSocket server: ${e}`);
+            error("failed to prepare the WebSocket server", {
+                error: String(e),
+            });
         });
         timeline.mark("websocket server");
 
@@ -276,7 +278,19 @@ export default class Dashboard extends BVCApp {
 
         // If the audio engine is stopped for either the input or output channel, shutdown the existing one, reinitialize everything
         if (currentServer) {
-            this.currentServerCredentials = await invoke<LoginResponse>("get_credentials", { server: currentServer });
+            const credentials = await invoke<LoginResponse>("get_credentials", { server: currentServer });
+            this.currentServerCredentials = credentials;
+
+            // The API client the refresh below acts on. Nothing else builds one on a launch
+            // that did not sign in: the roster's preflight pools a client without claiming the
+            // current server, and refresh_server_state called without an endpoint reads the
+            // claimed one. Without this the refresh fails before it reaches the network, and
+            // the permission refresh and the certificate rotation it persists never run.
+            await invoke("api_initialize_client", {
+                endpoint: currentServer,
+                cert: credentials.certificate_ca,
+                pem: credentials.certificate + credentials.certificate_key,
+            });
 
             // Refresh server permissions and handle certificate re-issuance
             try {
@@ -285,9 +299,9 @@ export default class Dashboard extends BVCApp {
                 // Re-fetch credentials since refresh_server_state persists updates to keyring
                 this.currentServerCredentials = await invoke<LoginResponse>("get_credentials", { server: currentServer });
             } catch (e) {
-                warn(I18n.t("Failed to refresh server state, using cached permissions"));
+                warn(`${I18n.t("Failed to refresh server state, using cached permissions")}: ${e}`);
             }
-            timeline.mark("credentials x2 + refresh_server_state (NETWORK)");
+            timeline.mark("credentials x2 + api_initialize_client + refresh_server_state (NETWORK)");
 
             if (await this.isAgeBlocked(currentServer, this.currentServerCredentials)) {
                 return this.redirect("/error?code=AGE01");
@@ -572,7 +586,9 @@ export default class Dashboard extends BVCApp {
             await this.audioActivityManager.initialize();
             timeline.mark('  ↳ managers: audio activity');
         } catch (err) {
-            error(`Dashboard: Failed to initialize managers: ${err}`);
+            error("dashboard failed to initialize managers", {
+                error: String(err),
+            });
             throw err;
         }
     }
@@ -812,7 +828,10 @@ export default class Dashboard extends BVCApp {
                 await invoke("change_audio_device").catch((e) => {
                     const errStr = String(e);
                     if (errStr.includes("INCOMPATIBLE_DEVICE")) {
-                        error(`Incompatible audio device: ${e}`);
+                        error("incompatible audio device", {
+                            defect: "AudioDeviceLost",
+                            error: String(e),
+                        });
                         BootProgress.shared().step("Audio", "bad", "incompatible device");
                         this.redirect("/error?code=AUDI01");
                         return;

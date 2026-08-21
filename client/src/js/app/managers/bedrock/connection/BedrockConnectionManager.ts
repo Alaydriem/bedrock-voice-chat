@@ -1,7 +1,7 @@
 import { writable, get, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { error as logError } from '@tauri-apps/plugin-log';
+import { error as logError } from '@charlesportwoodii/tauri-plugin-curia';
 import type { BedrockConnectError } from '../../../../bindings/BedrockConnectError';
 import type { BedrockConnectionInfo } from '../../../../bindings/BedrockConnectionInfo';
 import { BedrockConnectErrorMapper } from './BedrockConnectErrorMapper';

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { warn } from '@tauri-apps/plugin-log';
+import { warn } from '@charlesportwoodii/tauri-plugin-curia';
 
 /**
  * The speaker test on the setup device screen.

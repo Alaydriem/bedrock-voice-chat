@@ -1,27 +1,29 @@
 mod decision;
 mod window_state;
 
-pub(crate) use decision::ThrottleDecision;
+pub use decision::ThrottleDecision;
 
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use log::Record;
+use curia::LogEvent;
 use moka::sync::Cache;
+
+use crate::logging::Vocabulary;
 
 use window_state::WindowState;
 
 const THROTTLE_WINDOW: Duration = Duration::from_secs(30);
 const THROTTLE_CAPACITY: u64 = 512;
 
-pub(crate) struct LogThrottle {
+pub struct LogThrottle {
     window: Duration,
     states: Cache<u64, Arc<Mutex<WindowState>>>,
 }
 
 impl LogThrottle {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self::with(THROTTLE_WINDOW, THROTTLE_CAPACITY)
     }
 
@@ -35,15 +37,15 @@ impl LogThrottle {
         }
     }
 
-    pub(crate) fn window_secs(&self) -> u64 {
+    pub fn window_secs(&self) -> u64 {
         self.window.as_secs()
     }
 
     /// Decide whether an error record should reach Sentry. The first occurrence of
     /// a fingerprint in a window is emitted; identical records within the same
     /// window are dropped and counted, and the count rides along on the next emit.
-    pub(crate) fn evaluate(&self, record: &Record) -> ThrottleDecision {
-        let fingerprint = Self::fingerprint(record);
+    pub fn evaluate(&self, event: &LogEvent) -> ThrottleDecision {
+        let fingerprint = Self::fingerprint(event);
         let now = Instant::now();
 
         let state = self
@@ -69,11 +71,20 @@ impl LogThrottle {
         ThrottleDecision::Suppress
     }
 
-    fn fingerprint(record: &Record) -> u64 {
+    fn fingerprint(event: &LogEvent) -> u64 {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        record.target().hash(&mut hasher);
-        record.level().hash(&mut hasher);
-        Self::hash_normalized(&record.args().to_string(), &mut hasher);
+        event.target.hash(&mut hasher);
+        event.level.hash(&mut hasher);
+        Self::hash_normalized(&event.message, &mut hasher);
+
+        // Tag-destination fields only. They are enum-valued and bounded, so they
+        // sharpen the fingerprint without being able to explode it; folding in an
+        // attribute like device_name would defeat the throttle instead.
+        for (key, value) in Vocabulary::tag_fields(&event.fields) {
+            key.hash(&mut hasher);
+            value.hash(&mut hasher);
+        }
+
         hasher.finish()
     }
 

@@ -1,4 +1,4 @@
-import { debug, info, warn } from '@tauri-apps/plugin-log';
+import { debug, info, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import type { LevelSnapshot } from '../../bindings/LevelSnapshot';
 import { EventChannel } from '../events/EventChannel';
 
@@ -76,7 +76,7 @@ export class LevelFeed {
             // The moment every meter in the window goes still. Logged as a fault because the
             // feed cannot tell a screen that meant to leave from one that lost its subscription
             // and is still on screen expecting levels.
-            void warn(`LevelFeed: ${owner} released the last sink; the channel subscription is gone`);
+            void debug(`LevelFeed: ${owner} released the last sink; the channel subscription is gone`);
             this.#off?.();
             this.#off = null;
             this.#received = 0;

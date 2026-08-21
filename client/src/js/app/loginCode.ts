@@ -1,4 +1,4 @@
-import { info, error as logError } from '@tauri-apps/plugin-log';
+import { info, error as logError } from '@charlesportwoodii/tauri-plugin-curia';
 import { invoke } from '@tauri-apps/api/core';
 import { writable, type Readable, type Writable } from 'svelte/store';
 import BVCApp from './BVCApp.ts';

@@ -2,7 +2,7 @@
   import { I18n } from "$lib/i18n";
     import { onMount } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
-    import { info, error } from "@tauri-apps/plugin-log";
+    import { info, error } from "@charlesportwoodii/tauri-plugin-curia";
     import Loader from "$radial/components/Loader.svelte";
     import SettingRow from "$radial/components/SettingRow.svelte";
     import PlatformDetector from "../../js/app/utils/PlatformDetector";

@@ -1,7 +1,7 @@
 
 import { mkdir, writeFile, exists, readFile, stat } from '@tauri-apps/plugin-fs';
 import { appCacheDir } from '@tauri-apps/api/path';
-import { debug } from '@tauri-apps/plugin-log';
+import { debug } from '@charlesportwoodii/tauri-plugin-curia';
 import axios from "axios";
 
 // @ts-ignore

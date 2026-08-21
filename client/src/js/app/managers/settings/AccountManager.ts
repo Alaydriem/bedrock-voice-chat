@@ -2,7 +2,7 @@ import { I18n } from "$lib/i18n";
 import { writable, type Readable, type Writable } from "svelte/store";
 import { Store } from "@tauri-apps/plugin-store";
 import { invoke } from "@tauri-apps/api/core";
-import { info, error as logError } from "@tauri-apps/plugin-log";
+import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
 import { platform } from "@tauri-apps/plugin-os";
 import Analytics from "../../analytics";
 import type { LinkJavaIdentityResponse } from "../../../bindings/LinkJavaIdentityResponse";

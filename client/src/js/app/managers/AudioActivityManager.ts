@@ -1,6 +1,6 @@
 import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import { listen } from '@tauri-apps/api/event';
-import { info, error, warn, debug } from '@tauri-apps/plugin-log';
+import { info, error, warn, debug } from '@charlesportwoodii/tauri-plugin-curia';
 import type { Store } from '@tauri-apps/plugin-store';
 import type { LevelSnapshot } from '../../bindings/LevelSnapshot';
 import { LevelSteps } from '../dashboard/LevelSteps';

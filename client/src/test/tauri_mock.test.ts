@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { info } from "@tauri-apps/plugin-log";
+import { info } from "@charlesportwoodii/tauri-plugin-curia";
 import { invokeCalls, mockInvoke } from "./tauri";
 
 /**

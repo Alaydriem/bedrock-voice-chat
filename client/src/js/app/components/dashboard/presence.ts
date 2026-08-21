@@ -3,7 +3,7 @@ import type { PlayerGainSettings } from '../../../bindings/PlayerGainSettings';
 import type { PlayerSource } from '../../../bindings/PlayerSource';
 import type { GamerpicResponse } from '../../../bindings/GamerpicResponse';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { debug, info, error } from '@tauri-apps/plugin-log';
+import { debug, info, error } from '@charlesportwoodii/tauri-plugin-curia';
 import { invoke } from '@tauri-apps/api/core';
 import type { PlayerManager } from '../../managers/PlayerManager';
 import ImageCache from '../imageCache';
@@ -92,7 +92,9 @@ export class PlayerPresenceManager {
                 }
             }
         } catch (err) {
-            error(`Failed to sync current players: ${err}`);
+            error("failed to sync current players", {
+                error: String(err),
+            });
         }
     }
 
@@ -155,7 +157,10 @@ export class PlayerPresenceManager {
         try {
             return await invoke<PlayerGainSettings>('player_settings_touch', { cn: playerName });
         } catch (err) {
-            error(`Failed to get player settings for ${playerName}: ${err}`);
+            error("failed to get player settings", {
+                player: playerName,
+                error: String(err),
+            });
             return { gain: 1.0, muted: false, last_seen: null };
         }
     }

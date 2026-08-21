@@ -177,7 +177,11 @@ impl common::traits::StreamTrait for InputStream {
         match self.listener(capture_config, producer, self.shutdown.clone()) {
             Ok(stream) => self.stream.hold(stream).await,
             Err(e) => {
-                error!("input listener encountered an error: {:?}", e);
+                curia::error!("input listener failed to start", {
+                    defect: crate::logging::Defect::AudioDeviceLost,
+                    io: "input",
+                    error: e.to_string(),
+                });
                 return Err(e);
             }
         };
@@ -193,7 +197,11 @@ impl common::traits::StreamTrait for InputStream {
         ) {
             Ok(job) => jobs.push(job),
             Err(e) => {
-                error!("input sender encountered an error: {:?}", e);
+                curia::error!("input sender failed to start", {
+                    defect: crate::logging::Defect::AudioDeviceLost,
+                    io: "input",
+                    error: e.to_string(),
+                });
                 return Err(e);
             }
         };
@@ -350,7 +358,11 @@ impl InputStream {
                 Some(r)
             }
             Some(Err(e)) => {
-                error!("Failed to create audio resampler: {:?}", e);
+                curia::error!("failed to create audio resampler", {
+                    defect: crate::logging::Defect::AudioDeviceRebuildFailed,
+                    io: "input",
+                    error: e.to_string(),
+                });
                 None
             }
             None => None,
@@ -479,7 +491,11 @@ impl InputStream {
                 encoder
             }
             Err(e) => {
-                error!("Could not create opus encoder: {}", e.to_string());
+                curia::error!("could not create opus encoder", {
+                    defect: crate::logging::Defect::EncoderInitFailed,
+                    io: "input",
+                    error: e.to_string(),
+                });
                 return Err(anyhow!("{}", e.to_string()));
             }
         };

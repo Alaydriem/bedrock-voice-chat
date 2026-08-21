@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
 use tokio::sync::{broadcast, watch};
-use tokio::task::AbortHandle;
+use tokio::task::JoinHandle;
 
 pub mod clients;
 pub mod route;
@@ -22,17 +22,22 @@ pub use structs::{
     StateData, SuccessResponse, TargetsData, VoiceMode, VoiceModeGuard,
 };
 
+mod binder;
 mod broadcaster;
 mod config;
 mod listener_kind;
 
+pub use binder::ListenerBinder;
 pub use broadcaster::WebSocketBroadcaster;
 pub use config::WebSocketConfig;
 pub use listener_kind::ListenerKind;
 
 
 pub struct WebSocketManager {
-    abort_handle: Option<AbortHandle>,
+    // The whole join handle rather than an abort handle: the accept task owns the listener,
+    // and the address it holds is not free until that task has actually been dropped.
+    accept_task: Option<JoinHandle<()>>,
+    external_port: Option<u16>,
     shutdown_tx: Option<watch::Sender<bool>>,
     config: Option<WebSocketConfig>,
     app_handle: AppHandle,
@@ -42,7 +47,7 @@ pub struct WebSocketManager {
     health_tx: watch::Sender<ConnectionHealth>,
     levels_tx: watch::Sender<LevelSnapshot>,
     clients: Arc<WebSocketClients>,
-    internal_abort: Option<AbortHandle>,
+    internal_task: Option<JoinHandle<()>>,
     internal_shutdown: Option<watch::Sender<bool>>,
     internal_port: Option<u16>,
     internal_token: String,
@@ -69,7 +74,8 @@ impl WebSocketManager {
         let (health_tx, _) = watch::channel(ConnectionHealth::Disconnected);
 
         Self {
-            abort_handle: None,
+            accept_task: None,
+            external_port: None,
             shutdown_tx: None,
             config,
             app_handle,
@@ -79,7 +85,7 @@ impl WebSocketManager {
             health_tx,
             levels_tx,
             clients: WebSocketClients::new_shared(),
-            internal_abort: None,
+            internal_task: None,
             internal_shutdown: None,
             internal_port: None,
             internal_token: Self::mint_token(),
@@ -123,6 +129,15 @@ impl WebSocketManager {
             .collect()
     }
 
+    /// Where the operator-facing listener actually answers.
+    ///
+    /// Not always `config.port`: that port is a preference, and a conflict moves the listener
+    /// to a neighbouring one. Every address shown to an operator has to come from here, or it
+    /// names a port nothing is listening on.
+    pub fn external_port(&self) -> Option<u16> {
+        self.external_port
+    }
+
     /// The port and token the webview dials, once the internal listener is up.
     pub fn internal_endpoint(&self) -> Option<InternalEndpoint> {
         self.internal_port.map(|port| InternalEndpoint {
@@ -154,7 +169,7 @@ impl WebSocketManager {
             )
             .await?;
 
-        self.internal_abort = Some(handle);
+        self.internal_task = Some(handle);
         self.internal_port = Some(port);
         log::info!("internal push listener bound on 127.0.0.1:{}", port);
         self.internal_endpoint()
@@ -164,7 +179,7 @@ impl WebSocketManager {
 
 impl StreamTrait for WebSocketManager {
     async fn start(&mut self) -> Result<(), anyhow::Error> {
-        if self.abort_handle.is_some() {
+        if self.accept_task.is_some() {
             return Err(anyhow::anyhow!("WebSocket server already running"));
         }
 
@@ -186,8 +201,9 @@ impl StreamTrait for WebSocketManager {
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
         self.shutdown_tx = Some(shutdown_tx);
 
-        let handle = self.start_server_loop(shutdown_rx).await?;
-        self.abort_handle = Some(handle);
+        let (handle, port) = self.start_server_loop(shutdown_rx).await?;
+        self.accept_task = Some(handle);
+        self.external_port = Some(port);
 
         Ok(())
     }
@@ -198,16 +214,20 @@ impl StreamTrait for WebSocketManager {
             let _ = tx.send(true);
         }
 
-        if let Some(task) = &self.abort_handle {
+        // Awaited, not merely aborted. The listener is dropped with the task, and until that
+        // has happened the operating system still counts the address as in use, so a restart
+        // that did not wait here was refused a rebind on its own port.
+        if let Some(task) = self.accept_task.take() {
             task.abort();
+            let _ = task.await;
         }
 
-        self.abort_handle = None;
+        self.external_port = None;
         Ok(())
     }
 
     fn is_stopped(&self) -> bool {
-        self.abort_handle.is_none()
+        self.accept_task.is_none()
     }
 
     async fn metadata(&mut self, _key: String, _value: String) -> Result<(), anyhow::Error> {
@@ -220,18 +240,23 @@ impl WebSocketManager {
     async fn start_server_loop(
         &self,
         shutdown_rx: watch::Receiver<bool>,
-    ) -> Result<AbortHandle, anyhow::Error> {
+    ) -> Result<(JoinHandle<()>, u16), anyhow::Error> {
         let config = self
             .config
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("No config available"))?;
 
-        let addr = format!("{}:{}", config.bind_host(), config.port);
+        let host = config.bind_host();
         let credential = config.key.clone();
-        let listener = tokio::net::TcpListener::bind(&addr).await?;
+        let listener = ListenerBinder::bind(host, config.port).await?;
+        let port = listener.local_addr()?.port();
 
-        self.spawn_accept_loop(listener, ListenerKind::External, credential, shutdown_rx)
-            .await
+        let handle = self
+            .spawn_accept_loop(listener, ListenerKind::External, credential, shutdown_rx)
+            .await?;
+
+        log::info!("operator WebSocket listener bound on {host}:{port}");
+        Ok((handle, port))
     }
 
     /// How often an `/events` connection is told it is still alive.
@@ -251,7 +276,7 @@ impl WebSocketManager {
         kind: ListenerKind,
         credential: String,
         shutdown_rx: watch::Receiver<bool>,
-    ) -> Result<AbortHandle, anyhow::Error> {
+    ) -> Result<JoinHandle<()>, anyhow::Error> {
         let app_handle = self.app_handle.clone();
         let broadcast_tx = self.broadcast_tx.clone();
         let metrics_tx = self.metrics_tx.clone();
@@ -303,7 +328,7 @@ impl WebSocketManager {
             }
         });
 
-        Ok(handle.abort_handle())
+        Ok(handle)
     }
 
     async fn handle_connection(

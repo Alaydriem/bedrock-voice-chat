@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BOOT_STEPS, BootProgress } from "../../../js/app/shell/BootProgress";
 
-vi.mock("@tauri-apps/plugin-log", () => ({
+vi.mock("@charlesportwoodii/tauri-plugin-curia", () => ({
   debug: vi.fn(),
   info: vi.fn(),
 }));
