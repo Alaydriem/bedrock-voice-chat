@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::sync::{Arc, RwLock};
+use tauri_plugin_curia::curia;
 
 /// Which servers have proven QUIC unusable for this run.
 ///

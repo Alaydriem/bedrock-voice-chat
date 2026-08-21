@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use common::structs::bedrock::BedrockLogEntry;
-use curia::{Level, LogEvent, Sink};
+use tauri_plugin_curia::curia::{Level, LogEvent, Sink};
 use tokio::sync::broadcast;
 
 use crate::bedrock::proxy::log::LogFilter;

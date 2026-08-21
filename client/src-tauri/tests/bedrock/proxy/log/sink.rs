@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bvc_client_lib::logging::BedrockSink;
 use common::structs::bedrock::BedrockLogEntry;
-use curia::{Fields, Level, LogEvent, Sink};
+use tauri_plugin_curia::curia::{Fields, Level, LogEvent, Sink};
 use tokio::sync::broadcast;
 
 fn event(target: &str, message: &str) -> LogEvent {

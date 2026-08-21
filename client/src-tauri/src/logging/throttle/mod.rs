@@ -7,7 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use curia::LogEvent;
+use tauri_plugin_curia::curia::LogEvent;
 use moka::sync::Cache;
 
 use crate::logging::Vocabulary;

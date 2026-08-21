@@ -39,6 +39,7 @@ use std::{
 };
 
 use tokio::task::JoinHandle;
+use tauri_plugin_curia::curia;
 
 /// Global mute state for output stream
 pub(crate) static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));

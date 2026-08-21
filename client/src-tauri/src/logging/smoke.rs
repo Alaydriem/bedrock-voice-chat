@@ -1,3 +1,4 @@
+use tauri_plugin_curia::curia;
 use crate::logging::Defect;
 
 // Fires one representative emission per invariant the logging pipeline is meant

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bvc_client_lib::logging::{LogContext, SentrySink, Telemetry};
-use curia::{Fields, Level, LogEvent, Sink};
+use tauri_plugin_curia::curia::{Fields, Level, LogEvent, Sink};
 
 fn event(message: &str) -> LogEvent {
     LogEvent {

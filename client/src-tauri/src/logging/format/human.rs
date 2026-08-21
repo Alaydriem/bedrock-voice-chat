@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use curia::LogEvent;
+use tauri_plugin_curia::curia::LogEvent;
 use tauri_plugin_curia::LineFormatter;
 
 // stderr is read by eye; the JSON file is read by jq. A field that does not fit

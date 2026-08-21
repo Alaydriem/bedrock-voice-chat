@@ -1,4 +1,4 @@
-use curia::LogEvent;
+use tauri_plugin_curia::curia::LogEvent;
 
 pub struct QueuedEvent {
     pub event: LogEvent,

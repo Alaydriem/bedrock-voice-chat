@@ -1,4 +1,4 @@
-use curia::Fields;
+use tauri_plugin_curia::curia::Fields;
 
 use crate::logging::Defect;
 

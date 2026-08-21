@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bvc_client_lib::logging::{JsonFormatter, LogContext};
-use curia::{Fields, Level, LogEvent};
+use tauri_plugin_curia::curia::{Fields, Level, LogEvent};
 
 fn line(context: Arc<LogContext>, event: &LogEvent) -> serde_json::Value {
     let formatter = JsonFormatter::new(context).formatter();

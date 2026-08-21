@@ -15,6 +15,7 @@ use tokio::task::AbortHandle;
 
 use super::stream_manager::HealthMonitorState;
 use crate::api::EndpointBreaker;
+use tauri_plugin_curia::curia;
 
 mod health_config;
 mod probe_result;

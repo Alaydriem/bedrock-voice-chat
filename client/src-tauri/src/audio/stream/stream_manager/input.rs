@@ -28,6 +28,7 @@ use std::{
 };
 use tauri_plugin_store::StoreExt;
 use tokio::task::JoinHandle;
+use tauri_plugin_curia::curia;
 
 /// Indicator for if the Input Stream should be muted
 pub(crate) static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));

@@ -6,6 +6,7 @@ use common::response::LinkJavaIdentityResponse;
 use common::response::LoginResponse;
 use std::sync::Arc;
 use tauri::{State, async_runtime::Mutex};
+use tauri_plugin_curia::curia;
 
 #[cfg(desktop)]
 use crate::auth::mc_oauth_window::McOauthWindow;

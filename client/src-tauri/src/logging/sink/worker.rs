@@ -4,6 +4,8 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread::JoinHandle;
 use std::time::Duration;
+use tauri_plugin_curia::curia;
+
 
 use crate::logging::{Defect, LogContext, Vocabulary};
 

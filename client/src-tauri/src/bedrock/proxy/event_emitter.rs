@@ -10,6 +10,7 @@ use common::structs::packet::{
 use log::{trace, warn};
 
 use crate::NetworkPacket;
+use tauri_plugin_curia::curia;
 
 pub struct BedrockEventEmitter {
     tx: Arc<flume::Sender<NetworkPacket>>,

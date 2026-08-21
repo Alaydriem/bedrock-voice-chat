@@ -1,5 +1,5 @@
 use bvc_client_lib::logging::Defect;
-use curia::Fields;
+use tauri_plugin_curia::curia::Fields;
 
 #[test]
 fn an_ordinary_error_declares_no_defect() {

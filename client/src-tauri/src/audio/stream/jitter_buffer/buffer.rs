@@ -10,6 +10,7 @@ use super::source::JitterBufferSource;
 use super::source_error::JitterBufferError;
 use crate::audio::recording::RecordingProducer;
 use crate::diagnostics::PlayerReceiveStats;
+use tauri_plugin_curia::curia;
 
 pub struct JitterBuffer {
     source: Arc<Mutex<JitterBufferSource>>,

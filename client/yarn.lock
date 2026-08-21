@@ -156,9 +156,9 @@
   resolved "https://registry.yarnpkg.com/@bcoe/v8-coverage/-/v8-coverage-1.0.2.tgz#bbe12dca5b4ef983a0d0af4b07b9bc90ea0ababa"
   integrity sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==
 
-"@charlesportwoodii/tauri-plugin-curia@git+https://github.com/charlesportwoodii/tauri-plugin-curia.git#0.1.0":
-  version "0.1.0"
-  resolved "git+https://github.com/charlesportwoodii/tauri-plugin-curia.git#e3726a22e712ff2923a400c545999ec9868f7260"
+"@charlesportwoodii/tauri-plugin-curia@git+https://github.com/charlesportwoodii/tauri-plugin-curia.git#0.1.2":
+  version "0.1.1"
+  resolved "git+https://github.com/charlesportwoodii/tauri-plugin-curia.git#b0dee87ce904c08d20888a72684b35993bb262d6"
   dependencies:
     "@tauri-apps/api" "^2.11.0"
 

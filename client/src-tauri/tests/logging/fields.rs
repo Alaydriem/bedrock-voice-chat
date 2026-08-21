@@ -1,5 +1,5 @@
 use bvc_client_lib::logging::{Destination, Vocabulary};
-use curia::Fields;
+use tauri_plugin_curia::curia::Fields;
 
 #[test]
 fn declared_tag_fields_become_tags() {

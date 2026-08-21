@@ -4,6 +4,7 @@ use ringbuf::{
     HeapRb,
     traits::{Consumer, Producer, Split},
 };
+use tauri_plugin_curia::curia;
 
 const MAX_OPUS_FRAME_MS: usize = 480;
 

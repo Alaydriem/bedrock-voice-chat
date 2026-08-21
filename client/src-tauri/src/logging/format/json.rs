@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use curia::LogEvent;
+use tauri_plugin_curia::curia::LogEvent;
 use serde_json::{Map, Value};
 use tauri_plugin_curia::LineFormatter;
 

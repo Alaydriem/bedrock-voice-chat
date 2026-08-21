@@ -1,5 +1,5 @@
 use bvc_client_lib::logging::{LogThrottle, ThrottleDecision};
-use curia::{Fields, Level, LogEvent};
+use tauri_plugin_curia::curia::{Fields, Level, LogEvent};
 
 fn event(message: &str, fields: Fields) -> LogEvent {
     LogEvent {

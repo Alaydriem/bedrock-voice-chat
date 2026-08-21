@@ -17,6 +17,7 @@ use tauri_plugin_store::StoreExt;
 
 use common::structs::DeepLink;
 use deep_links::DeepLinkHandler;
+use tauri_plugin_curia::curia;
 
 pub mod analytics;
 pub mod android;

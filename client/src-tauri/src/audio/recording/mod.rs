@@ -24,6 +24,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::Manager;
+use tauri_plugin_curia::curia;
 use tokio::sync::oneshot;
 use tokio::task::AbortHandle;
 use uuid::{NoContext, Timestamp, Uuid};

@@ -22,6 +22,7 @@ use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::async_runtime::Mutex as TauriMutex;
+use tauri_plugin_curia::curia;
 use tokio::sync::mpsc;
 
 use super::AudioPacket;

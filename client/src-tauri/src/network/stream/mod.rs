@@ -25,6 +25,7 @@ use std::sync::Arc;
 use stream_manager::StreamTrait;
 use stream_manager::StreamTraitType;
 use tauri::Manager;
+use tauri_plugin_curia::curia;
 use tokio::sync::watch;
 
 use health_manager::ConnectionHealthManager;

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use curia::{Level, LogEvent, Sink};
+use tauri_plugin_curia::curia::{Level, LogEvent, Sink};
 
 use crate::logging::{LogContext, LogThrottle, Telemetry, ThrottleDecision};
 
