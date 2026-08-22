@@ -269,7 +269,7 @@ impl StreamTrait for QuicServerManager {
 
         tokio::select! {
             _ = async {
-                while let Some((packet, origin)) = webhook_rx.recv().await {
+                while let Some((mut packet, origin)) = webhook_rx.recv().await {
                     // process_packet has no AudioFrame arm; skipping it avoids a
                     // full packet clone (audio payload included) per frame.
                     if packet.packet_type != PacketType::AudioFrame {
@@ -281,15 +281,27 @@ impl StreamTrait for QuicServerManager {
 
                     match packet.packet_type {
                         PacketType::AudioFrame => {
+                            // Resolved once and handed to both, so the relay and the fan-out
+                            // cannot disagree about where a speaker is.
+                            let speaker = cache_manager.resolve_speaker(&packet).await;
+                            cache_manager.attach_speaker(&mut packet, speaker.as_ref());
+
                             // Only local audio goes back out to peers. Forwarding a
                             // peer's own frame returns it to the sender, who hears
                             // themselves; with two peers in one world it also loops
                             // between them without end.
                             if origin == PacketOrigin::Local {
-                                connection_registry.forward_local_to_peers(&packet);
+                                connection_registry
+                                    .forward_local_to_peers(&packet, speaker.as_ref());
                             }
                             connection_registry
-                                .route_audio_frame(&packet, &player_cache, broadcast_range, deafen_distance)
+                                .route_audio_frame(
+                                    &packet,
+                                    speaker.as_ref(),
+                                    &player_cache,
+                                    broadcast_range,
+                                    deafen_distance,
+                                )
                                 .await;
                         }
                         PacketType::PlayerData => {

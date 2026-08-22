@@ -1,7 +1,7 @@
 use crate::AudioPacket;
 use crate::audio::stream::jitter_buffer::EncodedAudioFramePacket;
 use crate::audio::stream::stream_manager::AudioSinkType;
-use crate::audio::stream::stream_manager::output::SpeakerStateCache;
+use crate::audio::stream::stream_manager::output::{RecordedPlayer, SpeakerStateCache};
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxBeaconCache;
 #[cfg(feature = "bedrock-protocol")]
@@ -303,12 +303,12 @@ impl PacketRouter {
 
         let Some(state) = self
             .speaker_states
-            .resolve(&key, named, frame.sender.take())
+            .resolve(&key, named, frame.speaker.take())
         else {
             return;
         };
         let player_name = state.name;
-        frame.sender = state.player;
+        frame.speaker = state.speaker;
 
         // Skip presence tracking for synthetic jukebox players
         if !player_name.starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX) {
@@ -380,7 +380,11 @@ impl PacketRouter {
         let emitter = RecordingPlayerData::from_speaker(
             player_name.clone(),
             device,
-            &frame,
+            frame
+                .speaker
+                .as_ref()
+                .map(|speaker| RecordedPlayer::synthesise(&player_name, speaker)),
+            frame.spatial,
             self.player_gain_cache.get(&player_name),
         );
 

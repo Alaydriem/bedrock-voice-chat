@@ -13,6 +13,7 @@ use common::structs::packet::{
 };
 use common::traits::player_data::PlayerData;
 use common::{Coordinate, MinecraftPlayer, Orientation, PlayerEnum};
+use common::structs::packet::SpeakerPosition;
 use iroh::EndpointAddr;
 use tempfile::TempDir;
 use tokio::sync::mpsc;
@@ -59,7 +60,7 @@ fn local_audio(world: Option<&str>) -> QuicNetworkPacket {
         packet_type: PacketType::AudioFrame,
         data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
             vec![7, 7, 7],
-            Some(speaker(world)),
+            Some(SpeakerPosition::from_player(&speaker(world))),
             Some(true),
         )),
         ..Default::default()
@@ -118,6 +119,7 @@ async fn peered(world: &str) -> Pair {
         grants_for(dialer_identity.node_id(), &[world]),
         Arc::new(NoLocals),
         Arc::new(ChannelSink(tx)),
+        Arc::new(moka::future::Cache::new(16)),
         None,
         None,
     )
@@ -130,6 +132,7 @@ async fn peered(world: &str) -> Pair {
         grants_for(acceptor_identity.node_id(), &[world]),
         Arc::new(NoLocals),
         Arc::new(ChannelSink(dead_tx)),
+        Arc::new(moka::future::Cache::new(16)),
         None,
         None,
     )
@@ -154,7 +157,7 @@ async fn local_audio_forwarded_by_one_plane_arrives_admitted_at_the_other() {
     let mut pair = peered("W1").await;
 
     assert_eq!(
-        pair.dialer.forward_local(&local_audio(Some("W1"))),
+        pair.dialer.forward_local(&local_audio(Some("W1")), &speaker(Some("W1"))),
         1,
         "the granted world must reach exactly one peer"
     );
@@ -169,14 +172,14 @@ async fn local_audio_forwarded_by_one_plane_arrives_admitted_at_the_other() {
         panic!("expected an audio frame");
     };
     assert_eq!(audio.data, vec![7, 7, 7]);
-    assert_eq!(
-        audio.sender.as_ref().expect("speaker").get_name(),
-        "Alice",
-        "the speaker must survive the crossing"
-    );
     assert!(
-        packet.sender.is_some(),
-        "the receiving server mints the envelope sender itself"
+        audio.speaker.is_some(),
+        "the speaker's position must survive the crossing"
+    );
+    assert_eq!(
+        packet.sender_identity().map(|i| i.to_string()).as_deref(),
+        Some("minecraft:Alice"),
+        "and the receiving server mints the envelope sender that names them"
     );
 }
 
@@ -185,7 +188,7 @@ async fn audio_for_an_ungranted_world_is_not_forwarded() {
     let mut pair = peered("W1").await;
 
     assert_eq!(
-        pair.dialer.forward_local(&local_audio(Some("W-other"))),
+        pair.dialer.forward_local(&local_audio(Some("W-other")), &speaker(Some("W-other"))),
         0,
         "no link carries that world"
     );
@@ -202,7 +205,7 @@ async fn audio_for_an_ungranted_world_is_not_forwarded() {
 async fn audio_with_no_relay_world_is_not_forwarded() {
     let mut pair = peered("W1").await;
 
-    assert_eq!(pair.dialer.forward_local(&local_audio(None)), 0);
+    assert_eq!(pair.dialer.forward_local(&local_audio(None), &speaker(None)), 0);
 
     assert!(
         tokio::time::timeout(Duration::from_millis(300), pair.acceptor_rx.recv())

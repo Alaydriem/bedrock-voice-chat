@@ -4,6 +4,8 @@ mod parse_result;
 mod playback_entry;
 mod playback_expiry;
 mod playback_task;
+pub(crate) mod speaker_entry;
+mod speaker_expiry;
 
 pub use eject_scheduler::EjectScheduler;
 
@@ -25,9 +27,16 @@ use ogg_opus_parser::OggOpusParser;
 use playback_entry::PlaybackEntry;
 use playback_expiry::PlaybackExpiry;
 use playback_task::PlaybackTask;
+pub(crate) use speaker_entry::SpeakerEntry;
+use speaker_expiry::SpeakerExpiry;
 
 pub struct AudioPlaybackService {
     active_playbacks: Cache<String, PlaybackEntry>,
+    // The synthetic player behind each live playback, keyed on the jukebox name the envelope
+    // carries. Its own cache rather than a field on `PlaybackEntry` because the two are keyed
+    // differently, with the same duration-derived expiry so a speaker cannot outlive or
+    // predecease its playback.
+    speakers: Arc<Cache<String, SpeakerEntry>>,
     dedup_cache: Cache<String, String>,
     webhook_receiver: WebhookReceiver,
     audio_storage_path: String,
@@ -47,6 +56,12 @@ impl AudioPlaybackService {
                 .max_capacity(10000)
                 .expire_after(PlaybackExpiry)
                 .build(),
+            speakers: Arc::new(
+                Cache::builder()
+                    .max_capacity(10000)
+                    .expire_after(SpeakerExpiry)
+                    .build(),
+            ),
             dedup_cache: Cache::builder()
                 .max_capacity(10000)
                 .time_to_live(Duration::from_secs(2))
@@ -125,11 +140,20 @@ impl AudioPlaybackService {
         let (synthetic_player, position, dimension) =
             Self::build_synthetic_player(&jukebox_name, request.game);
 
+        // Published before the task is spawned rather than alongside it, so the first frame
+        // cannot race the registration and route with no position.
+        self.register_speaker(
+            jukebox_name.clone(),
+            synthetic_player.clone(),
+            Duration::from_millis(duration_ms),
+        )
+        .await;
+
         let cancel_token_clone = cancel_token.clone();
 
         let task = PlaybackTask::new(
             event_id.clone(),
-            jukebox_name,
+            jukebox_name.clone(),
             position,
             dimension,
             frames,
@@ -142,16 +166,21 @@ impl AudioPlaybackService {
             cancel_token: cancel_token.clone(),
             audio_file_id: audio_file_id.clone(),
             duration: Duration::from_millis(duration_ms),
+            jukebox_name: jukebox_name.clone(),
         };
+        let entry_jukebox_name = jukebox_name;
         self.active_playbacks.insert(event_id.clone(), entry).await;
         self.dedup_cache.insert(dedup_key, event_id.clone()).await;
 
         let cleanup_cache = self.active_playbacks.clone();
         let cleanup_event_id = event_id.clone();
+        let cleanup_speakers = self.speakers.clone();
+        let cleanup_jukebox_name = entry_jukebox_name;
 
         tokio::spawn(async move {
             task.run().await;
             cleanup_cache.invalidate(&cleanup_event_id).await;
+            cleanup_speakers.invalidate(&cleanup_jukebox_name).await;
             tracing::info!(event_id = %cleanup_event_id, "Playback session cleaned up");
         });
 
@@ -222,6 +251,7 @@ impl AudioPlaybackService {
         }
         if let Some(entry) = self.active_playbacks.get(event_id).await {
             entry.cancel_token.cancel();
+            self.forget_speaker(&entry.jukebox_name).await;
             self.active_playbacks.invalidate(event_id).await;
             Ok(())
         } else {
@@ -238,6 +268,45 @@ impl AudioPlaybackService {
         self.active_playbacks
             .iter()
             .any(|(_, entry)| entry.audio_file_id == audio_file_id)
+    }
+
+    /// Publishes a playback's speaker so audio routing can resolve its position.
+    ///
+    /// Called before the playback task is spawned, not alongside it: the first frame must not
+    /// race the registration, or it routes with no position and is dropped.
+    pub async fn register_speaker(
+        &self,
+        jukebox_name: String,
+        player: PlayerEnum,
+        duration: Duration,
+    ) {
+        self.speakers
+            .insert(jukebox_name, SpeakerEntry { player, duration })
+            .await;
+    }
+
+    /// Drops a playback's speaker. Called wherever the playback itself is invalidated.
+    pub async fn forget_speaker(&self, jukebox_name: &str) {
+        self.speakers.invalidate(jukebox_name).await;
+    }
+
+    /// The player behind a server-injected speaker, by the name its envelope carries.
+    ///
+    /// `None` once the playback has ended, which is what stops routing placing audio at a
+    /// block nothing is playing from.
+    pub async fn speaker_for(&self, service_name: &str) -> Option<PlayerEnum> {
+        self.speakers
+            .get(service_name)
+            .await
+            .map(|entry| entry.player)
+    }
+
+    /// A shared read handle for the audio path, which resolves a speaker per frame.
+    ///
+    /// Mirrors `PlayerCache::inner_arc`: the consumer gets the cache rather than a reference to
+    /// this whole service, so nothing on the hot path depends on it.
+    pub(crate) fn speakers(&self) -> Arc<Cache<String, SpeakerEntry>> {
+        self.speakers.clone()
     }
 
     fn build_synthetic_player(

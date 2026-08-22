@@ -3,6 +3,7 @@ use std::time::Duration;
 use common::game_data::Dimension;
 use common::structs::packet::{
     AudioFrameMetadata, AudioFramePacket, JukeboxMetadata, PacketSender, PacketType,
+    SpeakerPosition,
     QuicNetworkPacket, QuicNetworkPacketData,
 };
 use common::{Coordinate, PlayerEnum};
@@ -79,7 +80,7 @@ impl PlaybackTask {
                     ))];
                     let audio_frame = AudioFramePacket::new(
                         frame.clone(),
-                        Some(self.synthetic_player.clone()),
+                        Some(SpeakerPosition::from_player(&self.synthetic_player)),
                         Some(true),
                     )
                     .with_metadata(metadata);

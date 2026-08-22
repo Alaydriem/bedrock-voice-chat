@@ -32,11 +32,15 @@ impl PeerIngest {
         Self { grants, locals }
     }
 
+    /// Returns the packet and the speaker it names.
+    ///
+    /// The speaker travels out separately because the caller has to publish it where audio
+    /// routing can find it, and this function is sync while that store is not.
     pub fn admit(
         &self,
         node: &PublicKey,
         frame: VoiceFrame,
-    ) -> Result<QuicNetworkPacket, IngestRejection> {
+    ) -> Result<(QuicNetworkPacket, common::PlayerEnum), IngestRejection> {
         let speaker = frame.speaker.get_name().to_string();
 
         let world = frame
@@ -71,11 +75,15 @@ impl PeerIngest {
             )))
         });
 
+        // Cloned out because the caller publishes it into the position cache, where audio
+        // routing resolves a relayed speaker the same way it resolves a local player's.
+        let speaker = frame.speaker.clone();
+
         // The timestamp is taken locally rather than carried across: it feeds the
         // receiving side's jitter buffer, and two servers do not share a clock.
         let mut audio = AudioFramePacket::new(
             frame.opus,
-            Some(frame.speaker),
+            Some(common::structs::packet::SpeakerPosition::from_player(&speaker)),
             Some(frame.spatial),
         );
 
@@ -83,11 +91,14 @@ impl PeerIngest {
             audio = audio.with_metadata(vec![jukebox]);
         }
 
-        Ok(QuicNetworkPacket {
-            packet_type: PacketType::AudioFrame,
-            data: QuicNetworkPacketData::AudioFrame(audio),
-            sender: Some(PacketSender::relayed(identity)),
-            ..Default::default()
-        })
+        Ok((
+            QuicNetworkPacket {
+                packet_type: PacketType::AudioFrame,
+                data: QuicNetworkPacketData::AudioFrame(audio),
+                sender: Some(PacketSender::relayed(identity)),
+                ..Default::default()
+            },
+            speaker,
+        ))
     }
 }

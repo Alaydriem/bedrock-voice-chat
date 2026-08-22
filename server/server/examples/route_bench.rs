@@ -21,6 +21,7 @@ use common::structs::packet::{
     AudioFramePacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
 use common::{Coordinate, Game, Orientation, PlayerEnum};
+use common::structs::packet::SpeakerPosition;
 use moka::future::Cache;
 use tokio::sync::mpsc;
 
@@ -113,7 +114,7 @@ impl RouteBench {
             // 160 bytes ~= one 20ms Opus frame at 64kbps
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
-                Some(sender),
+                Some(SpeakerPosition::from_player(&sender)),
                 Some(true),
             )),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
@@ -171,6 +172,10 @@ impl RouteBench {
             let registry = self.registry.clone();
             let cache = self.player_cache.clone();
             let sender = self.player(i);
+            // Handed to the router rather than left for it to look up, the same way the live
+            // paths resolve it once and pass it in. `None` here would make every recipient a
+            // no-route and the bench would measure nothing.
+            let speaker = sender.clone();
             let packet = self.audio_packet(i, sender);
             let range = self.args.broadcast_range;
             let paced = self.args.paced;
@@ -183,7 +188,9 @@ impl RouteBench {
                         ticker.tick().await;
                     }
                     let started = Instant::now();
-                    registry.route_audio_frame(&packet, &cache, range, 5.0).await;
+                    registry
+                        .route_audio_frame(&packet, Some(&speaker), &cache, range, 5.0)
+                        .await;
                     latencies_ns.push(started.elapsed().as_nanos() as u64);
                 }
                 latencies_ns

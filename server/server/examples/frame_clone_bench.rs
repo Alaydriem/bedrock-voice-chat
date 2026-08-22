@@ -23,6 +23,7 @@ use common::structs::packet::{
     AudioFramePacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
 use common::{Coordinate, Orientation, PlayerEnum};
+use common::structs::packet::SpeakerPosition;
 
 #[derive(Debug, Parser)]
 #[clap(about = "Measure the per-frame clone + no-op process_packet cost the routing guard removes")]
@@ -67,7 +68,7 @@ impl CloneBench {
             // 160 bytes ~= one 20ms Opus frame at 64kbps
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
-                Some(sender),
+                Some(SpeakerPosition::from_player(&sender)),
                 Some(true),
             )),
             // Not a server fan-out to one connection, so this envelope carries no sequence.

@@ -7,6 +7,7 @@ use bvc_server_lib::relay::{GrantTable, IngestRejection, LocalClients, PeerInges
 use common::game_data::Dimension;
 use common::structs::packet::PacketType;
 use common::structs::relay::wire::datagram::VoiceFrame;
+use common::traits::player_data::PlayerData;
 use common::{Coordinate, MinecraftPlayer, Orientation, PlayerEnum};
 use iroh::{EndpointAddr, PublicKey, SecretKey};
 
@@ -76,7 +77,7 @@ fn a_granted_world_is_admitted_and_the_packet_is_minted_here() {
     let node = SecretKey::generate().public();
     let ingest = PeerIngest::new(grants_for(node, &["W1"]), Arc::new(NoLocals));
 
-    let packet = ingest
+    let (packet, speaker) = ingest
         .admit(&node, frame("Alice", Some("W1")))
         .expect("admitted");
 
@@ -84,6 +85,19 @@ fn a_granted_world_is_admitted_and_the_packet_is_minted_here() {
     assert!(
         packet.sender.is_some(),
         "the sender must be minted here, because the wire carries none"
+    );
+    // The speaker leaves separately because the caller publishes it where routing can find it.
+    // A receiving server has no position feed covering another server's players, so if this
+    // stopped travelling, relayed audio would arrive with nowhere to place it.
+    assert_eq!(
+        speaker.get_name(),
+        "Alice",
+        "the speaker the wire named comes back out"
+    );
+    assert_eq!(
+        packet.sender_key().as_deref(),
+        Some("minecraft:Alice"),
+        "under the key it will be published as"
     );
 }
 

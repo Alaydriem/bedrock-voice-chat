@@ -1,14 +1,9 @@
 use bvc_client_lib::audio::stream::stream_manager::output::SpeakerStateCache;
-use common::players::GenericPlayer;
-use common::{Coordinate, Game, Orientation, PlayerEnum};
+use common::Coordinate;
+use common::structs::packet::SpeakerPosition;
 
-fn player_at(x: f32) -> PlayerEnum {
-    PlayerEnum::Generic(GenericPlayer {
-        name: "tester".to_string(),
-        coordinates: Coordinate { x, y: 0.0, z: 0.0 },
-        orientation: Orientation { x: 0.0, y: 0.0 },
-        game: Game::Minecraft,
-    })
+fn speaker_at(x: f32) -> SpeakerPosition {
+    SpeakerPosition::new(Coordinate { x, y: 0.0, z: 0.0 }, false)
 }
 
 // A heartbeat frame names the speaker and carries their position. Every frame after it
@@ -19,25 +14,22 @@ fn a_heartbeat_teaches_the_cache_both_halves() {
     cache.resolve(
         "7",
         Some("minecraft:Alice".to_string()),
-        Some(player_at(1.0)),
+        Some(speaker_at(1.0)),
     );
 
     let recalled = cache.resolve("7", None, None).expect("state retained");
     assert_eq!(recalled.name, "minecraft:Alice");
-    assert!(recalled.player.is_some());
+    assert!(recalled.speaker.is_some());
 }
 
 #[test]
 fn a_later_heartbeat_replaces_the_position() {
     let cache = SpeakerStateCache::new();
-    cache.resolve("7", Some("minecraft:Bob".to_string()), Some(player_at(5.0)));
-    cache.resolve("7", Some("minecraft:Bob".to_string()), Some(player_at(9.0)));
+    cache.resolve("7", Some("minecraft:Bob".to_string()), Some(speaker_at(5.0)));
+    cache.resolve("7", Some("minecraft:Bob".to_string()), Some(speaker_at(9.0)));
 
     let recalled = cache.resolve("7", None, None).expect("state retained");
-    match recalled.player.expect("position retained") {
-        PlayerEnum::Generic(p) => assert_eq!(p.coordinates.x, 9.0),
-        _ => panic!("wrong variant"),
-    }
+    assert_eq!(recalled.speaker.expect("position retained").position.x, 9.0);
 }
 
 // A reduced frame for a device nothing has ever named cannot be attributed to a speaker.
@@ -55,23 +47,24 @@ fn two_devices_of_one_player_hold_separate_state() {
     cache.resolve(
         "1",
         Some("minecraft:Alaydriem".to_string()),
-        Some(player_at(1.0)),
+        Some(speaker_at(1.0)),
     );
     cache.resolve(
         "2",
         Some("minecraft:Alaydriem".to_string()),
-        Some(player_at(50.0)),
+        Some(speaker_at(50.0)),
     );
 
-    match cache
-        .resolve("1", None, None)
-        .expect("device 1")
-        .player
-        .expect("position")
-    {
-        PlayerEnum::Generic(p) => assert_eq!(p.coordinates.x, 1.0),
-        _ => panic!("wrong variant"),
-    }
+    assert_eq!(
+        cache
+            .resolve("1", None, None)
+            .expect("device 1")
+            .speaker
+            .expect("position")
+            .position
+            .x,
+        1.0
+    );
 }
 
 // Injected audio names itself on every frame but only carries a position on the heartbeat.
@@ -83,17 +76,21 @@ fn a_named_frame_without_a_position_recovers_the_cached_one() {
     cache.resolve(
         "jukebox-abc",
         Some("jukebox-abc".to_string()),
-        Some(player_at(12.0)),
+        Some(speaker_at(12.0)),
     );
 
     let between = cache
         .resolve("jukebox-abc", Some("jukebox-abc".to_string()), None)
         .expect("named on every frame");
     assert_eq!(between.name, "jukebox-abc");
-    match between.player.expect("position recovered from the cache") {
-        PlayerEnum::Generic(p) => assert_eq!(p.coordinates.x, 12.0),
-        _ => panic!("wrong variant"),
-    }
+    assert_eq!(
+        between
+            .speaker
+            .expect("position recovered from the cache")
+            .position
+            .x,
+        12.0
+    );
 }
 
 // A speaker named before any position has arrived is still attributable, so presence and
@@ -105,5 +102,5 @@ fn a_speaker_named_before_any_position_still_resolves() {
         .resolve("4", Some("minecraft:Carol".to_string()), None)
         .expect("named");
     assert_eq!(state.name, "minecraft:Carol");
-    assert!(state.player.is_none());
+    assert!(state.speaker.is_none());
 }

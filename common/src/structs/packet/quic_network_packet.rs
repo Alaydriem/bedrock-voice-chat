@@ -1,10 +1,6 @@
 use anyhow::{Error, anyhow};
 use serde::{Deserialize, Serialize};
 
-use moka::future::Cache;
-use std::sync::Arc;
-
-use super::audio_frame_packet::AudioFramePacket;
 use super::envelope_sequence::EnvelopeSequence;
 use super::packet_sender::PacketSender;
 use super::packet_type::PacketType;
@@ -105,44 +101,6 @@ impl QuicNetworkPacket {
 
     pub fn get_data(&self) -> Option<&QuicNetworkPacketData> {
         Some(&self.data)
-    }
-
-    pub async fn update_coordinates(&mut self, player_data: Arc<Cache<String, crate::PlayerEnum>>) {
-        match self.get_packet_type() {
-            PacketType::AudioFrame => match self.get_data() {
-                Some(data) => {
-                    let data = data.to_owned();
-                    let data: Result<AudioFramePacket, ()> = data.try_into();
-
-                    match data {
-                        Ok(mut data) => {
-                            if data.sender.is_none() {
-                                // Keyed on the stamped identity, which is already canonical, so
-                                // this hits the same key the position ingress writes.
-                                let Some(identity) = self.sender_identity() else {
-                                    return;
-                                };
-                                if let Some(sender_player) =
-                                    player_data.get(&identity.to_string()).await
-                                {
-                                    data.sender = Some(sender_player);
-                                    let audio_frame: QuicNetworkPacketData =
-                                        QuicNetworkPacketData::AudioFrame(data);
-                                    self.data = audio_frame;
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            tracing::error!("Could not downcast reference packet to audio frame");
-                        }
-                    }
-                }
-                None => {
-                    tracing::error!("Could not downcast reference packet to audio frame");
-                }
-            },
-            _ => {}
-        }
     }
 
     pub fn to_string(&self) -> Result<String, Error> {

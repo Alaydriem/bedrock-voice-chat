@@ -1,5 +1,5 @@
 use super::SpeakerState;
-use common::PlayerEnum;
+use common::structs::packet::SpeakerPosition;
 use moka::sync::Cache;
 use std::time::Duration;
 
@@ -42,16 +42,16 @@ impl SpeakerStateCache {
         &self,
         key: &str,
         named: Option<String>,
-        position: Option<PlayerEnum>,
+        position: Option<SpeakerPosition>,
     ) -> Option<SpeakerState> {
         match position {
             // A frame carrying a position refreshes the entry, which is what later frames
             // reconstruct from.
-            Some(player) => {
+            Some(speaker) => {
                 let name = named.or_else(|| self.states.get(key).map(|s| s.name))?;
                 let state = SpeakerState {
                     name,
-                    player: Some(player),
+                    speaker: Some(speaker),
                 };
                 self.states.insert(key.to_string(), state.clone());
                 Some(state)
@@ -63,7 +63,7 @@ impl SpeakerStateCache {
                 let name = named.or_else(|| cached.as_ref().map(|s| s.name.clone()))?;
                 Some(SpeakerState {
                     name,
-                    player: cached.and_then(|s| s.player),
+                    speaker: cached.and_then(|s| s.speaker),
                 })
             }
         }

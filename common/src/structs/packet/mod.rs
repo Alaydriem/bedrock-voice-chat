@@ -28,6 +28,7 @@ pub mod quic_network_packet;
 pub mod quic_network_packet_data;
 pub mod server_error_packet;
 pub mod server_error_type;
+pub mod speaker_position;
 
 pub use audio_frame_metadata::AudioFrameMetadata;
 pub use audio_frame_packet::AudioFramePacket;
@@ -59,3 +60,4 @@ pub use quic_network_packet::{MAX_DATAGRAM_SIZE, QuicNetworkPacket};
 pub use quic_network_packet_data::QuicNetworkPacketData;
 pub use server_error_packet::ServerErrorPacket;
 pub use server_error_type::ServerErrorType;
+pub use speaker_position::SpeakerPosition;

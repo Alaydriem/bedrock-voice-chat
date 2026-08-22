@@ -84,8 +84,9 @@ async fn same_channel_recipient_receives_channel_variant_at_any_distance() {
     reg.update_player_channel("minecraft:Alice", "chan1");
     reg.update_player_channel("minecraft:Bob", "chan1");
 
+    let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
 
     assert_eq!(
         RoutingFixture::delivered_spatial(&mut bob_rx).await,
@@ -112,8 +113,9 @@ async fn same_channel_members_hear_each_other_without_position_data() {
     reg.update_player_channel("minecraft:Alice", "chan1");
     reg.update_player_channel("minecraft:Bob", "chan1");
 
+    let speaker: Option<common::PlayerEnum> = None;
     let packet = RoutingFixture::audio_packet_without_position("minecraft:Alice");
-    reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
 
     assert_eq!(
         RoutingFixture::delivered_spatial(&mut bob_rx).await,
@@ -135,8 +137,9 @@ async fn positionless_sender_outside_a_channel_is_not_routed() {
     reg.try_register(1, "minecraft:Alice".into(), format!("fp-{}", 1), alice_tx).expect("admitted");
     reg.try_register(2, "minecraft:Bob".into(), format!("fp-{}", 2), bob_tx).expect("admitted");
 
+    let speaker: Option<common::PlayerEnum> = None;
     let packet = RoutingFixture::audio_packet_without_position("minecraft:Alice");
-    reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
 
     assert_eq!(
         RoutingFixture::delivered_spatial(&mut bob_rx).await,
@@ -155,8 +158,9 @@ async fn in_range_recipient_receives_spatial_variant() {
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
     reg.try_register(2, "minecraft:Bob".into(), format!("fp-{}", 2), bob_tx).expect("admitted");
 
+    let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
 
     assert_eq!(
         RoutingFixture::delivered_spatial(&mut bob_rx).await,
@@ -175,8 +179,9 @@ async fn out_of_range_recipient_receives_nothing() {
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
     reg.try_register(2, "minecraft:Bob".into(), format!("fp-{}", 2), bob_tx).expect("admitted");
 
+    let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
 
     assert_eq!(RoutingFixture::delivered_spatial(&mut bob_rx).await, None);
 }
@@ -190,8 +195,9 @@ async fn sender_does_not_receive_own_frame() {
     let (alice_tx, mut alice_rx) = mpsc::channel(16);
     reg.try_register(1, "minecraft:Alice".into(), format!("fp-{}", 1), alice_tx).expect("admitted");
 
+    let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
 
     assert_eq!(RoutingFixture::delivered_spatial(&mut alice_rx).await, None);
 }
@@ -207,8 +213,9 @@ async fn deafened_sender_is_limited_to_deafen_distance() {
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
     reg.try_register(2, "minecraft:Bob".into(), format!("fp-{}", 2), bob_tx).expect("admitted");
 
+    let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, &cache, 50.0, 10.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 10.0).await;
 
     assert_eq!(RoutingFixture::delivered_spatial(&mut bob_rx).await, None);
 }
@@ -250,8 +257,9 @@ async fn synthetic_sender_audio_is_not_counted_as_an_interaction() {
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
     reg.try_register(2, "minecraft:Bob".into(), format!("fp-{}", 2), bob_tx).expect("admitted");
 
+    let speaker = Some(jukebox.clone());
     let packet = RoutingFixture::audio_packet(jukebox, "Jukebox");
-    reg.route_audio_frame(&packet, &cache, 30.0, 0.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
 
     // The frame still reaches Bob; only the measurement declines to count it.
     assert!(
@@ -283,8 +291,9 @@ async fn audio_between_two_connected_players_counts_both() {
     reg.try_register(1, "minecraft:Alice".into(), format!("fp-{}", 1), alice_tx).expect("admitted");
     reg.try_register(2, "minecraft:Bob".into(), format!("fp-{}", 2), bob_tx).expect("admitted");
 
+    let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, &cache, 30.0, 0.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
 
     assert!(RoutingFixture::delivered_spatial(&mut bob_rx).await.is_some());
     assert_eq!(
@@ -348,20 +357,21 @@ async fn sender_attaches_on_heartbeat_not_every_frame() {
     let (bob_tx, mut bob_rx) = mpsc::channel(16);
     reg.try_register(2, "minecraft:Bob".into(), format!("fp-{}", 2), bob_tx).expect("admitted");
 
+    let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
 
-    reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
-    reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
     tokio::time::sleep(common::net::PositionCadence::INTERVAL + std::time::Duration::from_millis(25))
         .await;
-    reg.route_audio_frame(&packet, &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
 
     let first = RoutingFixture::delivered_frame(&mut bob_rx).await.unwrap();
     let second = RoutingFixture::delivered_frame(&mut bob_rx).await.unwrap();
     let third = RoutingFixture::delivered_frame(&mut bob_rx).await.unwrap();
-    assert!(first.sender.is_some(), "first frame carries the speaker state");
-    assert!(second.sender.is_none(), "a frame inside the interval is thinned");
-    assert!(third.sender.is_some(), "the heartbeat re-attaches");
+    assert!(first.speaker.is_some(), "first frame carries the speaker state");
+    assert!(second.speaker.is_none(), "a frame inside the interval is thinned");
+    assert!(third.speaker.is_some(), "the heartbeat re-attaches");
 }
 
 // A limit counts identities, not connections. Everything below turns on that: the registry
@@ -604,9 +614,10 @@ async fn a_frame_between_heartbeats_carries_only_the_device() {
     reg.try_register(2, "minecraft:Bob".into(), format!("fp-{}", 2), bob_tx)
         .expect("admitted");
 
-    let packet = RoutingFixture::audio_packet(alice.clone(), "minecraft:Alice");
+    let speaker = Some(alice.clone());
+    let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
 
-    reg.route_audio_frame(&packet, &cache, 30.0, 0.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
     let first = RoutingFixture::delivered_envelope(&mut bob_rx)
         .await
         .expect("first frame delivered");
@@ -615,7 +626,7 @@ async fn a_frame_between_heartbeats_carries_only_the_device() {
         "the first frame from a speaker always attaches the identity"
     );
 
-    reg.route_audio_frame(&packet, &cache, 30.0, 0.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
     let second = RoutingFixture::delivered_envelope(&mut bob_rx)
         .await
         .expect("second frame delivered");
@@ -644,10 +655,11 @@ async fn injected_audio_keeps_its_full_sender() {
     reg.try_register(2, "minecraft:Bob".into(), format!("fp-{}", 2), bob_tx)
         .expect("admitted");
 
+    let speaker = Some(jukebox.clone());
     let packet = RoutingFixture::audio_packet(jukebox, "Jukebox");
 
     for round in 0..2 {
-        reg.route_audio_frame(&packet, &cache, 30.0, 0.0).await;
+        reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
         let delivered = RoutingFixture::delivered_envelope(&mut bob_rx)
             .await
             .expect("injected audio delivered");

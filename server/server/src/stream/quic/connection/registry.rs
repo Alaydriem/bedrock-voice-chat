@@ -154,9 +154,11 @@ impl ConnectionRegistry {
     // with a `PacketOrigin` and calls this only for local ones. That tag is what
     // keeps relay single-hop; without it a peer's frame is returned to the peer that
     // sent it, and the speaker hears themselves.
-    pub fn forward_local_to_peers(&self, packet: &QuicNetworkPacket) {
-        if let Some(plane) = self.peer_plane.get() {
-            plane.forward_local(packet);
+    /// `speaker` is the sender's player, resolved by the caller. A frame whose speaker is
+    /// unknown cannot be scoped to a relay world, so it does not leave.
+    pub fn forward_local_to_peers(&self, packet: &QuicNetworkPacket, speaker: Option<&PlayerEnum>) {
+        if let (Some(plane), Some(speaker)) = (self.peer_plane.get(), speaker) {
+            plane.forward_local(packet, speaker);
         }
     }
 
@@ -724,9 +726,15 @@ impl ConnectionRegistry {
             .map(|entry| entry.value().name_hash)
     }
 
+    /// `speaker` is the sender's player, resolved by the caller.
+    ///
+    /// Supplied rather than read off the frame, because the frame carries only a position and
+    /// proximity needs a whole player — dimension, world and spectator. `player_cache` is still
+    /// needed here, for the recipients.
     pub async fn route_audio_frame(
         &self,
         packet: &QuicNetworkPacket,
+        speaker: Option<&PlayerEnum>,
         player_cache: &Arc<Cache<String, PlayerEnum>>,
         broadcast_range: f32,
         deafen_distance: f32,
@@ -746,20 +754,11 @@ impl ConnectionRegistry {
             _ => return,
         };
 
-        // Every key below is the identity itself, so the cache and the channel map are both
-        // reachable before the player has sent a position. Server-injected senders (jukebox,
-        // webhook, relayed peer audio) have no connection and no cache entry — they carry their
-        // player data on the frame instead, which is the branch below that skips the cache.
-        let sender_player: Option<PlayerEnum> = match &audio_frame.sender {
-            Some(player) => Some(player.clone()),
-            None => player_cache.get(sender_identity).await,
-        };
-
         let sender_channel: Option<Arc<str>> =
             self.player_channel.get(sender_identity).map(|r| r.clone());
 
         let original_spatial = audio_frame.spatial;
-        let has_sender = audio_frame.sender.is_some();
+        let has_sender = speaker.is_some();
 
         // The speaker's PlayerEnum rides a heartbeat rather than every frame; recipients
         // reconstruct position from the last attached state. Per-speaker rather than
@@ -790,7 +789,7 @@ impl ConnectionRegistry {
             if let QuicNetworkPacketData::AudioFrame(ref mut af) = envelope.data {
                 af.spatial = Some(spatial);
                 if !attach_sender {
-                    af.sender = None;
+                    af.speaker = None;
                 }
             }
 
@@ -886,9 +885,8 @@ impl ConnectionRegistry {
                 // position is fetched here rather than above the branch because a
                 // channel delivery never reads it, and the fetch is an awaited cache
                 // lookup per recipient per frame.
-                let sp = match &sender_player {
-                    Some(p) => p,
-                    None => continue,
+                let Some(sp) = speaker else {
+                    continue;
                 };
                 let rp = match player_cache.get(recipient_identity.as_ref()).await {
                     Some(p) => p,

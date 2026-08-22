@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use super::metadata::PlayerMetadata;
 use crate::structs::audio::PlayerGainSettings;
-use crate::structs::packet::AudioFramePacket;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecordingPlayerData {
@@ -23,17 +22,23 @@ impl RecordingPlayerData {
     /// `name` is the speaker as the caller resolved it: a player's canonical identity
     /// rendered, or the service name for injected audio. Resolved by the caller rather than
     /// read off the sender, because a reduced sender names only a device.
+    ///
+    /// `player_data` is composed by the caller too. The recorded header has always held a whole
+    /// player and the renderer reads a position and a deafened flag back out of it, but the
+    /// frame carries only those two facts now — so the caller builds one rather than this
+    /// reading a wire type.
     pub fn from_speaker(
         name: String,
         device: Option<u64>,
-        audio_data: &AudioFramePacket,
+        player_data: Option<crate::PlayerEnum>,
+        spatial: Option<bool>,
         gain_settings: Option<PlayerGainSettings>,
     ) -> Self {
         Self {
             name,
             device,
-            player_data: audio_data.sender.clone(),
-            spatial: audio_data.spatial,
+            player_data,
+            spatial,
             gain_settings,
         }
     }

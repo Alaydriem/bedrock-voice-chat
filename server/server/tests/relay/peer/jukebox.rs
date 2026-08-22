@@ -11,6 +11,7 @@ use common::structs::packet::{
 };
 use common::traits::player_data::PlayerData;
 use common::{Coordinate, MinecraftPlayer, Orientation, PlayerEnum};
+use common::structs::packet::SpeakerPosition;
 use iroh::{EndpointAddr, PublicKey, SecretKey};
 
 struct NoLocals;
@@ -42,7 +43,11 @@ fn speaker(name: &str) -> PlayerEnum {
 }
 
 fn packet_of(name: &str, metadata: Vec<AudioFrameMetadata>) -> QuicNetworkPacket {
-    let mut audio = AudioFramePacket::new(vec![1, 2, 3], Some(speaker(name)), Some(true));
+    let mut audio = AudioFramePacket::new(
+        vec![1, 2, 3],
+        Some(SpeakerPosition::from_player(&speaker(name))),
+        Some(true),
+    );
     if !metadata.is_empty() {
         audio = audio.with_metadata(metadata);
     }
@@ -89,14 +94,14 @@ fn grants_for(node: PublicKey) -> Arc<GrantTable> {
 // on a jukebox sink and inherit the listener's music setting.
 #[test]
 fn a_speech_frame_carries_no_jukebox_id() {
-    let (_, frame) = PeerEgress::frame_from(&packet_of("Alice", Vec::new())).expect("forwardable");
+    let (_, frame) = PeerEgress::frame_from(&packet_of("Alice", Vec::new()), &speaker("Alice")).expect("forwardable");
 
     assert!(frame.jukebox.is_none());
 }
 
 #[test]
 fn a_jukebox_frame_carries_its_event_id() {
-    let (_, frame) = PeerEgress::frame_from(&jukebox_packet("evt-9")).expect("forwardable");
+    let (_, frame) = PeerEgress::frame_from(&jukebox_packet("evt-9"), &speaker("jukebox-abcd1234")).expect("forwardable");
 
     assert_eq!(frame.jukebox, Some("evt-9".to_string()));
 }
@@ -109,8 +114,8 @@ fn ingest_rebuilds_the_jukebox_metadata_from_the_speaker() {
     let node = SecretKey::generate().public();
     let ingest = PeerIngest::new(grants_for(node), Arc::new(NoLocals));
 
-    let (_, frame) = PeerEgress::frame_from(&jukebox_packet("evt-9")).expect("forwardable");
-    let admitted = ingest.admit(&node, frame).expect("admitted");
+    let (_, frame) = PeerEgress::frame_from(&jukebox_packet("evt-9"), &speaker("jukebox-abcd1234")).expect("forwardable");
+    let (admitted, _speaker) = ingest.admit(&node, frame).expect("admitted");
 
     let QuicNetworkPacketData::AudioFrame(audio) = admitted.data else {
         panic!("not an audio frame");
@@ -134,8 +139,8 @@ fn ingest_adds_no_metadata_to_speech() {
     let node = SecretKey::generate().public();
     let ingest = PeerIngest::new(grants_for(node), Arc::new(NoLocals));
 
-    let (_, frame) = PeerEgress::frame_from(&packet_of("Alice", Vec::new())).expect("forwardable");
-    let admitted = ingest.admit(&node, frame).expect("admitted");
+    let (_, frame) = PeerEgress::frame_from(&packet_of("Alice", Vec::new()), &speaker("Alice")).expect("forwardable");
+    let (admitted, _speaker) = ingest.admit(&node, frame).expect("admitted");
 
     let QuicNetworkPacketData::AudioFrame(audio) = admitted.data else {
         panic!("not an audio frame");
@@ -151,19 +156,21 @@ fn a_playback_survives_the_peer_boundary() {
     let node = SecretKey::generate().public();
     let ingest = PeerIngest::new(grants_for(node), Arc::new(NoLocals));
 
-    let (world, frame) = PeerEgress::frame_from(&jukebox_packet("evt-42")).expect("forwardable");
+    let (world, frame) = PeerEgress::frame_from(&jukebox_packet("evt-42"), &speaker("jukebox-abcd1234")).expect("forwardable");
     assert_eq!(world, "W1");
 
-    let admitted = ingest.admit(&node, frame).expect("admitted");
+    let (admitted, _speaker) = ingest.admit(&node, frame).expect("admitted");
+    let admitted_sender = admitted.sender_key();
     let QuicNetworkPacketData::AudioFrame(audio) = admitted.data else {
         panic!("not an audio frame");
     };
 
-    // The name is what keys the receiving client's jukebox sink, so it has to
-    // arrive intact alongside the metadata.
+    // The name keys the receiving client's jukebox sink. It rides the envelope rather than the
+    // frame, because the frame carries only what a listener pans from.
     assert_eq!(
-        audio.sender.as_ref().expect("speaker").get_name(),
-        "jukebox-abcd1234"
+        admitted_sender.as_deref(),
+        Some("minecraft:jukebox-abcd1234")
     );
+    assert!(audio.speaker.is_some(), "and the position it pans from");
     assert_eq!(audio.metadata.len(), 1);
 }

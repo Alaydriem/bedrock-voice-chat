@@ -362,6 +362,7 @@ impl ServerRuntime {
                 Arc::clone(&grants),
                 connection_registry.clone(),
                 Arc::new(webhook_receiver.clone()),
+                cache_manager.players().inner_arc(),
                 relay_url,
                 self.config.server.peer_port,
             )
@@ -438,6 +439,12 @@ impl ServerRuntime {
             playback_cancel_token.clone(),
             self.config.audio.max_concurrent_per_uuid,
         ));
+
+        // The audio path resolves a server-injected speaker from this registry rather than
+        // from the position cache, whose TTL is a presence lifetime and would lapse part-way
+        // through a track. Shared through a `OnceLock`, so the clone the QUIC path already
+        // holds sees it too.
+        cache_manager.set_injected_speakers(&audio_playback_service);
 
         // Store audio_playback_service and db_conn for FFI access
         {

@@ -32,6 +32,7 @@ pub mod position_service;
 pub use admin_user_service::AdminUserService;
 pub use audio_file_service::{AudioFileError, AudioFileService};
 pub use audio_playback_service::{AudioPlaybackService, EjectScheduler};
+pub(crate) use audio_playback_service::SpeakerEntry;
 pub use audio_stream_token_cache::AudioStreamTokenCache;
 pub use auth_code_service::{AuthCodeError, AuthCodeService};
 pub use auth_service::{AuthError, AuthService, CodeLoginError};

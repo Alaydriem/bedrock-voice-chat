@@ -16,12 +16,17 @@ pub struct PeerEgress;
 const OPUS_SAMPLE_RATE: u32 = 48_000;
 
 impl PeerEgress {
-    pub fn frame_from(packet: &QuicNetworkPacket) -> Option<(String, VoiceFrame)> {
+    /// The speaker is supplied rather than read off the packet, because the frame no longer
+    /// carries a whole player and a receiving server has no position feed covering another
+    /// server's players. Kept a pure function of its inputs so its tests stay direct.
+    pub fn frame_from(
+        packet: &QuicNetworkPacket,
+        speaker: &common::PlayerEnum,
+    ) -> Option<(String, VoiceFrame)> {
         let QuicNetworkPacketData::AudioFrame(audio) = &packet.data else {
             return None;
         };
 
-        let speaker = audio.sender.as_ref()?;
         let world = speaker.world_identifier()?.to_string();
 
         // The playback id, when this is jukebox audio. Read from the metadata the

@@ -1,3 +1,4 @@
+mod cache_manager;
 mod certificate_common_name;
 mod client_action;
 mod connection;

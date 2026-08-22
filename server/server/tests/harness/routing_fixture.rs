@@ -8,6 +8,7 @@ use common::structs::packet::{
     AudioFramePacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
 use common::{Coordinate, Orientation, PlayerEnum};
+use common::structs::packet::SpeakerPosition;
 use moka::future::Cache;
 use tokio::sync::mpsc;
 
@@ -42,13 +43,32 @@ impl RoutingFixture {
         }
     }
 
+    // Lets a test choose the envelope sender rather than deriving it from a name, so a service
+    // sender can be exercised without going through the canonical-identity path.
+    pub fn audio_packet_from_sender(
+        speaker: PlayerEnum,
+        sender: PacketSender,
+    ) -> QuicNetworkPacket {
+        QuicNetworkPacket {
+            packet_type: PacketType::AudioFrame,
+            sender: Some(sender),
+            data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
+                vec![0u8; 160],
+                Some(SpeakerPosition::from_player(&speaker)),
+                Some(true),
+            )),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            ..Default::default()
+        }
+    }
+
     pub fn audio_packet(sender: PlayerEnum, sender_identity: &str) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
             sender: Some(Self::sender_for(sender_identity)),
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
-                Some(sender),
+                Some(SpeakerPosition::from_player(&sender)),
                 Some(true),
             )),
             // Not a server fan-out to one connection, so this envelope carries no sequence.

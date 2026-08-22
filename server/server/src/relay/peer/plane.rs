@@ -27,6 +27,10 @@ pub struct PeerPlane {
     ingest: PeerIngest,
     admission: AdmissionControl,
     sink: Arc<dyn PeerSink>,
+    // Where a relayed speaker's position is published, so audio routing resolves it the same
+    // way it resolves a local player's. Written per frame because a relayed peer moves, and
+    // the cache's own presence TTL is what ages a silent one out.
+    speakers: Arc<moka::future::Cache<String, common::PlayerEnum>>,
 }
 
 impl PeerPlane {
@@ -39,6 +43,7 @@ impl PeerPlane {
         grants: Arc<GrantTable>,
         locals: Arc<dyn LocalClients>,
         sink: Arc<dyn PeerSink>,
+        speakers: Arc<moka::future::Cache<String, common::PlayerEnum>>,
         relay_url: Option<RelayUrl>,
         // `server.peer_port`. Absent leaves the port to the operating system, which
         // is a different one on every start — and this endpoint's port is part of
@@ -54,6 +59,7 @@ impl PeerPlane {
             grants,
             admission: AdmissionControl::new(Self::MAX_UNAUTHORIZED),
             sink,
+            speakers,
         }))
     }
 
@@ -72,8 +78,12 @@ impl PeerPlane {
     // Sends a local-origin packet to every peer granted the sender's relay world.
     // Returns how many took it; zero is the ordinary answer for traffic that is
     // not peer traffic.
-    pub fn forward_local(&self, packet: &QuicNetworkPacket) -> usize {
-        match PeerEgress::frame_from(packet) {
+    pub fn forward_local(
+        &self,
+        packet: &QuicNetworkPacket,
+        speaker: &common::PlayerEnum,
+    ) -> usize {
+        match PeerEgress::frame_from(packet, speaker) {
             Some((world, frame)) => self.links.broadcast_world(&world, &frame),
             None => 0,
         }
@@ -201,7 +211,14 @@ impl PeerPlane {
                 };
 
                 match plane.ingest.admit(&node, frame) {
-                    Ok(packet) => plane.sink.publish(packet),
+                    Ok((packet, speaker)) => {
+                        // Published before the packet, so routing never sees a relayed frame
+                        // whose speaker it cannot resolve.
+                        if let Some(key) = packet.sender_key() {
+                            plane.speakers.insert(key, speaker).await;
+                        }
+                        plane.sink.publish(packet);
+                    }
                     Err(rejection) => {
                         tracing::warn!(node = %node, "dropping a peer frame: {rejection}")
                     }

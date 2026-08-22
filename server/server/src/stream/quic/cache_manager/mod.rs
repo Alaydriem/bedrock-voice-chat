@@ -37,6 +37,15 @@ pub struct CacheManager {
     player_state: PlayerStateCache,
     preferences: PlayerPreferenceCache,
     websocket_tickets: WebsocketTicketCache,
+    // Read handle on the live playbacks' speakers, so a server-injected sender resolves from
+    // the store that owns its lifetime rather than from the position cache, whose TTL is a
+    // presence lifetime and would lapse part-way through a track.
+    //
+    // `Arc<OnceLock<..>>` rather than an `Option`, because this type is `Clone` and the audio
+    // path holds a clone made before the playback service exists. A plain `Option` would be set
+    // on one copy and read as absent by the other.
+    injected_speakers:
+        Arc<std::sync::OnceLock<Arc<moka::future::Cache<String, crate::services::SpeakerEntry>>>>,
 }
 
 impl CacheManager {
@@ -45,6 +54,7 @@ impl CacheManager {
             players: PlayerCache::new(),
             channel_collection: Arc::new(ChannelCollection::new(100)),
             connection_registry: None,
+            injected_speakers: Arc::new(std::sync::OnceLock::new()),
             bedrock_event_service: None,
             chat_service: None,
             webhook_receiver: None,
@@ -81,6 +91,41 @@ impl CacheManager {
     /// Single-use tickets exchanging an mTLS identity for a WebSocket upgrade.
     pub fn websocket_tickets(&self) -> &WebsocketTicketCache {
         &self.websocket_tickets
+    }
+
+    /// Wires the playback service's speaker registry in.
+    ///
+    /// Takes the service rather than its cache so callers never name the entry type, which is
+    /// the playback service's own business.
+    /// Set once; a later install is ignored, matching how the registry installs its metrics.
+    pub fn set_injected_speakers(&self, playback: &crate::services::AudioPlaybackService) {
+        let _ = self.injected_speakers.set(playback.speakers());
+    }
+
+    /// The player behind this packet's sender, whoever that is.
+    ///
+    /// Two stores, because a player and a server-injected speaker have different lifetimes: a
+    /// player ages out of the position cache when they stop reporting, a playback's speaker
+    /// expires with its track. Selected on the sender's shape rather than by trying both, so a
+    /// player frame pays one lookup and neither store can answer for the other.
+    ///
+    /// `None` means nothing on this server knows where that sender is, and audio from it is not
+    /// routable.
+    pub async fn resolve_speaker(
+        &self,
+        packet: &QuicNetworkPacket,
+    ) -> Option<common::PlayerEnum> {
+        let key = packet.sender_key()?;
+
+        match packet.sender_service() {
+            Some(_) => self
+                .injected_speakers
+                .get()?
+                .get(&key)
+                .await
+                .map(|entry| entry.player),
+            None => self.players.inner_arc().get(&key).await,
+        }
     }
 
     pub(crate) fn set_connection_registry(&mut self, registry: Arc<ConnectionRegistry>) {
@@ -420,44 +465,38 @@ impl CacheManager {
         Ok(())
     }
 
-    /// Attaches the speaker's cached position to an audio frame, when the frame will carry
-    /// it.
+    /// Attaches the speaker's position to a frame that will carry it.
     ///
-    /// Skipped on the frames between position heartbeats: `route_audio_frame` strips the
-    /// sender from those and resolves proximity from the cache directly, so filling it here
-    /// would be a lookup and a clone per frame that nothing reads. A server with peers always
-    /// fills, because the peer egress reads the frame sender and drops a frame without one.
+    /// Skipped between heartbeats: `route_audio_frame` strips the speaker from those frames and
+    /// resolves proximity from the caller's resolved player, so filling it here would be work
+    /// nothing reads.
     ///
-    /// The gate queries the attach interval without spending it. Consuming it here would
-    /// leave the egress with nothing to attach, and no listener would ever get a position.
-    pub async fn update_coordinates(
+    /// Queries the attach interval without spending it. Consuming it here would leave the egress
+    /// with nothing to attach, and no listener would ever receive a position.
+    pub fn attach_speaker(
         &self,
-        mut packet: QuicNetworkPacket,
-    ) -> Result<QuicNetworkPacket, Error> {
-        if packet.packet_type != PacketType::AudioFrame {
-            return Ok(packet);
-        }
-
+        packet: &mut QuicNetworkPacket,
+        speaker: Option<&common::PlayerEnum>,
+    ) {
+        let Some(speaker) = speaker else {
+            return;
+        };
         let Some(registry) = &self.connection_registry else {
-            return Ok(packet);
+            return;
         };
-
-        let has_peers = registry.peer_plane().is_some();
-        let attach_pending = match packet.sender_key() {
-            Some(key) => registry.sender_attach_pending(&key, std::time::Instant::now()),
-            None => false,
+        // Read before `data` is borrowed mutably below.
+        let Some(key) = packet.sender_key() else {
+            return;
         };
-
-        if !has_peers && !attach_pending {
-            return Ok(packet);
+        if !registry.sender_attach_pending(&key, std::time::Instant::now()) {
+            return;
         }
 
-        packet.update_coordinates(self.players.inner_arc()).await;
-        tracing::debug!(
-            "Updated coordinates for AudioFrame packet from player: {:?}",
-            packet.sender_identity()
-        );
-        Ok(packet)
+        if let common::structs::packet::QuicNetworkPacketData::AudioFrame(ref mut audio) =
+            packet.data
+        {
+            audio.speaker = Some(common::structs::packet::SpeakerPosition::from_player(speaker));
+        }
     }
 
     /// Evicts every cache entry a disconnecting player owns.

@@ -90,6 +90,7 @@ async fn bridged(granted: &[&str]) -> Bridged {
         grants_for(sdk_identity.node_id(), granted),
         Arc::new(NoLocals),
         Arc::new(ChannelSink(tx)),
+        Arc::new(moka::future::Cache::new(16)),
         None,
         None,
     )
@@ -166,18 +167,15 @@ async fn a_frame_sent_through_the_sdk_arrives_admitted_at_a_real_server() {
     };
 
     assert_eq!(audio.data, vec![7, 7, 7]);
-    assert_eq!(
-        audio.sender.as_ref().expect("speaker").get_name(),
-        "BridgeSpeaker"
+    assert!(
+        audio.speaker.is_some(),
+        "the position a listener pans from survives the crossing"
     );
+    // The name and the world are the receiving server's own findings now: it mints the envelope
+    // sender from the wire frame's speaker rather than forwarding a player on the audio frame.
     assert_eq!(
-        audio
-            .sender
-            .as_ref()
-            .expect("speaker")
-            .world_identifier()
-            .expect("world"),
-        WORLD
+        packet.sender_identity().map(|i| i.to_string()).as_deref(),
+        Some("minecraft:BridgeSpeaker")
     );
     assert!(
         packet.sender.is_some(),
@@ -206,10 +204,9 @@ async fn a_frame_keeps_its_dimension_across_the_peer_boundary() {
         panic!("expected an audio frame");
     };
 
-    assert_eq!(
-        audio.sender.as_ref().expect("speaker").dimension(),
-        Some(Dimension::TheNether)
-    );
+    // The dimension gated routing on the sending side and is not something a listener reads,
+    // so it no longer rides the audio frame. What must survive is the position.
+    assert!(audio.speaker.is_some());
 }
 
 // The grant is enforced on the live path, not only inside `admit`.

@@ -308,23 +308,27 @@ impl SessionSpawner {
                             }
                         }
 
-                        let updated_packet = if packet.packet_type == PacketType::AudioFrame {
-                            match cache_manager.update_coordinates(packet).await {
-                                Ok(updated) => updated,
-                                Err(e) => {
-                                    tracing::error!("Failed to update coordinates: {}", e);
-                                    continue;
-                                }
-                            }
-                        } else {
-                            packet
-                        };
+                        let mut updated_packet = packet;
 
                         match updated_packet.packet_type {
                             PacketType::AudioFrame => {
-                                connection_registry.forward_local_to_peers(&updated_packet);
+                                // Resolved once and handed to both, so the relay and the
+                                // fan-out cannot disagree about where a speaker is.
+                                let speaker =
+                                    cache_manager.resolve_speaker(&updated_packet).await;
+                                cache_manager
+                                    .attach_speaker(&mut updated_packet, speaker.as_ref());
+
                                 connection_registry
-                                    .route_audio_frame(&updated_packet, &player_cache, broadcast_range, deafen_distance)
+                                    .forward_local_to_peers(&updated_packet, speaker.as_ref());
+                                connection_registry
+                                    .route_audio_frame(
+                                        &updated_packet,
+                                        speaker.as_ref(),
+                                        &player_cache,
+                                        broadcast_range,
+                                        deafen_distance,
+                                    )
                                     .await;
                             }
                             PacketType::PlayerPosition => {

@@ -1,7 +1,9 @@
 mod router;
-pub mod speaker_state;
+pub mod recorded_player;
+mod speaker_state;
 mod speaker_state_cache;
 
+pub use recorded_player::RecordedPlayer;
 pub use speaker_state::SpeakerState;
 pub use speaker_state_cache::SpeakerStateCache;
 

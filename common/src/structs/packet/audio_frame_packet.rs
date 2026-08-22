@@ -15,7 +15,8 @@ pub struct AudioFramePacket {
     // encoded varint did without the length prefix a byte-string field also carries.
     pub timestamp: i64,
     pub data: Bytes,
-    pub sender: Option<crate::PlayerEnum>,
+    /// Where the speaker is, attached on a position heartbeat rather than on every frame.
+    pub speaker: Option<super::SpeakerPosition>,
     pub spatial: Option<bool>,
     #[serde(default)]
     pub metadata: Vec<AudioFrameMetadata>,
@@ -35,7 +36,7 @@ impl TryFrom<QuicNetworkPacketData> for AudioFramePacket {
 impl AudioFramePacket {
     pub fn new(
         data: Vec<u8>,
-        sender: Option<crate::PlayerEnum>,
+        speaker: Option<super::SpeakerPosition>,
         spatial: Option<bool>,
     ) -> Self {
         let timestamp = std::time::SystemTime::now()
@@ -48,7 +49,7 @@ impl AudioFramePacket {
             // A move rather than a copy, so callers keep passing an owned `Vec` and pay nothing
             // for the conversion.
             data: Bytes::from(data),
-            sender,
+            speaker,
             spatial,
             metadata: Vec::new(),
         }

@@ -2,7 +2,8 @@ use common::structs::packet::{
     AudioFramePacket, HealthCheckPacket, MAX_DATAGRAM_SIZE, PacketSender, PacketType,
     QuicNetworkPacket, QuicNetworkPacketData,
 };
-use common::{Game, PlayerIdentity};
+use common::structs::packet::SpeakerPosition;
+use common::{Coordinate, Game, PlayerIdentity};
 use serde::{Deserialize, Serialize};
 
 // Version skew for the 3.0.0 envelope, established by measurement rather than assumption.
@@ -256,4 +257,32 @@ fn the_sequence_range_is_unmoved_by_every_sender_shape() {
             "sender {sender:?}"
         );
     }
+}
+
+// The fan-out patches a fixed byte range on an already-encoded envelope. A frame carrying a
+// speaker is longer than one without, and if that moved the range, every recipient's copy would
+// have either a corrupt sequence or a corrupt speaker.
+#[test]
+fn the_sequence_range_is_unmoved_by_an_attached_speaker() {
+    let mut packet = audio_envelope();
+    if let QuicNetworkPacketData::AudioFrame(ref mut audio) = packet.data {
+        audio.speaker = Some(SpeakerPosition::new(
+            Coordinate {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            false,
+        ));
+    }
+    packet.stamp(0x1234_5678);
+
+    let bytes = packet.to_datagram().expect("encodes");
+    let decoded = QuicNetworkPacket::from_datagram(&bytes).expect("decodes");
+
+    assert_eq!(decoded.sequence(), Some(0x1234_5678));
+    assert_eq!(
+        &bytes[QuicNetworkPacket::SEQ_VALUE_RANGE],
+        &0x1234_5678u32.to_le_bytes()
+    );
 }

@@ -217,11 +217,9 @@ export class SelfController {
         // proves the answer came back. A press that logs one and not the other localises the
         // fault immediately.
         await subscribe<boolean>('mute:input', (muted) => {
-            info(`SelfController: mute:input echo -> ${muted}`);
             this.state.sync({ muted });
         });
         await subscribe<boolean>('mute:output', (deafened) => {
-            info(`SelfController: mute:output echo -> ${deafened}`);
             this.state.sync({ deafened });
         });
         await subscribe<boolean>('ptt:active', (down) => this.state.hold(down));
@@ -229,7 +227,6 @@ export class SelfController {
         // button is a hold in one mode and a toggle in the other. Read once at start-up it
         // goes stale the first time anything changes it.
         await subscribe<ConfiguredVoiceMode>('voice-mode:changed', (mode) => {
-            info(`SelfController: voice mode -> ${mode}`);
             this.state.sync({ mode: mode === 'pushToTalk' ? 'ptt' : 'activated' });
         });
         await subscribe<unknown>('recording:started', () =>
