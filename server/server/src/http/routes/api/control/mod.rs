@@ -62,10 +62,10 @@ pub async fn control(
 
     if action.action.is_group_action() {
         let channels = cache_manager.get_channel_collection();
-        let actor_cn = action.actor_key();
+        let actor = action.actor_identity();
         match ClientActionService::route_group(
             &action.action,
-            &actor_cn,
+            &actor,
             &channels,
             webhook_receiver.inner(),
         )

@@ -35,3 +35,37 @@ async fn config_reports_chat_disabled_when_the_operator_turns_it_off() {
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["chat"]["enabled"], false);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn config_reports_no_capacity_limit_by_default() {
+    let env = TestServer::start().await.unwrap();
+    let resp = env
+        .noauth_client()
+        .unwrap()
+        .get(format!("{}/api/config", env.base_url))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(
+        body["capacity"]["limit"], 0,
+        "a server with no limit configured must report unlimited"
+    );
+    assert_eq!(body["capacity"]["in_use"], 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn config_reports_the_configured_capacity_limit() {
+    let env = TestServer::start_with_capacity(12).await.unwrap();
+    let resp = env
+        .noauth_client()
+        .unwrap()
+        .get(format!("{}/api/config", env.base_url))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["capacity"]["limit"], 12);
+}

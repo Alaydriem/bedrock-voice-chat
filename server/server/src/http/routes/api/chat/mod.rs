@@ -63,7 +63,7 @@ pub async fn worlds(
     let identity = player
         .gamertag
         .as_ref()
-        .map(|tag| player.game.membership_key(tag));
+        .map(|tag| player.game.membership_key(tag).to_string());
 
     let live_world = match identity.as_deref() {
         Some(id) => chat_service.live_world_of(id).await,

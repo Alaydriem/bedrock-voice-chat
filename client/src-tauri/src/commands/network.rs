@@ -167,7 +167,8 @@ pub(crate) async fn change_network_stream(
         .game
         .clone()
         .unwrap_or(common::Game::Minecraft)
-        .membership_key(&gamertag);
+        .membership_key(&gamertag)
+        .to_string();
     // The error is inspected and rendered before any further await: it is a
     // `Box<dyn Error>`, which is not Send, and holding one across an await would
     // make this command's future non-Send.

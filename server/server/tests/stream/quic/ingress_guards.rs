@@ -15,7 +15,7 @@ fn from_server(packet_type: PacketType, data: QuicNetworkPacketData) -> QuicNetw
     QuicNetworkPacket {
         packet_type,
         data,
-        sender: Some(PacketSender::synthetic(PacketSender::SERVER_API)),
+        sender: Some(PacketSender::for_service(PacketSender::SERVER_API)),
         ..Default::default()
     }
 }
@@ -30,7 +30,10 @@ fn from_player(
     QuicNetworkPacket {
         packet_type,
         data,
-        sender: Some(PacketSender::new(identity.to_string(), 1)),
+        sender: Some(PacketSender::player(
+            identity.parse().expect("canonical identity"),
+            1,
+        )),
         ..Default::default()
     }
 }
@@ -42,18 +45,24 @@ fn player_data(name: &str) -> QuicNetworkPacketData {
     )]))
 }
 
+fn identity(canonical: &str) -> common::PlayerIdentity {
+    canonical.parse().expect("canonical identity")
+}
+
 fn channel_event(name: &str, channel_id: &str) -> QuicNetworkPacketData {
     QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new(
         ChannelEvents::Join,
-        name.to_string(),
+        identity(name),
         channel_id.to_string(),
+        None,
+        Some(identity("minecraft:Owner")),
     ))
 }
 
 // `add_player_to_channel` is a no-op against a channel that does not exist, so a join has
 // nothing to prove unless one is there to join.
 async fn seeded_channel(cm: &CacheManager) -> String {
-    let channel = Channel::new("Private".to_string(), "minecraft:Owner".to_string());
+    let channel = Channel::new("Private".to_string(), identity("minecraft:Owner"));
     let id = channel.id();
     cm.get_channel_collection().insert(channel).await;
     id
@@ -114,7 +123,7 @@ async fn channel_event_from_a_player_connection_is_dropped() {
 
     assert!(
         cm.get_channel_collection()
-            .get_player_channels(VICTIM)
+            .get_player_channels(&identity(VICTIM))
             .is_empty(),
         "a player connection must not move another player between channels"
     );
@@ -135,7 +144,7 @@ async fn channel_event_from_the_server_is_applied() {
     .expect("process");
 
     assert_eq!(
-        cm.get_channel_collection().get_player_channels(VICTIM),
+        cm.get_channel_collection().get_player_channels(&identity(VICTIM)),
         vec![channel_id],
         "the channel API must still be able to move a player it names"
     );

@@ -20,8 +20,11 @@ fn the_stamped_identity_is_canonical() {
     PacketIdentityStamp::apply(&mut packet, "minecraft:Alaydriem", 7);
 
     let sender = packet.sender.expect("stamped");
-    assert_eq!(sender.identity, "minecraft:Alaydriem");
-    assert_eq!(sender.device, Some(7));
+    assert_eq!(
+        sender.identity().expect("names a player").to_string(),
+        "minecraft:Alaydriem"
+    );
+    assert_eq!(sender.device(), Some(7));
 }
 
 // Two devices for one player must stay distinguishable, which is what lets the mixer keep a
@@ -35,8 +38,8 @@ fn two_devices_share_an_identity_and_differ_by_device() {
 
     let a = first.sender.expect("stamped");
     let b = second.sender.expect("stamped");
-    assert_eq!(a.identity, b.identity);
-    assert_ne!(a.device, b.device);
+    assert_eq!(a.identity(), b.identity());
+    assert_ne!(a.device(), b.device());
 }
 
 // Stamping replaces whatever was there rather than reconciling with it. A packet that arrived
@@ -45,13 +48,19 @@ fn two_devices_share_an_identity_and_differ_by_device() {
 #[test]
 fn stamping_overwrites_an_existing_sender() {
     let mut packet = inbound();
-    packet.sender = Some(PacketSender::new("minecraft:Attacker".to_string(), 99));
+    packet.sender = Some(PacketSender::player(
+        common::Game::Minecraft.membership_key("Attacker"),
+        99,
+    ));
 
     PacketIdentityStamp::apply(&mut packet, "minecraft:Alaydriem", 1);
 
     let sender = packet.sender.expect("stamped");
-    assert_eq!(sender.identity, "minecraft:Alaydriem");
-    assert_eq!(sender.device, Some(1));
+    assert_eq!(
+        sender.identity().expect("names a player").to_string(),
+        "minecraft:Alaydriem"
+    );
+    assert_eq!(sender.device(), Some(1));
 }
 
 // A real connection can hold device id 0, because s2n-quic counts internal connection ids from
@@ -62,5 +71,7 @@ fn the_first_connections_device_is_not_synthetic() {
     PacketIdentityStamp::apply(&mut packet, "minecraft:Alaydriem", 0);
 
     let sender = packet.sender.expect("stamped");
-    assert!(!sender.is_synthetic());
+    assert!(sender.identity().is_some(), "names a player");
+    assert!(sender.service().is_none(), "is not server-injected");
+    assert_eq!(sender.device(), Some(0));
 }

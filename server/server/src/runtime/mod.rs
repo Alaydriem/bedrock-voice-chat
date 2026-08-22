@@ -305,6 +305,21 @@ impl ServerRuntime {
         );
         connection_registry.set_metrics(metrics.clone());
 
+        let capacity = crate::stream::quic::connection::CapacityPolicy::new(
+            self.config.voice.limits.connections,
+            std::time::Duration::from_secs(self.config.voice.limits.reconnect_grace),
+        );
+        connection_registry.set_capacity(capacity);
+        metrics.set_voice_capacity_limit(self.config.voice.limits.connections as i64);
+
+        if self.config.voice.limits.connections > 0 {
+            tracing::info!(
+                "Voice capacity limited to {} concurrent sessions, {}s reconnect grace",
+                self.config.voice.limits.connections,
+                self.config.voice.limits.reconnect_grace
+            );
+        }
+
         if let Ok(mut slot) = self.metrics.write() {
             *slot = Some(metrics.clone());
         }

@@ -408,3 +408,57 @@ fn bvc_recording_rejects_a_non_boolean() {
         .expect_err("a malformed boolean must be a hard startup error");
     assert!(format!("{err}").contains("BVC_RECORDING"));
 }
+
+#[test]
+fn bvc_max_connections_overrides_the_config_value() {
+    let mut config = ApplicationConfig::default();
+    config.voice.limits.connections = 10;
+
+    let config = apply(&[("BVC_MAX_CONNECTIONS", "25")], config);
+
+    assert_eq!(config.voice.limits.connections, 25);
+}
+
+#[test]
+fn bvc_max_connections_absent_leaves_the_config_value() {
+    let mut config = ApplicationConfig::default();
+    config.voice.limits.connections = 10;
+
+    let config = apply(&[], config);
+
+    assert_eq!(
+        config.voice.limits.connections, 10,
+        "an unset variable must never lift a limit the operator set"
+    );
+}
+
+#[test]
+fn bvc_max_connections_accepts_zero_as_unlimited() {
+    let mut config = ApplicationConfig::default();
+    config.voice.limits.connections = 10;
+
+    let config = apply(&[("BVC_MAX_CONNECTIONS", "0")], config);
+
+    assert_eq!(
+        config.voice.limits.connections, 0,
+        "zero is the documented way to lift a limit, not an empty value to ignore"
+    );
+}
+
+#[test]
+fn bvc_max_connections_rejects_a_non_integer() {
+    let err = EnvOverrides::from_vars(vars(&[("BVC_MAX_CONNECTIONS", "lots")]))
+        .apply(ApplicationConfig::default())
+        .expect_err("a malformed integer must be a hard startup error");
+    assert!(format!("{err}").contains("BVC_MAX_CONNECTIONS"));
+}
+
+#[test]
+fn bvc_reconnect_grace_overrides_the_config_value() {
+    let config = apply(
+        &[("BVC_RECONNECT_GRACE", "120")],
+        ApplicationConfig::default(),
+    );
+
+    assert_eq!(config.voice.limits.reconnect_grace, 120);
+}

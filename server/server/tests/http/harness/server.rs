@@ -52,18 +52,26 @@ pub struct TestServer {
 
 impl TestServer {
     pub async fn start() -> Result<Self> {
-        Self::start_with(true, true).await
+        Self::start_with(true, true, 0).await
     }
 
     pub async fn start_with_recording(recording_enabled: bool) -> Result<Self> {
-        Self::start_with(recording_enabled, true).await
+        Self::start_with(recording_enabled, true, 0).await
     }
 
     pub async fn start_with_chat(chat_enabled: bool) -> Result<Self> {
-        Self::start_with(true, chat_enabled).await
+        Self::start_with(true, chat_enabled, 0).await
     }
 
-    async fn start_with(recording_enabled: bool, chat_enabled: bool) -> Result<Self> {
+    pub async fn start_with_capacity(connections: u32) -> Result<Self> {
+        Self::start_with(true, true, connections).await
+    }
+
+    async fn start_with(
+        recording_enabled: bool,
+        chat_enabled: bool,
+        connections: u32,
+    ) -> Result<Self> {
         // rustls crypto provider: install once per process; ignore re-install error.
         let _ =
             common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
@@ -126,6 +134,7 @@ impl TestServer {
         config.server.minecraft.access_token = "test-mc-token".to_string();
         config.voice.recording.enabled = recording_enabled;
         config.server.features.chat = chat_enabled;
+        config.voice.limits.connections = connections;
 
         let identity_service =
             bvc_server_lib::services::PlayerIdentityService::new(Arc::new(db.clone()));

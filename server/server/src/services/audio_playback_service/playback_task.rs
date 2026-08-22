@@ -58,7 +58,7 @@ impl PlaybackTask {
         // The jukebox name already carries a slice of the event id, so concurrent playbacks
         // stay distinguishable without a device id — and a device id would be a lie, because
         // no connection is speaking.
-        let packet_sender = PacketSender::synthetic(self.jukebox_name.clone());
+        let packet_sender = PacketSender::for_service(self.jukebox_name.clone());
 
         for (i, frame) in self.frames.iter().enumerate() {
             let next_tick = start + Duration::from_millis(20 * i as u64);
@@ -79,7 +79,6 @@ impl PlaybackTask {
                     ))];
                     let audio_frame = AudioFramePacket::new(
                         frame.clone(),
-                        48000,
                         Some(self.synthetic_player.clone()),
                         Some(true),
                     )

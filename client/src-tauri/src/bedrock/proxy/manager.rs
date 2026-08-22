@@ -14,6 +14,7 @@ use common::bedrock_protocol::{
     protocol::types::generated::{AuthorAndMessage, TextPacketBody, TextPacketType},
     proxy::{WarmPool, WarmTarget},
 };
+use common::net::PositionCadence;
 use common::structs::bedrock::AddonMode;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use common::traits::StreamTrait;
@@ -30,8 +31,6 @@ use crate::bedrock::proxy::session::{BedrockSessionEventDispatcher, DispatchOutc
 const RELAY_DRAIN_DELAY: Duration = Duration::from_millis(500);
 
 const CLIENT_DISCONNECT_DRAIN: Duration = Duration::from_millis(150);
-
-const POSITION_HEARTBEAT_INTERVAL: Duration = Duration::from_millis(250);
 
 const BVC_DISCONNECT_MESSAGE: &str = "Connection was closed by the Bedrock Voice Chat app so your link to this server was ended on purpose. Reconnect through the Bedrock Voice Chat app reconnect to this server.";
 
@@ -360,7 +359,7 @@ impl BedrockProxyManager {
                 let heartbeat_cache = Arc::clone(&player_state_cache);
                 let mut heartbeat_cancel_rx = child_cancel_tx.subscribe();
                 let heartbeat_handle = tokio::spawn(async move {
-                    let mut interval = tokio::time::interval(POSITION_HEARTBEAT_INTERVAL);
+                    let mut interval = tokio::time::interval(PositionCadence::INTERVAL);
                     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
                     loop {
                         tokio::select! {

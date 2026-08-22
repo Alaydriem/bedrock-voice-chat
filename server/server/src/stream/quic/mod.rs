@@ -481,7 +481,7 @@ impl QuicServerManager {
             let player_identity = player
                 .gamertag
                 .as_ref()
-                .map(|gamertag| player.game.membership_key(gamertag));
+                .map(|gamertag| player.game.membership_key(gamertag).to_string());
 
             tracing::info!(
                 connection = %connection_id,

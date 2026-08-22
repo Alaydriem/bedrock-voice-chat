@@ -37,7 +37,7 @@ pub async fn get_state(
 
     // Overlay current_group from server-authoritative membership rather than
     // trusting the client's reported value.
-    let mut state = cache_manager.player_state().get(&identity).await;
+    let mut state = cache_manager.player_state().get(&identity.to_string()).await;
     if let Some(ref mut s) = state {
         s.current_group = cache_manager
             .get_channel_collection()
@@ -69,6 +69,9 @@ pub async fn get_preferences(
         targets.split(',').map(str::to_string).collect()
     };
     let owner = game.unwrap_or(Game::Minecraft).membership_key(&owner);
-    let prefs = cache_manager.preferences().get_scoped(&owner, &targets).await;
+    let prefs = cache_manager
+        .preferences()
+        .get_scoped(&owner.to_string(), &targets)
+        .await;
     CustomJsonResponse::ok(prefs)
 }

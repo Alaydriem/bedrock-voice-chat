@@ -20,6 +20,7 @@ pub use server::PeerConfig;
 pub use server::Server;
 pub use server::Tls;
 pub use voice::Voice;
+pub use voice::VoiceLimits;
 
 use common::ncryptflib::randombytes_buf;
 use rocket::{

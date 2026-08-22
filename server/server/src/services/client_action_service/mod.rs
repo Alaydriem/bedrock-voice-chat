@@ -148,8 +148,7 @@ impl ClientActionService {
         preferences.set(key, pref).await;
     }
 
-    /// Applies a group action for the authenticated actor (cert-CN form
-    /// `game:gamertag`). `CreateGroup` and `JoinGroup` are MOVES — the actor's
+    /// Applies a group action for the authenticated actor. `CreateGroup` and `JoinGroup` are MOVES — the actor's
     /// current groups are left first, so a player occupies at most one group
     /// through this plane (multi-membership renders as an invalid state in the
     /// desktop client, whose own flow also moves). Returns the new nanoid for
@@ -158,21 +157,21 @@ impl ClientActionService {
     /// group on a bad code). Any channel left empty is closed.
     pub async fn route_group(
         action: &ClientActionType,
-        actor_cn: &str,
+        actor: &common::PlayerIdentity,
         channels: &ChannelCollection,
         webhook: &WebhookReceiver,
     ) -> anyhow::Result<Option<String>> {
         match action {
             ClientActionType::CreateGroup => {
-                Self::leave_all(channels, webhook, actor_cn).await;
+                Self::leave_all(channels, webhook, actor).await;
                 let id = ChannelMembershipService::create(
                     channels,
                     webhook,
-                    format!("{actor_cn} group"),
-                    actor_cn.to_string(),
+                    format!("{actor} group"),
+                    actor.clone(),
                 )
                 .await;
-                ChannelMembershipService::join(channels, webhook, actor_cn.to_string(), &id).await;
+                ChannelMembershipService::join(channels, webhook, actor, &id).await;
                 Ok(Some(id))
             }
             ClientActionType::JoinGroup { channel } => {
@@ -184,33 +183,34 @@ impl ClientActionService {
                 // A repeat join of the current group is a no-op, not a move —
                 // leaving first would close the group under its last member.
                 if channels
-                    .get_player_channels(actor_cn)
+                    .get_player_channels(actor)
                     .iter()
                     .any(|c| c == channel)
                 {
                     return Ok(None);
                 }
-                Self::leave_all(channels, webhook, actor_cn).await;
-                if ChannelMembershipService::join(channels, webhook, actor_cn.to_string(), channel)
-                    .await
-                {
+                Self::leave_all(channels, webhook, actor).await;
+                if ChannelMembershipService::join(channels, webhook, actor, channel).await {
                     Ok(None)
                 } else {
                     anyhow::bail!("channel does not exist: {channel}")
                 }
             }
             ClientActionType::LeaveGroup => {
-                Self::leave_all(channels, webhook, actor_cn).await;
+                Self::leave_all(channels, webhook, actor).await;
                 Ok(None)
             }
             _ => Ok(None),
         }
     }
 
-    async fn leave_all(channels: &ChannelCollection, webhook: &WebhookReceiver, actor_cn: &str) {
-        for cid in channels.get_player_channels(actor_cn) {
-            ChannelMembershipService::leave(channels, webhook, actor_cn.to_string(), &cid, true)
-                .await;
+    async fn leave_all(
+        channels: &ChannelCollection,
+        webhook: &WebhookReceiver,
+        actor: &common::PlayerIdentity,
+    ) {
+        for cid in channels.get_player_channels(actor) {
+            ChannelMembershipService::leave(channels, webhook, actor, &cid, true).await;
         }
     }
 }

@@ -49,6 +49,7 @@ pub struct MetricsService {
     // gauge carries, so both are written by the one method below.
     active_players: AtomicI64,
     peak_players: AtomicI64,
+    capacity_refusals: AtomicI64,
     interactions: InteractionTracker,
     started_at: Instant,
     features_enabled: Vec<String>,
@@ -123,6 +124,7 @@ impl MetricsService {
             posthog_drain: drain,
             active_players: AtomicI64::new(0),
             peak_players: AtomicI64::new(0),
+            capacity_refusals: AtomicI64::new(0),
             interactions: InteractionTracker::new(),
             started_at: Instant::now(),
             features_enabled,
@@ -342,6 +344,23 @@ impl MetricsService {
     /// visible here.
     pub fn record_websocket_rejection(&self) {
         counter!(Metric::WebsocketHandshakeRejectionsTotal.name()).increment(1);
+    }
+
+    pub fn record_capacity_refusal(&self) {
+        counter!(Metric::ConnectionsRefusedTotal.name()).increment(1);
+        self.capacity_refusals.fetch_add(1, Ordering::Relaxed);
+    }
+
+    // Observable seam for the refusal count, so the registry's decision is testable without
+    // scraping /metrics.
+    pub fn capacity_refusals(&self) -> i64 {
+        self.capacity_refusals.load(Ordering::Relaxed)
+    }
+
+    // 0 is unlimited, reported rather than omitted: a missing series cannot be told apart
+    // from a server that is not exporting it.
+    pub fn set_voice_capacity_limit(&self, limit: i64) {
+        gauge!(Metric::VoiceCapacityLimit.name()).set(limit as f64);
     }
 
     // Observable seam for the reconnect window, so the gating logic is testable

@@ -9,7 +9,7 @@ impl PositionUpdater {
         players: Vec<common::PlayerEnum>,
         webhook_receiver: &WebhookReceiver,
     ) {
-        let sender = PacketSender::synthetic(PacketSender::SERVER_API);
+        let sender = PacketSender::for_service(PacketSender::SERVER_API);
 
         for chunk in PlayerDataChunker::chunk(players, Some(&sender)) {
             Self::send_player_chunk(chunk, &sender, webhook_receiver).await;

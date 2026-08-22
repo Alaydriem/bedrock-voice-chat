@@ -1,7 +1,9 @@
+pub mod identity;
 pub mod key;
 pub mod player_source;
 pub mod row;
 
+pub use identity::{PlayerIdentity, PlayerIdentityError};
 pub use key::PlayerKey;
 pub use player_source::PlayerSource;
 pub use row::PlayerSettingsRow;

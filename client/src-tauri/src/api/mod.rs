@@ -355,6 +355,7 @@ impl Api {
                             age: Default::default(),
                             recording: Default::default(),
                             chat: Default::default(),
+                            capacity: Default::default(),
                         });
                     }
 

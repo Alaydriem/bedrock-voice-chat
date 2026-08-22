@@ -149,6 +149,18 @@ describe("DiagnosticsManager health", () => {
         expect(health.fatal).toBeTruthy();
     });
 
+    // A full server is the one refusal that recovers on its own: the same client succeeds as
+    // soon as somebody leaves, so the panel must not claim the link is finished.
+    it("reports a full server as down but still retrying", async () => {
+        const manager = await started();
+        report({ status: "AtCapacity", limit: 20 } as ConnectionHealth);
+
+        const health = get(manager.health);
+        expect(health.connected).toBe(false);
+        expect(health.reconnecting).toBe(true);
+        expect(health.fatal).toBeUndefined();
+    });
+
     it("comes back up on a reconnect", async () => {
         const manager = await started();
         report({ status: "Disconnected" });

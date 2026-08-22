@@ -1,16 +1,17 @@
 use common::PlayerEnum;
+use common::net::PositionCadence;
 use common::structs::packet::{
-    PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData, ServerErrorPacket,
-    ServerErrorType,
+    PacketSender, PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData,
+    ServerErrorPacket, ServerErrorType,
 };
 use common::traits::player_data::PlayerData;
 use dashmap::DashMap;
 use moka::future::Cache;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
-use super::{ConnectionEntry, ConnectionSequence, RoutedPacket};
+use super::{AtCapacity, CapacityPolicy, ConnectionEntry, ConnectionSequence, RoutedPacket};
 use crate::services::MetricsService;
 use crate::services::metrics_service::interaction::InteractionRoute;
 use crate::services::metrics_service::interaction::InteractionTracker;
@@ -18,6 +19,8 @@ use crate::stream::quic::log_throttle::LogThrottle;
 use crate::stream::session::WebSocketDeviceId;
 
 const OVERSIZED_BROADCAST_LOG_INTERVAL: Duration = Duration::from_secs(30);
+
+const CAPACITY_REFUSAL_LOG_INTERVAL: Duration = Duration::from_secs(30);
 
 pub struct ConnectionRegistry {
     // Keyed on the QUIC connection id, which the server mints at accept. It is unforgeable and
@@ -49,6 +52,19 @@ pub struct ConnectionRegistry {
     // stamped sender identity so injected and relayed speakers share the cadence with
     // local ones. Entries for departed speakers are reaped by reap_stale_channels.
     sender_attach: DashMap<Arc<str>, Instant>,
+    // Identities that departed and may still return, with the moment they left. A
+    // reservation counts against the limit, which is what makes it a held slot rather than
+    // a hint; it is displaced oldest-first when a new identity has nowhere else to go, so a
+    // server that emptied cleanly never refuses everyone for the length of the grace.
+    reservations: DashMap<Arc<str>, Instant>,
+    // Absent means unlimited, which is every deployment that never configured a limit.
+    capacity: OnceLock<CapacityPolicy>,
+    // Serializes the admission decision. Without it two concurrent handshakes both read a
+    // count one below the limit and both proceed. Taken once per session, never per packet.
+    admission: Mutex<()>,
+    // Guards the refusal log. A client in its reconnect backoff returns to a full server
+    // repeatedly, and every attempt reaches this site.
+    capacity_log: LogThrottle,
 }
 
 impl Default for ConnectionRegistry {
@@ -69,19 +85,18 @@ impl ConnectionRegistry {
             channel_absent_ticks: DashMap::new(),
             oversized_broadcast_log: LogThrottle::new(OVERSIZED_BROADCAST_LOG_INTERVAL),
             sender_attach: DashMap::new(),
+            reservations: DashMap::new(),
+            capacity: OnceLock::new(),
+            admission: Mutex::new(()),
+            capacity_log: LogThrottle::new(CAPACITY_REFUSAL_LOG_INTERVAL),
         }
     }
 
-    // Clients rebuild a speaker's position from the last attached state, so this bounds
-    // only how stale that reconstruction can get. Positions reach this server at 4/s
-    // from the game; 62ms keeps one lost attach's replacement within two frames.
-    const SENDER_ATTACH_INTERVAL: Duration = Duration::from_millis(62);
-
     // Whether this frame carries the speaker's PlayerEnum. True consumes the slot: the
     // timestamp advances, so the next interval is measured from this frame.
-    fn sender_attach_due(&self, identity: &str, now: Instant) -> bool {
+    pub fn sender_attach_due(&self, identity: &str, now: Instant) -> bool {
         if let Some(mut last) = self.sender_attach.get_mut(identity) {
-            if now.duration_since(*last) < Self::SENDER_ATTACH_INTERVAL {
+            if now.duration_since(*last) < PositionCadence::INTERVAL {
                 return false;
             }
             *last = now;
@@ -91,9 +106,30 @@ impl ConnectionRegistry {
         true
     }
 
+    // Whether the next frame from this speaker will attach their state, without spending the
+    // interval. `sender_attach_due` is the one that consumes it, and the two must not both be
+    // called for one frame: a gate that consumed the interval would leave the egress with
+    // nothing to attach, and no listener would ever receive a position.
+    pub fn sender_attach_pending(&self, identity: &str, now: Instant) -> bool {
+        match self.sender_attach.get(identity) {
+            Some(last) => now.duration_since(*last) >= PositionCadence::INTERVAL,
+            None => true,
+        }
+    }
+
     // Installs the metrics service. Set once; a later install is ignored.
     pub fn set_metrics(&self, metrics: Arc<MetricsService>) {
         let _ = self.metrics.set(metrics);
+    }
+
+    // Installs the capacity policy. Set once; a later install is ignored.
+    pub fn set_capacity(&self, policy: CapacityPolicy) {
+        let _ = self.capacity.set(policy);
+    }
+
+    // Held reservations, for observing the grace and the sweep in tests.
+    pub fn reservation_count(&self) -> usize {
+        self.reservations.len()
     }
 
     // Installs the peer plane. Set once; a later install is ignored.
@@ -211,10 +247,112 @@ impl ConnectionRegistry {
         // one and attaches immediately, which is exactly the desired first-frame behavior.
         self.sender_attach
             .retain(|_, last| last.elapsed() < Duration::from_secs(300));
+        // The sweep bounds the map; admission enforces the grace itself, so a reservation
+        // is never honoured past it merely because no sweep has run.
+        if let Some(policy) = self.capacity.get() {
+            self.expire_reservations(policy.grace());
+        }
         self.push_gauges();
     }
 
-    pub fn register(
+    /// Registers this session, unless the server is already at its configured capacity.
+    ///
+    /// The count is derived from `connections`, the same map that answers
+    /// `live_identities()`, so there is no second source of truth to drift from it.
+    pub fn try_register(
+        &self,
+        device: u64,
+        identity: Arc<str>,
+        fingerprint: String,
+        tx: mpsc::Sender<RoutedPacket>,
+    ) -> Result<(), AtCapacity> {
+        // Poisoning here only means some other caller panicked mid-admission. Losing the
+        // serialization is worse than proceeding: without it, admission stops entirely.
+        let _admission = match self.admission.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+
+        if let Some(policy) = self.capacity.get()
+            && !policy.is_unlimited()
+            && !self.admits(&identity, policy)
+        {
+            if let Some(metrics) = self.metrics.get() {
+                metrics.record_capacity_refusal();
+            }
+            if let Some(suppressed) = self.capacity_log.should_log() {
+                tracing::warn!(
+                    "Refusing {}: at capacity ({} connections), {} further refusals suppressed",
+                    identity,
+                    policy.limit(),
+                    suppressed
+                );
+            }
+            return Err(AtCapacity {
+                limit: policy.limit(),
+            });
+        }
+
+        self.reservations.remove(&identity);
+        self.insert_connection(device, identity, fingerprint, tx);
+        Ok(())
+    }
+
+    // The admission decision, with the admission lock held.
+    fn admits(&self, identity: &Arc<str>, policy: &CapacityPolicy) -> bool {
+        let live = self.live_identities();
+
+        // A reconnect, or one identity on two devices. The slot is already theirs.
+        if live.contains(identity) {
+            return true;
+        }
+
+        // Expiry is enforced here rather than left to the sweep: a reservation is stale the
+        // moment it ages past the grace, whether or not a sweep has run since.
+        self.expire_reservations(policy.grace());
+
+        if self.reservations.contains_key(identity) {
+            return true;
+        }
+
+        if (live.len() + self.reservations.len()) < policy.limit() as usize {
+            return true;
+        }
+
+        self.displace_oldest_reservation()
+    }
+
+    fn expire_reservations(&self, grace: Duration) {
+        self.reservations
+            .retain(|_, left_at| left_at.elapsed() < grace);
+    }
+
+    // Gives up the reservation held longest, and reports whether there was one. A held slot
+    // yields to real demand rather than outlasting it.
+    fn displace_oldest_reservation(&self) -> bool {
+        // The scan is scoped so every map guard is released before the removal below.
+        let oldest = {
+            let mut best: Option<(Arc<str>, Instant)> = None;
+            for entry in self.reservations.iter() {
+                let candidate = (entry.key().clone(), *entry.value());
+                best = match &best {
+                    Some((_, held_since)) if *held_since <= candidate.1 => best,
+                    _ => Some(candidate),
+                };
+            }
+            best.map(|(identity, _)| identity)
+        };
+
+        match oldest {
+            Some(identity) => {
+                self.reservations.remove(&identity);
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn insert_connection(
         &self,
         device: u64,
         identity: Arc<str>,
@@ -276,6 +414,17 @@ impl ConnectionRegistry {
             // their audio silently reverted to proximity until they rejoined the channel.
             if is_current {
                 self.player_channel.remove(&entry.identity);
+                // Guarded by `is_current` for the same reason the membership removal is: a
+                // late close for a superseded connection would reserve a slot the player is
+                // actively using, counting one live player against the limit twice.
+                if self
+                    .capacity
+                    .get()
+                    .is_some_and(|policy| !policy.is_unlimited())
+                {
+                    self.reservations
+                        .insert(entry.identity.clone(), Instant::now());
+                }
             }
             if let Some(metrics) = self.metrics.get() {
                 metrics.record_disconnect(
@@ -404,7 +553,7 @@ impl ConnectionRegistry {
         let mut delivered = 0;
 
         for player in &data.players {
-            let identity = player.identity();
+            let identity = player.identity().to_string();
 
             // Most of the roster is not on voice at all; skipping the
             // non-connected majority is the entire saving.
@@ -584,11 +733,13 @@ impl ConnectionRegistry {
     ) {
         let route_started = Instant::now();
 
-        // The identity the server stamped from the certificate at ingress, already canonical.
-        // An unstamped packet has no authenticated sender and is not routable.
-        let Some(sender_identity) = packet.sender_identity() else {
+        // The routing key the server stamped at ingress: a player's canonical identity, or the
+        // service name for audio this server injected. An unstamped packet has no sender to
+        // route from and a reduced one is never inbound, so both are unroutable.
+        let Some(sender_identity) = packet.sender_key() else {
             return;
         };
+        let sender_identity = sender_identity.as_str();
 
         let audio_frame = match &packet.data {
             QuicNetworkPacketData::AudioFrame(af) => af,
@@ -640,6 +791,16 @@ impl ConnectionRegistry {
                 af.spatial = Some(spatial);
                 if !attach_sender {
                     af.sender = None;
+                }
+            }
+
+            // Between heartbeats the recipient already knows which player this device is, so
+            // the identity is left out and the device id stands in for it. A sender with no
+            // device — injected audio — keeps its full form, because there is nothing a
+            // recipient could resolve it from.
+            if !attach_sender {
+                if let Some(device) = envelope.sender.as_ref().and_then(|s| s.device()) {
+                    envelope.sender = Some(PacketSender::Device(device));
                 }
             }
 

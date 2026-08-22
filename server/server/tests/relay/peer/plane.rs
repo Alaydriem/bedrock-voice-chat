@@ -59,7 +59,6 @@ fn local_audio(world: Option<&str>) -> QuicNetworkPacket {
         packet_type: PacketType::AudioFrame,
         data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
             vec![7, 7, 7],
-            48000,
             Some(speaker(world)),
             Some(true),
         )),

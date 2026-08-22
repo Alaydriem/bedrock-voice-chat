@@ -14,53 +14,17 @@ pub const MAX_DATAGRAM_SIZE: usize = 1150;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct QuicNetworkPacket {
-    // Monotonic per-connection sequence, assigned by the sender at the moment it queues this
-    // datagram for one recipient. A gap at the receiver therefore means exactly one thing: the
-    // sender sent it and it did not arrive.
-    //
-    // First field, and fixed-width, so its encoded bytes occupy a constant range at the head of
-    // every datagram whatever the packet carries. The audio fan-out serializes one envelope per
-    // frame and rewrites `SEQ_VALUE_RANGE` for each recipient rather than re-encoding per
-    // recipient, which is only sound while that range does not move.
-    //
-    // On the envelope rather than on the audio frame deliberately. A per-speaker sequence would be
-    // gapped by the server's own routing — proximity, channel membership, deafen distance — and a
-    // gap would then conflate correct filtering with loss.
-    //
-    // `None` from every producer that is not a server fan-out to one connection — the relay dialer,
-    // the embedded FFI path, the mods, and the client itself. A receiver reports loss as unmeasured
-    // rather than zero when it is absent, so an unstamped peer never reads as a perfect link.
-    //
-    // Postcard is not self-describing and its format is positional, so the shape of this struct is
-    // a BREAKING wire change in both directions and `#[serde(default)]` is deliberately absent
-    // because it would imply otherwise.
-    // `common/tests/structs/packet/envelope_sequence.rs` pins both directions and this layout.
     pub seq: Option<EnvelopeSequence>,
     pub packet_type: PacketType,
     pub data: QuicNetworkPacketData,
-    /// Who sent this, as the server determined it from the mTLS certificate.
-    ///
-    /// Present on everything the server fans out and absent on everything a client sends,
-    /// because a client has nothing to say about its own identity.
-    ///
-    /// Last field deliberately. Postcard is positional, so an `Option` between `packet_type` and
-    /// `data` would be read as the start of `data` by any decoder that does not expect it.
     pub sender: Option<PacketSender>,
 }
 
-// Exists so producers can write `..Default::default()` and leave `seq` alone, rather than
-// repeating `seq: None` at every construction site.
-//
-// Written out rather than derived on purpose. Deriving would require `Default` on `PacketType` and
-// `QuicNetworkPacketData`, which would make `PacketType::default()` callable and let a missing
-// assignment put a silently mis-tagged datagram on the wire. Every real construction overrides both
-// fields, so the values chosen here are never transmitted.
 impl Default for QuicNetworkPacket {
     fn default() -> Self {
         Self {
             packet_type: PacketType::Debug,
             data: QuicNetworkPacketData::Debug(super::debug_packet::DebugPacket {
-                identity: String::new(),
                 version: String::new(),
                 timestamp: 0,
             }),
@@ -71,15 +35,9 @@ impl Default for QuicNetworkPacket {
 }
 
 impl QuicNetworkPacket {
-    // Byte layout of the encoded `seq` field. Postcard is positional and this is the first field,
-    // so the `Option` tag sits at index 0 and the fixed-width value in 1..5. The fan-out rewrites
-    // exactly this range on an already-serialized envelope; `sequence_bytes_sit_at_a_fixed_offset`
-    // pins it.
     pub const SEQ_TAG_OFFSET: usize = 0;
     pub const SEQ_VALUE_RANGE: std::ops::Range<usize> = 1..5;
 
-    // Stamps this envelope for one recipient. Called immediately before serialization, after every
-    // decision not to send, so a suppressed packet consumes no number.
     pub fn stamp(&mut self, sequence: u32) {
         self.seq = Some(EnvelopeSequence(sequence));
     }
@@ -116,17 +74,33 @@ impl QuicNetworkPacket {
         self.packet_type.clone()
     }
 
-    /// The authenticated identity of whoever sent this, if the server has stamped it.
+    /// The authenticated player this came from, if the packet names one.
     ///
     /// Absent on anything a client built, which is every packet on the inbound path before
-    /// `PacketIdentityStamp` runs. A reader that needs an identity there is reading too early.
-    pub fn sender_identity(&self) -> Option<&str> {
-        self.sender.as_ref().map(|s| s.identity.as_str())
+    /// `PacketIdentityStamp` runs. Also absent on a reduced audio frame, where the identity
+    /// was elided and the receiver resolves it from `sender_device`.
+    pub fn sender_identity(&self) -> Option<&crate::PlayerIdentity> {
+        self.sender.as_ref().and_then(|s| s.identity())
     }
 
-    /// The connection this came from, absent for a synthetic sender the server injected.
+    /// The connection this came from, absent for a relayed player and for anything the
+    /// server injected.
     pub fn sender_device(&self) -> Option<u64> {
-        self.sender.as_ref().and_then(|s| s.device)
+        self.sender.as_ref().and_then(|s| s.device())
+    }
+
+    /// The key this packet's sender is routed and keyed on, whether a player or a service.
+    ///
+    /// Audio routing needs one key for both: jukebox and webhook audio hold channel
+    /// membership and a cached position under their service name exactly as a player holds
+    /// them under their identity.
+    pub fn sender_key(&self) -> Option<String> {
+        self.sender.as_ref().and_then(|s| s.routing_key())
+    }
+
+    /// The server surface that injected this, when a service did.
+    pub fn sender_service(&self) -> Option<&str> {
+        self.sender.as_ref().and_then(|s| s.service())
     }
 
     pub fn get_data(&self) -> Option<&QuicNetworkPacketData> {
@@ -145,8 +119,12 @@ impl QuicNetworkPacket {
                             if data.sender.is_none() {
                                 // Keyed on the stamped identity, which is already canonical, so
                                 // this hits the same key the position ingress writes.
-                                let identity = self.sender_identity().unwrap_or_default().to_string();
-                                if let Some(sender_player) = player_data.get(&identity).await {
+                                let Some(identity) = self.sender_identity() else {
+                                    return;
+                                };
+                                if let Some(sender_player) =
+                                    player_data.get(&identity.to_string()).await
+                                {
                                     data.sender = Some(sender_player);
                                     let audio_frame: QuicNetworkPacketData =
                                         QuicNetworkPacketData::AudioFrame(data);

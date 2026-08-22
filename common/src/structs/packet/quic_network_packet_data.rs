@@ -34,7 +34,5 @@ pub enum QuicNetworkPacketData {
     ClientAction(ClientActionPacket),
     QueryState(QueryStatePacket),
     PlayerPreference(PlayerPreferencePacket),
-    // Appended, never inserted: postcard encodes the variant index, so a new variant in the
-    // middle shifts every later discriminant and mis-decodes packets that were fine before.
     ChatRejected(ChatRejectedPacket),
 }

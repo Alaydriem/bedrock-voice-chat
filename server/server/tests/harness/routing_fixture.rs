@@ -33,13 +33,21 @@ impl RoutingFixture {
         })
     }
 
+    // A canonical name is a player; anything else is a service, which is how the fixture
+    // expresses server-injected audio such as jukebox playback.
+    fn sender_for(identity: &str) -> PacketSender {
+        match identity.parse::<common::PlayerIdentity>() {
+            Ok(identity) => PacketSender::player(identity, 1),
+            Err(_) => PacketSender::for_service(identity),
+        }
+    }
+
     pub fn audio_packet(sender: PlayerEnum, sender_identity: &str) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            sender: Some(PacketSender::new(sender_identity.to_string(), 1)),
+            sender: Some(Self::sender_for(sender_identity)),
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
-                48000,
                 Some(sender),
                 Some(true),
             )),
@@ -53,10 +61,9 @@ impl RoutingFixture {
     pub fn audio_packet_without_position(sender_identity: &str) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            sender: Some(PacketSender::new(sender_identity.to_string(), 1)),
+            sender: Some(Self::sender_for(sender_identity)),
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
-                48000,
                 None,
                 Some(true),
             )),
@@ -71,7 +78,7 @@ impl RoutingFixture {
             use common::traits::player_data::PlayerData;
             // Keyed the way the router reads it: on the canonical identity, not the
             // bare name. Seeding it bare made every lookup miss.
-            cache.insert(p.identity(), p.clone()).await;
+            cache.insert(p.identity().to_string(), p.clone()).await;
         }
         cache
     }
@@ -87,6 +94,19 @@ impl RoutingFixture {
                     QuicNetworkPacketData::AudioFrame(af) => af.spatial,
                     _ => panic!("expected an AudioFrame datagram"),
                 }
+            }
+            _ => None,
+        }
+    }
+
+    // The whole delivered envelope, for asserting on the sender rather than the frame.
+    // None when nothing was delivered within the timeout.
+    pub async fn delivered_envelope(
+        rx: &mut mpsc::Receiver<RoutedPacket>,
+    ) -> Option<QuicNetworkPacket> {
+        match tokio::time::timeout(Duration::from_millis(100), rx.recv()).await {
+            Ok(Some(RoutedPacket::Serialized(bytes))) => {
+                Some(QuicNetworkPacket::from_datagram(&bytes).expect("routed datagram decodes"))
             }
             _ => None,
         }

@@ -1,10 +1,12 @@
 pub mod candidate;
+mod position_cadence;
 mod preference_cell;
 pub mod probe;
 mod reachability_planner;
 mod timeouts;
 
 pub use candidate::{CandidatePlan, ConnectCandidate};
+pub use position_cadence::PositionCadence;
 pub use preference_cell::FamilyPreferenceCell;
 pub use reachability_planner::ReachabilityPlanner;
 pub use timeouts::NetTimeouts;

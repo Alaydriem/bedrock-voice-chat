@@ -46,8 +46,8 @@ impl Game {
     // The channel-membership / cert-CN key for a player: `game:gamertag`
     // (e.g. "minecraft:Alice"). This is the single source of truth for the key
     // form that ChannelCollection, player_channel, and the control routes share.
-    pub fn membership_key(&self, gamertag: &str) -> String {
-        format!("{}:{}", self.as_str(), gamertag)
+    pub fn membership_key(&self, gamertag: &str) -> crate::PlayerIdentity {
+        crate::PlayerIdentity::new(self.clone(), gamertag)
     }
 
     /// The bare gamertag out of a canonical identity, **for display only**.

@@ -20,7 +20,7 @@ pub trait PlayerData: Send + Sync {
     ///
     /// This is the only place a canonical identity is produced in Rust. `Game::membership_key`
     /// is its equivalent for callers that hold the game and the name loose.
-    fn identity(&self) -> String {
+    fn identity(&self) -> crate::PlayerIdentity {
         self.get_game().membership_key(self.get_name())
     }
 

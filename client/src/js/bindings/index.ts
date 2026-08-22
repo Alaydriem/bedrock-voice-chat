@@ -11,6 +11,7 @@ export type { AnsweredVia } from './AnsweredVia';
 export type { ApiConfigAge } from './ApiConfigAge';
 export type { ApiConfigBedrock } from './ApiConfigBedrock';
 export type { ApiConfigBedrockServer } from './ApiConfigBedrockServer';
+export type { ApiConfigCapacity } from './ApiConfigCapacity';
 export type { ApiConfigChat } from './ApiConfigChat';
 export type { ApiConfigCheckResponse } from './ApiConfigCheckResponse';
 export type { ApiConfigRecording } from './ApiConfigRecording';

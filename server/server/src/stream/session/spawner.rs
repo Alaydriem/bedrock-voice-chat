@@ -1,9 +1,10 @@
 use super::SessionLink;
-use crate::stream::quic::connection::{ConnectionRegistry, RoutedPacket};
+use crate::stream::quic::connection::{AtCapacity, ConnectionRegistry, RoutedPacket};
 use crate::stream::quic::stream_manager::{InputStream, OutputStream};
 use crate::stream::quic::{CacheManager, PacketIdentityStamp, WebhookReceiver};
 use common::structs::packet::{
     PacketType, PlayerDataPacket, PlayerPositionPacket, QuicNetworkPacket, QuicNetworkPacketData,
+    ServerErrorPacket, ServerErrorType,
 };
 use common::traits::StreamTrait;
 use std::sync::Arc;
@@ -29,6 +30,11 @@ impl SessionSpawner {
     // Bounded per session. A consumer that cannot keep up drops packets rather than
     // growing without limit, which is the trade the audio path is built around.
     const ROUTED_PACKET_CAPACITY: usize = 500;
+
+    // How long a refused session stays open so its refusal datagram can reach the wire.
+    // Paid only by a connection that is being turned away, and generous against the
+    // sub-millisecond flush a local transport performs.
+    const REFUSAL_FLUSH_GRACE: std::time::Duration = std::time::Duration::from_millis(250);
 
     pub(crate) fn new(
         connection_registry: Arc<ConnectionRegistry>,
@@ -83,6 +89,7 @@ impl SessionSpawner {
 
         let (packet_tx, packet_rx) = mpsc::channel::<RoutedPacket>(Self::ROUTED_PACKET_CAPACITY);
 
+        let refusal_link = link.clone();
         let mut input_stream = InputStream::new(Some(link.clone()), None);
         if let Some(identity) = &player_identity {
             input_stream.set_identity(identity.clone(), device);
@@ -97,13 +104,14 @@ impl SessionSpawner {
             let player_id_lock = output_stream.player_id.clone();
             let registry = self.connection_registry.clone();
             let tx = packet_tx.clone();
-            move |identity: String| {
+            move |identity: String| -> Result<(), AtCapacity> {
                 // Converted once here, at handshake, rather than per frame in the fan-out.
                 let shared: std::sync::Arc<str> = std::sync::Arc::from(identity.as_str());
+                registry.try_register(device, shared, fingerprint.clone(), tx.clone())?;
                 if player_id_lock.set(identity).is_err() {
                     tracing::warn!("Player ID already set for connection");
                 }
-                registry.register(device, shared, fingerprint.clone(), tx.clone());
+                Ok(())
             }
         };
 
@@ -119,6 +127,7 @@ impl SessionSpawner {
             Box::new(register_connection),
             device,
             player_identity,
+            refusal_link,
         );
         let input_task = tokio::spawn(input);
 
@@ -134,6 +143,33 @@ impl SessionSpawner {
         }
 
         tracing::info!("Session {} closed", label);
+    }
+
+    /// Tells a refused client why, on the link its handshake established.
+    ///
+    /// A transport-level close carries no reason a client can read, so it cannot tell a full
+    /// server from a revoked credential. This mirrors the version refusal, which answers on
+    /// the datagram path for the same reason.
+    async fn refuse_at_capacity(link: &SessionLink, limit: u32) {
+        let packet = QuicNetworkPacket {
+            packet_type: PacketType::ServerError,
+            data: QuicNetworkPacketData::ServerError(ServerErrorPacket {
+                error_type: ServerErrorType::AtCapacity { limit },
+                message: format!("This server is full ({limit} connections). Retrying shortly."),
+            }),
+            // Not a server fan-out, so this envelope carries no sequence.
+            ..Default::default()
+        };
+
+        if let Ok(bytes) = packet.to_datagram() {
+            let _ = link.send(bytes::Bytes::from(bytes));
+            // `send` only queues the datagram with the transport; the flush happens after it
+            // returns. Every other refusal on this path breaks out of a live session loop, so
+            // the connection outlives the queue by itself. This one is the whole session, and
+            // returning drops the connection — which discarded the datagram and left the
+            // client with an unexplained close.
+            tokio::time::sleep(Self::REFUSAL_FLUSH_GRACE).await;
+        }
     }
 
     /// Unregisters the session and clears every cache keyed on its identity, then announces
@@ -153,20 +189,29 @@ impl SessionSpawner {
 
                 registry.unregister(device);
 
-                match cache_manager.remove_player(&player_id).await {
+                // The callback is handed the identity as text by the transport. A value that
+                // does not parse belongs to no player, so there is nothing to evict.
+                let Ok(identity) = player_id.parse::<common::PlayerIdentity>() else {
+                    tracing::error!("Disconnect for a non-canonical identity: {player_id}");
+                    return;
+                };
+
+                match cache_manager.remove_player(&identity).await {
                     Ok(removed_channels) => {
-                        for channel_id in removed_channels {
+                        for (channel_id, creator) in removed_channels {
                             let leave_packet = QuicNetworkPacket {
-                                sender: Some(common::structs::packet::PacketSender::new(
-                                    player_id.clone(),
+                                sender: Some(common::structs::packet::PacketSender::player(
+                                    identity.clone(),
                                     device,
                                 )),
                                 packet_type: PacketType::ChannelEvent,
                                 data: QuicNetworkPacketData::ChannelEvent(
                                     common::structs::packet::ChannelEventPacket::new(
                                         common::structs::channel::ChannelEvents::Leave,
-                                        player_id.clone(),
+                                        identity.clone(),
                                         channel_id.clone(),
+                                        None,
+                                        Some(creator),
                                     ),
                                 ),
                                 // Not a server fan-out, so this envelope carries no sequence.
@@ -176,21 +221,21 @@ impl SessionSpawner {
                             if let Err(e) = webhook_receiver.send_packet(leave_packet).await {
                                 tracing::error!(
                                     "Failed to broadcast channel leave event for player {} channel {}: {}",
-                                    player_id,
+                                    identity,
                                     channel_id,
                                     e
                                 );
                             } else {
                                 tracing::info!(
                                     "Broadcast channel leave event: player {} left channel {}",
-                                    player_id,
+                                    identity,
                                     channel_id
                                 );
                             }
                         }
                     }
                     Err(e) => {
-                        tracing::error!("Failed to remove player {}: {}", player_id, e);
+                        tracing::error!("Failed to remove player {}: {}", identity, e);
                     }
                 }
             });
@@ -202,9 +247,10 @@ impl SessionSpawner {
         &self,
         mut input_stream: InputStream,
         mut shutdown_rx: oneshot::Receiver<()>,
-        register_connection: Box<dyn Fn(String) + Send + Sync>,
+        register_connection: Box<dyn Fn(String) -> Result<(), AtCapacity> + Send + Sync>,
         device: u64,
         player_identity: Option<String>,
+        refusal_link: SessionLink,
     ) -> impl std::future::Future<Output = ()> + Send + 'static {
         let connection_registry = self.connection_registry.clone();
         let cache_manager = self.cache_manager.clone();
@@ -215,6 +261,23 @@ impl SessionSpawner {
             let (packet_tx, mut packet_rx) = mpsc::unbounded_channel();
             input_stream.set_producer(packet_tx);
 
+            // Both keys the registry needs — the identity and the device id — come from
+            // the transport itself, so nothing is waiting on the wire to reveal them. A
+            // refused session returns before the input stream starts, so it never reads a
+            // packet it would have to route with no registration behind it.
+            if let Some(identity) = &player_identity {
+                match register_connection(identity.clone()) {
+                    Ok(()) => {
+                        tracing::info!("Registered authenticated player identity: {identity}")
+                    }
+                    Err(refusal) => {
+                        tracing::info!("Refused {identity}: {refusal}");
+                        Self::refuse_at_capacity(&refusal_link, refusal.limit).await;
+                        return;
+                    }
+                }
+            }
+
             let stream_task = tokio::spawn(async move { input_stream.start().await });
 
             let player_cache = cache_manager.players().inner_arc();
@@ -222,13 +285,6 @@ impl SessionSpawner {
             // every inbound packet is stamped with its authenticated name; a peer server
             // feeds the relay ingest and is never stamped, because relayed packets carry
             // their original sender's identity single-hop.
-
-            // Both keys the registry needs — the identity and the device id — come from
-            // the transport itself, so nothing is waiting on the wire to reveal them.
-            if let Some(identity) = &player_identity {
-                register_connection(identity.clone());
-                tracing::info!("Registered authenticated player identity: {identity}");
-            }
 
             loop {
                 tokio::select! {

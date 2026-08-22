@@ -49,15 +49,20 @@ pub async fn channel_event(
         // Open by design: the channel id is a share code, so being handed one is the whole
         // mechanism for joining a group.
         Join => {
-            ChannelMembershipService::join(&channel_collection, webhook_receiver.inner(), user, id)
-                .await;
+            ChannelMembershipService::join(
+                &channel_collection,
+                webhook_receiver.inner(),
+                &user,
+                id,
+            )
+            .await;
             metrics.record_channel_join();
         }
         Leave => {
             ChannelMembershipService::leave(
                 &channel_collection,
                 webhook_receiver.inner(),
-                user,
+                &user,
                 id,
                 false,
             )
@@ -71,13 +76,13 @@ pub async fn channel_event(
             // Removed as well as fanned, so this route and `DELETE /<id>` cannot leave the
             // server and the clients disagreeing about whether the channel exists.
             channel_collection.remove(id).await;
-            send_channel_event(channel_packet(Delete, user, id), webhook_receiver).await;
+            send_channel_event(channel_packet(Delete, user, id, &channel), webhook_receiver).await;
         }
         Rename => {
             if !channel.creator.eq(&user) {
                 return CustomJsonResponse::custom(Status::Unauthorized, Some(false));
             }
-            send_channel_event(channel_packet(Rename, user, id), webhook_receiver).await;
+            send_channel_event(channel_packet(Rename, user, id, &channel), webhook_receiver).await;
         }
         // Creation is `POST /api/channel`. Accepting it here would fan a Create for a channel
         // that already exists, so it is refused rather than ignored.
@@ -91,16 +96,19 @@ pub async fn channel_event(
 
 fn channel_packet(
     event: common::structs::channel::ChannelEvents,
-    user: String,
+    user: common::PlayerIdentity,
     id: &str,
+    channel: &common::structs::channel::Channel,
 ) -> QuicNetworkPacket {
     QuicNetworkPacket {
-        sender: Some(PacketSender::synthetic(PacketSender::CHANNEL_API)),
+        sender: Some(PacketSender::for_service(PacketSender::CHANNEL_API)),
         packet_type: PacketType::ChannelEvent,
         data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new(
             event,
             user,
             id.to_string(),
+            Some(channel.name.clone()),
+            Some(channel.creator.clone()),
         )),
         // Not a server fan-out to one connection, so this envelope carries no sequence.
         ..Default::default()

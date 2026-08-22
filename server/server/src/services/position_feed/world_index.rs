@@ -42,14 +42,14 @@ impl WorldIndex {
             }
 
             if player.has_bridged_voice() {
-                on_voice.insert(player.identity());
+                on_voice.insert(player.identity().to_string());
             }
 
             let cell = GridCell::of(player.get_position(), cell_size);
             // Keyed on the canonical identity, the same key `on_voice` uses. Keyed on the bare
             // in-game name, one game's player shadowed the other's in a world that hosts both,
             // and this struct answered two questions about two different people.
-            by_identity.insert(player.identity(), player.clone());
+            by_identity.insert(player.identity().to_string(), player.clone());
             cells.entry(cell).or_default().push(player);
         }
 

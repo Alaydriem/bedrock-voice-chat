@@ -14,4 +14,10 @@ pub enum ServerErrorType {
     CertificateRevoked {
         reason: String,
     },
+    // The server already holds as many voice sessions as its operator permits. Unlike the
+    // two above, this is not a decision about the client: the same client succeeds once a
+    // slot frees, so it must not be treated as terminal.
+    AtCapacity {
+        limit: u32,
+    },
 }

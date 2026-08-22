@@ -106,14 +106,13 @@ impl RouteBench {
     fn audio_packet(&self, i: usize, sender: PlayerEnum) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            sender: Some(PacketSender::new(
+            sender: Some(PacketSender::player(
                 Game::Minecraft.membership_key(&Self::player_name(i)),
                 i as u64,
             )),
             // 160 bytes ~= one 20ms Opus frame at 64kbps
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
-                48000,
                 Some(sender),
                 Some(true),
             )),
@@ -126,17 +125,24 @@ impl RouteBench {
         for i in 0..self.args.connections {
             let player = self.player(i);
             self.player_cache
-                .insert(Game::Minecraft.membership_key(&Self::player_name(i)), player)
+                .insert(
+                    Game::Minecraft.membership_key(&Self::player_name(i)).to_string(),
+                    player,
+                )
                 .await;
 
             let (tx, mut rx) = mpsc::channel::<RoutedPacket>(500);
             self.registry
-                .register(
+                .try_register(
                     i as u64,
-                    Game::Minecraft.membership_key(&Self::player_name(i)).into(),
+                    Game::Minecraft
+                        .membership_key(&Self::player_name(i))
+                        .to_string()
+                        .into(),
                     format!("bench-{i}"),
                     tx,
-                );
+                )
+                .expect("the bench installs no capacity policy");
 
             let delivered = self.delivered.clone();
             tokio::spawn(async move {

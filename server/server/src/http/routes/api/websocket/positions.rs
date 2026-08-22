@@ -44,7 +44,10 @@ pub fn positions(
     let WebsocketTicket(identity) = ticket;
     // Composed once, outside the loop. The world index keys on the canonical identity, and the
     // ticket carries the game and the gamertag apart.
-    let observer_identity = identity.game.membership_key(&identity.gamertag);
+    let observer_identity = identity
+        .game
+        .membership_key(&identity.gamertag)
+        .to_string();
 
     let channel = ws.channel(move |mut stream| {
         Box::pin(async move {

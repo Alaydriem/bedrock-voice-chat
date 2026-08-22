@@ -17,6 +17,8 @@ pub use app::Permissions;
 pub use app::PeerConfig;
 pub use app::Server;
 pub use app::Voice;
+#[allow(unused_imports)]
+pub use app::VoiceLimits;
 
 pub use app::BedrockConfig;
 #[allow(unused_imports)]

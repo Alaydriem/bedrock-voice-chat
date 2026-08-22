@@ -1,6 +1,8 @@
 mod router;
-pub mod speaker_state_cache;
+pub mod speaker_state;
+mod speaker_state_cache;
 
+pub use speaker_state::SpeakerState;
 pub use speaker_state_cache::SpeakerStateCache;
 
 use super::JobSet;

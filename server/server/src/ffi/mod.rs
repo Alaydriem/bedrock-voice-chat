@@ -858,11 +858,11 @@ pub unsafe extern "C" fn bvc_client_action(
             }
         };
         let channels = cache_manager.get_channel_collection();
-        let actor_cn = action.actor_key();
+        let actor = action.actor_identity();
         let result = tokio_rt.block_on(async {
             crate::services::ClientActionService::route_group(
                 &action.action,
-                &actor_cn,
+                &actor,
                 &channels,
                 &webhook,
             )

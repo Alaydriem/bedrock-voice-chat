@@ -585,7 +585,6 @@ impl InputStream {
                             packet_type: common::structs::packet::PacketType::AudioFrame,
                             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                                 encoded_data.clone(),
-                                device_config.sample_rate,
                                 None,
                                 None,
                             )),

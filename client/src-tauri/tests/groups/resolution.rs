@@ -1,12 +1,14 @@
 use bvc_client_lib::groups::{GroupError, GroupResolution};
 use common::structs::channel::Channel;
 
+fn identity(canonical: &str) -> common::PlayerIdentity {
+    canonical.parse().expect("canonical identity")
+}
+
 fn channel(name: &str, players: &[&str]) -> Channel {
-    let mut channel = Channel::new(name.to_string(), "minecraft:Owner".to_string());
+    let mut channel = Channel::new(name.to_string(), identity("minecraft:Owner"));
     for player in players {
-        channel
-            .add_player((*player).to_string())
-            .expect("add player");
+        channel.add_player(identity(player));
     }
     channel
 }

@@ -116,7 +116,7 @@ impl PositionService {
         let absolute = (-dx).atan2(dz).to_degrees();
         let bearing = (absolute - observer.get_orientation().y).rem_euclid(360.0);
 
-        let identity = candidate.identity();
+        let identity = candidate.identity().to_string();
 
         RelativePosition {
             presence: if is_on_voice(&identity) {

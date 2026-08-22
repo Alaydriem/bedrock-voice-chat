@@ -21,4 +21,7 @@ class Voice {
     @SerializedName("recording")
     var recording: RecordingConfig? = null
 
+    @SerializedName("limits")
+    var limits: VoiceLimits? = null
+
 }

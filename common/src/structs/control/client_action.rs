@@ -25,6 +25,14 @@ impl ClientAction {
     /// A missing `game` resolves to Minecraft, which is what every caller hardcoded before
     /// the field existed.
     pub fn actor_key(&self) -> String {
+        self.actor_identity().to_string()
+    }
+
+    /// The actor's canonical identity as the type the channel and audio paths key on.
+    ///
+    /// A missing `game` resolves to Minecraft, which is what every caller hardcoded before
+    /// the field existed.
+    pub fn actor_identity(&self) -> crate::PlayerIdentity {
         self.game
             .clone()
             .unwrap_or(Game::Minecraft)

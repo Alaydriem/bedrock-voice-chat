@@ -18,7 +18,7 @@ use common::{
         audio::{GainProjection, PlayerGainSettings},
         network::ConnectionHealth,
         packet::{
-            AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketType,
+            AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketSender, PacketType,
             ChatMessagePacket, ChatRejectedPacket, PlayerDataPacket, PlayerPresenceEvent,
             QuicNetworkPacket,
             ServerErrorPacket,
@@ -230,8 +230,8 @@ impl PacketRouter {
                         event_type.to_string(),
                         event.channel,
                         event.channel_name,
-                        event.creator,
-                        event.name,
+                        event.creator.map(|creator| creator.to_string()),
+                        event.name.to_string(),
                         event.timestamp,
                     ),
                 ) {
@@ -274,141 +274,145 @@ impl PacketRouter {
             None => return,
         };
 
-        // Check if this is a new player we haven't seen before
-        if let Some(sender) = &data.sender {
-            let player_name = &sender.identity;
+        let frame: Result<AudioFramePacket, ()> = data.data.to_owned().try_into();
+        let Ok(mut frame) = frame else {
+            warn!("Could not decode audio frame packet");
+            return;
+        };
 
-            // Skip presence tracking for synthetic jukebox players
-            if !player_name.starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX) {
-                // Tell the gain projection which player this device belongs to. Every frame,
-                // not just the first: a reconnect mints a new device id, and the projection
-                // has to learn it before the next lookup rather than after a store write.
-                if let Some(device) = sender.device {
-                    self.gain.observe(device, player_name);
-                }
+        // Who is speaking, and where they are.
+        //
+        // The envelope names the speaker on a heartbeat and identifies a connection by its
+        // device id in between, so the key is the device where there is one and the speaker's
+        // own name where there is not. Injected audio names itself on every frame but still
+        // only carries a position on the heartbeat, so it reconstructs from the cache exactly
+        // as a player does.
+        let (key, named, device) = match data.sender.as_ref() {
+            Some(PacketSender::Player {
+                identity,
+                device: Some(device),
+            }) => (device.to_string(), Some(identity.to_string()), Some(*device)),
+            Some(PacketSender::Device(device)) => (device.to_string(), None, Some(*device)),
+            Some(PacketSender::Player {
+                identity,
+                device: None,
+            }) => (identity.to_string(), Some(identity.to_string()), None),
+            Some(PacketSender::Service(name)) => (name.clone(), Some(name.clone()), None),
+            None => return,
+        };
 
-                // Don't emit events for ourselves
-                if !player_name.eq(&current_player_name) && !player_name.is_empty() {
-                    // Resolve game from player_data cache, or preserve existing value in presence cache
-                    let game = self
-                        .players
-                        .get(player_name)
-                        .map(|p| p.get_game().as_str().to_string())
-                        .or_else(|| self.player_presence.get(player_name).flatten());
+        let Some(state) = self
+            .speaker_states
+            .resolve(&key, named, frame.sender.take())
+        else {
+            return;
+        };
+        let player_name = state.name;
+        frame.sender = state.player;
 
-                    // Always update the presence cache (stores game type alongside presence)
-                    self.player_presence
-                        .insert(player_name.clone(), game.clone());
+        // Skip presence tracking for synthetic jukebox players
+        if !player_name.starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX) {
+            // Tell the gain projection which player this device belongs to. Every frame,
+            // not just the first: a reconnect mints a new device id, and the projection
+            // has to learn it before the next lookup rather than after a store write.
+            if let Some(device) = device {
+                self.gain.observe(device, &player_name);
+            }
 
-                    // Voice arrived. Reported here rather than beside the presence
-                    // event below because the debounce that guards presence is about
-                    // not spamming the UI with the same player, and activation must not
-                    // be lost to it.
-                    self.report_activation(game.clone());
+            // Don't emit events for ourselves
+            if !player_name.eq(&current_player_name) && !player_name.is_empty() {
+                // Resolve game from player_data cache, or preserve existing value in presence cache
+                let game = self
+                    .players
+                    .get(&player_name)
+                    .map(|p| p.get_game().as_str().to_string())
+                    .or_else(|| self.player_presence.get(&player_name).flatten());
 
-                    // Only emit if not recently debounced
-                    if self.player_presence_debounce.get(player_name).is_none() {
-                        self.player_presence_debounce
-                            .insert(player_name.clone(), ());
+                // Always update the presence cache (stores game type alongside presence)
+                self.player_presence
+                    .insert(player_name.clone(), game.clone());
 
-                        // Emit synthetic presence event for new player detected via audio
-                        if let Err(e) = tauri::Emitter::emit(
-                            &self.app_handle,
-                            crate::events::event::player_presence::PLAYER_PRESENCE,
-                            crate::events::event::player_presence::Presence::new(
-                                player_name.clone(),
-                                String::from("joined"),
-                                game,
-                            ),
-                        ) {
-                            error!(
-                                "Failed to emit auto-detected player presence event: {:?}",
-                                e
-                            );
-                        }
+                // Voice arrived. Reported here rather than beside the presence
+                // event below because the debounce that guards presence is about
+                // not spamming the UI with the same player, and activation must not
+                // be lost to it.
+                self.report_activation(game.clone());
+
+                // Only emit if not recently debounced
+                if self.player_presence_debounce.get(&player_name).is_none() {
+                    self.player_presence_debounce
+                        .insert(player_name.clone(), ());
+
+                    // Emit synthetic presence event for new player detected via audio
+                    if let Err(e) = tauri::Emitter::emit(
+                        &self.app_handle,
+                        crate::events::event::player_presence::PLAYER_PRESENCE,
+                        crate::events::event::player_presence::Presence::new(
+                            player_name.clone(),
+                            String::from("joined"),
+                            game,
+                        ),
+                    ) {
+                        error!(
+                            "Failed to emit auto-detected player presence event: {:?}",
+                            e
+                        );
                     }
                 }
             }
         }
 
-        let sender = data.sender.clone();
-        let data: Result<AudioFramePacket, ()> = data.data.to_owned().try_into();
-
-        match data {
-            Ok(mut data) => {
-                // The server attaches the speaker's state on a heartbeat, not on every
-                // frame. Fill from the last-known state so everything below that reads
-                // the frame's sender sees a position either way.
-                if let Some(s) = &sender {
-                    data.sender = self.speaker_states.resolve(&s.identity, data.sender.take());
-                }
-                #[cfg(feature = "bedrock-protocol")]
-                if let Some(beacon_cache) = self.beacon_cache.as_ref() {
-                    for meta in &data.metadata {
-                        match meta {
-                            AudioFrameMetadata::Jukebox(jb) => {
-                                beacon_cache.observe(
-                                    (&jb.position).into(),
-                                    jb.dimension.clone(),
-                                    &jb.event_id,
-                                );
-                            }
-                        }
-                    }
-                }
-                // Create emitter RecordingPlayerData from the server-stamped sender
-                let emitter = sender
-                    .as_ref()
-                    .map(|s| {
-                        RecordingPlayerData::from_packet_sender(
-                            s,
-                            &data,
-                            self.player_gain_cache.get(&s.identity),
-                        )
-                    })
-                    .unwrap_or_else(RecordingPlayerData::unknown);
-
-                // Create listener RecordingPlayerData from current player
-                let listener = self
-                    .players
-                    .get(&current_player_name)
-                    .map(|p| {
-                        RecordingPlayerData::from_player_enum(
-                            &p,
-                            current_player_name.clone(),
-                            self.player_gain_cache.get(&current_player_name),
-                        )
-                    })
-                    .unwrap_or_else(|| RecordingPlayerData::unknown());
-
-                let timestamp = data.timestamp() as u64;
-                let encoded_packet = EncodedAudioFramePacket {
-                    timestamp: timestamp,
-                    sample_rate: data.sample_rate,
-                    data: data.data,
-                    route: AudioSinkType::from_spatial(match data.spatial {
-                        Some(s) => s,
-                        None => true,
-                    }),
-                    emitter,
-                    listener,
-                    buffer_size_ms: 120,
-                    time_between_reports_secs: 30,
-                };
-
-                // Send to playback - recording is now handled post-jitter-buffer in JitterBufferSource
-                #[cfg(feature = "e2e")]
-                crate::testkit::counters::TransportCounters::increment_into_jitter_buffer();
-                match self.producer.send(encoded_packet.clone()) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        warn!("Could not send encoded audio frame packet: {:?}", e);
+        #[cfg(feature = "bedrock-protocol")]
+        if let Some(beacon_cache) = self.beacon_cache.as_ref() {
+            for meta in &frame.metadata {
+                match meta {
+                    AudioFrameMetadata::Jukebox(jb) => {
+                        beacon_cache.observe(
+                            (&jb.position).into(),
+                            jb.dimension.clone(),
+                            &jb.event_id,
+                        );
                     }
                 }
             }
-            Err(_) => {
-                warn!("Could not decode audio frame packet");
-            }
+        }
+
+        let emitter = RecordingPlayerData::from_speaker(
+            player_name.clone(),
+            device,
+            &frame,
+            self.player_gain_cache.get(&player_name),
+        );
+
+        // Create listener RecordingPlayerData from current player
+        let listener = self
+            .players
+            .get(&current_player_name)
+            .map(|p| {
+                RecordingPlayerData::from_player_enum(
+                    &p,
+                    current_player_name.clone(),
+                    self.player_gain_cache.get(&current_player_name),
+                )
+            })
+            .unwrap_or_else(|| RecordingPlayerData::unknown());
+
+        let encoded_packet = EncodedAudioFramePacket {
+            timestamp: frame.timestamp() as u64,
+            sample_rate: crate::audio::AudioResampling::OPUS_SAMPLE_RATE,
+            data: frame.data,
+            route: AudioSinkType::from_spatial(frame.spatial.unwrap_or(true)),
+            emitter,
+            listener,
+            buffer_size_ms: 120,
+            time_between_reports_secs: 30,
+        };
+
+        // Send to playback - recording is now handled post-jitter-buffer in JitterBufferSource
+        #[cfg(feature = "e2e")]
+        crate::testkit::counters::TransportCounters::increment_into_jitter_buffer();
+        if let Err(e) = self.producer.send(encoded_packet) {
+            warn!("Could not send encoded audio frame packet: {:?}", e);
         }
     }
 
@@ -534,6 +538,33 @@ impl PacketRouter {
                         ConnectionHealth::Unauthorized {
                             reason: reason.clone(),
                         },
+                    );
+                }
+                // Not terminal, unlike the two above: no health flag is set, so the existing
+                // reconnect backoff keeps trying and succeeds as soon as a slot frees.
+                ServerErrorType::AtCapacity { limit } => {
+                    warn!(
+                        "Server refused the connection: full at {} connections",
+                        limit
+                    );
+                    crate::network::HealthPublisher::publish(
+                        &self.app_handle,
+                        ConnectionHealth::AtCapacity { limit },
+                    );
+                    let _ = tauri::Emitter::emit(
+                        &self.app_handle,
+                        crate::events::event::notification::EVENT_NOTIFICATION,
+                        crate::events::event::notification::Notification::new(
+                            "Server Full".to_string(),
+                            format!(
+                                "This server is full ({limit} connections). \
+                                 You will be connected when a slot frees up."
+                            ),
+                            Some("warn".to_string()),
+                            None,
+                            None,
+                            None,
+                        ),
                     );
                 }
             }

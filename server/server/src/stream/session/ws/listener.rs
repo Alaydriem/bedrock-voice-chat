@@ -195,7 +195,7 @@ impl WebSocketListener {
         let identity = player
             .gamertag
             .as_ref()
-            .map(|gamertag| player.game.membership_key(gamertag))
+            .map(|gamertag| player.game.membership_key(gamertag).to_string())
             .ok_or(WebSocketListenerError::UnusableIdentity { peer })?;
 
         let mut config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default();

@@ -10,6 +10,11 @@ use common::traits::player_data::PlayerData;
 // answer rather than a fault.
 pub struct PeerEgress;
 
+// Every producer in this codebase encodes Opus at 48 kHz, and the audio frame no longer
+// carries a rate to copy. The peer wire keeps its `sample_rate` field, which is a published
+// format, so the value is supplied here rather than dropped from it.
+const OPUS_SAMPLE_RATE: u32 = 48_000;
+
 impl PeerEgress {
     pub fn frame_from(packet: &QuicNetworkPacket) -> Option<(String, VoiceFrame)> {
         let QuicNetworkPacketData::AudioFrame(audio) = &packet.data else {
@@ -30,7 +35,7 @@ impl PeerEgress {
             world,
             VoiceFrame {
                 speaker: speaker.clone(),
-                sample_rate: audio.sample_rate,
+                sample_rate: OPUS_SAMPLE_RATE,
                 opus: audio.data.to_vec(),
                 timestamp_ms: audio.timestamp(),
                 spatial: audio.spatial.unwrap_or(false),

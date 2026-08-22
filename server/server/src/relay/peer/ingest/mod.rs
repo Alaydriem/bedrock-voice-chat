@@ -53,7 +53,7 @@ impl PeerIngest {
         // cached position and inherit their channel membership, and channel
         // membership bypasses the proximity gate.
         let identity = frame.speaker.get_game().membership_key(&speaker);
-        if self.locals.has_live_client(&identity) {
+        if self.locals.has_live_client(&identity.to_string()) {
             return Err(IngestRejection::ImpersonatesLocalPlayer { speaker });
         }
 
@@ -75,7 +75,6 @@ impl PeerIngest {
         // receiving side's jitter buffer, and two servers do not share a clock.
         let mut audio = AudioFramePacket::new(
             frame.opus,
-            frame.sample_rate,
             Some(frame.speaker),
             Some(frame.spatial),
         );
@@ -87,7 +86,7 @@ impl PeerIngest {
         Ok(QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
             data: QuicNetworkPacketData::AudioFrame(audio),
-            sender: Some(PacketSender::synthetic(identity)),
+            sender: Some(PacketSender::relayed(identity)),
             ..Default::default()
         })
     }

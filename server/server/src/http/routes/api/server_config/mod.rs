@@ -1,6 +1,7 @@
 use common::consts::version::PROTOCOL_VERSION;
 use common::response::{
-    ApiConfigAge, ApiConfigBedrock, ApiConfigChat, ApiConfigRecording, ApiConfigResponse,
+    ApiConfigAge, ApiConfigBedrock, ApiConfigCapacity, ApiConfigChat, ApiConfigRecording,
+    ApiConfigResponse,
 };
 use rocket::{State, serde::json::Json};
 use rocket_okapi::openapi;
@@ -33,7 +34,16 @@ inventory::submit! {
 /// valid.
 #[openapi(tag = "Server")]
 #[get("/config")]
-pub async fn get_config(config: &State<Server>, voice: &State<Voice>) -> Json<ApiConfigResponse> {
+pub async fn get_config(
+    config: &State<Server>,
+    voice: &State<Voice>,
+    cache_manager: &State<crate::stream::quic::CacheManager>,
+) -> Json<ApiConfigResponse> {
+    let in_use = cache_manager
+        .get_connection_registry()
+        .map(|registry| registry.on_voice_identities().len() as u32)
+        .unwrap_or(0);
+
     let bedrock = {
         #[cfg(feature = "bedrock")]
         {
@@ -64,6 +74,10 @@ pub async fn get_config(config: &State<Server>, voice: &State<Voice>) -> Json<Ap
         },
         chat: ApiConfigChat {
             enabled: config.features.chat,
+        },
+        capacity: ApiConfigCapacity {
+            limit: voice.limits.connections,
+            in_use,
         },
     })
 }

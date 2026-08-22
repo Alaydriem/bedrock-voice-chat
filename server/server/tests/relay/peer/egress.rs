@@ -30,7 +30,6 @@ fn audio(sender: Option<PlayerEnum>) -> QuicNetworkPacket {
         packet_type: PacketType::AudioFrame,
         data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
             vec![1, 2, 3],
-            48000,
             sender,
             Some(true),
         )),

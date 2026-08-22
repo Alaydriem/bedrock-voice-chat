@@ -100,12 +100,13 @@ impl InputStream {
     // originating server's stamp, which names the real speaker; a local player's does not
     // yet, and is this connection's own identity. Neither case reads a client's claim.
     //
-    // Borrowed from whichever of the two it came from, because this runs once per inbound
-    // datagram and the result is only used to read `last_seen_ts`, which is queryable by `&str`.
-    fn speaker_key<'a>(&'a self, packet: &'a QuicNetworkPacket) -> Option<&'a str> {
+    // Rendered rather than borrowed: the stamped identity is a typed value now, and the two
+    // sources it can come from do not share a representation to borrow from.
+    fn speaker_key(&self, packet: &QuicNetworkPacket) -> Option<String> {
         packet
             .sender_identity()
-            .or_else(|| self.identity.as_deref())
+            .map(|identity| identity.to_string())
+            .or_else(|| self.identity.clone())
     }
 
     fn decide_accept(last_seen: Option<i64>, ts: i64, jump_threshold_ms: i64) -> (bool, bool) {
@@ -162,7 +163,7 @@ impl StreamTrait for InputStream {
                                         if let (Some(ts), Some(key)) =
                                             (ts_opt, self.speaker_key(&packet))
                                         {
-                                            let last_seen = self.last_seen_ts.get(key);
+                                            let last_seen = self.last_seen_ts.get(key.as_str());
                                             let (accept, large_jump) = Self::decide_accept(
                                                 last_seen,
                                                 ts,
@@ -183,7 +184,7 @@ impl StreamTrait for InputStream {
                                             // Update last seen timestamp for this speaker.
                                             // moka has no in-place update, so the key is owned
                                             // here whether or not it is already present.
-                                            self.last_seen_ts.insert(key.to_string(), ts);
+                                            self.last_seen_ts.insert(key.clone(), ts);
                                             if large_jump {
                                                 let prev = last_seen.unwrap_or(0);
                                                 let delta = ts - prev;
@@ -254,7 +255,7 @@ impl StreamTrait for InputStream {
                                         tracing::info!("Player identity active: {identity}");
 
                                         self.send_event(QuicNetworkPacket {
-                                            sender: Some(PacketSender::synthetic(
+                                            sender: Some(PacketSender::for_service(
                                                 PacketSender::SERVER_API,
                                             )),
                                             packet_type: PacketType::PlayerPresence,
@@ -330,7 +331,10 @@ impl StreamTrait for InputStream {
                             .unwrap()
                             .as_millis() as i64;
                         let presence_packet = QuicNetworkPacket {
-                            sender: Some(PacketSender::new(player_name.clone(), device)),
+                            sender: player_name
+                                .parse::<common::PlayerIdentity>()
+                                .ok()
+                                .map(|identity| PacketSender::player(identity, device)),
                             packet_type: PacketType::PlayerPresence,
                             data: QuicNetworkPacketData::PlayerPresence(PlayerPresenceEvent {
                                 player_name: player_name.clone(),

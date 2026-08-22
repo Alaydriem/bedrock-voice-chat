@@ -42,14 +42,16 @@ fn speaker(name: &str) -> PlayerEnum {
 }
 
 fn packet_of(name: &str, metadata: Vec<AudioFrameMetadata>) -> QuicNetworkPacket {
-    let mut audio = AudioFramePacket::new(vec![1, 2, 3], 48000, Some(speaker(name)), Some(true));
+    let mut audio = AudioFramePacket::new(vec![1, 2, 3], Some(speaker(name)), Some(true));
     if !metadata.is_empty() {
         audio = audio.with_metadata(metadata);
     }
 
     QuicNetworkPacket {
         packet_type: PacketType::AudioFrame,
-        sender: Some(PacketSender::synthetic(name)),
+        sender: Some(PacketSender::relayed(
+            common::Game::Minecraft.membership_key(name),
+        )),
         data: QuicNetworkPacketData::AudioFrame(audio),
         ..Default::default()
     }

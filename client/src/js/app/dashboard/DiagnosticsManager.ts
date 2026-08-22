@@ -114,6 +114,10 @@ export class DiagnosticsManager {
                 };
             case 'Unauthorized':
                 return { connected: false, reconnecting: false, fatal: health.reason };
+            case 'AtCapacity':
+                // Not fatal: the link recovers on its own as soon as somebody leaves, so the
+                // roster clears but the panel must not claim the connection is finished.
+                return { connected: false, reconnecting: true };
             default:
                 // An unrecognised status is not evidence of a broken link, and blanking the
                 // roster on one would be a worse failure than ignoring it.

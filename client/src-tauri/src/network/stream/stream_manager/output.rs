@@ -71,7 +71,6 @@ impl common::traits::StreamTrait for OutputStream {
                 packet_type: common::structs::packet::PacketType::Debug,
                 data: common::structs::packet::QuicNetworkPacketData::Debug(
                     DebugPacket {
-                        identity: identity.clone(),
                         version: CLIENT_VERSION.to_string(),
                         timestamp: Instant::now().elapsed().as_millis() as u64,
                     }

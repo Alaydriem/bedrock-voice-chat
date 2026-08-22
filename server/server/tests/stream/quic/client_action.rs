@@ -14,6 +14,10 @@ fn decode(rp: RoutedPacket) -> QuicNetworkPacket {
     }
 }
 
+fn identity(canonical: &str) -> common::PlayerIdentity {
+    canonical.parse().expect("canonical identity")
+}
+
 // route_self's contract: it delivers to `actor_name` and ignores the wire
 // `action.id`, rewriting it to the actor. (The HTTP route passes the token-
 // attributed id AS the actor, so this is defense-in-depth at the service layer,
@@ -23,8 +27,8 @@ fn route_self_delivers_to_actor_name_ignoring_wire_id() {
     let registry = ConnectionRegistry::new();
     let (tx_a, mut rx_a) = mpsc::channel(4);
     let (tx_b, mut rx_b) = mpsc::channel(4);
-    registry.register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx_a);
-    registry.register(2, "minecraft:Bob".into(), format!("fp-{}", 2), tx_b);
+    registry.try_register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx_a).expect("admitted");
+    registry.try_register(2, "minecraft:Bob".into(), format!("fp-{}", 2), tx_b).expect("admitted");
 
     let svc = ClientActionService::new(true);
     // The wire id says Bob, but the supplied actor is Alice — routing follows Alice.
@@ -71,7 +75,7 @@ fn reported_state(id: &str) -> QueryState {
 async fn delivered_self_action_echoes_into_reported_state() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    registry.register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx);
+    registry.try_register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx).expect("admitted");
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
     player_state
@@ -137,7 +141,7 @@ async fn undelivered_self_action_leaves_reported_state_untouched() {
 async fn echo_never_fabricates_self_state_for_unreported_player() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    registry.register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx);
+    registry.try_register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx).expect("admitted");
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
 
@@ -167,7 +171,7 @@ async fn echo_never_fabricates_self_state_for_unreported_player() {
 async fn delivered_preference_actions_upsert_into_preference_cache() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(8);
-    registry.register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx);
+    registry.try_register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx).expect("admitted");
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
     let svc = ClientActionService::new(true);
@@ -219,7 +223,7 @@ async fn delivered_preference_actions_upsert_into_preference_cache() {
 async fn echoed_volume_is_clamped_to_the_shared_ceiling() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    registry.register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx);
+    registry.try_register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx).expect("admitted");
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
     let svc = ClientActionService::new(true);
@@ -258,7 +262,7 @@ async fn echoed_volume_is_clamped_to_the_shared_ceiling() {
 async fn an_above_unity_volume_the_card_permits_survives_the_echo() {
     let registry = ConnectionRegistry::new();
     let (tx, _rx) = mpsc::channel(4);
-    registry.register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx);
+    registry.try_register(1, "minecraft:Alice".into(), format!("fp-{}", 1), tx).expect("admitted");
     let player_state = PlayerStateCache::new();
     let preferences = PlayerPreferenceCache::new();
     let svc = ClientActionService::new(true);
@@ -297,7 +301,7 @@ fn test_webhook() -> (
 #[tokio::test]
 async fn join_group_adds_actor_and_fans_event() {
     let channels = ChannelCollection::new(64);
-    let ch = Channel::new("squad".into(), "minecraft:Owner".into());
+    let ch = Channel::new("squad".into(), identity("minecraft:Owner"));
     let id = ch.id();
     channels.insert(ch).await;
     let (webhook, mut rx) = test_webhook();
@@ -306,7 +310,7 @@ async fn join_group_adds_actor_and_fans_event() {
         &ClientActionType::JoinGroup {
             channel: id.clone(),
         },
-        "minecraft:Alice",
+        &identity("minecraft:Alice"),
         &channels,
         &webhook,
     )
@@ -314,7 +318,7 @@ async fn join_group_adds_actor_and_fans_event() {
     .unwrap();
 
     let ch = channels.get(&id).await.unwrap();
-    assert!(ch.players.contains(&"minecraft:Alice".to_string()));
+    assert!(ch.players.contains(&identity("minecraft:Alice")));
     let (pkt, _origin) = rx.try_recv().expect("a ChannelEvent must be fanned");
     assert_eq!(pkt.packet_type, PacketType::ChannelEvent);
 }
@@ -328,7 +332,7 @@ async fn join_missing_channel_errors_and_creates_no_membership() {
             &ClientActionType::JoinGroup {
                 channel: "bogus".into(),
             },
-            "minecraft:Alice",
+            &identity("minecraft:Alice"),
             &channels,
             &webhook,
         )
@@ -339,7 +343,7 @@ async fn join_missing_channel_errors_and_creates_no_membership() {
         "joining a nonexistent channel must error, not create phantom membership"
     );
     assert!(
-        channels.get_player_channels("minecraft:Alice").is_empty(),
+        channels.get_player_channels(&identity("minecraft:Alice")).is_empty(),
         "no membership may be created for a bogus channel"
     );
 }
@@ -351,7 +355,7 @@ async fn create_group_returns_id_and_adds_creator() {
 
     let id = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
-            "minecraft:Alice",
+            &identity("minecraft:Alice"),
             &channels,
             &webhook,
         )
@@ -360,7 +364,7 @@ async fn create_group_returns_id_and_adds_creator() {
         .expect("CreateGroup returns the new nanoid");
 
     let ch = channels.get(&id).await.unwrap();
-    assert!(ch.players.contains(&"minecraft:Alice".to_string()));
+    assert!(ch.players.contains(&identity("minecraft:Alice")));
 }
 
 #[tokio::test]
@@ -370,7 +374,7 @@ async fn leave_group_removes_and_closes_when_empty() {
 
     let id = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
-            "minecraft:Solo",
+            &identity("minecraft:Solo"),
             &channels,
             &webhook,
         )
@@ -381,7 +385,7 @@ async fn leave_group_removes_and_closes_when_empty() {
 
     ClientActionService::route_group(
         &ClientActionType::LeaveGroup,
-        "minecraft:Solo",
+        &identity("minecraft:Solo"),
         &channels,
         &webhook,
     )
@@ -402,7 +406,7 @@ async fn create_group_moves_actor_out_of_previous_group() {
 
     let first = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
-            "minecraft:Alice",
+            &identity("minecraft:Alice"),
             &channels,
             &webhook,
         )
@@ -411,7 +415,7 @@ async fn create_group_moves_actor_out_of_previous_group() {
         .unwrap();
     let second = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
-            "minecraft:Alice",
+            &identity("minecraft:Alice"),
             &channels,
             &webhook,
         )
@@ -419,7 +423,7 @@ async fn create_group_moves_actor_out_of_previous_group() {
         .unwrap()
         .unwrap();
 
-    let memberships = channels.get_player_channels("minecraft:Alice");
+    let memberships = channels.get_player_channels(&identity("minecraft:Alice"));
     assert_eq!(memberships, vec![second.clone()], "only the new group remains");
     assert!(
         channels.get(&first).await.is_none(),
@@ -430,18 +434,18 @@ async fn create_group_moves_actor_out_of_previous_group() {
 #[tokio::test]
 async fn join_group_moves_actor_out_of_previous_group() {
     let channels = ChannelCollection::new(64);
-    let ch = Channel::new("squad".into(), "minecraft:Owner".into());
+    let ch = Channel::new("squad".into(), identity("minecraft:Owner"));
     let target = ch.id();
     channels.insert(ch).await;
     // The target must survive Alice's move, so give it another member.
     channels
-        .add_player_to_channel("minecraft:Owner", &target)
+        .add_player_to_channel(&identity("minecraft:Owner"), &target)
         .await;
     let (webhook, mut _rx) = test_webhook();
 
     let own = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
-            "minecraft:Alice",
+            &identity("minecraft:Alice"),
             &channels,
             &webhook,
         )
@@ -452,7 +456,7 @@ async fn join_group_moves_actor_out_of_previous_group() {
         &ClientActionType::JoinGroup {
             channel: target.clone(),
         },
-        "minecraft:Alice",
+        &identity("minecraft:Alice"),
         &channels,
         &webhook,
     )
@@ -460,7 +464,7 @@ async fn join_group_moves_actor_out_of_previous_group() {
     .unwrap();
 
     assert_eq!(
-        channels.get_player_channels("minecraft:Alice"),
+        channels.get_player_channels(&identity("minecraft:Alice")),
         vec![target],
         "the join replaced the previous membership"
     );
@@ -479,7 +483,7 @@ async fn join_unknown_group_keeps_current_membership() {
 
     let own = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
-            "minecraft:Alice",
+            &identity("minecraft:Alice"),
             &channels,
             &webhook,
         )
@@ -490,7 +494,7 @@ async fn join_unknown_group_keeps_current_membership() {
             &ClientActionType::JoinGroup {
                 channel: "bogus".into(),
             },
-            "minecraft:Alice",
+            &identity("minecraft:Alice"),
             &channels,
             &webhook,
         )
@@ -498,7 +502,7 @@ async fn join_unknown_group_keeps_current_membership() {
 
     assert!(res.is_err());
     assert_eq!(
-        channels.get_player_channels("minecraft:Alice"),
+        channels.get_player_channels(&identity("minecraft:Alice")),
         vec![own],
         "a typo'd code must not kick the actor out of their group"
     );
@@ -513,7 +517,7 @@ async fn join_current_group_is_a_noop() {
 
     let own = ClientActionService::route_group(
             &ClientActionType::CreateGroup,
-            "minecraft:Alice",
+            &identity("minecraft:Alice"),
             &channels,
             &webhook,
         )
@@ -524,7 +528,7 @@ async fn join_current_group_is_a_noop() {
         &ClientActionType::JoinGroup {
             channel: own.clone(),
         },
-        "minecraft:Alice",
+        &identity("minecraft:Alice"),
         &channels,
         &webhook,
     )
@@ -532,7 +536,7 @@ async fn join_current_group_is_a_noop() {
     .unwrap();
 
     assert_eq!(
-        channels.get_player_channels("minecraft:Alice"),
+        channels.get_player_channels(&identity("minecraft:Alice")),
         vec![own],
         "the solo group survives a repeat join"
     );
@@ -548,7 +552,7 @@ async fn one_identity_keys_both_self_delivery_and_group_membership() {
 
     let registry = ConnectionRegistry::new();
     let (tx, mut rx) = mpsc::channel(4);
-    registry.register(1, ACTOR.into(), format!("fp-{}", 1), tx);
+    registry.try_register(1, ACTOR.into(), format!("fp-{}", 1), tx).expect("admitted");
     let channels = ChannelCollection::new(64);
     let (webhook, mut _wrx) = test_webhook();
     let svc = ClientActionService::new(true);
@@ -565,7 +569,12 @@ async fn one_identity_keys_both_self_delivery_and_group_membership() {
     assert!(delivered, "self action reaches the connection under its identity");
     assert!(rx.try_recv().is_ok());
 
-    let id = ClientActionService::route_group(&ClientActionType::CreateGroup, ACTOR, &channels, &webhook)
+    let id = ClientActionService::route_group(
+        &ClientActionType::CreateGroup,
+        &identity(ACTOR),
+        &channels,
+        &webhook,
+    )
         .await
         .unwrap()
         .unwrap();
@@ -575,7 +584,7 @@ async fn one_identity_keys_both_self_delivery_and_group_membership() {
             .await
             .unwrap()
             .players
-            .contains(&ACTOR.to_string()),
+            .contains(&identity(ACTOR)),
         "group membership resolves the same identity, not a second form of it"
     );
 }

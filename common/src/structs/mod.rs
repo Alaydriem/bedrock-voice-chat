@@ -38,6 +38,6 @@ pub use events::DeepLink;
 pub use game::{Coordinate, Game, GameData, Orientation, Player, UploaderIdentity};
 pub use i18n::{LanguagePack, LocaleNegotiator, PackEntry};
 pub use network::ConnectionHealth;
-pub use players::PlayerSource;
+pub use players::{PlayerIdentity, PlayerIdentityError, PlayerSource};
 pub use server_list_entry::ServerListEntry;
 pub use spatial_audio_config::SpatialAudioConfig;

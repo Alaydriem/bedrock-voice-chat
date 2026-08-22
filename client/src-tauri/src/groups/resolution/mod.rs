@@ -36,6 +36,7 @@ impl GroupResolution {
     /// `player` must be the canonical `game:gamertag` form, which is what membership is keyed on.
     /// A bare gamertag matches nothing, which would turn a leave into a no-op reporting success.
     pub fn containing<'a>(channels: &'a [Channel], player: &str) -> Option<&'a Channel> {
-        channels.iter().find(|channel| channel.contains(player))
+        let identity = player.parse::<common::PlayerIdentity>().ok()?;
+        channels.iter().find(|channel| channel.contains(&identity))
     }
 }

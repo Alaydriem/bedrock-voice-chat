@@ -13,7 +13,13 @@ use common::structs::packet::{PacketSender, QuicNetworkPacket};
 pub struct PacketIdentityStamp;
 
 impl PacketIdentityStamp {
+    /// Stamps the connection's identity, which the caller holds as the text form the
+    /// certificate carried. A value that is not canonical belongs to no player, so the
+    /// packet is left unstamped and every guard downstream refuses to attribute it.
     pub fn apply(packet: &mut QuicNetworkPacket, identity: &str, device: u64) {
-        packet.sender = Some(PacketSender::new(identity.to_string(), device));
+        match identity.parse::<common::PlayerIdentity>() {
+            Ok(identity) => packet.sender = Some(PacketSender::player(identity, device)),
+            Err(e) => tracing::warn!("Refusing to stamp a non-canonical identity: {e}"),
+        }
     }
 }

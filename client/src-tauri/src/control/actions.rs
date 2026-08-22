@@ -134,7 +134,7 @@ impl ControlActionsManager {
     pub fn canonical(name: &str, game: &Game) -> String {
         match name.split_once(':') {
             Some((tag, _)) if Game::from_tag(tag).is_some() => name.to_string(),
-            _ => game.membership_key(name),
+            _ => game.membership_key(name).to_string(),
         }
     }
 

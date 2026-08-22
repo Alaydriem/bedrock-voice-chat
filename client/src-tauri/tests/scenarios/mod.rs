@@ -1,6 +1,7 @@
 mod audio_flow;
 mod audio_routing;
 mod boot;
+mod capacity;
 mod channel_disconnect_stale;
 mod channel_without_position;
 mod channel_lifecycle;

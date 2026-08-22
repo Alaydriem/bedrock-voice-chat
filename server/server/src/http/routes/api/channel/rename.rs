@@ -39,18 +39,22 @@ pub async fn channel_rename(
         return CustomJsonResponse::custom(Status::Unauthorized, Some(false));
     }
 
+    // Read before the rename, so the event names the owner the channel had when the
+    // caller was authorised against it.
+    let creator = channel.creator.clone();
+
     let new_name = name.0;
     channel_collection.rename(id, new_name.clone()).await;
 
     let packet = QuicNetworkPacket {
-        sender: Some(PacketSender::synthetic(PacketSender::CHANNEL_API)),
+        sender: Some(PacketSender::for_service(PacketSender::CHANNEL_API)),
         packet_type: PacketType::ChannelEvent,
-        data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new_full(
+        data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new(
             Rename,
             user,
             id.to_string(),
             Some(new_name),
-            None,
+            Some(creator),
         )),
             // Not a server fan-out, so this envelope carries no sequence.
         ..Default::default()

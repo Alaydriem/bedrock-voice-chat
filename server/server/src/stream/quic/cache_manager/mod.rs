@@ -143,8 +143,9 @@ impl CacheManager {
                 // coordinates are what `route_audio_frame` resolves proximity from, so
                 // accepting one would let a sender place itself beside anybody.
                 if packet.sender_device().is_some() {
+                    let sender = packet.sender_identity().map(|i| i.to_string());
                     tracing::warn!(
-                        sender = packet.sender_identity().unwrap_or("unknown"),
+                        sender = sender.as_deref().unwrap_or("unknown"),
                         "Dropping PlayerData received from a player connection"
                     );
                     return Ok(());
@@ -155,7 +156,7 @@ impl CacheManager {
                     if let Ok(player_data) = data {
                         for player in player_data.players {
                             use common::traits::player_data::PlayerData;
-                            let identity = player.identity();
+                            let identity = player.identity().to_string();
                             self.players.set(identity.clone(), player.clone()).await;
                             tracing::debug!("Updated player position cache for: {}", identity);
                         }
@@ -169,8 +170,9 @@ impl CacheManager {
                 // player connection this type would join or remove any player from any
                 // channel, and channel membership bypasses the proximity gate entirely.
                 if packet.sender_device().is_some() {
+                    let sender = packet.sender_identity().map(|i| i.to_string());
                     tracing::warn!(
-                        sender = packet.sender_identity().unwrap_or("unknown"),
+                        sender = sender.as_deref().unwrap_or("unknown"),
                         "Dropping ChannelEvent received from a player connection"
                     );
                     return Ok(());
@@ -197,7 +199,7 @@ impl CacheManager {
 
                                 if let Some(registry) = &self.connection_registry {
                                     registry.update_player_channel(
-                                        &channel_data.name,
+                                        &channel_data.name.to_string(),
                                         &channel_data.channel,
                                     );
                                 }
@@ -217,7 +219,7 @@ impl CacheManager {
                                     .await;
 
                                 if let Some(registry) = &self.connection_registry {
-                                    registry.remove_player_channel(&channel_data.name);
+                                    registry.remove_player_channel(&channel_data.name.to_string());
                                 }
 
                                 tracing::info!(
@@ -230,7 +232,11 @@ impl CacheManager {
                                 tracing::info!(
                                     "Channel {} created by {}",
                                     channel_data.channel,
-                                    channel_data.creator.as_deref().unwrap_or("unknown")
+                                    channel_data
+                                        .creator
+                                        .as_ref()
+                                        .map(|c| c.to_string())
+                                        .unwrap_or_else(|| "unknown".to_string())
                                 );
                             }
                             ChannelEvents::Delete => {
@@ -294,7 +300,10 @@ impl CacheManager {
                     }
                 };
 
-                let authenticated_player = packet.sender_identity().unwrap_or_default().to_string();
+                let authenticated_player = packet
+                    .sender_identity()
+                    .map(|identity| identity.to_string())
+                    .unwrap_or_default();
                 if let Some(data) = packet.get_data() {
                     let event: Result<BedrockEventPacket, ()> = data.to_owned().try_into();
                     if let Ok(event) = event {
@@ -317,7 +326,10 @@ impl CacheManager {
                     if let Ok(qs) = data {
                         // A client may only report its OWN state; anchor to the
                         // connection identity so it can't poison another player's.
-                        let author = packet.sender_identity().unwrap_or_default();
+                        let author = packet
+                            .sender_identity()
+                            .map(|identity| identity.to_string())
+                            .unwrap_or_default();
                         if qs.state.id == author {
                             self.player_state.set(qs.state.id.clone(), qs.state).await;
                         } else {
@@ -334,7 +346,10 @@ impl CacheManager {
                 if let Some(data) = packet.get_data() {
                     let data: Result<PlayerPreferencePacket, ()> = data.to_owned().try_into();
                     if let Ok(pp) = data {
-                        let author = packet.sender_identity().unwrap_or_default();
+                        let author = packet
+                            .sender_identity()
+                            .map(|identity| identity.to_string())
+                            .unwrap_or_default();
                         if pp.preference.owner == author {
                             let key = PreferenceKey::new(
                                 pp.preference.owner.clone(),
@@ -364,7 +379,10 @@ impl CacheManager {
                 }
                 // The wire id is untrusted: anchor the actor to the connection
                 // author, the same guard QueryState/PlayerPreference use.
-                let author = packet.sender_identity().unwrap_or_default();
+                let author = packet
+                    .sender_identity()
+                    .map(|identity| identity.to_string())
+                    .unwrap_or_default();
                 if !ca.action.action.is_group_action() {
                     // Self/preference actions apply on the actor's own client
                     // (the no-net proxy shortcut); nothing to do server-side.
@@ -381,7 +399,7 @@ impl CacheManager {
                 };
                 match ClientActionService::route_group(
                     &ca.action.action,
-                    author,
+                    &ca.action.actor_identity(),
                     &self.channel_collection,
                     webhook,
                 )
@@ -402,35 +420,64 @@ impl CacheManager {
         Ok(())
     }
 
+    /// Attaches the speaker's cached position to an audio frame, when the frame will carry
+    /// it.
+    ///
+    /// Skipped on the frames between position heartbeats: `route_audio_frame` strips the
+    /// sender from those and resolves proximity from the cache directly, so filling it here
+    /// would be a lookup and a clone per frame that nothing reads. A server with peers always
+    /// fills, because the peer egress reads the frame sender and drops a frame without one.
+    ///
+    /// The gate queries the attach interval without spending it. Consuming it here would
+    /// leave the egress with nothing to attach, and no listener would ever get a position.
     pub async fn update_coordinates(
         &self,
         mut packet: QuicNetworkPacket,
     ) -> Result<QuicNetworkPacket, Error> {
-        if packet.packet_type == PacketType::AudioFrame {
-            packet.update_coordinates(self.players.inner_arc()).await;
-            tracing::debug!(
-                "Updated coordinates for AudioFrame packet from player: {:?}",
-                packet.sender_identity()
-            );
+        if packet.packet_type != PacketType::AudioFrame {
+            return Ok(packet);
         }
+
+        let Some(registry) = &self.connection_registry else {
+            return Ok(packet);
+        };
+
+        let has_peers = registry.peer_plane().is_some();
+        let attach_pending = match packet.sender_key() {
+            Some(key) => registry.sender_attach_pending(&key, std::time::Instant::now()),
+            None => false,
+        };
+
+        if !has_peers && !attach_pending {
+            return Ok(packet);
+        }
+
+        packet.update_coordinates(self.players.inner_arc()).await;
+        tracing::debug!(
+            "Updated coordinates for AudioFrame packet from player: {:?}",
+            packet.sender_identity()
+        );
         Ok(packet)
     }
 
     /// Evicts every cache entry a disconnecting player owns.
     ///
-    /// `identity` is the canonical `game:gamertag`, because that is the key all five caches
-    /// share. A caller holding the game and the bare name loose composes it with
-    /// `Game::membership_key` first — passing a bare name here silently matches nothing.
-    pub async fn remove_player(&self, identity: &str) -> Result<Vec<String>, Error> {
-        self.players.delete(&identity.to_string()).await;
+    /// Returns each channel the player left with that channel's owner, because the caller
+    /// fans a `Leave` per channel and every channel event names its owner.
+    pub async fn remove_player(
+        &self,
+        identity: &common::PlayerIdentity,
+    ) -> Result<Vec<(String, common::PlayerIdentity)>, Error> {
+        let key = identity.to_string();
+        self.players.delete(&key).await;
 
         // Evict this player's control-plane state so a disconnected player's mute/
         // record status and per-player prefs stop being served.
-        self.player_state.delete(&identity.to_string()).await;
-        self.preferences.evict_owner(identity).await;
+        self.player_state.delete(&key).await;
+        self.preferences.evict_owner(&key).await;
 
         if let Some(registry) = &self.connection_registry {
-            registry.remove_player_channel(identity);
+            registry.remove_player_channel(&key);
         }
 
         let removed_channels = self

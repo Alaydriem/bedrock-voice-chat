@@ -39,9 +39,9 @@ pub async fn channel_delete(
             channel_collection.remove(id).await;
 
             let packet = QuicNetworkPacket {
-                sender: Some(PacketSender::synthetic(PacketSender::CHANNEL_API)),
+                sender: Some(PacketSender::for_service(PacketSender::CHANNEL_API)),
                 packet_type: PacketType::ChannelEvent,
-                data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new_full(
+                data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new(
                     Delete,
                     user,
                     id.to_string(),

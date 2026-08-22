@@ -60,11 +60,13 @@ impl CloneBench {
 
         let packet = QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            sender: Some(PacketSender::new("minecraft:SpeakerPlayer".to_string(), 7)),
+            sender: Some(PacketSender::player(
+                common::Game::Minecraft.membership_key("SpeakerPlayer"),
+                7,
+            )),
             // 160 bytes ~= one 20ms Opus frame at 64kbps
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
-                48000,
                 Some(sender),
                 Some(true),
             )),

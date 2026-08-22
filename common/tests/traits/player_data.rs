@@ -14,14 +14,20 @@ fn minecraft(name: &str) -> PlayerEnum {
 // guess and not from a prefix stored in the name field.
 #[test]
 fn identity_is_the_variant_game_and_the_bare_name() {
-    assert_eq!(minecraft("Alaydriem").identity(), "minecraft:Alaydriem");
+    assert_eq!(
+        minecraft("Alaydriem").identity().to_string(),
+        "minecraft:Alaydriem"
+    );
 }
 
 // Xbox gamertags contain spaces. An identity that split on whitespace would turn one player
 // into two.
 #[test]
 fn a_name_with_spaces_stays_whole() {
-    assert_eq!(minecraft("Some Gamer").identity(), "minecraft:Some Gamer");
+    assert_eq!(
+        minecraft("Some Gamer").identity().to_string(),
+        "minecraft:Some Gamer"
+    );
 }
 
 // The bare name is the display label and must survive unchanged, because the database, the
@@ -30,5 +36,5 @@ fn a_name_with_spaces_stays_whole() {
 fn get_name_stays_bare() {
     let player = minecraft("Alaydriem");
     assert_eq!(player.get_name(), "Alaydriem");
-    assert_eq!(player.identity(), "minecraft:Alaydriem");
+    assert_eq!(player.identity().gamertag(), "Alaydriem");
 }

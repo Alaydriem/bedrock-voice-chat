@@ -30,4 +30,11 @@ pub enum ConnectionHealth {
     Unauthorized {
         reason: String,
     },
+    // The server holds as many voice sessions as its operator permits. NOT terminal: the
+    // same client succeeds once a slot frees, so the reconnect backoff continues. A client
+    // that retried a full server without backing off would be a denial of service against
+    // the server it wants to join.
+    AtCapacity {
+        limit: u32,
+    },
 }

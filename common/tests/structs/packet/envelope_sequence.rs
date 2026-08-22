@@ -2,6 +2,7 @@ use common::structs::packet::{
     AudioFramePacket, HealthCheckPacket, MAX_DATAGRAM_SIZE, PacketSender, PacketType,
     QuicNetworkPacket, QuicNetworkPacketData,
 };
+use common::{Game, PlayerIdentity};
 use serde::{Deserialize, Serialize};
 
 // Version skew for the 3.0.0 envelope, established by measurement rather than assumption.
@@ -29,6 +30,10 @@ struct LegacyEnvelope {
     packet_type: PacketType,
     owner: Option<LegacyOwner>,
     data: QuicNetworkPacketData,
+}
+
+fn identity(gamertag: &str) -> PlayerIdentity {
+    Game::Minecraft.membership_key(gamertag)
 }
 
 fn legacy() -> LegacyEnvelope {
@@ -112,7 +117,7 @@ fn a_fully_stamped_envelope_costs_less_than_the_owner_it_replaced() {
     // Measured against a 1150-byte cap, so the direction of this arithmetic is worth knowing rather
     // than discovering.
     let mut stamped = current();
-    stamped.sender = Some(PacketSender::new("minecraft:Alaydriem".to_string(), 7));
+    stamped.sender = Some(PacketSender::player(identity("Alaydriem"), 7));
     stamped.stamp(u32::MAX);
 
     let owned = LegacyEnvelope {
@@ -141,7 +146,6 @@ fn audio_envelope() -> QuicNetworkPacket {
         packet_type: PacketType::AudioFrame,
         data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
             vec![0x5a; 160],
-            48000,
             None,
             Some(true),
         )),
@@ -215,7 +219,6 @@ fn a_client_built_packet_carries_no_identity() {
         packet_type: PacketType::AudioFrame,
         data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
             vec![1, 2, 3],
-            48000,
             None,
             Some(true),
         )),
@@ -223,4 +226,34 @@ fn a_client_built_packet_carries_no_identity() {
     };
 
     assert!(packet.sender.is_none());
+}
+
+// The fan-out rewrites a fixed byte range on an already-encoded envelope. All four sender
+// shapes must leave that range where it is, or one of them silently corrupts either the
+// sequence or the sender on every recipient's copy.
+#[test]
+fn the_sequence_range_is_unmoved_by_every_sender_shape() {
+    let shapes = [
+        PacketSender::player(identity("Alaydriem"), 7),
+        PacketSender::relayed(identity("FarAway")),
+        PacketSender::Device(7),
+        PacketSender::for_service(PacketSender::CHANNEL_API),
+    ];
+
+    for sender in shapes {
+        let mut packet = audio_envelope();
+        packet.sender = Some(sender.clone());
+        packet.stamp(0x1234_5678);
+
+        let bytes = packet.to_datagram().expect("encodes");
+        let decoded = QuicNetworkPacket::from_datagram(&bytes).expect("decodes");
+
+        assert_eq!(decoded.sequence(), Some(0x1234_5678), "sender {sender:?}");
+        assert_eq!(decoded.sender, Some(sender.clone()), "sender {sender:?}");
+        assert_eq!(
+            &bytes[QuicNetworkPacket::SEQ_VALUE_RANGE],
+            &0x1234_5678u32.to_le_bytes(),
+            "sender {sender:?}"
+        );
+    }
 }

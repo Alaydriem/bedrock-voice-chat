@@ -1,3 +1,5 @@
+mod at_capacity;
+mod capacity;
 mod entry;
 mod id_format;
 mod registry;
@@ -6,6 +8,8 @@ mod routed_packet;
 // number is consumed only when a datagram is actually produced for a connection.
 pub mod sequence;
 
+pub use at_capacity::AtCapacity;
+pub use capacity::CapacityPolicy;
 pub(crate) use entry::ConnectionEntry;
 pub use id_format::PrefixedConnectionIdFormat;
 pub use registry::ConnectionRegistry;

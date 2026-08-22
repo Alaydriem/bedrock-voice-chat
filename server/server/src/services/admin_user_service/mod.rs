@@ -75,7 +75,7 @@ impl AdminUserService {
                 let permissions =
                     Self::effective(defaults, overrides.get(&model.id).unwrap_or(&none));
                 let gamertag = model.gamertag.unwrap_or_default();
-                let identity = model.game.membership_key(&gamertag);
+                let identity = model.game.membership_key(&gamertag).to_string();
                 AdminUserRow {
                     connected: live.contains(&identity),
                     gamertag,

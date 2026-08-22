@@ -484,15 +484,16 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
                 let s = encoder.encode_vec(&mono_chunk, frame_samples).unwrap();
 
                 let packet = QuicNetworkPacket {
-                    sender: Some(common::structs::packet::PacketSender::new(
-                        id.clone(),
-                        0,
-                    )),
+                    sender: id
+                        .parse::<common::PlayerIdentity>()
+                        .ok()
+                        .map(|identity| {
+                            common::structs::packet::PacketSender::player(identity, 0)
+                        }),
                     packet_type: common::structs::packet::PacketType::AudioFrame,
                     data: common::structs::packet::QuicNetworkPacketData::AudioFrame(
                         common::structs::packet::AudioFramePacket::new(
                             s.clone(),
-                            48000,
                             None,
                             None,
                         ),

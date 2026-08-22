@@ -2,10 +2,12 @@ use serde::{Deserialize, Serialize};
 
 use super::quic_network_packet_data::QuicNetworkPacketData;
 
+/// The client's first datagram. Opens the stream and declares the protocol version.
+///
+/// Carries no identity: the server takes that from the certificate it authenticated at
+/// accept, so a field here would be a claim a client makes about itself that nothing reads.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DebugPacket {
-    /// The canonical identity of the client that emitted this, `game:gamertag`.
-    pub identity: String,
     pub version: String,
     pub timestamp: u64,
 }

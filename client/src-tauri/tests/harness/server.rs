@@ -49,6 +49,28 @@ impl EmbeddedServer {
         Self::config_json_with_relay(rocket_port, quic_port, data_dir, None)
     }
 
+    /// A server that admits at most `connections` concurrent voice sessions.
+    ///
+    /// Layered over `config_json` rather than threaded through `config_json_inner`, which
+    /// five other constructors already share: capacity is the only key involved, and the
+    /// alternative is a parameter every one of them passes zero for.
+    pub fn config_json_with_capacity(
+        rocket_port: u16,
+        quic_port: u16,
+        data_dir: &Path,
+        connections: u32,
+    ) -> String {
+        let mut config: serde_json::Value =
+            serde_json::from_str(&Self::config_json(rocket_port, quic_port, data_dir))
+                .expect("the base config is valid JSON");
+        config["voice"] = json!({
+            "limits": {
+                "connections": connections,
+            },
+        });
+        config.to_string()
+    }
+
     /// Binds the wildcard IPv6 address, which serves IPv4 peers as well because
     /// s2n-quic-platform clears IPV6_V6ONLY on the socket it creates. This is the
     /// production default; the other constructors pin `127.0.0.1`, so without this

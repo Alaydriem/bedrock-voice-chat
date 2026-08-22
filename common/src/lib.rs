@@ -47,7 +47,7 @@ pub use bedrock_server;
 pub use structs::game::{Coordinate, Game, GameData, Orientation, Player};
 
 // Re-export important types for easy access
-pub use structs::players::PlayerSource;
+pub use structs::players::{PlayerIdentity, PlayerIdentityError, PlayerSource};
 pub use structs::recording::{RecordingPlayerData, SessionManifest};
 
 // Re-export new player system types

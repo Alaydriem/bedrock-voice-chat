@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::metadata::PlayerMetadata;
 use crate::structs::audio::PlayerGainSettings;
-use crate::structs::packet::{AudioFramePacket, PacketSender};
+use crate::structs::packet::AudioFramePacket;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecordingPlayerData {
@@ -18,14 +18,20 @@ pub struct RecordingPlayerData {
 }
 
 impl RecordingPlayerData {
-    pub fn from_packet_sender(
-        sender: &PacketSender,
+    /// The emitter of one recorded track.
+    ///
+    /// `name` is the speaker as the caller resolved it: a player's canonical identity
+    /// rendered, or the service name for injected audio. Resolved by the caller rather than
+    /// read off the sender, because a reduced sender names only a device.
+    pub fn from_speaker(
+        name: String,
+        device: Option<u64>,
         audio_data: &AudioFramePacket,
         gain_settings: Option<PlayerGainSettings>,
     ) -> Self {
         Self {
-            name: sender.identity.clone(),
-            device: sender.device,
+            name,
+            device,
             player_data: audio_data.sender.clone(),
             spatial: audio_data.spatial,
             gain_settings,

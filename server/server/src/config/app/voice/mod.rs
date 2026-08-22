@@ -1,5 +1,7 @@
+mod limits;
 mod recording;
 
+pub use limits::VoiceLimits;
 pub use recording::RecordingConfig;
 
 use common::structs::SpatialAudioConfig;
@@ -38,6 +40,8 @@ pub struct Voice {
     pub spatial_audio: SpatialAudioConfig,
     #[serde(default)]
     pub recording: RecordingConfig,
+    #[serde(default)]
+    pub limits: VoiceLimits,
 }
 
 impl Default for Voice {
@@ -48,6 +52,7 @@ impl Default for Voice {
             send_batch_wait_micros: default_send_batch_wait_micros(),
             spatial_audio: SpatialAudioConfig::default(),
             recording: RecordingConfig::default(),
+            limits: VoiceLimits::default(),
         }
     }
 }
