@@ -314,6 +314,35 @@ depends = ["bindings"]
 shell = "pwsh -NoLogo -Command"
 run = "yarn tauri build --debug --no-sign"
 
+[tasks.dev-client]
+description = "Run the Tauri client against the vite dev server. Pass a target (android, ios) to run there instead of the desktop."
+dir = "client"
+# bindings, not frontend, for the same reason as build-client: `yarn tauri dev`
+# runs `yarn dev` as beforeDevCommand, which builds the i18n resources and the
+# preloader itself, so the one thing it cannot produce for itself is the ts-rs
+# generation vite reads at startup. asio is named here rather than left to
+# setup because a dev run is the first thing a fresh worktree reaches for.
+depends = ["asio", "bindings"]
+shell = "pwsh -NoLogo -Command"
+usage = 'arg "[target]" help="Tauri target to run on, e.g. android or ios. Omit for the desktop app."'
+run = '''
+$target = $env:usage_target
+
+if ($target -eq "android") {
+  mise run android-network-config
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  # Same JAVA_HOME problem the mod dev tasks have: gradlew otherwise takes
+  # whatever java is first on PATH, and the Android Gradle Plugin needs the
+  # temurin-21 that client/mise.toml pins. Change both together.
+  mise x java@temurin-21 -- yarn tauri android dev
+} elseif ($target) {
+  yarn tauri $target dev
+} else {
+  yarn tauri dev
+}
+exit $LASTEXITCODE
+'''
+
 [tasks.kotlin-config]
 description = "Regenerate the Kotlin config mirror the Java mods compile against. The Rust config is the source of truth; the .kt files are output."
 dir = "server/server"
@@ -333,6 +362,18 @@ dir = "server/server"
 depends = ["kotlin-config"]
 shell = "pwsh -NoLogo -Command"
 run = "cargo build"
+
+[tasks.dev-server]
+description = "Run the server from source with the bedrock feature. Reads config.hcl in server/server."
+dir = "server/server"
+# No kotlin-config, unlike build-server. The mirror is read only when the Java
+# mods compile, and regenerating it here builds the integration test target as
+# well, a second compile a dev run never uses. Run `mise run kotlin-config`
+# before building the mods instead.
+shell = "pwsh -NoLogo -Command"
+# The `--` is what makes pass-through work: extra arguments are appended, so
+# `mise run dev-server -c other.hcl` reaches the CLI instead of cargo.
+run = "cargo run --features bedrock -- server"
 
 [tasks.check-common]
 description = "Type-check the shared crate"
@@ -467,7 +508,7 @@ $mb = [math]::Round((Get-Item (Join-Path $destDir $lib)).Length / 1MB, 1)
 Write-Host "ok    staged $lib ($mb MB) -> native/$platform"
 '''
 
-# The three dev-server tasks below build the mod, deploy it to a local test
+# The three mod dev tasks below build the mod, deploy it to a local test
 # server and then attach that server to the terminal. Flags reach dev-server.js
 # after a `--` separator: `mise run dev-bds -- --no-net`, `-- --release`,
 # `-- --no-build`. Server paths come from mods/.env; copy mods/.env.example.
