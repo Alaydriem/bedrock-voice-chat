@@ -1,3 +1,4 @@
+use common::curia;
 use crate::{
     config::ApplicationConfig,
     http::pool::AppDb,
@@ -100,17 +101,17 @@ impl RocketManager {
         // between this line and Rocket's own bind.
         let bind = self.bind.claim_for_bind()?;
 
-        tracing::info!(bind = %bind, "Starting Rocket HTTP server manager");
+        curia::info!("Starting Rocket HTTP server manager", { "bind": bind.to_string() });
 
         // Ensure the assets directory exists
         let assets_path = std::path::Path::new(&self.config.server.assets_path);
         if !assets_path.exists() {
-            tracing::info!(
+            curia::info!(
                 "Assets directory does not exist, creating: {:?}",
                 assets_path
             );
             if let Err(e) = std::fs::create_dir_all(assets_path) {
-                tracing::warn!("Failed to create assets directory: {}", e);
+                curia::warn!("Failed to create assets directory: {}", e);
             }
         }
 
@@ -225,7 +226,7 @@ impl RocketManager {
                     rocket = rocket
                         .mount("/", vec![spec_route])
                         .mount("/docs", routes![routes::docs::scalar_ui]);
-                    tracing::info!("OpenAPI docs enabled at /docs");
+                    curia::info!("OpenAPI docs enabled at /docs");
                 }
 
                 let rocket = rocket.register("/", catchers![routes::catchers::default_catcher]);
@@ -233,7 +234,7 @@ impl RocketManager {
                 match rocket.ignite().await {
                     Ok(ignite) => {
                         *self.shutdown_handle.lock().unwrap() = Some(ignite.shutdown());
-                        tracing::info!("Rocket server is now running and awaiting requests!");
+                        curia::info!("Rocket server is now running and awaiting requests!");
                         let result = ignite.launch().await;
                         if let Err(e) = result {
                             return Err(anyhow::anyhow!("Rocket launch error: {}", e));
@@ -252,7 +253,7 @@ impl RocketManager {
     /// (certificate renewal) or shut down. Takes `&self` so it can be called
     /// while a `start()` future is still being polled.
     pub async fn stop(&self) -> Result<(), Error> {
-        tracing::info!("Stopping Rocket HTTP server");
+        curia::info!("Stopping Rocket HTTP server");
         self.feed_cancel.cancel();
         if let Some(handle) = self.shutdown_handle.lock().unwrap().take() {
             handle.notify();
@@ -290,14 +291,14 @@ impl RocketManager {
         let conn = match AppDb::fetch(&rocket) {
             Some(db) => &db.conn,
             None => {
-                tracing::error!("Migration: Failed to fetch database connection from Rocket");
+                curia::error!("Migration: Failed to fetch database connection from Rocket");
                 return Err(rocket);
             }
         };
 
         match Migrator::up(conn, None).await {
-            Ok(_) => tracing::info!("Migration: All migrations applied successfully"),
-            Err(e) => tracing::error!("Migration: Failed to run migrations: {}", e),
+            Ok(_) => curia::info!("Migration: All migrations applied successfully"),
+            Err(e) => curia::error!("Migration: Failed to run migrations: {}", e),
         }
         Ok(rocket)
     }

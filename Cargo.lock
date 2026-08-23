@@ -2072,6 +2072,7 @@ dependencies = [
  "chrono",
  "clap 4.6.6",
  "cpal",
+ "curia",
  "dyn-clone",
  "erased-serde",
  "leb128",
@@ -2570,14 +2571,19 @@ dependencies = [
 
 [[package]]
 name = "curia"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5418e14c6cd1ba260b2742469fed13e0425b881a73314693dd97808ca8093af2"
+checksum = "d06e410276b20cfd387bebd59cb30b58a2b0ecda6b712640fe8c466f035383b0"
 dependencies = [
+ "android_logger",
  "chrono",
+ "flume",
+ "log",
+ "oslog",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
+ "time",
  "tracing",
  "tracing-core",
  "tracing-log",
@@ -11174,21 +11180,16 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-curia"
-version = "0.1.2"
-source = "git+https://github.com/charlesportwoodii/tauri-plugin-curia?tag=0.1.2#b0dee87ce904c08d20888a72684b35993bb262d6"
+version = "0.2.0"
+source = "git+https://github.com/charlesportwoodii/tauri-plugin-curia?tag=0.2.0#0dfb156e89732deefaa46eabf75792e5777c7365"
 dependencies = [
- "android_logger",
  "chrono",
  "curia",
- "flume",
- "log",
- "oslog",
  "serde",
  "serde_json",
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.20",
- "time",
 ]
 
 [[package]]

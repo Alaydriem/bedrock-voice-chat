@@ -107,7 +107,7 @@ impl QuicNetworkPacket {
         match ron::to_string(&self) {
             Ok(message) => Ok(message),
             Err(e) => {
-                tracing::error!(
+                curia::error!(
                     "Could not convert QuicNetworkPacket back to String {}",
                     e.to_string()
                 );
@@ -122,7 +122,7 @@ impl QuicNetworkPacket {
         )) {
             Ok(packet) => Some(packet),
             Err(e) => {
-                tracing::error!(
+                curia::error!(
                     "Could not decode QuicNetworkPacket from string {}",
                     e.to_string()
                 );

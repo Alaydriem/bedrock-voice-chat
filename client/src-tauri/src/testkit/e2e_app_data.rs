@@ -1,8 +1,11 @@
 // Which app-data namespace an e2e client writes to.
 //
-// Tauri resolves `app_data_dir`, `app_local_data_dir` and `app_cache_dir` as
-// `dirs::…()/identifier`, so the identifier is the whole of a client's isolation:
-// two clients holding the same one share every file underneath it.
+// Tauri resolves `app_data_dir`, `app_local_data_dir` and `app_cache_dir` by
+// joining the identifier onto a base directory, so the identifier is the whole of
+// a client's isolation: two clients holding the same one share every file
+// underneath it. `PathBuf::join` reads `/` as a separator on Windows as well as
+// Unix, so an identifier carrying one resolves to a nested tree rather than a
+// single directory named after the whole string.
 //
 // Every e2e client used to hold one constant identifier, and the harness deleted
 // that shared tree before each spawn. Under nextest — one process per test — the
@@ -18,8 +21,8 @@
 pub struct E2eAppData;
 
 impl E2eAppData {
-    // The identifier a harness run by hand falls back to, and the prefix every
-    // namespace extends.
+    // The identifier a harness run by hand falls back to, and the root every
+    // namespace nests under.
     pub const BASE_IDENTIFIER: &'static str = "com.alaydriem.bvc.client.e2e";
 
     // How the parent tells a spawned client which namespace to use.
@@ -30,9 +33,13 @@ impl E2eAppData {
     // Per gamertag as well as per process, so two clients in one scenario do not
     // write each other's `store.json`, and so a client that is shut down and
     // respawned within a scenario lands back on its own.
+    //
+    // Three path components rather than one dotted name: the base directories
+    // hold one entry per suite instead of one per process per gamertag, and a
+    // whole process's clients are reclaimed by removing a single directory.
     pub fn namespace(gamertag: &str) -> String {
         format!(
-            "{}.{}.{}",
+            "{}/{}/{}",
             Self::BASE_IDENTIFIER,
             Self::process_tag(),
             Self::encode(gamertag)
@@ -52,16 +59,14 @@ impl E2eAppData {
 
     // Deletes the namespaces belonging to the calling process.
     //
-    // Scoped to this process's own id, so it cannot touch a namespace another
-    // test is using — which is the entire difference between this and the
-    // recursive delete of the shared tree that it replaces. Reclaiming at startup
-    // rather than at exit is what also collects the namespaces of a run that was
-    // killed or panicked before it could clean up, since the operating system
-    // hands the same process id out again.
+    // Removes this process's own directory, which holds one subdirectory per
+    // gamertag and nothing another test can be using — the entire difference
+    // between this and the recursive delete of the shared tree that it replaces.
+    // Reclaiming at startup rather than at exit is what also collects the
+    // namespaces of a run that was killed or panicked before it could clean up,
+    // since the operating system hands the same process id out again.
     #[cfg(feature = "e2e")]
     pub fn reclaim_own() {
-        let prefix = format!("{}.{}.", Self::BASE_IDENTIFIER, Self::process_tag());
-
         for base in [
             dirs::data_dir(),
             dirs::data_local_dir(),
@@ -71,15 +76,9 @@ impl E2eAppData {
         .into_iter()
         .flatten()
         {
-            let Ok(entries) = std::fs::read_dir(&base) else {
-                continue;
-            };
+            let own = base.join(Self::BASE_IDENTIFIER).join(Self::process_tag());
 
-            for entry in entries.flatten() {
-                if entry.file_name().to_string_lossy().starts_with(&prefix) {
-                    let _ = std::fs::remove_dir_all(entry.path());
-                }
-            }
+            let _ = std::fs::remove_dir_all(own);
         }
     }
 
@@ -95,8 +94,8 @@ impl E2eAppData {
     // namespace — the defect this type exists to remove, reintroduced quietly.
     // Escaping is reversible instead, so distinct tags stay distinct.
     //
-    // The leading `g` carries the empty gamertag, which would otherwise leave a
-    // trailing `.` that Windows strips from a path component.
+    // The leading `g` carries the empty gamertag, which would otherwise contribute
+    // an empty component and collapse the namespace onto the process directory.
     fn encode(gamertag: &str) -> String {
         let mut out = String::from("g");
 

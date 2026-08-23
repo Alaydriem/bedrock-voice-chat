@@ -7,6 +7,7 @@ mod name;
 
 pub use name::SecretName;
 
+use common::curia;
 use std::fs;
 use std::path::Path;
 
@@ -57,12 +58,8 @@ impl SecretStore {
                 .trim()
                 .to_string();
             if !value.is_empty() {
-                tracing::info!(
-                    secret = name.as_str(),
-                    path = %path.display(),
-                    "Importing an existing on-disk secret into the database. The file is no \
-                     longer read and can be removed."
-                );
+                curia::info!("Importing an existing on-disk secret into the database. The file is no \
+                     longer read and can be removed.", { "secret": name.as_str(), "path": path.display().to_string() });
                 Self::persist(conn, name, &value).await?;
                 return Ok(value);
             }

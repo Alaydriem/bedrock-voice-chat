@@ -10,6 +10,7 @@ pub use player_preference_cache::PlayerPreferenceCache;
 pub use player_state_cache::PlayerStateCache;
 pub use websocket_ticket_cache::{TicketIdentity, WebsocketTicketCache};
 
+use common::curia;
 use crate::services::{BedrockEventService, ClientActionService};
 use crate::stream::quic::connection::ConnectionRegistry;
 use crate::stream::quic::webhook_receiver::WebhookReceiver;
@@ -172,7 +173,7 @@ impl CacheManager {
                                 self.players.set(identity.to_string(), pos.player).await;
                             }
                             None => {
-                                tracing::warn!(
+                                curia::warn!(
                                     "Dropping PlayerPosition with no authenticated sender"
                                 );
                             }
@@ -189,10 +190,7 @@ impl CacheManager {
                 // accepting one would let a sender place itself beside anybody.
                 if packet.sender_device().is_some() {
                     let sender = packet.sender_identity().map(|i| i.to_string());
-                    tracing::warn!(
-                        sender = sender.as_deref().unwrap_or("unknown"),
-                        "Dropping PlayerData received from a player connection"
-                    );
+                    curia::warn!("Dropping PlayerData received from a player connection", { "sender": sender.as_deref().unwrap_or("unknown") });
                     return Ok(());
                 }
 
@@ -203,7 +201,7 @@ impl CacheManager {
                             use common::traits::player_data::PlayerData;
                             let identity = player.identity().to_string();
                             self.players.set(identity.clone(), player.clone()).await;
-                            tracing::debug!("Updated player position cache for: {}", identity);
+                            curia::debug!("Updated player position cache for: {}", identity);
                         }
                     }
                 }
@@ -216,17 +214,14 @@ impl CacheManager {
                 // channel, and channel membership bypasses the proximity gate entirely.
                 if packet.sender_device().is_some() {
                     let sender = packet.sender_identity().map(|i| i.to_string());
-                    tracing::warn!(
-                        sender = sender.as_deref().unwrap_or("unknown"),
-                        "Dropping ChannelEvent received from a player connection"
-                    );
+                    curia::warn!("Dropping ChannelEvent received from a player connection", { "sender": sender.as_deref().unwrap_or("unknown") });
                     return Ok(());
                 }
 
                 if let Some(data) = packet.get_data() {
                     let data: Result<ChannelEventPacket, ()> = data.to_owned().try_into();
                     if let Ok(channel_data) = data {
-                        tracing::info!(
+                        curia::info!(
                             "[{}] {:?} {}",
                             channel_data.name,
                             channel_data.event,
@@ -249,7 +244,7 @@ impl CacheManager {
                                     );
                                 }
 
-                                tracing::info!(
+                                curia::info!(
                                     "Player {} joined channel {}",
                                     channel_data.name,
                                     channel_data.channel
@@ -267,14 +262,14 @@ impl CacheManager {
                                     registry.remove_player_channel(&channel_data.name.to_string());
                                 }
 
-                                tracing::info!(
+                                curia::info!(
                                     "Player {} left channel {}",
                                     channel_data.name,
                                     channel_data.channel
                                 );
                             }
                             ChannelEvents::Create => {
-                                tracing::info!(
+                                curia::info!(
                                     "Channel {} created by {}",
                                     channel_data.channel,
                                     channel_data
@@ -291,7 +286,7 @@ impl CacheManager {
                                     registry.remove_channel(&channel_data.channel);
                                 }
 
-                                tracing::info!("Channel {} deleted", channel_data.channel);
+                                curia::info!("Channel {} deleted", channel_data.channel);
                             }
                             ChannelEvents::Rename => {}
                         }
@@ -302,7 +297,7 @@ impl CacheManager {
                 let service = match &self.chat_service {
                     Some(s) => s.clone(),
                     None => {
-                        tracing::warn!("Received ChatSend but no ChatService is wired up");
+                        curia::warn!("Received ChatSend but no ChatService is wired up");
                         return Ok(());
                     }
                 };
@@ -311,7 +306,7 @@ impl CacheManager {
                 // this server rather than sent by a player, and attributing it to anyone would
                 // let a client post as somebody else.
                 let Some(author) = packet.sender_identity().map(|s| s.to_string()) else {
-                    tracing::warn!("Refusing an unattributed ChatSend");
+                    curia::warn!("Refusing an unattributed ChatSend");
                     return Ok(());
                 };
 
@@ -338,7 +333,7 @@ impl CacheManager {
                 let service = match &self.bedrock_event_service {
                     Some(s) => s.clone(),
                     None => {
-                        tracing::warn!(
+                        curia::warn!(
                             "Received BedrockEvent packet but no BedrockEventService is wired up"
                         );
                         return Ok(());
@@ -356,11 +351,7 @@ impl CacheManager {
                             .handle_event(event, authenticated_player.clone())
                             .await
                         {
-                            tracing::warn!(
-                                player = %authenticated_player,
-                                rejection = %rejection,
-                                "BedrockEvent rejected"
-                            );
+                            curia::warn!("BedrockEvent rejected", { "player": authenticated_player.to_string(), "rejection": rejection.to_string() });
                         }
                     }
                 }
@@ -378,7 +369,7 @@ impl CacheManager {
                         if qs.state.id == author {
                             self.player_state.set(qs.state.id.clone(), qs.state).await;
                         } else {
-                            tracing::warn!(
+                            curia::warn!(
                                 "Dropping QueryState: id {} != author {}",
                                 qs.state.id,
                                 author
@@ -402,7 +393,7 @@ impl CacheManager {
                             );
                             self.preferences.set(key, pp.preference).await;
                         } else {
-                            tracing::warn!(
+                            curia::warn!(
                                 "Dropping PlayerPreference: owner {} != author {}",
                                 pp.preference.owner,
                                 author
@@ -431,13 +422,11 @@ impl CacheManager {
                 if !ca.action.action.is_group_action() {
                     // Self/preference actions apply on the actor's own client
                     // (the no-net proxy shortcut); nothing to do server-side.
-                    tracing::debug!(
-                        "Ignoring serverbound non-group ClientAction from {author}"
-                    );
+                    curia::debug!(format!("Ignoring serverbound non-group ClientAction from {author}"));
                     return Ok(());
                 }
                 let Some(webhook) = &self.webhook_receiver else {
-                    tracing::warn!(
+                    curia::warn!(
                         "Received serverbound group ClientAction but no webhook receiver is wired up"
                     );
                     return Ok(());
@@ -452,12 +441,12 @@ impl CacheManager {
                 {
                     Ok(created) => {
                         if let Some(code) = created {
-                            tracing::info!("Group {code} created via QUIC control by {author}");
+                            curia::info!(format!("Group {code} created via QUIC control by {author}"));
                         }
                     }
                     // route_group only errors on a JoinGroup miss (unknown share
                     // code) — a client mistake, not a server fault.
-                    Err(e) => tracing::info!("route_group (QUIC) rejected for {author}: {e}"),
+                    Err(e) => curia::info!(format!("route_group (QUIC) rejected for {author}: {e}")),
                 }
             }
             _ => {}
@@ -524,7 +513,7 @@ impl CacheManager {
             .remove_player_from_all_channels(identity)
             .await;
 
-        tracing::debug!(
+        curia::debug!(
             "Removed player {} from caches on disconnect (was in {} channels)",
             identity,
             removed_channels.len()

@@ -31,18 +31,49 @@ fn one_gamertag_is_stable_within_a_process() {
     assert_eq!(E2eAppData::namespace("Alice"), E2eAppData::namespace("Alice"));
 }
 
-// Reclamation finds these directories by prefix, so a namespace that does not
-// carry it leaks until someone deletes it by hand.
+// Reclamation resolves `<base>/BASE_IDENTIFIER/<process tag>`, so a namespace not
+// rooted there leaks until someone deletes it by hand.
 #[test]
 fn a_namespace_carries_the_reclaimable_prefix() {
     assert!(
         E2eAppData::namespace("Alice").starts_with(E2eAppData::BASE_IDENTIFIER),
-        "reclamation matches on this prefix"
+        "reclamation resolves this root"
     );
 }
 
+// A namespace is a relative path, not a name. Tauri joins it onto each base
+// directory, so the base directories hold one entry for the whole suite rather
+// than one per process per gamertag.
+#[test]
+fn a_namespace_nests_under_the_base_identifier() {
+    let ns = E2eAppData::namespace("Alice");
+    let components: Vec<&str> = ns.split('/').collect();
+
+    assert_eq!(
+        components.len(),
+        3,
+        "namespace {ns:?} should be base/process/gamertag"
+    );
+    assert_eq!(components[0], E2eAppData::BASE_IDENTIFIER);
+}
+
+// Reclamation removes one directory to collect every client of the calling
+// process, which only holds if all of them nest under the same process directory.
+#[test]
+fn two_gamertags_share_one_process_directory() {
+    let alice = E2eAppData::namespace("Alice");
+    let bob = E2eAppData::namespace("Bob");
+
+    let parent = |ns: &str| ns.rsplit_once('/').map(|(head, _)| head.to_string());
+
+    assert_eq!(parent(&alice), parent(&bob));
+    assert!(parent(&alice).is_some());
+}
+
 // Distinctness has to survive the gamertags the scenarios actually use, which
-// include an empty one and one with characters that are not legal in a path.
+// include an empty one and one with characters that are not legal in a path. The
+// gamertag contributes the leaf, so the separators a namespace carries must be
+// only the two that nest it — never one a gamertag smuggled in.
 #[test]
 fn gamertags_that_are_not_path_safe_still_get_distinct_namespaces() {
     let awkward = ["", "a/b", "a\\b", "a:b", "..", "a b"];
@@ -50,9 +81,16 @@ fn gamertags_that_are_not_path_safe_still_get_distinct_namespaces() {
     let mut seen = std::collections::HashSet::new();
     for tag in awkward {
         let ns = E2eAppData::namespace(tag);
+        let leaf = ns.rsplit('/').next().expect("namespace has a leaf");
+
         assert!(
-            !ns.contains(['/', '\\', ':']),
-            "namespace {ns:?} for gamertag {tag:?} is not a single path component"
+            !leaf.contains(['/', '\\', ':']),
+            "leaf {leaf:?} for gamertag {tag:?} is not a single path component"
+        );
+        assert_eq!(
+            ns.matches('/').count(),
+            2,
+            "namespace {ns:?} for gamertag {tag:?} has more components than base/process/gamertag"
         );
         assert!(
             seen.insert(ns.clone()),

@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 
 use common::structs::chat::ChatFrame;
@@ -56,7 +57,7 @@ pub fn chat(
                             continue;
                         };
                         let Ok(frame) = serde_json::from_str::<ChatFrame>(&body) else {
-                            tracing::debug!("chat socket sent an undecodable frame");
+                            curia::debug!("chat socket sent an undecodable frame");
                             continue;
                         };
 
@@ -93,11 +94,7 @@ pub fn chat(
                                 // Without this an operator sees a healthy socket carrying
                                 // nothing, which is indistinguishable from a fault.
                                 if !service.is_enabled() {
-                                    tracing::info!(
-                                        worlds = ?registered,
-                                        socket = socket_id,
-                                        "chat is disabled; frames on this socket will be dropped"
-                                    );
+                                    curia::info!("chat is disabled; frames on this socket will be dropped", { "worlds": format!("{registered:?}"), "socket": socket_id });
                                 }
                             }
                             ChatFrame::Chat { author, text } => {

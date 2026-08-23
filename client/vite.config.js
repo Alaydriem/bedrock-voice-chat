@@ -84,7 +84,13 @@ export default defineConfig(async () => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
+    // `true` rather than the address itself: bind every interface, not just that one.
+    // A multi-homed host can hold two addresses on the same subnet with the same gateway
+    // and different route metrics, and inbound can arrive on either -- listening on the
+    // single address named in TAURI_DEV_HOST refuses the connection when it lands on the
+    // other NIC, which looks identical to a firewall block. TAURI_DEV_HOST still decides
+    // what the device dials and where HMR points; this only widens what is listening.
+    host: host ? true : false,
     hmr: host
       ? {
           protocol: "ws",

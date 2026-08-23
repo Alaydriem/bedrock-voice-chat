@@ -1,3 +1,4 @@
+use common::curia;
 use common::Game;
 use common::response::admin::{PermissionEntry, PermissionListResponse};
 use entity::player;
@@ -29,7 +30,7 @@ pub async fn list_permissions(
         .one(conn)
         .await
         .map_err(|e| {
-            tracing::error!("list_permissions: db error: {}", e);
+            curia::error!("list_permissions: db error: {}", e);
             Status::InternalServerError
         })?
         .ok_or(Status::NotFound)?;
@@ -37,7 +38,7 @@ pub async fn list_permissions(
     let entries = PermissionService::list_overrides(conn, player_record.id)
         .await
         .map_err(|e| {
-            tracing::error!("list_permissions: db error: {}", e);
+            curia::error!("list_permissions: db error: {}", e);
             Status::InternalServerError
         })?
         .into_iter()

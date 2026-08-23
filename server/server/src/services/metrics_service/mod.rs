@@ -5,6 +5,7 @@ pub mod interaction;
 pub mod metric;
 pub mod posthog;
 
+use common::curia;
 use std::io::ErrorKind;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -108,11 +109,11 @@ impl MetricsService {
                 if ca_minted {
                     let _ = tx.try_send(TelemetryEvent::FirstSeen { at: Utc::now() });
                 }
-                tracing::info!("PostHog fleet telemetry enabled");
+                curia::info!("PostHog fleet telemetry enabled");
                 (Some(tx), Some(drain), Some(handle))
             }
             _ => {
-                tracing::info!("PostHog telemetry disabled (flag off or no compile-time key)");
+                curia::info!("PostHog telemetry disabled (flag off or no compile-time key)");
                 (None, None, None)
             }
         };
@@ -157,20 +158,16 @@ impl MetricsService {
                     {
                         Ok(dogstatsd) => {
                             fanout = fanout.add_recorder(dogstatsd);
-                            tracing::info!("statsd/dogstatsd metrics export enabled ({STATSD_ADDR})");
+                            curia::info!(format!("statsd/dogstatsd metrics export enabled ({STATSD_ADDR})"));
                         }
-                        Err(e) => tracing::warn!(
-                            "statsd exporter unavailable ({e}); exposing Prometheus /metrics only"
-                        ),
+                        Err(e) => curia::warn!(format!("statsd exporter unavailable ({e}); exposing Prometheus /metrics only")),
                     }
                 } else {
-                    tracing::warn!(
-                        "no statsd agent reachable at {STATSD_ADDR}; statsd export disabled (Prometheus /metrics still available)"
-                    );
+                    curia::warn!(format!("no statsd agent reachable at {STATSD_ADDR}; statsd export disabled (Prometheus /metrics still available)"));
                 }
 
                 if metrics::set_global_recorder(fanout.build()).is_err() {
-                    tracing::warn!("global metrics recorder already installed elsewhere");
+                    curia::warn!("global metrics recorder already installed elsewhere");
                 }
 
                 for m in Metric::counters() {
@@ -277,7 +274,7 @@ impl MetricsService {
         let pem = match std::fs::read(server_cert_path) {
             Ok(p) => p,
             Err(e) => {
-                tracing::warn!("could not read server cert for hostname_sha: {}", e);
+                curia::warn!("could not read server cert for hostname_sha: {}", e);
                 return String::new();
             }
         };
@@ -297,7 +294,7 @@ impl MetricsService {
         match cn {
             Some(cn) => blake3::hash(cn.as_bytes()).to_hex().to_string(),
             None => {
-                tracing::warn!("could not parse server cert common name for hostname_sha");
+                curia::warn!("could not parse server cert common name for hostname_sha");
                 String::new()
             }
         }

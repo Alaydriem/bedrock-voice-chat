@@ -1,3 +1,4 @@
+use common::curia;
 use common::bedrock_protocol::TransferPacket;
 use common::bedrock_server::{BedrockServer, ServerConfig, StartGameConfig};
 use common::traits::StreamTrait;
@@ -49,7 +50,7 @@ impl TransferRelayService {
         };
 
         let mut server = BedrockServer::bind(config).await?;
-        tracing::info!(
+        curia::info!(
             "Bedrock transfer relay listening on {}",
             server.local_addr()
         );
@@ -70,7 +71,7 @@ impl TransferRelayService {
                         tokio::spawn(async move {
                             let player_name = conn.player().name.clone();
                             let xuid = conn.player().xuid.clone();
-                            tracing::info!(
+                            curia::info!(
                                 "Transfer relay: player connected: {} (XUID: {})",
                                 player_name,
                                 xuid,
@@ -89,7 +90,7 @@ impl TransferRelayService {
                                         StartGameConfig::for_version(conn.protocol_version())
                                             .into_packet();
                                     if let Err(e) = conn.send_packet(&start_game).await {
-                                        tracing::error!("Failed to send StartGame to {}: {}", player_name, e);
+                                        curia::error!("Failed to send StartGame to {}: {}", player_name, e);
                                         return;
                                     }
 
@@ -100,10 +101,10 @@ impl TransferRelayService {
                                         gatherings_configuration: None,
                                     };
                                     if let Err(e) = conn.send_packet(&transfer).await {
-                                        tracing::error!("Failed to send TransferPacket to {}: {}", player_name, e);
+                                        curia::error!("Failed to send TransferPacket to {}: {}", player_name, e);
                                         return;
                                     }
-                                    tracing::info!(
+                                    curia::info!(
                                         "Transferred {} -> {}:{}",
                                         player_name,
                                         target.host,
@@ -111,7 +112,7 @@ impl TransferRelayService {
                                     );
                                 }
                                 None => {
-                                    tracing::warn!(
+                                    curia::warn!(
                                         "No transfer target for {} (XUID: {}), disconnecting",
                                         player_name,
                                         xuid,
@@ -123,7 +124,7 @@ impl TransferRelayService {
                                     ).await;
                                     let attempts = entry.count.fetch_add(1, Ordering::Relaxed) + 1;
                                     if attempts >= MAX_INVALID_ATTEMPTS {
-                                        tracing::warn!(
+                                        curia::warn!(
                                             "XUID {} blocked after {} invalid attempts",
                                             xuid,
                                             attempts,
@@ -136,7 +137,7 @@ impl TransferRelayService {
                         });
                     }
                     _ = shutdown_rx.wait_for(|&v| v) => {
-                        tracing::info!("Transfer relay shutdown signal received");
+                        curia::info!("Transfer relay shutdown signal received");
                         break;
                     }
                 }
@@ -172,7 +173,7 @@ impl StreamTrait for TransferRelayService {
         }
 
         self.abort_handle = None;
-        tracing::info!("Transfer relay service stopped");
+        curia::info!("Transfer relay service stopped");
         Ok(())
     }
 

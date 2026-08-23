@@ -1,3 +1,4 @@
+use common::curia;
 use common::structs::channel::{Channel, ChannelCollection, ChannelEvents};
 use common::structs::packet::{
     ChannelEventPacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
@@ -126,7 +127,7 @@ impl ChannelMembershipService {
             ..Default::default()
         };
         if let Err(e) = webhook.send_packet(packet).await {
-            tracing::error!("Failed to fan channel event: {}", e);
+            curia::error!("Failed to fan channel event: {}", e);
         }
     }
 }

@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 
 use common::structs::packet::QuicNetworkPacket;
@@ -124,14 +125,14 @@ impl PeerPlane {
     // unauthorized window, not the lifetime of a legitimate link.
     async fn admit(self: &Arc<Self>, incoming: iroh::endpoint::Incoming) {
         let Some(slot) = self.admission.try_admit() else {
-            tracing::warn!("refusing a peer connection: too many unauthorized in flight");
+            curia::warn!("refusing a peer connection: too many unauthorized in flight");
             return;
         };
 
         let conn = match incoming.await {
             Ok(conn) => conn,
             Err(e) => {
-                tracing::debug!("a peer connection failed before the handshake: {e}");
+                curia::debug!(format!("a peer connection failed before the handshake: {e}"));
                 return;
             }
         };
@@ -145,11 +146,11 @@ impl PeerPlane {
         let accepted = match handshake {
             Ok(Ok(accepted)) => accepted,
             Ok(Err(e)) => {
-                tracing::warn!("refusing a peer: {e}");
+                curia::warn!(format!("refusing a peer: {e}"));
                 return;
             }
             Err(_) => {
-                tracing::warn!(
+                curia::warn!(
                     "refusing a peer that did not finish the handshake within the pre-auth timeout"
                 );
                 return;
@@ -163,16 +164,11 @@ impl PeerPlane {
                     .grant_for(&link.node())
                     .map(|grant| grant.label().to_string())
                     .unwrap_or_default();
-                tracing::info!(
-                    peer = %label,
-                    node = %link.node(),
-                    worlds = ?link.worlds(),
-                    "peer link established"
-                );
+                curia::info!("peer link established", { "peer": label.to_string(), "node": link.node().to_string(), "worlds": format!("{:?}", link.worlds()) });
                 drop(slot);
                 self.spawn_pump(link);
             }
-            Err(e) => tracing::warn!("refusing a peer link: {e}"),
+            Err(e) => curia::warn!(format!("refusing a peer link: {e}")),
         }
     }
 
@@ -188,11 +184,7 @@ impl PeerPlane {
         // in that case every frame in the world arrives twice.
         let overlapping = self.links.worlds_also_carried(&link);
         if !overlapping.is_empty() {
-            tracing::error!(
-                node = %link.node(),
-                worlds = ?overlapping,
-                "a second peer declares worlds already carried; audio in them will reach both"
-            );
+            curia::error!("a second peer declares worlds already carried; audio in them will reach both", { "node": link.node().to_string(), "worlds": format!("{overlapping:?}") });
         }
 
         self.links.insert(link.clone());
@@ -205,7 +197,7 @@ impl PeerPlane {
                 let frame = match link.recv().await {
                     Ok(frame) => frame,
                     Err(e) => {
-                        tracing::info!(node = %node, "peer link ended: {e}");
+                        curia::info!(format!("peer link ended: {e}"), { "node": node.to_string() });
                         break;
                     }
                 };
@@ -220,7 +212,7 @@ impl PeerPlane {
                         plane.sink.publish(packet);
                     }
                     Err(rejection) => {
-                        tracing::warn!(node = %node, "dropping a peer frame: {rejection}")
+                        curia::warn!(format!("dropping a peer frame: {rejection}"), { "node": node.to_string() })
                     }
                 }
             }

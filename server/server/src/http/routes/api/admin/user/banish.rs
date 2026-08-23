@@ -1,3 +1,4 @@
+use common::curia;
 use common::request::admin::BanishUserRequest;
 use common::response::admin::BanishedUserResponse;
 use entity::player;
@@ -27,7 +28,7 @@ pub async fn banish_user(
 
     let admin_gamertag = admin.player.gamertag.as_deref().unwrap_or_default();
     if admin_gamertag == req.gamertag && admin.player.game == req.game {
-        tracing::warn!(
+        curia::warn!(
             "banish_user: rejecting self-banish attempt by {} ({:?})",
             admin_gamertag,
             admin.player.game,
@@ -41,7 +42,7 @@ pub async fn banish_user(
         .one(conn)
         .await
         .map_err(|e| {
-            tracing::error!("banish_user: db error: {}", e);
+            curia::error!("banish_user: db error: {}", e);
             Status::InternalServerError
         })?
         .ok_or(Status::NotFound)?;
@@ -53,7 +54,7 @@ pub async fn banish_user(
     active.banished = ActiveValue::Set(req.banish);
 
     active.update(conn).await.map_err(|e| {
-        tracing::error!("banish_user: update failed: {}", e);
+        curia::error!("banish_user: update failed: {}", e);
         Status::InternalServerError
     })?;
 
@@ -67,7 +68,7 @@ pub async fn banish_user(
             .revoke_pem(conn, &certificate, Some(player_id), "banished")
             .await
             .map_err(|e| {
-                tracing::error!("banish_user: failed to revoke certificate: {}", e);
+                curia::error!("banish_user: failed to revoke certificate: {}", e);
                 Status::InternalServerError
             })?;
 
@@ -76,7 +77,7 @@ pub async fn banish_user(
             && let Some(registry) = cache_manager.get_connection_registry()
             && registry.revoke_session(&fingerprint, "Your access to this server has been revoked.")
         {
-            tracing::info!(
+            curia::info!(
                 "banish_user: closed the live session held by {}",
                 req.gamertag
             );

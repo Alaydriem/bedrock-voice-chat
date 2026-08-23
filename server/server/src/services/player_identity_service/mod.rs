@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -52,7 +53,7 @@ impl PlayerIdentityService {
             }
             Ok(None) => {}
             Err(e) => {
-                tracing::error!("Failed to query player_identity: {}", e);
+                curia::error!("Failed to query player_identity: {}", e);
             }
         }
 
@@ -118,7 +119,7 @@ impl PlayerIdentityService {
                 .await;
         }
 
-        tracing::debug!(
+        curia::debug!(
             "Created/updated identity alias: {} -> player_id {} ({:?}, type: {})",
             alias,
             player_id,
@@ -140,7 +141,7 @@ impl PlayerIdentityService {
             Ok(Some(p)) => Some(p.id),
             Ok(None) => None,
             Err(e) => {
-                tracing::error!("Failed to find player by gamertag: {}", e);
+                curia::error!("Failed to find player by gamertag: {}", e);
                 None
             }
         }
@@ -156,7 +157,7 @@ impl PlayerIdentityService {
             Ok(Some(p)) => p.gamertag,
             Ok(None) => None,
             Err(e) => {
-                tracing::error!(
+                curia::error!(
                     "Failed to lookup gamertag for player_id {}: {}",
                     player_id,
                     e

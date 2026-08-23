@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 
 use common::{
@@ -35,7 +36,7 @@ pub async fn authenticate(
     let redirect_uri = match payload.0.redirect_uri.parse() {
         Ok(uri) => uri,
         Err(e) => {
-            tracing::error!("Invalid redirect URI: {}", e);
+            curia::error!("Invalid redirect URI: {}", e);
             return NcryptfJsonResponse::from_inner(JsonMessage::create(
                 Status::BadRequest,
                 None,
@@ -52,7 +53,7 @@ pub async fn authenticate(
     let auth_result = match provider.authenticate(code, redirect_uri).await {
         Ok(result) => result,
         Err(e) => {
-            tracing::error!("Xbox Live authentication failed: {}", e);
+            curia::error!("Xbox Live authentication failed: {}", e);
             // 403 is reserved for a decision about the account: no Xbox profile here, and
             // further down, a player this server does not admit. Everything else upstream —
             // a spent or expired code, an unreachable identity provider — answered 403 too,
@@ -104,7 +105,7 @@ pub async fn authenticate(
                             )
                             .await
                         {
-                            tracing::warn!(
+                            curia::warn!(
                                 "Failed to create identity alias for {}: {}",
                                 mc_name,
                                 e
@@ -125,7 +126,7 @@ pub async fn authenticate(
             ))
         }
         Err(e) => {
-            tracing::error!("Login failed: {}", e);
+            curia::error!("Login failed: {}", e);
             match e {
                 AuthError::PlayerNotFound | AuthError::PlayerBanished => {
                     NcryptfJsonResponse::from_inner(JsonMessage::create(

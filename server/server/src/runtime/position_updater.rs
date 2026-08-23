@@ -1,3 +1,4 @@
+use common::curia;
 use common::structs::packet::{PacketSender, PlayerDataChunker};
 
 use crate::stream::quic::WebhookReceiver;
@@ -24,7 +25,7 @@ impl PositionUpdater {
         let packet = PlayerDataChunker::packet(players, Some(sender));
 
         if let Err(e) = webhook_receiver.send_packet(packet).await {
-            tracing::error!("Failed to send packet chunk to QUIC server: {}", e);
+            curia::error!("Failed to send packet chunk to QUIC server: {}", e);
         }
     }
 }

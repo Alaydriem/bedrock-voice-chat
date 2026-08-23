@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 
 use common::{request::CodeLoginRequest, response::LoginResponse};
@@ -42,7 +43,7 @@ pub async fn code_authenticate(
             None,
         )),
         Err(e) => {
-            tracing::error!("Code login failed: {}", e);
+            curia::error!("Code login failed: {}", e);
             NcryptfJsonResponse::from_inner(JsonMessage::create(e.to_status(), None, None, None))
         }
     }

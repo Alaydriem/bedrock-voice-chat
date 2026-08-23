@@ -198,6 +198,7 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_curia::init())
+        .plugin(tauri_plugin_iap::init())
         .plugin(tauri_plugin_audio_permissions::init())
         .plugin(tauri_plugin_age_signals::init())
         .plugin(tauri_plugin_keyring::init())
@@ -800,8 +801,6 @@ pub fn run() {
             let app_state = AppState::new(store.clone(), handle.clone());
             app.manage(telemetry);
             app.manage(Mutex::new(app_state));
-
-            handle.plugin(tauri_plugin_iap::init())?;
 
             let mut entitlement_providers = vec![crate::iap::EntitlementProviderType::Store(
                 crate::iap::store::StoreProvider::new(app.handle().clone()),

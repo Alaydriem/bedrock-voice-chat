@@ -11,6 +11,25 @@
   box-sizing: border-box;
 }
 
+/* The window's own edges, as four tokens rather than four `env()` calls at the point of
+ * use.
+ *
+ * `env()` is the right source on iOS and iPadOS, and on Android WebView from M136 —
+ * below that the WebView reports 0 for bars it is drawing under, and from M144 it
+ * reports them for every WebView rather than only a fullscreen one. So Android cannot
+ * rely on `env()` alone at our `minSdkVersion`, and `MainActivity.onWebViewCreate`
+ * overwrites these four from the real window insets.
+ *
+ * That override is an inline style on `documentElement`, which is why these are declared
+ * on `:root` and nowhere else. Declared on `.rad-frame` they would win over the inline
+ * style for everything inside the frame, and the native path would silently do nothing. */
+:root {
+  --rad-inset-top: env(safe-area-inset-top, 0px);
+  --rad-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --rad-inset-left: env(safe-area-inset-left, 0px);
+  --rad-inset-right: env(safe-area-inset-right, 0px);
+}
+
 html {
   height: 100%;
   overflow-x: hidden;
@@ -26,7 +45,12 @@ html {
 }
 
 /* Fixed and non-scrolling, because the frame scrolls its own panes. A scrollable
-   body lets a drag rubber-band the entire app inside the webview. */
+   body lets a drag rubber-band the entire app inside the webview.
+
+   Deliberately carries no safe-area padding. `RadFrame` pins the app to the viewport
+   with `position: fixed; inset: 0`, which is measured against the viewport rather than
+   this element's padding box — so padding here reaches nothing and only reads as though
+   the insets were handled. The components consume the tokens above instead. */
 body {
   margin: 0;
   position: fixed;
@@ -34,8 +58,6 @@ body {
   height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
   background-color: var(--color-rad-void);
   color: var(--color-rad-tx);
   font-family: var(--font-rad-sans);

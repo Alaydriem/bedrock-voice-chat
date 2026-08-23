@@ -2,6 +2,7 @@ pub mod state;
 
 pub use state::WorldWatchState;
 
+use common::curia;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -47,18 +48,14 @@ impl RelayWorldWatch {
                     .collect();
 
                 if let Some(worlds) = state.observe(&live) {
-                    tracing::info!(worlds = ?worlds, "hosting relay worlds");
+                    curia::info!("hosting relay worlds", { "worlds": format!("{worlds:?}") });
                 }
 
                 for (label, world) in
                     state.unwarned_missing(&grants.configured_worlds(), started.elapsed())
                 {
-                    tracing::warn!(
-                        peer = %label,
-                        world = %world,
-                        "a peer block filters on a world no local player has been seen in; \
-                         that peer will carry nothing"
-                    );
+                    curia::warn!("a peer block filters on a world no local player has been seen in; \
+                         that peer will carry nothing", { "peer": label.to_string(), "world": world.to_string() });
                 }
             }
         })

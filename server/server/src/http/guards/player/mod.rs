@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 
 use common::structs::certificate::CertificateFingerprint;
@@ -65,7 +66,7 @@ impl<'r> FromRequest<'r> for PlayerGuard {
         // and the fingerprint would then never match.
         let fingerprint = CertificateFingerprint::from_der(cert.as_bytes());
         if revocations.is_revoked(conn, &fingerprint).await {
-            tracing::warn!(%fingerprint, "PlayerGuard: refusing a revoked certificate");
+            curia::warn!("PlayerGuard: refusing a revoked certificate", { "fingerprint": fingerprint.to_string() });
             return Outcome::Error((Status::Forbidden, PlayerGuardError::Revoked));
         }
 
@@ -81,11 +82,7 @@ impl<'r> FromRequest<'r> for PlayerGuard {
         // added next. Revocation covers the credential; this covers the person, and a ban
         // written before the revocation path existed is still only recorded on this flag.
         if player.banished {
-            tracing::warn!(
-                gamertag = %player.gamertag.clone().unwrap_or_default(),
-                game = ?player.game,
-                "PlayerGuard: refusing a banished player"
-            );
+            curia::warn!("PlayerGuard: refusing a banished player", { "gamertag": player.gamertag.clone().unwrap_or_default().to_string(), "game": format!("{:?}", player.game) });
             return Outcome::Error((Status::Forbidden, PlayerGuardError::Banished));
         }
 

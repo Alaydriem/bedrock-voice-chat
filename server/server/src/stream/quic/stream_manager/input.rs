@@ -1,3 +1,4 @@
+use common::curia;
 use crate::stream::quic::{ServerInputPacket, WebhookReceiver};
 use crate::stream::session::SessionLink;
 use anyhow::Error;
@@ -90,7 +91,7 @@ impl InputStream {
             let webhook_receiver_clone = webhook_receiver.clone();
             tokio::spawn(async move {
                 if let Err(e) = webhook_receiver_clone.send_packet(packet).await {
-                    tracing::error!("Failed to send player connected event: {}", e);
+                    curia::error!("Failed to send player connected event: {}", e);
                 }
             });
         }
@@ -129,13 +130,13 @@ impl StreamTrait for InputStream {
     }
 
     async fn stop(&mut self) -> Result<(), Error> {
-        tracing::info!("Stopping QUIC input stream");
+        curia::info!("Stopping QUIC input stream");
         self.is_stopped.store(true, Ordering::Relaxed);
         Ok(())
     }
 
     async fn start(&mut self) -> Result<(), Error> {
-        tracing::info!("Starting session input stream");
+        curia::info!("Starting session input stream");
         self.is_stopped.store(false, Ordering::Relaxed);
 
         if let (Some(link), Some(producer)) = (self.link.clone(), self.producer.clone()) {
@@ -171,7 +172,7 @@ impl StreamTrait for InputStream {
                                             );
                                             if !accept {
                                                 if let Some(prev) = last_seen {
-                                                    tracing::trace!(
+                                                    curia::trace!(
                                                         "Dropping out-of-order AudioFrame: ts={} <= last_seen={}",
                                                         ts,
                                                         prev
@@ -188,8 +189,8 @@ impl StreamTrait for InputStream {
                                             if large_jump {
                                                 let prev = last_seen.unwrap_or(0);
                                                 let delta = ts - prev;
-                                                // Use a dedicated tracing target so this can be scraped/tapped later
-                                                tracing::debug!(target: "ofo", "large_jump_forward speaker={} ts={} last_seen={} delta_ms={}", key, ts, prev, delta);
+                                                // Carries a channel field so this can be scraped or tapped later
+                                                curia::debug!(format!("large_jump_forward speaker={} ts={} last_seen={} delta_ms={}", key, ts, prev, delta), { "channel": "ofo" });
                                             }
                                         }
                                     }
@@ -252,7 +253,7 @@ impl StreamTrait for InputStream {
                                 if !announced_presence {
                                     if let Some(identity) = &self.identity {
                                         announced_presence = true;
-                                        tracing::info!("Player identity active: {identity}");
+                                        curia::info!(format!("Player identity active: {identity}"));
 
                                         self.send_event(QuicNetworkPacket {
                                             sender: Some(PacketSender::for_service(
@@ -279,12 +280,12 @@ impl StreamTrait for InputStream {
 
                                 let server_packet = ServerInputPacket { data: packet };
                                 if let Err(e) = producer.send(server_packet) {
-                                    tracing::error!("Failed to send packet to producer: {}", e);
+                                    curia::error!("Failed to send packet to producer: {}", e);
                                     break;
                                 }
                             }
                             Err(e) => {
-                                tracing::warn!("Failed to parse session packet: {}", e);
+                                curia::warn!("Failed to parse session packet: {}", e);
                                 continue;
                             }
                         }
@@ -298,14 +299,14 @@ impl StreamTrait for InputStream {
                         // fault. Asked of the error rather than matched out of its text,
                         // so a transport whose wording differs still classifies correctly.
                         if e.is_disconnect() {
-                            tracing::error!(
+                            curia::error!(
                                 "datagram_recv_closed player={} device={} err={}",
                                 player,
                                 device,
                                 emsg
                             );
                         } else {
-                            tracing::error!(
+                            curia::error!(
                                 "datagram_recv_error player={} device={} err={}",
                                 player,
                                 device,
@@ -345,9 +346,9 @@ impl StreamTrait for InputStream {
                             ..Default::default()
                         };
                         if let Err(e) = webhook_receiver_clone.send_packet(presence_packet).await {
-                            tracing::error!("Failed to send player disconnected event: {}", e);
+                            curia::error!("Failed to send player disconnected event: {}", e);
                         }
-                        tracing::debug!("Broadcast player disconnected event {}", player_name);
+                        curia::debug!("Broadcast player disconnected event {}", player_name);
                     });
                 }
             }
@@ -358,7 +359,7 @@ impl StreamTrait for InputStream {
     }
 
     async fn metadata(&mut self, key: String, value: String) -> Result<(), Error> {
-        tracing::info!(
+        curia::info!(
             "Setting metadata for QUIC input stream: {} = {}",
             key,
             value

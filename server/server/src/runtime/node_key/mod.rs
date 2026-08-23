@@ -8,6 +8,7 @@ mod error;
 
 pub use error::NodeKeyError;
 
+use common::curia;
 use std::fs;
 use std::path::PathBuf;
 
@@ -69,11 +70,8 @@ impl NodeKeyStore {
         if bytes.len() != KEY_LEN {
             return Err(NodeKeyError::WrongLength(bytes.len()).into());
         }
-        tracing::info!(
-            path = %self.legacy_path.display(),
-            "Importing the existing relay node key into the database. The peer identity is \
-             unchanged, so every peer block naming it stays valid."
-        );
+        curia::info!("Importing the existing relay node key into the database. The peer identity is \
+             unchanged, so every peer block naming it stays valid.", { "path": self.legacy_path.display().to_string() });
         Ok(Some(hex::encode(bytes)))
     }
 

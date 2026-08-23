@@ -1,3 +1,4 @@
+use common::curia;
 use common::request::admin::SetPermissionRequest;
 use common::structs::permission::{Permission, PermissionEffect};
 use entity::player;
@@ -30,7 +31,7 @@ pub async fn set_permission(
     let targeting_admin_perm = req.permission == Permission::Admin.as_str();
     let revoking = matches!(req.effect, PermissionEffect::Deny);
     if targeting_self && targeting_admin_perm && revoking {
-        tracing::warn!(
+        curia::warn!(
             "set_permission: rejecting self-admin-revoke by {} ({:?})",
             admin_gamertag,
             admin.player.game,
@@ -44,7 +45,7 @@ pub async fn set_permission(
         .one(conn)
         .await
         .map_err(|e| {
-            tracing::error!("set_permission: db error: {}", e);
+            curia::error!("set_permission: db error: {}", e);
             Status::InternalServerError
         })?
         .ok_or(Status::NotFound)?;
@@ -54,7 +55,7 @@ pub async fn set_permission(
         .map_err(|e| match e {
             PermissionServiceError::UnknownPermission(_) => Status::BadRequest,
             PermissionServiceError::Database(err) => {
-                tracing::error!("set_permission: db error: {}", err);
+                curia::error!("set_permission: db error: {}", err);
                 Status::InternalServerError
             }
         })?;

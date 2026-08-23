@@ -1,3 +1,4 @@
+use common::curia;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 extern crate common;
@@ -8,6 +9,7 @@ extern crate rocket;
 pub mod config;
 pub mod demux;
 pub mod http;
+pub mod logging;
 pub mod services;
 pub mod stream;
 
@@ -50,19 +52,19 @@ impl BvcServer {
                 let mut current_res = 0u32;
                 NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
                 let current_ms = current_res as f64 / 10_000.0;
-                tracing::info!("Current Windows timer resolution: {:.2}ms", current_ms);
+                curia::info!("Current Windows timer resolution: {:.2}ms", current_ms);
 
                 timeBeginPeriod(1);
 
                 NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
                 let new_ms = current_res as f64 / 10_000.0;
-                tracing::info!(
+                curia::info!(
                     "Set Windows timer resolution to 1ms (actual: {:.2}ms)",
                     new_ms
                 );
 
                 if new_ms > 2.0 {
-                    tracing::warn!(
+                    curia::warn!(
                         "Timer resolution is degraded ({:.2}ms). This may cause audio jitter!",
                         new_ms
                     );

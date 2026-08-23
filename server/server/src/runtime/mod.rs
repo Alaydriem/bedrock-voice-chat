@@ -21,13 +21,15 @@ pub use readiness::ReadinessState;
 pub use state::RuntimeState;
 
 use anyhow::anyhow;
-use faccess::PathExt;
+use common::curia;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
-use tracing::info;
-use tracing_appender::non_blocking::WorkerGuard;
+
+// 50 MB per file with ten archives bounds the directory near 500 MB. curia's
+// defaults are desktop-tuned (40 KB, KeepOne) and are far too small here.
+const MAX_LOG_FILE_SIZE: u64 = 50 * 1024 * 1024;
+const LOG_ARCHIVES_KEPT: usize = 10;
 
 /// Server runtime that manages the full BVC server stack.
 /// This is the main entry point for both CLI and FFI usage.
@@ -51,7 +53,6 @@ pub struct ServerRuntime {
     identity_service: Arc<RwLock<Option<PlayerIdentityService>>>,
     audio_playback_service: Arc<RwLock<Option<Arc<AudioPlaybackService>>>>,
     db_conn: Arc<RwLock<Option<Arc<sea_orm::DatabaseConnection>>>>,
-    _logger_guard: Option<WorkerGuard>,
 }
 
 impl ServerRuntime {
@@ -70,7 +71,6 @@ impl ServerRuntime {
             identity_service: Arc::new(RwLock::new(None)),
             audio_playback_service: Arc::new(RwLock::new(None)),
             db_conn: Arc::new(RwLock::new(None)),
-            _logger_guard: None,
         })
     }
 
@@ -112,7 +112,7 @@ impl ServerRuntime {
         let shutdown_notify = self.shutdown_notify();
         tokio::spawn(async move {
             if let Some(signal) = Self::await_shutdown_signal().await {
-                tracing::info!("Received {}, shutting down...", signal);
+                curia::info!("Received {}, shutting down...", signal);
                 shutdown_flag.store(true, Ordering::SeqCst);
                 shutdown_notify.notify_one();
             }
@@ -132,7 +132,7 @@ impl ServerRuntime {
         let mut terminate = match signal(SignalKind::terminate()) {
             Ok(s) => s,
             Err(e) => {
-                tracing::warn!("could not install SIGTERM handler: {}", e);
+                curia::warn!("could not install SIGTERM handler: {}", e);
                 return tokio::signal::ctrl_c().await.ok().map(|_| "CTRL+C");
             }
         };
@@ -159,8 +159,8 @@ impl ServerRuntime {
         // Setup logging
         self.setup_logging()?;
 
-        info!("Bedrock Voice Chat Server v{}", crate::VERSION);
-        info!(
+        curia::info!("Bedrock Voice Chat Server v{}", crate::VERSION);
+        curia::info!(
             "Protocol Version: {}",
             common::consts::version::PROTOCOL_VERSION
         );
@@ -326,7 +326,7 @@ impl ServerRuntime {
         metrics.set_voice_capacity_limit(self.config.voice.limits.connections as i64);
 
         if self.config.voice.limits.connections > 0 {
-            tracing::info!(
+            curia::info!(
                 "Voice capacity limited to {} concurrent sessions, {}s reconnect grace",
                 self.config.voice.limits.connections,
                 self.config.voice.limits.reconnect_grace
@@ -357,7 +357,7 @@ impl ServerRuntime {
         let mut peer_plane: Option<Arc<crate::relay::PeerPlane>> = None;
 
         if grants.is_empty() {
-            tracing::info!("peering is not configured; no peer socket bound");
+            curia::info!("peering is not configured; no peer socket bound");
         } else {
             let identity = bvc_relay::node::NodeIdentity::from_secret_bytes(&node_secret);
 
@@ -382,11 +382,7 @@ impl ServerRuntime {
 
             // Logged at startup because an operator has no other way to read it,
             // and the other side's `peer` block needs exactly this string.
-            tracing::info!(
-                node_id = %plane.node_id(),
-                peers = grants.len(),
-                "peering enabled"
-            );
+            curia::info!("peering enabled", { "node_id": plane.node_id().to_string(), "peers": grants.len() });
 
             // Minted off the boot path rather than on it: `ticket()` waits up to two
             // seconds for iroh to report this endpoint's addresses, and the listeners
@@ -400,11 +396,9 @@ impl ServerRuntime {
             tokio::spawn(async move {
                 match announced.endpoint().ticket().await {
                     Ok(peerlink) => {
-                        tracing::info!(peerlink = %peerlink, "this server's peer link")
+                        curia::info!("this server's peer link", { "peerlink": peerlink.to_string() })
                     }
-                    Err(e) => tracing::warn!(
-                        "could not mint this server's peer link ({e});                          `bvc-server relay peerlink` asks again on demand"
-                    ),
+                    Err(e) => curia::warn!(format!("could not mint this server's peer link ({e});                          `bvc-server relay peerlink` asks again on demand")),
                 }
             });
 
@@ -563,12 +557,12 @@ impl ServerRuntime {
                 transfer_target_cache.clone(),
             );
             if let Err(e) = relay.start().await {
-                tracing::error!("Failed to start bedrock transfer relay: {}", e);
+                curia::error!("Failed to start bedrock transfer relay: {}", e);
             }
             transfer_relay = Some(relay);
 
             for entry in &self.config.server.bedrock.servers {
-                tracing::info!(
+                curia::info!(
                     "Advertising Bedrock server {} at {}:{} (addon transport: {:?})",
                     entry.name,
                     entry.host,
@@ -577,7 +571,7 @@ impl ServerRuntime {
                 );
             }
         } else {
-            tracing::info!(
+            curia::info!(
                 "Bedrock services disabled (server.bedrock.enabled = false); DNS and transfer relay not started"
             );
         }
@@ -615,10 +609,7 @@ impl ServerRuntime {
             // keep refreshing. A one-shot registration leaves this customer
             // unroutable if Meridian restarts or this record's lease lapses.
             if let Err(e) = service.register().await {
-                tracing::error!(
-                    error = %e,
-                    "Failed to register with Meridian; heartbeat will retry"
-                );
+                curia::error!("Failed to register with Meridian; heartbeat will retry", { "error": e.to_string() });
             }
 
             meridian_heartbeat =
@@ -675,7 +666,7 @@ impl ServerRuntime {
         )
         .await?;
         websocket_listener.set_metrics(metrics.clone());
-        tracing::info!(bind = %websocket_bind, "WebSocket voice transport bound");
+        curia::info!("WebSocket voice transport bound", { "bind": websocket_bind.to_string() });
 
         let demux = crate::demux::AlpnDemux::new(
             std::net::SocketAddr::new(public_listen_ip, public_port),
@@ -702,47 +693,47 @@ impl ServerRuntime {
             tokio::select! {
                 result = &mut quic => {
                     match result {
-                        Ok(_) => tracing::info!("QUIC server stopped normally"),
-                        Err(e) => tracing::error!("QUIC server error: {}", e),
+                        Ok(_) => curia::info!("QUIC server stopped normally"),
+                        Err(e) => curia::error!("QUIC server error: {}", e),
                     }
                     break;
                 }
                 result = &mut demux => {
                     match result {
-                        Ok(_) => tracing::info!("TLS demultiplexer stopped normally"),
-                        Err(e) => tracing::error!("TLS demultiplexer error: {}", e),
+                        Ok(_) => curia::info!("TLS demultiplexer stopped normally"),
+                        Err(e) => curia::error!("TLS demultiplexer error: {}", e),
                     }
                     break;
                 }
                 result = &mut websocket => {
                     match result {
-                        Ok(_) => tracing::info!("WebSocket voice listener stopped normally"),
-                        Err(e) => tracing::error!("WebSocket voice listener error: {}", e),
+                        Ok(_) => curia::info!("WebSocket voice listener stopped normally"),
+                        Err(e) => curia::error!("WebSocket voice listener error: {}", e),
                     }
                     break;
                 }
                 result = rocket.as_mut() => {
                     if relaunch_rocket {
                         relaunch_rocket = false;
-                        tracing::info!("Relaunching Rocket with renewed certificate");
+                        curia::info!("Relaunching Rocket with renewed certificate");
                         rocket = Box::pin(rocket_manager.start());
                     } else {
                         match result {
-                            Ok(_) => tracing::info!("Rocket server stopped normally"),
-                            Err(e) => tracing::error!("Rocket server error: {}", e),
+                            Ok(_) => curia::info!("Rocket server stopped normally"),
+                            Err(e) => curia::error!("Rocket server error: {}", e),
                         }
                         break;
                     }
                 }
                 Some(_) = acme_renewed_rx.recv() => {
-                    tracing::info!("ACME certificate renewed; bouncing the HTTP listener");
+                    curia::info!("ACME certificate renewed; bouncing the HTTP listener");
                     relaunch_rocket = true;
                     if let Err(e) = rocket_manager.stop().await {
-                        tracing::error!("Failed to stop Rocket for certificate reload: {}", e);
+                        curia::error!("Failed to stop Rocket for certificate reload: {}", e);
                     }
                 }
                 _ = shutdown_notify.notified() => {
-                    tracing::info!("Shutdown requested, shutting down...");
+                    curia::info!("Shutdown requested, shutting down...");
                     break;
                 }
                 _ = reap_interval.tick() => {
@@ -793,17 +784,17 @@ impl ServerRuntime {
             use common::traits::StreamTrait;
             if let Some(ref mut relay) = transfer_relay {
                 if let Err(e) = relay.stop().await {
-                    tracing::error!("Failed to stop bedrock transfer relay: {}", e);
+                    curia::error!("Failed to stop bedrock transfer relay: {}", e);
                 }
             }
         }
 
         if let Err(e) = quic_manager.stop().await {
-            tracing::error!("Error stopping QUIC server: {}", e);
+            curia::error!("Error stopping QUIC server: {}", e);
         }
 
         if let Err(e) = rocket_manager.stop().await {
-            tracing::error!("Error stopping Rocket server: {}", e);
+            curia::error!("Error stopping Rocket server: {}", e);
         }
 
         self.state = RuntimeState::Stopped;
@@ -887,7 +878,7 @@ impl ServerRuntime {
     /// This is used by the PlayerRegistrarService and can be shared between components.
     async fn create_database_connection(&self) -> Result<DatabaseConnection, anyhow::Error> {
         self.config.database.validate()?;
-        tracing::info!(
+        curia::info!(
             "Creating standalone database connection: {}",
             self.config.database.get_redacted_dsn()
         );
@@ -904,63 +895,78 @@ impl ServerRuntime {
         Ok(conn)
     }
 
-    /// Setup the tracing/logging subsystem
-    fn setup_logging(&mut self) -> Result<(), anyhow::Error> {
-        use tracing_appender::non_blocking::NonBlocking;
-        use tracing_subscriber::fmt::SubscriberBuilder;
+    /// The level every sink is admitted at, and the global floor of the default
+    /// directive string. Reproduces the EnvFilter strings this pipeline replaced,
+    /// so an unset RUST_LOG filters exactly as before.
+    pub fn default_directives(level: curia::Level) -> String {
+        const QUIET: &str = "hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off,metrics_exporter_dogstatsd::forwarder=off";
 
-        let out = &self.config.log.out;
-        let subscriber: SubscriberBuilder = tracing_subscriber::fmt();
-        let non_blocking: NonBlocking;
-        let guard: WorkerGuard;
+        match level {
+            curia::Level::Info => format!("info,{QUIET}"),
+            curia::Level::Warn => format!("warn,{QUIET}"),
+            curia::Level::Error => format!("error,{QUIET}"),
+            curia::Level::Debug => "info,rocket_http::tls::listener=off".to_string(),
+            curia::Level::Trace => "debug".to_string(),
+        }
+    }
 
-        match out.to_lowercase().as_str() {
-            "stdout" | "callback" => {
-                (non_blocking, guard) = tracing_appender::non_blocking(std::io::stdout());
-            }
-            _ => {
-                let path = Path::new(out);
-                if !path.exists() || !path.writable() {
-                    return Err(anyhow!("{} doesn't exist or is not writable", out));
-                }
-                let file_appender = tracing_appender::rolling::daily(out, "bvc-server.log");
-                (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-            }
+    /// Install the logging pipeline: a coloured human console on stderr and a
+    /// rotating JSON file, both unconditional.
+    pub fn setup_logging(&mut self) -> Result<(), anyhow::Error> {
+        use common::curia::{
+            ConsoleSink, Dispatcher, FileOpenStrategy, FileSink, Filter, Logger, RotationStrategy,
+            TimezoneStrategy, TracingBridge,
+        };
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+
+        use crate::logging::{HumanFormatter, JsonFormatter, LogContext, LogSinkType};
+
+        // Windows consoles need ENABLE_VIRTUAL_TERMINAL_PROCESSING before an
+        // escape sequence renders. Cross-platform; returns None elsewhere.
+        let _ = anstyle_query::windows::enable_ansi_colors();
+
+        let directives = std::env::var("RUST_LOG")
+            .unwrap_or_else(|_| Self::default_directives(self.config.get_log_level()));
+        let filter = Filter::from_directives(&directives);
+
+        let context = LogContext::new_shared(self.config.server.meridian.as_ref());
+
+        // Trace at the sink, so the dispatcher's filter is the only authority.
+        let mut sinks = vec![LogSinkType::Console(ConsoleSink::new(
+            curia::Level::Trace,
+            HumanFormatter::new(HumanFormatter::detect_color()).formatter(),
+        ))];
+
+        // Logging must never take the server down with it. An unwritable log
+        // directory degrades to console-only and says so once.
+        let path = std::path::PathBuf::from(&self.config.log.path);
+        match std::fs::create_dir_all(&path) {
+            Err(e) => eprintln!("log directory unavailable, continuing without a file: {e}"),
+            Ok(()) => match FileSink::with_rotation(
+                path,
+                "bvc-server".to_string(),
+                curia::Level::Trace,
+                JsonFormatter::new(context.clone()).formatter(),
+                MAX_LOG_FILE_SIZE,
+                RotationStrategy::KeepSome(LOG_ARCHIVES_KEPT),
+                TimezoneStrategy::UseUtc,
+                FileOpenStrategy::Append,
+            ) {
+                Ok(file) => sinks.push(LogSinkType::File(file)),
+                Err(e) => eprintln!("log file unavailable, continuing without it: {e}"),
+            },
         }
 
-        let env_filter = match self.config.get_tracing_log_level() {
-            tracing::Level::INFO => {
-                "info,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off,metrics_exporter_dogstatsd::forwarder=off"
-            }
-            tracing::Level::DEBUG => "info,rocket_http::tls::listener=off",
-            tracing::Level::TRACE => "debug",
-            tracing::Level::ERROR => {
-                "error,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off,metrics_exporter_dogstatsd::forwarder=off"
-            }
-            tracing::Level::WARN => {
-                "warn,hyper=off,rustls=off,rocket::server=off,rocket_http::tls::listener=off,metrics_exporter_dogstatsd::forwarder=off"
-            }
-        };
+        let dispatcher = Dispatcher::new(sinks).with_filter(filter.clone());
 
-        let installed = subscriber
-            .with_writer(non_blocking)
-            .with_max_level(self.config.get_tracing_log_level())
-            .with_level(true)
-            .with_line_number(&self.config.log.level == "trace")
-            .with_file(&self.config.log.level == "trace")
-            .with_env_filter(env_filter)
-            .with_ansi(true)
-            .compact()
-            .try_init()
-            .is_ok();
-
-        if installed {
-            self._logger_guard = Some(guard);
-        } else {
-            // Another runtime in this process already owns the global subscriber,
-            // so drop our worker guard rather than retaining a writer that is
-            // never wired up.
-            self._logger_guard = None;
+        // A second runtime in this process finds the OnceLock claimed. curia
+        // drops the rejected dispatcher, which closes the file and drains its
+        // worker, so nothing is retained here on that path.
+        if Logger::install(Box::new(dispatcher)).is_ok() {
+            tracing_subscriber::registry()
+                .with(TracingBridge::to_global().with_filter(filter))
+                .init();
         }
 
         Ok(())
@@ -978,20 +984,5 @@ impl ServerRuntime {
         let mut san_names = self.config.server.tls.names.clone();
         san_names.append(&mut self.config.server.tls.ips.clone());
         ca_store::CaStore::ensure(conn, &self.config.server.tls.certs_path, &san_names).await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::ApplicationConfig;
-
-    #[test]
-    fn logging_init_is_idempotent_within_a_process() {
-        let mut first = ServerRuntime::new(ApplicationConfig::default()).unwrap();
-        let mut second = ServerRuntime::new(ApplicationConfig::default()).unwrap();
-
-        first.setup_logging().unwrap();
-        second.setup_logging().unwrap();
     }
 }

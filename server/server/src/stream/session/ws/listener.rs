@@ -1,3 +1,4 @@
+use common::curia;
 use super::{WebSocketListenerError, WsLink};
 use common::structs::network::VoiceProtocol;
 use crate::stream::session::{SessionLink, SessionSpawner, WebSocketDeviceId};
@@ -61,7 +62,7 @@ impl WebSocketListener {
     ///
     /// The port is never configured and never advertised — the demultiplexer is told it
     /// directly — so nothing outside this process needs to know it exists.
-    pub async fn bind(
+    pub(crate) async fn bind(
         certificate_path: &str,
         key_path: &str,
         ca_path: &str,
@@ -118,13 +119,13 @@ impl WebSocketListener {
             .listener
             .local_addr()
             .map_err(|source| WebSocketListenerError::Bind { source })?;
-        tracing::info!(%bind, "WebSocket voice listener started");
+        curia::info!("WebSocket voice listener started", { "bind": bind.to_string() });
 
         loop {
             let (stream, peer) = match self.listener.accept().await {
                 Ok(accepted) => accepted,
                 Err(e) => {
-                    tracing::warn!("accepting on the WebSocket listener: {e}");
+                    curia::warn!(format!("accepting on the WebSocket listener: {e}"));
                     continue;
                 }
             };
@@ -156,7 +157,7 @@ impl WebSocketListener {
                         if let Some(metrics) = metrics {
                             metrics.record_websocket_rejection();
                         }
-                        tracing::debug!(%peer, device, "websocket session ended: {e}");
+                        curia::debug!(format!("websocket session ended: {e}"), { "peer": peer.to_string(), "device": device });
                     }
                 }
             });
@@ -188,7 +189,7 @@ impl WebSocketListener {
             .authorize(database.as_ref(), &leaf_der)
             .await
             .map_err(|reason| {
-                tracing::warn!(%peer, "Refusing WebSocket session: {}", reason);
+                curia::warn!(format!("Refusing WebSocket session: {}", reason), { "peer": peer.to_string() });
                 WebSocketListenerError::UnusableIdentity { peer }
             })?;
 
@@ -206,7 +207,7 @@ impl WebSocketListener {
             .await
             .map_err(|source| WebSocketListenerError::Upgrade { peer, source })?;
 
-        tracing::info!(%peer, device, %identity, "WebSocket session authenticated");
+        curia::info!("WebSocket session authenticated", { "peer": peer.to_string(), "device": device, "identity": identity.to_string() });
 
         let (mut sink, mut source) = socket.split();
         let (inbound_tx, inbound_rx) = mpsc::channel::<Bytes>(Self::READ_QUEUE_DEPTH);
@@ -245,7 +246,7 @@ impl WebSocketListener {
             }
 
             if dropped > 0 {
-                tracing::debug!(device, dropped, "websocket write queue shed frames");
+                curia::debug!("websocket write queue shed frames", { "device": device, "dropped": dropped });
             }
 
             let _ = sink.close().await;
@@ -260,7 +261,7 @@ impl WebSocketListener {
                     Ok(Message::Close(_)) => break,
                     Ok(_) => continue,
                     Err(e) => {
-                        tracing::debug!(device, "websocket read ended: {e}");
+                        curia::debug!(format!("websocket read ended: {e}"), { "device": device });
                         break;
                     }
                 };

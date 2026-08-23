@@ -1,3 +1,4 @@
+use common::curia;
 use super::{BufferedHello, DemuxError, TlsAlert};
 use common::structs::network::VoiceProtocol;
 use rustls::server::Acceptor;
@@ -72,18 +73,13 @@ impl AlpnDemux {
 
         let listener = Self::bind_listener(self.listen)?;
 
-        tracing::info!(
-            listen = %self.listen,
-            api = %self.api.addr(),
-            websocket = ?self.websocket,
-            "TLS demultiplexer listening"
-        );
+        curia::info!("TLS demultiplexer listening", { "listen": self.listen.to_string(), "api": self.api.addr().to_string(), "websocket": format!("{:?}", self.websocket) });
 
         loop {
             let (stream, peer) = match listener.accept().await {
                 Ok(accepted) => accepted,
                 Err(e) => {
-                    tracing::warn!("accepting on the public TLS listener: {e}");
+                    curia::warn!(format!("accepting on the public TLS listener: {e}"));
                     continue;
                 }
             };
@@ -93,9 +89,9 @@ impl AlpnDemux {
             tokio::spawn(async move {
                 if let Err(e) = Self::handle_connection(stream, peer, api, websocket).await {
                     if e.is_routine() {
-                        tracing::debug!(%peer, "demuxed connection ended: {e}");
+                        curia::debug!(format!("demuxed connection ended: {e}"), { "peer": peer.to_string() });
                     } else {
-                        tracing::warn!(%peer, "demuxed connection failed: {e}");
+                        curia::warn!(format!("demuxed connection failed: {e}"), { "peer": peer.to_string() });
                     }
                 }
             });

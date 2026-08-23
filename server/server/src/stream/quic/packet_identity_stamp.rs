@@ -1,3 +1,4 @@
+use common::curia;
 use common::structs::packet::{PacketSender, QuicNetworkPacket};
 
 // Stamps an inbound packet with the connection's authenticated identity before anything
@@ -19,7 +20,7 @@ impl PacketIdentityStamp {
     pub fn apply(packet: &mut QuicNetworkPacket, identity: &str, device: u64) {
         match identity.parse::<common::PlayerIdentity>() {
             Ok(identity) => packet.sender = Some(PacketSender::player(identity, device)),
-            Err(e) => tracing::warn!("Refusing to stamp a non-canonical identity: {e}"),
+            Err(e) => curia::warn!(format!("Refusing to stamp a non-canonical identity: {e}")),
         }
     }
 }

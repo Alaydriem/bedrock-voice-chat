@@ -1,3 +1,4 @@
+use common::curia;
 use super::SessionLink;
 use crate::stream::quic::connection::{AtCapacity, ConnectionRegistry, RoutedPacket};
 use crate::stream::quic::stream_manager::{InputStream, OutputStream};
@@ -109,7 +110,7 @@ impl SessionSpawner {
                 let shared: std::sync::Arc<str> = std::sync::Arc::from(identity.as_str());
                 registry.try_register(device, shared, fingerprint.clone(), tx.clone())?;
                 if player_id_lock.set(identity).is_err() {
-                    tracing::warn!("Player ID already set for connection");
+                    curia::warn!("Player ID already set for connection");
                 }
                 Ok(())
             }
@@ -133,7 +134,7 @@ impl SessionSpawner {
 
         let output_task = tokio::spawn(async move {
             if let Err(e) = Self::run_output(output_stream, output_shutdown_rx).await {
-                tracing::error!("Output stream error: {}", e);
+                curia::error!("Output stream error: {}", e);
             }
         });
 
@@ -142,7 +143,7 @@ impl SessionSpawner {
             _ = output_task => { let _ = input_shutdown_tx.send(()); }
         }
 
-        tracing::info!("Session {} closed", label);
+        curia::info!("Session {} closed", label);
     }
 
     /// Tells a refused client why, on the link its handshake established.
@@ -185,14 +186,14 @@ impl SessionSpawner {
             let registry = registry.clone();
 
             tokio::spawn(async move {
-                tracing::info!("Player {} (device: {}) disconnected", player_id, device);
+                curia::info!("Player {} (device: {}) disconnected", player_id, device);
 
                 registry.unregister(device);
 
                 // The callback is handed the identity as text by the transport. A value that
                 // does not parse belongs to no player, so there is nothing to evict.
                 let Ok(identity) = player_id.parse::<common::PlayerIdentity>() else {
-                    tracing::error!("Disconnect for a non-canonical identity: {player_id}");
+                    curia::error!(format!("Disconnect for a non-canonical identity: {player_id}"));
                     return;
                 };
 
@@ -219,14 +220,14 @@ impl SessionSpawner {
                             };
 
                             if let Err(e) = webhook_receiver.send_packet(leave_packet).await {
-                                tracing::error!(
+                                curia::error!(
                                     "Failed to broadcast channel leave event for player {} channel {}: {}",
                                     identity,
                                     channel_id,
                                     e
                                 );
                             } else {
-                                tracing::info!(
+                                curia::info!(
                                     "Broadcast channel leave event: player {} left channel {}",
                                     identity,
                                     channel_id
@@ -235,7 +236,7 @@ impl SessionSpawner {
                         }
                     }
                     Err(e) => {
-                        tracing::error!("Failed to remove player {}: {}", identity, e);
+                        curia::error!("Failed to remove player {}: {}", identity, e);
                     }
                 }
             });
@@ -268,10 +269,10 @@ impl SessionSpawner {
             if let Some(identity) = &player_identity {
                 match register_connection(identity.clone()) {
                     Ok(()) => {
-                        tracing::info!("Registered authenticated player identity: {identity}")
+                        curia::info!(format!("Registered authenticated player identity: {identity}"))
                     }
                     Err(refusal) => {
-                        tracing::info!("Refused {identity}: {refusal}");
+                        curia::info!(format!("Refused {identity}: {refusal}"));
                         Self::refuse_at_capacity(&refusal_link, refusal.limit).await;
                         return;
                     }
@@ -304,7 +305,7 @@ impl SessionSpawner {
                                 .process_packet(packet.clone())
                                 .await
                             {
-                                tracing::error!("Failed to process packet in cache manager: {}", e);
+                                curia::error!("Failed to process packet in cache manager: {}", e);
                             }
                         }
 
@@ -375,7 +376,7 @@ impl SessionSpawner {
                         }
                     }
                     _ = &mut shutdown_rx => {
-                        tracing::info!("Input stream received shutdown signal");
+                        curia::info!("Input stream received shutdown signal");
                         break;
                     }
                 }
@@ -392,13 +393,13 @@ impl SessionSpawner {
         tokio::select! {
             result = output_stream.start() => {
                 if let Err(e) = result {
-                    tracing::error!("Output stream error: {}", e);
+                    curia::error!("Output stream error: {}", e);
                 }
             }
             _ = &mut shutdown_rx => {
-                tracing::info!("Output stream received shutdown signal");
+                curia::info!("Output stream received shutdown signal");
                 if let Err(e) = output_stream.stop().await {
-                    tracing::error!("Error stopping output stream: {}", e);
+                    curia::error!("Error stopping output stream: {}", e);
                 }
             }
         }

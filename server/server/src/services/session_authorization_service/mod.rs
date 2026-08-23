@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 
 use common::structs::certificate::CertificateFingerprint;
@@ -70,7 +71,7 @@ impl SessionAuthorizationService {
             Ok(Some(player)) => Ok(player),
             Ok(None) => Err(SessionRejection::UnknownPlayer),
             Err(e) => {
-                tracing::error!("session authorization lookup failed: {}", e);
+                curia::error!("session authorization lookup failed: {}", e);
                 Err(SessionRejection::Unavailable)
             }
         }

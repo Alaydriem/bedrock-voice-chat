@@ -158,6 +158,7 @@ impl EmbeddedServer {
         let db_path = data_dir.join("bvc-test.sqlite3");
         let assets_path = data_dir.join("assets");
         let audio_path = data_dir.join("audio");
+        let log_path = data_dir.join("logs");
         std::fs::create_dir_all(&audio_path).expect("create audio storage dir");
 
         let mut relay = json!({
@@ -175,7 +176,7 @@ impl EmbeddedServer {
             },
             "log": {
                 "level": "warn",
-                "out": "stdout",
+                "path": log_path.to_string_lossy(),
             },
             "audio": {
                 "file_path": audio_path.to_string_lossy(),

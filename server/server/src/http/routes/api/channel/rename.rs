@@ -1,3 +1,4 @@
+use common::curia;
 use crate::http::openapi::CustomJsonResponse;
 use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::structs::{
@@ -61,7 +62,7 @@ pub async fn channel_rename(
     };
 
     if let Err(e) = webhook_receiver.send_packet(packet).await {
-        tracing::error!("Failed to send channel rename packet to QUIC server: {}", e);
+        curia::error!("Failed to send channel rename packet to QUIC server: {}", e);
     }
 
     CustomJsonResponse::ok(true)

@@ -90,14 +90,18 @@
 
 /* ---- top and bottom bars ---- */
 
+/* The bar grows by the inset and pads by it, so its 70px of content still centres
+   against 70px. Padding alone would squash the brand into the remainder. The tokens are
+   0 on desktop, so this is the desktop rule unchanged. */
 .rad-topbar {
   flex: 0 0 auto;
-  height: 70px;
+  height: calc(70px + var(--rad-inset-top, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 30px;
+  padding: var(--rad-inset-top, 0px) calc(30px + var(--rad-inset-right, 0px)) 0
+    calc(30px + var(--rad-inset-left, 0px));
   position: relative;
   z-index: 5;
   background: var(--color-rad-void);
@@ -121,14 +125,17 @@
   color: var(--color-rad-dim);
 }
 
+/* The last flex item in the screen, so it touches the bottom edge of the window and the
+   primary action inside it sits under the navigation bar or the home indicator. */
 .rad-footbar {
   flex: 0 0 auto;
-  min-height: 80px;
+  min-height: calc(80px + var(--rad-inset-bottom, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 14px 30px;
+  padding: 14px calc(30px + var(--rad-inset-right, 0px))
+    calc(14px + var(--rad-inset-bottom, 0px)) calc(30px + var(--rad-inset-left, 0px));
   position: relative;
   z-index: 5;
   background: var(--color-rad-void);
@@ -424,9 +431,13 @@
     overflow-x: hidden;
   }
 
+  /* Matches `.rad-dash-top` on a phone, for the reason recorded there: the system status
+     bar stacks on top of this and can be tall, so the two together read as one band. The
+     two headers have to agree or moving between them steps the chrome height. */
   .rad-topbar {
-    height: 60px;
-    padding: 0 18px;
+    height: calc(48px + var(--rad-inset-top, 0px));
+    padding: var(--rad-inset-top, 0px) calc(18px + var(--rad-inset-right, 0px)) 0
+      calc(18px + var(--rad-inset-left, 0px));
   }
 
   .rad-wordmark {
@@ -434,8 +445,9 @@
   }
 
   .rad-footbar {
-    min-height: 72px;
-    padding: 12px 18px;
+    min-height: calc(72px + var(--rad-inset-bottom, 0px));
+    padding: 12px calc(18px + var(--rad-inset-right, 0px))
+      calc(12px + var(--rad-inset-bottom, 0px)) calc(18px + var(--rad-inset-left, 0px));
     box-shadow: 0 -10px 24px -14px rgb(0 0 0 / 0.75);
   }
 

@@ -1,3 +1,4 @@
+use common::curia;
 use common::request::admin::GenerateCodeRequest;
 use common::response::admin::GeneratedCodeResponse;
 use entity::player;
@@ -34,7 +35,7 @@ pub async fn generate_code(
         .one(conn)
         .await
         .map_err(|e| {
-            tracing::error!("generate_code: db error: {}", e);
+            curia::error!("generate_code: db error: {}", e);
             Status::InternalServerError
         })?
         .ok_or(Status::NotFound)?;
@@ -42,7 +43,7 @@ pub async fn generate_code(
     let code = AuthCodeService::generate_code(conn, player_record.id, req.duration, req.ephemeral)
         .await
         .map_err(|e| {
-            tracing::error!("generate_code: insert failed: {}", e);
+            curia::error!("generate_code: insert failed: {}", e);
             Status::InternalServerError
         })?;
 

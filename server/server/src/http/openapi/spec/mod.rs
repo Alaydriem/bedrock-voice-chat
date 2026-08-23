@@ -1,3 +1,4 @@
+use common::curia;
 use okapi::openapi3::{OpenApi, Tag};
 
 mod route_spec;
@@ -24,7 +25,7 @@ impl OpenApiSpec {
         for route_spec in inventory::iter::<RouteSpec> {
             let (_, spec) = (route_spec.spec_fn)();
             if let Err(e) = okapi::merge::merge_specs(&mut merged, &route_spec.prefix, &spec) {
-                tracing::error!(
+                curia::error!(
                     "Failed to merge OpenAPI spec for {}: {}",
                     route_spec.prefix,
                     e

@@ -1,3 +1,4 @@
+use common::curia;
 use crate::http::guards::PlayerGuard;
 use common::{
     Game, auth::MinecraftAuthProvider, request::LinkJavaIdentityRequest,
@@ -32,7 +33,7 @@ pub async fn link_java_identity(
         .authenticate_for_java_profile(request.code, redirect_uri)
         .await
         .map_err(|e| {
-            tracing::error!("Link Java identity auth failed: {}", e);
+            curia::error!("Link Java identity auth failed: {}", e);
             Status::Forbidden
         })?;
 
@@ -51,7 +52,7 @@ pub async fn link_java_identity(
                 )
                 .await
             {
-                tracing::warn!("Failed to create identity alias for {}: {}", mc_username, e);
+                curia::warn!("Failed to create identity alias for {}: {}", mc_username, e);
             }
         }
     }

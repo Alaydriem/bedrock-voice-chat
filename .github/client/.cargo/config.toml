@@ -5,12 +5,16 @@ CPAL_ASIO_DIR = { value = "./ASIOSDK", relative = true }
 rustflags = ["--cfg", "s2n_quic_unstable"]
 
 # Android-specific configurations
+# max-page-size is explicit on the 64-bit targets rather than inherited from the NDK
+# linker default, which was 4 KB before r28. A library with LOAD segments below 16 KB
+# will not load on a device with 16 KB memory pages, and Play rejects the bundle.
 [target.aarch64-linux-android]
 linker = "aarch64-linux-android27-clang"
 rustflags = [
   "-Clinker=aarch64-linux-android27-clang",
   "--cfg","s2n_quic_unstable",
   "-C","link-arg=-lc++_shared",
+  "-C","link-arg=-Wl,-z,max-page-size=16384",
   "-L","$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/27",
 ]
 
@@ -41,6 +45,7 @@ rustflags = [
   "-Clinker=x86_64-linux-android27-clang",
   "--cfg","s2n_quic_unstable",
   "-C","link-arg=-lc++_shared",
+  "-C","link-arg=-Wl,-z,max-page-size=16384",
   "-L","$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/27",
 ]
 

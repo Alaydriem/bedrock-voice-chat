@@ -1,3 +1,4 @@
+use common::curia;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -45,12 +46,7 @@ impl EjectScheduler {
         block_pos: Coordinate,
         duration: Duration,
     ) {
-        tracing::info!(
-            event_id = %event_id,
-            world_uuid = %world_uuid,
-            duration_ms = duration.as_millis() as u64,
-            "EjectScheduler: scheduling auto-eject"
-        );
+        curia::info!("EjectScheduler: scheduling auto-eject", { "event_id": event_id.to_string(), "world_uuid": world_uuid.to_string(), "duration_ms": duration.as_millis() as u64 });
         let scheduler = Arc::clone(self);
         let event_id_for_task = event_id.clone();
 
@@ -75,18 +71,14 @@ impl EjectScheduler {
     }
 
     async fn fire(&self, event_id: String, world_uuid: String, block_pos: Coordinate) {
-        tracing::info!(event_id = %event_id, "EjectScheduler: timer fired");
+        curia::info!("EjectScheduler: timer fired", { "event_id": event_id.to_string() });
         {
             let mut pending = self.pending.lock().await;
             pending.remove(&event_id);
         }
 
         if self.bedrock_event_service.is_bds_healthy(&world_uuid).await {
-            tracing::debug!(
-                event_id = %event_id,
-                world_uuid = %world_uuid,
-                "EjectScheduler: skipping broadcast (BDS addon is healthy)"
-            );
+            curia::debug!("EjectScheduler: skipping broadcast (BDS addon is healthy)", { "event_id": event_id.to_string(), "world_uuid": world_uuid.to_string() });
             return;
         }
 
@@ -107,18 +99,9 @@ impl EjectScheduler {
         };
 
         if let Err(e) = self.webhook_receiver.send_packet(packet).await {
-            tracing::warn!(
-                event_id = %event_id,
-                world_uuid = %world_uuid,
-                error = %e,
-                "EjectScheduler: failed to broadcast JukeboxEjectAnnouncement"
-            );
+            curia::warn!("EjectScheduler: failed to broadcast JukeboxEjectAnnouncement", { "event_id": event_id.to_string(), "world_uuid": world_uuid.to_string(), "error": e.to_string() });
         } else {
-            tracing::debug!(
-                event_id = %event_id,
-                world_uuid = %world_uuid,
-                "EjectScheduler: broadcast ClientBound JukeboxEjectAnnouncement"
-            );
+            curia::debug!("EjectScheduler: broadcast ClientBound JukeboxEjectAnnouncement", { "event_id": event_id.to_string(), "world_uuid": world_uuid.to_string() });
         }
     }
 }

@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 
 use rocket::{State, http::Status, serde::json::Json};
@@ -47,7 +48,7 @@ pub async fn host_capability(
     let parsed = match HostCapability::parse(&report.0.to_string()) {
         Ok(parsed) => parsed,
         Err(reason) => {
-            tracing::info!("refusing a host capability report: {reason}");
+            curia::info!(format!("refusing a host capability report: {reason}"));
             return CustomJsonResponse::error(Status::BadRequest);
         }
     };

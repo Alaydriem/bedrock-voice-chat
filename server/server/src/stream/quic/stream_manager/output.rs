@@ -1,3 +1,4 @@
+use common::curia;
 use crate::stream::quic::connection::RoutedPacket;
 use crate::stream::session::{SendOutcome, SessionLink};
 use anyhow::Error;
@@ -45,13 +46,13 @@ impl StreamTrait for OutputStream {
     }
 
     async fn stop(&mut self) -> Result<(), Error> {
-        tracing::info!("Stopping QUIC output stream");
+        curia::info!("Stopping QUIC output stream");
         self.is_stopped.store(true, Ordering::Relaxed);
         Ok(())
     }
 
     async fn start(&mut self) -> Result<(), Error> {
-        tracing::info!("Starting session output stream");
+        curia::info!("Starting session output stream");
         self.is_stopped.store(false, Ordering::Relaxed);
 
         if let (Some(link), Some(mut packet_rx)) = (self.link.clone(), self.packet_rx.take()) {
@@ -62,7 +63,7 @@ impl StreamTrait for OutputStream {
                 match link.send_batch(&mut batch) {
                     SendOutcome::Ok => {}
                     SendOutcome::ConnectionClosed(emsg) => {
-                        tracing::error!(
+                        curia::error!(
                             "datagram_send_closed player={} err={}",
                             self.log_label(),
                             emsg
@@ -70,21 +71,21 @@ impl StreamTrait for OutputStream {
                         break;
                     }
                     SendOutcome::Capacity(emsg) => {
-                        tracing::debug!(
+                        curia::debug!(
                             "datagram send capacity issue player={} err={}",
                             self.log_label(),
                             emsg
                         );
                     }
                     SendOutcome::Other(emsg) => {
-                        tracing::debug!(
+                        curia::debug!(
                             "datagram send error player={} err={}",
                             self.log_label(),
                             emsg
                         );
                     }
                     SendOutcome::Fatal(emsg) => {
-                        tracing::error!(
+                        curia::error!(
                             "datagram_send_query_failed player={} err={}",
                             self.log_label(),
                             emsg
@@ -100,7 +101,7 @@ impl StreamTrait for OutputStream {
     }
 
     async fn metadata(&mut self, key: String, value: String) -> Result<(), Error> {
-        tracing::info!(
+        curia::info!(
             "Setting metadata for QUIC output stream: {} = {}",
             key,
             value

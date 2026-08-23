@@ -331,6 +331,41 @@ $target = $env:usage_target
 if ($target -eq "android") {
   mise run android-network-config
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  # Two ways for the device to reach vite, and the choice is TAURI_DEV_HOST.
+  #
+  # Unset (preferred for a cabled device): the device loads devUrl over loopback and
+  # `adb reverse` tunnels that to this machine. Nothing crosses the network, so a
+  # firewall profile on the wrong side of Private/Public and the AP client isolation
+  # that most 10.x networks run cannot break it. The reverse is idempotent, and the
+  # tauri CLI sets one up too -- this is here so the failure is named rather than
+  # arriving as a 30s timeout inside the webview.
+  #
+  # Set: vite binds that address (client/vite.config.js already reads the variable)
+  # and the device reaches it over the LAN. Needed for wireless and the emulator, and
+  # the address has to be in the debug network security config, which the task above
+  # puts there.
+  if ($env:TAURI_DEV_HOST) {
+    Write-Host "ok    LAN mode: vite on $($env:TAURI_DEV_HOST):1420"
+    Write-Host "      If the webview times out, the port is reachable from this machine but"
+    Write-Host "      not the device: check the firewall rule's profile and AP isolation, or"
+    Write-Host "      clear TAURI_DEV_HOST to tunnel over USB instead."
+  } else {
+    $reversed = $true
+    foreach ($port in 1420, 1421) {
+      adb reverse "tcp:$port" "tcp:$port" 2>&1 | Out-Null
+      if ($LASTEXITCODE -ne 0) { $reversed = $false }
+    }
+    if ($reversed) {
+      Write-Host "ok    USB mode: adb reverse 1420 and 1421 to loopback"
+    } else {
+      # Not fatal. An emulator, or a device the tauri CLI forwards for itself, both work
+      # without this, and only one device at a time can hold a reverse.
+      Write-Host "note  adb reverse unavailable; relying on the tauri CLI's own forwarding."
+      Write-Host "      For a device on the LAN, set TAURI_DEV_HOST to this machine's address."
+    }
+  }
+
   # Same JAVA_HOME problem the mod dev tasks have: gradlew otherwise takes
   # whatever java is first on PATH, and the Android Gradle Plugin needs the
   # temurin-21 that client/mise.toml pins. Change both together.
@@ -629,17 +664,67 @@ New-Item -ItemType Directory -Force -Path $xmlDir | Out-Null
 # Cleartext stays refused everywhere except this device's own loopback, where the
 # app's internal push channel listens. Widening usesCleartextTraffic instead would
 # permit cleartext to every host, which is what this file exists to avoid.
+#
+# `includeSubdomains` on localhost is what covers tauri.localhost, the origin the
+# Android webview serves the app from. Once this file exists Android IGNORES
+# android:usesCleartextTraffic altogether, so the debug build's "true" no longer
+# reaches it -- without the subdomains here, `tauri android dev` fails every request
+# with ERR_CLEARTEXT_NOT_PERMITTED and devtools cannot be used at all. Everything
+# under .localhost resolves to loopback, so this grants no host the base config
+# refuses.
+#
+# This is the file a RELEASE build ships. The dev server lives in the debug-only
+# copy below.
 $config = @'
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">127.0.0.1</domain>
-        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="true">localhost</domain>
     </domain-config>
 </network-security-config>
 '@
 Set-Content -Path (Join-Path $xmlDir "network_security_config.xml") -Value $config -Encoding utf8NoBOM
+
+# `tauri android dev` on a real device serves vite on a LAN address, not loopback, and
+# the webview loads the app from it -- so the strict config above refuses the whole app
+# with ERR_CLEARTEXT_NOT_PERMITTED. Tauri names that address in TAURI_DEV_HOST.
+#
+# It goes in the debug source set, not next to the file above. Gradle merges
+# src/debug/res over src/main/res for debug builds only, so the dev address never
+# reaches a release APK. Adding it to the shared file would permit cleartext to that
+# address in production.
+#
+# 10.0.2.2 is always present: it is the emulator's alias for the host machine, so an
+# emulator run needs no TAURI_DEV_HOST at all.
+$debugXmlDir = Join-Path $main "../debug/res/xml"
+New-Item -ItemType Directory -Force -Path $debugXmlDir | Out-Null
+
+$devDomains = @('        <domain includeSubdomains="false">10.0.2.2</domain>')
+$devHost = $env:TAURI_DEV_HOST
+if ($devHost) {
+  $devDomains += ('        <domain includeSubdomains="false">' + $devHost + '</domain>')
+  Write-Host "ok    debug config permits cleartext to TAURI_DEV_HOST $devHost"
+} else {
+  Write-Host "note  TAURI_DEV_HOST is not set. The debug config covers the emulator"
+  Write-Host "      (10.0.2.2) and loopback only. For `tauri android dev` on a physical"
+  Write-Host "      device, set TAURI_DEV_HOST to this machine's LAN address and re-run."
+}
+
+$debugConfig = @"
+<?xml version="1.0" encoding="utf-8"?>
+<!-- GENERATED by `mise run android-network-config`. Debug builds only. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="true">localhost</domain>
+$($devDomains -join "`n")
+    </domain-config>
+</network-security-config>
+"@
+Set-Content -Path (Join-Path $debugXmlDir "network_security_config.xml") -Value $debugConfig -Encoding utf8NoBOM
 
 $manifestPath = Join-Path $main "AndroidManifest.xml"
 $manifest = Get-Content -Raw -Path $manifestPath
@@ -660,6 +745,7 @@ if ($manifest -match 'android:networkSecurityConfig') {
 Write-Host "ok    android network security config written"
 '''
 
+
 [tasks.android-network-config-check]
 description = "Fail on a missing or altered Android network security config instead of rewriting it. The direction CI runs."
 shell = "pwsh -NoLogo -Command"
@@ -675,11 +761,29 @@ if (-not (Test-Path $xml)) {
   $failed = $true
 } else {
   $content = Get-Content -Raw -Path $xml
-  foreach ($needle in @('cleartextTrafficPermitted="false"', '<domain includeSubdomains="false">127.0.0.1</domain>')) {
+  foreach ($needle in @('cleartextTrafficPermitted="false"', '<domain includeSubdomains="false">127.0.0.1</domain>', '<domain includeSubdomains="true">localhost</domain>')) {
     if (-not $content.Contains($needle)) {
       Write-Host "FAIL  $xml no longer contains: $needle"
       $failed = $true
     }
+  }
+}
+
+$debugXml = Join-Path $main "../debug/res/xml/network_security_config.xml"
+if (-not (Test-Path $debugXml)) {
+  Write-Host "FAIL  $debugXml is missing. Run: mise run android-network-config"
+  $failed = $true
+}
+
+# The release config must stay loopback-only. A dev address that leaks from the debug
+# source set into this file permits cleartext to it in production.
+if (Test-Path $xml) {
+  # `<domain\s` and not `<domain`, or the enclosing <domain-config> is counted too.
+  $domainCount = ([regex]::Matches((Get-Content -Raw -Path $xml), '<domain\s')).Count
+  if ($domainCount -ne 2) {
+    Write-Host "FAIL  $xml lists $domainCount domains, expected exactly 2 (loopback only)."
+    Write-Host "      A dev host belongs in the debug source set, not here."
+    $failed = $true
   }
 }
 
