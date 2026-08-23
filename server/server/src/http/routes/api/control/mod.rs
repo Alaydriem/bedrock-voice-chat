@@ -1,3 +1,4 @@
+use common::curia;
 use crate::config::Voice;
 use crate::http::guards::GameAccessToken;
 use crate::http::openapi::{CustomJsonResponse, RouteSpec, TagDefinition};
@@ -56,7 +57,7 @@ pub async fn control(
     let svc = ClientActionService::new(voice.recording.enabled);
 
     if !svc.permits(&action.action) {
-        tracing::info!("control refused: this server does not permit recording");
+        curia::info!("control refused: this server does not permit recording");
         return CustomJsonResponse::error(Status::Forbidden);
     }
 
@@ -75,7 +76,7 @@ pub async fn control(
             Err(e) => {
                 // route_group only errors on a JoinGroup miss (unknown share code) —
                 // a client error, not a server fault.
-                tracing::info!("route_group rejected: {}", e);
+                curia::info!("route_group rejected: {}", e);
                 CustomJsonResponse::error(Status::NotFound)
             }
         }

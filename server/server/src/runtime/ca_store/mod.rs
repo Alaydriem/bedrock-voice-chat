@@ -9,6 +9,7 @@
 //! The point is that `certs_path` can now be a temp directory. A container needs no persistent
 //! volume.
 
+use common::curia;
 use anyhow::{Context, Result, anyhow};
 use entity::certificate_authority;
 use sea_orm::{ActiveValue, ConnectionTrait, EntityTrait, PaginatorTrait};
@@ -58,7 +59,7 @@ impl CaStore {
         if let Some(row) = &stored {
             Self::materialise(dir, &row.certificate_pem, &row.key_pem)?;
         } else if dir.join("ca.key").exists() {
-            tracing::info!(
+            curia::info!(
                 "Importing the existing on-disk certificate authority into the database. \
                  The trust anchor is unchanged, so every certificate it has issued stays valid."
             );
@@ -96,12 +97,8 @@ impl CaStore {
                     fs::rename(&path, &superseded).with_context(|| {
                         format!("preserving {} as {}", path.display(), superseded.display())
                     })?;
-                    tracing::warn!(
-                        path = %path.display(),
-                        preserved_as = %superseded.display(),
-                        "The stored certificate authority differs from the one on disk. The \
-                         database is authoritative; the displaced file is preserved."
-                    );
+                    curia::warn!("The stored certificate authority differs from the one on disk. The \
+                         database is authoritative; the displaced file is preserved.", { "path": path.display().to_string(), "preserved_as": superseded.display().to_string() });
                 }
                 Err(_) => {}
             }

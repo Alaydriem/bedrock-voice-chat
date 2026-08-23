@@ -1,3 +1,4 @@
+use common::curia;
 use std::time::Duration;
 
 use common::structs::analytics::posthog::{BatchRequest, CaptureEvent};
@@ -157,10 +158,10 @@ impl PosthogClient {
                     let status = resp.status();
                     if status.is_client_error() || status.is_server_error() {
                         let text = resp.text().await.unwrap_or_default();
-                        tracing::warn!("PostHog error: {} - {}", status, text);
+                        curia::warn!("PostHog error: {} - {}", status, text);
                     }
                 }
-                Err(e) => tracing::warn!("PostHog request failed: {}", e),
+                Err(e) => curia::warn!("PostHog request failed: {}", e),
             }
         }
         buffer.clear();

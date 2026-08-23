@@ -71,7 +71,7 @@ reqwest = { version = "^0.12", default-features = false, features = [
 ] }
 tracing = { version = "^0.1" }
 tracing-subscriber = { version = "^0.3" }
-tracing-appender = { version = "^0.2" }
+anstyle-query = { version = "^1.1" }
 base64 = { version = "^0.22" }
 percent-encoding = { version = "^2" }
 faccess = { version = "^0.2" }

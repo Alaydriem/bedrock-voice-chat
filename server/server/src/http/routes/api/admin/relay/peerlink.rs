@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 
 use common::response::admin::PeerLinkResponse;
@@ -23,7 +24,7 @@ pub async fn relay_peerlink(
     let plane = plane.inner().as_ref().ok_or(Status::NotFound)?;
 
     let peerlink = plane.endpoint().ticket().await.map_err(|e| {
-        tracing::error!("relay_peerlink: minting a ticket failed: {}", e);
+        curia::error!("relay_peerlink: minting a ticket failed: {}", e);
         Status::InternalServerError
     })?;
 

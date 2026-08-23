@@ -1,3 +1,4 @@
+use common::curia;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -86,10 +87,7 @@ impl AcmeStorage {
             _ => (None, None),
         };
 
-        tracing::info!(
-            path = %self.dir.display(),
-            "Importing the existing ACME account and certificate into the database."
-        );
+        curia::info!("Importing the existing ACME account and certificate into the database.", { "path": self.dir.display().to_string() });
 
         self.insert(&account_json, pair.0, pair.1).await
     }

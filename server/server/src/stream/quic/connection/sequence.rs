@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -42,7 +43,7 @@ impl ConnectionSequence {
             // would let two concurrent senders issue the same number — and an envelope exceeding
             // the datagram cap is a bug that is logged where it is built.
             Err(e) => {
-                tracing::error!("failed to serialize stamped datagram: {}", e);
+                curia::error!("failed to serialize stamped datagram: {}", e);
                 None
             }
         }
@@ -62,7 +63,7 @@ impl ConnectionSequence {
         let range = QuicNetworkPacket::SEQ_VALUE_RANGE;
 
         if template.len() < range.end {
-            tracing::error!(
+            curia::error!(
                 "envelope template of {} bytes is too short to carry a sequence",
                 template.len()
             );

@@ -1,3 +1,4 @@
+use common::curia;
 use common::s2n_quic::provider::event::{ConnectionInfo, ConnectionMeta, Subscriber, events};
 
 use super::PathObserverContext;
@@ -29,21 +30,11 @@ impl Subscriber for PathObserver {
         let count = context.record_path();
 
         if PathObserverContext::is_near_limit(count) {
-            tracing::warn!(
-                paths = count,
-                remote = ?event.new.remote_addr,
-                path_id = event.new.id,
-                "Connection is at the QUIC path limit; datagrams from any further source address will be dropped"
-            );
+            curia::warn!("Connection is at the QUIC path limit; datagrams from any further source address will be dropped", { "paths": count, "remote": format!("{:?}", event.new.remote_addr), "path_id": event.new.id });
             return;
         }
 
-        tracing::info!(
-            paths = count,
-            remote = ?event.new.remote_addr,
-            path_id = event.new.id,
-            "New path on connection"
-        );
+        curia::info!("New path on connection", { "paths": count, "remote": format!("{:?}", event.new.remote_addr), "path_id": event.new.id });
     }
 
     fn on_active_path_updated(
@@ -52,11 +43,7 @@ impl Subscriber for PathObserver {
         _meta: &ConnectionMeta,
         event: &events::ActivePathUpdated,
     ) {
-        tracing::info!(
-            previous = ?event.previous.remote_addr,
-            active = ?event.active.remote_addr,
-            "Active path changed"
-        );
+        curia::info!("Active path changed", { "previous": format!("{:?}", event.previous.remote_addr), "active": format!("{:?}", event.active.remote_addr) });
     }
 
     fn on_datagram_dropped(
@@ -69,11 +56,7 @@ impl Subscriber for PathObserver {
             event.reason,
             events::DatagramDropReason::PathLimitExceeded { .. }
         ) {
-            tracing::warn!(
-                remote = ?event.remote_addr,
-                len = event.len,
-                "Datagram dropped: the connection's path budget is exhausted"
-            );
+            curia::warn!("Datagram dropped: the connection's path budget is exhausted", { "remote": format!("{:?}", event.remote_addr), "len": event.len });
         }
     }
 
@@ -82,11 +65,7 @@ impl Subscriber for PathObserver {
         _meta: &events::EndpointMeta,
         event: &events::EndpointDatagramDropped,
     ) {
-        tracing::debug!(
-            len = event.len,
-            reason = ?event.reason,
-            "Datagram dropped before it reached a connection"
-        );
+        curia::debug!("Datagram dropped before it reached a connection", { "len": event.len, "reason": format!("{:?}", event.reason) });
     }
 
     fn on_connection_migration_denied(
@@ -95,9 +74,6 @@ impl Subscriber for PathObserver {
         _meta: &ConnectionMeta,
         event: &events::ConnectionMigrationDenied,
     ) {
-        tracing::warn!(
-            reason = ?event.reason,
-            "Connection migration denied; a client that rebinds cannot recover"
-        );
+        curia::warn!("Connection migration denied; a client that rebinds cannot recover", { "reason": format!("{:?}", event.reason) });
     }
 }

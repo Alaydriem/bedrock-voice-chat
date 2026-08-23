@@ -23,7 +23,7 @@ use rcgen::{
 use std::fs;
 use std::path::{Path, PathBuf};
 use time::{Duration, OffsetDateTime};
-use tracing::info;
+use common::curia;
 
 const CA_SUBJECT_CN: &str = "Bedrock Voice Chat";
 
@@ -66,17 +66,17 @@ impl CaCertManager {
             let existing = SanKeySet::from_certificate_pem(&existing_pem)?;
 
             if !KeyMatch::matches(&existing_pem, &keypair) {
-                tracing::warn!(
+                curia::warn!(
                     "ca.crt was not issued by ca.key; re-signing from the key. Certificates \
                      issued under this key stay valid, but any signed while the pair was \
                      mismatched will not verify and their holders must authenticate again."
                 );
             } else if Self::is_expiring(&existing_pem) {
-                info!("ca.crt is inside its renewal window; re-signing with existing keypair");
+                curia::info!("ca.crt is inside its renewal window; re-signing with existing keypair");
             } else if existing == desired {
                 return Ok((existing_pem, key_pem));
             } else {
-                info!(
+                curia::info!(
                     "ca.crt SAN set drifted from config (was: {:?}, now: {:?}); re-signing with existing keypair",
                     existing.sorted(),
                     desired.sorted(),

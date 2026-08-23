@@ -2,6 +2,7 @@ mod rejection;
 
 pub use rejection::BedrockEventRejection;
 
+use common::curia;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -90,11 +91,7 @@ impl BedrockEventService {
         }
 
         if self.is_bds_healthy(&packet.world_uuid).await {
-            tracing::debug!(
-                world_uuid = %packet.world_uuid,
-                player = %authenticated_player,
-                "Rejecting bedrock proxy event: BDS addon is healthy"
-            );
+            curia::debug!("Rejecting bedrock proxy event: BDS addon is healthy", { "world_uuid": packet.world_uuid.to_string(), "player": authenticated_player.to_string() });
             return Err(BedrockEventRejection::BdsHealthy);
         }
 

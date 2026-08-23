@@ -1,3 +1,4 @@
+use common::curia;
 use common::request::admin::ClearPermissionRequest;
 use common::structs::permission::Permission;
 use entity::player;
@@ -29,7 +30,7 @@ pub async fn clear_permission(
     let targeting_self = admin_gamertag == req.gamertag && admin.player.game == req.game;
     let targeting_admin_perm = req.permission == Permission::Admin.as_str();
     if targeting_self && targeting_admin_perm {
-        tracing::warn!(
+        curia::warn!(
             "clear_permission: rejecting self-admin-clear by {} ({:?})",
             admin_gamertag,
             admin.player.game,
@@ -43,7 +44,7 @@ pub async fn clear_permission(
         .one(conn)
         .await
         .map_err(|e| {
-            tracing::error!("clear_permission: db error: {}", e);
+            curia::error!("clear_permission: db error: {}", e);
             Status::InternalServerError
         })?
         .ok_or(Status::NotFound)?;
@@ -53,7 +54,7 @@ pub async fn clear_permission(
         .map_err(|e| match e {
             crate::services::PermissionServiceError::UnknownPermission(_) => Status::BadRequest,
             crate::services::PermissionServiceError::Database(err) => {
-                tracing::error!("clear_permission: db error: {}", err);
+                curia::error!("clear_permission: db error: {}", err);
                 Status::InternalServerError
             }
         })?;

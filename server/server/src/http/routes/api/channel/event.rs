@@ -1,3 +1,4 @@
+use common::curia;
 use crate::http::openapi::CustomJsonResponse;
 use crate::services::{ChannelMembershipService, MetricsService};
 use crate::stream::quic::{CacheManager, WebhookReceiver};
@@ -117,6 +118,6 @@ fn channel_packet(
 
 async fn send_channel_event(packet: QuicNetworkPacket, webhook_receiver: &State<WebhookReceiver>) {
     if let Err(e) = webhook_receiver.send_packet(packet).await {
-        tracing::error!("Failed to send packet to QUIC server: {}", e);
+        curia::error!("Failed to send packet to QUIC server: {}", e);
     }
 }

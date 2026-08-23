@@ -59,6 +59,7 @@ server = [
 ]
 
 [dependencies]
+curia = { version = "^0.2" }
 nanoid = { workspace = true }
 chrono = { version = "^0.4", features = ["serde"] }
 ncryptf-rs = { version = "^0.5", features = ["client"], optional = true }

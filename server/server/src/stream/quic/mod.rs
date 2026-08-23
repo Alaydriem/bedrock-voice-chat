@@ -22,6 +22,7 @@ mod server_input_packet;
 pub mod stream_manager;
 mod webhook_receiver;
 
+use common::curia;
 use crate::config::ApplicationConfig;
 use crate::stream::session::SessionLink;
 use anyhow;
@@ -195,7 +196,7 @@ impl QuicServerManager {
         let server = if let Some(instance_id) =
             self.config.server.meridian.as_ref().map(|m| m.instance_id)
         {
-            tracing::info!(instance_id, "Using prefixed connection ID format");
+            curia::info!("Using prefixed connection ID format", { "instance_id": instance_id });
             builder
                 .with_connection_id(PrefixedConnectionIdFormat::new(instance_id))?
                 .start()?
@@ -219,7 +220,7 @@ impl StreamTrait for QuicServerManager {
     }
 
     async fn start(&mut self) -> Result<(), anyhow::Error> {
-        tracing::info!("Starting QUIC server manager");
+        curia::info!("Starting QUIC server manager");
 
         let (ca_cert, ca_key) = self.get_certificates().await?;
 
@@ -236,7 +237,7 @@ impl StreamTrait for QuicServerManager {
                     "{}:{}",
                     crate::config::Server::FALLBACK_LISTEN, self.config.server.quic_port
                 );
-                tracing::warn!(
+                curia::warn!(
                     "QUIC bind to {} failed ({}); falling back to {}. IPv6-only clients cannot reach this server.",
                     preferred,
                     e,
@@ -261,7 +262,7 @@ impl StreamTrait for QuicServerManager {
             .take()
             .ok_or_else(|| anyhow::anyhow!("QUIC server already started"))?;
 
-        tracing::info!("QUIC server started on {}", bind_addr);
+        curia::info!("QUIC server started on {}", bind_addr);
 
         if let Some(readiness) = &self.readiness {
             readiness.set_quic_ready(true);
@@ -275,7 +276,7 @@ impl StreamTrait for QuicServerManager {
                     if packet.packet_type != PacketType::AudioFrame {
                         // Server-injected: no certificate, so no authenticated game.
                         if let Err(e) = cache_manager.process_packet(packet.clone()).await {
-                            tracing::error!("Failed to process packet in cache manager: {}", e);
+                            curia::error!("Failed to process packet in cache manager: {}", e);
                         }
                     }
 
@@ -323,15 +324,15 @@ impl StreamTrait for QuicServerManager {
                     }
                 }
             } => {
-                tracing::info!("Webhook processing completed");
+                curia::info!("Webhook processing completed");
             }
 
             _ = self.accept_connections(server) => {
-                tracing::info!("QUIC connection handler completed");
+                curia::info!("QUIC connection handler completed");
             }
 
             _ = &mut shutdown_rx => {
-                tracing::info!("Shutdown signal received");
+                curia::info!("Shutdown signal received");
             }
         }
 
@@ -343,7 +344,7 @@ impl StreamTrait for QuicServerManager {
     }
 
     async fn stop(&mut self) -> Result<(), anyhow::Error> {
-        tracing::info!("Stopping QUIC server");
+        curia::info!("Stopping QUIC server");
 
         if let Some(readiness) = &self.readiness {
             readiness.set_quic_ready(false);
@@ -353,7 +354,7 @@ impl StreamTrait for QuicServerManager {
             let _ = shutdown_tx.send(());
         }
 
-        tracing::info!("QUIC server stopped");
+        curia::info!("QUIC server stopped");
         Ok(())
     }
 }
@@ -438,17 +439,14 @@ impl QuicServerManager {
             // without either being able to impersonate the other.
             let device = connection.id();
             let connection_id = format!("{:?}", device);
-            tracing::info!("New QUIC connection accepted: {}", connection_id);
+            curia::info!("New QUIC connection accepted: {}", connection_id);
 
             // Routing and trust are anchored to the mTLS certificate. A connection with no
             // readable certificate identity is refused outright rather than guessed at.
             let authenticated_cn = match Self::authenticated_cn(&connection) {
                 Some(cn) => cn,
                 None => {
-                    tracing::error!(
-                        connection = %connection_id,
-                        "Refusing connection: no mTLS identity could be read from the peer certificate"
-                    );
+                    curia::error!("Refusing connection: no mTLS identity could be read from the peer certificate", { "connection": connection_id.to_string() });
                     connection.close(Self::unauthorized_code());
                     continue;
                 }
@@ -458,10 +456,7 @@ impl QuicServerManager {
             // and trusted, so any certificate this CA had ever signed opened a voice session
             // whether or not the player still existed, was banished, or had been revoked.
             let Some(leaf_der) = Self::authenticated_leaf(&connection) else {
-                tracing::error!(
-                    connection = %connection_id,
-                    "Refusing connection: no peer certificate could be read"
-                );
+                curia::error!("Refusing connection: no peer certificate could be read", { "connection": connection_id.to_string() });
                 connection.close(Self::unauthorized_code());
                 continue;
             };
@@ -476,12 +471,7 @@ impl QuicServerManager {
             {
                 Ok(player) => player,
                 Err(reason) => {
-                    tracing::warn!(
-                        connection = %connection_id,
-                        identity = %authenticated_cn,
-                        "Refusing connection: {}",
-                        reason
-                    );
+                    curia::warn!(format!("Refusing connection: {}", reason), { "connection": connection_id.to_string(), "identity": authenticated_cn.to_string() });
                     connection.close(Self::unauthorized_code());
                     continue;
                 }
@@ -495,16 +485,12 @@ impl QuicServerManager {
                 .as_ref()
                 .map(|gamertag| player.game.membership_key(gamertag).to_string());
 
-            tracing::info!(
-                connection = %connection_id,
-                identity = %authenticated_cn,
-                "Connection authenticated"
-            );
+            curia::info!("Connection authenticated", { "connection": connection_id.to_string(), "identity": authenticated_cn.to_string() });
 
             let spawner = self.session_spawner();
             tokio::spawn(async move {
                 if let Err(e) = connection.keep_alive(true) {
-                    tracing::warn!("Keepalive failed {}: {}", connection_id, e);
+                    curia::warn!("Keepalive failed {}: {}", connection_id, e);
                 }
                 let conn_arc = Arc::new(connection);
 

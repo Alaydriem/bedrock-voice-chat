@@ -1,3 +1,4 @@
+use common::curia;
 use common::response::{AudioFileResponse, PaginatedResponse};
 use common::structs::game::UploaderIdentity;
 use entity::{audio_file, player};
@@ -41,13 +42,13 @@ impl AudioFileService {
         let audio_dir = config.file_path.clone();
 
         tokio::fs::create_dir_all(&audio_dir).await.map_err(|e| {
-            tracing::error!("Failed to create audio directory: {}", e);
+            curia::error!("Failed to create audio directory: {}", e);
             AudioFileError::Internal
         })?;
 
         let file_path = format!("{}/{}.opus", audio_dir, file_id);
         tokio::fs::write(&file_path, &bytes).await.map_err(|e| {
-            tracing::error!("Failed to write audio file: {}", e);
+            curia::error!("Failed to write audio file: {}", e);
             AudioFileError::Internal
         })?;
 
@@ -69,7 +70,7 @@ impl AudioFileService {
         match active_model.insert(conn).await {
             Ok(model) => Ok(Self::to_response(model, gamertag)),
             Err(e) => {
-                tracing::error!("Failed to insert audio file record: {}", e);
+                curia::error!("Failed to insert audio file record: {}", e);
                 let _ = tokio::fs::remove_file(&file_path).await;
                 Err(AudioFileError::Internal)
             }
@@ -109,7 +110,7 @@ impl AudioFileService {
         base = base.order_by(sort_column, order);
 
         let total = base.clone().count(conn).await.map_err(|e| {
-            tracing::error!("Failed to count audio files: {}", e);
+            curia::error!("Failed to count audio files: {}", e);
             AudioFileError::Internal
         })? as u32;
 
@@ -121,7 +122,7 @@ impl AudioFileService {
             .all(conn)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to list audio files: {}", e);
+                curia::error!("Failed to list audio files: {}", e);
                 AudioFileError::Internal
             })?;
 
@@ -188,7 +189,7 @@ impl AudioFileService {
             .all(conn)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to query deleted audio files: {}", e);
+                curia::error!("Failed to query deleted audio files: {}", e);
                 AudioFileError::Internal
             })?;
 
@@ -201,7 +202,7 @@ impl AudioFileService {
         }
 
         if count > 0 {
-            tracing::info!("Cleaned up {} soft-deleted audio files", count);
+            curia::info!("Cleaned up {} soft-deleted audio files", count);
         }
         Ok(count)
     }
@@ -215,7 +216,7 @@ impl AudioFileService {
             .count(conn)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to check audio file existence: {}", e);
+                curia::error!("Failed to check audio file existence: {}", e);
                 AudioFileError::Internal
             })?;
         Ok(count > 0)

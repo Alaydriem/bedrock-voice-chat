@@ -1,5 +1,6 @@
 mod database;
 mod from_json;
+mod logger;
 mod schema;
 mod server;
 mod voice;

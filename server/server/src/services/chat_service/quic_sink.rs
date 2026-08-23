@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 
 use common::PlayerEnum;
@@ -69,7 +70,7 @@ impl ChatSink for QuicChatSink {
             }
         }
 
-        tracing::debug!(world = %world_uuid, delivered, "chat fanned out");
+        curia::debug!("chat fanned out", { "world": world_uuid.to_string(), "delivered": delivered });
     }
 
     fn deliver_rejection(&self, identity: &str, packet: &ChatRejectedPacket) {
@@ -81,7 +82,7 @@ impl ChatSink for QuicChatSink {
         };
 
         if !self.registry.send_to_player(identity, &outbound) {
-            tracing::debug!(player = %identity, "chat rejection had nowhere to go");
+            curia::debug!("chat rejection had nowhere to go", { "player": identity.to_string() });
         }
     }
 }

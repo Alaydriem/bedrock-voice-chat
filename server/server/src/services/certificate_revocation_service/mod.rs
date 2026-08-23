@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -56,7 +57,7 @@ impl CertificateRevocationService {
             Err(e) => {
                 // Fail closed, and do not cache. A database that cannot answer must not be
                 // read as "not revoked", and must not have that reading remembered.
-                tracing::error!("certificate revocation lookup failed: {}", e);
+                curia::error!("certificate revocation lookup failed: {}", e);
                 return true;
             }
         };

@@ -6,6 +6,7 @@ pub use quic_sink::QuicChatSink;
 pub use registry::{ChatSocket, ChatSocketRegistry};
 pub use sink::ChatSink;
 
+use common::curia;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Duration;
@@ -92,7 +93,7 @@ impl ChatService {
     /// Addressed to that connection and never fanned out: a refusal is between the server and
     /// the person who typed it, and the rest of the world never saw the message to begin with.
     pub fn reject(&self, author: &str, rejection: &ChatRejection, text: &str) {
-        tracing::info!(player = %author, rejection = %rejection, "chat send refused");
+        curia::info!("chat send refused", { "player": author.to_string(), "rejection": rejection.to_string() });
         let packet = ChatRejectedPacket::new(rejection.to_string(), text.to_string());
         if let Ok(sinks) = self.sinks.read() {
             for sink in sinks.iter() {
@@ -116,7 +117,7 @@ impl ChatService {
         world_name: String,
         tx: mpsc::Sender<String>,
     ) -> Option<mpsc::Sender<String>> {
-        tracing::info!(world = %world_uuid, name = %world_name, socket = id, "chat channel registered");
+        curia::info!("chat channel registered", { "world": world_uuid.to_string(), "name": world_name.to_string(), "socket": id });
         self.registry.register(id, world_uuid, world_name, tx)
     }
 
@@ -128,17 +129,12 @@ impl ChatService {
         world_name: String,
         tx: mpsc::Sender<String>,
     ) -> Vec<mpsc::Sender<String>> {
-        tracing::info!(
-            worlds = ?worlds,
-            name = %world_name,
-            socket = id,
-            "chat channel registered"
-        );
+        curia::info!("chat channel registered", { "worlds": format!("{worlds:?}"), "name": world_name.to_string(), "socket": id });
         self.registry.register_room(id, worlds, world_name, tx)
     }
 
     pub fn unregister(&self, world_uuid: &str, id: u64) {
-        tracing::info!(world = %world_uuid, socket = id, "chat channel unregistered");
+        curia::info!("chat channel unregistered", { "world": world_uuid.to_string(), "socket": id });
         self.registry.unregister(world_uuid, id);
     }
 
@@ -418,7 +414,7 @@ impl ChatService {
             .await;
 
         if let Err(e) = result {
-            tracing::warn!(world = %world_uuid, "failed to record chat world history: {}", e);
+            curia::warn!(format!("failed to record chat world history: {}", e), { "world": world_uuid.to_string() });
         }
     }
 

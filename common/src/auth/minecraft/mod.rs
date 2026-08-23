@@ -115,7 +115,7 @@ impl MinecraftAuthProvider {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            tracing::error!("Token exchange failed ({}): {}", status, body);
+            curia::error!("Token exchange failed ({}): {}", status, body);
             return Err(AuthError::CodeRejected(format!(
                 "Token exchange failed ({})",
                 status
@@ -304,7 +304,7 @@ impl MinecraftAuthProvider {
             .get_minecraft_xsts_token(client, xbl_token)
             .await
             .map_err(|e| {
-                tracing::warn!("MC Services: XSTS token request failed: {}", e);
+                curia::warn!("MC Services: XSTS token request failed: {}", e);
                 e
             })?;
 
@@ -322,7 +322,7 @@ impl MinecraftAuthProvider {
         let mc_login_status = mc_login_response.status();
         if !mc_login_status.is_success() {
             let body = mc_login_response.text().await.unwrap_or_default();
-            tracing::error!(
+            curia::error!(
                 "MC Services: login_with_xbox failed ({}): {}",
                 mc_login_status,
                 body
@@ -337,10 +337,10 @@ impl MinecraftAuthProvider {
             .json()
             .await
             .map_err(|e| AuthError::InvalidResponse(e.to_string()))?;
-        tracing::info!("MC Services: Got MC access token successfully");
+        curia::info!("MC Services: Got MC access token successfully");
 
         // Fetch the Minecraft profile
-        tracing::info!("MC Services: Fetching Minecraft profile");
+        curia::info!("MC Services: Fetching Minecraft profile");
         let profile_response = client
             .get("https://api.minecraftservices.com/minecraft/profile")
             .header("Authorization", format!("Bearer {}", mc_login.access_token))
@@ -350,7 +350,7 @@ impl MinecraftAuthProvider {
         let profile_status = profile_response.status();
         if !profile_status.is_success() {
             let body = profile_response.text().await.unwrap_or_default();
-            tracing::warn!(
+            curia::warn!(
                 "MC Services: profile fetch failed ({}): {}",
                 profile_status,
                 body
@@ -398,7 +398,7 @@ impl MinecraftAuthProvider {
         let xsts_status = xsts_response.status();
         if !xsts_status.is_success() {
             let body = xsts_response.text().await.unwrap_or_default();
-            tracing::warn!(
+            curia::warn!(
                 "MC Services: XSTS authorize failed ({}): {}",
                 xsts_status,
                 body

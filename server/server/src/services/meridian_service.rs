@@ -1,3 +1,4 @@
+use common::curia;
 use crate::config::Meridian;
 
 pub struct MeridianService {
@@ -39,15 +40,7 @@ impl MeridianService {
         let tcp_addr = format!("{}:{}", self.backend, self.tls_port);
         let udp_addr = format!("{}:{}", self.backend, self.quic_port);
 
-        tracing::info!(
-            url = %self.config.url,
-            name = %name,
-            hostname = %self.hostname,
-            tcp_addr = %tcp_addr,
-            udp_addr = %udp_addr,
-            instance_id = self.config.instance_id,
-            "Registering with Meridian"
-        );
+        curia::info!("Registering with Meridian", { "url": self.config.url.to_string(), "name": name.to_string(), "hostname": self.hostname.to_string(), "tcp_addr": tcp_addr.to_string(), "udp_addr": udp_addr.to_string(), "instance_id": self.config.instance_id });
 
         let client = meridian::api::MeridianClient::builder(&self.config.url, &self.config.api_key)
             .build()?;
@@ -64,7 +57,7 @@ impl MeridianService {
             )
             .await?;
 
-        tracing::debug!(name = %name, "Refreshed Meridian registration");
+        curia::debug!("Refreshed Meridian registration", { "name": name.to_string() });
         Ok(())
     }
 
@@ -87,16 +80,12 @@ impl MeridianService {
                     _ = shutdown.cancelled() => break,
                     _ = ticker.tick() => {
                         if let Err(e) = self.register().await {
-                            tracing::warn!(
-                                error = %e,
-                                name = %self.record_name(),
-                                "Meridian heartbeat failed; will retry"
-                            );
+                            curia::warn!("Meridian heartbeat failed; will retry", { "error": e.to_string(), "name": self.record_name().to_string() });
                         }
                     }
                 }
             }
-            tracing::info!("Meridian heartbeat stopped");
+            curia::info!("Meridian heartbeat stopped");
         })
     }
 }

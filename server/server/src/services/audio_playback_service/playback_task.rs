@@ -1,3 +1,4 @@
+use common::curia;
 use std::time::Duration;
 
 use common::game_data::Dimension;
@@ -47,11 +48,7 @@ impl PlaybackTask {
 
     pub async fn run(self) {
         let total_frames = self.frames.len();
-        tracing::debug!(
-            event_id = %self.event_id,
-            total_frames = total_frames,
-            "Playback task starting"
-        );
+        curia::debug!("Playback task starting", { "event_id": self.event_id.to_string(), "total_frames": total_frames });
 
         let start = tokio::time::Instant::now();
         let mut sent = 0usize;
@@ -65,11 +62,7 @@ impl PlaybackTask {
             let next_tick = start + Duration::from_millis(20 * i as u64);
             tokio::select! {
                 _ = self.cancel_token.cancelled() => {
-                    tracing::debug!(
-                        event_id = %self.event_id,
-                        sent = sent,
-                        "Playback cancelled"
-                    );
+                    curia::debug!("Playback cancelled", { "event_id": self.event_id.to_string(), "sent": sent });
                     return;
                 }
                 _ = tokio::time::sleep_until(next_tick) => {
@@ -96,12 +89,7 @@ impl PlaybackTask {
                     let result: Result<(), Box<dyn std::error::Error>> =
                         self.webhook_receiver.send_packet(packet).await;
                     if let Err(e) = result {
-                        tracing::error!(
-                            event_id = %self.event_id,
-                            frame = i,
-                            error = %e,
-                            "Failed to send playback frame, aborting"
-                        );
+                        curia::error!("Failed to send playback frame, aborting", { "event_id": self.event_id.to_string(), "frame": i, "error": e.to_string() });
                         return;
                     }
                     sent += 1;
@@ -110,12 +98,6 @@ impl PlaybackTask {
         }
 
         let elapsed = start.elapsed();
-        tracing::debug!(
-            event_id = %self.event_id,
-            sent = sent,
-            total_frames = total_frames,
-            elapsed_ms = elapsed.as_millis() as u64,
-            "Playback task completed"
-        );
+        curia::debug!("Playback task completed", { "event_id": self.event_id.to_string(), "sent": sent, "total_frames": total_frames, "elapsed_ms": elapsed.as_millis() as u64 });
     }
 }

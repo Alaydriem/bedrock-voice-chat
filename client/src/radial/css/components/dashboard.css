@@ -12,13 +12,25 @@
 
 .rad-dash-top {
   flex: 0 0 auto;
-  height: 66px;
+  height: calc(66px + var(--rad-inset-top, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 26px;
+  padding: var(--rad-inset-top, 0px) calc(26px + var(--rad-inset-right, 0px)) 0
+    calc(26px + var(--rad-inset-left, 0px));
   border-bottom: 1px solid var(--color-rad-line);
+}
+
+/* Inside a cover the top inset is already spent: `.rad-cover` offsets its own top by it
+   so the screen underneath stays visible at the top edge, and a header that pays it again
+   pushes the title a second status bar down. Zeroing the token rather than the two
+   properties leaves both this rule's 66px and the phone rule's 60px intact.
+
+   Scoped to the header and not to `.rad-cover` itself, because the cover's own offset
+   reads the same token and would zero itself. */
+.rad-cover .rad-dash-top {
+  --rad-inset-top: 0px;
 }
 
 .rad-dash-top__who {
@@ -1039,10 +1051,12 @@
  * not a slot in a toolbar.
  */
 
+/* What a tablet shows in place of `.rad-self-bar`, and it sits in the same corner, so it
+   clears the home indicator the same way. */
 .rad-self-pill {
   position: absolute;
-  left: 14px;
-  bottom: 14px;
+  left: calc(14px + var(--rad-inset-left, 0px));
+  bottom: calc(14px + var(--rad-inset-bottom, 0px));
   z-index: 14;
   display: flex;
   align-items: center;
@@ -1501,8 +1515,9 @@
 
 @container rad (max-width: 560px) {
   .rad-dash-top {
-    height: 60px;
-    padding: 0 18px;
+    height: calc(60px + var(--rad-inset-top, 0px));
+    padding: var(--rad-inset-top, 0px) calc(18px + var(--rad-inset-right, 0px)) 0
+      calc(18px + var(--rad-inset-left, 0px));
   }
 
   .rad-desk-only {
@@ -1517,19 +1532,8 @@
     display: none;
   }
 
-  /* ---- the status bar's own space ----
-   * The frame is pinned to the visible viewport with `inset: 0`, which on a phone includes the
-   * area under the clock and the battery indicator — so the top bar was rendering beneath them
-   * and its controls could not be pressed. `env()` resolves to 0 without `viewport-fit=cover`
-   * on the viewport meta, so both halves of this are load-bearing.
-   *
-   * A floor of 44px on the controls as well: nothing else in the kit guaranteed a touch target,
-   * and a 34px glyph in a corner is not one. */
-  .rad-dash-top {
-    height: calc(60px + env(safe-area-inset-top, 0px));
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-
+  /* A floor of 44px on the controls: nothing else in the kit guaranteed a touch target, and a
+     34px glyph in a corner is not one. */
   .rad-dash-top .rad-header-btn,
   .rad-dash-top .rad-header-glyph {
     min-width: 44px;
@@ -1588,7 +1592,8 @@
     right: 0;
     bottom: 0;
     z-index: 12;
-    padding: 0 15px calc(15px + env(safe-area-inset-bottom)) 24px;
+    padding: 0 calc(15px + var(--rad-inset-right, 0px))
+      calc(15px + var(--rad-inset-bottom, 0px)) calc(24px + var(--rad-inset-left, 0px));
     pointer-events: none;
   }
 

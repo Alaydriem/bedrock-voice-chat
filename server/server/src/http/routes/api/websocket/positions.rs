@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -66,10 +67,7 @@ pub fn positions(
                 }
 
                 if started.elapsed() >= SESSION_MAX {
-                    tracing::debug!(
-                        gamertag = %identity.gamertag,
-                        "position session reached its maximum lifetime"
-                    );
+                    curia::debug!("position session reached its maximum lifetime", { "gamertag": identity.gamertag.to_string() });
                     break;
                 }
 

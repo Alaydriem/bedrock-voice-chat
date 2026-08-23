@@ -6,10 +6,12 @@
  * is a worse compromise than two screens.
  */
 
+/* The cover reaches the bottom edge of the window, so the trailing padding is also what
+   lets the last row scroll clear of the navigation bar. */
 .rad-settings-body {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 26px 34px 46px;
+  padding: 26px 34px calc(46px + var(--rad-inset-bottom, 0px));
   overflow-y: auto;
 }
 
@@ -273,7 +275,7 @@
 .rad-mobile-list {
   display: none;
   flex: 1 1 auto;
-  padding: 8px 14px 30px;
+  padding: 8px 14px calc(30px + var(--rad-inset-bottom, 0px));
   overflow-y: auto;
 }
 
@@ -508,7 +510,7 @@
 
 @container rad (max-width: 620px) {
   .rad-settings-body {
-    padding: 20px 18px 40px;
+    padding: 20px 18px calc(40px + var(--rad-inset-bottom, 0px));
   }
 
   /* Scoped to the settings shell, not to the frame. Settings is presented over the

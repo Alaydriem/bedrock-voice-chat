@@ -1,3 +1,4 @@
+use common::curia;
 use std::collections::HashSet;
 
 use common::Game;
@@ -51,7 +52,7 @@ pub async fn list_users(
     .await
     .map(Json)
     .map_err(|e| {
-        tracing::error!("list_users: db error: {}", e);
+        curia::error!("list_users: db error: {}", e);
         Status::InternalServerError
     })
 }

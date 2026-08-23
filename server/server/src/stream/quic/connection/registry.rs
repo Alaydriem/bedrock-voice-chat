@@ -1,3 +1,4 @@
+use common::curia;
 use common::PlayerEnum;
 use common::net::PositionCadence;
 use common::structs::packet::{
@@ -283,7 +284,7 @@ impl ConnectionRegistry {
                 metrics.record_capacity_refusal();
             }
             if let Some(suppressed) = self.capacity_log.should_log() {
-                tracing::warn!(
+                curia::warn!(
                     "Refusing {}: at capacity ({} connections), {} further refusals suppressed",
                     identity,
                     policy.limit(),
@@ -361,7 +362,7 @@ impl ConnectionRegistry {
         fingerprint: String,
         tx: mpsc::Sender<RoutedPacket>,
     ) {
-        tracing::info!(
+        curia::info!(
             "Registering connection for player: {} (connections: {})",
             identity,
             self.connections.len() + 1
@@ -435,7 +436,7 @@ impl ConnectionRegistry {
                     WebSocketDeviceId::transport_of(device),
                 );
             }
-            tracing::info!(
+            curia::info!(
                 "Unregistered connection for player: {} (connections: {})",
                 entry.identity,
                 self.connections.len()
@@ -473,12 +474,7 @@ impl ConnectionRegistry {
                 }
 
                 if let Some(suppressed) = self.oversized_broadcast_log.should_log() {
-                    tracing::error!(
-                        suppressed,
-                        packet_type = ?packet.packet_type,
-                        "Failed to serialize broadcast: {}",
-                        e
-                    );
+                    curia::error!(format!("Failed to serialize broadcast: {}", e), { "suppressed": suppressed, "packet_type": format!("{:?}", packet.packet_type) });
                 }
                 return;
             }
@@ -494,7 +490,7 @@ impl ConnectionRegistry {
             match entry.value().tx.try_send(RoutedPacket::Serialized(bytes)) {
                 Ok(()) => {}
                 Err(mpsc::error::TrySendError::Full(_)) => {
-                    tracing::debug!(
+                    curia::debug!(
                         "Dropping broadcast packet for player {} (channel full)",
                         entry.value().identity,
                     );
@@ -765,7 +761,7 @@ impl ConnectionRegistry {
         // per-recipient, so the one-encode-per-variant template sharing below holds.
         let attach_sender = self.sender_attach_due(sender_identity, Instant::now());
 
-        tracing::debug!(
+        curia::debug!(
             "route_audio_frame: sender={} original_spatial={:?} has_sender={} sender_channel={:?}",
             sender_identity,
             original_spatial,
@@ -806,7 +802,7 @@ impl ConnectionRegistry {
             match envelope.to_datagram() {
                 Ok(bytes) => Some(bytes),
                 Err(e) => {
-                    tracing::error!("failed to serialize audio envelope: {}", e);
+                    curia::error!("failed to serialize audio envelope: {}", e);
                     None
                 }
             }
@@ -868,7 +864,7 @@ impl ConnectionRegistry {
             // only — the stamp and the serialization happen after this block, so every
             // `continue` above leaves the sequence untouched.
             let (use_channel_variant, route) = if in_same_channel {
-                tracing::debug!(
+                curia::debug!(
                     "route_audio_frame: {} -> {} IN_CHANNEL spatial={:?}",
                     sender_identity,
                     recipient_identity,
@@ -904,7 +900,7 @@ impl ConnectionRegistry {
                 };
 
                 if let Err(e) = sp.can_communicate_with(&rp, effective_range) {
-                    tracing::debug!(
+                    curia::debug!(
                         "Audio packet {} -> {} rejected: {}",
                         sender_identity,
                         recipient_identity,
@@ -952,7 +948,7 @@ impl ConnectionRegistry {
                     if let Some(m) = self.metrics.get() {
                         m.record_audio_route_drop();
                     }
-                    tracing::debug!(
+                    curia::debug!(
                         "Dropping audio packet for player {} (channel full)",
                         recipient_identity,
                     );

@@ -1,3 +1,4 @@
+use common::curia;
 use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU16, Ordering};
@@ -59,11 +60,7 @@ impl ApiBind {
         }
 
         let replacement = LoopbackPort::reserve()?;
-        tracing::warn!(
-            previous = self.port.load(Ordering::SeqCst),
-            replacement,
-            "the API loopback port was taken before it could be bound; using another"
-        );
+        curia::warn!("the API loopback port was taken before it could be bound; using another", { "previous": self.port.load(Ordering::SeqCst), "replacement": replacement });
         self.port.store(replacement, Ordering::SeqCst);
 
         Ok(self.addr())

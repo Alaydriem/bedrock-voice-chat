@@ -1,8 +1,11 @@
 use common::consts::version::PROTOCOL_VERSION;
 use common::response::{
-    ApiConfigAge, ApiConfigBedrock, ApiConfigCapacity, ApiConfigChat, ApiConfigRecording,
-    ApiConfigResponse,
+    ApiConfigAge, ApiConfigCapacity, ApiConfigChat, ApiConfigRecording, ApiConfigResponse,
 };
+// Only the build without the feature substitutes a default; with it, the value comes from
+// the configuration instead.
+#[cfg(not(feature = "bedrock"))]
+use common::response::ApiConfigBedrock;
 use rocket::{State, serde::json::Json};
 use rocket_okapi::openapi;
 

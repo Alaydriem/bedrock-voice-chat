@@ -1,3 +1,4 @@
+use common::curia;
 use crate::http::guards::PlayerGuard;
 use std::sync::Arc;
 
@@ -51,7 +52,7 @@ pub async fn worlds(
         .all(conn)
         .await
         .map_err(|e| {
-            tracing::error!("failed to read chat world history: {}", e);
+            curia::error!("failed to read chat world history: {}", e);
             Status::InternalServerError
         })?;
 

@@ -1,5 +1,6 @@
 //! Player registration service
 
+use common::curia;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -119,7 +120,7 @@ impl PlayerRegistrarService {
                 }
             }
             Err(e) => {
-                tracing::error!("Failed to query database: {}", e.to_string());
+                curia::error!("Failed to query database: {}", e.to_string());
             }
         }
     }
@@ -145,7 +146,7 @@ impl PlayerRegistrarService {
             .cert_service
             .sign_player_cert(player_name, game_type)
             .map_err(|e| {
-                tracing::error!(
+                curia::error!(
                     "Failed to sign certificate for {}: {}",
                     player_name,
                     e.to_string()
@@ -170,7 +171,7 @@ impl PlayerRegistrarService {
         };
 
         let inserted = p.insert(self.db.as_ref()).await.map_err(|e| {
-            tracing::error!(
+            curia::error!(
                 "Unable to insert player {} into database: {}",
                 player_name,
                 e.to_string()
@@ -178,7 +179,7 @@ impl PlayerRegistrarService {
             anyhow::anyhow!("failed to insert player: {}", e)
         })?;
 
-        tracing::info!("Created player record for: {}", player_name);
+        curia::info!("Created player record for: {}", player_name);
         self.cache.insert(player_name.to_string());
 
         // Store platform UUID identity if provided
@@ -214,7 +215,7 @@ impl PlayerRegistrarService {
             .exec_without_returning(self.db.as_ref())
             .await
         {
-            tracing::error!(
+            curia::error!(
                 "Failed to store platform UUID for player_id {}: {}",
                 player_id,
                 e

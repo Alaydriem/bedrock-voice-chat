@@ -9,6 +9,7 @@ mod speaker_expiry;
 
 pub use eject_scheduler::EjectScheduler;
 
+use common::curia;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
@@ -117,13 +118,7 @@ impl AudioPlaybackService {
             return Err("No audio frames found in file".to_string());
         }
 
-        tracing::info!(
-            event_id = %event_id,
-            file_id = %audio_file_id,
-            duration_ms = duration_ms,
-            frames = frames.len(),
-            "Starting audio playback"
-        );
+        curia::info!("Starting audio playback", { "event_id": event_id.to_string(), "file_id": audio_file_id.to_string(), "duration_ms": duration_ms, "frames": frames.len() });
 
         let stripped = event_id.replace('-', "");
         let jukebox_hash = &stripped[stripped.len() - 8..];
@@ -181,7 +176,7 @@ impl AudioPlaybackService {
             task.run().await;
             cleanup_cache.invalidate(&cleanup_event_id).await;
             cleanup_speakers.invalidate(&cleanup_jukebox_name).await;
-            tracing::info!(event_id = %cleanup_event_id, "Playback session cleaned up");
+            curia::info!("Playback session cleaned up", { "event_id": cleanup_event_id.to_string() });
         });
 
         match (self.eject_scheduler.get(), minecraft_eject_target) {
@@ -196,16 +191,10 @@ impl AudioPlaybackService {
                     .await;
             }
             (None, _) => {
-                tracing::warn!(
-                    event_id = %event_id,
-                    "start_playback: eject_scheduler not wired; no auto-eject scheduled"
-                );
+                curia::warn!("start_playback: eject_scheduler not wired; no auto-eject scheduled", { "event_id": event_id.to_string() });
             }
             (Some(_), None) => {
-                tracing::debug!(
-                    event_id = %event_id,
-                    "start_playback: non-minecraft context; no auto-eject scheduled"
-                );
+                curia::debug!("start_playback: non-minecraft context; no auto-eject scheduled", { "event_id": event_id.to_string() });
             }
         }
 

@@ -3,6 +3,7 @@
 mod auth_error;
 mod code_login_error;
 
+use common::curia;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -50,7 +51,7 @@ impl AuthService {
         let (game_filter, gamertag) = match cn.split_once(':') {
             Some((game, name)) => (game.to_lowercase(), name.to_string()),
             None => {
-                tracing::warn!("player_from_certificate: legacy cert gamertag={}", cn);
+                curia::warn!("player_from_certificate: legacy cert gamertag={}", cn);
                 ("minecraft".to_string(), cn.to_string())
             }
         };
@@ -62,7 +63,7 @@ impl AuthService {
         match query.one(conn).await {
             Ok(Some(player)) => Ok(player),
             Ok(None) => {
-                tracing::warn!(
+                curia::warn!(
                     "player_from_certificate: no player found for gamertag={:?}, game_filter={:?}",
                     gamertag,
                     game_filter
@@ -70,7 +71,7 @@ impl AuthService {
                 Err(rocket::http::Status::Forbidden)
             }
             Err(e) => {
-                tracing::error!("player_from_certificate: DB error: {}", e);
+                curia::error!("player_from_certificate: DB error: {}", e);
                 Err(rocket::http::Status::InternalServerError)
             }
         }
@@ -99,7 +100,7 @@ impl AuthService {
         let actual = match player_record {
             Some(p) => p,
             None => {
-                tracing::info!("Player {} ({:?}) not found in database", gamertag, game);
+                curia::info!("Player {} ({:?}) not found in database", gamertag, game);
                 return Err(AuthError::PlayerNotFound);
             }
         };
@@ -108,14 +109,14 @@ impl AuthService {
             let mut player_active: player::ActiveModel = actual.clone().into();
             player_active.gamerpic = ActiveValue::Set(Some(gamerpic.clone()));
             player_active.update(conn).await.map_err(|e| {
-                tracing::error!("Failed to update gamerpic: {}", e);
+                curia::error!("Failed to update gamerpic: {}", e);
                 AuthError::DatabaseError(e.to_string())
             })?;
-            tracing::debug!("Updated gamerpic for player {}", gamertag);
+            curia::debug!("Updated gamerpic for player {}", gamertag);
         }
 
         if actual.banished {
-            tracing::info!("Player {} is banished", gamertag);
+            curia::info!("Player {} is banished", gamertag);
             return Err(AuthError::PlayerBanished);
         }
 
@@ -133,10 +134,10 @@ impl AuthService {
                     cert_active.certificate = ActiveValue::Set(cert_pem.clone());
                     cert_active.certificate_key = ActiveValue::Set(key_pem.clone());
                     if let Err(e) = cert_active.update(conn).await {
-                        tracing::error!("Failed to update rotated certificate: {}", e);
+                        curia::error!("Failed to update rotated certificate: {}", e);
                         (actual.certificate.clone(), actual.certificate_key.clone())
                     } else {
-                        tracing::info!("Rotated certificate for player {} at login", gamertag);
+                        curia::info!("Rotated certificate for player {} at login", gamertag);
                         // Revoking the outgoing certificate is what makes a leaked one die
                         // when its owner next rotates, and gives an operator a recovery
                         // path for a suspected key compromise that is not banning the
@@ -146,7 +147,7 @@ impl AuthService {
                             .revoke_pem(conn, &actual.certificate, Some(actual.id), "rotated")
                             .await
                         {
-                            tracing::warn!(
+                            curia::warn!(
                                 "Failed to revoke the rotated-out certificate for {}: {}",
                                 gamertag,
                                 e
@@ -156,7 +157,7 @@ impl AuthService {
                     }
                 }
                 Err(e) => {
-                    tracing::error!("Failed to rotate certificate for {}: {}", gamertag, e);
+                    curia::error!("Failed to rotate certificate for {}: {}", gamertag, e);
                     (actual.certificate.clone(), actual.certificate_key.clone())
                 }
             }
@@ -165,19 +166,19 @@ impl AuthService {
         };
 
         let kp = actual.get_keypair().map_err(|e| {
-            tracing::error!("Failed to get keypair: {}", e);
+            curia::error!("Failed to get keypair: {}", e);
             AuthError::CertificateError(e.to_string())
         })?;
 
         let sp = actual.get_signature().map_err(|e| {
-            tracing::error!("Failed to get signature: {}", e);
+            curia::error!("Failed to get signature: {}", e);
             AuthError::CertificateError(e.to_string())
         })?;
 
         let certificate_ca =
             std::fs::read_to_string(Path::new(&format!("{}/ca.crt", config.tls.certs_path)))
                 .map_err(|e| {
-                    tracing::error!("Failed to read CA certificate: {}", e);
+                    curia::error!("Failed to read CA certificate: {}", e);
                     AuthError::CertificateError(e.to_string())
                 })?;
 

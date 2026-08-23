@@ -1,3 +1,4 @@
+use common::curia;
 use crate::http::guards::PlayerGuard;
 use std::sync::Arc;
 
@@ -34,7 +35,7 @@ pub async fn auth_state(
             .remove_player(&player_model.game.membership_key(gt))
             .await
         {
-            tracing::error!("Failed to clean stale memberships for {}: {}", gt, e);
+            curia::error!("Failed to clean stale memberships for {}: {}", gt, e);
         }
     }
 
@@ -60,15 +61,15 @@ pub async fn auth_state(
                 active.certificate = ActiveValue::Set(cert_pem.clone());
                 active.certificate_key = ActiveValue::Set(key_pem.clone());
                 if let Err(e) = active.update(conn).await {
-                    tracing::error!("Failed to update player certificate: {}", e);
+                    curia::error!("Failed to update player certificate: {}", e);
                     (None, None)
                 } else {
-                    tracing::info!("Re-issued certificate for player {}", gt);
+                    curia::info!("Re-issued certificate for player {}", gt);
                     (Some(cert_pem), Some(key_pem))
                 }
             }
             Err(e) => {
-                tracing::error!("Failed to re-issue certificate: {}", e);
+                curia::error!("Failed to re-issue certificate: {}", e);
                 (None, None)
             }
         }

@@ -22,6 +22,7 @@ pub use server::Tls;
 pub use voice::Voice;
 pub use voice::VoiceLimits;
 
+use common::curia;
 use common::ncryptflib::randombytes_buf;
 use rocket::{
     data::{Limits, ToByteUnit},
@@ -32,7 +33,6 @@ use anyhow::anyhow;
 use sea_orm::{ConnectOptions, DatabaseConnection};
 use std::net::SocketAddr;
 use serde::{Deserialize, Serialize};
-use tracing::Level;
 
 /// Application Configuration as described in homemaker.hcl configuration file
 #[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
@@ -120,14 +120,15 @@ impl ApplicationConfig {
         }
     }
 
-    /// Returns the appropriate log level for tokio/tracing
-    pub fn get_tracing_log_level(&self) -> tracing::Level {
+    /// The level every sink is admitted at, and the global floor of the default
+    /// directive string.
+    pub fn get_log_level(&self) -> curia::Level {
         match self.log.level.as_str() {
-            "info" => Level::INFO,
-            "trace" => Level::TRACE,
-            "debug" => Level::DEBUG,
-            "warn" => Level::WARN,
-            _ => Level::ERROR,
+            "info" => curia::Level::Info,
+            "trace" => curia::Level::Trace,
+            "debug" => curia::Level::Debug,
+            "warn" => curia::Level::Warn,
+            _ => curia::Level::Error,
         }
     }
 
@@ -156,7 +157,7 @@ impl ApplicationConfig {
         }
 
         self.database.validate()?;
-        tracing::info!("Database: {}", self.database.get_redacted_dsn());
+        curia::info!("Database: {}", self.database.get_redacted_dsn());
         let figment = rocket::Config::figment()
             .merge(("cli_colors", false))
             .merge(("profile", rocket::figment::Profile::new("release")))

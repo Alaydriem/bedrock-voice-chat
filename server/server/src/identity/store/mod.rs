@@ -6,6 +6,7 @@ pub use identity::Identity;
 pub use metadata::IdentityMetadata;
 pub use summary::IdentitySummary;
 
+use common::curia;
 use std::fs;
 use std::path::PathBuf;
 
@@ -99,13 +100,12 @@ impl IdentityStore {
             let metadata: IdentityMetadata = match toml::from_str(&toml_text) {
                 Ok(m) => m,
                 Err(e) => {
-                    tracing::warn!("skipping bad identity {}: {}", path.display(), e);
+                    curia::warn!("skipping bad identity {}: {}", path.display(), e);
                     continue;
                 }
             };
             out.push(IdentitySummary {
-                slot: IdentitySlot::new(metadata.gamertag.clone(), metadata.game.clone()),
-                metadata,
+                slot: IdentitySlot::new(metadata.gamertag, metadata.game),
             });
         }
         Ok(out)

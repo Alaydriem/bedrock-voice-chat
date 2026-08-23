@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 
 use common::request::admin::CreateUserRequest;
@@ -33,7 +34,7 @@ pub async fn create_user(
         .one(conn)
         .await
         .map_err(|e| {
-            tracing::error!("create_user: db error checking existence: {}", e);
+            curia::error!("create_user: db error checking existence: {}", e);
             Status::InternalServerError
         })?;
 
@@ -47,7 +48,7 @@ pub async fn create_user(
         .create_player(&req.gamertag, &req.game, None)
         .await
         .map_err(|e| {
-            tracing::error!("create_user: failed to create player: {}", e);
+            curia::error!("create_user: failed to create player: {}", e);
             Status::InternalServerError
         })?;
 

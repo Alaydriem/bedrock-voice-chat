@@ -1,3 +1,4 @@
+use common::curia;
 use std::sync::Arc;
 
 use crate::http::openapi::CustomJsonResponse;
@@ -33,7 +34,7 @@ pub async fn audio_event_play(
     match playback_service.start_playback(conn, request).await {
         Ok(response) => CustomJsonResponse::ok(response),
         Err(e) => {
-            tracing::error!("Failed to start playback: {}", e);
+            curia::error!("Failed to start playback: {}", e);
             CustomJsonResponse::error(Status::InternalServerError)
         }
     }

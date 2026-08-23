@@ -276,8 +276,9 @@
 .rad-cover {
   position: absolute;
   /* The peek carries the safe-area inset, so the cover begins below the status bar.
-     `env()` is 0 on desktop, leaving the plain 14px. */
-  inset: calc(env(safe-area-inset-top, 0px) + var(--rad-cover-peek, 14px)) 0 0;
+     The token is 0 on desktop, leaving the plain 14px. Anything inside the cover has
+     therefore already been paid for — see `.rad-cover .rad-dash-top`. */
+  inset: calc(var(--rad-inset-top, 0px) + var(--rad-cover-peek, 14px)) 0 0;
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -437,7 +438,7 @@
  * the eye. Anchored to the top, growth extends downward into space that is already there.
  * The peek matches the settings cover, so both read as the same object. */
 .rad-sheet--full {
-  top: calc(env(safe-area-inset-top, 0px) + var(--rad-cover-peek, 14px));
+  top: calc(var(--rad-inset-top, 0px) + var(--rad-cover-peek, 14px));
   max-height: none;
   display: flex;
   flex-direction: column;

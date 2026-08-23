@@ -1,3 +1,4 @@
+use common::curia;
 use rocket::{
     async_trait,
     http::Status,
@@ -52,14 +53,14 @@ impl<'r> FromRequest<'r> for WebsocketTicket {
         };
 
         let Some(cache_manager) = req.rocket().state::<CacheManager>() else {
-            tracing::error!("websocket upgrade attempted before the cache manager was managed");
+            curia::error!("websocket upgrade attempted before the cache manager was managed");
             return Outcome::Error((Status::InternalServerError, ()));
         };
 
         match cache_manager.websocket_tickets().redeem(&ticket).await {
             Some(identity) => Outcome::Success(WebsocketTicket(identity)),
             None => {
-                tracing::debug!("websocket upgrade presented an unknown or spent ticket");
+                curia::debug!("websocket upgrade presented an unknown or spent ticket");
                 Outcome::Error((Status::Unauthorized, ()))
             }
         }

@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use common::curia;
 
 use crate::config::Acme;
 
@@ -76,7 +76,7 @@ impl AcmeService {
             .await?
             .is_none()
         {
-            info!(domains = ?self.domains, "No valid ACME certificate stored; issuing");
+            curia::info!("No valid ACME certificate stored; issuing", { "domains": format!("{:?}", self.domains) });
             let mut last_error = None;
             for (attempt, delay_secs) in [(1u32, 30u64), (2, 60), (3, 0)] {
                 match self.issue().await {
@@ -85,7 +85,7 @@ impl AcmeService {
                         break;
                     }
                     Err(e) => {
-                        error!(error = %e, attempt, "ACME issuance attempt failed");
+                        curia::error!("ACME issuance attempt failed", { "error": e.to_string(), "attempt": attempt });
                         last_error = Some(e);
                         if delay_secs > 0 {
                             tokio::time::sleep(Duration::from_secs(delay_secs)).await;
@@ -117,7 +117,7 @@ impl AcmeService {
         {
             return Ok(false);
         }
-        info!(domains = ?self.domains, "ACME certificate entering renewal window; renewing");
+        curia::info!("ACME certificate entering renewal window; renewing", { "domains": format!("{:?}", self.domains) });
         self.issue().await?;
         Ok(true)
     }
@@ -145,7 +145,7 @@ impl AcmeService {
                                 let _ = renewed_tx.send(()).await;
                             }
                             Ok(false) => {}
-                            Err(e) => error!(error = %e, "ACME renewal attempt failed; will retry"),
+                            Err(e) => curia::error!("ACME renewal attempt failed; will retry", { "error": e.to_string() }),
                         }
                     }
                 }
@@ -215,11 +215,11 @@ impl AcmeService {
         self.storage
             .store_certificate(&cert_chain_pem, &private_key_pem)
             .await?;
-        info!(domains = ?self.domains, "ACME certificate issued and stored");
+        curia::info!("ACME certificate issued and stored", { "domains": format!("{:?}", self.domains) });
 
         for domain in published {
             if let Err(e) = self.provider.cleanup_txt(&domain).await {
-                error!(error = %e, domain, "failed to clean up challenge TXT record");
+                curia::error!("failed to clean up challenge TXT record", { "error": e.to_string(), "domain": domain });
             }
         }
         Ok(())

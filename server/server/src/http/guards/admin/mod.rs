@@ -1,3 +1,4 @@
+use common::curia;
 use common::structs::permission::Permission;
 use entity::player;
 use rocket::{
@@ -64,7 +65,7 @@ impl<'r> FromRequest<'r> for AdminGuard {
         if allowed {
             Outcome::Success(AdminGuard { player })
         } else {
-            tracing::warn!(
+            curia::warn!(
                 "AdminGuard: player {} ({:?}) is missing 'admin' permission",
                 player.gamertag.clone().unwrap_or_default(),
                 player.game,

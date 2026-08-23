@@ -18,6 +18,7 @@
 
 mod error;
 
+use common::curia;
 use error::FfiError;
 
 use crate::config::ApplicationConfig;
@@ -562,7 +563,7 @@ pub unsafe extern "C" fn bvc_update_positions(
                     .await;
             });
         } else {
-            tracing::warn!(
+            curia::warn!(
                 "FFI: PlayerRegistrarService not available - player registration skipped"
             );
         }
@@ -1541,7 +1542,7 @@ pub unsafe extern "C" fn bvc_chat_drain(handle: *mut RuntimeHandle) -> *mut c_ch
                 while let Ok(body) = rx.try_recv() {
                     match serde_json::from_str::<serde_json::Value>(&body) {
                         Ok(v) => frames.push(v),
-                        Err(e) => tracing::warn!("undecodable outbound chat frame: {}", e),
+                        Err(e) => curia::warn!("undecodable outbound chat frame: {}", e),
                     }
                 }
             }

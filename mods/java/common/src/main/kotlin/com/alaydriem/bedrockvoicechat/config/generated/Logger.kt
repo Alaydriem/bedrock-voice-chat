@@ -9,7 +9,7 @@ class Logger {
     @SerializedName("level")
     var level: String? = null
 
-    @SerializedName("out")
-    var out: String? = null
+    @SerializedName("path")
+    var path: String? = null
 
 }

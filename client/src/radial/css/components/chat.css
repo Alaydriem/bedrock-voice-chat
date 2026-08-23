@@ -207,12 +207,15 @@
 
 /* ---- the composer ---- */
 
+/* The dock is the last flex item in the stage, so this row is what the navigation bar or
+   the home indicator lands on. */
 .rad-chat-bar {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 11px 16px 11px 14px;
+  padding: 11px calc(16px + var(--rad-inset-right, 0px))
+    calc(11px + var(--rad-inset-bottom, 0px)) calc(14px + var(--rad-inset-left, 0px));
 }
 
 .rad-chat-toggle {
@@ -396,7 +399,8 @@
 
   /* Clears the capsule, which stays put while chat is open. */
   .rad-chat-bar {
-    padding: 10px 14px calc(100px + env(safe-area-inset-bottom));
+    padding: 10px calc(14px + var(--rad-inset-right, 0px))
+      calc(100px + var(--rad-inset-bottom, 0px)) calc(14px + var(--rad-inset-left, 0px));
   }
 
   .rad-chat-toggle {

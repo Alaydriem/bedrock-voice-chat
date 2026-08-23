@@ -25,6 +25,10 @@ pub use errors::{
     CommunicationError, GameError, GenericCommunicationError, MinecraftCommunicationError,
 };
 
+// The one path every BVC crate reaches the logger by. Declared here rather
+// than per-crate so the root and server workspaces cannot resolve two of them.
+pub use curia;
+
 #[cfg(feature = "net")]
 pub use reqwest;
 
