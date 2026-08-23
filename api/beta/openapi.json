@@ -10,35 +10,6 @@
     "version": "1.0.0-beta.20"
   },
   "paths": {
-    "/api/websocket/ticket": {
-      "post": {
-        "tags": [
-          "WebSocket"
-        ],
-        "description": "Exchanges the caller's mTLS identity for a single-use WebSocket ticket.\n\nA browser cannot present a client certificate or set headers when opening a socket, so identity is established here -- over the same mTLS every other route uses -- and spent once at upgrade time.",
-        "operationId": "ticket_ticket",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WebsocketTicketResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
     "/api/telemetry/host-capability": {
       "post": {
         "tags": [
@@ -70,6 +41,35 @@
         "security": [
           {
             "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/websocket/ticket": {
+      "post": {
+        "tags": [
+          "WebSocket"
+        ],
+        "description": "Exchanges the caller's mTLS identity for a single-use WebSocket ticket.\n\nA browser cannot present a client certificate or set headers when opening a socket, so identity is established here -- over the same mTLS every other route uses -- and spent once at upgrade time.",
+        "operationId": "ticket_ticket",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebsocketTicketResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
           }
         ]
       }
@@ -121,6 +121,35 @@
         "responses": {
           "default": {
             "description": ""
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/clients/live": {
+      "get": {
+        "tags": [
+          "Clients"
+        ],
+        "description": "The identities with a live voice connection to this server.\n\nAsked for by a mod that also delivers audio — the Simple Voice Chat bridge — so it can leave those players out of its own injection. A Java player running both SVC and the BVC desktop client would otherwise hear every remote speaker twice.\n\nEmpty is a real answer, not a failure: a server whose players have not opened a voice client suppresses nobody.",
+        "operationId": "live_clients",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -789,203 +818,6 @@
         ]
       }
     },
-    "/api/channel/": {
-      "get": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "List channels on the server.",
-        "operationId": "channel_list",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Channel"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Create a channel and return its id.\n\nSurfaced in the client as a group.",
-        "operationId": "create_channel_create",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/channel/{id}": {
-      "put": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Update a channel's membership.",
-        "operationId": "event_channel_event",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChannelEvent"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      },
-      "delete": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Delete a channel, removing every member.",
-        "operationId": "delete_channel_delete",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      },
-      "patch": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Rename a channel.",
-        "operationId": "rename_channel_rename",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
     "/api/auth/minecraft": {
       "post": {
         "tags": [
@@ -1223,13 +1055,23 @@
         ]
       }
     },
-    "/api/clients/live": {
+    "/api/channel/": {
       "get": {
         "tags": [
-          "Clients"
+          "Channels"
         ],
-        "description": "The identities with a live voice connection to this server.\n\nAsked for by a mod that also delivers audio — the Simple Voice Chat bridge — so it can leave those players out of its own injection. A Java player running both SVC and the BVC desktop client would otherwise hear every remote speaker twice.\n\nEmpty is a real answer, not a failure: a server whose players have not opened a voice client suppresses nobody.",
-        "operationId": "live_clients",
+        "description": "List channels on the server.",
+        "operationId": "channel_list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -1238,7 +1080,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "string"
+                    "$ref": "#/components/schemas/Channel"
                   }
                 }
               }
@@ -1247,30 +1089,167 @@
         },
         "security": [
           {
-            "GameAccessToken": []
+            "PlayerGuard": []
           }
         ]
-      }
-    },
-    "/api/config": {
-      "get": {
+      },
+      "post": {
         "tags": [
-          "Server"
+          "Channels"
         ],
-        "description": "Return the configuration a client needs before connecting.\n\nUnauthenticated, and the usual way to confirm a server is reachable and its TLS is valid.",
-        "operationId": "get_config",
+        "description": "Create a channel and return its id.\n\nSurfaced in the client as a group.",
+        "operationId": "create_channel_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiConfigResponse"
+                  "type": "string"
                 }
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/channel/{id}": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Update a channel's membership.",
+        "operationId": "event_channel_event",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelEvent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Delete a channel, removing every member.",
+        "operationId": "delete_channel_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Rename a channel.",
+        "operationId": "rename_channel_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
       }
     },
     "/api/state": {
@@ -1371,6 +1350,27 @@
             "GameAccessToken": []
           }
         ]
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "description": "Return the configuration a client needs before connecting.\n\nUnauthenticated, and the usual way to confirm a server is reachable and its TLS is valid.",
+        "operationId": "get_config",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConfigResponse"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -2178,65 +2178,6 @@
           "Local"
         ]
       },
-      "ChannelEvent": {
-        "type": "object",
-        "required": [
-          "event"
-        ],
-        "properties": {
-          "event": {
-            "$ref": "#/components/schemas/ChannelEvents"
-          },
-          "game": {
-            "default": null,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Game"
-              }
-            ],
-            "nullable": true
-          }
-        }
-      },
-      "ChannelEvents": {
-        "type": "string",
-        "enum": [
-          "Join",
-          "Leave",
-          "Create",
-          "Delete",
-          "Rename"
-        ]
-      },
-      "Channel": {
-        "type": "object",
-        "required": [
-          "creator",
-          "id",
-          "name",
-          "players"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "players": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PlayerIdentity"
-            }
-          },
-          "creator": {
-            "$ref": "#/components/schemas/PlayerIdentity"
-          }
-        }
-      },
-      "PlayerIdentity": {
-        "type": "string"
-      },
       "JsonMessage_LoginResponse": {
         "type": "object",
         "required": [
@@ -2652,6 +2593,116 @@
           }
         ]
       },
+      "ChannelEvent": {
+        "type": "object",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ChannelEvents"
+          },
+          "game": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvents": {
+        "type": "string",
+        "enum": [
+          "Join",
+          "Leave",
+          "Create",
+          "Delete",
+          "Rename"
+        ]
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "creator",
+          "id",
+          "name",
+          "players"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerIdentity"
+            }
+          },
+          "creator": {
+            "$ref": "#/components/schemas/PlayerIdentity"
+          }
+        }
+      },
+      "PlayerIdentity": {
+        "type": "string"
+      },
+      "QueryState": {
+        "type": "object",
+        "required": [
+          "deafened",
+          "id",
+          "muted",
+          "recording"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "muted": {
+            "type": "boolean"
+          },
+          "deafened": {
+            "type": "boolean"
+          },
+          "recording": {
+            "type": "boolean"
+          },
+          "current_group": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PlayerPreference": {
+        "type": "object",
+        "required": [
+          "muted",
+          "owner",
+          "target",
+          "volume"
+        ],
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "volume": {
+            "type": "number",
+            "format": "float"
+          },
+          "muted": {
+            "type": "boolean"
+          }
+        }
+      },
       "ApiConfigResponse": {
         "type": "object",
         "required": [
@@ -2916,69 +2967,18 @@
             "minimum": 0.0
           }
         }
-      },
-      "QueryState": {
-        "type": "object",
-        "required": [
-          "deafened",
-          "id",
-          "muted",
-          "recording"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "muted": {
-            "type": "boolean"
-          },
-          "deafened": {
-            "type": "boolean"
-          },
-          "recording": {
-            "type": "boolean"
-          },
-          "current_group": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "PlayerPreference": {
-        "type": "object",
-        "required": [
-          "muted",
-          "owner",
-          "target",
-          "volume"
-        ],
-        "properties": {
-          "owner": {
-            "type": "string"
-          },
-          "target": {
-            "type": "string"
-          },
-          "volume": {
-            "type": "number",
-            "format": "float"
-          },
-          "muted": {
-            "type": "boolean"
-          }
-        }
       }
     },
     "securitySchemes": {
-      "PlayerGuard": {
-        "description": "Player mTLS client certificate.",
-        "type": "http",
-        "scheme": "mutual"
-      },
       "GameAccessToken": {
         "description": "Game server access token, as `Authorization: Bearer <token>`.",
         "type": "http",
         "scheme": "bearer"
+      },
+      "PlayerGuard": {
+        "description": "Player mTLS client certificate.",
+        "type": "http",
+        "scheme": "mutual"
       },
       "AdminGuard": {
         "description": "Operator mTLS client certificate. Caller must additionally hold the `admin` permission.",
@@ -2989,16 +2989,20 @@
   },
   "tags": [
     {
-      "name": "WebSocket",
-      "description": "Ticket exchange and streaming feeds for client UI surfaces. A browser cannot present a client certificate when opening a socket, so identity is established over mTLS here and spent once at upgrade time."
-    },
-    {
       "name": "Telemetry",
       "description": "Facts a Java mod observes about its own host, which the mod has no channel of its own to report."
     },
     {
+      "name": "WebSocket",
+      "description": "Ticket exchange and streaming feeds for client UI surfaces. A browser cannot present a client certificate when opening a socket, so identity is established over mTLS here and spent once at upgrade time."
+    },
+    {
       "name": "Positions",
       "description": "Player position updates from game mods. Used by the Minecraft server plugin to push player coordinates for spatial audio calculations."
+    },
+    {
+      "name": "Clients",
+      "description": "Which players currently hold a voice connection, for a mod that delivers audio of its own alongside this server's."
     },
     {
       "name": "Bedrock",
@@ -3021,10 +3025,6 @@
       "description": "In-game chat relay. Lists the worlds a player has been seen in and which of them currently have a chat channel."
     },
     {
-      "name": "Channels",
-      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
-    },
-    {
       "name": "Identity",
       "description": "Player identity management. Retrieve current session state, permissions, and certificate renewal. Link external accounts such as Minecraft Java."
     },
@@ -3041,8 +3041,8 @@
       "description": "In-game audio control plane. The mod submits ClientActions on behalf of the authenticated in-game player (Authorization: Bearer)."
     },
     {
-      "name": "Clients",
-      "description": "Which players currently hold a voice connection, for a mod that delivers audio of its own alongside this server's."
+      "name": "Channels",
+      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
     },
     {
       "name": "Server",
