@@ -10,6 +10,373 @@
     "version": "1.0.0-beta.20"
   },
   "paths": {
+    "/api/gamerpic/{game}/{gamertag}": {
+      "get": {
+        "tags": [
+          "Gamerpic"
+        ],
+        "operationId": "get_gamerpic",
+        "parameters": [
+          {
+            "name": "game",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Game"
+            }
+          },
+          {
+            "name": "gamertag",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GamerpicResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control": {
+      "post": {
+        "tags": [
+          "Control"
+        ],
+        "operationId": "control",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientAction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/state": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "operationId": "get_state",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryState",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/preferences": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "operationId": "get_preferences",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "targets",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlayerPreference"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "MCAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "operationId": "get_config",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channel/": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "channel_list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Channel"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "create_channel_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/channel/{id}": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "event_channel_event",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelEvent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "delete_channel_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Channels"
+        ],
+        "operationId": "rename_channel_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/websocket/ticket": {
+      "post": {
+        "tags": [
+          "WebSocket"
+        ],
+        "description": "Exchanges the caller's mTLS identity for a single-use WebSocket ticket.\n\nA browser cannot present a client certificate or set headers when opening a socket, so identity is established here -- over the same mTLS every other route uses -- and spent once at upgrade time.",
+        "operationId": "ticket_ticket",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebsocketTicketResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
     "/api/position": {
       "get": {
         "tags": [
@@ -62,6 +429,85 @@
             "MCAccessToken": []
           }
         ]
+      }
+    },
+    "/api/ping": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "ping_pong",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/health/liveness": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "liveness_liveness",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/health/readiness": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "readiness_readiness",
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/relay/peer-link": {
+      "post": {
+        "tags": [
+          "Relay"
+        ],
+        "operationId": "peer_link_peer_link",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PeerLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeerLinkResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        }
       }
     },
     "/api/audio/event": {
@@ -610,432 +1056,472 @@
           }
         }
       }
-    },
-    "/api/control": {
-      "post": {
-        "tags": [
-          "Control"
-        ],
-        "operationId": "control",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ClientAction"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "nullable": true
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "MCAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/state": {
-      "get": {
-        "tags": [
-          "Control"
-        ],
-        "operationId": "get_state",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/QueryState",
-                  "nullable": true
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "MCAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/preferences": {
-      "get": {
-        "tags": [
-          "Control"
-        ],
-        "operationId": "get_preferences",
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "targets",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PlayerPreference"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "MCAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/channel/": {
-      "get": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "channel_list",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Channel"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "create_channel_create",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/channel/{id}": {
-      "put": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "event_channel_event",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChannelEvent"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "delete_channel_delete",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "Channels"
-        ],
-        "operationId": "rename_channel_rename",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/gamerpic/{game}/{gamertag}": {
-      "get": {
-        "tags": [
-          "Gamerpic"
-        ],
-        "operationId": "get_gamerpic",
-        "parameters": [
-          {
-            "name": "game",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Game"
-            }
-          },
-          {
-            "name": "gamertag",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GamerpicResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ping": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "operationId": "ping_pong",
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/health/liveness": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "operationId": "liveness_liveness",
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/health/readiness": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "operationId": "readiness_readiness",
-        "responses": {
-          "default": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/relay/peer-link": {
-      "post": {
-        "tags": [
-          "Relay"
-        ],
-        "operationId": "peer_link_peer_link",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PeerLinkRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PeerLinkResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/api/config": {
-      "get": {
-        "tags": [
-          "Server"
-        ],
-        "operationId": "get_config",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiConfigResponse"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
     "schemas": {
+      "GamerpicResponse": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "gamerpic": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Game": {
+        "type": "string",
+        "enum": [
+          "minecraft",
+          "hytale"
+        ]
+      },
+      "ClientAction": {
+        "type": "object",
+        "required": [
+          "action",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "$ref": "#/components/schemas/ClientActionType"
+          }
+        }
+      },
+      "ClientActionType": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "CreateGroup",
+              "LeaveGroup"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetMuted"
+            ],
+            "properties": {
+              "SetMuted": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetDeafened"
+            ],
+            "properties": {
+              "SetDeafened": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetRecording"
+            ],
+            "properties": {
+              "SetRecording": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetVolume"
+            ],
+            "properties": {
+              "SetVolume": {
+                "type": "object",
+                "required": [
+                  "target",
+                  "volume"
+                ],
+                "properties": {
+                  "target": {
+                    "type": "string"
+                  },
+                  "volume": {
+                    "type": "number",
+                    "format": "float"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetHeard"
+            ],
+            "properties": {
+              "SetHeard": {
+                "type": "object",
+                "required": [
+                  "muted",
+                  "target"
+                ],
+                "properties": {
+                  "target": {
+                    "type": "string"
+                  },
+                  "muted": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "JoinGroup"
+            ],
+            "properties": {
+              "JoinGroup": {
+                "type": "object",
+                "required": [
+                  "channel"
+                ],
+                "properties": {
+                  "channel": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "QueryState": {
+        "type": "object",
+        "required": [
+          "deafened",
+          "id",
+          "muted",
+          "recording"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "muted": {
+            "type": "boolean"
+          },
+          "deafened": {
+            "type": "boolean"
+          },
+          "recording": {
+            "type": "boolean"
+          },
+          "current_group": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PlayerPreference": {
+        "type": "object",
+        "required": [
+          "muted",
+          "owner",
+          "target",
+          "volume"
+        ],
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "volume": {
+            "type": "number",
+            "format": "float"
+          },
+          "muted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiConfigResponse": {
+        "type": "object",
+        "required": [
+          "client_id",
+          "protocol_version",
+          "quic_port",
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "protocol_version": {
+            "type": "string"
+          },
+          "quic_port": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "quic_ports": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "spatial_audio": {
+            "default": {
+              "broadcast_range": 48.0,
+              "close_threshold": 24.0,
+              "deafen_distance": 3.0,
+              "falloff_distance": 48.0,
+              "max_attenuation_db": 40.0,
+              "panning_start": 8.0,
+              "steepen_start": 38.0
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpatialAudioConfig"
+              }
+            ]
+          },
+          "bedrock": {
+            "default": {
+              "dns_enabled": false,
+              "enabled": false,
+              "servers": [],
+              "transfer_port": null
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigBedrock"
+              }
+            ]
+          },
+          "age": {
+            "default": {
+              "minimum": null
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigAge"
+              }
+            ]
+          }
+        }
+      },
+      "SpatialAudioConfig": {
+        "type": "object",
+        "properties": {
+          "broadcast_range": {
+            "default": 48.0,
+            "type": "number",
+            "format": "float"
+          },
+          "close_threshold": {
+            "default": 24.0,
+            "type": "number",
+            "format": "float"
+          },
+          "falloff_distance": {
+            "default": 48.0,
+            "type": "number",
+            "format": "float"
+          },
+          "steepen_start": {
+            "default": 38.0,
+            "type": "number",
+            "format": "float"
+          },
+          "deafen_distance": {
+            "default": 3.0,
+            "type": "number",
+            "format": "float"
+          },
+          "panning_start": {
+            "default": 8.0,
+            "type": "number",
+            "format": "float"
+          },
+          "max_attenuation_db": {
+            "default": 40.0,
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "ApiConfigBedrock": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "type": "boolean"
+          },
+          "dns_enabled": {
+            "default": false,
+            "type": "boolean"
+          },
+          "transfer_port": {
+            "default": null,
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0,
+            "nullable": true
+          },
+          "servers": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiConfigBedrockServer"
+            }
+          }
+        }
+      },
+      "ApiConfigBedrockServer": {
+        "type": "object",
+        "required": [
+          "host",
+          "name",
+          "port"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
+          },
+          "protocol_version": {
+            "default": null,
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0,
+            "nullable": true
+          }
+        }
+      },
+      "ApiConfigAge": {
+        "type": "object",
+        "properties": {
+          "minimum": {
+            "default": null,
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0,
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvent": {
+        "type": "object",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ChannelEvents"
+          },
+          "game": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvents": {
+        "type": "string",
+        "enum": [
+          "Join",
+          "Leave",
+          "Create",
+          "Delete",
+          "Rename"
+        ]
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "creator",
+          "id",
+          "name",
+          "players"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "creator": {
+            "type": "string"
+          }
+        }
+      },
+      "WebsocketTicketResponse": {
+        "type": "object",
+        "required": [
+          "expires_in",
+          "ticket"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "string"
+          },
+          "expires_in": {
+            "description": "Seconds until expiry, so the caller can decide whether to reuse a held ticket or fetch a fresh one before reconnecting.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
+      },
       "GameDataCollection": {
         "type": "object",
         "required": [
@@ -1057,13 +1543,6 @@
             }
           }
         }
-      },
-      "Game": {
-        "type": "string",
-        "enum": [
-          "minecraft",
-          "hytale"
-        ]
       },
       "PlayerEnum": {
         "description": "Type-safe enum for storing heterogeneous player types Dispatches to game-specific implementations\n\nUses externally tagged serialization (works with postcard). For JSON compatibility with legacy clients, use GameDataCollection's custom deserialization which handles the game field at the collection level.",
@@ -1281,6 +1760,58 @@
           },
           "game": {
             "$ref": "#/components/schemas/Game"
+          }
+        }
+      },
+      "ReadinessResponse": {
+        "description": "Per-component readiness snapshot returned by /health/readiness. Each component is \"ok\" or \"down\".",
+        "type": "object",
+        "required": [
+          "certificate",
+          "database",
+          "quic"
+        ],
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "quic": {
+            "type": "string"
+          },
+          "certificate": {
+            "type": "string"
+          }
+        }
+      },
+      "PeerLinkResponse": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "PeerLinkRequest": {
+        "type": "object",
+        "required": [
+          "hashed_world",
+          "recipient_host",
+          "recipient_port"
+        ],
+        "properties": {
+          "hashed_world": {
+            "type": "string"
+          },
+          "recipient_host": {
+            "type": "string"
+          },
+          "recipient_port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
           }
         }
       },
@@ -2058,495 +2589,6 @@
             "nullable": true
           }
         }
-      },
-      "ClientAction": {
-        "type": "object",
-        "required": [
-          "action",
-          "id"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "action": {
-            "$ref": "#/components/schemas/ClientActionType"
-          }
-        }
-      },
-      "ClientActionType": {
-        "oneOf": [
-          {
-            "type": "string",
-            "enum": [
-              "CreateGroup",
-              "LeaveGroup"
-            ]
-          },
-          {
-            "type": "object",
-            "required": [
-              "SetMuted"
-            ],
-            "properties": {
-              "SetMuted": {
-                "type": "boolean"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "SetDeafened"
-            ],
-            "properties": {
-              "SetDeafened": {
-                "type": "boolean"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "SetRecording"
-            ],
-            "properties": {
-              "SetRecording": {
-                "type": "boolean"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "SetVolume"
-            ],
-            "properties": {
-              "SetVolume": {
-                "type": "object",
-                "required": [
-                  "target",
-                  "volume"
-                ],
-                "properties": {
-                  "target": {
-                    "type": "string"
-                  },
-                  "volume": {
-                    "type": "number",
-                    "format": "float"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "SetHeard"
-            ],
-            "properties": {
-              "SetHeard": {
-                "type": "object",
-                "required": [
-                  "muted",
-                  "target"
-                ],
-                "properties": {
-                  "target": {
-                    "type": "string"
-                  },
-                  "muted": {
-                    "type": "boolean"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "JoinGroup"
-            ],
-            "properties": {
-              "JoinGroup": {
-                "type": "object",
-                "required": [
-                  "channel"
-                ],
-                "properties": {
-                  "channel": {
-                    "type": "string"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
-      "QueryState": {
-        "type": "object",
-        "required": [
-          "deafened",
-          "id",
-          "muted",
-          "recording"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "muted": {
-            "type": "boolean"
-          },
-          "deafened": {
-            "type": "boolean"
-          },
-          "recording": {
-            "type": "boolean"
-          },
-          "current_group": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "PlayerPreference": {
-        "type": "object",
-        "required": [
-          "muted",
-          "owner",
-          "target",
-          "volume"
-        ],
-        "properties": {
-          "owner": {
-            "type": "string"
-          },
-          "target": {
-            "type": "string"
-          },
-          "volume": {
-            "type": "number",
-            "format": "float"
-          },
-          "muted": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ChannelEvent": {
-        "type": "object",
-        "required": [
-          "event"
-        ],
-        "properties": {
-          "event": {
-            "$ref": "#/components/schemas/ChannelEvents"
-          },
-          "game": {
-            "default": null,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Game"
-              }
-            ],
-            "nullable": true
-          }
-        }
-      },
-      "ChannelEvents": {
-        "type": "string",
-        "enum": [
-          "Join",
-          "Leave",
-          "Create",
-          "Delete",
-          "Rename"
-        ]
-      },
-      "Channel": {
-        "type": "object",
-        "required": [
-          "creator",
-          "id",
-          "name",
-          "players"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "players": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "creator": {
-            "type": "string"
-          }
-        }
-      },
-      "GamerpicResponse": {
-        "type": "object",
-        "required": [
-          "game",
-          "gamertag"
-        ],
-        "properties": {
-          "gamertag": {
-            "type": "string"
-          },
-          "game": {
-            "$ref": "#/components/schemas/Game"
-          },
-          "gamerpic": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "ReadinessResponse": {
-        "description": "Per-component readiness snapshot returned by /health/readiness. Each component is \"ok\" or \"down\".",
-        "type": "object",
-        "required": [
-          "certificate",
-          "database",
-          "quic"
-        ],
-        "properties": {
-          "database": {
-            "type": "string"
-          },
-          "quic": {
-            "type": "string"
-          },
-          "certificate": {
-            "type": "string"
-          }
-        }
-      },
-      "PeerLinkResponse": {
-        "type": "object",
-        "required": [
-          "code"
-        ],
-        "properties": {
-          "code": {
-            "type": "string"
-          }
-        }
-      },
-      "PeerLinkRequest": {
-        "type": "object",
-        "required": [
-          "hashed_world",
-          "recipient_host",
-          "recipient_port"
-        ],
-        "properties": {
-          "hashed_world": {
-            "type": "string"
-          },
-          "recipient_host": {
-            "type": "string"
-          },
-          "recipient_port": {
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
-          }
-        }
-      },
-      "ApiConfigResponse": {
-        "type": "object",
-        "required": [
-          "client_id",
-          "protocol_version",
-          "quic_port",
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string"
-          },
-          "client_id": {
-            "type": "string"
-          },
-          "protocol_version": {
-            "type": "string"
-          },
-          "quic_port": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          },
-          "quic_ports": {
-            "default": [],
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
-            }
-          },
-          "spatial_audio": {
-            "default": {
-              "broadcast_range": 48.0,
-              "close_threshold": 12.0,
-              "deafen_distance": 3.0,
-              "falloff_distance": 48.0,
-              "max_attenuation_db": 40.0,
-              "panning_start": 8.0,
-              "steepen_start": 38.0
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SpatialAudioConfig"
-              }
-            ]
-          },
-          "bedrock": {
-            "default": {
-              "dns_enabled": false,
-              "enabled": false,
-              "servers": [],
-              "transfer_port": null
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigBedrock"
-              }
-            ]
-          },
-          "age": {
-            "default": {
-              "minimum": null
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigAge"
-              }
-            ]
-          }
-        }
-      },
-      "SpatialAudioConfig": {
-        "type": "object",
-        "properties": {
-          "broadcast_range": {
-            "default": 48.0,
-            "type": "number",
-            "format": "float"
-          },
-          "close_threshold": {
-            "default": 12.0,
-            "type": "number",
-            "format": "float"
-          },
-          "falloff_distance": {
-            "default": 48.0,
-            "type": "number",
-            "format": "float"
-          },
-          "steepen_start": {
-            "default": 38.0,
-            "type": "number",
-            "format": "float"
-          },
-          "deafen_distance": {
-            "default": 3.0,
-            "type": "number",
-            "format": "float"
-          },
-          "panning_start": {
-            "default": 8.0,
-            "type": "number",
-            "format": "float"
-          },
-          "max_attenuation_db": {
-            "default": 40.0,
-            "type": "number",
-            "format": "float"
-          }
-        }
-      },
-      "ApiConfigBedrock": {
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "default": false,
-            "type": "boolean"
-          },
-          "dns_enabled": {
-            "default": false,
-            "type": "boolean"
-          },
-          "transfer_port": {
-            "default": null,
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0,
-            "nullable": true
-          },
-          "servers": {
-            "default": [],
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ApiConfigBedrockServer"
-            }
-          }
-        }
-      },
-      "ApiConfigBedrockServer": {
-        "type": "object",
-        "required": [
-          "host",
-          "name",
-          "port"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "host": {
-            "type": "string"
-          },
-          "port": {
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
-          },
-          "protocol_version": {
-            "default": null,
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0,
-            "nullable": true
-          }
-        }
-      },
-      "ApiConfigAge": {
-        "type": "object",
-        "properties": {
-          "minimum": {
-            "default": null,
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0,
-            "nullable": true
-          }
-        }
       }
     },
     "securitySchemes": {
@@ -2571,8 +2613,36 @@
   },
   "tags": [
     {
+      "name": "Gamerpic",
+      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
+    },
+    {
+      "name": "Control",
+      "description": "In-game audio control plane. The mod submits ClientActions on behalf of the authenticated in-game player (X-MC-Access-Token)."
+    },
+    {
+      "name": "Server",
+      "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
+    },
+    {
+      "name": "Channels",
+      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
+    },
+    {
+      "name": "WebSocket",
+      "description": "Ticket exchange and streaming feeds for client UI surfaces. A browser cannot present a client certificate when opening a socket, so identity is established over mTLS here and spent once at upgrade time."
+    },
+    {
       "name": "Positions",
       "description": "Player position updates from game mods. Used by the Minecraft/Hytale server plugin to push player coordinates for spatial audio calculations."
+    },
+    {
+      "name": "Health",
+      "description": "Health and readiness probes. Liveness and readiness are unauthenticated for use with Kubernetes."
+    },
+    {
+      "name": "Relay",
+      "description": "Cross-server peering over direct peer HTTPS. Discovery is decentralized via in-realm announces (no central relay); these routes carry the offer / code-redeem / peer-link handshake between two servers that already share a realm."
     },
     {
       "name": "Audio",
@@ -2589,30 +2659,6 @@
     {
       "name": "Authentication",
       "description": "OAuth2 authentication via Microsoft (Minecraft) or Hytale device code flow. Returns mTLS certificates and ncryptf keys for subsequent API calls. Interacting with these endpoints REQUIRES ncryptf. non-ncryptf request/response bodies are provided here as sample references."
-    },
-    {
-      "name": "Control",
-      "description": "In-game audio control plane. The mod submits ClientActions on behalf of the authenticated in-game player (X-MC-Access-Token)."
-    },
-    {
-      "name": "Channels",
-      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
-    },
-    {
-      "name": "Gamerpic",
-      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
-    },
-    {
-      "name": "Health",
-      "description": "Health and readiness probes. Liveness and readiness are unauthenticated for use with Kubernetes."
-    },
-    {
-      "name": "Relay",
-      "description": "Cross-server peering over direct peer HTTPS. Discovery is decentralized via in-realm announces (no central relay); these routes carry the offer / code-redeem / peer-link handshake between two servers that already share a realm."
-    },
-    {
-      "name": "Server",
-      "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
     }
   ]
 }
