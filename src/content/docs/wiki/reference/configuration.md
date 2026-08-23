@@ -271,6 +271,23 @@ Advertised on `/api/config`. A client that cannot reach the config treats record
 
 See [recording](/wiki/creator/recording/).
 
+### `voice.limits`
+
+| Key | Default | Description |
+|---|---|---|
+| `connections` | `0` | Maximum concurrent voice sessions. `0` admits everyone. |
+| `reconnect_grace` | `60` | Seconds a disconnected player keeps their slot. |
+
+Counted per player, not per connection. A player who reconnects is never refused by the limit, even while their previous connection is still closing, and one player signed in on two devices holds one slot.
+
+A player refused by the limit sees a notice naming it, and their client keeps retrying. They connect as soon as a slot frees. Registration is unaffected: new players still join the roster and can sign in once there is room.
+
+`reconnect_grace` holds a departed player's slot so a client that closed cleanly — an app quit, or Android stopping it in the background — is not displaced by someone who arrived meanwhile. A held slot yields to a genuinely new player, oldest first, when nothing else is free.
+
+Advertised on `/api/config` as `capacity.limit` and `capacity.in_use`. A client that cannot reach the config treats the server as unlimited, the same as an older server.
+
+Relayed peer players do not consume slots on this server; they are counted where their own session lives. The HTTP API is unaffected, so a full server can still be administered.
+
 ### `voice.spatial_audio`
 
 All distances in blocks.

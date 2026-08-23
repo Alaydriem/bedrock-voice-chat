@@ -50,6 +50,7 @@ File: `config.hcl`
 | `server.bedrock.dns` | Removed. | Delete the block. |
 | `relay` | Removed. Replaced by `server.peers` and `server.peer_relay_url`. | Delete the block. Redeclare peers. |
 | `voice.recording` | New. `enabled` defaults to `true`. | Set `enabled = false` to forbid client-side recording. |
+| `voice.limits` | New. `connections` defaults to `0`, which admits everyone. | Nothing. Set `connections` to cap concurrent voice sessions. |
 
 `addon_mode` has no default. A `servers` list carrying an entry without it does not parse, and the server does not start. Every key is listed in the [configuration reference](/wiki/reference/configuration/).
 
@@ -58,6 +59,8 @@ Every other removed key is **ignored, not rejected**. A leftover `relay` or `ser
 :::
 
 `voice.recording.enabled` takes the `BVC_RECORDING` environment override.
+
+`voice.limits` needs no action on upgrade. The default admits everyone, so a server that does not declare the block behaves exactly as it did. `connections` and `reconnect_grace` take the `BVC_MAX_CONNECTIONS` and `BVC_RECONNECT_GRACE` overrides.
 
 ## Scripts that call the API
 

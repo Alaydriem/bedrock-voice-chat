@@ -28,6 +28,8 @@ An unset or empty variable never overrides anything. `FOO=` in a compose file wi
 | Variable | Sets |
 |---|---|
 | `BVC_RECORDING` | `voice.recording.enabled`. `true` or `false`. |
+| `BVC_MAX_CONNECTIONS` | `voice.limits.connections`. Maximum concurrent voice sessions. `0` admits everyone. |
+| `BVC_RECONNECT_GRACE` | `voice.limits.reconnect_grace`. Seconds a disconnected player keeps their slot. |
 
 ## Runtime
 
