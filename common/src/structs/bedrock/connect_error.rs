@@ -19,6 +19,9 @@ pub enum BedrockConnectError {
     Auth {
         message: String,
     },
+    /// The stored Xbox credential was rejected. Nothing on the device can repair it, so the
+    /// app must put a sign-in in front of the player rather than retry.
+    ReauthRequired,
     Transport {
         message: String,
     },
@@ -52,6 +55,7 @@ impl From<&crate::bedrock_protocol::Error> for BedrockConnectError {
                     message: msg.clone(),
                 },
             },
+            Error::ReauthRequired { .. } => BedrockConnectError::ReauthRequired,
             Error::Auth(msg) => BedrockConnectError::Auth {
                 message: msg.clone(),
             },

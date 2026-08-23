@@ -1,14 +1,15 @@
-pub mod dial;
-pub mod link;
-pub mod manager;
-pub mod role;
-pub mod table;
+pub mod block;
+pub mod egress;
+pub mod ingest;
+pub mod links;
+pub mod local_clients;
+pub mod plane;
+pub mod sink;
 
-pub use dial::{PeerDialer, ProductionPeerDialDriver, RedeemedDial};
-pub use link::{
-    GatedPeerIngest, IDLE_TIMEOUT, PeerDirection, PeerLink, PeerLinkIngest, PeerLinkState,
-    RelayIngestSink, WebhookIngestSink,
-};
-pub use manager::PeerManager;
-pub use role::{Caps, PeerRole};
-pub use table::PeerTable;
+pub use block::PeerBlock;
+pub use egress::PeerEgress;
+pub use ingest::{IngestRejection, PeerIngest};
+pub use links::PeerLinks;
+pub use local_clients::LocalClients;
+pub use plane::PeerPlane;
+pub use sink::PeerSink;

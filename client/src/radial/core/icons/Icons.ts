@@ -19,8 +19,36 @@ export const RAD_ICONS = {
   head: '<path d="M4 15.5v-3.5a8 8 0 0 1 16 0v3.5"/><rect x="2.5" y="14" width="4.6" height="7.2" rx="2.3"/><rect x="16.9" y="14" width="4.6" height="7.2" rx="2.3"/>',
   headoff:
     '<path d="M4 15.5v-3.5a8 8 0 0 1 16 0v3.5"/><rect x="2.5" y="14" width="4.6" height="7.2" rx="2.3"/><rect x="16.9" y="14" width="4.6" height="7.2" rx="2.3"/><path d="M3 2.5l18 19"/>',
+  speakeroff:
+    '<path d="M4 9.4h3.1L12.7 5v14l-5.6-4.4H4z"/><path d="M16.4 9.6a4.6 4.6 0 0 1 .6 4.4"/><path d="M19.4 6.6a8.4 8.4 0 0 1 .9 8.6"/><path d="M3.4 3.4l17.2 17.2"/>',
+  /**
+   * A waveform, for a device whose format the app cannot use — a sample rate or a
+   * channel count, not a device that is missing. `micoff` says "there is nothing
+   * there", which is the opposite problem.
+   */
+  wave: '<path d="M2.6 12h2.6l2-6.4 3 12.8 3-9.6 1.8 3.2h6.4"/>',
+  /**
+   * A note, for jukebox music.
+   *
+   * Deliberately not a disc. A disc is concentric circles, which is what `field` already
+   * draws for the proximity reading — put the two in the same bar and they read as one
+   * object with two states rather than as two different things.
+   */
+  note: '<circle cx="8.2" cy="17.4" r="3.3"/><path d="M11.5 17.4V5.2"/><path d="M11.5 5.2c3.6 1 5.2 3.1 4.8 6.3"/>',
+  noteoff:
+    '<circle cx="8.2" cy="17.4" r="3.3"/><path d="M11.5 17.4V5.2"/><path d="M11.5 5.2c3.6 1 5.2 3.1 4.8 6.3"/><path d="M3.6 3.4l16.8 17.2"/>',
+  belloff:
+    '<path d="M6.6 10.6a5.4 5.4 0 0 1 9.2-3.9"/><path d="M17.4 12.6v-2a5.4 5.4 0 0 0-.2-1.5"/><path d="M5.4 16.4s1.2-1.3 1.2-5.8"/><path d="M17.4 12.6c0 3.2 1.2 3.8 1.2 3.8H5.4"/><path d="M10 19.3a2.3 2.3 0 0 0 4 0"/><path d="M3.6 3.4l16.8 17.2"/>',
   rec: '<circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="3.6" fill="currentColor" stroke="none"/>',
   refresh: '<path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.5 3.5V9h-5.5"/>',
+  // Deliberately the mirror of `refresh`, turning the other way. The two sit next to each other
+  // in the status panel — reconnect and reset stats — and a second clockwise arrow there would
+  // read as the same action drawn twice.
+  reset: '<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 3.5V9H9"/>',
+  // Drawn open. A favourite is filled by `fill: currentColor` on the button that
+  // holds it, so the on and off states are one shape at two weights rather than two
+  // drawings that have to be kept in agreement.
+  star: '<path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 16.92l-5.3 2.79 1.01-5.9L3.42 9.63l5.93-.86z"/>',
   plus: '<path d="M12 4.5v15"/><path d="M4.5 12h15"/>',
   minus: '<path d="M4.5 12h15"/>',
   close: '<path d="M6.5 6.5l11 11"/><path d="M17.5 6.5l-11 11"/>',
@@ -56,6 +84,27 @@ export const RAD_ICONS = {
   terminal:
     '<rect x="2.8" y="4.3" width="18.4" height="15.4" rx="2.4"/><path d="M7 9.5l3 2.6-3 2.6"/><path d="M12.4 15h4.4"/>',
   grip: '<circle cx="9" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.5" fill="currentColor" stroke="none"/>',
+  globe:
+    '<circle cx="12" cy="12" r="8.8"/><path d="M3.5 9.4h17"/><path d="M3.5 14.6h17"/><path d="M12 3.2c2.4 2.4 3.6 5.3 3.6 8.8S14.4 18.4 12 20.8c-2.4-2.4-3.6-5.3-3.6-8.8S9.6 5.6 12 3.2Z"/>',
+  server:
+    '<rect x="3.4" y="3.8" width="17.2" height="6.8" rx="2.1"/><rect x="3.4" y="13.4" width="17.2" height="6.8" rx="2.1"/><path d="M7.4 7.2h.02"/><path d="M7.4 16.8h.02"/><path d="M11.4 7.2h4.8"/><path d="M11.4 16.8h4.8"/>',
+  /** A chain pulled apart, for a path that was there and is not. */
+  unlink:
+    '<path d="M9.6 14.4 7.2 16.8a3.7 3.7 0 0 1-5.2-5.2l2.4-2.4"/><path d="M14.4 9.6l2.4-2.4a3.7 3.7 0 0 1 5.2 5.2l-2.4 2.4"/><path d="M12.6 3.4v2.4"/><path d="M3.4 12.6h2.4"/><path d="M18.2 11.4h2.4"/><path d="M11.4 18.2v2.4"/>',
+  /**
+   * A tick inside, not a cross. This is the parental gate: the shield is the protection
+   * working as intended, and a child looking at it has not done anything wrong.
+   */
+  shield:
+    '<path d="M12 3.2 20 6v5.4c0 4.6-3.2 7.7-8 9.4-4.8-1.7-8-4.8-8-9.4V6z"/><path d="M9.2 12.1l2.1 2.2 3.9-4.2"/>',
+  shieldoff:
+    '<path d="M12 3.2 20 6v5.4c0 4.6-3.2 7.7-8 9.4-4.8-1.7-8-4.8-8-9.4V6z"/><path d="M8.4 8.4l7.2 7.2"/><path d="M15.6 8.4l-7.2 7.2"/>',
+  cert:
+    '<rect x="3.4" y="4.2" width="17.2" height="11.4" rx="2.2"/><path d="M7.4 8.4h5.2"/><path d="M7.4 11.6h3"/><circle cx="16.6" cy="10.2" r="2.2"/><path d="M14.9 12l-.7 3.6 2.4-1.4 2.4 1.4-.7-3.6"/>',
+  lock:
+    '<rect x="4.6" y="10.2" width="14.8" height="10.2" rx="2.4"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6"/><path d="M12 14.2v2.4"/>',
+  download:
+    '<path d="M12 3.6v10.8"/><path d="M7.6 10.2 12 14.6l4.4-4.4"/><path d="M4.4 19.4h15.2"/>',
   warn: '<path d="M12 3.5 21.5 20H2.5z"/><path d="M12 9.5v5"/><circle cx="12" cy="17.4" r="1" fill="currentColor" stroke="none"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.6" r="1" fill="currentColor" stroke="none"/>',
 } as const;

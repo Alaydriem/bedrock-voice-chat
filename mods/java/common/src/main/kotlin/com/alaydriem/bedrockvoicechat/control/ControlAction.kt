@@ -44,10 +44,26 @@ sealed class ControlAction {
             is LeaveGroup -> Tag.LeaveGroup.name
         }
 
+    // `game` labels the actor the same way the /api/position body does, so the server
+    // builds this player's canonical `game:gamertag` key from a declared value instead
+    // of assuming one. A Java mod player is always Minecraft.
     fun toClientActionJson(actorId: String): String =
-        GSON.toJson(mapOf("id" to actorId, "action" to actionJson()))
+        GSON.toJson(mapOf("id" to actorId, "game" to "minecraft", "action" to actionJson()))
 
     companion object {
         private val GSON = Gson()
+
+        /**
+         * The reserved control-plane target that names jukebox music instead of a player.
+         *
+         * Must match common's `JUKEBOX_CONTROL_TARGET`. A gamertag cannot contain '#', so it can
+         * never collide with a real player. The jukebox rides the per-player preference plane under
+         * this name, which is why it needs no variant of its own. This mod shares no types with the
+         * Rust crate; [ControlActionTest] is what keeps the value equal.
+         */
+        const val JUKEBOX_TARGET = "#jukebox"
+
+        /** The loudest anything plays, as a percent. Matches `PlayerGainSettings::MAX_GAIN`. */
+        const val MAX_LEVEL = 150
     }
 }

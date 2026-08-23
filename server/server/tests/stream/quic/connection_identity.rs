@@ -12,29 +12,30 @@ fn minecraft_player_cn_yields_game_and_bare_name() {
     );
 }
 
+// A game this build once issued certificates for must be refused like any other unknown
+// tag. Coercing a retired prefix to the only remaining game would let a certificate
+// issued for it resolve onto a Minecraft identity and inherit that player's membership.
 #[test]
-fn hytale_player_cn_yields_game_and_bare_name() {
+fn a_retired_game_prefix_is_rejected() {
     assert_eq!(
         ConnectionClassifier::classify("hytale:Alex"),
-        ConnectionKind::Player {
-            game: Game::Hytale,
-            name: "Alex".to_string(),
+        ConnectionKind::Rejected {
+            identity: "hytale:Alex".to_string(),
         }
     );
 }
 
-// The peer marker still wins over the player shape, and the endpoint is the
-// `server::`-stripped `host:port` the relay PeerManager keys on.
+// A `server::`-marked CN must never be admitted as a player.
+//
+// This shape once had a classification of its own, back when peer links existed.
+// The only property that ever mattered is the one asserted here, so it is stated
+// as an outcome rather than as a variant.
 #[test]
-fn server_peer_cn_is_still_a_peer() {
-    assert_eq!(
+fn a_server_shaped_common_name_is_never_a_player() {
+    assert!(!matches!(
         ConnectionClassifier::classify("server::relay.bvc.io:5000"),
-        ConnectionKind::Peer {
-            host: "relay.bvc.io".to_string(),
-            port: 5000,
-            endpoint: "relay.bvc.io:5000".to_string(),
-        }
-    );
+        ConnectionKind::Player { .. }
+    ));
 }
 
 // A `server::`-marked CN that is not a well-formed host:port must never fall

@@ -13,6 +13,8 @@ pub(super) struct SharedState {
     // Derived downlink loss from the most recent reading. The outer Option is "no reading yet", the
     // inner one is "the client reports it unmeasured" — two different facts.
     pub(super) diagnostic_downlink_loss: Option<Option<f32>>,
+    // Which transport the client reports carrying this session. `None` means no reading yet.
+    pub(super) diagnostic_transport: Option<Option<String>>,
     pub(super) connected: bool,
     pub(super) disconnected: bool,
     // Server-assigned channel id reported by OutMsg::ChannelJoined after connect.

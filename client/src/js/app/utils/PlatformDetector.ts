@@ -3,20 +3,30 @@ import { platform } from '@tauri-apps/plugin-os';
 export default class PlatformDetector {
   private isMobile: boolean | null = null;
 
-  async checkMobile(): Promise<boolean> {
+  /**
+   * The platform family, without awaiting.
+   *
+   * `plugin-os` reads a value injected at startup rather than crossing the IPC
+   * boundary, so there is nothing to wait for. Awaiting it anyway leaves every caller
+   * rendering as desktop for a frame first.
+   */
+  mobile(): boolean {
     if (this.isMobile !== null) {
       return this.isMobile;
     }
 
     try {
-      const family = await platform();
-      const typeStr = String(family).toLowerCase();
+      const typeStr = String(platform()).toLowerCase();
       this.isMobile = typeStr.includes('ios') || typeStr.includes('android');
-      return this.isMobile;
     } catch (error) {
       this.isMobile = false;
-      return false;
     }
+
+    return this.isMobile;
+  }
+
+  async checkMobile(): Promise<boolean> {
+    return this.mobile();
   }
 
   async isWindows(): Promise<boolean> {

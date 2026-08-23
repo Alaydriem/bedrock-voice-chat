@@ -74,6 +74,25 @@ impl PlayerReceiveStats {
         self.seen_any.store(1, Ordering::Relaxed);
     }
 
+    // Zeroes the cumulative counters, leaving the identity and the live gauges alone.
+    //
+    // For a fresh benchmark. Everything here counts from the moment the speaker's buffer was
+    // created, so a burst during the first minute of a session is still in the numbers an hour
+    // later — which is exactly what makes "is it bad right now" unanswerable from this panel.
+    //
+    // `ring_len`, `capacity` and `warmup_needed` are gauges rewritten on every frame, so they
+    // are not zeroed: they would be wrong for one frame and correct thereafter, which is worse
+    // than leaving them.
+    pub fn reset_counters(&self) {
+        self.underruns.store(0, Ordering::Relaxed);
+        self.overflow_drops.store(0, Ordering::Relaxed);
+        self.ooo_drops.store(0, Ordering::Relaxed);
+        self.plc_frames.store(0, Ordering::Relaxed);
+        self.silence_frames.store(0, Ordering::Relaxed);
+        self.frames_decoded.store(0, Ordering::Relaxed);
+        self.frames_received.store(0, Ordering::Relaxed);
+    }
+
     pub fn set_ring(&self, ring_len: usize, capacity: usize, warmup_needed: usize) {
         self.ring_len.store(ring_len as u32, Ordering::Relaxed);
         self.capacity.store(capacity as u32, Ordering::Relaxed);

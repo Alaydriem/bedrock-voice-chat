@@ -7,6 +7,7 @@ import {
   ObservableString,
 } from '@minecraft/server-ui';
 import { DataDrivenScreenClosedReason } from '@minecraft/server-ui';
+import { JUKEBOX_TARGET, MAX_LEVEL } from '../control/jukebox';
 import type { ControlSender } from '../control/sender';
 import type { PlayerPreference, StateCache } from '../state/state_cache';
 import { FormShow } from './form_show';
@@ -22,6 +23,9 @@ const SLIDER_COMMIT_TICKS = 10;
 // The hybrid main page shows inline controls for only this many nearest
 // players; everyone else lives behind "All players…".
 const QUICK_ROWS = 5;
+
+// What the jukebox row is called on screen. The raw sentinel is a wire value, not a name.
+const JUKEBOX_LABEL = 'Jukebox music';
 
 // Dropdown presets for player rows. MUTED_VALUE encodes "Muted"; picking
 // FINE_TUNE_VALUE navigates to the player's detail page instead of setting a
@@ -110,6 +114,11 @@ export class PlayerVolumesView {
       }
     }
     for (const adjusted of this.cache.adjustedTargets()) {
+      // The jukebox is a pinned row of its own, not a player who happens to have a preference.
+      // Folded in here it would render a second time, at the bottom, under its wire name.
+      if (adjusted === JUKEBOX_TARGET) {
+        continue;
+      }
       if (!found.has(adjusted)) {
         found.set(adjusted, FAR_AWAY);
       }
@@ -128,14 +137,31 @@ export class PlayerVolumesView {
       );
   }
 
+  // What the state feed is asked to cover while a page is open: the players on it plus the
+  // jukebox, whose row is pinned rather than listed. Omitting it leaves the pinned row unseeded —
+  // the net poll scopes /api/preferences to this list and the no-net sync request carries it.
+  private reportedTargets(targets: VolumeTarget[]): string[] {
+    return [JUKEBOX_TARGET, ...targets.map((t) => t.target)];
+  }
+
   private async showMain(owner: Player): Promise<VolumesPage> {
     const targets = this.targets(owner);
-    this.setTargets(targets.map((t) => t.target));
+    this.setTargets(this.reportedTargets(targets));
     const quick = targets.slice(0, QUICK_ROWS);
     let next: VolumesPage = { kind: 'exit' };
     const unsubscribes: Array<() => void> = [];
 
     const form = new CustomForm(owner, 'Player volumes');
+
+    // Pinned above the players and never sorted among them: the jukebox is always present, while
+    // the rows below it come and go with who is nearby.
+    form.label(JUKEBOX_LABEL);
+    this.addPlayerRow(form, owner, JUKEBOX_TARGET, unsubscribes, undefined, () => {
+      next = { kind: 'detail', target: JUKEBOX_TARGET, back: 'main' };
+      form.close();
+    });
+    form.divider();
+
     if (targets.length === 0) {
       form.label('No players nearby');
     } else {
@@ -166,11 +192,28 @@ export class PlayerVolumesView {
 
   private async showList(owner: Player): Promise<VolumesPage> {
     const targets = this.targets(owner);
-    this.setTargets(targets.map((t) => t.target));
+    this.setTargets(this.reportedTargets(targets));
     let next: VolumesPage = { kind: 'exit' };
     const unsubscribes: Array<() => void> = [];
 
     const form = new CustomForm(owner, 'All players');
+
+    // Pinned above the search field rather than inside it. Hiding the jukebox behind a filter over
+    // player names would lose the one row that is always there.
+    const jukeboxLabel = new ObservableString(this.stateLabel(JUKEBOX_TARGET, false));
+    form.button(jukeboxLabel, () => {
+      next = { kind: 'detail', target: JUKEBOX_TARGET, back: 'list' };
+      form.close();
+    });
+    unsubscribes.push(
+      this.cache.onPreferences((prefs) => {
+        if (prefs.some((p) => p.target === JUKEBOX_TARGET)) {
+          jukeboxLabel.setData(this.stateLabel(JUKEBOX_TARGET, false));
+        }
+      }),
+    );
+    form.divider();
+
     if (targets.length === 0) {
       form.label('No players nearby');
     } else {
@@ -279,7 +322,7 @@ export class PlayerVolumesView {
         return;
       }
       // Shadow every notch so a poll landing mid-drag can't yank the thumb.
-      const clamped = Math.max(0, Math.min(100, Math.round(value)));
+      const clamped = Math.max(0, Math.min(MAX_LEVEL, Math.round(value)));
       this.cache.markVolumePending(target, clamped / 100);
       // Debounce the drag: only the value that survives the settle window is
       // committed.
@@ -315,11 +358,11 @@ export class PlayerVolumesView {
       }),
     );
 
-    const form = new CustomForm(owner, target)
+    const form = new CustomForm(owner, this.displayName(target))
       .label(status)
       .divider()
       .toggle('Hear', heard)
-      .slider('Volume', volume, 0, 100, { step: 5 })
+      .slider('Volume', volume, 0, MAX_LEVEL, { step: 5 })
       .divider()
       .button('← Back to players', () => {
         next = { kind: back };
@@ -352,7 +395,7 @@ export class PlayerVolumesView {
       this.presetFromPref(this.cache.preferenceFor(target)),
       { clientWritable: true },
     );
-    form.dropdown(target, value, PRESET_ITEMS, visible ? { visible } : {});
+    form.dropdown(this.displayName(target), value, PRESET_ITEMS, visible ? { visible } : {});
 
     let lastSeen = value.getData();
     const listener = value.subscribe((v) => {
@@ -427,13 +470,20 @@ export class PlayerVolumesView {
   // render on label widgets (buttons and dropdown labels print them
   // literally), so they are opt-in via `colored`.
   private stateLabel(target: string, colored: boolean): string {
+    const name = this.displayName(target);
     const pref = this.cache.preferenceFor(target);
     if (pref?.muted) {
-      return colored ? `§8${target} ✕ muted§r` : `${target} ✕ muted`;
+      return colored ? `§8${name} ✕ muted§r` : `${name} ✕ muted`;
     }
     const volume = Math.round((pref?.volume ?? 1) * 100);
     const state = `${this.pips(volume)} ${volume}%`;
-    return colored ? `§a${target}§r ${state}` : `${target} ${state}`;
+    return colored ? `§a${name}§r ${state}` : `${name} ${state}`;
+  }
+
+  // The jukebox rides the preference plane under a wire sentinel; every surface a player reads
+  // shows its name instead.
+  private displayName(target: string): string {
+    return target === JUKEBOX_TARGET ? JUKEBOX_LABEL : target;
   }
 
   private pips(volume: number): string {

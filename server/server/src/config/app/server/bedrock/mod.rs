@@ -1,7 +1,5 @@
-mod dns;
 mod server_entry;
 
-pub use dns::BedrockDnsConfig;
 pub use server_entry::BedrockServerEntry;
 
 use common::response::ApiConfigBedrock;
@@ -12,11 +10,13 @@ fn default_enabled() -> bool {
 }
 
 fn default_transfer_port() -> u16 {
-    19132
+    28283
 }
 
+// The relay sends players to the client proxy, so this is not an independent
+// setting — two numbers that must agree is the drift being removed.
 fn default_transfer_target_port() -> u16 {
-    19137
+    common::consts::bedrock::BEDROCK_LISTEN_PORT
 }
 
 fn default_transfer_cache_ttl_secs() -> u64 {
@@ -27,7 +27,7 @@ fn default_proxy_event_freshness_threshold_secs() -> u32 {
     30
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct BedrockConfig {
     #[serde(default = "default_enabled")]
     pub enabled: bool,
@@ -40,8 +40,6 @@ pub struct BedrockConfig {
     #[serde(default = "default_proxy_event_freshness_threshold_secs")]
     pub proxy_event_freshness_threshold_secs: u32,
     #[serde(default)]
-    pub dns: BedrockDnsConfig,
-    #[serde(default)]
     pub servers: Vec<BedrockServerEntry>,
 }
 
@@ -53,7 +51,6 @@ impl Default for BedrockConfig {
             transfer_target_port: default_transfer_target_port(),
             transfer_cache_ttl_secs: default_transfer_cache_ttl_secs(),
             proxy_event_freshness_threshold_secs: default_proxy_event_freshness_threshold_secs(),
-            dns: BedrockDnsConfig::default(),
             servers: Vec::new(),
         }
     }
@@ -66,7 +63,6 @@ impl BedrockConfig {
     pub fn to_api(&self) -> ApiConfigBedrock {
         ApiConfigBedrock {
             enabled: self.enabled,
-            dns_enabled: self.dns.enabled,
             transfer_port: self.enabled.then_some(self.transfer_port),
             servers: if self.enabled {
                 self.servers.iter().map(BedrockServerEntry::to_api).collect()

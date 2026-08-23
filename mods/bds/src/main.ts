@@ -3,20 +3,20 @@ import { Payload, Player } from './dto';
 import { AudioPlayerManager } from './audio/player_manager';
 import { AudioComponentRegistry } from './audio/components';
 import { ChatEjectListener } from './audio/chat_eject_listener';
-import { ChatPresenceListener } from './audio/chat_presence_listener';
 import { BvcsListener } from './state/bvcs_listener';
 import { StateCacheStore } from './state/cache_store';
 import { NetStateSource, NoNetStateSource } from './state/state_source';
 import type { PanelFeed } from './state/state_source';
 import { ControlPanel } from './ui/panel';
 import { PanelTestConfig } from './ui/panel_test';
-import { DiscCommand } from './commands/mod';
+import { DiscCommand, JukeboxTestCommands } from './commands/mod';
 import { ControlCommands } from './commands/control';
 import { NetAudioSender, NoNetAudioSender } from './audio/sender';
 import { NetControlSender, NoNetControlSender } from './control/sender';
 import type { ControlSender } from './control/sender';
 import { httpClient } from './net';
 import { serverAdminConfig } from './config';
+import { ChatChannel, ChatListener } from './chat';
 
 const POLL_INTERVAL = 5;
 const REQUEST_TIMEOUT = 1;
@@ -72,11 +72,11 @@ const componentRegistry = new AudioComponentRegistry(
 );
 componentRegistry.register();
 
+const jukeboxTestCommands = new JukeboxTestCommands(audioManager, getWorldUuid);
+jukeboxTestCommands.register();
+
 const chatEjectListener = new ChatEjectListener(audioManager, getWorldUuid);
 chatEjectListener.register();
-
-const chatPresenceListener = new ChatPresenceListener();
-chatPresenceListener.register();
 
 // Panel state: the !bvcs: reverse ride feeds per-player caches in no-net mode;
 // the control panel binds to the same store.
@@ -141,6 +141,30 @@ serverAdminConfig
 
     console.info('[BVC] Connecting to: ' + bvcServer);
 
+    // Net-mode chat relay.
+    //
+    // Deferred to a fresh tick rather than started here. `getWorldUuid` reads a world dynamic
+    // property, and native calls like that are refused during early execution — which is still
+    // in force through this promise chain, because awaiting does not end it. Every other caller
+    // of `getWorldUuid` in this file is inside a tick callback for the same reason.
+    //
+    // Started from inside this branch, not at module top level, so the config it reads has
+    // already been loaded: at top level `bvcServer` is still empty and chat would silently
+    // never start.
+    system.run(() => {
+      let chatListener: ChatListener | null = null;
+      const chatChannel = new ChatChannel(
+        bvcServer,
+        accessToken,
+        getWorldUuid(),
+        serverAdminConfig.worldNameOr(getWorldUuid()),
+        (author, text) => chatListener?.say(author, text),
+      );
+      chatListener = new ChatListener(chatChannel);
+      chatListener.register();
+      chatChannel.start();
+    });
+
     world.afterEvents.entityDie.subscribe(
       (event) => {
         const deadEntity = event.deadEntity;
@@ -173,7 +197,7 @@ serverAdminConfig
             payload.toJSONString(),
             [
               ['Content-Type', 'application/json'],
-              ['X-MC-Access-Token', accessToken],
+              ['Authorization', `Bearer ${accessToken}`],
               ['Accept', 'application/json'],
             ],
             REQUEST_TIMEOUT,
@@ -206,7 +230,7 @@ serverAdminConfig
           payload.toJSONString(),
           [
             ['Content-Type', 'application/json'],
-            ['X-MC-Access-Token', accessToken],
+            ['Authorization', `Bearer ${accessToken}`],
             ['Accept', 'application/json'],
           ],
           REQUEST_TIMEOUT,

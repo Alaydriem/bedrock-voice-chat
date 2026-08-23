@@ -1,0 +1,49 @@
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+
+use crate::structs::keybinds::VoiceMode;
+
+/// What the audio backend believes about this microphone, right now.
+///
+/// Reported rather than inferred. Mute lives in a process-global flag on the capture
+/// stream, the voice mode lives on the keybind listener, and the UI keeps its own copy of
+/// both — so "the button says unmuted" is evidence about the third copy and nothing else.
+/// In push-to-talk the button deliberately never draws the muted glyph, which leaves no
+/// surface at all showing what the microphone is actually doing.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "./../../client/src/js/bindings/")]
+pub struct VoiceRuntimeState {
+    pub voice_mode: VoiceMode,
+    /// Whether a push-to-talk hold is registered. Always false in open mic.
+    pub ptt_active: bool,
+    /// The flag the capture stream reads. `true` means frames are zeroed at the source.
+    pub input_muted: bool,
+    pub output_muted: bool,
+    /// Whether a recording session is open.
+    ///
+    /// Carried here for the same reason as the mute flag: a hotkey, a Stream Deck and an
+    /// in-game command all arm recording without this window being asked, and the events
+    /// that announce it are the only thing that told the UI. One dropped event left the
+    /// button off over a backend that was recording, and nothing could ever put it right.
+    pub recording: bool,
+    /// Whether the connected server permits arming a recording.
+    ///
+    /// Carried beside `recording` rather than derived from it: a session already running
+    /// is not evidence that a new one may be started, and the surfaces that draw the
+    /// record button need the answer before anyone presses it.
+    pub recording_allowed: bool,
+    /// Whether jukebox frames are arriving.
+    ///
+    /// Read from arrivals rather than from the per-sink counters, which stop while muted. A
+    /// surface that went dark on mute could not tell silence the user caused from a disc that
+    /// ended.
+    pub jukebox_playing: bool,
+    /// Whether the capture device could be opened.
+    ///
+    /// False only once every rebuild attempt has been spent, which makes it a statement about
+    /// the device rather than about this moment. Carried beside the mute flag for the same
+    /// reason it is: the event that announces it can be missed, and a surface that learned this
+    /// only from an event would show an open microphone over one that does not exist.
+    pub capture_available: bool,
+}

@@ -122,6 +122,7 @@ impl BedrockSessionState {
             alternative_identity: None,
             player_uuid: self.player_uuid.clone(),
             relay_world_uuid: self.world_uuid.clone(),
+            bridged_voice: false,
         })
     }
 
@@ -137,6 +138,7 @@ impl BedrockSessionState {
             alternative_identity: None,
             player_uuid: self.player_uuid.clone(),
             relay_world_uuid: self.world_uuid.clone(),
+            bridged_voice: false,
         })
     }
 

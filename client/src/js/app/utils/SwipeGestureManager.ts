@@ -1,5 +1,5 @@
 import { Gesture } from '@use-gesture/vanilla';
-import { info } from '@tauri-apps/plugin-log';
+import { info } from '@charlesportwoodii/tauri-plugin-curia';
 
 interface SwipeData {
   distance: number;

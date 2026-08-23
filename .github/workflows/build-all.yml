@@ -3,6 +3,7 @@ permissions:
   contents: write
   packages: write
   actions: read
+  pull-requests: write
 
 on:
   push:
@@ -31,6 +32,7 @@ jobs:
       android: ${{ steps.changes.outputs.android }}
       ios: ${{ steps.changes.outputs.ios }}
       macos: ${{ steps.changes.outputs.macos }}
+      linux: ${{ steps.changes.outputs.linux }}
       fabric-mod: ${{ steps.changes.outputs.fabric-mod }}
       paper-mod: ${{ steps.changes.outputs.paper-mod }}
       bds-pack: ${{ steps.changes.outputs.bds-pack }}
@@ -76,6 +78,11 @@ jobs:
               - 'common/**'
               - '.github/workflows/build-macos-client.yml'
               - '.github/workflows/build-all.yml'
+            linux:
+              - 'client/**'
+              - 'common/**'
+              - '.github/workflows/build-linux-client.yml'
+              - '.github/workflows/build-all.yml'
             fabric-mod:
               - 'mods/java/common/**'
               - 'mods/java/fabric/**'
@@ -109,6 +116,7 @@ jobs:
           echo "Android: ${{ steps.changes.outputs.android }}"
           echo "iOS: ${{ steps.changes.outputs.ios }}"
           echo "macOS: ${{ steps.changes.outputs.macos }}"
+          echo "Linux: ${{ steps.changes.outputs.linux }}"
           echo "Fabric Mod: ${{ steps.changes.outputs.fabric-mod }}"
           echo "Paper Mod: ${{ steps.changes.outputs.paper-mod }}"
           echo "BDS Pack: ${{ steps.changes.outputs.bds-pack }}"
@@ -143,8 +151,9 @@ jobs:
       build_mode: ${{ needs.changes.outputs.build_mode }}
     secrets: inherit
 
-  # Workspace tests (common + client + server) under nextest. Runs in parallel
-  # with the build jobs; gates the overall result via collect-artifacts.
+  # Workspace tests (common + client + server) under nextest, plus the frontend
+  # suites under vitest and node --test. Runs in parallel with the build jobs;
+  # gates the overall result via collect-artifacts.
   tests:
     name: Tests
     uses: ./.github/workflows/tests.yml
@@ -207,6 +216,17 @@ jobs:
       build_mode: ${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }}
       build_number: ${{ needs.changes.outputs.build_number }}
       testflight_upload: ${{ needs.changes.outputs.is_release_branch == 'true' }}
+    secrets: inherit
+
+  # Build Linux client
+  build-linux-client:
+    name: Build Linux Client (${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }})
+    needs: changes
+    if: needs.changes.outputs.linux == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.common == 'true'
+    uses: ./.github/workflows/build-linux-client.yml
+    with:
+      build_mode: ${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }}
+      build_number: ${{ needs.changes.outputs.build_number }}
     secrets: inherit
 
   # Build Fabric Mod
@@ -311,12 +331,12 @@ jobs:
   collect-artifacts:
     name: Collect All Artifacts
     runs-on: ubuntu-latest
-    needs: [tests, build-server, build-android, build-ios, build-client, build-macos-client, build-fabric-mod, build-paper-mod, build-bds-pack]
+    needs: [tests, build-server, build-android, build-ios, build-client, build-macos-client, build-linux-client, build-fabric-mod, build-paper-mod, build-bds-pack]
     if: |
       always() &&
       !cancelled() &&
       needs.tests.result == 'success' &&
-      (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success' || needs.build-fabric-mod.result == 'success' || needs.build-paper-mod.result == 'success' || needs.build-bds-pack.result == 'success')
+      (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success' || needs.build-linux-client.result == 'success' || needs.build-fabric-mod.result == 'success' || needs.build-paper-mod.result == 'success' || needs.build-bds-pack.result == 'success')
     steps:
       - name: Create build summary
         id: build-summary
@@ -334,6 +354,7 @@ jobs:
           echo "- **iOS Status:** ${{ needs.build-ios.result || 'skipped' }}" >> build-summary.md
           echo "- **Windows Status:** ${{ needs.build-client.result || 'skipped' }}" >> build-summary.md
           echo "- **macOS Status:** ${{ needs.build-macos-client.result || 'skipped' }}" >> build-summary.md
+          echo "- **Linux Status:** ${{ needs.build-linux-client.result || 'skipped' }}" >> build-summary.md
           echo "- **Fabric Mod Status:** ${{ needs.build-fabric-mod.result || 'skipped' }}" >> build-summary.md
           echo "- **Paper Plugin Status:** ${{ needs.build-paper-mod.result || 'skipped' }}" >> build-summary.md
           echo "- **BDS Pack Status:** ${{ needs.build-bds-pack.result || 'skipped' }}" >> build-summary.md
@@ -372,6 +393,13 @@ jobs:
           if [ "${{ needs.build-macos-client.result }}" = "success" ]; then
             echo "### 🍎 macOS Client" >> build-summary.md
             echo "- [macos-debug](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - macOS binary" >> build-summary.md
+            echo "" >> build-summary.md
+          fi
+
+          if [ "${{ needs.build-linux-client.result }}" = "success" ]; then
+            echo "### 🐧 Linux Client" >> build-summary.md
+            echo "- [bvc-linux-x86_64-*](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Linux x86_64 binary (AppImage/.deb on release)" >> build-summary.md
+            echo "- [bvc-linux-aarch64-*](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Linux aarch64 binary (AppImage/.deb on release)" >> build-summary.md
             echo "" >> build-summary.md
           fi
 
@@ -419,6 +447,7 @@ jobs:
           echo "   - iOS: ${{ needs.build-ios.result || 'skipped' }}"
           echo "   - Windows: ${{ needs.build-client.result || 'skipped' }}"
           echo "   - macOS: ${{ needs.build-macos-client.result || 'skipped' }}"
+          echo "   - Linux: ${{ needs.build-linux-client.result || 'skipped' }}"
           echo "   - Fabric Mod: ${{ needs.build-fabric-mod.result || 'skipped' }}"
           echo "   - Paper Plugin: ${{ needs.build-paper-mod.result || 'skipped' }}"
           echo "   - BDS Pack: ${{ needs.build-bds-pack.result || 'skipped' }}"
@@ -440,6 +469,9 @@ jobs:
           fi
           if [ "${{ needs.build-macos-client.result }}" = "success" ]; then
             echo "   macOS: macos-debug (contains macOS binary)"
+          fi
+          if [ "${{ needs.build-linux-client.result }}" = "success" ]; then
+            echo "   Linux: bvc-linux-{x86_64,aarch64}-* (binary; .AppImage/.deb on release)"
           fi
           if [ "${{ needs.build-fabric-mod.result }}" = "success" ]; then
             echo "   Fabric Mod: bedrock-voice-chat-fabric (contains .jar file)"

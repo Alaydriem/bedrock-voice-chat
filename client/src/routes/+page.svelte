@@ -1,33 +1,133 @@
 <script lang="ts">
-    import "../css/app.css";
-    import Splash from "../js/app/splash.ts";
+  import { I18n } from "$lib/i18n";
+  import "../css/app.css";
+  import { onMount, onDestroy } from "svelte";
+  import { goto } from "$app/navigation";
+  import RadFrame from "../components/shell/RadFrame.svelte";
+  import RadConfirm from "../components/shell/RadConfirm.svelte";
+  import ServerListScreen from "../components/server/ServerListScreen.svelte";
+  import PreflightPanel from "../components/server/PreflightPanel.svelte";
+  import Server from "../js/app/server.ts";
+  import Analytics from "../js/app/analytics";
+  import { BootTimeline } from "../js/app/shell/BootTimeline";
+  import type { NextAction } from "../js/app/shell/NextAction";
+  import type { ServerRosterEntry } from "../js/app/server/ServerRosterEntry";
 
-    import { onMount } from 'svelte';
+  let app: Server | null = null;
+  const unsubs: Array<() => void> = [];
 
-    onMount(async () => {
-        window.App = new Splash();
-        await window.App.initialize();
-        window.dispatchEvent(new CustomEvent("app:mounted"));
-    });
+  let entries = $state<readonly ServerRosterEntry[]>([]);
+  let isRefreshing = $state(false);
+
+  /** Which server's readout is open, by url. Empty when the panel is closed. */
+  let reading = $state("");
+  /** The server a removal is being confirmed for, or null when nothing is being confirmed. */
+  let forgetting = $state<ServerRosterEntry | null>(null);
+
+  // Resolved rather than captured, so an open readout follows its own server's checks as
+  // they land instead of freezing on the state it opened with.
+  let openEntry = $derived(entries.find((entry) => entry.server === reading) ?? null);
+
+  // Navigated rather than assigned to `location`: the boot overlay is markup outside the
+  // bundle, so a client-side navigation leaves it standing. Reloading the document instead
+  // would tear it down and start its ring again from zero, which is the flicker between
+  // launch screens this route exists to have removed.
+  // Replaced rather than pushed: the roster forwards a device with one saved server
+  // straight through, so an entry for it is one the back button can only bounce off.
+  function apply(action: NextAction): void {
+    if (action.kind === "navigate") void goto(action.href, { replaceState: true });
+  }
+
+  onMount(() => {
+    BootTimeline.shared().mark("/ bundle parsed + route mounted");
+    const instance = new Server();
+    app = instance;
+    window.App = instance;
+    window.dispatchEvent(new CustomEvent("app:mounted"));
+
+    unsubs.push(instance.roster.entries.subscribe((v) => (entries = v)));
+    unsubs.push(instance.roster.isRefreshing.subscribe((v) => (isRefreshing = v)));
+
+    instance
+      .initialize()
+      .then((landing) => {
+        BootTimeline.shared().mark(`/ decided: ${landing.kind}`);
+        // The overlay comes down only when this screen is the destination. A redirect and a
+        // deep-link handoff are both already navigating, and showing the list on the way past
+        // would flash a screen nobody asked for.
+        if (landing.kind === "navigate") void goto(landing.href, { replaceState: true });
+        else if (landing.kind === "show") {
+          instance.showPreloader();
+          BootTimeline.shared().report();
+        }
+      })
+      .catch(() => instance.showPreloader());
+  });
+
+  onDestroy(() => {
+    for (const off of unsubs) off();
+    // Two of BVCApp's three Tauri listeners have no static guard, so this instance's
+    // connection_health and audio-stream-recovery handlers stay live once the document stops
+    // being torn down between screens. A second audio-stream-recovery handler means
+    // restart_audio_stream is invoked twice for one device.
+    void app?.cleanup();
+  });
+
+  async function choose(server: string): Promise<void> {
+    const next = await app!.roster.choose(server);
+    if (next.kind === "navigate" && next.href.startsWith("/dashboard")) {
+      Analytics.track("ServerSelected");
+    }
+    apply(next);
+  }
+
+  /**
+   * The readout and the confirm are both modals, and the kit allows one at a time: a confirm
+   * stacked over a readout leaves no way to tell which one a Cancel belongs to.
+   */
+  function askToForget(entry: ServerRosterEntry): void {
+    reading = "";
+    forgetting = entry;
+  }
+
+  async function confirmForget(): Promise<void> {
+    const entry = forgetting;
+    forgetting = null;
+    if (entry) apply(await app!.roster.remove(entry.server));
+  }
 </script>
 
+<RadFrame>
+  <ServerListScreen
+    {entries}
+    {isRefreshing}
+    onchoose={choose}
+    onopen={(server) => (reading = server)}
+    onadd={() => apply(app!.addServer())}
+    onrecheckall={() => void app!.roster.refreshAll()}
+  />
 
-<div id="root" class="min-h-80vh cloak flex grow bg-slate-50 dark:bg-navy-900">
-    <main class="grid w-full grow grid-cols-1 place-items-center">
-    <div class="w-full max-w-[26rem] p-4 sm:px-5">
-        <div class="text-center">
-        <img
-            class="mx-auto h-32 w-32"
-            src="/images/app-logo-transparent.png"
-            alt="Bedrock Voice Chat Logo"
-        />
-        <div class="mt-4">
-            <h2 class="text-2xl font-semibold text-slate-600 dark:text-navy-100">
-            Bedrock Voice Chat
-            </h2>
-            <p class="mt-4">Checking for updates and other stuff...</p>
-        </div>
-        </div>
-    </div>
-    </main>
-</div>
+  <PreflightPanel
+    entry={openEntry}
+    onclose={() => (reading = "")}
+    onrecheck={(server) => void app!.roster.recheck(server)}
+    onremove={askToForget}
+    onchoose={choose}
+  />
+
+  <RadConfirm
+    open={forgetting !== null}
+    title={I18n.t("Forget this server?")}
+    confirmLabel="Forget it"
+    cancelLabel="Keep it"
+    destructive={true}
+    onconfirm={confirmForget}
+    oncancel={() => (forgetting = null)}
+  >
+    {#snippet body()}
+      <b>{forgetting?.host}</b> is removed from this list and its saved sign-in is cleared
+      from this device. Nothing on the server changes, and you can add it again with its
+      address.
+    {/snippet}
+  </RadConfirm>
+</RadFrame>

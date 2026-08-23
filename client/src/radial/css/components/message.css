@@ -50,6 +50,9 @@
 .rad-status-chip {
   display: inline-flex;
   align-items: center;
+  /* Never shrinks in a flex row, where it would wrap its own label. */
+  flex: 0 0 auto;
+  white-space: nowrap;
   gap: 7px;
   padding: 6px 12px;
   border-radius: var(--radius-rad-pill);
@@ -277,6 +280,35 @@
 .rad-toast.is-on {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+/* A backend notification carries a level, and the border is where the toast says it.
+   These stay borders rather than fills: a coloured slab bottom-centre reads as a
+   decision, and a toast never carries one. */
+.rad-toast--warn {
+  border-color: var(--color-rad-warn);
+}
+
+.rad-toast--bad {
+  border-color: var(--color-rad-fault);
+}
+
+/* Present only on a toast that outlives the usual 1.7s, so a long message can be got
+   rid of rather than waited out. */
+.rad-toast__close {
+  margin-left: 12px;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--color-rad-faint);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.rad-toast__close:hover {
+  color: var(--color-rad-tx);
 }
 
 /* ---- tooltip ----

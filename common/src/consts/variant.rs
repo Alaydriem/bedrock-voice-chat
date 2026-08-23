@@ -17,10 +17,12 @@ impl std::fmt::Display for Variant {
     }
 }
 
-pub fn get_variant() -> Variant {
-    if cfg!(debug_assertions) {
-        Variant::Dev
-    } else {
-        Variant::Release
+impl Variant {
+    pub fn get() -> Variant {
+        if cfg!(debug_assertions) {
+            Variant::Dev
+        } else {
+            Variant::Release
+        }
     }
 }

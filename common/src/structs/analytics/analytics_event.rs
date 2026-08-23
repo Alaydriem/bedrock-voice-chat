@@ -18,6 +18,7 @@ pub enum AnalyticsEvent {
     NoiseGateToggled,
     VoiceModeChanged,
     WebsocketServerToggled,
+    WebsocketExternalAccessToggled,
     ChannelJoined,
     ChannelLeft,
     RecordingStarted,
@@ -37,6 +38,21 @@ pub enum AnalyticsEvent {
     DiscordAccountResynced,
     FlagsmithFlagsFetched,
     ClientLinkQuality,
+    LoginShown,
+    DashboardReached,
+    ServerSelected,
+    OnboardingShown,
+    NoServerClicked,
+    WikiCtaClicked,
+    HostingCtaClicked,
+    // Voice arrived: the first time in a session that audio from another player reached
+    // this client. The end of the funnel, and the only step in it no amount of UI can
+    // fake — every earlier event says someone got somewhere, this one says it worked.
+    Activated,
+    // The result of one connect walk: which candidate carried the session, or the outcome of
+    // every candidate that did not. Distinguishes a network that blocks UDP outright from one
+    // that reaches the server on an alternate port, which no other event can tell apart.
+    VoiceTransportOutcome,
 }
 
 impl AnalyticsEvent {
@@ -56,6 +72,7 @@ impl AnalyticsEvent {
             Self::NoiseGateToggled => "NoiseGateToggled",
             Self::VoiceModeChanged => "VoiceModeChanged",
             Self::WebsocketServerToggled => "WebsocketServerToggled",
+            Self::WebsocketExternalAccessToggled => "WebsocketExternalAccessToggled",
             Self::ChannelJoined => "ChannelJoined",
             Self::ChannelLeft => "ChannelLeft",
             Self::RecordingStarted => "RecordingStarted",
@@ -75,6 +92,15 @@ impl AnalyticsEvent {
             Self::DiscordAccountResynced => "DiscordAccountResynced",
             Self::FlagsmithFlagsFetched => "FlagsmithFlagsFetched",
             Self::ClientLinkQuality => "ClientLinkQuality",
+            Self::LoginShown => "LoginShown",
+            Self::DashboardReached => "DashboardReached",
+            Self::ServerSelected => "ServerSelected",
+            Self::OnboardingShown => "OnboardingShown",
+            Self::NoServerClicked => "NoServerClicked",
+            Self::WikiCtaClicked => "WikiCtaClicked",
+            Self::HostingCtaClicked => "HostingCtaClicked",
+            Self::Activated => "Activated",
+            Self::VoiceTransportOutcome => "VoiceTransportOutcome",
         }
     }
 }

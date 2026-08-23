@@ -24,7 +24,7 @@ tauri-build = { version = "^2.4", features = [] }
 # Package is `bedrock-voice-chat-client`; its lib name is `bvc_client_lib`, which
 # stays the import path in code (`use bvc_client_lib::...`).
 bedrock-voice-chat-client = { path = "../src-tauri", default-features = false, features = ["e2e"] }
-common = { path = "../../common", features = ["quic", "audio", "browser"] }
+common = { path = "../../common", features = ["quic", "audio", "browser", "net"] }
 
 tauri = { version = "^2", features = ["rustls-tls"] }
 tauri-plugin-opener = { version = "^2" }
@@ -47,3 +47,8 @@ log = { version = "^0.4" }
 [features]
 default = ["bedrock-protocol"]
 bedrock-protocol = ["bedrock-voice-chat-client/bedrock-protocol"]
+
+# `coverage` is set by cargo-llvm-cov, never by this crate, so rustc would
+# otherwise flag it as an unknown cfg on every ordinary build.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

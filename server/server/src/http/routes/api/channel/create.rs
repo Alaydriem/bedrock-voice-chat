@@ -1,7 +1,8 @@
 use crate::http::openapi::CustomJsonResponse;
 use crate::services::ChannelMembershipService;
 use crate::stream::quic::{CacheManager, WebhookReceiver};
-use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
+use crate::http::guards::PlayerGuard;
+use rocket::{State, http::Status, serde::json::Json};
 use rocket_okapi::openapi;
 
 /// Create a channel and return its id.
@@ -10,17 +11,17 @@ use rocket_okapi::openapi;
 #[openapi(tag = "Channels")]
 #[post("/", data = "<name>")]
 pub async fn channel_create(
-    identity: Certificate<'_>,
+    guard: PlayerGuard,
     cache_manager: &State<CacheManager>,
     webhook_receiver: &State<WebhookReceiver>,
     name: Json<String>,
 ) -> CustomJsonResponse<String> {
-    let user = match identity.subject().common_name() {
-        Some(user) => user.to_string(),
-        None => {
-            return CustomJsonResponse::error(Status::Forbidden);
-        }
+    // Derived from the resolved player rather than read off the certificate CN, so a
+    // legacy bare-gamertag certificate produces the same canonical identity as a current one.
+    let Some(gamertag) = guard.player.gamertag.clone() else {
+        return CustomJsonResponse::error(Status::Forbidden);
     };
+    let user = guard.player.game.membership_key(&gamertag);
 
     let channel_id = ChannelMembershipService::create(
         &cache_manager.get_channel_collection(),

@@ -1,0 +1,16 @@
+[package]
+name = "bvc-peer-echo"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "bvc-peer-echo"
+path = "src/main.rs"
+
+[dependencies]
+bvc-relay = { path = "../lib" }
+common = { path = "../../common", default-features = false }
+iroh = { version = "1", default-features = false, features = ["tls-aws-lc-rs"] }
+tempfile = { version = "^3" }
+tokio = { version = "^1", features = ["full"] }

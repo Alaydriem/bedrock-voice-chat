@@ -1,7 +1,33 @@
-/* Self-contained styles for the boot preloader in app.html. The overlay
-   paints before the SvelteKit bundle (and the bundle-injected stylesheet)
-   loads, so nothing in here may depend on Tailwind or app.css. Color and
-   size values mirror the design tokens in src/css/app.css. */
+/* Self-contained styles for the boot preloader in app.html.
+ *
+ * The overlay paints before the SvelteKit bundle and the stylesheet it injects, so
+ * nothing here may depend on Tailwind, app.css, or the `--color-rad-*` custom
+ * properties — those arrive with radial.css, which has not loaded yet. Values are
+ * therefore inlined literals, each named after the Radial token it mirrors. If a
+ * token changes in src/radial/css/tokens.css, it has to be changed here too; that
+ * duplication is the price of painting before the bundle exists.
+ */
+
+/* Every rule src/css/shell.css applies to `html`, restated so that stylesheet changes
+   nothing when it lands. This overlay is laid out before it exists, and anything here
+   that the two disagree on is a relayout the user watches happen.
+ *
+ * `font-size` is the one that matters most: it is the design system's 18px root, and
+ * every rem below — the column's own width and padding included — is a fraction of it.
+ * At the browser's 16px default the column measured 8px wider, which the mark inherited
+ * as a 7px shrink the moment the bundle corrected the root. */
+html {
+  font-size: 112.5%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.app-preloader,
+.app-preloader *,
+.app-preloader *::before,
+.app-preloader *::after {
+  box-sizing: border-box;
+}
 
 .app-preloader {
   position: fixed;
@@ -9,29 +35,69 @@
   z-index: 50;
   display: grid;
   place-content: center;
-  /* navy-900 */
-  background-color: #192132;
-  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  /* --color-rad-void */
+  background-color: #1c1132;
+  /* --font-rad-sans */
+  font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 }
 
 .app-preloader [hidden] {
   display: none !important;
 }
 
-.app-preloader-column {
-  width: 26rem;
-  max-width: calc(100vw - 2rem);
-  padding: 1rem;
+/* Applied by BootOverlay to take the overlay down. Lives here rather than in the app
+   stylesheet because the overlay is markup outside the bundle: its exit has to be
+   styled by whatever styled its entrance. */
+.app-preloader--leaving {
+  animation: app-preloader-fade-out 500ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
+@keyframes app-preloader-fade-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* Not yet said, but already accounted for.
+ *
+ * `hidden` takes an element out of flow, so revealing the headline and the status line
+ * lengthened the column and moved everything above them. `visibility` keeps the box and
+ * only withholds the paint, which is what makes the reveal cost no layout at all — and it
+ * is why the mark neither moves nor changes size when the wait starts explaining itself. */
+.app-preloader-quiet {
+  visibility: hidden;
+}
+
+/* The box everything else is measured against.
+ *
+ * Its width comes from the viewport and from nothing else. It was `fit-content` between a
+ * floor and a ceiling, which made the width a function of its widest child — so it
+ * changed with the status phrase, and the mark inside it moved every time the phrase did.
+ *
+ * Declared a container so the mark can be sized in `cqi`, the way the kit sizes its own
+ * loader. That is what keeps the two the same size, and it is also what makes overflow
+ * impossible: a width taken from the container cannot exceed the container. `cqi` needs an
+ * inline size that does not depend on the contents, which is the other reason the width
+ * above is fixed rather than `fit-content`.
+ *
+ * Full width rather than the 26rem text measure, because the mark is sized against this
+ * box and the kit's proportion assumes the whole frame. The text and the escape actions
+ * take that measure themselves, below. */
+.app-preloader-column {
+  width: calc(100vw - 2rem);
+  padding: 1rem;
+  container-type: inline-size;
+}
+
+/* No card. The mark sits on the violet ground exactly as it does inside the app
+   frame, so the launch overlay and the first screen read as one surface rather than
+   a panel handing over to a different product. */
 .app-preloader-card {
-  border-radius: 0.5rem;
   padding: 1.25rem;
   text-align: center;
-  /* navy-700 */
-  background-color: #26334d;
-  /* navy-200 */
-  color: #a3adc2;
+  /* --color-rad-dim */
+  color: #d6cbea;
 }
 
 @media (min-width: 1024px) {
@@ -40,40 +106,74 @@
   }
 }
 
-.app-preloader-ring {
-  width: 46px;
-  height: 46px;
+/* The ring and mark, at the size a visual pane renders them.
+ *
+ * Those are 44% of the frame width by the frame less its top and foot bars, and
+ * RingGeometry fits to the smaller of the two — so this is the same pair of inputs
+ * expressed in CSS. RingBinding measures this box every frame, which is what makes a
+ * window resize need no script at all.
+ *
+ * `44cqi`, not `44vw`, and wrapped in `min(100%, …)`.
+ *
+ * A width in viewport units inside a box that is not the viewport can exceed that box, and
+ * an overflowing block resolves both auto margins to zero — so `margin: 0 auto` centres
+ * nothing and the mark sits right of centre by the overflow. The column's padding alone
+ * guaranteed that on every phone. Whatever else shifted, this is why it landed off centre
+ * and why the amount moved with the layout. Container units cannot overflow their
+ * container, and the `100%` is a floor under the `max(180px, …)`, which still can. */
+.app-preloader-mark {
+  display: block;
   margin: 0 auto;
-  border-radius: 9999px;
-  border: 3px solid rgb(148 163 184 / 0.35);
-  /* accent */
-  border-top-color: #5f5af6;
-  animation: app-preloader-spin 0.9s linear infinite;
+  width: min(100%, max(180px, min(44cqi, calc(100dvh - 150px))));
+  aspect-ratio: 1;
 }
 
-@keyframes app-preloader-spin {
-  to {
-    transform: rotate(360deg);
+/* Phones, and anything else far taller than it is wide.
+ *
+ * 44% is the proportion a mark takes in a two-pane frame, where it shares the width
+ * with a column of copy. Nothing shares the width here, so on a tall screen that
+ * fraction leaves a small object adrift in a lot of violet.
+ *
+ * Keyed to aspect ratio rather than to a width in px: a ratio is the one viewport test
+ * that gives the same answer whether or not the webview honoured the viewport meta tag —
+ * a proportion does not care what a CSS pixel turned out to be. */
+@media (max-aspect-ratio: 3 / 4) {
+  .app-preloader-mark {
+    width: min(100%, 86cqi, calc(100dvh - 220px));
   }
 }
 
+/* The copy and the escape actions keep the 26rem measure the column used to impose on
+   everything. Applied here rather than to the column because the mark is sized against the
+   column and wants the whole frame's width; a shared measure cannot serve both. */
+/* `contain: layout` on both of these, because their text is rewritten while the ring beside
+   them animates: the braille glyph turns eleven times a second. Containment keeps each
+   rewrite's layout invalidation inside its own subtree, so anything that reads a layout box
+   afterwards — the mark's canvas, measured by its binding — is not made to resolve the
+   column's layout again to answer. */
 .app-preloader-headline {
-  margin: 1rem 0 0;
+  max-width: 26rem;
+  margin: 1rem auto 0;
   font-size: 0.875rem;
   line-height: 1.25rem;
   font-weight: 600;
-  /* navy-50 */
-  color: #e7e9ef;
+  contain: layout;
+  /* --color-rad-tx */
+  color: #fbf8ff;
 }
 
 .app-preloader-status-row {
-  margin-top: 1rem;
+  max-width: 26rem;
+  margin: 1rem auto 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.625rem;
   min-height: 22px;
-  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  contain: layout;
+  /* --font-rad-mono: the status row is a readout, as it is in the app */
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
 }
 
 .app-preloader-frame {
@@ -84,12 +184,16 @@
   font-size: 18px;
   line-height: 1;
   font-weight: 600;
-  /* accent-light */
-  color: #818cf8;
+  /* --color-rad-brand-lift */
+  color: #bb8dfa;
 }
 
+/* Left, against the centred card, so a phrase that wraps stays beside the braille rather
+   than centring itself in whatever width is left over — which read as two unrelated things
+   at opposite ends of the row. */
 .app-preloader-status {
-  /* text-xs+ */
+  text-align: left;
+  /* --text-rad-sm */
   font-size: 0.8125rem;
   line-height: 1.125rem;
   background: linear-gradient(
@@ -100,8 +204,8 @@
     currentColor 65%,
     currentColor 100%
   );
-  /* navy-300 */
-  color: #697a9b;
+  /* --color-rad-faint */
+  color: #b3a4d0;
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -119,15 +223,16 @@
 }
 
 .app-preloader-actions {
-  margin-top: 1.5rem;
+  max-width: 26rem;
+  margin: 1.5rem auto 0;
 }
 
 .app-preloader-hint {
   margin: 0;
   font-size: 0.875rem;
   font-weight: 500;
-  /* navy-100 */
-  color: #c2c9d6;
+  /* --color-rad-dim */
+  color: #d6cbea;
 }
 
 .app-preloader-btn {
@@ -146,27 +251,27 @@
 }
 
 .app-preloader-btn--primary {
-  /* accent */
-  background-color: #5f5af6;
+  /* --color-rad-brand */
+  background-color: #8239d8;
   color: #ffffff;
 }
 
 .app-preloader-btn--primary:hover {
-  /* accent-focus */
-  background-color: #4d47f5;
+  /* --color-rad-brand-lift */
+  background-color: #bb8dfa;
 }
 
 .app-preloader-btn--secondary {
-  /* navy-450 */
-  border: 1px solid #465675;
-  /* navy-50 */
-  color: #e7e9ef;
+  /* --color-rad-line-2 */
+  border: 1px solid #5b4487;
+  /* --color-rad-tx */
+  color: #fbf8ff;
   background-color: transparent;
 }
 
 .app-preloader-btn--secondary:hover {
-  /* navy-500 */
-  background-color: #384766;
+  /* --color-rad-panel */
+  background-color: #2f2054;
 }
 
 .app-preloader-keep-waiting {
@@ -175,25 +280,125 @@
   padding: 0;
   background: none;
   font-family: inherit;
-  /* text-tiny+ */
+  /* --text-rad-mono-xs */
   font-size: 0.6875rem;
-  /* navy-300 */
-  color: #697a9b;
+  /* --color-rad-faint */
+  color: #b3a4d0;
   cursor: pointer;
 }
 
 .app-preloader-keep-waiting:hover {
-  /* navy-200 */
-  color: #a3adc2;
+  /* --color-rad-dim */
+  color: #d6cbea;
   text-decoration: underline;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-preloader-ring {
-    animation-duration: 1.6s;
-  }
+  /* The mark honours reduced motion in the renderer rather than in CSS: the
+     sequence lands on its resting frame instead of animating to it. */
   .app-preloader-status {
     animation: none;
     -webkit-text-fill-color: currentColor;
+  }
+}
+
+/* The launch phases. Class names, dot size and colours are the /server preflight's,
+   hand-mirrored here because this file cannot import: the same state has to look the
+   same on both surfaces or the vocabulary is only shared in name. */
+.app-preloader-steps {
+  max-width: 26rem;
+  margin: 1rem auto 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  contain: layout;
+}
+
+.app-preloader-step {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 3px 2px;
+  /* --font-rad-mono: a readout, as the status row above it is */
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  /* --text-rad-sm */
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
+.app-preloader-step-dot {
+  flex: none;
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  /* --radius-rad-pill */
+  border-radius: 999px;
+  /* --color-rad-line-2 */
+  background: #5b4487;
+  transition: background 0.3s;
+}
+
+.app-preloader-step-name {
+  flex: none;
+  /* --color-rad-faint */
+  color: #b3a4d0;
+}
+
+/* Whatever the phase has to say for itself — a port, a transport, a reason it was
+   skipped. Truncated rather than wrapped, so a long note cannot reflow the card. */
+.app-preloader-step-note {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /* --color-rad-line-2 */
+  color: #5b4487;
+}
+
+.app-preloader-step.is-run .app-preloader-step-dot {
+  /* --color-rad-brand-lift */
+  background: #bb8dfa;
+  animation: app-preloader-pulse 0.9s ease-in-out infinite;
+}
+
+.app-preloader-step.is-run .app-preloader-step-name {
+  /* --color-rad-tx */
+  color: #fbf8ff;
+}
+
+.app-preloader-step.is-ok .app-preloader-step-dot {
+  /* --color-rad-ok */
+  background: #5ce383;
+}
+
+.app-preloader-step.is-warn .app-preloader-step-dot {
+  /* --color-rad-warn */
+  background: #ffcf4d;
+}
+
+.app-preloader-step.is-bad .app-preloader-step-dot {
+  /* --color-rad-fault */
+  background: #ff8266;
+}
+
+/* Hollow rather than absent: a phase that never ran must not read as one still to come. */
+.app-preloader-step.is-skip .app-preloader-step-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px #5b4487;
+}
+
+.app-preloader-step.is-skip .app-preloader-step-name {
+  /* --color-rad-line-2 */
+  color: #5b4487;
+}
+
+@keyframes app-preloader-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
   }
 }

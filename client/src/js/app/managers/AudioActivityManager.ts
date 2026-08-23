@@ -1,7 +1,10 @@
 import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import { listen } from '@tauri-apps/api/event';
-import { info, error, warn, debug } from '@tauri-apps/plugin-log';
+import { info, error, warn, debug } from '@charlesportwoodii/tauri-plugin-curia';
 import type { Store } from '@tauri-apps/plugin-store';
+import type { LevelSnapshot } from '../../bindings/LevelSnapshot';
+import { LevelSteps } from '../dashboard/LevelSteps';
+import { LevelFeed } from '../dashboard/LevelFeed';
 
 interface AudioActivityState {
     activeSpeakers: Record<string, {
@@ -52,10 +55,17 @@ export class AudioActivityManager {
         this.initialized = true;
 
         try {
-            this.eventUnlisten = await listen('audio-activity', (event) => {
-                const activityData = event.payload as Record<string, number>;
+            // Through the shared feed, so the merged event has exactly one subscription.
+            // Peer levels arrive as a quantised step plus a speaking flag rather than an RMS, so
+            // they are converted back to the 0..1 this expects; the shape it consumes is
+            // unchanged.
+            this.eventUnlisten = LevelFeed.shared().subscribe((snapshot) => {
+                const activityData: Record<string, number> = {};
+                for (const [name, level] of Object.entries(snapshot.peers)) {
+                    activityData[name] = LevelSteps.toLevel(level);
+                }
                 this.processActivityUpdate(activityData);
-            });
+            }, 'AudioActivityManager');
         } catch (e) {
             error(`AudioActivityManager: Failed to initialize audio activity listener: ${e}`);
         }

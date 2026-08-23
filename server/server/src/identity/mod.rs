@@ -28,7 +28,6 @@ impl IdentitySlot {
             .ok_or_else(|| anyhow!("identity must be of the form '<gamertag>:<game>'"))?;
         let game = match game.to_lowercase().as_str() {
             "minecraft" => Game::Minecraft,
-            "hytale" => Game::Hytale,
             other => return Err(anyhow!("unknown game '{}'", other)),
         };
         Ok(Self {

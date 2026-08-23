@@ -101,7 +101,6 @@ impl EjectScheduler {
         );
         let packet = QuicNetworkPacket {
             packet_type: PacketType::BedrockEvent,
-            owner: None,
             data: QuicNetworkPacketData::BedrockEvent(bedrock_packet),
                     // Not a server fan-out, so this envelope carries no sequence.
             ..Default::default()
@@ -165,8 +164,6 @@ mod tests {
                 String::new(),
                 tokio_util::sync::CancellationToken::new(),
                 1,
-                None,
-                crate::relay::RelayAudioPuller::new_shared(),
             )),
             webhook,
             conn,

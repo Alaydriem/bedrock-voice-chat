@@ -8,22 +8,16 @@ use ts_rs::TS;
 pub enum UploaderIdentity {
     #[serde(rename = "minecraft")]
     Minecraft { gamertag: String },
-    #[serde(rename = "hytale")]
-    Hytale { gamertag: String },
 }
 
 impl UploaderIdentity {
-    pub fn from_game_str(game: &str, gamertag: String) -> Self {
-        match game {
-            "hytale" => UploaderIdentity::Hytale { gamertag },
-            _ => UploaderIdentity::Minecraft { gamertag },
-        }
+    pub fn from_game_str(_game: &str, gamertag: String) -> Self {
+        UploaderIdentity::Minecraft { gamertag }
     }
 
     pub fn gamertag(&self) -> &str {
         match self {
             UploaderIdentity::Minecraft { gamertag } => gamertag,
-            UploaderIdentity::Hytale { gamertag } => gamertag,
         }
     }
 }

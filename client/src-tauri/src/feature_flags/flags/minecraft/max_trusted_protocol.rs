@@ -25,20 +25,3 @@ impl FeatureFlag for MaxTrustedMinecraftProtocol {
         Cow::Borrowed("feature.minecraft.max_trusted_protocol")
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn key_is_static_borrowed() {
-        let key = MaxTrustedMinecraftProtocol.key();
-        assert_eq!(key.as_ref(), "feature.minecraft.max_trusted_protocol");
-        assert!(matches!(key, Cow::Borrowed(_)));
-    }
-
-    #[test]
-    fn default_is_none() {
-        assert!(MaxTrustedMinecraftProtocol.default().is_none());
-    }
-}

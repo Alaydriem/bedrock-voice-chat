@@ -119,6 +119,7 @@ impl PositionFixture {
             player_uuid: (rng.next() % 3 == 0)
                 .then(|| format!("3c9a1b77-2d44-4e18-8b6c-{:012x}", index)),
             relay_world_uuid: None,
+            bridged_voice: false,
         })
     }
 

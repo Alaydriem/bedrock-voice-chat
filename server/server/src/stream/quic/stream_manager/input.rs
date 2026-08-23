@@ -1,68 +1,33 @@
-use crate::stream::quic::client_id_hasher::ClientIdHasher;
 use crate::stream::quic::{ServerInputPacket, WebhookReceiver};
+use crate::stream::session::SessionLink;
 use anyhow::Error;
 use bytes::Bytes;
-use common::s2n_quic::Connection;
 use common::structs::packet::{
-    ConnectionEventType, PacketOwner, PacketType, PlayerPresenceEvent, QuicNetworkPacket,
+    ConnectionEventType, PacketSender, PacketType, PlayerPresenceEvent, QuicNetworkPacket,
     QuicNetworkPacketData, ServerErrorPacket, ServerErrorType,
 };
 use common::traits::StreamTrait;
-use core::{
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-};
 use moka::sync::Cache;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
-// Minimal Future wrapper to await a single datagram without external crates
-struct RecvDatagram<'c> {
-    conn: &'c Connection,
-}
-impl<'c> RecvDatagram<'c> {
-    fn new(conn: &'c Connection) -> Self {
-        Self { conn }
-    }
-}
-impl<'c> Future for RecvDatagram<'c> {
-    type Output = Result<Bytes, anyhow::Error>;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.conn.datagram_mut(
-            |r: &mut common::s2n_quic::provider::datagram::default::Receiver| {
-                r.poll_recv_datagram(cx)
-            },
-        ) {
-            Ok(Poll::Ready(Ok(bytes))) => Poll::Ready(Ok(bytes)),
-            Ok(Poll::Ready(Err(e))) => Poll::Ready(Err(anyhow::anyhow!(e))),
-            Ok(Poll::Pending) => Poll::Pending,
-            Err(e) => Poll::Ready(Err(anyhow::anyhow!(e))),
-        }
-    }
-}
-
-async fn recv_one_datagram(conn: &Connection) -> Result<Bytes, anyhow::Error> {
-    RecvDatagram::new(conn).await
-}
-
 pub(crate) struct InputStream {
-    connection: Option<Arc<Connection>>,
+    link: Option<SessionLink>,
     // Producer to send received data to other components
     producer: Option<mpsc::UnboundedSender<ServerInputPacket>>,
     is_stopped: Arc<AtomicBool>,
-    // Player identity from first packet with owner
-    player_id: Option<String>,
-    client_id: Option<Vec<u8>>,
-    // Per-sender last seen audio timestamp cache (ms since epoch)
-    last_seen_ts: Cache<Vec<u8>, i64>,
+    // This connection's authenticated identity and device id, both settled from the mTLS
+    // certificate before the first datagram arrives. Absent on a peer link, which carries
+    // other servers' speakers rather than having an identity of its own.
+    identity: Option<String>,
+    device: Option<u64>,
+    // Per-speaker last seen audio timestamp cache (ms since epoch), keyed on canonical
+    // identity. A peer link carries many speakers, so this cannot be per-connection.
+    last_seen_ts: Cache<String, i64>,
     // Callback to notify when disconnect happens (for cache cleanup)
-    // Parameters: (player_name, client_id)
-    disconnect_callback: Option<Box<dyn Fn(String, Vec<u8>) + Send + Sync>>,
+    disconnect_callback: Option<Box<dyn Fn(String) + Send + Sync>>,
     // Webhook receiver for sending presence events
     webhook_receiver: Option<WebhookReceiver>,
 }
@@ -70,29 +35,29 @@ pub(crate) struct InputStream {
 impl InputStream {
     const LARGE_JUMP_FORWARD_MS: i64 = 3_000;
 
-    // Hard cap on the per-sender last-seen timestamp cache. The key is the
-    // client-supplied client_id, so without a capacity a client cycling through
-    // unique ids could grow this without bound. Benchmarked concurrency headroom
-    // is ~10K clients; 100K bounds memory far above that.
+    // Hard cap on the per-speaker last-seen timestamp cache. A peer link's speakers are
+    // named by the peer, so without a capacity a misbehaving peer relaying unique identities
+    // could grow this without bound. Benchmarked concurrency headroom is ~10K clients; 100K
+    // bounds memory far above that.
     const LAST_SEEN_MAX_CAPACITY: u64 = 100_000;
 
     pub fn new(
-        connection: Option<Arc<Connection>>,
+        link: Option<SessionLink>,
         producer: Option<mpsc::UnboundedSender<ServerInputPacket>>,
     ) -> Self {
         // 15-minute idle eviction plus a hard capacity so an untrusted stream of
-        // unique client_ids cannot exhaust memory.
+        // unique identities cannot exhaust memory.
         let last_seen_ts = Cache::builder()
             .time_to_idle(Duration::from_secs(15 * 60))
             .max_capacity(Self::LAST_SEEN_MAX_CAPACITY)
             .build();
 
         Self {
-            connection,
+            link,
             producer,
             is_stopped: Arc::new(AtomicBool::new(true)),
-            player_id: None,
-            client_id: None,
+            identity: None,
+            device: None,
             last_seen_ts,
             disconnect_callback: None,
             webhook_receiver: None,
@@ -103,11 +68,17 @@ impl InputStream {
         self.producer = Some(producer);
     }
 
-    pub fn set_disconnect_callback(
-        &mut self,
-        callback: Box<dyn Fn(String, Vec<u8>) + Send + Sync>,
-    ) {
+    pub fn set_disconnect_callback(&mut self, callback: Box<dyn Fn(String) + Send + Sync>) {
         self.disconnect_callback = Some(callback);
+    }
+
+    /// Declares whose connection this is, from the mTLS certificate.
+    ///
+    /// Called at accept, before the stream starts, so nothing here has to infer an identity
+    /// from a datagram. A peer link is left unset: it carries other servers' speakers.
+    pub fn set_identity(&mut self, identity: String, device: u64) {
+        self.identity = Some(identity);
+        self.device = Some(device);
     }
 
     pub fn set_webhook_receiver(&mut self, webhook_receiver: WebhookReceiver) {
@@ -125,24 +96,17 @@ impl InputStream {
         }
     }
 
-    fn sender_key_for_packet(&self, packet: &QuicNetworkPacket, conn: &Connection) -> Vec<u8> {
-        if let Some(owner) = &packet.owner {
-            if !owner.client_id.is_empty() {
-                return owner.client_id.clone();
-            }
-        }
-
-        if let Some(cid) = &self.client_id {
-            if !cid.is_empty() {
-                return cid.clone();
-            }
-        }
-
-        let dbg_id = format!("{:?}", conn.id());
-        let mut hasher = DefaultHasher::new();
-        dbg_id.hash(&mut hasher);
-        let h = hasher.finish();
-        h.to_be_bytes().to_vec()
+    // Who this frame's ordering is tracked against. A relayed frame already carries the
+    // originating server's stamp, which names the real speaker; a local player's does not
+    // yet, and is this connection's own identity. Neither case reads a client's claim.
+    //
+    // Rendered rather than borrowed: the stamped identity is a typed value now, and the two
+    // sources it can come from do not share a representation to borrow from.
+    fn speaker_key(&self, packet: &QuicNetworkPacket) -> Option<String> {
+        packet
+            .sender_identity()
+            .map(|identity| identity.to_string())
+            .or_else(|| self.identity.clone())
     }
 
     fn decide_accept(last_seen: Option<i64>, ts: i64, jump_threshold_ms: i64) -> (bool, bool) {
@@ -171,18 +135,17 @@ impl StreamTrait for InputStream {
     }
 
     async fn start(&mut self) -> Result<(), Error> {
-        tracing::info!("Starting QUIC input stream");
+        tracing::info!("Starting session input stream");
         self.is_stopped.store(false, Ordering::Relaxed);
 
-        if let (Some(connection), Some(producer)) = (self.connection.clone(), self.producer.clone())
-        {
-            // Handle incoming datagrams from this connection
+        if let (Some(link), Some(producer)) = (self.link.clone(), self.producer.clone()) {
+            let mut announced_presence = false;
+            // Handle incoming packets from this session
             loop {
                 if self.is_stopped() {
                     break;
                 }
-                // Custom future to await a single datagram without futures crate
-                let datagram = recv_one_datagram(&connection).await;
+                let datagram = link.recv().await;
                 match datagram {
                     Ok(bytes) => {
                         match QuicNetworkPacket::from_datagram(&bytes) {
@@ -197,10 +160,10 @@ impl StreamTrait for InputStream {
                                             _ => None,
                                         };
 
-                                        if let Some(ts) = ts_opt {
-                                            let key =
-                                                self.sender_key_for_packet(&packet, &connection);
-                                            let last_seen = self.last_seen_ts.get(&key);
+                                        if let (Some(ts), Some(key)) =
+                                            (ts_opt, self.speaker_key(&packet))
+                                        {
+                                            let last_seen = self.last_seen_ts.get(key.as_str());
                                             let (accept, large_jump) = Self::decide_accept(
                                                 last_seen,
                                                 ts,
@@ -214,23 +177,19 @@ impl StreamTrait for InputStream {
                                                         prev
                                                     );
                                                 }
-                                                continue; // Drop older/same-timestamp frame
+                                                // Drop older or same-timestamp frame
+                                                continue;
                                             }
 
-                                            // Update last seen timestamp for sender
+                                            // Update last seen timestamp for this speaker.
+                                            // moka has no in-place update, so the key is owned
+                                            // here whether or not it is already present.
                                             self.last_seen_ts.insert(key.clone(), ts);
                                             if large_jump {
-                                                let client_hash = match &self.client_id {
-                                                    Some(cid) => ClientIdHasher::hash(cid),
-                                                    None => {
-                                                        // If we don't know the client yet, hash the derived key for some stability
-                                                        ClientIdHasher::hash(&key)
-                                                    }
-                                                };
                                                 let prev = last_seen.unwrap_or(0);
                                                 let delta = ts - prev;
                                                 // Use a dedicated tracing target so this can be scraped/tapped later
-                                                tracing::debug!(target: "ofo", "large_jump_forward client={} ts={} last_seen={} delta_ms={}", client_hash, ts, prev, delta);
+                                                tracing::debug!(target: "ofo", "large_jump_forward speaker={} ts={} last_seen={} delta_ms={}", key, ts, prev, delta);
                                             }
                                         }
                                     }
@@ -261,7 +220,6 @@ impl StreamTrait for InputStream {
                                                     };
 
                                                     let error_net = QuicNetworkPacket {
-                                                        owner: packet.owner.clone(),
                                                         packet_type: PacketType::ServerError,
                                                         data: QuicNetworkPacketData::ServerError(
                                                             error_packet,
@@ -270,11 +228,7 @@ impl StreamTrait for InputStream {
                                                         ..Default::default()
                                                     };
                                                     if let Ok(bytes) = error_net.to_datagram() {
-                                                        let _ = connection.datagram_mut(
-                                                            |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
-                                                                dg.send_datagram(Bytes::from(bytes))
-                                                            },
-                                                        );
+                                                        let _ = link.send(Bytes::from(bytes));
                                                     }
 
                                                     break;
@@ -285,47 +239,42 @@ impl StreamTrait for InputStream {
                                     },
                                     PacketType::HealthCheck => {
                                         if let Ok(bytes) = packet.to_datagram() {
-                                            let _ = connection.datagram_mut(|dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
-                                                dg.send_datagram(Bytes::from(bytes))
-                                            });
+                                            let _ = link.send(Bytes::from(bytes));
                                         }
                                         continue;
                                     }
                                     _ => {}
                                 };
 
-                                if self.player_id.is_none() && packet.owner.is_some() {
-                                    let owner = packet.owner.as_ref().unwrap();
-                                    self.player_id = Some(owner.name.clone());
-                                    self.client_id = Some(owner.client_id.clone());
-                                    let client_hash = ClientIdHasher::hash(&owner.client_id);
-                                    tracing::info!(
-                                        "Initialized player identity: {} (client: {})",
-                                        owner.name,
-                                        client_hash
-                                    );
+                                // Announced on the first datagram rather than at accept, because
+                                // this is the point the connection is proven to carry traffic — a
+                                // handshake that never speaks is not a player who joined.
+                                if !announced_presence {
+                                    if let Some(identity) = &self.identity {
+                                        announced_presence = true;
+                                        tracing::info!("Player identity active: {identity}");
 
-                                    self.send_event(QuicNetworkPacket {
-                                        owner: Some(PacketOwner {
-                                            name: String::from("api"),
-                                            client_id: vec![],
-                                        }),
-                                        packet_type: PacketType::PlayerPresence,
-                                        data: QuicNetworkPacketData::PlayerPresence(
-                                            PlayerPresenceEvent {
-                                                player_name: owner.name.clone(),
-                                                timestamp: std::time::SystemTime::now()
-                                                    .duration_since(std::time::UNIX_EPOCH)
-                                                    .unwrap()
-                                                    .as_millis()
-                                                    as i64,
-                                                event_type: ConnectionEventType::Connected,
-                                            },
-                                        ),
-                                                                            // Not a server fan-out, so this envelope carries no sequence.
-                                        ..Default::default()
-                                    })
-                                    .await;
+                                        self.send_event(QuicNetworkPacket {
+                                            sender: Some(PacketSender::for_service(
+                                                PacketSender::SERVER_API,
+                                            )),
+                                            packet_type: PacketType::PlayerPresence,
+                                            data: QuicNetworkPacketData::PlayerPresence(
+                                                PlayerPresenceEvent {
+                                                    player_name: identity.clone(),
+                                                    timestamp: std::time::SystemTime::now()
+                                                        .duration_since(std::time::UNIX_EPOCH)
+                                                        .unwrap()
+                                                        .as_millis()
+                                                        as i64,
+                                                    event_type: ConnectionEventType::Connected,
+                                                },
+                                            ),
+                                            // Not a server fan-out, so this envelope carries no sequence.
+                                            ..Default::default()
+                                        })
+                                        .await;
+                                    }
                                 }
 
                                 let server_packet = ServerInputPacket { data: packet };
@@ -335,42 +284,31 @@ impl StreamTrait for InputStream {
                                 }
                             }
                             Err(e) => {
-                                tracing::warn!("Failed to parse QUIC datagram packet: {}", e);
+                                tracing::warn!("Failed to parse session packet: {}", e);
                                 continue;
                             }
                         }
                     }
                     Err(e) => {
                         let emsg = e.to_string();
-                        let player = self.player_id.clone().unwrap_or_else(|| "unknown".into());
-                        let client_hash = self
-                            .client_id
-                            .as_ref()
-                            .map(|cid| ClientIdHasher::hash(cid))
-                            .unwrap_or_else(|| {
-                                let dbg_id = format!("{:?}", connection.id());
-                                let mut hasher = DefaultHasher::new();
-                                dbg_id.hash(&mut hasher);
-                                format!("{:x}", hasher.finish() & 0xFFFF)
-                            });
+                        let player = self.identity.clone().unwrap_or_else(|| "unknown".into());
+                        let device = self.device.unwrap_or_else(|| link.device());
 
-                        // Treat connection-closed-like errors as fatal and close
-                        let lower = emsg.to_ascii_lowercase();
-                        let is_closed = (lower.contains("connection") && lower.contains("clos"))
-                            || lower.contains("closed")
-                            || lower.contains("reset");
-                        if is_closed {
+                        // A peer that left is the common case and must not read as a
+                        // fault. Asked of the error rather than matched out of its text,
+                        // so a transport whose wording differs still classifies correctly.
+                        if e.is_disconnect() {
                             tracing::error!(
-                                "datagram_recv_closed player={} client={} err={}",
+                                "datagram_recv_closed player={} device={} err={}",
                                 player,
-                                client_hash,
+                                device,
                                 emsg
                             );
                         } else {
                             tracing::error!(
-                                "datagram_recv_error player={} client={} err={}",
+                                "datagram_recv_error player={} device={} err={}",
                                 player,
-                                client_hash,
+                                device,
                                 emsg
                             );
                         }
@@ -380,24 +318,23 @@ impl StreamTrait for InputStream {
             }
 
             // Handle disconnect / cleanup once loop exits
-            if let (Some(callback), Some(player_id), Some(client_id)) =
-                (&self.disconnect_callback, &self.player_id, &self.client_id)
+            if let (Some(callback), Some(identity), Some(device)) =
+                (&self.disconnect_callback, &self.identity, self.device)
             {
-                callback(player_id.clone(), client_id.clone());
+                callback(identity.clone());
                 if let Some(webhook_receiver) = &self.webhook_receiver {
                     let webhook_receiver_clone = webhook_receiver.clone();
-                    let client_id = client_id.clone();
-                    let player_name = player_id.clone();
+                    let player_name = identity.clone();
                     tokio::spawn(async move {
                         let timestamp = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap()
                             .as_millis() as i64;
                         let presence_packet = QuicNetworkPacket {
-                            owner: Some(PacketOwner {
-                                name: player_name.clone(),
-                                client_id: client_id.clone(),
-                            }),
+                            sender: player_name
+                                .parse::<common::PlayerIdentity>()
+                                .ok()
+                                .map(|identity| PacketSender::player(identity, device)),
                             packet_type: PacketType::PlayerPresence,
                             data: QuicNetworkPacketData::PlayerPresence(PlayerPresenceEvent {
                                 player_name: player_name.clone(),

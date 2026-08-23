@@ -1,7 +1,7 @@
 import { writable, type Writable, type Readable } from 'svelte/store';
 import type { PermissionType } from 'tauri-plugin-audio-permissions';
 import { checkPermissionStatus, requestPermissionWithTimeout } from './utils/permissionHelpers';
-import { info, error as logError } from '@tauri-apps/plugin-log';
+import { info, error as logError } from '@charlesportwoodii/tauri-plugin-curia';
 
 export type PermissionFlowState = 'idle' | 'requesting' | 'granted' | 'denied' | 'error';
 

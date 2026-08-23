@@ -1,11 +1,9 @@
-pub mod hytale;
 pub mod minecraft;
 
 use crate::Game;
-use crate::players::{HytalePlayer, MinecraftPlayer, PlayerEnum};
+use crate::players::{MinecraftPlayer, PlayerEnum};
 use serde::{Deserialize, Deserializer, Serialize};
 
-pub use hytale::Dimension as HytaleDimension;
 pub use minecraft::Dimension;
 
 #[derive(Clone, Debug, Serialize)]
@@ -39,9 +37,6 @@ impl<'de> Deserialize<'de> for GameDataCollection {
             .map(|value| match game_type {
                 Game::Minecraft => serde_json::from_value::<MinecraftPlayer>(value)
                     .map(PlayerEnum::Minecraft)
-                    .map_err(D::Error::custom),
-                Game::Hytale => serde_json::from_value::<HytalePlayer>(value)
-                    .map(PlayerEnum::Hytale)
                     .map_err(D::Error::custom),
             })
             .collect();

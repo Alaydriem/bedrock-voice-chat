@@ -21,6 +21,7 @@ pub async fn code_authenticate(
     config: &State<Server>,
     cert_service: &State<Arc<CertificateService>>,
     perm_config: &State<Permissions>,
+    revocations: &State<Arc<crate::services::CertificateRevocationService>>,
 ) -> NcryptfJsonResponse<LoginResponse> {
     let conn = db.into_inner();
 
@@ -29,6 +30,7 @@ pub async fn code_authenticate(
         &payload.0,
         config.inner(),
         cert_service.inner(),
+        revocations.inner().as_ref(),
         perm_config.defaults.clone(),
     )
     .await

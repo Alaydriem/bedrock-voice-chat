@@ -476,7 +476,7 @@ jobs:
             fi
           done
 
-  # Release the Redis lock so the Hytale token cron can resume
+  # Release the Redis lock held for the duration of the release
   release-lock:
     name: Release Build Lock
     needs: [prepare-release, upload-assets, upload-mod-release-assets]
@@ -530,8 +530,13 @@ jobs:
         with:
           token: ${{ secrets.MODRITH_PAT }}
           project: ${{ secrets.MODRITH_ID }}
-          files: ./artifacts/bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
-          primary-file: bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          # The bundled jar is primary: it carries every platform and cannot fail at
+          # first start. The skinny jar is published beside it for operators whose
+          # host can reach GitHub and who want the small download.
+          files: |-
+            ./artifacts/bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}-bundled.jar
+            ./artifacts/bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          primary-file: bedrock-voice-chat-${{ needs.prepare-mods-release.outputs.new_release_version }}-bundled.jar
           version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
           name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }} (Fabric)
           changelog: ${{ needs.prepare-mods-release.outputs.new_release_notes }}
@@ -545,6 +550,36 @@ jobs:
           game-versions: |-
             26.2
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
+
+  # Job 13b: Publish the native libraries the skinny jar resolves at runtime.
+  #
+  # Must run after the mod build, because the manifest baked into both jars pins
+  # these assets by digest and by name. A release whose assets are missing or
+  # misnamed produces a skinny jar that verifies nothing and downloads nothing.
+  upload-native-assets:
+    name: Upload native libraries to the mods release
+    needs: [prepare-mods-release, build-mod-paper]
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && needs.build-mod-paper.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download native release assets
+        uses: actions/download-artifact@v5
+        with:
+          name: native-release-assets
+          path: ./release-natives
+
+      - name: Upload to the mods release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="mods-v${{ needs.prepare-mods-release.outputs.new_release_version }}"
+          ls -lh ./release-natives
+          gh release upload "${TAG}" ./release-natives/* --clobber \
+            --repo ${{ github.repository }}
 
   # Job 14: Publish Paper to Modrinth
   publish-modrinth-paper:
@@ -570,8 +605,13 @@ jobs:
         with:
           token: ${{ secrets.MODRITH_PAT }}
           project: ${{ secrets.MODRITH_ID }}
-          files: ./artifacts/bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
-          primary-file: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          # The bundled jar is primary: it carries every platform and cannot fail at
+          # first start. The skinny jar is published beside it for operators whose
+          # host can reach GitHub and who want the small download.
+          files: |-
+            ./artifacts/bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}-bundled.jar
+            ./artifacts/bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}.jar
+          primary-file: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}-bundled.jar
           version: ${{ needs.prepare-mods-release.outputs.new_release_version }}-paper
           name: Bedrock Voice Chat ${{ needs.prepare-mods-release.outputs.new_release_version }} (Paper)
           changelog: ${{ needs.prepare-mods-release.outputs.new_release_notes }}
@@ -615,7 +655,39 @@ jobs:
           game_versions: Bedrock
           release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
-  # Job 17: Upload mod artifacts to mods GitHub Release
+  # Job 17: Publish BDS no-net pack to its own CurseForge project
+  publish-curseforge-bds-no-net:
+    name: Publish BDS No-Net to CurseForge
+    needs: [prepare-mods-release, build-mod-bds, approve-publish]
+    if: needs.approve-publish.result == 'success' && needs.prepare-mods-release.outputs.new_release_published == 'true' && needs.build-mod-bds.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Download BDS artifact (no-net)
+        uses: actions/download-artifact@v5
+        with:
+          name: bedrock-voice-chat-bds-no-net-${{ needs.prepare-mods-release.outputs.new_release_version }}
+          path: ./artifacts
+
+      - name: List artifacts
+        run: ls -la ./artifacts
+
+      - name: Publish no-net pack to CurseForge
+        uses: itsmeow/curseforge-upload@v3
+        with:
+          token: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          project_id: 1644897
+          game_endpoint: minecraft
+          file_path: ./artifacts/bedrock-voice-chat-no-net-${{ needs.prepare-mods-release.outputs.new_release_version }}.mcaddon
+          changelog: ${{ needs.prepare-mods-release.outputs.new_release_notes }}
+          changelog_type: markdown
+          display_name: Bedrock Voice Chat (Realms + No-Net Servers) ${{ needs.prepare-mods-release.outputs.new_release_version }}
+          game_versions: Bedrock
+          release_type: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
+
+  # Job 18: Upload mod artifacts to mods GitHub Release
   upload-mod-release-assets:
     name: Upload Mod Release Assets
     needs: [prepare-mods-release, build-mod-fabric, build-mod-paper, build-mod-bds]
@@ -928,4 +1000,38 @@ jobs:
       ref: ${{ needs.prepare-release.outputs.new_tag }}
       build_mode: release
       push: true
+    secrets: inherit
+
+  # Post-approval: Build and push the peering relay image.
+  #
+  # Tagged with the BVC version even though the image is upstream iroh-relay:
+  # the relay protocol is tied to the iroh release the peer code is built
+  # against, so a BVC version is what tells an operator which relay their
+  # servers can reach. It builds from source rather than a release artifact, so
+  # it does not wait on build-server.
+  publish-relay-docker:
+    name: Publish Relay Image
+    needs: [prepare-release, approve-publish]
+    if: needs.approve-publish.result == 'success'
+    uses: ./.github/workflows/build-relay-docker.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.new_version }}
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
+      push: true
+    secrets: inherit
+
+  # Post-approval: build the SDK natives and publish the bridge-facing jar.
+  #
+  # Versioned with BVC because the jar carries the peer wire: a bridge resolving
+  # it needs to know which server protocol it speaks, and that is what a BVC
+  # version names.
+  publish-relay-sdk:
+    name: Publish Relay SDK
+    needs: [prepare-release, approve-publish]
+    if: needs.approve-publish.result == 'success'
+    uses: ./.github/workflows/build-relay-sdk.yml
+    with:
+      version: ${{ needs.prepare-release.outputs.new_version }}
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
+      publish: true
     secrets: inherit

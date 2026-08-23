@@ -6,7 +6,7 @@ use common::response::AudioEventResponse;
 use rocket::{State, http::Status, serde::json::Json};
 use rocket_okapi::openapi;
 
-use crate::http::guards::MCAccessToken;
+use crate::http::guards::GameAccessToken;
 use crate::http::pool::Db;
 use crate::services::{AudioPlaybackService, BedrockEventService};
 
@@ -15,7 +15,7 @@ use crate::services::{AudioPlaybackService, BedrockEventService};
 #[post("/event", data = "<request>")]
 pub async fn audio_event_play(
     db: Db<'_>,
-    _token: MCAccessToken,
+    _token: GameAccessToken,
     playback_service: &State<Arc<AudioPlaybackService>>,
     bedrock_event_service: &State<Arc<BedrockEventService>>,
     request: Json<AudioPlayRequest>,
@@ -23,12 +23,11 @@ pub async fn audio_event_play(
     let conn = db.into_inner();
     let request = request.into_inner();
 
-    if let GameAudioContext::Minecraft(ctx) = &request.game {
-        if !ctx.world_uuid.is_empty() {
-            bedrock_event_service
-                .notify_addon_http(&ctx.world_uuid)
-                .await;
-        }
+    let GameAudioContext::Minecraft(ctx) = &request.game;
+    if !ctx.world_uuid.is_empty() {
+        bedrock_event_service
+            .notify_addon_http(&ctx.world_uuid)
+            .await;
     }
 
     match playback_service.start_playback(conn, request).await {
@@ -44,7 +43,7 @@ pub async fn audio_event_play(
 #[openapi(tag = "Audio")]
 #[delete("/event/<event_id>")]
 pub async fn audio_event_stop(
-    _token: MCAccessToken,
+    _token: GameAccessToken,
     playback_service: &State<Arc<AudioPlaybackService>>,
     event_id: &str,
 ) -> Status {

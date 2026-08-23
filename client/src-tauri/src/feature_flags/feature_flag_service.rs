@@ -11,6 +11,7 @@ use super::FlagsmithProvider;
 use super::feature_flag::FeatureFlag;
 use super::flagsmith::FlagsmithFlag;
 use crate::analytics::AnalyticsService;
+use crate::analytics::PlatformId;
 use crate::discord::DiscordTraitState;
 
 pub struct FeatureFlagService {
@@ -25,7 +26,9 @@ pub struct FeatureFlagService {
     generation_tx: watch::Sender<u64>,
     api_key: String,
     server_url: String,
-    install_id: String,
+    // Shared with the live FlagsmithProvider, so replacing the platform id moves
+    // the targeting key of every subsequent fetch and evaluation with it.
+    platform_id: Arc<PlatformId>,
     build_number: i64,
     refresh_interval: Duration,
     http_client: reqwest::Client,
@@ -46,7 +49,7 @@ impl FeatureFlagService {
     pub fn new(
         api_key: String,
         server_url: String,
-        install_id: String,
+        platform_id: Arc<PlatformId>,
         build_number: i64,
         refresh_interval: Duration,
         analytics: Option<Arc<AnalyticsService>>,
@@ -60,7 +63,7 @@ impl FeatureFlagService {
             generation_tx,
             api_key,
             server_url,
-            install_id,
+            platform_id,
             build_number,
             refresh_interval,
             http_client: super::flagsmith::pinned_client::FlagsmithPinnedClient::build(),
@@ -81,7 +84,7 @@ impl FeatureFlagService {
         let provider = FlagsmithProvider::new(
             self.api_key.clone(),
             self.server_url.clone(),
-            self.install_id.clone(),
+            self.platform_id.clone(),
             self.build_number,
             self.refresh_interval,
             self.http_client.clone(),
@@ -121,7 +124,7 @@ impl FeatureFlagService {
                     &self.http_client,
                     &url,
                     &self.api_key,
-                    &self.install_id,
+                    &self.platform_id.get(),
                     self.build_number,
                     &roles,
                     &cache,
@@ -216,7 +219,7 @@ impl FeatureFlagService {
         let result = match guard.as_ref() {
             Some(client) => {
                 let mut context = EvaluationContext::default();
-                context.targeting_key = Some(self.install_id.clone());
+                context.targeting_key = Some(self.platform_id.get());
                 client
                     .get_bool_value(flag, Some(&context), None)
                     .await
@@ -245,7 +248,7 @@ impl FeatureFlagService {
     // flag definition (struct + trait impl) to call site through the type
     // system, preventing key typos and bool-vs-int mix-ups at compile time.
     pub async fn get<F: FeatureFlag>(&self, flag: F) -> F::Value {
-        use super::flagsmith_value::FlagsmithValue;
+        use super::FlagsmithValue;
         let key = flag.key();
         let default = flag.default();
         F::Value::fetch(self, key.as_ref(), default).await
@@ -262,7 +265,7 @@ impl FeatureFlagService {
         let result = match guard.as_ref() {
             Some(client) => {
                 let mut context = EvaluationContext::default();
-                context.targeting_key = Some(self.install_id.clone());
+                context.targeting_key = Some(self.platform_id.get());
                 client.get_int_value(flag, Some(&context), None).await.ok()
             }
             None => None,

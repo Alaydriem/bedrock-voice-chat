@@ -1,7 +1,5 @@
-pub mod hytale;
 pub mod minecraft;
 
-pub use hytale::HytaleAudioContext;
 pub use minecraft::MinecraftAudioContext;
 
 use serde::{Deserialize, Serialize};
@@ -19,6 +17,4 @@ pub struct AudioPlayRequest {
 pub enum GameAudioContext {
     #[serde(rename = "minecraft")]
     Minecraft(MinecraftAudioContext),
-    #[serde(rename = "hytale")]
-    Hytale(HytaleAudioContext),
 }

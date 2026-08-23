@@ -1,4 +1,4 @@
-use common::net::CandidatePlan;
+use common::net::{CandidatePlan, NetTimeouts};
 use common::structs::reachability::{
     AddressFamily, AnsweredVia, EndpointReachability, ReachabilityOutcome, ServerReachability,
 };
@@ -20,7 +20,7 @@ fn answered(rtt_micros: u32) -> ReachabilityOutcome {
 }
 
 fn report(endpoints: Vec<EndpointReachability>) -> ServerReachability {
-    ServerReachability::new("plan.test".to_string(), endpoints, Vec::new())
+    ServerReachability::new("plan.test".to_string(), endpoints, Vec::new(), Vec::new())
 }
 
 fn ipv6_preferred() -> ServerReachability {
@@ -41,8 +41,9 @@ fn ipv4_preferred() -> ServerReachability {
     ])
 }
 
-// The operator's port order is a deliberate statement about which way in they want
-// used. Family is the tiebreak inside a port, never the other way round.
+// Family is the tiebreak inside a port, never the other way round. Here the measured
+// port also leads, so this says nothing about port order on its own — the cases below
+// cover that.
 #[test]
 fn candidates_are_ordered_by_port_then_family() {
     let plan = CandidatePlan::build(&[v6(1), v4(1)], &[443, 8443], &ipv6_preferred());
@@ -137,26 +138,16 @@ fn measured_latency_orders_addresses_within_a_family() {
     assert_eq!(dialed, vec![fast, slow]);
 }
 
-// The preferred family is the one a probe endorsed, so it earns the full budget;
-// the other is a fallback whose only job is to not be skipped.
+// The probe's verdict decides the order and nothing else. A shorter budget for the
+// fallback family gave the least time to the attempt made after the preferred family had
+// already failed — the one most likely to be the unusual path that works.
 #[test]
-fn the_preferred_family_gets_the_longer_attempt_budget() {
+fn every_family_gets_the_same_attempt_budget() {
     let plan = CandidatePlan::build(&[v6(1), v4(1)], &[443], &ipv6_preferred());
 
-    let v6_candidate = plan
-        .candidates()
-        .iter()
-        .find(|c| c.family() == AddressFamily::Ipv6)
-        .unwrap();
-    let v4_candidate = plan
-        .candidates()
-        .iter()
-        .find(|c| c.family() == AddressFamily::Ipv4)
-        .unwrap();
-
-    assert_eq!(v6_candidate.budget(), CandidatePlan::PREFERRED_BUDGET);
-    assert_eq!(v4_candidate.budget(), CandidatePlan::FALLBACK_BUDGET);
-    assert!(CandidatePlan::FALLBACK_BUDGET < CandidatePlan::PREFERRED_BUDGET);
+    for candidate in plan.candidates() {
+        assert_eq!(candidate.budget(), NetTimeouts::HANDSHAKE);
+    }
 }
 
 // The rebind path after a failed [::] bind: v6 candidates become undialable, so
@@ -175,4 +166,91 @@ fn a_plan_with_no_addresses_is_empty() {
     let plan = CandidatePlan::build(&[], &[443], &ipv4_preferred());
 
     assert!(plan.is_empty());
+}
+
+// The defect this ordering exists to end. A server advertising a port that nothing
+// answers on, ahead of one that answers instantly, spent a full handshake budget on the
+// dead one before reaching the live one — after the probe had already measured both.
+#[test]
+fn a_port_that_did_not_answer_sorts_below_one_that_did() {
+    let addr = v4(1);
+    let measured = report(vec![
+        EndpointReachability::new(SocketAddr::new(addr, 28280), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(SocketAddr::new(addr, 443), answered(16_000), None),
+    ]);
+
+    let plan = CandidatePlan::build(&[addr], &[28280, 443], &measured);
+    let ports: Vec<u16> = plan.candidates().iter().map(|c| c.port()).collect();
+
+    assert_eq!(ports, vec![443, 28280]);
+}
+
+// The advertised order is a routing instruction, not a preference, so latency must not
+// reorder ports that both answered. The advertised port is how a client is steered through
+// Meridian; the backend's own port is appended after it by `QuicPortSelection::resolve` and
+// is faster wherever it is directly reachable. Ranking these by latency walks the client
+// around the proxy that provides its tenant routing.
+#[test]
+fn answering_ports_keep_the_order_the_operator_advertised() {
+    let addr = v4(1);
+    let measured = report(vec![
+        EndpointReachability::new(SocketAddr::new(addr, 443), answered(90_000), None),
+        EndpointReachability::new(SocketAddr::new(addr, 8443), answered(12_000), None),
+    ]);
+
+    let plan = CandidatePlan::build(&[addr], &[443, 8443], &measured);
+    let ports: Vec<u16> = plan.candidates().iter().map(|c| c.port()).collect();
+
+    assert_eq!(ports, vec![443, 8443]);
+}
+
+// With nothing measured to separate them the operator's order is the only statement
+// available about which way in they intend, so it still decides.
+#[test]
+fn the_operator_order_survives_when_no_port_was_measured() {
+    let addr = v4(1);
+    let measured = report(vec![EndpointReachability::new(
+        SocketAddr::new(addr, 443),
+        ReachabilityOutcome::Silent,
+        None,
+    )]);
+
+    let plan = CandidatePlan::build(&[addr], &[8443, 443], &measured);
+    let ports: Vec<u16> = plan.candidates().iter().map(|c| c.port()).collect();
+
+    assert_eq!(ports, vec![8443, 443]);
+}
+
+// Ordering is the only thing a measurement may change. A silent port is still dialled,
+// because a probe that was wrong must cost time and never connectivity.
+#[test]
+fn a_port_that_did_not_answer_is_reordered_and_never_removed() {
+    let addr = v4(1);
+    let measured = report(vec![
+        EndpointReachability::new(SocketAddr::new(addr, 28280), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(SocketAddr::new(addr, 443), answered(16_000), None),
+    ]);
+
+    let plan = CandidatePlan::build(&[addr], &[28280, 443], &measured);
+
+    assert_eq!(plan.candidates().len(), 2);
+}
+
+// One address answering is enough for the port to count as reached, so a single dead
+// address cannot sink a port another address answers on.
+#[test]
+fn a_port_one_address_answered_outranks_a_port_none_answered() {
+    let first = v4(1);
+    let second = v4(2);
+    let measured = report(vec![
+        EndpointReachability::new(SocketAddr::new(first, 443), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(SocketAddr::new(second, 443), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(SocketAddr::new(first, 8443), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(SocketAddr::new(second, 8443), answered(9_000), None),
+    ]);
+
+    let plan = CandidatePlan::build(&[first, second], &[443, 8443], &measured);
+    let ports: Vec<u16> = plan.candidates().iter().map(|c| c.port()).collect();
+
+    assert_eq!(ports, vec![8443, 8443, 443, 443]);
 }

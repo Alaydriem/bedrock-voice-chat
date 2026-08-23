@@ -13,13 +13,6 @@ interface ConfigProvider {
     fun load(): ModConfig
 
     /**
-     * Save configuration to the platform-specific location.
-     * Default implementation does nothing (not all platforms support saving).
-     */
-    fun save(config: ModConfig) {
-    }
-
-    /**
      * Create the default configuration file if it doesn't exist.
      */
     fun createDefaultIfMissing()

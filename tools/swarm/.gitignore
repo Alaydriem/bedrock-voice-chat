@@ -1,2 +1,4 @@
 *.crt
 *.key
+target/
+scene.toml

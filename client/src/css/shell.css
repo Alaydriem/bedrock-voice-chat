@@ -1,0 +1,48 @@
+/* The document the app frame sits in.
+ *
+ * Radial styles the frame and everything inside it, and declares no `html` or `body`
+ * rule at all. These are those rules: the webview shell the design assumes but does
+ * not own.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  color-scheme: dark;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  /* Global type scale. 100% = 16px. Every rem in the design system is measured
+     against this, so a change here rescales the whole product. */
+  font-size: 112.5%;
+}
+
+/* Fixed and non-scrolling, because the frame scrolls its own panes. A scrollable
+   body lets a drag rubber-band the entire app inside the webview. */
+body {
+  margin: 0;
+  position: fixed;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  background-color: var(--color-rad-void);
+  color: var(--color-rad-tx);
+  font-family: var(--font-rad-sans);
+  /* `.rad-frame` sets a family but no size, so anything inside it that does not size
+     itself inherits from here. Carried over unchanged from the theme this replaced. */
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}

@@ -35,6 +35,17 @@ export class PushLevelSource implements LevelSource {
     return this.#level;
   }
 
+  /**
+   * How many listeners this source is feeding.
+   *
+   * A binding keeps whichever source object it was handed at construction, and nothing in the
+   * window can otherwise see that the object being pushed to is no longer that one. Counted
+   * here because this is the only place that knows.
+   */
+  get listeners(): number {
+    return this.#listeners.size;
+  }
+
   subscribe(listener: LevelListener): Unsubscribe {
     this.#listeners.add(listener);
     listener(this.#level);

@@ -25,7 +25,23 @@ impl AudioFileEncoder {
         let file =
             std::fs::File::open(file_path).map_err(|e| anyhow!("Failed to open file: {}", e))?;
 
-        let source = rodio::Decoder::new(std::io::BufReader::new(file))
+        Self::encode_reader(std::io::BufReader::new(file), original_filename)
+    }
+
+    // Android's picker returns a `content://` URI rather than a path, so the frontend reads
+    // the bytes through the fs plugin and hands them over.
+    pub fn encode_bytes(
+        bytes: Vec<u8>,
+        original_filename: String,
+    ) -> Result<EncodeOutput, anyhow::Error> {
+        Self::encode_reader(std::io::Cursor::new(bytes), original_filename)
+    }
+
+    fn encode_reader<R: std::io::Read + std::io::Seek + Send + Sync + 'static>(
+        reader: R,
+        original_filename: String,
+    ) -> Result<EncodeOutput, anyhow::Error> {
+        let source = rodio::Decoder::new(reader)
             .map_err(|e| anyhow!("Failed to decode audio file: {}", e))?;
 
         let source_sample_rate = source.sample_rate().get();

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::ApiConfigResponse;
+use super::{ApiConfigResponse, ProtocolCompatibility};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
@@ -13,30 +13,17 @@ pub struct ApiConfigCheckResponse {
 }
 
 impl ApiConfigCheckResponse {
+    // The comparison itself lives on ProtocolCompatibility, so the pre-auth server
+    // check reaches this same verdict from the same rule rather than a copy of it.
     pub fn from_config(config: ApiConfigResponse, client_version: &str) -> Self {
-        let server_parts: Vec<u32> = config
-            .protocol_version
-            .split('.')
-            .filter_map(|s| s.parse().ok())
-            .collect();
-        let client_parts: Vec<u32> = client_version
-            .split('.')
-            .filter_map(|s| s.parse().ok())
-            .collect();
-
-        let server_major = server_parts.first().copied().unwrap_or(0);
-        let server_minor = server_parts.get(1).copied().unwrap_or(0);
-        let client_major = client_parts.first().copied().unwrap_or(0);
-        let client_minor = client_parts.get(1).copied().unwrap_or(0);
-
-        let compatible = server_major == client_major && server_minor == client_minor;
-        let client_too_old = (client_major, client_minor) < (server_major, server_minor);
+        let compatibility =
+            ProtocolCompatibility::between(&config.protocol_version, client_version);
 
         Self {
             config,
-            client_version: client_version.to_string(),
-            compatible,
-            client_too_old,
+            client_version: compatibility.client_version,
+            compatible: compatibility.compatible,
+            client_too_old: compatibility.client_too_old,
         }
     }
 }

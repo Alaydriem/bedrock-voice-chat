@@ -3,27 +3,28 @@ use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::structs::{
     channel::ChannelEvents::Delete,
     packet::{
-        ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+        ChannelEventPacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
     },
 };
-use rocket::{State, http::Status, mtls::Certificate};
+use crate::http::guards::PlayerGuard;
+use rocket::{State, http::Status};
 use rocket_okapi::openapi;
 
 /// Delete a channel, removing every member.
 #[openapi(tag = "Channels")]
 #[delete("/<id>")]
 pub async fn channel_delete(
-    identity: Certificate<'_>,
+    guard: PlayerGuard,
     cache_manager: &State<CacheManager>,
     webhook_receiver: &State<WebhookReceiver>,
     id: &str,
 ) -> CustomJsonResponse<bool> {
-    let user = match identity.subject().common_name() {
-        Some(user) => user.to_string(),
-        None => {
-            return CustomJsonResponse::error(Status::Forbidden);
-        }
+    // Derived from the resolved player rather than read off the certificate CN, so a
+    // legacy bare-gamertag certificate produces the same canonical identity as a current one.
+    let Some(gamertag) = guard.player.gamertag.clone() else {
+        return CustomJsonResponse::error(Status::Forbidden);
     };
+    let user = guard.player.game.membership_key(&gamertag);
 
     let channel_collection = cache_manager.get_channel_collection();
     match channel_collection.get(id).await {
@@ -38,12 +39,9 @@ pub async fn channel_delete(
             channel_collection.remove(id).await;
 
             let packet = QuicNetworkPacket {
-                owner: Some(PacketOwner {
-                    name: String::from("channel_api"),
-                    client_id: vec![0u8; 0],
-                }),
+                sender: Some(PacketSender::for_service(PacketSender::CHANNEL_API)),
                 packet_type: PacketType::ChannelEvent,
-                data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new_full(
+                data: QuicNetworkPacketData::ChannelEvent(ChannelEventPacket::new(
                     Delete,
                     user,
                     id.to_string(),

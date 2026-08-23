@@ -1,9 +1,10 @@
-use tokio::task::JoinHandle;
-
-// Driver returned by a source after it begins producing frames: the tokio handle
-// the sender task is paired against, plus the oneshot the listener holds to stop
-// a live cpal stream (None for sources that stop on their own feed closing).
+// Driver returned by a source after it begins producing frames.
 pub(crate) struct SourceDriver {
-    pub handle: JoinHandle<()>,
-    pub shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    // The live cpal stream, for the source that has one.
+    //
+    // Held rather than parked on a thread that blocks until told to quit: dropping it pauses the
+    // device and hands it back, so the release is ordered with the next open instead of racing it
+    // across a channel and a fixed sleep. `None` for a source whose feed stops on its own, and for
+    // a cpal stream that failed to build.
+    pub stream: Option<rodio::cpal::Stream>,
 }

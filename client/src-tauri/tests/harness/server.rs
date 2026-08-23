@@ -4,6 +4,7 @@ use std::sync::{Arc, OnceLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use bvc_client_lib::testkit::PortPool;
 use serde_json::json;
 
 use crate::harness::ffi::{SendHandle, ServerLibrary};
@@ -23,22 +24,19 @@ pub struct EmbeddedServer {
 }
 
 impl EmbeddedServer {
-    /// Bind an ephemeral TCP port, read the assigned port, and release it.
+    /// Reserve a TCP port this server will bind.
+    ///
+    /// The port is held against other test processes for the lifetime of this
+    /// one. Sampling an ephemeral port and releasing it instead — which is what
+    /// this used to do — leaves the number unowned until the server binds it, and
+    /// the operating system hands a just-released port straight back out.
     pub fn free_port_tcp() -> u16 {
-        std::net::TcpListener::bind("127.0.0.1:0")
-            .expect("bind ephemeral tcp port")
-            .local_addr()
-            .expect("read tcp local addr")
-            .port()
+        PortPool::tcp()
     }
 
-    /// Bind an ephemeral UDP port, read the assigned port, and release it.
+    /// Reserve a UDP port this server will bind.
     pub fn free_port_udp() -> u16 {
-        std::net::UdpSocket::bind("127.0.0.1:0")
-            .expect("bind ephemeral udp port")
-            .local_addr()
-            .expect("read udp local addr")
-            .port()
+        PortPool::udp()
     }
 
     /// Build the JSON config string `bvc_server_create` deserializes into
@@ -49,6 +47,28 @@ impl EmbeddedServer {
     /// `localhost`/`127.0.0.1` SAN, so no separate leaf cert is required.
     pub fn config_json(rocket_port: u16, quic_port: u16, data_dir: &Path) -> String {
         Self::config_json_with_relay(rocket_port, quic_port, data_dir, None)
+    }
+
+    /// A server that admits at most `connections` concurrent voice sessions.
+    ///
+    /// Layered over `config_json` rather than threaded through `config_json_inner`, which
+    /// five other constructors already share: capacity is the only key involved, and the
+    /// alternative is a parameter every one of them passes zero for.
+    pub fn config_json_with_capacity(
+        rocket_port: u16,
+        quic_port: u16,
+        data_dir: &Path,
+        connections: u32,
+    ) -> String {
+        let mut config: serde_json::Value =
+            serde_json::from_str(&Self::config_json(rocket_port, quic_port, data_dir))
+                .expect("the base config is valid JSON");
+        config["voice"] = json!({
+            "limits": {
+                "connections": connections,
+            },
+        });
+        config.to_string()
     }
 
     /// Binds the wildcard IPv6 address, which serves IPv4 peers as well because
@@ -75,6 +95,32 @@ impl EmbeddedServer {
             None,
             "127.0.0.1",
             advertised_quic_ports,
+        )
+    }
+
+    /// A server whose QUIC is unreachable from the client, however hard it tries.
+    ///
+    /// Advertising a dead port is not enough on its own: `QuicPortSelection::resolve`
+    /// appends the scalar `quic_port` after the advertised list, and on loopback that port
+    /// always answers — so a client "blocked" that way reaches QUIC on its second candidate
+    /// and a fallback test passes having never fallen back.
+    ///
+    /// Setting the scalar to zero closes that. Zero is how a server that predates port
+    /// advertisement reports "not known", and `resolve` drops it, so the advertised list is
+    /// the whole candidate set. The listener still binds — the operating system hands it an
+    /// ephemeral port — it is simply one no client is ever told about.
+    pub fn config_json_quic_unreachable(
+        rocket_port: u16,
+        data_dir: &Path,
+        blackhole_port: u16,
+    ) -> String {
+        Self::config_json_inner(
+            rocket_port,
+            0,
+            data_dir,
+            None,
+            "127.0.0.1",
+            &[blackhole_port],
         )
     }
 
@@ -308,14 +354,108 @@ impl EmbeddedServer {
         code
     }
 
+    /// Mint a single-use WebSocket ticket for a gamertag.
+    ///
+    /// Provisioned rather than fetched: the HTTP route trades an mTLS identity for a ticket
+    /// and answers ncryptf-encrypted, so reaching it from here would mean reimplementing
+    /// both to watch a feed. Same seam `login_code` uses, and the ticket itself is no
+    /// different from an HTTP-issued one.
+    pub fn websocket_ticket(&self, gamertag: &str) -> String {
+        let c_gamertag = CString::new(gamertag).expect("gamertag contains no nul byte");
+        let c_game = CString::new("minecraft").expect("game contains no nul byte");
+
+        let ptr = unsafe {
+            (self.lib.provision_websocket_ticket)(
+                self.handle.0,
+                c_gamertag.as_ptr(),
+                c_game.as_ptr(),
+            )
+        };
+
+        if ptr.is_null() {
+            let err = Self::last_error(&self.lib);
+            panic!("bvc_provision_websocket_ticket returned null: {err}");
+        }
+
+        let ticket = unsafe { CStr::from_ptr(ptr) }
+            .to_string_lossy()
+            .into_owned();
+
+        unsafe { (self.lib.free_string)(ptr) };
+
+        ticket
+    }
+
+    /// Read snapshots from `/api/websocket/positions` for one observer.
+    ///
+    /// Returns once `wanted` snapshots carrying at least one entry have arrived, or the
+    /// deadline passes — whichever comes first. Empty frames are counted but not returned:
+    /// an observer the world does not know about yet produces them normally, and a test
+    /// waiting on positions wants the ones that say something.
+    pub async fn position_snapshots(
+        &self,
+        gamertag: &str,
+        wanted: usize,
+        timeout: Duration,
+    ) -> Vec<common::structs::position::PositionSnapshot> {
+        use futures_util::StreamExt;
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        use tokio_tungstenite::tungstenite::http::HeaderValue;
+
+        let ticket = self.websocket_ticket(gamertag);
+        let url = format!("wss://127.0.0.1:{}/api/websocket/positions", self.rocket_port);
+
+        let mut request = url.into_client_request().expect("build ws request");
+        // The credential travels as a subprotocol rather than a header or a query parameter,
+        // because a browser can offer subprotocols and cannot set headers — and a ticket in
+        // a URL lands in every access log between here and the server.
+        request.headers_mut().insert(
+            "Sec-WebSocket-Protocol",
+            HeaderValue::from_str(&format!("ticket.{ticket}, bvc.positions.v1"))
+                .expect("ticket is header-safe"),
+        );
+
+        let connector = tokio_tungstenite::Connector::Rustls(Arc::new(
+            crate::harness::insecure_tls::trust_anything(),
+        ));
+        let (mut socket, _) = tokio_tungstenite::connect_async_tls_with_config(
+            request,
+            None,
+            false,
+            Some(connector),
+        )
+        .await
+        .expect("connect position feed");
+
+        let mut out = Vec::new();
+        let deadline = Instant::now() + timeout;
+        while out.len() < wanted && Instant::now() < deadline {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let Ok(Some(Ok(message))) = tokio::time::timeout(remaining, socket.next()).await else {
+                break;
+            };
+            if let tokio_tungstenite::tungstenite::Message::Text(body) = message {
+                if let Ok(snapshot) =
+                    serde_json::from_str::<common::structs::position::PositionSnapshot>(&body)
+                {
+                    if !snapshot.positions.is_empty() {
+                        out.push(snapshot);
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// Drive player positions into the server's QUIC fan-out via the
     /// `bvc_update_positions` FFI.  Each entry is `(name, x, y, z)`.  The game
     /// is always `"minecraft"` and non-position fields are defaulted (overworld
     /// dimension, no deafen/spectator, zero orientation).
     ///
-    /// The `name` must match the `PacketOwner.name` the QUIC client sets on its
-    /// audio frames — that value comes from the `gamertag` field of `LoginResponse`
-    /// (e.g. `"Alice"`, not `"minecraft:Alice"`).
+    /// The `name` is the bare gamertag (e.g. `"Alice"`, not `"minecraft:Alice"`), because
+    /// this is the payload a game mod sends. The server composes the canonical identity from
+    /// it and the game before caching, so a bare name here is correct and a prefixed one
+    /// would produce `minecraft:minecraft:Alice`.
     pub fn update_positions(&self, players: &[(&str, f32, f32, f32)]) {
         let player_jsons: Vec<serde_json::Value> = players
             .iter()
@@ -362,7 +502,7 @@ impl EmbeddedServer {
     }
 
     /// Trigger HTTP-driven jukebox playback at a world position, exactly as the
-    /// BDS mod does (`POST /api/audio/event` with X-MC-Access-Token). The JSON
+    /// BDS mod does (`POST /api/audio/event` with `Authorization: Bearer`). The JSON
     /// shape matches the mod's AudioPlayRequest: `game` is the serde(tag="game")
     /// GameAudioContext enum, nested. Returns (event_id, duration_ms).
     pub async fn jukebox_play(&self, audio_file_id: &str, x: f32, y: f32, z: f32) -> (String, u32) {
@@ -382,7 +522,7 @@ impl EmbeddedServer {
             .expect("build jukebox client");
         let resp = client
             .post(&url)
-            .header("X-MC-Access-Token", "test-token")
+            .header("Authorization", "Bearer test-token")
             .json(&body)
             .send()
             .await
@@ -410,7 +550,7 @@ impl EmbeddedServer {
             .expect("build jukebox client");
         let resp = client
             .delete(&url)
-            .header("X-MC-Access-Token", "test-token")
+            .header("Authorization", "Bearer test-token")
             .send()
             .await
             .expect("DELETE /api/audio/event");
@@ -436,7 +576,7 @@ impl EmbeddedServer {
             .expect("build control client");
         let resp = client
             .post(&url)
-            .header("X-MC-Access-Token", "test-token")
+            .header("Authorization", "Bearer test-token")
             .json(&body)
             .send()
             .await
@@ -462,7 +602,7 @@ impl EmbeddedServer {
             .expect("build control client");
         let resp = client
             .post(&url)
-            .header("X-MC-Access-Token", "test-token")
+            .header("Authorization", "Bearer test-token")
             .json(&body)
             .send()
             .await
@@ -487,7 +627,7 @@ impl EmbeddedServer {
             .expect("build state client");
         let resp = client
             .get(&url)
-            .header("X-MC-Access-Token", "test-token")
+            .header("Authorization", "Bearer test-token")
             .send()
             .await
             .expect("GET /api/state");
@@ -530,18 +670,21 @@ impl EmbeddedServer {
 
     /// Read the owner's cached per-player preferences scoped to `targets`
     /// (`GET /api/preferences?owner=&targets=`, comma-separated targets).
+    ///
+    /// Parameters go through `query` rather than into a formatted string so they are
+    /// percent-encoded, which the BDS mod does with `encodeURIComponent` on the same request. An
+    /// interpolated `#` ends the query as a fragment delimiter and an interpolated space breaks the
+    /// URL outright, so a raw format silently drops targets the product sends correctly.
     pub async fn get_preferences(&self, owner: &str, targets: &str) -> Vec<serde_json::Value> {
-        let url = format!(
-            "https://127.0.0.1:{}/api/preferences?owner={}&targets={}",
-            self.rocket_port, owner, targets
-        );
+        let url = format!("https://127.0.0.1:{}/api/preferences", self.rocket_port);
         let client = reqwest::Client::builder()
             .danger_accept_invalid_certs(true)
             .build()
             .expect("build preferences client");
         let resp = client
             .get(&url)
-            .header("X-MC-Access-Token", "test-token")
+            .query(&[("owner", owner), ("targets", targets)])
+            .header("Authorization", "Bearer test-token")
             .send()
             .await
             .expect("GET /api/preferences");

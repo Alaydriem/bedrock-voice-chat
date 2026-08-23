@@ -12,35 +12,25 @@
 
 mod cache_manager;
 mod certificate_common_name;
-mod client_id_hasher;
-mod connection_id_format;
+pub mod connection;
 mod connection_identity;
-pub mod connection_registry;
-// Public so the integration crate can drive the one invariant this mechanism rests on: a sequence
-// number is consumed only when a datagram is actually produced for a connection.
-pub mod connection_sequence;
 mod log_throttle;
 mod packet_identity_stamp;
-mod path_observer;
-mod path_observer_context;
-mod peer_identity_capture;
-mod peer_identity_context;
+pub mod path;
+pub mod peer;
 mod server_input_packet;
-mod stream_manager;
+pub mod stream_manager;
 mod webhook_receiver;
 
 use crate::config::ApplicationConfig;
+use crate::stream::session::SessionLink;
 use anyhow;
-use client_id_hasher::ClientIdHasher;
 use common::s2n_quic::{Connection, Server};
 use common::structs::network::QuicCloseCode;
-use common::structs::packet::{
-    PacketType, PlayerDataPacket, PlayerPositionPacket, QuicNetworkPacket, QuicNetworkPacketData,
-};
+use common::structs::packet::{PacketType, QuicNetworkPacket};
 use common::traits::StreamTrait;
-use connection_registry::ConnectionRegistry;
+use connection::ConnectionRegistry;
 use std::sync::Arc;
-use stream_manager::{InputStream, OutputStream};
 use tokio::sync::{mpsc, oneshot};
 
 pub use cache_manager::{
@@ -48,29 +38,44 @@ pub use cache_manager::{
     WebsocketTicketCache,
 };
 pub use certificate_common_name::CertificateCommonName;
-pub use connection_id_format::PrefixedConnectionIdFormat;
+pub use connection::PrefixedConnectionIdFormat;
 pub use connection_identity::{ConnectionClassifier, ConnectionKind};
 pub use packet_identity_stamp::PacketIdentityStamp;
-pub use path_observer::PathObserver;
-pub use path_observer_context::PathObserverContext;
-pub use peer_identity_capture::PeerIdentityCapture;
-pub use peer_identity_context::PeerIdentityContext;
+pub use path::{PathObserver, PathObserverContext};
+pub use peer::identity::{PeerIdentityCapture, PeerIdentityContext};
 pub use server_input_packet::ServerInputPacket;
-pub use webhook_receiver::WebhookReceiver;
+pub use webhook_receiver::{PacketOrigin, WebhookReceiver};
 
 pub struct QuicServerManager {
     config: ApplicationConfig,
     connection_registry: Arc<ConnectionRegistry>,
-    webhook_rx: Option<mpsc::UnboundedReceiver<QuicNetworkPacket>>,
+    webhook_rx: Option<mpsc::UnboundedReceiver<(QuicNetworkPacket, PacketOrigin)>>,
     cache_manager: CacheManager,
     webhook_receiver: WebhookReceiver,
+    /// Serves every accepted session. Shared with the WebSocket listener, which is what
+    /// keeps one routing implementation behind two transports.
+    ///
+    /// Built on first use, NOT in `new`. `CacheManager` carries its bedrock, chat and
+    /// webhook services in plain `Option` fields that the runtime fills in with `&mut
+    /// self` after this manager is constructed, and it is cloned by value. A copy taken
+    /// in `new` is therefore permanently unwired -- packets still route, so nothing
+    /// fails; the features hanging off those services just silently stop working.
+    session_spawner: std::sync::OnceLock<Arc<crate::stream::session::SessionSpawner>>,
     shutdown_tx: Option<oneshot::Sender<()>>,
     shutdown_rx: Option<oneshot::Receiver<()>>,
     readiness: Option<Arc<crate::runtime::ReadinessState>>,
+    /// Required, not an optional setter. There is one call site, so requiring it means
+    /// the handshake cannot be left admitting revoked or banished certificates.
+    authorization: Arc<crate::services::SessionAuthorizationService>,
+    database: Arc<sea_orm::DatabaseConnection>,
 }
 
 impl QuicServerManager {
-    pub fn new(config: ApplicationConfig) -> Self {
+    pub fn new(
+        config: ApplicationConfig,
+        authorization: Arc<crate::services::SessionAuthorizationService>,
+        database: Arc<sea_orm::DatabaseConnection>,
+    ) -> Self {
         let connection_registry = Arc::new(ConnectionRegistry::new());
         let (webhook_tx, webhook_rx) = mpsc::unbounded_channel();
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -86,10 +91,33 @@ impl QuicServerManager {
             webhook_rx: Some(webhook_rx),
             cache_manager,
             webhook_receiver,
+            session_spawner: std::sync::OnceLock::new(),
             shutdown_tx: Some(shutdown_tx),
             shutdown_rx: Some(shutdown_rx),
             readiness: None,
+            authorization,
+            database,
         }
+    }
+
+    /// The session runner every accepted connection is served by.
+    ///
+    /// Handed to the WebSocket listener so both transports drive one implementation. It
+    /// lives here because the registry and caches it closes over are built with this
+    /// manager.
+    pub(crate) fn session_spawner(&self) -> Arc<crate::stream::session::SessionSpawner> {
+        self.session_spawner
+            .get_or_init(|| {
+                crate::stream::session::SessionSpawner::new_shared(
+                    self.connection_registry.clone(),
+                    self.cache_manager.clone(),
+                    self.config.voice.spatial_audio.broadcast_range,
+                    self.config.voice.spatial_audio.deafen_distance,
+                    self.webhook_receiver.clone(),
+                    self.config.voice.send_batch_wait_micros,
+                )
+            })
+            .clone()
     }
 
     /// Installs the shared readiness flag the /health/readiness route reads.
@@ -134,6 +162,23 @@ impl QuicServerManager {
             builder.build().expect("datagram endpoint build")
         };
 
+        // Defaults negotiate a 30s idle timeout and derive the keepalive from it at 3/4,
+        // which puts a ping on the wire every 22.5s. Carrier translators routinely drop an
+        // idle UDP mapping sooner than that; the mapping is then recreated on a new source
+        // port, which the peer sees as a new path. s2n-quic allows five and reclaims none,
+        // so the fifth rebinding silently drops every datagram that follows.
+        //
+        // Ten seconds sits under the shortest carrier timeouts observed in the field. It has
+        // no effect unless `Connection::keep_alive` is enabled -- it is, below and on the
+        // client -- so removing either call reverts this with nothing failing to say so.
+        //
+        // 45s must stay under Meridian's `connection_ttl` (60s default): if the proxy reaps
+        // its socket while the connection is still live, the next datagram arrives from a new
+        // address and costs one of the same five paths this exists to protect.
+        let limits = common::s2n_quic::provider::limits::Limits::default()
+            .with_max_keep_alive_period(std::time::Duration::from_secs(10))?
+            .with_max_idle_timeout(std::time::Duration::from_secs(45))?;
+
         let builder = Server::builder()
             .with_event((
                 (
@@ -144,6 +189,7 @@ impl QuicServerManager {
             ))?
             .with_tls(provider)?
             .with_io(bind_addr)?
+            .with_limits(limits)?
             .with_datagram(dg_endpoint)?;
 
         let server = if let Some(instance_id) =
@@ -223,21 +269,39 @@ impl StreamTrait for QuicServerManager {
 
         tokio::select! {
             _ = async {
-                while let Some(packet) = webhook_rx.recv().await {
+                while let Some((mut packet, origin)) = webhook_rx.recv().await {
                     // process_packet has no AudioFrame arm; skipping it avoids a
                     // full packet clone (audio payload included) per frame.
                     if packet.packet_type != PacketType::AudioFrame {
                         // Server-injected: no certificate, so no authenticated game.
-                        if let Err(e) = cache_manager.process_packet(packet.clone(), None).await {
+                        if let Err(e) = cache_manager.process_packet(packet.clone()).await {
                             tracing::error!("Failed to process packet in cache manager: {}", e);
                         }
                     }
 
                     match packet.packet_type {
                         PacketType::AudioFrame => {
-                            connection_registry.forward_local_to_peers(&packet);
+                            // Resolved once and handed to both, so the relay and the fan-out
+                            // cannot disagree about where a speaker is.
+                            let speaker = cache_manager.resolve_speaker(&packet).await;
+                            cache_manager.attach_speaker(&mut packet, speaker.as_ref());
+
+                            // Only local audio goes back out to peers. Forwarding a
+                            // peer's own frame returns it to the sender, who hears
+                            // themselves; with two peers in one world it also loops
+                            // between them without end.
+                            if origin == PacketOrigin::Local {
+                                connection_registry
+                                    .forward_local_to_peers(&packet, speaker.as_ref());
+                            }
                             connection_registry
-                                .route_audio_frame(&packet, &player_cache, broadcast_range, deafen_distance)
+                                .route_audio_frame(
+                                    &packet,
+                                    speaker.as_ref(),
+                                    &player_cache,
+                                    broadcast_range,
+                                    deafen_distance,
+                                )
                                 .await;
                         }
                         PacketType::PlayerData => {
@@ -312,6 +376,10 @@ impl QuicServerManager {
         self.cache_manager.set_bedrock_event_service(service);
     }
 
+    pub fn set_chat_service(&mut self, service: Arc<crate::services::ChatService>) {
+        self.cache_manager.set_chat_service(service);
+    }
+
     /// Wires the fan-out sender for serverbound group ClientActions (the no-net
     /// control path); without it they are logged and dropped.
     pub fn set_control_webhook_receiver(&mut self, webhook: WebhookReceiver) {
@@ -348,6 +416,13 @@ impl QuicServerManager {
             .flatten()
     }
 
+    fn authenticated_leaf(connection: &Connection) -> Option<Vec<u8>> {
+        connection
+            .query_event_context(|ctx: &PeerIdentityContext| ctx.leaf_der())
+            .ok()
+            .flatten()
+    }
+
     // The close code sent to a connection whose identity cannot be trusted. The
     // client keys off this value to stop reconnecting instead of retrying forever.
     fn unauthorized_code() -> common::s2n_quic::application::Error {
@@ -357,12 +432,16 @@ impl QuicServerManager {
 
     async fn accept_connections(&self, mut server: Server) -> Result<(), anyhow::Error> {
         while let Some(mut connection) = server.accept().await {
-            let connection_id = format!("{:?}", connection.id());
+            // The device id every outbound packet from this connection is stamped with, and
+            // the registry's key. Taken from the connection rather than declared by the
+            // client, which is what makes one player's two devices independently addressable
+            // without either being able to impersonate the other.
+            let device = connection.id();
+            let connection_id = format!("{:?}", device);
             tracing::info!("New QUIC connection accepted: {}", connection_id);
 
-            // Routing and trust are anchored to the mTLS certificate, never to the
-            // self-asserted `owner.name` on the wire. A connection with no readable
-            // certificate identity is refused outright rather than guessed at.
+            // Routing and trust are anchored to the mTLS certificate. A connection with no
+            // readable certificate identity is refused outright rather than guessed at.
             let authenticated_cn = match Self::authenticated_cn(&connection) {
                 Some(cn) => cn,
                 None => {
@@ -375,21 +454,46 @@ impl QuicServerManager {
                 }
             };
 
-            let (player_identity, peer_endpoint) = match ConnectionClassifier::classify(
-                &authenticated_cn,
-            ) {
-                ConnectionKind::Player { game, name } => (Some((game, name)), None),
-                ConnectionKind::Peer { endpoint, .. } => (None, Some(endpoint)),
-                ConnectionKind::Rejected { identity } => {
+            // The certificate is authorized, not merely parsed. Before this, the CN was read
+            // and trusted, so any certificate this CA had ever signed opened a voice session
+            // whether or not the player still existed, was banished, or had been revoked.
+            let Some(leaf_der) = Self::authenticated_leaf(&connection) else {
+                tracing::error!(
+                    connection = %connection_id,
+                    "Refusing connection: no peer certificate could be read"
+                );
+                connection.close(Self::unauthorized_code());
+                continue;
+            };
+
+            let fingerprint =
+                crate::services::SessionAuthorizationService::fingerprint(&leaf_der);
+
+            let player = match self
+                .authorization
+                .authorize(self.database.as_ref(), &leaf_der)
+                .await
+            {
+                Ok(player) => player,
+                Err(reason) => {
                     tracing::warn!(
                         connection = %connection_id,
-                        identity = %identity,
-                        "Refusing connection: certificate identity is not a valid player or peer CN"
+                        identity = %authenticated_cn,
+                        "Refusing connection: {}",
+                        reason
                     );
                     connection.close(Self::unauthorized_code());
                     continue;
                 }
             };
+
+            // The canonical identity is carried, not the bare name: it is the key every
+            // cache, the registry index and channel membership share. Composed from the
+            // resolved player so it cannot disagree with what the database holds.
+            let player_identity = player
+                .gamertag
+                .as_ref()
+                .map(|gamertag| player.game.membership_key(gamertag).to_string());
 
             tracing::info!(
                 connection = %connection_id,
@@ -397,383 +501,23 @@ impl QuicServerManager {
                 "Connection authenticated"
             );
 
-            let connection_registry = self.connection_registry.clone();
-            let cache_manager = self.cache_manager.clone();
-            let broadcast_range = self.config.voice.spatial_audio.broadcast_range;
-            let deafen_distance = self.config.voice.spatial_audio.deafen_distance;
-            let webhook_receiver = self.webhook_receiver.clone();
-
+            let spawner = self.session_spawner();
             tokio::spawn(async move {
                 if let Err(e) = connection.keep_alive(true) {
                     tracing::warn!("Keepalive failed {}: {}", connection_id, e);
                 }
                 let conn_arc = Arc::new(connection);
 
-                // Create per-connection mpsc channel for routed packets
-                let (packet_tx, packet_rx) =
-                    mpsc::channel::<connection_registry::RoutedPacket>(500);
-
-                let mut input_stream = InputStream::new(Some(conn_arc.clone()), None);
-                let mut output_stream = OutputStream::new(Some(conn_arc.clone()));
-                output_stream.set_packet_receiver(packet_rx);
-
-                // Identity callback: set output stream identity + register in connection registry
-                let output_stream_identity_setter = {
-                    let player_id_lock = output_stream.player_id.clone();
-                    let client_id_lock = output_stream.client_id.clone();
-                    let registry = connection_registry.clone();
-                    let tx = packet_tx.clone();
-                    move |player_id: String, client_id: Vec<u8>, game: common::Game| {
-                        if player_id_lock.set(player_id.clone()).is_err() {
-                            tracing::warn!("Player ID already set for connection");
-                        }
-                        if client_id_lock.set(client_id.clone()).is_err() {
-                            tracing::warn!("Client ID already set for connection");
-                        }
-                        registry.register(client_id, player_id, game, tx.clone());
-                    }
-                };
-
-                // Disconnect callback: unregister from registry + cache cleanup
-                let cache_manager_for_callback = cache_manager.clone();
-                let webhook_receiver_for_callback = webhook_receiver.clone();
-                let registry_for_callback = connection_registry.clone();
-                input_stream.set_disconnect_callback(Box::new(
-                    move |player_id: String, client_id: Vec<u8>| {
-                        let cache_manager = cache_manager_for_callback.clone();
-                        let webhook_receiver = webhook_receiver_for_callback.clone();
-                        let registry = registry_for_callback.clone();
-                        tokio::spawn(async move {
-                            let client_hash = ClientIdHasher::hash(&client_id);
-                            tracing::info!(
-                                "Player {} (client: {}) disconnected",
-                                player_id,
-                                client_hash
-                            );
-
-                            registry.unregister(&client_id);
-
-                            match cache_manager.remove_player(&player_id, None).await {
-                                Ok(removed_channels) => {
-                                    for channel_id in removed_channels {
-                                        let leave_packet = common::structs::packet::QuicNetworkPacket {
-                                            owner: Some(common::structs::packet::PacketOwner {
-                                                name: player_id.clone(),
-                                                client_id: client_id.clone(),
-                                            }),
-                                            packet_type: common::structs::packet::PacketType::ChannelEvent,
-                                            data: common::structs::packet::QuicNetworkPacketData::ChannelEvent(
-                                                common::structs::packet::ChannelEventPacket::new(
-                                                    common::structs::channel::ChannelEvents::Leave,
-                                                    player_id.clone(),
-                                                    channel_id.clone(),
-                                                ),
-                                            ),
-                                                                                    // Not a server fan-out, so this envelope carries no sequence.
-                                            ..Default::default()
-                                        };
-
-                                        if let Err(e) = webhook_receiver.send_packet(leave_packet).await {
-                                            tracing::error!(
-                                                "Failed to broadcast channel leave event for player {} channel {}: {}",
-                                                player_id,
-                                                channel_id,
-                                                e
-                                            );
-                                        } else {
-                                            tracing::info!(
-                                                "Broadcast channel leave event: player {} left channel {}",
-                                                player_id,
-                                                channel_id
-                                            );
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    tracing::error!("Failed to remove player {}: {}", player_id, e);
-                                }
-                            }
-                        });
-                    },
-                ));
-
-                input_stream.set_webhook_receiver(webhook_receiver.clone());
-
-                let (input_shutdown_tx, input_shutdown_rx) = oneshot::channel();
-                let (output_shutdown_tx, output_shutdown_rx) = oneshot::channel();
-
-                let input_registry = connection_registry.clone();
-                let input_cache_manager = cache_manager.clone();
-                // Handle to the accepted connection, so a peer (acceptor) link can
-                // spawn an outbound write pump that sends relayed datagrams BACK on
-                // this same connection, which makes the relay bidirectional.
-                let input_conn = conn_arc.clone();
-                let input_task = tokio::spawn(async move {
-                    if let Err(e) = Self::run_input_stream_with_player_callback(
-                        input_stream,
-                        input_registry,
-                        input_cache_manager,
-                        broadcast_range,
-                        deafen_distance,
-                        input_shutdown_rx,
-                        Box::new(output_stream_identity_setter),
-                        input_conn,
+                spawner
+                    .run(
+                        SessionLink::Quic(conn_arc),
+                        device,
                         player_identity,
-                        peer_endpoint,
+                        fingerprint,
                     )
-                    .await
-                    {
-                        tracing::error!("Input stream error: {}", e);
-                    }
-                });
-
-                let output_task = tokio::spawn(async move {
-                    if let Err(e) = Self::run_output_stream(output_stream, output_shutdown_rx).await
-                    {
-                        tracing::error!("Output stream error: {}", e);
-                    }
-                });
-
-                tokio::select! {
-                    _ = input_task => { let _ = output_shutdown_tx.send(()); },
-                    _ = output_task => { let _ = input_shutdown_tx.send(()); }
-                }
-
-                tracing::info!("Connection {} closed", connection_id);
+                    .await;
             });
         }
-        Ok(())
-    }
-
-    async fn run_input_stream_with_player_callback(
-        mut input_stream: InputStream,
-        connection_registry: Arc<ConnectionRegistry>,
-        cache_manager: CacheManager,
-        broadcast_range: f32,
-        deafen_distance: f32,
-        mut shutdown_rx: oneshot::Receiver<()>,
-        player_callback: Box<dyn Fn(String, Vec<u8>, common::Game) + Send + Sync>,
-        connection: Arc<Connection>,
-        player_identity: Option<(common::Game, String)>,
-        peer_endpoint: Option<String>,
-    ) -> Result<(), anyhow::Error> {
-        let (packet_tx, mut packet_rx) = mpsc::unbounded_channel();
-        input_stream.set_producer(packet_tx);
-
-        let stream_task = tokio::spawn(async move { input_stream.start().await });
-
-        let player_cache = cache_manager.players().inner_arc();
-        // Identity is settled by the mTLS certificate before this loop starts. A
-        // player's every inbound packet is stamped with its authenticated name; a
-        // peer server feeds the relay ingest and is never stamped, because relayed
-        // packets carry their original sender's identity single-hop.
-        let authenticated_game = player_identity.as_ref().map(|(game, _)| game.clone());
-        let mut registered = false;
-
-        // An inbound peer link registers with the relay up front rather than waiting
-        // for a first packet to reveal who it is, then drains its outbound queue back
-        // onto this same connection so `forward_local`'s per-peer enqueues reach
-        // acceptor-accepted peers. Mirrors the dialer's write pump.
-        if let Some(endpoint) = &peer_endpoint {
-            match connection_registry.peer_manager() {
-                Some(pm) => {
-                    pm.register_inbound(endpoint, std::time::Instant::now());
-
-                    if let Some(mut outbound_rx) = pm.take_outbound_receiver(endpoint) {
-                        let write_conn = connection.clone();
-                        tokio::spawn(async move {
-                            while let Some(relayed) = outbound_rx.recv().await {
-                                if let Ok(bytes) = relayed.packet.to_datagram() {
-                                    let _ = write_conn.datagram_mut(
-                                        |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
-                                            dg.send_datagram(bytes.into())
-                                        },
-                                    );
-                                }
-                            }
-                        });
-                    }
-
-                    tracing::info!(
-                        "Accepted inbound peer connection: {} (relay ingest path)",
-                        endpoint
-                    );
-                }
-                None => {
-                    tracing::warn!(
-                        "Inbound peer-identity connection {} but no relay manager is wired; dropping",
-                        endpoint
-                    );
-                }
-            }
-        }
-
-        loop {
-            tokio::select! {
-                Some(server_packet) = packet_rx.recv() => {
-                    let mut packet = server_packet.data;
-
-                    // The wire owner is a claim; overwrite it with the certificate
-                    // identity before anything downstream reads it. Registration
-                    // still waits for the first owned packet, because the per-device
-                    // client_id it routes on only exists on the wire.
-                    if let Some((game, name)) = &player_identity {
-                        PacketIdentityStamp::apply(&mut packet, name);
-
-                        if !registered {
-                            if let Some(owner) = &packet.owner {
-                                player_callback(
-                                    name.clone(),
-                                    owner.client_id.clone(),
-                                    game.clone(),
-                                );
-                                tracing::info!(
-                                    "Registered authenticated player identity: {name}"
-                                );
-                                registered = true;
-                            }
-                        }
-                    }
-
-                    // Inbound peer link: route every packet straight into the
-                    // relay ingest (FromPeer) — single-hop, registration
-                    // bypassed. Never touches the local client/broadcast path.
-                    if let Some(endpoint) = &peer_endpoint {
-                        if let Some(pm) = connection_registry.peer_manager() {
-                            pm.ingest(endpoint, packet).await;
-                        }
-                        continue;
-                    }
-
-                    // process_packet has no AudioFrame arm; skipping it avoids a
-                    // full packet clone (audio payload included) per frame.
-                    if packet.packet_type != PacketType::AudioFrame {
-                        if let Err(e) = cache_manager
-                            .process_packet(packet.clone(), authenticated_game.clone())
-                            .await
-                        {
-                            tracing::error!("Failed to process packet in cache manager: {}", e);
-                        }
-                    }
-
-                    let updated_packet = if packet.packet_type == PacketType::AudioFrame {
-                        match cache_manager.update_coordinates(packet).await {
-                            Ok(updated) => updated,
-                            Err(e) => {
-                                tracing::error!("Failed to update coordinates: {}", e);
-                                continue;
-                            }
-                        }
-                    } else {
-                        packet
-                    };
-
-                    match updated_packet.packet_type {
-                        PacketType::AudioFrame => {
-                            // Local-origin audio: forward to peer servers
-                            // sharing the sender's relay world (single-hop;
-                            // relayed-origin packets never reach this path).
-                            connection_registry.forward_local_to_peers(&updated_packet);
-                            connection_registry
-                                .route_audio_frame(&updated_packet, &player_cache, broadcast_range, deafen_distance)
-                                .await;
-                        }
-                        PacketType::PlayerPosition => {
-                            if let QuicNetworkPacketData::PlayerPosition(PlayerPositionPacket {
-                                player,
-                            }) = updated_packet.data.clone()
-                            {
-                                // A proxy client self-reports its position and
-                                // relies on this echo to anchor its own
-                                // listener, so the packet still goes out -- but
-                                // only to the player it describes.
-                                let echo = QuicNetworkPacket {
-                                    packet_type: PacketType::PlayerData,
-                                    owner: updated_packet.owner.clone(),
-                                    data: QuicNetworkPacketData::PlayerData(
-                                        PlayerDataPacket::new(vec![player]),
-                                    ),
-                                    // Not a server fan-out, so this envelope carries no sequence.
-                                    ..Default::default()
-                                };
-                                connection_registry.send_positions_to_owners(&echo);
-                            }
-                        }
-                        PacketType::PeerPresenceObserved => {
-                            // A local client reported a `!bvcp` code observed in the
-                            // realm. Route it to the asker-side observe handler
-                            // (Flow 1) to redeem against the offering minter and open
-                            // the peer link. Never broadcast onward.
-                            if let QuicNetworkPacketData::PeerPresenceObserved(observed) =
-                                updated_packet.data
-                            {
-                                connection_registry.on_peer_presence_observed(observed.token);
-                            }
-                        }
-                        PacketType::PeerAnnounceObserved => {
-                            // A local client reported a peer `!bvca` announce observed
-                            // in the realm. Record the peer endpoint for the observer's
-                            // world so the offer/forward paths can reach it. Never
-                            // broadcast onward.
-                            if let QuicNetworkPacketData::PeerAnnounceObserved(announce) =
-                                updated_packet.data
-                            {
-                                connection_registry
-                                    .on_peer_announce_observed(announce.hashed_world, announce.endpoint);
-                            }
-                        }
-                        PacketType::PlayerData => {
-                            // Clients report position as PlayerPosition, so a
-                            // clientbound-shaped PlayerData arriving here is not
-                            // something the client should be sending. Address it
-                            // per-player like every other position packet rather
-                            // than letting one connection push coordinates to
-                            // everyone.
-                            connection_registry.send_positions_to_owners(&updated_packet);
-                        }
-                        PacketType::QueryState
-                        | PacketType::PlayerPreference
-                        | PacketType::ClientAction => {
-                            // All three are consumed by cache_manager's
-                            // process_packet (QueryState/PlayerPreference are
-                            // cached; serverbound group ClientActions route
-                            // through ClientActionService). None are broadcast.
-                        }
-                        _ => {
-                            connection_registry.broadcast_to_all(updated_packet);
-                        }
-                    }
-                }
-                _ = &mut shutdown_rx => {
-                    tracing::info!("Input stream received shutdown signal");
-                    break;
-                }
-            }
-        }
-
-        let _ = stream_task.await;
-
-        Ok(())
-    }
-
-    async fn run_output_stream(
-        mut output_stream: OutputStream,
-        mut shutdown_rx: oneshot::Receiver<()>,
-    ) -> Result<(), anyhow::Error> {
-        tokio::select! {
-            result = output_stream.start() => {
-                if let Err(e) = result {
-                    tracing::error!("Output stream error: {}", e);
-                }
-            }
-            _ = &mut shutdown_rx => {
-                tracing::info!("Output stream received shutdown signal");
-                if let Err(e) = output_stream.stop().await {
-                    tracing::error!("Error stopping output stream: {}", e);
-                }
-            }
-        }
-
         Ok(())
     }
 }

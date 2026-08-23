@@ -9,6 +9,7 @@ export class ServerAdminConfig {
   private serverUrl = '';
   private token = '';
   private minPlayers = 1;
+  private world = '';
 
   get bvcServer(): string {
     return this.serverUrl;
@@ -20,6 +21,19 @@ export class ServerAdminConfig {
 
   get minimumPlayers(): number {
     return this.minPlayers;
+  }
+
+  /**
+   * The world's display name, for the app's chat target picker.
+   *
+   * BDS scripting does not expose the level name, so `bvc_world_name` is the only real label
+   * available. Unset, the world's uuid is sent rather than a friendly-looking constant: every
+   * unnamed world reported the same `Minecraft world`, which the app could not tell apart and
+   * could not tell was a placeholder. A uuid is unmistakably not a name, so the app matches
+   * the shape and substitutes a label of its own.
+   */
+  worldNameOr(worldUuid: string): string {
+    return this.world || worldUuid;
   }
 
   isAvailable(): boolean {
@@ -44,6 +58,11 @@ export class ServerAdminConfig {
           const accessToken = variables.get('bvc_access_token');
           if (typeof accessToken === 'string') {
             this.token = accessToken;
+          }
+
+          const worldName = variables.get('bvc_world_name');
+          if (typeof worldName === 'string') {
+            this.world = worldName;
           }
 
           const minimum = variables.get('bvc_minimum_players');

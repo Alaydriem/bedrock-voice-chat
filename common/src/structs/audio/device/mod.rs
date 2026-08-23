@@ -25,6 +25,58 @@ pub struct AudioDevice {
     pub display_name: String,
 }
 
+impl AudioDevice {
+    /// Collapses entries nothing downstream can tell apart, keeping the highest rate.
+    ///
+    /// The ASIO enumeration emits one entry per supported config and builds the name from
+    /// the channel count alone, so a driver offering 48 kHz and 44.1 kHz on one channel
+    /// yields two entries with the same name. The capture config is re-queried by device
+    /// id when the stream starts, so the extras resolve to the same hardware and the same
+    /// rate: they are choices the user cannot actually make, and a picker keyed on the
+    /// name cannot render them at all.
+    ///
+    /// Identity is the name as well as the id. One ASIO device carries each of its
+    /// channels under a single id, so collapsing on the id alone would offer channel 1
+    /// and silently discard the rest.
+    pub fn deduplicate(devices: Vec<Self>) -> Vec<Self> {
+        let mut kept = Vec::<Self>::with_capacity(devices.len());
+
+        for device in devices {
+            match kept
+                .iter()
+                .position(|existing| existing.is_same_endpoint(&device))
+            {
+                // Assigned in place rather than pushed: a device must not move up the
+                // list because a duplicate of something above it was dropped.
+                Some(index) if device.best_sample_rate() > kept[index].best_sample_rate() => {
+                    kept[index] = device;
+                }
+                Some(_) => {}
+                None => kept.push(device),
+            }
+        }
+
+        kept
+    }
+
+    /// The same endpoint, under the same host, offered under the same name.
+    fn is_same_endpoint(&self, other: &Self) -> bool {
+        self.io == other.io
+            && self.host == other.host
+            && self.id == other.id
+            && self.display_name == other.display_name
+    }
+
+    /// The best rate this entry offers, which is what ranks it against a duplicate.
+    fn best_sample_rate(&self) -> u32 {
+        self.stream_configs
+            .iter()
+            .map(|config| config.sample_rate)
+            .max()
+            .unwrap_or(0)
+    }
+}
+
 #[cfg(feature = "audio")]
 impl AudioDevice {
     pub fn new(
@@ -53,6 +105,7 @@ impl AudioDevice {
         for c in supported_stream_configs {
             let best_sample_rate = super::stream::config::StreamConfig::best_sample_rate(&c);
             let has_valid_format = c.sample_format().eq(&rodio::cpal::SampleFormat::F32)
+                || c.sample_format().eq(&rodio::cpal::SampleFormat::F64)
                 || c.sample_format().eq(&rodio::cpal::SampleFormat::I32)
                 || c.sample_format().eq(&rodio::cpal::SampleFormat::I16);
 
@@ -69,6 +122,7 @@ impl AudioDevice {
                     sample_rate,
                     sample_format: match c.sample_format() {
                         rodio::cpal::SampleFormat::F32 => "f32",
+                        rodio::cpal::SampleFormat::F64 => "f64",
                         rodio::cpal::SampleFormat::I16 => "i16",
                         rodio::cpal::SampleFormat::I32 => "i32",
                         _ => "f32",
@@ -80,9 +134,7 @@ impl AudioDevice {
             }
         }
 
-        stream_configs.sort_by(|a, b| b.sample_rate.cmp(&a.sample_rate));
-
-        stream_configs
+        StreamConfig::preference_order(stream_configs)
     }
 
     pub fn get_stream_config(&self) -> Result<rodio::cpal::SupportedStreamConfig, anyhow::Error> {

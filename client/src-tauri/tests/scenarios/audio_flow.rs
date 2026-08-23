@@ -92,9 +92,13 @@ async fn two_clients_audio_flows_alice_to_bob() {
 
     let alice = feed_handle.join().expect("feed thread panicked");
 
-    // Read stats after the full collection window so all counters are stable.
+    // Settled rather than snapshotted: the counter is read once it stops moving,
+    // not when the collection window happens to close. Under load the paced send
+    // slips and the tail is still in flight at that moment, which reads as
+    // transport loss and is not.
     let (alice_sent, _, _) = alice.stats();
-    let (_, bob_from_quic, bob_received) = bob.stats();
+    let (_, bob_from_quic, bob_received) =
+        bob.await_transport_frames(alice_sent, Duration::from_secs(5));
 
     alice.shutdown();
     bob.shutdown();

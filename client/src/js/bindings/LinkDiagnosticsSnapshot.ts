@@ -6,4 +6,4 @@ import type { PeerDiagnostics } from "./PeerDiagnostics";
 import type { PlaybackDiagnostics } from "./PlaybackDiagnostics";
 import type { SessionDiagnostics } from "./SessionDiagnostics";
 
-export type LinkDiagnosticsSnapshot = { captured_at_ms: bigint, mic: MicDiagnostics, playback: PlaybackDiagnostics, link: LinkDiagnostics, session: SessionDiagnostics, peers: Array<PeerDiagnostics>, history: Array<LinkSample>, };
+export type LinkDiagnosticsSnapshot = { captured_at_ms: bigint, mic: MicDiagnostics, playback: PlaybackDiagnostics, link: LinkDiagnostics, session: SessionDiagnostics, meter_events_per_sec: number, peers: Array<PeerDiagnostics>, history: Array<LinkSample>, };

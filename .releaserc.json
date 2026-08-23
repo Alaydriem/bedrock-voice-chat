@@ -70,8 +70,7 @@
           "mods/bds/bp/manifest.json",
           "mods/bds/rp/manifest.json",
           "mods/java/gradle.properties",
-          "mods/java/fabric/gradle.properties",
-          "mods/java/hytale/src/main/resources/manifest.json"
+          "mods/java/fabric/gradle.properties"
         ],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }

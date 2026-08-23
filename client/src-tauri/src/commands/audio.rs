@@ -1,4 +1,4 @@
-use crate::audio::types::{AudioDevice, AudioDeviceType};
+use crate::audio::{AudioDevice, AudioDeviceType};
 use crate::audio::{AudioActionsManager, RecordingManager};
 use crate::events::event::notification::{EVENT_NOTIFICATION, Notification};
 use crate::{AudioStreamManager, structs::app_state::AppState};
@@ -52,9 +52,9 @@ pub(crate) async fn change_audio_device(
         (input, output)
     };
 
-    // Phase 2: Reset and init/start streams (asm lock only)
+    // Phase 2: init/start streams (asm lock only). `init` stops and rebuilds each stream with its
+    // device, so a reset first would build two device-less streams that are never started.
     let mut asm_active = asm.lock().await;
-    _ = asm_active.reset().await;
 
     // Input device: init, start, fallback to default on failure
     asm_active.init(input_device.clone()).await;
@@ -152,8 +152,21 @@ pub(crate) async fn change_audio_device(
         }
     }
 
+    // A device written off as unopenable gets a fresh budget here. This is the one place the
+    // user changes what the streams are built from, so it is the only evidence that a device
+    // which refused to open might now succeed. Nothing clears an open breaker on a timer.
+    asm_active.rearm_rebuilds(AudioDeviceType::InputDevice);
+    asm_active.rearm_rebuilds(AudioDeviceType::OutputDevice);
+
     drop(asm_active);
     let _ = update_current_player(app.clone(), asm.clone()).await;
+
+    // Rebuilding the output stream constructs a fresh, empty `GainProjection`, and the
+    // preserved metadata cache does not carry it — the `player_gain_store` arm hands the store
+    // straight to the projection and never caches it. Without this re-seed every player the
+    // user muted becomes audible again for the rest of the session while their card still says
+    // muted. Only after the lock is released: `publish` takes it itself.
+    crate::players::PlayerSettingsCoordinator::reseed(&app).await;
 
     Ok(())
 }
@@ -171,10 +184,71 @@ pub(crate) async fn update_stream_metadata(
     Ok(())
 }
 
+/// Set whether jukebox music plays.
+///
+/// The single entry point for this flag: the settings pane, the in-game panel and the WebSocket
+/// toggle all end up in `AudioActionsManager::set_jukebox_muted`, which owns the three copies of
+/// it. A caller that wrote `store.json` itself would be writing one of the three.
 #[tauri::command]
-pub(crate) async fn reset_asm(asm: State<'_, Mutex<AudioStreamManager>>) -> Result<(), ()> {
-    let mut asm = asm.lock().await;
-    _ = asm.reset().await;
+pub(crate) async fn set_jukebox_muted(
+    muted: bool,
+    actions: State<'_, AudioActionsManager>,
+) -> Result<bool, String> {
+    let reached = actions
+        .set_jukebox_muted(muted)
+        .await
+        .map_err(|e| e.to_string())?;
+    actions.broadcast_state().await;
+    Ok(reached)
+}
+
+/// Set how loud jukebox music plays, as a fraction where 1.0 is untouched.
+///
+/// The single entry point for this level, for the same reason as `set_jukebox_muted`: the settings
+/// pane, the in-game panel and a WebSocket controller all end up in
+/// `AudioActionsManager::set_jukebox_gain`, which owns the three copies of it.
+#[tauri::command]
+pub(crate) async fn set_jukebox_gain(
+    gain: f32,
+    actions: State<'_, AudioActionsManager>,
+) -> Result<f32, String> {
+    let reached = actions
+        .set_jukebox_gain(gain)
+        .await
+        .map_err(|e| e.to_string())?;
+    actions.broadcast_state().await;
+    Ok(reached)
+}
+
+/// Flip it, for a control that cannot read the current value first.
+#[tauri::command]
+pub(crate) async fn toggle_jukebox_muted(
+    actions: State<'_, AudioActionsManager>,
+) -> Result<bool, String> {
+    let reached = actions
+        .toggle_jukebox_muted()
+        .await
+        .map_err(|e| e.to_string())?;
+    actions.broadcast_state().await;
+    Ok(reached)
+}
+
+#[tauri::command]
+pub(crate) async fn reset_asm(
+    app: AppHandle,
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), ()> {
+    {
+        let mut asm = asm.lock().await;
+        _ = asm.restart_session().await;
+    }
+
+    // A reset builds a new output stream with an empty gain projection. Every caller today
+    // happens to be followed by something that re-seeds — a cold boot, or a sign-out that ends
+    // the session — so this is currently belt and braces. It is here anyway because relying on
+    // that sequencing is exactly the shape of the bug that made every mute stop applying after
+    // an output-device change.
+    crate::players::PlayerSettingsCoordinator::reseed(&app).await;
     Ok(())
 }
 
@@ -222,7 +296,7 @@ pub(crate) async fn stop_audio_device(
 /// Returns a list of audio devices
 #[tauri::command]
 pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, ()> {
-    return crate::audio::device::get_devices();
+    return crate::audio::device::AudioDeviceEnumerator::get_devices();
 }
 
 // Toggle mutes a given input stream
@@ -234,6 +308,41 @@ pub(crate) async fn mute(
     actions.toggle_mute(device).await;
     actions.broadcast_state().await;
     Ok(())
+}
+
+/// Drive a device to an absolute state.
+///
+/// A toggle is enough for a button press, but not for reconciling with a state something
+/// else set: deciding whether to flip requires reading first, and a hotkey firing between
+/// the read and the flip leaves the two permanently inverted. Returns the state actually
+/// reached, though every surface learns it from the `mute:*` event either way.
+#[tauri::command]
+pub(crate) async fn set_mute(
+    device: AudioDeviceType,
+    muted: bool,
+    actions: State<'_, AudioActionsManager>,
+) -> Result<bool, String> {
+    // At info so it lands in logcat on a device build: "did my press reach Rust at all" is the
+    // first question when a button appears to do nothing, and it cannot be answered from the
+    // webview alone.
+    info!("set_mute({:?}, {}) requested", device, muted);
+    let status = actions.set_mute(device.clone(), muted).await;
+    info!("set_mute({:?}) resolved to {}", device, status);
+    actions.broadcast_state().await;
+    Ok(status)
+}
+
+/// Deafen, which also drives the input — see `AudioActionsManager::set_deafened`.
+#[tauri::command]
+pub(crate) async fn set_deafened(
+    deafened: bool,
+    actions: State<'_, AudioActionsManager>,
+) -> Result<bool, String> {
+    info!("set_deafened({}) requested", deafened);
+    let status = actions.set_deafened(deafened).await;
+    info!("set_deafened resolved to {}", status);
+    actions.broadcast_state().await;
+    Ok(status)
 }
 
 #[tauri::command]
@@ -366,15 +475,83 @@ pub(crate) async fn get_current_players(
 /// This can be called by the frontend after receiving an audio-stream-recovery event
 #[tauri::command]
 pub(crate) async fn restart_audio_stream(
+    app: AppHandle,
     device: AudioDeviceType,
     asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<(), String> {
     info!("Restarting audio stream for {:?}", device);
-    let mut asm = asm.lock().await;
+    let restarted = {
+        let mut asm = asm.lock().await;
+        asm.restart(device.clone()).await.map_err(|e| {
+            let err_msg = format!("Failed to restart audio stream: {:?}", e);
+            log::error!("{}", err_msg);
+            err_msg
+        })
+    };
+    restarted?;
 
-    asm.restart(device).await.map_err(|e| {
-        let err_msg = format!("Failed to restart audio stream: {:?}", e);
-        log::error!("{}", err_msg);
-        err_msg
-    })
+    // A restarted output stream carries a fresh, empty gain projection. Re-seeded outside the
+    // lock, because `publish` acquires it.
+    if matches!(device, AudioDeviceType::OutputDevice) {
+        crate::players::PlayerSettingsCoordinator::reseed(&app).await;
+    }
+    Ok(())
+}
+
+/// Capture only to drive the level meter on the setup screen, which runs before any session
+/// exists. Publishes `input_level` frames and transmits nothing.
+///
+/// The only remaining caller of the metering path. The audio settings pane reads the shared
+/// level feed instead, because a pane that claimed a stream replaced the session's capture
+/// and left nothing running when it stopped.
+///
+/// The device comes from `AppState`, which is the same place the device selector reads
+/// its preselected value from. The stream manager keeps its own copy and has none until
+/// `init`, so metering the selection means handing it over rather than assuming the
+/// manager already knows it.
+#[tauri::command]
+pub(crate) async fn start_input_meter(
+    state: State<'_, Mutex<AppState>>,
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), String> {
+    let device = {
+        let mut state = state.lock().await;
+        state.get_audio_device(AudioDeviceType::InputDevice)?
+    };
+
+    let mut asm = asm.lock().await;
+    asm.start_input_metering(device)
+        .await
+        .map_err(|e| format!("Failed to start input meter: {:?}", e))
+}
+
+/// Play a chime through the selected output device, so the user can confirm they will hear
+/// other people. Resolves once the chime has finished, which is what lets the button
+/// disable itself for exactly as long as it is playing.
+///
+/// `spawn_blocking` because the rodio stream is not `Send` and dropping it cuts playback,
+/// so it has to live and die on one thread rather than be held across an await.
+#[tauri::command]
+pub(crate) async fn test_output_device(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<(), String> {
+    let device = {
+        let mut state = state.lock().await;
+        state.get_audio_device(AudioDeviceType::OutputDevice)?
+    };
+
+    tokio::task::spawn_blocking(move || crate::audio::SpeakerTest::new().play(device))
+        .await
+        .map_err(|e| format!("Speaker test task failed: {:?}", e))?
+        .map_err(|e| format!("Could not play through that device: {:?}", e))
+}
+
+#[tauri::command]
+pub(crate) async fn stop_input_meter(
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<(), String> {
+    let mut asm = asm.lock().await;
+    asm.stop_input_metering()
+        .await
+        .map_err(|e| format!("Failed to stop input meter: {:?}", e))
 }

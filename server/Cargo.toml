@@ -17,7 +17,7 @@ strip = "symbols"
 incremental = true  # Incremental enabled for faster debug builds
 
 [workspace.dependencies]
-sea-orm = { version = "^2.0.0-rc.1", features = [
+sea-orm = { version = "^2.0.2", features = [
     "sqlx-mysql",
     "sqlx-postgres",
     "runtime-tokio-rustls",
@@ -43,4 +43,4 @@ hickory-proto = { version = "^0.26" }
 # server links against unpatched upstream webrtc whose SCTP buffer is too
 # small for Bedrock Nethernet payloads. See bvc/Cargo.toml for the matching
 # entry on the client side.
-webrtc = { git = "https://github.com/alaydriem/webrtc", branch = "larger-buffer-size" }
+webrtc = { git = "https://github.com/alaydriem/webrtc", rev = "6f07e0cf" }

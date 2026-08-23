@@ -5,9 +5,14 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use bvc_client_lib::testkit::E2eAppData;
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
+use common::structs::bedrock::AddonMode;
 
 mod shared_state;
+mod transport;
+
+pub use transport::Transport;
 
 use shared_state::SharedState;
 
@@ -27,22 +32,36 @@ pub struct ClientProc {
     reader: Option<JoinHandle<()>>,
 }
 
-// App-data namespace the e2e bin writes to (its `generate_context` identifier is
-// overridden to this so nothing lands in the real client's dir). Wiped once per
-// test-binary run so the isolated store/cookies/WebView2 data never accumulate.
-const E2E_APP_DATA_IDENTIFIER: &str = "com.alaydriem.bvc.client.e2e";
 
 impl ClientProc {
-    fn wipe_e2e_app_data_once() {
-        static WIPE: std::sync::Once = std::sync::Once::new();
-        WIPE.call_once(|| {
-            for var in ["APPDATA", "LOCALAPPDATA"] {
-                if let Ok(base) = std::env::var(var) {
-                    let dir = std::path::Path::new(&base).join(E2E_APP_DATA_IDENTIFIER);
-                    let _ = std::fs::remove_dir_all(&dir);
-                }
-            }
-        });
+    /// Where this client's redb settings file lives.
+    ///
+    /// Every harness process shares one app identifier and would otherwise resolve one path;
+    /// redb takes an exclusive lock, so exactly one client in a scenario would get a real
+    /// store and the rest would fall back to memory, nondeterministically and silently.
+    ///
+    /// Per gamertag rather than per process, so a client that is shut down and respawned
+    /// inside one scenario keeps its rows — which is what production does, and what any future
+    /// test asserting "a mute survives a reconnect" would need. The root is a `OnceLock`, and
+    /// nextest runs one process per test, so it is per test run for free. The `TempDir` is held
+    /// in the static deliberately: dropping it would delete the tree under live clients.
+    fn player_settings_path(gamertag: &str) -> std::path::PathBuf {
+        static ROOT: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+        let root = ROOT.get_or_init(|| tempfile::tempdir().expect("player settings temp root"));
+
+        // One scenario spawns a client with an empty gamertag, which would otherwise collapse
+        // to the root directory itself.
+        let safe: String = gamertag
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect();
+        let name = if safe.is_empty() { "anonymous" } else { &safe };
+        root.path().join(name).join("player_settings.redb")
+    }
+
+    fn reclaim_own_app_data_once() {
+        static RECLAIM: std::sync::Once = std::sync::Once::new();
+        RECLAIM.call_once(E2eAppData::reclaim_own);
     }
 }
 
@@ -73,7 +92,48 @@ impl ClientProc {
     /// piped. A background thread immediately starts draining framed `OutMsg`
     /// from stdout into shared state.
     pub fn spawn(gamertag: &str, login_code: &str, server_url: &str, channel: &str) -> ClientProc {
-        Self::spawn_with_channel_id(gamertag, login_code, server_url, channel, None)
+        Self::spawn_inner(gamertag, login_code, server_url, channel, None, Transport::Quic)
+    }
+
+    /// Spawns a client that runs its voice session over the WebSocket transport.
+    ///
+    /// Transport is otherwise a property of the server's advertised configuration, which
+    /// every client against one server shares — so this is the only way to express a
+    /// channel whose members are split across both transports. The client still chooses
+    /// for itself: it is handed the verdict a real client reaches once QUIC has degraded
+    /// on a host, and takes the ordinary demoted branch from there.
+    pub fn spawn_websocket(
+        gamertag: &str,
+        login_code: &str,
+        server_url: &str,
+        channel: &str,
+    ) -> ClientProc {
+        Self::spawn_inner(
+            gamertag,
+            login_code,
+            server_url,
+            channel,
+            None,
+            Transport::WebSocket,
+        )
+    }
+
+    /// `spawn_websocket` against an already-created channel.
+    pub fn spawn_websocket_with_channel_id(
+        gamertag: &str,
+        login_code: &str,
+        server_url: &str,
+        channel: &str,
+        channel_id: Option<&str>,
+    ) -> ClientProc {
+        Self::spawn_inner(
+            gamertag,
+            login_code,
+            server_url,
+            channel,
+            channel_id,
+            Transport::WebSocket,
+        )
     }
 
     /// Like `spawn` but accepts a pre-existing channel id. When `channel_id` is
@@ -86,6 +146,24 @@ impl ClientProc {
         channel: &str,
         channel_id: Option<&str>,
     ) -> ClientProc {
+        Self::spawn_inner(
+            gamertag,
+            login_code,
+            server_url,
+            channel,
+            channel_id,
+            Transport::Quic,
+        )
+    }
+
+    fn spawn_inner(
+        gamertag: &str,
+        login_code: &str,
+        server_url: &str,
+        channel: &str,
+        channel_id: Option<&str>,
+        transport: Transport,
+    ) -> ClientProc {
         let bin = Self::bin_path();
         assert!(
             bin.exists(),
@@ -94,19 +172,24 @@ impl ClientProc {
             bin.display()
         );
 
-        // The e2e bin scopes all its app-data (store.json, the audio input path's
-        // own store read, webview store/cookies) under the `.e2e` identifier; clear
-        // any leftovers from a prior run so they never accumulate.
-        Self::wipe_e2e_app_data_once();
+        // Collects the namespaces this process left behind last time its id was in
+        // use. Scoped to this process's own id — a run-wide delete here is what
+        // used to kill other tests' clients mid-startup.
+        Self::reclaim_own_app_data_once();
 
         let mut cmd = Command::new(&bin);
         cmd.env("BVC_E2E_SERVER", server_url)
             .env("BVC_E2E_GAMERTAG", gamertag)
             .env("BVC_E2E_CODE", login_code)
-            .env("BVC_E2E_CHANNEL", channel);
+            .env("BVC_E2E_CHANNEL", channel)
+            .env(E2eAppData::ENV_VAR, E2eAppData::namespace(gamertag));
         if let Some(id) = channel_id {
             cmd.env("BVC_E2E_CHANNEL_ID", id);
         }
+        if matches!(transport, Transport::WebSocket) {
+            cmd.env("BVC_E2E_FORCE_WEBSOCKET", "1");
+        }
+        cmd.env("BVC_PLAYER_SETTINGS_PATH", Self::player_settings_path(gamertag));
         let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -161,12 +244,14 @@ impl ClientProc {
                             uptime_secs,
                             peers,
                             downlink_loss_pct,
+                            transport,
                             ..
                         }) => {
                             let mut guard = reader_state.lock().unwrap();
                             guard.diagnostics = Some((connected, stalled, uptime_secs));
                             guard.diagnostic_peers = peers;
                             guard.diagnostic_downlink_loss = Some(downlink_loss_pct);
+                            guard.diagnostic_transport = Some(transport);
                         }
                         Ok(OutMsg::Stats {
                             frames_sent,
@@ -390,6 +475,7 @@ impl ClientProc {
         upstream_host: &str,
         upstream_port: u16,
         listen_port: u16,
+        addon_mode: Option<AddonMode>,
         timeout: Duration,
     ) -> Result<(), String> {
         self.state.lock().unwrap().proxy_listen = None;
@@ -397,6 +483,7 @@ impl ClientProc {
             upstream_host: upstream_host.to_string(),
             upstream_port,
             listen_port,
+            addon_mode,
         });
         let deadline = Instant::now() + timeout;
         loop {
@@ -486,11 +573,63 @@ impl ClientProc {
         }
     }
 
+    /// Blocks until this client has taken `expected` frames off the transport, or
+    /// `timeout` passes, then returns the final counters.
+    ///
+    /// A scenario that reads `stats()` the instant a fixed collection window
+    /// closes is not measuring delivery, it is measuring whether the sender's
+    /// 20 ms pacing held under whatever else the machine was doing. Paced sends
+    /// slip a little under load, and 150 frames of small slips consume the whole
+    /// margin, so the tail is still in flight when the counter is read. That reads
+    /// as "the transport dropped frames" — including over WebSocket, which is TCP
+    /// and cannot drop any.
+    ///
+    /// Returning the reading rather than asserting keeps the failure message with
+    /// the scenario: a genuine loss still fails, and now says so for a real reason.
+    pub fn await_transport_frames(&self, expected: u64, timeout: Duration) -> (u64, u64, u64) {
+        let deadline = Instant::now() + timeout;
+
+        loop {
+            let stats = self.stats();
+            if stats.1 >= expected {
+                return stats;
+            }
+            if Instant::now() >= deadline {
+                return stats;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
     /// Request a link-diagnostics reading from the bin and block until it arrives (or the 5 s
     /// deadline passes). Returns `(connected, stalled, uptime_secs)`.
     ///
     /// The bin reads the real service, so this observes the same derivation a player's status
     /// panel and copyable report would show.
+    /// Which transport the client reports carrying its session, as a stable label.
+    ///
+    /// Asserted rather than inferred: a scenario that only checks audio arrived cannot
+    /// tell QUIC from WebSocket, and a fallback test that quietly ran on QUIC would pass
+    /// while proving nothing about the fallback.
+    pub fn transport(&self) -> Option<String> {
+        {
+            let mut guard = self.state.lock().unwrap();
+            guard.diagnostic_transport = None;
+        }
+        self.send(&InMsg::RequestDiagnostics);
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(reading) = self.state.lock().unwrap().diagnostic_transport.clone() {
+                return reading;
+            }
+            if Instant::now() >= deadline {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+    }
+
     pub fn diagnostics(&self) -> (bool, bool, u64) {
         {
             let mut guard = self.state.lock().unwrap();

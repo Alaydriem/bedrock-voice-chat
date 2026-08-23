@@ -1,23 +1,24 @@
+use crate::http::guards::PlayerGuard;
 use std::sync::Arc;
 
 use crate::http::openapi::CustomJsonResponse;
 use common::response::auth::AuthStateResponse;
 use common::structs::permission::ServerPermissions;
 use entity::player;
-use rocket::{State, mtls::Certificate};
+use rocket::State;
 use rocket_okapi::openapi;
 use sea_orm::{ActiveModelTrait, ActiveValue};
 
 use crate::config::Permissions;
 use crate::http::pool::Db;
-use crate::services::{AuthService, CertificateService, PermissionService};
+use crate::services::{CertificateService, PermissionService};
 use crate::stream::quic::CacheManager;
 
 /// Return the state of an in-progress sign-in flow.
 #[openapi(tag = "Identity")]
 #[get("/auth/state")]
 pub async fn auth_state(
-    identity: Certificate<'_>,
+    guard: PlayerGuard,
     db: Db<'_>,
     cert_service: &State<Arc<CertificateService>>,
     perm_config: &State<Permissions>,
@@ -25,15 +26,12 @@ pub async fn auth_state(
 ) -> CustomJsonResponse<AuthStateResponse> {
     let conn = db.into_inner();
 
-    let player_model = match AuthService::player_from_certificate(&identity, conn, None).await {
-        Ok(p) => p,
-        Err(status) => return CustomJsonResponse::error(status),
-    };
+    let player_model = guard.player;
 
     // Clean stale channel memberships
     if let Some(ref gt) = player_model.gamertag {
         if let Err(e) = cache_manager
-            .remove_player(gt, Some(player_model.game.clone()))
+            .remove_player(&player_model.game.membership_key(gt))
             .await
         {
             tracing::error!("Failed to clean stale memberships for {}: {}", gt, e);

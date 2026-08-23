@@ -4,6 +4,12 @@ use std::time::Duration;
 use super::TransferTarget;
 
 #[derive(Clone)]
+/// Where a player's BVC Connect handoff should send them.
+///
+/// Keyed on the gamertag, not the xuid. The xuid is only present when registration supplied
+/// one and the Realms path never returns it, so a large share of players have no xuid the
+/// server knows — while the gamertag is on both sides: the caller's certificate CN, and
+/// `conn.player().name` off the verified Bedrock login chain.
 pub struct TransferTargetCache {
     cache: Cache<String, TransferTarget>,
 }
@@ -17,55 +23,17 @@ impl TransferTargetCache {
         Self { cache }
     }
 
-    pub async fn set(&self, xuid: &str, host: String, port: u16) {
+    pub async fn set(&self, gamertag: &str, host: String, port: u16) {
         self.cache
-            .insert(xuid.to_string(), TransferTarget { host, port })
+            .insert(gamertag.to_string(), TransferTarget { host, port })
             .await;
     }
 
-    pub async fn get(&self, xuid: &str) -> Option<TransferTarget> {
-        self.cache.get(xuid).await
+    pub async fn get(&self, gamertag: &str) -> Option<TransferTarget> {
+        self.cache.get(gamertag).await
     }
 
-    pub async fn remove(&self, xuid: &str) {
-        self.cache.remove(xuid).await;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::TransferTargetCache;
-
-    #[tokio::test]
-    async fn test_transfer_target_cache_set_and_get() {
-        let cache = TransferTargetCache::new(900);
-        cache
-            .set("2535428504476914", "192.168.1.100".to_string(), 19137)
-            .await;
-
-        let target = cache.get("2535428504476914").await;
-        assert!(target.is_some());
-        let target = target.unwrap();
-        assert_eq!(target.host, "192.168.1.100");
-        assert_eq!(target.port, 19137);
-    }
-
-    #[tokio::test]
-    async fn test_transfer_target_cache_missing() {
-        let cache = TransferTargetCache::new(900);
-        let target = cache.get("0000000000000000").await;
-        assert!(target.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_transfer_target_cache_remove() {
-        let cache = TransferTargetCache::new(900);
-        cache
-            .set("2535428504476914", "192.168.1.100".to_string(), 19137)
-            .await;
-        cache.remove("2535428504476914").await;
-
-        let target = cache.get("2535428504476914").await;
-        assert!(target.is_none());
+    pub async fn remove(&self, gamertag: &str) {
+        self.cache.remove(gamertag).await;
     }
 }

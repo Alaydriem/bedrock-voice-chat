@@ -1,7 +1,7 @@
 pub mod event;
 
 #[allow(unused_imports)]
-pub(crate) use crate::events::event::channel_event::ChannelEvent;
+pub(crate) use crate::events::event::channel::ChannelEventPayload;
 
 #[allow(unused_imports)]
 pub(crate) use crate::events::event::notification::Notification;

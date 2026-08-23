@@ -2,28 +2,43 @@ use serde::{Deserialize, Serialize};
 
 use super::metadata::PlayerMetadata;
 use crate::structs::audio::PlayerGainSettings;
-use crate::structs::packet::{AudioFramePacket, PacketOwner};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecordingPlayerData {
+    /// The canonical identity, `game:gamertag`.
     pub name: String,
-    pub client_id: Option<Vec<u8>>,
+    /// Which of that player's devices this track came from, so a player recorded from two
+    /// devices renders as two tracks rather than one interleaved mess. Absent for a track the
+    /// server injected and for the local input track, neither of which has a connection.
+    pub device: Option<u64>,
     pub player_data: Option<crate::PlayerEnum>,
     pub spatial: Option<bool>,
     pub gain_settings: Option<PlayerGainSettings>,
 }
 
 impl RecordingPlayerData {
-    pub fn from_packet_owner(
-        owner: &PacketOwner,
-        audio_data: &AudioFramePacket,
+    /// The emitter of one recorded track.
+    ///
+    /// `name` is the speaker as the caller resolved it: a player's canonical identity
+    /// rendered, or the service name for injected audio. Resolved by the caller rather than
+    /// read off the sender, because a reduced sender names only a device.
+    ///
+    /// `player_data` is composed by the caller too. The recorded header has always held a whole
+    /// player and the renderer reads a position and a deafened flag back out of it, but the
+    /// frame carries only those two facts now — so the caller builds one rather than this
+    /// reading a wire type.
+    pub fn from_speaker(
+        name: String,
+        device: Option<u64>,
+        player_data: Option<crate::PlayerEnum>,
+        spatial: Option<bool>,
         gain_settings: Option<PlayerGainSettings>,
     ) -> Self {
         Self {
-            name: owner.name.clone(),
-            client_id: Some(owner.client_id.clone()),
-            player_data: audio_data.sender.clone(),
-            spatial: audio_data.spatial,
+            name,
+            device,
+            player_data,
+            spatial,
             gain_settings,
         }
     }
@@ -36,7 +51,7 @@ impl RecordingPlayerData {
         let mc_player = crate::players::MinecraftPlayer::from(player.clone());
         Self {
             name: player_name,
-            client_id: None,
+            device: None,
             player_data: Some(crate::PlayerEnum::Minecraft(mc_player)),
             spatial: None,
             gain_settings,
@@ -50,7 +65,7 @@ impl RecordingPlayerData {
     ) -> Self {
         Self {
             name: player_name,
-            client_id: None,
+            device: None,
             player_data: Some(player.clone()),
             spatial: None,
             gain_settings,
@@ -60,7 +75,7 @@ impl RecordingPlayerData {
     pub fn unknown() -> Self {
         Self {
             name: "unknown".to_string(),
-            client_id: None,
+            device: None,
             player_data: None,
             spatial: None,
             gain_settings: None,
@@ -70,7 +85,7 @@ impl RecordingPlayerData {
     pub fn for_input(player_name: String, gain_settings: Option<PlayerGainSettings>) -> Self {
         Self {
             name: player_name,
-            client_id: None,
+            device: None,
             player_data: None,
             spatial: None,
             gain_settings,
@@ -91,7 +106,7 @@ impl From<&crate::Player> for RecordingPlayerData {
         let mc_player = crate::players::MinecraftPlayer::from(player.clone());
         Self {
             name: player.name.clone(),
-            client_id: None,
+            device: None,
             player_data: Some(crate::PlayerEnum::Minecraft(mc_player)),
             spatial: None,
             gain_settings: None,

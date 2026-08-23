@@ -20,6 +20,17 @@
   color: var(--color-rad-tx);
 }
 
+/* A head that labels a grid instead of a card. Neither the head nor the grid
+ * carries a margin, so stacked groups sit flush and the label reads as part of
+ * the tile above it. */
+.rad-section__head + .rad-server-grid {
+  margin-top: 12px;
+}
+
+.rad-server-grid + .rad-section__head {
+  margin-top: 30px;
+}
+
 .rad-section__note {
   margin-top: 6px;
   max-width: 62ch;
@@ -88,10 +99,20 @@
   color: var(--color-rad-faint);
 }
 
+/*
+  A fixed share of the row rather than whatever the control happens to measure.
+  
+  Sized by its contents, every control that changes width moved the boundary between the two
+  columns — and the label and note beside it re-wrapped to suit. A button whose text goes from
+  "Test playback" to "Playing…" reflowed the paragraph next to it and bounced the whole card.
+  Fixed at a proportion, nothing a control does can move the text, so the wrap points are the
+  same in every state.
+*/
 .rad-row__control {
-  flex: 0 0 auto;
+  flex: 0 0 38%;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
 }
 
@@ -100,6 +121,56 @@
   flex-direction: column;
   align-items: stretch;
   gap: 12px;
+}
+
+/* Stacked, the column share no longer describes anything — as a flex-basis it becomes a
+   height — and flex-end holds the control against the right edge under a left-aligned
+   label. The same reset the narrow container makes, for the same reason. */
+.rad-row--stack > .rad-row__control {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+}
+
+/* ---- an identifier, in full ----
+ * The platform id, on the About pane and on every fault screen. It wraps rather than
+ * clips: the whole value is what support asks for, and two thirds of a uuid identifies
+ * nothing. `user-select: all` so one tap takes the value and not the row around it.
+ */
+
+.rad-idfield {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius-rad-md);
+  background: var(--color-rad-void-2);
+}
+
+.rad-idfield__value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-tx);
+  user-select: all;
+}
+
+.rad-idfield__label {
+  flex: 0 0 auto;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-tag);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-idfield__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* ---- a filesystem path ----
@@ -302,6 +373,18 @@
   border-bottom: 0;
 }
 
+/* Below the width where a long label and its button share a line, the button wraps. */
+@container rad (max-width: 520px) {
+  .rad-account--stack {
+    flex-wrap: wrap;
+  }
+
+  .rad-account--stack > .rad-btn {
+    flex: 1 1 100%;
+    margin-left: 52px;
+  }
+}
+
 .rad-account__badge {
   flex: 0 0 auto;
   width: 38px;
@@ -483,6 +566,13 @@
   gap: 18px 30px;
 }
 
+/* A grid item's automatic minimum size is its content, so a group whose longest row does not
+   fit the column pushes past it instead of wrapping — and the panel around it, which scrolls
+   for its own height, then scrolls sideways as well. */
+.rad-kv-group {
+  min-width: 0;
+}
+
 .rad-kv-group__head {
   margin-bottom: 6px;
   padding-bottom: 8px;
@@ -509,11 +599,13 @@
   color: var(--color-rad-faint);
 }
 
+/* Wraps rather than clips. A value here is not always a number: the diagnostics rows carry a
+   sentence saying what is wrong, and an ellipsis cut it off at "no events  ← the cap…", which
+   hides the half that names the fault. A long value costs a second line; a clipped one is
+   unreadable. `anywhere` is for the values with no spaces to break at, such as a host name. */
 .rad-kv__value {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   text-align: right;
   color: var(--color-rad-dim);
   font-variant-numeric: tabular-nums;
@@ -548,7 +640,10 @@
     gap: 12px;
   }
 
+  /* Stacked at this width, so the column share no longer applies and the control takes the
+     row. */
   .rad-row__control {
+    flex: 1 1 auto;
     justify-content: flex-start;
   }
 
@@ -556,22 +651,45 @@
     max-width: none;
   }
 
+  /*
+    Every value in this list is short — a version number, a protocol number, a short sha.
+    The pair fits one line at phone width, so the label column sizes to its text instead of
+    dropping the value onto a second line and doubling the height of the card.
+  */
   .rad-deflist {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
   }
 
   .rad-deflist dt {
-    padding-bottom: 0;
-    border-bottom: 0;
+    white-space: nowrap;
   }
 
   .rad-deflist dd {
-    padding-top: 5px;
+    padding-left: 0;
   }
 
   .rad-kv-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
+  }
+
+  /*
+    Several of these values are sentences, and the half that names the fault is at the end —
+    "no events <- the capture stream is not running", "on, closed <- this is cutting your mic".
+    Ellipsised from the right on a narrow screen, every one of them was cut to the half that
+    says nothing, on the device where the reader has no other way to find out.
+  */
+  .rad-kv {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+
+  .rad-kv__value {
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
   }
 
   .rad-section__head {

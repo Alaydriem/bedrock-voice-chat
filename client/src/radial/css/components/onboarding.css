@@ -204,6 +204,21 @@
   border-radius: var(--radius-rad-block);
 }
 
+/* The same blocks as a control, for a table row that is opened by them. Quiet until
+   hovered, like the kebab it stands in for. */
+button.rad-matrix__blocks {
+  padding: 5px 4px;
+  border: 0;
+  border-radius: var(--radius-rad-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+button.rad-matrix__blocks:hover {
+  background: var(--color-rad-panel);
+}
+
 .rad-matrix__tag {
   font-family: var(--font-rad-mono);
   font-size: var(--text-rad-mono-xs);
@@ -531,6 +546,9 @@
 .rad-resolve {
   display: flex;
   align-items: center;
+  /* Separates the working spinner from the line it belongs to. Inert on a line that has
+     nothing beside its text, which is every state except a measurement in flight. */
+  gap: 8px;
   min-height: 30px;
   margin-top: 10px;
   padding: 4px 2px;

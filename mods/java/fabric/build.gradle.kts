@@ -10,6 +10,7 @@ val fabricVersion: String by project
 val archivesBaseName: String by project
 val modVersion: String by project
 val mavenGroup: String by project
+val voicechatApiVersion: String by project
 
 group = mavenGroup
 version = modVersion
@@ -20,6 +21,11 @@ base {
 
 repositories {
     mavenCentral()
+    // Simple Voice Chat's plugin API, for the optional SVC bridge.
+    maven {
+        name = "Maxhenkel"
+        url = uri("https://maven.maxhenkel.de/repository/public")
+    }
 }
 
 java {
@@ -44,6 +50,24 @@ dependencies {
     // Common module (via composite build substitution)
     implementation("com.alaydriem:bedrock-voice-chat-common")
     include("com.alaydriem:bedrock-voice-chat-common")
+
+    // Simple Voice Chat, for the optional bridge. compileOnly: the server that runs
+    // SVC provides it, and a server without SVC loads no class that names it.
+    compileOnly("de.maxhenkel.voicechat:voicechat-api:$voicechatApiVersion")
+
+    // The relay SDK and its generated bindings, for the SVC bridge's peer link.
+    // Bundled explicitly: it arrives transitively from :common, but `include` is
+    // what puts a jar inside the mod, and without it the bridge fails at load.
+    implementation("com.alaydriem:bedrock-voice-chat-relay-sdk")
+    include("com.alaydriem:bedrock-voice-chat-relay-sdk")
+
+    // The generated uniffi bindings expose suspending calls, so the SDK cannot load
+    // without these. Loom's `include` is an allowlist: arriving transitively from
+    // the SDK puts them on the compile classpath and not inside the jar, and the
+    // mod then fails at runtime with NoClassDefFoundError on BuildersKt.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    include("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    include("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2")
 
     // Kotlin (include to bundle in JAR)
     implementation(kotlin("stdlib"))

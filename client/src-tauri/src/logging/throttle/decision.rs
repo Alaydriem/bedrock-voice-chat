@@ -1,4 +1,4 @@
-pub(crate) enum ThrottleDecision {
+pub enum ThrottleDecision {
     Emit { suppressed: u32 },
     Suppress,
 }

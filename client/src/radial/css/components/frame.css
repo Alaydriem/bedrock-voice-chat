@@ -135,6 +135,30 @@
   border-top: 1px solid var(--color-rad-line);
 }
 
+/* The reference line: a code, a version, and on the fault screens the platform id.
+   Selectable as one value, because it is quoted whole into a support thread and
+   picking a uuid out of a line by hand is the part people get wrong. */
+.rad-footbar__ref {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  user-select: all;
+}
+
+/* Not uppercased like the labels either side of it. The value is copied as it is
+   stored, and a line that reads back in a different case than it pastes is a line
+   someone will retype by hand. */
+.rad-footbar__ref-id {
+  text-transform: none;
+}
+
+/* The separator belongs to the id rather than sitting between the halves, so dropping
+   the half in front of it on a phone takes the dot with it. */
+.rad-footbar__ref-id::before {
+  content: "· ";
+}
+
 .rad-footbar__actions {
   display: flex;
   align-items: center;
@@ -191,22 +215,33 @@
 
 /* ---- rail ---- */
 
+/* Every measurement in the rail derives from the plate, so widening it is one number rather
+   than six that have to be kept in agreement. The rail is the plate plus its breathing room; the
+   glyph inside each plate is sized from the same base in `ServerRail`. */
 .rad-rail {
-  flex: 0 0 76px;
+  --rad-rail-plate: 58px;
+  --rad-rail-gutter: 17px;
+
+  flex: 0 0 calc(var(--rad-rail-plate) + var(--rad-rail-gutter) * 2);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 14px 0 96px;
+  gap: 12px;
+  padding: 18px 0 104px;
   background: rgb(20 12 38 / 0.55);
   border-right: 1px solid var(--color-rad-line);
 }
 
+/* The gap inside the list separates two servers. This margin separates the servers from the add
+   button below them, which is a different kind of boundary and has to read as one — at a matched
+   gap the add button sat in the rhythm of the list and looked like another server, and at twice
+   the gap it still read as a wider member of the same list rather than as the end of it. */
 .rad-rail__list {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
+  margin-bottom: 28px;
   overflow-y: auto;
 }
 
@@ -216,8 +251,8 @@
 
 .rad-rail-item {
   position: relative;
-  width: 48px;
-  height: 48px;
+  width: var(--rad-rail-plate, 58px);
+  height: var(--rad-rail-plate, 58px);
   padding: 0;
   display: grid;
   place-items: center;
@@ -243,11 +278,11 @@
 .rad-rail-item.is-on::before {
   content: "";
   position: absolute;
-  left: -14px;
+  left: calc(var(--rad-rail-gutter, 17px) * -1);
   top: 50%;
   transform: translateY(-50%);
   width: 4px;
-  height: 22px;
+  height: 26px;
   border-radius: 0 3px 3px 0;
   background: var(--color-rad-brand-lift);
 }
@@ -258,8 +293,8 @@
 }
 
 .rad-rail-btn {
-  width: 48px;
-  height: 48px;
+  width: var(--rad-rail-plate, 58px);
+  height: var(--rad-rail-plate, 58px);
   display: grid;
   place-items: center;
   border: 0;
@@ -281,15 +316,22 @@
 }
 
 .rad-rail-btn svg {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   display: block;
 }
 
 /* ---- the second column ---- */
 
+/* Wide enough that the pane's right edge clears the self pill.
+ *
+ * The pill is positioned against the frame, not against the stage, so it floats over the bottom
+ * of the rail and this pane. At the old width the pill's own record button reached past the pane's
+ * edge and sat on top of the last group in the list — so the bottom of a scrolled group list, and
+ * the chat controls under it, were unreachable behind a control that looked like it belonged to
+ * something else. The pane has to be wider than the pill is, not merely wide enough to read. */
 .rad-panel {
-  flex: 0 0 246px;
+  flex: 0 0 var(--rad-panel-width, 350px);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -358,21 +400,31 @@
   background: var(--color-rad-warn);
 }
 
+/* A cover shares the frame and brings its own stage, so the one declaration above
+   matched two of them and the stripe was drawn across settings as well. The screen
+   underneath is the one the mute belongs to; on top of the cover it names nothing the
+   reader can act on and reads as a fault in the screen they are looking at. */
+.rad-frame.is-muted .rad-cover .rad-stage::before,
+.rad-frame.is-deafened .rad-cover .rad-stage::before {
+  content: none;
+}
+
 /* ================= phone ================= */
 
 @container rad (max-width: 560px) {
-  /* Flow, not absolute positioning: every visual sizes to its own content and the
-     whole screen scrolls past it. */
+  /* The screen keeps its column and the two bars stay flex items, so both are on
+     screen at every content length. The body between them is what scrolls.
+
+     `position: sticky` on the bars cannot do this job. A sticky offset is clamped to
+     the element's containing block, and the footbar is the last child of the screen —
+     there is no room below it to lift off from, so it sat wherever the flow left it.
+     On a short step that happened to be on screen and on a long one it was far past
+     the bottom of the window, with the primary action inside it. */
   .rad-screen.is-on {
-    display: block;
-    overflow-y: auto;
     overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
   }
 
   .rad-topbar {
-    position: sticky;
-    top: 0;
     height: 60px;
     padding: 0 18px;
   }
@@ -382,8 +434,6 @@
   }
 
   .rad-footbar {
-    position: sticky;
-    bottom: 0;
     min-height: 72px;
     padding: 12px 18px;
     box-shadow: 0 -10px 24px -14px rgb(0 0 0 / 0.75);
@@ -393,14 +443,29 @@
     display: none;
   }
 
+  /* The one label a phone keeps. Support asks every reporter for the platform id, and
+     the bar is the only place on these screens with room for a uuid. */
+  .rad-footbar .rad-footbar__ref-id {
+    display: inline;
+  }
+
+  .rad-footbar__ref-id::before {
+    content: none;
+  }
+
   .rad-footbar__actions {
     width: 100%;
     justify-content: space-between;
     gap: 8px;
   }
 
+  /* Block, so the visual and the content stack instead of sharing a row — and the
+     scroll container, because everything tall on a phone is inside here. */
   .rad-split {
     display: block;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 
   .rad-visual-pane {

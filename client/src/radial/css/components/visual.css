@@ -69,6 +69,19 @@ canvas[data-rad-level] {
   display: block;
 }
 
+/* A ring that fills an absolutely-positioned pane.
+ *
+ * The reference pages put a bare canvas straight into `.rad-visual`, where
+ * `.rad-visual > canvas` sizes it. The Svelte component brings its own `.rad-ring`
+ * wrapper, so that direct-child rule stops matching and the wrapper — having no
+ * height of its own and only an absolutely-positioned child — collapses to nothing.
+ * A component-based caller uses this instead.
+ */
+.rad-ring--fill {
+  position: absolute;
+  inset: 0;
+}
+
 /* A ring at a stated size, for a header or an empty state rather than a pane. */
 .rad-ring--fixed {
   width: 330px;
@@ -78,6 +91,37 @@ canvas[data-rad-level] {
 .rad-ring--fixed > canvas {
   position: static;
   inset: auto;
+}
+
+/* ---- a failure, and the one screen that is not one ---- */
+
+/* Its own size container. The glyph is a fraction of the ring's inner radius and the ring
+   is a fraction of the pane's shorter axis, so `cqmin` states that whole relationship in
+   one declaration: the glyph keeps its proportion when the pane stacks on a phone, and
+   nothing measures anything per frame. 12.3cqmin is 0.72 of `RingGeometry.inner`. */
+.rad-fault {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+  color: var(--color-rad-fault);
+}
+
+.rad-fault--warn {
+  color: var(--color-rad-warn);
+}
+
+.rad-fault--ok {
+  color: var(--color-rad-ok);
+}
+
+.rad-fault__glyph {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  font-size: 12.3cqmin;
+  line-height: 0;
 }
 
 /* ---- a visual pane's contents ---- */
@@ -143,6 +187,25 @@ canvas[data-rad-level] {
     height: 288px;
   }
 
+  /* The same treatment for a ring that came from the Svelte component, whose canvas is
+     a grandchild so the rule above cannot reach it. Without a box of its own the
+     absolutely-positioned wrapper contributes no height, and a visual pane that is no
+     longer absolute collapses to just its caption — which is what left the ring drawn
+     at a few pixels behind the caption text instead of above it. */
+  .rad-visual > .rad-ring--fill {
+    position: relative;
+    inset: auto;
+    height: 288px;
+  }
+
+  /* Same treatment for a fault visual, which is the ring plus its glyph and so sits
+     between the pane and that `.rad-ring--fill`. */
+  .rad-visual > .rad-fault {
+    position: relative;
+    inset: auto;
+    height: 288px;
+  }
+
   /* The caption stops floating over the art and becomes a bar under it, where it
      cannot cover the thing it is describing on a narrow screen. */
   .rad-caption {
@@ -171,4 +234,53 @@ canvas[data-rad-level] {
   .rad-timeline-lanes {
     height: 210px;
   }
+
+  /* The panes have stacked, so the mark has the whole width to itself rather than the
+     44% it shares with a column of copy. Sized to the height a stacked visual gets, so
+     a loader and a landed ring are the same object at the same size. */
+  .rad-loader > .rad-ring {
+    width: min(86cqi, 288px);
+  }
+}
+
+/* ---- the loader, and what it says when the wait runs long ---- */
+
+.rad-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+/* The loader owns no size of its own — the binding measures this box every frame.
+   Same pair of inputs as a visual pane's mark, so the boot overlay, the launch screen
+   and a pane all render the mark at one size and handing over between them does not
+   jump: 44% of the container against the height left once the bars and the status line
+   are accounted for.
+
+   The box belongs on the wrapper: the loader's canvas is a grandchild, and a `.rad-ring`
+   given no size contributes no height, because its canvas is absolutely positioned. */
+.rad-loader > .rad-ring {
+  width: max(180px, min(44cqi, calc(100dvh - 260px)));
+  aspect-ratio: 1;
+}
+
+.rad-loader__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 22px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-wide);
+  color: var(--color-rad-dim);
+}
+
+.rad-loader__glyph {
+  color: var(--color-rad-brand-lift);
+}
+
+.rad-loader__aside {
+  display: flex;
+  justify-content: center;
 }

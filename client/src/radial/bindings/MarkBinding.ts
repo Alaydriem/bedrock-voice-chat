@@ -76,6 +76,7 @@ export class MarkBinding implements Binding {
     this.#stop = null;
     this.#observer?.disconnect();
     this.#observer = null;
+    this.#surface.destroy();
   }
 
   #measure(): void {

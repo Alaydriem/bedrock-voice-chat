@@ -8,7 +8,7 @@ use rocket_okapi::openapi;
 use crate::http::openapi::{RouteSpec, TagDefinition};
 use crate::runtime::position_updater;
 use crate::{
-    http::guards::MCAccessToken,
+    http::guards::GameAccessToken,
     services::{BedrockEventService, PlayerIdentityService, PlayerRegistrarService},
     stream::quic::{CacheManager, WebhookReceiver},
 };
@@ -16,7 +16,7 @@ use crate::{
 inventory::submit! {
     TagDefinition {
         name: "Positions",
-        description: "Player position updates from game mods. Used by the Minecraft/Hytale \
+        description: "Player position updates from game mods. Used by the Minecraft \
                       server plugin to push player coordinates for spatial audio calculations.",
     }
 }
@@ -39,7 +39,7 @@ inventory::submit! {
 #[openapi(tag = "Positions")]
 #[post("/position", data = "<positions>")]
 pub async fn update_position(
-    _access_token: MCAccessToken,
+    _access_token: GameAccessToken,
     positions: Json<common::GameDataCollection>,
     webhook_receiver: &State<WebhookReceiver>,
     player_registrar: &State<PlayerRegistrarService>,
@@ -97,7 +97,7 @@ pub async fn update_position(
 #[openapi(tag = "Positions")]
 #[get("/position")]
 pub async fn position(
-    _access_token: MCAccessToken,
+    _access_token: GameAccessToken,
     cache_manager: &State<CacheManager>,
 ) -> Json<Vec<common::PlayerEnum>> {
     let player_cache = cache_manager.players().inner_arc();

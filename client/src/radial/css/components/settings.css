@@ -19,6 +19,129 @@
   max-width: 760px;
 }
 
+/* Panes whose content is plates or a wide table rather than label-and-control rows. */
+.rad-settings-measure.is-wide {
+  max-width: 1000px;
+}
+
+/* ---- ranges with a readout ----
+ * The value sits on the label line, right-aligned over its track.
+ */
+
+.rad-knobs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px 22px;
+  padding: 14px 16px 16px;
+}
+
+.rad-knob {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.rad-knob__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rad-knob__label {
+  font-size: var(--text-rad-xs);
+  color: var(--color-rad-dim);
+}
+
+.rad-knob__value {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-tx);
+}
+
+.rad-knob__note {
+  font-size: var(--text-rad-2xs);
+  line-height: 1.45;
+  color: var(--color-rad-faint);
+}
+
+/* ---- addresses ----
+ * Every address a device answers on, each copyable. `0.0.0.0` is what it binds and is not
+ * something anything can connect to.
+ */
+
+.rad-addresses {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.rad-address {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-rad-md);
+  background: var(--color-rad-void-2);
+}
+
+.rad-address__value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-tx);
+  user-select: all;
+}
+
+.rad-address__label {
+  flex: 0 0 auto;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-tag);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+/* A way in offered by the server rather than by this machine. The note is part of the
+   row because each one means something different: one is typed into Minecraft, the
+   other is reached by redirecting the device's DNS. */
+.rad-address--offer {
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.rad-address--offer > .rad-address__note {
+  flex: 1 0 100%;
+  font-size: var(--text-rad-xs);
+  line-height: 1.45;
+  color: var(--color-rad-faint);
+}
+
+/* ---- plates inside a pane ---- */
+
+.rad-server__state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Fills rather than moves when it is on. */
+.rad-fav[aria-pressed="true"] {
+  color: var(--color-rad-warn);
+}
+
+.rad-fav[aria-pressed="true"] > [data-rad-icon] > svg {
+  fill: currentColor;
+}
+
 /* ---- nav ---- */
 
 .rad-nav-item {
@@ -228,27 +351,191 @@
   display: none;
 }
 
+/* ---- the microphone meter, on a settings row ----
+ * The mark alone, centred in the row. No ring and no caption: the row's own label and note
+ * say what the control is and what to do with it, and a second caption under the mark changed
+ * length as you spoke, which moved everything below it.
+ */
+
+.rad-mic-meter {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+/* ---- a record, on its own screen ----
+ * The second level of a pane that has a list in it. A row opens the thing it names
+ * rather than a dialog about the thing it names, so everything that record can do —
+ * choosing its tracks, renaming, deleting, watching an export run — has one place to
+ * be, and the list behind it keeps its own state while you are down here.
+ */
+
+.rad-detail__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+.rad-detail__back {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--color-rad-line);
+  border-radius: var(--radius-rad-md);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+}
+
+.rad-detail__back:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-detail__back > [data-rad-icon] > svg {
+  width: 17px;
+  height: 17px;
+}
+
+.rad-detail__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rad-detail__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-rad-subhead);
+  color: var(--color-rad-tx);
+}
+
+.rad-detail__meta {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-faint);
+}
+
+/* ---- the track list ---- */
+
+.rad-tracks__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+/* Two columns where there is room for two. A cast of seven is a list worth scanning,
+   not a column worth scrolling. */
+.rad-tracklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0 20px;
+  padding: 6px 18px 12px;
+}
+
+/* Named only when a session has one. A divider over an empty group would claim the
+   recording has jukebox audio in it. */
+.rad-tracklist__group {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-rad-line);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-tracklist__group:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* One control for the whole jukebox, given the width to say what it covers. */
+.rad-tracklist__wide {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  padding-top: 13px;
+  border-top: 1px solid var(--color-rad-line);
+}
+
+.rad-tracklist .rad-checkbox:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---- the action bar ----
+ * Sticky, so a session with a long cast still shows what the button will write
+ * without scrolling back down to it.
+ */
+
+.rad-detail__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 20px;
+  padding: 14px 0 16px;
+  border-top: 1px solid var(--color-rad-line);
+  background: var(--color-rad-void);
+}
+
+.rad-detail__status {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  color: var(--color-rad-faint);
+}
+
+.rad-detail__status--bad {
+  color: var(--color-rad-warn);
+}
+
 @container rad (max-width: 620px) {
   .rad-settings-body {
     padding: 20px 18px 40px;
   }
 
-  /* Scoped to a settings frame. Unscoped, these hid the dashboard's phone header
-     too — the dashboard and settings share a shell, so a bare `.rad-dash-top`
-     rule here reaches a surface it knows nothing about. */
-  .rad-frame--settings .rad-backbar {
+  /* Scoped to the settings shell, not to the frame. Settings is presented over the
+     dashboard and both are inside one frame, so a frame-level rule here reaches the
+     dashboard's own header and hides it while it is still on screen behind the cover.
+     `is-list` is a state of this surface for the same reason. */
+  /* No safe-area padding: `.rad-cover` already carries the inset in its top offset. */
+  .rad-settings .rad-backbar {
     display: flex;
   }
 
-  .rad-frame--settings .rad-dash-top {
+  /* Nothing else in the kit guarantees a touch target. */
+  .rad-settings .rad-backbar__btn,
+  .rad-settings .rad-backbar .rad-header-glyph {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .rad-settings .rad-dash-top {
     display: none;
   }
 
-  .rad-frame--settings.is-list .rad-mobile-list {
+  .rad-settings.is-list .rad-mobile-list {
     display: block;
   }
 
-  .rad-frame--settings.is-list .rad-settings-body {
+  .rad-settings.is-list .rad-settings-body {
     display: none;
   }
 }

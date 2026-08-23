@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 
 use super::DeviceSnapshot;
-use crate::audio::types::AudioDeviceType;
+use crate::audio::AudioDeviceType;
 use crate::structs::StoredAudioDevice;
 
 
@@ -53,7 +53,9 @@ impl DeviceInfo {
                 cached.output_name = Some(name);
                 cached.output_sample_rate = rate;
             }
-            cached.muted_peer_count = muted_peer_count;
+            if let Some(count) = muted_peer_count {
+                cached.muted_peer_count = count;
+            }
             if let Some(preference) = family_preference {
                 cached.family_preference = Some(preference);
             }
@@ -96,26 +98,52 @@ impl DeviceInfo {
         (MuteFlags::input_muted(), MuteFlags::output_muted())
     }
 
-    fn muted_peer_count(app_handle: &tauri::AppHandle) -> u32 {
-        let Some(store) = tauri_plugin_store::StoreExt::store(app_handle, "store.json").ok() else {
-            return 0;
-        };
+    /// Whether the noise gate is bound to the capture path.
+    ///
+    /// Read live, from the flag the capture path itself consults. Reading the settings
+    /// store instead would report the copy the user set rather than the one the audio
+    /// thread obeys, and a disagreement between those two is the whole reason this is
+    /// worth reporting.
+    pub fn noise_gate_enabled() -> bool {
+        use crate::audio::stream::stream_manager::NoiseGateFlags;
+        NoiseGateFlags::enabled()
+    }
 
-        let Some(value) = store.get("player_gain_store") else {
-            return 0;
-        };
+    // Test-only setter, for the same reason as the mute ones: the flag is process-global and
+    // normally moved by the settings screen, so without this a test can only observe the
+    // default and cannot tell a wired field from a hardcoded one.
+    #[cfg(any(test, feature = "e2e"))]
+    pub fn set_noise_gate_enabled(enabled: bool) {
+        use crate::audio::stream::stream_manager::NoiseGateFlags;
+        NoiseGateFlags::set_enabled(enabled);
+    }
 
-        let Some(map) = value.as_object() else {
-            return 0;
-        };
+    /// How many players on the current server the user has muted.
+    ///
+    /// `try_lock` rather than a blocking lock, matching `family_preference` above: this runs
+    /// on the diagnostics refresh, and a momentarily contended lock is worth a stale count
+    /// rather than a stalled report.
+    /// How many players on the current server the user has muted, or `None` when the answer
+    /// cannot be read right now.
+    ///
+    /// `None` rather than `0` on a contended lock, because the caller keeps the previous value
+    /// instead of overwriting it — the same treatment `family_preference` gets. Reporting a
+    /// confident zero every time the settings pane happens to hold the lock would make the
+    /// diagnostics say "you have muted nobody" to a user who has muted several people, which
+    /// is exactly the kind of wrong that sends support down the wrong path.
+    fn muted_peer_count(app_handle: &tauri::AppHandle) -> Option<u32> {
+        let players = tauri::Manager::try_state::<
+            std::sync::Arc<crate::players::PlayerSettingsService>,
+        >(app_handle)?;
 
-        map.values()
-            .filter(|entry| {
-                entry
-                    .get("muted")
-                    .and_then(|m| m.as_bool())
-                    .unwrap_or(false)
-            })
-            .count() as u32
+        let server = tauri::Manager::try_state::<tauri::async_runtime::Mutex<crate::AppState>>(
+            app_handle,
+        )?
+        .try_lock()
+        .ok()?
+        .current_server
+        .clone()?;
+
+        Some(players.muted_count(&server))
     }
 }

@@ -1,7 +1,7 @@
 import { writable, get, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { error as logError } from '@tauri-apps/plugin-log';
+import { error as logError } from '@charlesportwoodii/tauri-plugin-curia';
 import type { BedrockConnectError } from '../../../../bindings/BedrockConnectError';
 import type { BedrockConnectionInfo } from '../../../../bindings/BedrockConnectionInfo';
 import { BedrockConnectErrorMapper } from './BedrockConnectErrorMapper';
@@ -14,6 +14,7 @@ export class BedrockConnectionManager {
     private connectErrorUnlisten: (() => void) | null = null;
     private connectionInfoUnlisten: (() => void) | null = null;
     private readonly getRealmsLifecycle: () => RealmsLifecycle | null;
+    private onReauthRequired: (() => void) | null = null;
 
     public readonly connectionError: Readable<RealmsConnectionError | null>;
     public readonly connectionInfo: Readable<BedrockConnectionInfo | null>;
@@ -24,6 +25,16 @@ export class BedrockConnectionManager {
         this.connectionInfoStore = writable(null);
         this.connectionError = { subscribe: this.connectionErrorStore.subscribe };
         this.connectionInfo = { subscribe: this.connectionInfoStore.subscribe };
+    }
+
+    /**
+     * Registers what to do when the backend reports the Xbox credential was rejected.
+     *
+     * Set rather than injected because the handler raises the sign-in modal, which the auth
+     * manager owns, and this manager is constructed before it.
+     */
+    setReauthHandler(handler: () => void): void {
+        this.onReauthRequired = handler;
     }
 
     async initialize(): Promise<void> {
@@ -43,6 +54,15 @@ export class BedrockConnectionManager {
                     return;
                 }
                 this.connectionErrorStore.set(BedrockConnectErrorMapper.describe(event.payload));
+
+                // A rejected credential cannot be repaired by the teardown's refresh, and
+                // running one would spend the player's next sign-in attempt on a token that
+                // is already dead.
+                if (event.payload.kind === 'reauth_required') {
+                    this.onReauthRequired?.();
+                    return;
+                }
+
                 void this.autoTeardownAfterError();
             },
         );
@@ -95,11 +115,6 @@ export class BedrockConnectionManager {
             } catch (e) {
                 logError(`Auto stopRealms after detected error failed: ${e}`);
             }
-        }
-        try {
-            await invoke('bedrock_force_refresh');
-        } catch (e) {
-            logError(`Auto token refresh after detected error failed: ${e}`);
         }
     }
 

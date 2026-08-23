@@ -1,17 +1,21 @@
+import { I18n } from "$lib/i18n";
 import { fetch } from '@tauri-apps/plugin-http';
-import { info, error, warn } from '@tauri-apps/plugin-log';
+import { info, error, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import { Store } from '@tauri-apps/plugin-store';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import { stopForegroundService, isServiceRunning } from 'tauri-plugin-audio-permissions';
-import { ServerListStore } from './services/ServerListStore';
+import MinecraftAuthUrl from './auth/MinecraftAuthUrl';
+import FinishWatchdog from './login/FinishWatchdog';
 import BVCApp from './BVCApp.ts';
+import HelpLinks from './HelpLinks';
 import Analytics from './analytics';
 import PlatformDetector from './utils/PlatformDetector.ts';
-import type { HytaleDeviceFlowStartResponse, HytaleDeviceFlowStatusResponse, LoginResponse, ServerListEntry } from '../bindings/index.ts';
+import { AddServerRoute } from './server/AddServerRoute';
 import type { LoginPageState } from './login/LoginPageState';
+import { AppStore } from "./services/AppStore";
 
 declare global {
   interface Window {
@@ -34,7 +38,9 @@ declare global {
 export type LoginAttemptResult =
   | { status: 'invalid'; sanitized?: string }
   | { status: 'navigating'; sanitized: string }
-  | { status: 'redirecting'; sanitized: string }
+  // `authUrl` is the address handed to the system browser. Carried back so the
+  // handoff screen can offer it for copying when no browser window appeared.
+  | { status: 'redirecting'; sanitized: string; authUrl?: string }
   | { status: 'error'; sanitized: string };
 
 /**
@@ -51,13 +57,6 @@ export const CONNECTING_STATUS_PHRASES: readonly string[] = [
 ];
 
 /**
- * Braille spinner frames cycled beneath the connecting view, mirroring the
- * indicator CLI tools render when working. Presentation-only; the login view
- * imports this to drive its JS spinner fallback.
- */
-export const BRAILLE_FRAMES: readonly string[] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
-/**
  * Connection-flow view state the login page renders: the editable form
  * (`idle`), the spinner/handoff view (`connecting`), or the connection-error
  * card (`error`).
@@ -66,9 +65,9 @@ export type LoginState = 'idle' | 'connecting' | 'error';
 
 /**
  * Which sign-in path an attempt uses. `ms` opens the Microsoft OAuth flow in
- * the external browser; `hytale` starts the device-code flow.
+ * the external browser.
  */
-export type LoginKind = 'ms' | 'hytale';
+export type LoginKind = 'ms';
 
 export default class Login extends BVCApp {
   private static readonly CODE_LOGIN_PATTERN = /^(https?:\/\/)?code@/;
@@ -79,22 +78,11 @@ export default class Login extends BVCApp {
   // user on a frozen "connecting" view.
   static readonly LOGIN_ERROR_KEY = "login_error";
 
-  // Once the user returns from the external browser we expect the auth callback
-  // to either navigate away (success) or surface an error within this window. If
-  // neither happens the deep link was likely lost, so we fail visibly rather
-  // than stranding the user on a spinner.
-  private static readonly FINISH_TIMEOUT_MS = 30000;
-
-  // External help links surfaced on the connection-error view.
-  private static readonly WIKI_URL = "https://github.com/alaydriem/bedrock-voice-chat";
-  private static readonly DISCORD_URL = "https://discord.gg/WGXy5kBP9E";
-  private static readonly PRIVACY_URL = "https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md";
 
   readonly CONFIG_ENDPOINT = "/api/config";
   readonly AUTH_ENDPOINT = "/api/auth";
   readonly NCRYPTF_EK_ENDPOINT = "/ncryptf/ek";
 
-  private hytalePollingInterval: number | null = null;
 
   private isMobileStore: Writable<boolean>;
   private appVersionStore: Writable<string>;
@@ -105,6 +93,7 @@ export default class Login extends BVCApp {
   private attemptServerStore: Writable<string>;
   private isHandoffStore: Writable<boolean>;
   private isFinishingStore: Writable<boolean>;
+  private authUrlStore: Writable<string>;
 
   public readonly isMobileReadable: Readable<boolean>;
   public readonly appVersionReadable: Readable<string>;
@@ -116,6 +105,8 @@ export default class Login extends BVCApp {
   public readonly attemptServer: Readable<string>;
   public readonly isHandoff: Readable<boolean>;
   public readonly isFinishing: Readable<boolean>;
+  /** The address handed to the browser, so the handoff screen can offer it. */
+  public readonly authUrl: Readable<string>;
 
   // Monotonic token identifying the current attempt. Bumped on each new attempt
   // and on cancel so a late-resolving request can't clobber the UI.
@@ -125,7 +116,24 @@ export default class Login extends BVCApp {
   // real app resume (mobile) should start the finishing flow; a desktop window
   // that merely keeps focus while the browser is open must not.
   private wasHiddenDuringHandoff = false;
-  private finishWatchdog: ReturnType<typeof setTimeout> | null = null;
+  private readonly finishWatchdog: FinishWatchdog;
+
+  /**
+   * Polls for a callback that landed without announcing itself.
+   *
+   * The handoff view has exactly one way out on its own: `deep-link-received` fires, the router
+   * routes it, and the handler navigates. Nothing guarantees that event is heard — on Android the
+   * intent arrives while the activity is being recreated, so it can be emitted before this page's
+   * listener exists or after a teardown has released it. The redemption then never starts, and the
+   * screen sits on "continue in the window that just opened" having already been signed in.
+   *
+   * `pending_deep_link` is the durable half of the same delivery and is written for every intent,
+   * so asking the store on a timer closes that hole without depending on any event at all. It
+   * runs only while the handoff is showing, which is the only time an unheard callback is what is
+   * being waited for.
+   */
+  private static readonly PENDING_POLL_MS = 1_500;
+  private pendingPoll: ReturnType<typeof setInterval> | null = null;
 
   private platformDetector: PlatformDetector;
 
@@ -140,6 +148,7 @@ export default class Login extends BVCApp {
     this.attemptServerStore = writable('');
     this.isHandoffStore = writable(false);
     this.isFinishingStore = writable(false);
+    this.authUrlStore = writable('');
     this.isMobileReadable = { subscribe: this.isMobileStore.subscribe };
     this.appVersionReadable = { subscribe: this.appVersionStore.subscribe };
     this.formError = { subscribe: this.formErrorStore.subscribe };
@@ -150,7 +159,19 @@ export default class Login extends BVCApp {
     this.attemptServer = { subscribe: this.attemptServerStore.subscribe };
     this.isHandoff = { subscribe: this.isHandoffStore.subscribe };
     this.isFinishing = { subscribe: this.isFinishingStore.subscribe };
+    this.authUrl = { subscribe: this.authUrlStore.subscribe };
     this.platformDetector = new PlatformDetector();
+    this.finishWatchdog = new FinishWatchdog(
+      () => get(this.loginStateStore) === 'connecting',
+      () => this.callbackInFlight(),
+      () => {
+        this.stopPendingPoll();
+        this.isHandoffStore.set(false);
+        this.isFinishingStore.set(false);
+        this.loginStateStore.set('error');
+      },
+      info,
+    );
   }
 
   async initialize() {
@@ -171,22 +192,12 @@ export default class Login extends BVCApp {
     }
 
     await invoke('reset_asm').catch(() => {});
-    await invoke('reset_nsm').catch(() => {});
 
     await this.initialize();
     this.preloader();
 
     const isAddServer = urlParams.has('addserver');
-
-    let backHref = '/dashboard';
-    let backLabel = 'Back to Dashboard';
-    if (isAddServer) {
-      const returnTarget = urlParams.get('return') ?? '';
-      if (returnTarget === '/server') {
-        backHref = '/server';
-        backLabel = 'Back to Server List';
-      }
-    }
+    const { href: backHref, label: backLabel } = AddServerRoute.backFrom(urlParams);
 
     const prefilledServer = urlParams.get('server') ?? '';
     const autoReauth = urlParams.has('server') && urlParams.get('reauth') === 'true';
@@ -243,9 +254,34 @@ export default class Login extends BVCApp {
     }
   }
 
-  handleCodeLoginNavigate(rawValue: string): string {
+  /**
+   * The server portion of a `code@<host>` value.
+   *
+   * The code flow is a screen rather than a route, so this returns the address and
+   * navigates nowhere: the page reacts to `isCodeLogin`.
+   */
+  codeLoginServer(rawValue: string): string {
     const server = rawValue.replace(/^(https?:\/\/)?code@/, (_, proto) => proto ?? 'https://');
-    return `/login/code?server=${encodeURIComponent(server)}`;
+    return this.sanitizeServerUrl(server);
+  }
+
+  /**
+   * The server a `code@<host>` entry points at, or null while the host is not yet a
+   * usable address.
+   *
+   * `code@` is a prefix, so it matches from the moment the `@` is typed and keeps
+   * matching for every keystroke of the host after it. Null is what distinguishes
+   * "the user is still typing" from "this is a complete instruction", and it has to be
+   * answered before anything acts on the value: a server URL built from a half-typed
+   * host is a different server.
+   *
+   * Pure, with no error reported and no store touched, so a view can ask it on every
+   * keystroke to describe the field.
+   */
+  codeLoginTarget(rawValue: string): string | null {
+    if (!Login.isCodeLoginInput(rawValue)) return null;
+    const host = rawValue.trim().replace(/^(https?:\/\/)?code@/, '');
+    return this.validateServerUrl(host).valid ? this.sanitizeServerUrl(host) : null;
   }
 
   public sanitizeServerUrl(url: string): string {
@@ -270,20 +306,20 @@ export default class Login extends BVCApp {
     const trimmed = url.trim();
 
     if (!trimmed) {
-      return { valid: false, error: "Please enter a server URL" };
+      return { valid: false, error: I18n.t("Please enter a server URL") };
     }
 
     const sanitized = this.sanitizeServerUrl(trimmed);
     try {
       const parsed = new URL(sanitized);
       if (parsed.protocol !== "https:") {
-        return { valid: false, error: "Server URL must use HTTPS" };
+        return { valid: false, error: I18n.t("Server URL must use HTTPS") };
       }
       if (!parsed.hostname || parsed.hostname.length < 3) {
-        return { valid: false, error: "Please enter a valid server URL" };
+        return { valid: false, error: I18n.t("Please enter a valid server URL") };
       }
     } catch {
-      return { valid: false, error: "Please enter a valid server URL" };
+      return { valid: false, error: I18n.t("Please enter a valid server URL") };
     }
 
     return { valid: true };
@@ -354,8 +390,7 @@ export default class Login extends BVCApp {
     this.formErrorStore.set(message);
     this.serverInputInvalidStore.set(true);
 
-    // A non-empty error arriving mid-flow (e.g. a Hytale device-flow poll
-    // expiring or being denied after we've handed off to the browser) must not
+    // A non-empty error arriving after we've handed off to the browser must not
     // be swallowed by the connecting view - drop back to idle so the inline
     // message is actually visible.
     if (get(this.loginStateStore) !== 'idle') {
@@ -364,15 +399,6 @@ export default class Login extends BVCApp {
       this.isFinishingStore.set(false);
       this.loginStateStore.set('idle');
     }
-  }
-
-  /**
-   * Cancel an in-progress Hytale device-flow poll. Used when the user backs
-   * out of the "connecting" handoff view so we don't keep polling a flow they
-   * abandoned.
-   */
-  public cancelHytalePolling(): void {
-    this.stopHytalePolling();
   }
 
   public setServerInput(value: string): void {
@@ -386,9 +412,6 @@ export default class Login extends BVCApp {
     }
   }
 
-  public navigateCodeLogin(): void {
-    window.location.href = this.handleCodeLoginNavigate(get(this.serverInputStore));
-  }
 
   /**
    * Drive an attempt through the idle -> connecting -> redirect/error flow.
@@ -404,10 +427,10 @@ export default class Login extends BVCApp {
       ? get(this.attemptServerStore)
       : get(this.serverInputStore);
 
-    // Code-login navigates away in the same window - never enter the connecting
-    // view (otherwise the 'navigating' result would strand us on the spinner).
+    // Code-login is a screen the page has already switched to, so there is no
+    // attempt to make here. Returning early also keeps it out of the connecting
+    // view, which it would otherwise be stranded on.
     if (Login.isCodeLoginInput(value)) {
-      window.location.href = this.handleCodeLoginNavigate(value);
       return;
     }
 
@@ -415,7 +438,7 @@ export default class Login extends BVCApp {
     // the inline error without a connecting flicker.
     const validation = this.validateServerUrl(value);
     if (!validation.valid) {
-      this.reportError(validation.error || "Please enter a valid server URL");
+      this.reportError(validation.error || I18n.t("Please enter a valid server URL"));
       this.loginStateStore.set('idle');
       return;
     }
@@ -431,14 +454,11 @@ export default class Login extends BVCApp {
     this.loginStateStore.set('connecting');
 
     const myAttempt = ++this.attemptId;
-    const result = kind === 'hytale'
-      ? await this.loginWithHytale(value)
-      : await this.login(value);
+    const result = await this.login(value);
 
     // The user cancelled (or started a fresh attempt) while this one was in
-    // flight - don't reapply its result. Undo any polling it may have kicked off.
+    // flight - don't reapply its result.
     if (myAttempt !== this.attemptId) {
-      this.cancelHytalePolling();
       return;
     }
 
@@ -463,12 +483,10 @@ export default class Login extends BVCApp {
   /**
    * Manual escape from the connecting/handoff view (e.g. the user closed the
    * external sign-in window without finishing, or chose a different server).
-   * Stops any Hytale polling and clears transient errors before returning to
-   * the editable idle form.
+   * Clears transient errors before returning to the editable idle form.
    */
   public returnToIdle(): void {
     this.attemptId++;
-    this.cancelHytalePolling();
     this.clearError();
     this.clearFinishWatchdog();
     this.isHandoffStore.set(false);
@@ -504,20 +522,19 @@ export default class Login extends BVCApp {
   }
 
   public openWiki(): Promise<void> {
-    return openUrl(Login.WIKI_URL);
+    return HelpLinks.openWiki();
   }
 
   public openDiscord(): Promise<void> {
-    return openUrl(Login.DISCORD_URL);
+    return HelpLinks.openDiscord();
   }
 
   public openPrivacyNotice(): Promise<void> {
-    return openUrl(Login.PRIVACY_URL);
+    return HelpLinks.openPrivacyNotice();
   }
 
   public teardownLoginFlow(): void {
     this.clearFinishWatchdog();
-    this.stopHytalePolling();
   }
 
   private applyResult(result: LoginAttemptResult): void {
@@ -525,9 +542,13 @@ export default class Login extends BVCApp {
       case 'redirecting':
         // Auth URL opened in the system browser; hold the connecting view and
         // arm the return detector so we know when the user comes back.
+        this.authUrlStore.set(result.authUrl ?? '');
         this.isHandoffStore.set(true);
         this.isFinishingStore.set(false);
         this.wasHiddenDuringHandoff = false;
+        // The return detector is a visibility round-trip, and a phone does not reliably provide
+        // one. This does not depend on being told anything.
+        this.startPendingPoll();
         break;
       case 'error':
         this.attemptServerStore.set(result.sanitized);
@@ -554,20 +575,56 @@ export default class Login extends BVCApp {
 
   private beginFinishing(): void {
     this.isFinishingStore.set(true);
-    this.clearFinishWatchdog();
-    this.finishWatchdog = setTimeout(() => {
-      if (get(this.loginStateStore) === 'connecting') {
-        this.isHandoffStore.set(false);
-        this.isFinishingStore.set(false);
-        this.loginStateStore.set('error');
-      }
-    }, Login.FINISH_TIMEOUT_MS);
+    this.finishWatchdog.start();
   }
 
+  /**
+   * Whether an auth callback has arrived and not yet been disposed of.
+   *
+   * `pending_deep_link` is the one piece of state both halves maintain: Rust writes it for
+   * every intent, and the handler clears it once the redemption has succeeded, failed, or
+   * been recognised as a duplicate.
+   */
+  private async callbackInFlight(): Promise<boolean> {
+    try {
+      const store = await AppStore.load();
+      return (await store.get<string>("pending_deep_link")) != null;
+    } catch (e) {
+      // An unreadable store is not evidence of progress; let the deadline stand.
+      warn(`Login: could not check for a pending auth callback: ${e}`);
+      return false;
+    }
+  }
+
+  /**
+   * Both ways of waiting for the browser, stopped together.
+   *
+   * Every caller that leaves the handoff — an error, a cancel, a fresh attempt, teardown —
+   * already cancelled the watchdog here, so the poll belongs in the same place rather than in
+   * five call sites that would each have to remember it.
+   */
   private clearFinishWatchdog(): void {
-    if (this.finishWatchdog !== null) {
-      clearTimeout(this.finishWatchdog);
-      this.finishWatchdog = null;
+    this.finishWatchdog.cancel();
+    this.stopPendingPoll();
+  }
+
+  private startPendingPoll(): void {
+    this.stopPendingPoll();
+    this.pendingPoll = setInterval(() => {
+      // Still the same attempt, and still waiting for the browser. Anything else means the poll
+      // outlived what it was watching for.
+      if (get(this.loginStateStore) !== 'connecting' || !get(this.isHandoffStore)) {
+        this.stopPendingPoll();
+        return;
+      }
+      void this.resumePendingDeepLink();
+    }, Login.PENDING_POLL_MS);
+  }
+
+  private stopPendingPoll(): void {
+    if (this.pendingPoll !== null) {
+      clearInterval(this.pendingPoll);
+      this.pendingPoll = null;
     }
   }
 
@@ -576,15 +633,14 @@ export default class Login extends BVCApp {
 
     const trimmed = rawValue.trim();
     if (Login.isCodeLoginInput(trimmed)) {
-      const serverPart = trimmed.replace(/^(https?:\/\/)?code@/, '');
-      const sanitized = this.sanitizeServerUrl(serverPart);
-      window.location.href = `/login/code?server=${encodeURIComponent(sanitized)}`;
-      return { status: 'navigating', sanitized };
+      // The code flow is a screen the page switches to on `isCodeLogin`. Nothing to
+      // navigate to, and no attempt to make here.
+      return { status: 'navigating', sanitized: this.codeLoginServer(trimmed) };
     }
 
     const validation = this.validateServerUrl(rawValue);
     if (!validation.valid) {
-      this.reportError(validation.error || "Please enter a valid server URL");
+      this.reportError(validation.error || I18n.t("Please enter a valid server URL"));
       return { status: 'invalid' };
     }
 
@@ -609,156 +665,23 @@ export default class Login extends BVCApp {
       const clientId = configData.client_id;
       const secretState = self.crypto.randomUUID();
 
-      const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+      const store = await AppStore.load();
       await store.set("auth_state_token", secretState);
       await store.set("auth_state_endpoint", sanitizedUrl);
       await store.save();
 
-      const redirectUrl = this.getRedirectUrl();
-      const authLoginUrl =
-        `https://login.live.com/oauth20_authorize.srf?client_id=${clientId}&response_type=code&redirect_uri=${redirectUrl}&scope=XboxLive.signin%20offline_access&state=${secretState}&prompt=select_account`;
+      const authLoginUrl = MinecraftAuthUrl.build(clientId, secretState);
 
       await this.openUrlWithLogging(authLoginUrl);
-      return { status: 'redirecting', sanitized: sanitizedUrl };
+      return { status: 'redirecting', sanitized: sanitizedUrl, authUrl: authLoginUrl };
     } catch (e) {
       warn(String(e));
       return { status: 'error', sanitized: sanitizedUrl };
     }
   }
 
-  private getRedirectUrl(): string {
-    return 'bedrock-voice-chat://auth';
-  }
-
   private async openUrlWithLogging(url: string): Promise<void> {
     info(`Opening URL: ${url}`);
     await openUrl(url);
-  }
-
-  async loginWithHytale(rawValue: string): Promise<LoginAttemptResult> {
-    this.clearError();
-
-    const validation = this.validateServerUrl(rawValue);
-    if (!validation.valid) {
-      this.reportError(validation.error || "Please enter a valid server URL");
-      return { status: 'invalid' };
-    }
-
-    const serverUrl = this.sanitizeServerUrl(rawValue);
-
-    try {
-      const configResponse = await this.fetchWithTimeout(serverUrl + this.CONFIG_ENDPOINT);
-
-      if (configResponse.status === 403) {
-        warn("Server returned 403 Forbidden");
-        return { status: 'error', sanitized: serverUrl };
-      }
-
-      if (configResponse.status !== 200) {
-        throw new Error("Server not reachable");
-      }
-
-      const response = await invoke<HytaleDeviceFlowStartResponse>("start_hytale_device_flow", {
-        server: serverUrl,
-      });
-
-      info(`Hytale Device flow started, session_id: ${response.session_id}, user_code: ${response.user_code}`);
-
-      const store = await Store.load("store.json", { autoSave: false, defaults: {} });
-      await store.set("hytale_session_id", response.session_id);
-      await store.set("auth_state_endpoint", serverUrl);
-      await store.save();
-
-      await this.openUrlWithLogging(response.verification_uri_complete);
-
-      this.startHytalePolling(serverUrl, response.session_id, response.interval);
-      return { status: 'redirecting', sanitized: serverUrl };
-    } catch (e) {
-      warn(`Hytale login failed: ${String(e)}`);
-      return { status: 'error', sanitized: serverUrl };
-    }
-  }
-
-  private startHytalePolling(server: string, sessionId: string, interval: number) {
-    const pollInterval = Math.max(interval, 5) * 1000;
-    info(`Starting Hytale polling with interval: ${pollInterval}ms`);
-
-    this.hytalePollingInterval = window.setInterval(async () => {
-      try {
-        const response = await invoke<HytaleDeviceFlowStatusResponse>("poll_hytale_status", {
-          server: server,
-          sessionId: sessionId,
-        });
-
-        info(`Hytale poll response status: ${response.status}`);
-
-        switch (response.status) {
-          case "Pending":
-            break;
-          case "Success":
-            this.stopHytalePolling();
-            if (response.login_response) {
-              await this.handleHytaleSuccess(server, response.login_response);
-            }
-            break;
-          case "Expired":
-            warn("Hytale device code expired");
-            this.stopHytalePolling();
-            this.reportError("Device code expired. Please try again.");
-            break;
-          case "Denied":
-            warn("Hytale authorization denied");
-            this.stopHytalePolling();
-            this.reportError("Authorization denied. Please try again.");
-            break;
-          case "Error":
-            error("Hytale auth error");
-            this.stopHytalePolling();
-            this.reportError("Authentication error. Please try again.");
-            break;
-        }
-      } catch (e) {
-        error(`Hytale polling error: ${String(e)}`);
-        this.stopHytalePolling();
-      }
-    }, pollInterval);
-  }
-
-  private stopHytalePolling() {
-    if (this.hytalePollingInterval !== null) {
-      info("Stopping Hytale polling");
-      window.clearInterval(this.hytalePollingInterval);
-      this.hytalePollingInterval = null;
-    }
-  }
-
-  private async handleHytaleSuccess(server: string, loginResponse: LoginResponse) {
-    try {
-      const store = await Store.load("store.json", { autoSave: false, defaults: {} });
-
-      await store.set("current_server", server);
-      await store.set("current_player", loginResponse.gamertag);
-      await store.set("active_game", "hytale");
-
-      const serverList = await store.get("server_list") as ServerListEntry[] | null;
-      const servers = serverList || [];
-
-      const existing = servers.find(s => s.server === server);
-      if (existing) {
-        existing.game = "hytale";
-      } else {
-        servers.push({ server: server, player: loginResponse.gamertag, game: "hytale" });
-      }
-      await store.set("server_list", servers);
-      ServerListStore.mirrorServerCount(servers);
-
-      await store.delete("hytale_session_id");
-      await store.save();
-
-      Analytics.track("LoginCompleted", { game_type: "hytale" });
-      window.location.href = "/onboarding/welcome";
-    } catch (e) {
-      error(`Failed to save login data: ${String(e)}`);
-    }
   }
 }

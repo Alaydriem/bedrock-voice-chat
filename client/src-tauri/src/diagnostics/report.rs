@@ -1,6 +1,7 @@
 use std::fmt::Write;
 use std::net::IpAddr;
 
+use common::structs::audio::NoiseGateStatus;
 use common::structs::metrics::{LinkDiagnosticsSnapshot, LinkSample};
 
 // The copyable support artifact.
@@ -150,10 +151,36 @@ impl DiagnosticsReport {
         let _ = writeln!(
             out,
             "  Noise gate        {}",
-            if m.gate_open { "open" } else { "closed" }
+            match m.noise_gate {
+                NoiseGateStatus::Disabled => "off (not in the audio path)",
+                NoiseGateStatus::Open => "on, open (passing audio)",
+                NoiseGateStatus::Closed => "on, closed (cutting the mic)",
+            }
         );
         let _ = writeln!(out, "  Muted             {}", m.muted);
-        let _ = writeln!(out, "  Sending           {:.0} datagrams/s", m.datagrams_per_sec);
+        let _ = writeln!(
+            out,
+            "  Capturing         {}",
+            match m.capture_frames_per_sec {
+                None => "not measured yet".to_string(),
+                Some(rate) if rate == 0.0 =>
+                    "0 frames/s  <- the capture device is delivering nothing".to_string(),
+                Some(rate) => format!("{rate:.0} frames/s"),
+            }
+        );
+        let _ = writeln!(
+            out,
+            "  Sending           {:.0} audio datagrams/s",
+            m.datagrams_per_sec
+        );
+        let _ = writeln!(out);
+
+        let _ = writeln!(out, "Interface");
+        let _ = writeln!(
+            out,
+            "  Meter updates     {:.1}/s  (messages this client sends its own UI for the meters)",
+            snapshot.meter_events_per_sec
+        );
         let _ = writeln!(out);
 
         let _ = writeln!(out, "What you hear");

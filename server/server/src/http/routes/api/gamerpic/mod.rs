@@ -1,3 +1,4 @@
+use crate::http::guards::PlayerGuard;
 use crate::http::openapi::{RouteSpec, TagDefinition};
 use crate::http::pool::Db;
 use crate::services::GamerpicDecoder;
@@ -23,7 +24,6 @@ use crate::http::openapi::CustomJsonResponseRequired;
 use common::Game;
 use common::response::GamerpicResponse;
 use entity::player;
-use rocket::mtls::Certificate;
 use rocket_okapi::openapi;
 use sea_orm::ColumnTrait;
 use sea_orm::EntityTrait;
@@ -33,7 +33,7 @@ use sea_orm::QueryFilter;
 #[openapi(tag = "Gamerpic")]
 #[get("/<game>/<gamertag>")]
 pub async fn get_gamerpic(
-    _identity: Certificate<'_>,
+    _guard: PlayerGuard,
     db: Db<'_>,
     game: Game,
     gamertag: &str,

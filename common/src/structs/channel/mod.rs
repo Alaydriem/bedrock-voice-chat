@@ -16,12 +16,16 @@ use ts_rs::TS;
 pub struct Channel {
     id: String,
     pub name: String,
-    pub players: Vec<String>,
-    pub creator: String,
+    // Rendered as the canonical string for TypeScript, so the webview keeps comparing
+    // `creator` and `players` as strings and no new binding file appears.
+    #[ts(as = "Vec<String>")]
+    pub players: Vec<crate::PlayerIdentity>,
+    #[ts(as = "String")]
+    pub creator: crate::PlayerIdentity,
 }
 
 impl Channel {
-    pub fn new(name: String, creator: String) -> Self {
+    pub fn new(name: String, creator: crate::PlayerIdentity) -> Self {
         Self {
             id: nanoid!(),
             name,
@@ -34,24 +38,18 @@ impl Channel {
         self.id.clone()
     }
 
-    pub fn contains(&self, name: &str) -> bool {
-        self.players.iter().any(|p| p == name)
+    pub fn contains(&self, identity: &crate::PlayerIdentity) -> bool {
+        self.players.iter().any(|p| p == identity)
     }
 
-    pub fn add_player(&mut self, name: String) -> Result<(), anyhow::Error> {
-        if !self.players.contains(&name) {
-            self.players.push(name);
+    pub fn add_player(&mut self, identity: crate::PlayerIdentity) {
+        if !self.players.contains(&identity) {
+            self.players.push(identity);
         }
-
-        Ok(())
     }
 
-    pub fn remove_player(&mut self, name: String) -> Result<(), anyhow::Error> {
-        if let Some(id) = self.players.iter().position(|each| *each == name) {
-            self.players.remove(id);
-        }
-
-        Ok(())
+    pub fn remove_player(&mut self, identity: &crate::PlayerIdentity) {
+        self.players.retain(|p| p != identity);
     }
 
     pub fn rename(&mut self, name: String) {

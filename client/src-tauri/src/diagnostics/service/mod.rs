@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use common::consts::version::PROTOCOL_VERSION;
+use common::structs::audio::NoiseGateStatus;
 use common::structs::metrics::{
     LinkDiagnostics, LinkDiagnosticsSnapshot, LinkQuality, LinkSample, MicDiagnostics,
     PeerDiagnostics, PlaybackDiagnostics, SessionDiagnostics,
@@ -56,6 +57,10 @@ pub struct LinkDiagnosticsService {
     // window — and an on-demand read from a command or a report must not consume a tick's worth of
     // any of those.
     latest: StdMutex<Option<LinkDiagnosticsSnapshot>>,
+    // The count of meter messages published to the webview. Reported rather than assumed:
+    // without it, a change that halves that traffic and a change that does nothing look
+    // identical from outside the process.
+    levels: Arc<crate::audio::LevelBus>,
     shutdown: Arc<AtomicBool>,
 }
 
@@ -69,6 +74,7 @@ impl LinkDiagnosticsService {
         config: Arc<SessionConfig>,
         peers: Arc<PeerRegistry>,
         devices: Arc<DeviceInfo>,
+        levels: Arc<crate::audio::LevelBus>,
     ) -> Self {
         Self {
             quic_stats,
@@ -78,6 +84,7 @@ impl LinkDiagnosticsService {
             config,
             peers,
             devices,
+            levels,
             ring: StdMutex::new(SampleRing::new()),
             last: StdMutex::new(CounterReadings::default()),
             stall: StdMutex::new(StallState::default()),
@@ -96,6 +103,7 @@ impl LinkDiagnosticsService {
         config: Arc<SessionConfig>,
         peers: Arc<PeerRegistry>,
         devices: Arc<DeviceInfo>,
+        levels: Arc<crate::audio::LevelBus>,
     ) -> Arc<Self> {
         Arc::new(Self::new(
             quic_stats,
@@ -105,6 +113,7 @@ impl LinkDiagnosticsService {
             config,
             peers,
             devices,
+            levels,
         ))
     }
 
@@ -219,6 +228,54 @@ impl LinkDiagnosticsService {
         self.reset_window();
     }
 
+    // Every cumulative counter this service measures deltas against, read at one instant.
+    fn readings_at(&self, now: Instant) -> CounterReadings {
+        let quic = self.quic_stats.borrow().clone();
+        CounterReadings {
+            at: Some(now),
+            datagrams_sent: self.transport.datagrams_sent(),
+            datagrams_received: self.transport.datagrams_received(),
+            audio_frames_sent: self.transport.frames_sent(),
+            meter_events: self.levels.emitted(),
+            frames_captured: self.input.frames_captured(),
+            frames_with_signal: self.input.frames_with_signal(),
+            packets_sent: quic.packets_sent(),
+            packets_received: quic.packets_received(),
+            packets_lost: quic.packets_lost(),
+            sequence_received: quic.downlink_loss().map(|(_, r)| r).unwrap_or(0),
+            sequence_lost: quic.downlink_loss().map(|(l, _)| l).unwrap_or(0),
+            burst_loss: quic.burst_loss(),
+        }
+    }
+
+    // Restarts every measurement from now, on a link that stays up.
+    //
+    // Distinct from `reset_for_disconnect`, which zeroes the baseline because the next session's
+    // counters will start from zero too. Here the QUIC counters keep climbing, so the baseline is
+    // re-read rather than cleared: zeroing it would make the next tick's delta the whole
+    // session's traffic and publish one tick of nonsense before settling.
+    pub fn reset_stats(&self) {
+        let now = Instant::now();
+        let current = self.readings_at(now);
+
+        self.peers.reset();
+        if let Ok(mut ring) = self.ring.lock() {
+            ring.clear();
+        }
+        if let Ok(mut last) = self.last.lock() {
+            *last = current;
+        }
+        if let Ok(mut stall) = self.stall.lock() {
+            *stall = StallState::default();
+        }
+        self.reset_window();
+        // Dropped rather than kept: it holds the peer rows and aggregates that were just
+        // zeroed, and serving it would show the old numbers until the next tick lands.
+        if let Ok(mut latest) = self.latest.lock() {
+            *latest = None;
+        }
+    }
+
     fn build_snapshot(&self, advance: bool) -> LinkDiagnosticsSnapshot {
         let quic = self.quic_stats.borrow().clone();
         let now = Instant::now();
@@ -229,18 +286,7 @@ impl LinkDiagnosticsService {
             .map(|g| g.clone())
             .unwrap_or_default();
 
-        let current = CounterReadings {
-            at: Some(now),
-            datagrams_sent: self.transport.datagrams_sent(),
-            datagrams_received: self.transport.datagrams_received(),
-            frames_with_signal: self.input.frames_with_signal(),
-            packets_sent: quic.packets_sent(),
-            packets_received: quic.packets_received(),
-            packets_lost: quic.packets_lost(),
-            sequence_received: quic.downlink_loss().map(|(_, r)| r).unwrap_or(0),
-            sequence_lost: quic.downlink_loss().map(|(l, _)| l).unwrap_or(0),
-            burst_loss: quic.burst_loss(),
-        };
+        let current = self.readings_at(now);
 
         let elapsed = previous
             .at
@@ -249,13 +295,23 @@ impl LinkDiagnosticsService {
 
         let sent_delta = Self::delta(current.datagrams_sent, previous.datagrams_sent);
         let received_delta = Self::delta(current.datagrams_received, previous.datagrams_received);
+        let audio_sent_delta = Self::delta(current.audio_frames_sent, previous.audio_frames_sent);
+        let captured_delta = Self::delta(current.frames_captured, previous.frames_captured);
+        let meter_delta = Self::delta(current.meter_events, previous.meter_events);
         let signal_delta = Self::delta(current.frames_with_signal, previous.frames_with_signal);
         let quic_sent_delta = Self::delta(current.packets_sent, previous.packets_sent);
         let quic_received_delta = Self::delta(current.packets_received, previous.packets_received);
         let quic_lost_delta = Self::delta(current.packets_lost, previous.packets_lost);
 
-        let send_rate = Self::rate(sent_delta, elapsed);
+        let send_rate = Self::rate(audio_sent_delta, elapsed);
+        // Absent rather than zero on the tick that has nothing to diff against. Reported as a
+        // measurement it would accuse the capture device of being dead every time a client
+        // connects, one tick before the first real reading contradicts it.
+        let capture_rate = previous
+            .at
+            .map(|_| Self::rate(captured_delta, elapsed));
         let recv_rate = Self::rate(received_delta, elapsed);
+        let meter_rate = Self::rate(meter_delta, elapsed);
         let uplink_loss_pct = Self::ratio_pct(quic_lost_delta, quic_sent_delta);
 
         // Downlink from the server's own sequence, over the window rather than cumulatively, so a
@@ -341,11 +397,16 @@ impl LinkDiagnosticsService {
 
         LinkDiagnosticsSnapshot {
             captured_at_ms: sample.at_ms,
+            meter_events_per_sec: meter_rate,
             mic: MicDiagnostics {
                 device: devices.input_name,
                 sample_rate: devices.input_sample_rate,
-                gate_open: signal_delta > 0,
+                noise_gate: NoiseGateStatus::of(
+                    DeviceInfo::noise_gate_enabled(),
+                    signal_delta > 0,
+                ),
                 muted: input_muted,
+                capture_frames_per_sec: capture_rate,
                 datagrams_per_sec: send_rate,
             },
             playback: PlaybackDiagnostics {
@@ -383,6 +444,7 @@ impl LinkDiagnosticsService {
                 proximity_range: self.config.proximity_range(),
                 falloff: self.config.falloff(),
                 family_preference: devices.family_preference,
+                transport: self.session.transport(),
             },
             peers,
             history: self.history(),
@@ -612,15 +674,6 @@ impl LinkDiagnosticsService {
     }
 
     fn publish(&self, app_handle: &tauri::AppHandle, snapshot: LinkDiagnosticsSnapshot) {
-        use tauri::Emitter;
-
-        if let Err(e) = app_handle.emit(
-            crate::events::event::LINK_DIAGNOSTICS,
-            &snapshot,
-        ) {
-            log::debug!("Failed to emit link diagnostics: {}", e);
-        }
-
         if let Some(broadcaster) =
             tauri::Manager::try_state::<crate::websocket::WebSocketBroadcaster>(app_handle)
         {
@@ -654,7 +707,7 @@ impl LinkDiagnosticsService {
     }
 
     fn log_peer(peer: &PeerDiagnostics, rtt: &str, uplink_loss: f32, family: &str) {
-        log::info!(
+        log::debug!(
             "Receive diagnostics [{}]: underruns={} overflow_drops={} ooo_drops={} plc={} \
              silence={} decoded={} ring={}/{} warmup={} buffer={}ms quality={:.2} \
              concealment={:.1}% | link rtt={}ms uplink_loss={:.1}% family={}",

@@ -1,0 +1,47 @@
+# Configuration for the iroh relay BVC peers connect through.
+#
+# The relay forwards opaque, end-to-end encrypted frames between endpoints that
+# cannot reach each other directly. It terminates no BVC session, holds no key
+# material of ours, and cannot read voice.
+
+enable_relay = true
+http_bind_addr = "0.0.0.0:80"
+
+# Lets endpoints learn their own public address, which is what allows them to
+# stop relaying and use a direct path. Without it every peer pair relays forever.
+enable_quic_addr_discovery = true
+
+enable_metrics = true
+metrics_bind_addr = "0.0.0.0:9090"
+
+[tls]
+https_bind_addr = "0.0.0.0:443"
+quic_bind_addr = "0.0.0.0:443"
+# The name peers reach this relay by. It must match the host in
+# `server.peer_relay_url`, because the certificate is issued for it.
+hostname = "relay.example.com"
+# `CertMode` carries no serde rename, so the variant name is the literal value.
+cert_mode = "LetsEncrypt"
+cert_dir = "/var/lib/iroh-relay/certs"
+
+# Bounds what one endpoint can push through the relay. The relay admits anyone
+# holding the token, and the token is not secret, so these are what stand between
+# it and an abusive client.
+[limits.client.rx]
+bytes_per_second = 262144
+max_burst_bytes = 1048576
+
+# Admits only clients presenting one of these bearer tokens. BVC bakes its token
+# into the binary at build time, so this is the relay half of that pair.
+#
+# The value here is a placeholder: IROH_RELAY_ACCESS_TOKEN replaces the list
+# entirely at runtime and is how the real value arrives, so the token never lives
+# in this file or in the image. Upstream refuses to start on an empty list, so
+# the placeholder has to be non-empty.
+#
+# This is not a secret. It ships inside every BVC binary and anyone who looks can
+# read it. It raises the cost of using this relay from "point at the URL" to
+# "extract a string from a binary", which is all that is claimed for it. An
+# allowlist of endpoint ids would be stronger; see the README for the trade.
+[access]
+shared_token = ["replace-me-via-IROH_RELAY_ACCESS_TOKEN"]

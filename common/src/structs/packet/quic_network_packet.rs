@@ -1,12 +1,8 @@
 use anyhow::{Error, anyhow};
-use base64::{Engine as _, engine::general_purpose};
 use serde::{Deserialize, Serialize};
 
-use moka::future::Cache;
-use std::sync::Arc;
-
-use super::audio_frame_packet::AudioFramePacket;
-use super::packet_owner::PacketOwner;
+use super::envelope_sequence::EnvelopeSequence;
+use super::packet_sender::PacketSender;
 use super::packet_type::PacketType;
 use super::quic_network_packet_data::QuicNetworkPacketData;
 
@@ -14,61 +10,36 @@ pub const MAX_DATAGRAM_SIZE: usize = 1150;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct QuicNetworkPacket {
+    pub seq: Option<EnvelopeSequence>,
     pub packet_type: PacketType,
-    pub owner: Option<PacketOwner>,
     pub data: QuicNetworkPacketData,
-    // Monotonic per-connection sequence, assigned by the sender at the moment it queues this
-    // datagram for one recipient. A gap at the receiver therefore means exactly one thing: the
-    // sender sent it and it did not arrive.
-    //
-    // On the envelope rather than on the audio frame deliberately. A per-speaker sequence would be
-    // gapped by the server's own routing — proximity, channel membership, deafen distance — and a
-    // gap would then conflate correct filtering with loss.
-    //
-    // `None` from every producer that is not a server fan-out to one connection — the relay dialer,
-    // the embedded FFI path, the mods, and the client itself. A receiver reports loss as unmeasured
-    // rather than zero when it is absent, so an unstamped peer never reads as a perfect link.
-    //
-    // Adding this field was a BREAKING wire change, not an additive one, and `#[serde(default)]` is
-    // deliberately absent because it would imply otherwise. Postcard is not self-describing: a
-    // decoder expecting this byte runs off the end of a datagram produced without it. The direction
-    // that survives is only the harmless one — an old decoder ignores the trailing byte — which makes
-    // the break asymmetric and easy to miss during a rollout.
-    // `common/tests/structs/packet/envelope_sequence.rs` pins both directions.
-    pub seq: Option<u32>,
+    pub sender: Option<PacketSender>,
 }
 
-// Exists so producers can write `..Default::default()` and leave `seq` alone, rather than
-// repeating `seq: None` at every construction site.
-//
-// Written out rather than derived on purpose. Deriving would require `Default` on `PacketType` and
-// `QuicNetworkPacketData`, which would make `PacketType::default()` callable and let a missing
-// assignment put a silently mis-tagged datagram on the wire. Every real construction overrides both
-// fields, so the values chosen here are never transmitted.
 impl Default for QuicNetworkPacket {
     fn default() -> Self {
         Self {
             packet_type: PacketType::Debug,
-            owner: None,
             data: QuicNetworkPacketData::Debug(super::debug_packet::DebugPacket {
-                owner: String::new(),
                 version: String::new(),
                 timestamp: 0,
             }),
             seq: None,
+            sender: None,
         }
     }
 }
 
 impl QuicNetworkPacket {
-    // Stamps this envelope for one recipient. Called immediately before serialization, after every
-    // decision not to send, so a suppressed packet consumes no number.
+    pub const SEQ_TAG_OFFSET: usize = 0;
+    pub const SEQ_VALUE_RANGE: std::ops::Range<usize> = 1..5;
+
     pub fn stamp(&mut self, sequence: u32) {
-        self.seq = Some(sequence);
+        self.seq = Some(EnvelopeSequence(sequence));
     }
 
     pub fn sequence(&self) -> Option<u32> {
-        self.seq
+        self.seq.map(|s| s.0)
     }
 
     pub fn to_datagram(&self) -> Result<Vec<u8>, anyhow::Error> {
@@ -99,61 +70,37 @@ impl QuicNetworkPacket {
         self.packet_type.clone()
     }
 
-    pub fn get_author(&self) -> String {
-        match &self.owner {
-            Some(owner) => {
-                if owner.name.eq(&"") || owner.name.eq(&"api") {
-                    return general_purpose::STANDARD.encode(&owner.client_id);
-                }
-
-                return owner.name.clone();
-            }
-            None => String::from(""),
-        }
+    /// The authenticated player this came from, if the packet names one.
+    ///
+    /// Absent on anything a client built, which is every packet on the inbound path before
+    /// `PacketIdentityStamp` runs. Also absent on a reduced audio frame, where the identity
+    /// was elided and the receiver resolves it from `sender_device`.
+    pub fn sender_identity(&self) -> Option<&crate::PlayerIdentity> {
+        self.sender.as_ref().and_then(|s| s.identity())
     }
 
-    pub fn get_client_id(&self) -> Vec<u8> {
-        match &self.owner {
-            Some(owner) => owner.client_id.clone(),
-            None => vec![],
-        }
+    /// The connection this came from, absent for a relayed player and for anything the
+    /// server injected.
+    pub fn sender_device(&self) -> Option<u64> {
+        self.sender.as_ref().and_then(|s| s.device())
+    }
+
+    /// The key this packet's sender is routed and keyed on, whether a player or a service.
+    ///
+    /// Audio routing needs one key for both: jukebox and webhook audio hold channel
+    /// membership and a cached position under their service name exactly as a player holds
+    /// them under their identity.
+    pub fn sender_key(&self) -> Option<String> {
+        self.sender.as_ref().and_then(|s| s.routing_key())
+    }
+
+    /// The server surface that injected this, when a service did.
+    pub fn sender_service(&self) -> Option<&str> {
+        self.sender.as_ref().and_then(|s| s.service())
     }
 
     pub fn get_data(&self) -> Option<&QuicNetworkPacketData> {
         Some(&self.data)
-    }
-
-    pub async fn update_coordinates(&mut self, player_data: Arc<Cache<String, crate::PlayerEnum>>) {
-        match self.get_packet_type() {
-            PacketType::AudioFrame => match self.get_data() {
-                Some(data) => {
-                    let data = data.to_owned();
-                    let data: Result<AudioFramePacket, ()> = data.try_into();
-
-                    match data {
-                        Ok(mut data) => {
-                            if data.sender.is_none() {
-                                if let Some(sender_player) =
-                                    player_data.get(&self.get_author()).await
-                                {
-                                    data.sender = Some(sender_player);
-                                    let audio_frame: QuicNetworkPacketData =
-                                        QuicNetworkPacketData::AudioFrame(data);
-                                    self.data = audio_frame;
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            tracing::error!("Could not downcast reference packet to audio frame");
-                        }
-                    }
-                }
-                None => {
-                    tracing::error!("Could not downcast reference packet to audio frame");
-                }
-            },
-            _ => {}
-        }
     }
 
     pub fn to_string(&self) -> Result<String, Error> {

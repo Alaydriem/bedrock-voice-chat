@@ -15,4 +15,13 @@ pub struct SessionManifest {
     pub created_at: String,
     #[serde(default)]
     pub recording_version: Option<String>,
+    // What the recording is called, once somebody names it. Absent on every session
+    // recorded before renaming existed, so it defaults rather than failing to
+    // deserialise a manifest already on disk.
+    //
+    // No fallback is computed here. An unnamed session is shown by when it happened, and
+    // `created_at` is a unix-seconds string — turning that into something a person can
+    // read needs their locale and their timezone, neither of which this side has.
+    #[serde(default)]
+    pub name: Option<String>,
 }

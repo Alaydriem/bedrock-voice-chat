@@ -5,6 +5,10 @@ permissions:
 
 # Suites run as PARALLEL jobs:
 #   - `common`           (Linux)   — platform-agnostic crate.
+#   - `relay`            (Linux)   — the bvc-relay and bvc-relay-sdk suites: peer
+#                                    handshake, admission, session, and the SDK's
+#                                    FFI frame shape. Fast and self-contained; no
+#                                    Windows setup, no artifacts.
 #   - `server`           (Linux)   — the server's production target is Linux; its
 #                                    tests bind 127.0.0.1 + SQLite, no Windows needed.
 #   - `client-lib`       (Windows) — the client crate's inline #[cfg(test)] unit
@@ -13,11 +17,29 @@ permissions:
 #   - `e2e-build-server` (Windows) — compiles the server cdylib (loaded via FFI).
 #   - `e2e-build-client` (Windows) — compiles the e2e harness bin + the client test
 #                                    binaries (packaged with `nextest archive`).
+#   - `frontend`         (Linux)   — the client's TypeScript and Svelte suites:
+#                                    vitest (happy-dom) plus the radial kit's
+#                                    node --test suite. No Rust, no Tauri, so it
+#                                    needs none of the Windows setup below.
 #   - `e2e-shard`        (Windows) — downloads both build artifacts and RUNS a shard
 #                                    of the suite via `nextest run --archive-file
 #                                    --partition`. No compilation. Filtered to
 #                                    `not kind(lib)` so the unit tests, which
-#                                    `client-lib` owns, do not also run here.
+#                                    `client-lib` owns, do not also run here, and
+#                                    to the complement of both filters below.
+#   - `e2e-relayed-path` (Windows) — the scenarios with a userspace UDP relay in the
+#                                    datagram path. Cheap, but they assert on timing,
+#                                    so they get a runner whose timing is not already
+#                                    spoken for by heavier tests.
+#   - `e2e-exact-delivery` (Windows) — the audio scenarios that assert exact frame
+#                                    delivery, alone on their own runner. They assert
+#                                    an equality over unreliable datagrams, so a
+#                                    starved receiver fails them outright and no
+#                                    amount of waiting recovers the frames.
+#   - `e2e-report`       (Windows) — merges every shard's profile data into one
+#                                    lcov and uploads it. Runs even when a shard
+#                                    fails, so a red suite still reports what it
+#                                    did execute.
 #
 # The cdylib and the client test suite have no build-time dependency on each other
 # (the cdylib is dlopen'd at runtime), so their two build jobs run concurrently;
@@ -25,9 +47,22 @@ permissions:
 # the server job skips node/yarn/ASIO/frontend, the client job skips vcpkg.
 #
 # COVERAGE: the `common`, `server`, and `client-lib` suites run under
-# cargo-llvm-cov and upload lcov to Codecov under one flag each. The e2e shards
-# do NOT — instrumenting them means covering a cdylib built in the other Cargo
-# workspace and dlopen'd at runtime, plus child processes, and it is unsolved.
+# cargo-llvm-cov, and `frontend` runs under v8 + node's own coverage; each
+# uploads lcov to Codecov under one flag. The e2e suite is instrumented too, but
+# by a different route, because it spans three artifacts that cargo-llvm-cov
+# cannot report on together:
+#
+#   - the test binary                (root workspace)
+#   - `bvc_client_e2e.exe`           (root workspace, SPAWNED as a child process)
+#   - `bvc_server_lib.dll`           (SERVER workspace, dlopen'd at runtime)
+#
+# LLVM source-based coverage handles all three: `LLVM_PROFILE_FILE` carries `%p`
+# (per process) and `%m` (per module), so a spawned child and a loaded cdylib
+# each write their own profile. What cargo-llvm-cov cannot do is *report* on an
+# object outside its own target dir — it has no `--object` flag. So the shards
+# set `LLVM_PROFILE_FILE` and run plain `cargo nextest run`, and `e2e-report`
+# calls `llvm-cov export` directly with one `--object` per artifact.
+#
 # Coverage never gates a merge (see codecov.yml); patch coverage on changed
 # lines is the signal, reported as a PR comment.
 #
@@ -54,6 +89,32 @@ on:
         default: '4'
         type: string
 
+# The two load-sensitive scenario sets, defined ONCE. Each has a job; the shards
+# subtract both. Together the three are exactly a partition of the e2e tests:
+# nothing runs twice and nothing goes unrun.
+#
+# The membership matches the two test-groups in .config/nextest.toml, which is the
+# repo's existing statement of which scenarios are load-sensitive and why. Keep the
+# two in step: a scenario added to a group there needs its filter updated here, or
+# it silently rejoins the shards and loses the headroom the group grants it.
+#
+# They get SEPARATE jobs rather than one, because the two sets are load-sensitive in
+# ways that compound: a relayed-path scenario asserts on a 1 s diagnostics ticker
+# observing a 20 ms frame clock, and an exact-delivery scenario asserts a frame-count
+# equality over unreliable datagrams. Sharing a 4-vCPU runner, either starves the
+# other, which is how `link_stall` failed in CI while passing every run in isolation.
+env:
+  RELAYED_PATH_FILTER: >-
+    test(/scenarios::downlink_loss::/)
+    + test(/scenarios::link_stall::/)
+    + test(/scenarios::path_exhaustion::/)
+  EXACT_DELIVERY_FILTER: >-
+    test(/scenarios::audio_flow::/)
+    + test(/scenarios::audio_routing::/)
+    + test(/scenarios::channel_without_position::/)
+    + test(/scenarios::same_channel::/)
+    + test(/scenarios::websocket_transport::/)
+
 jobs:
   common:
     name: Common tests (Linux)
@@ -65,7 +126,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: llvm-tools-preview
 
@@ -113,6 +174,66 @@ jobs:
           # job's pass/fail stays purely about whether the tests passed.
           fail_ci_if_error: false
 
+  relay:
+    name: Relay tests (Linux)
+    runs-on: ubuntu-latest
+    # bvc-relay and bvc-relay-sdk are root-workspace members whose tests were not
+    # run by any job. The iroh relay refactor moved the peer handshake, admission,
+    # and session coverage here from the e2e mesh scenarios and no job followed it,
+    # so the subsystem was rewritten with its suite unexecuted.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-llvm-cov
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          # Distinct from the non-coverage keys: instrumented builds carry
+          # different RUSTFLAGS and land in target/llvm-cov-target, so they must
+          # not share a cache entry with an uninstrumented build.
+          shared-key: test-relay-cov
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config cmake build-essential libasound2-dev
+
+      - name: Relay tests (instrumented)
+        # These crates' workspace root IS the repo root, so --remap-path-prefix
+        # emits repo-relative SF: paths with no fixup.
+        run: >
+          cargo llvm-cov nextest -p bvc-relay -p bvc-relay-sdk --no-fail-fast
+          --remap-path-prefix
+          --lcov --output-path lcov-relay.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov-relay.info
+          flags: relay
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # Coverage is informational and must never fail the merge gate; this
+          # job's pass/fail stays purely about whether the tests passed.
+          fail_ci_if_error: false
+
   server:
     name: Server tests (Linux)
     runs-on: ubuntu-latest
@@ -123,7 +244,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: llvm-tools-preview
 
@@ -209,7 +330,7 @@ jobs:
           cache-dependency-path: client/yarn.lock
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: x86_64-pc-windows-msvc
           components: llvm-tools-preview
@@ -238,7 +359,7 @@ jobs:
         working-directory: ./client/src-tauri
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip" -OutFile "asiosdk.zip"
+          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip" -OutFile "asiosdk.zip"
           Expand-Archive -Path "asiosdk.zip" -DestinationPath "." -Force
 
       - name: Set up LIBCLANG environment
@@ -252,6 +373,25 @@ jobs:
             $libclangPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
           }
           echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
+
+      # Forced rather than trusted. ts-rs bindings are committed, so a build whose author
+      # skipped `mise run bindings` compiles against a TypeScript type that no longer matches
+      # the Rust it came from -- and it compiles, because the stale file is still valid
+      # TypeScript. Regenerating here makes what is built and tested correct regardless.
+      #
+      # Through mise rather than open-coded: the task owns the prune that deletes bindings ts-rs
+      # no longer emits, and a second copy of that logic in YAML is a second thing to drift.
+      - name: Install mise
+        uses: jdx/mise-action@v4
+        with:
+          version: 2026.8.2
+        env:
+          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+      - name: Regenerate ts-rs bindings
+        run: mise run bindings
+        env:
+          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
 
       - name: Build frontend dist
         working-directory: ./client
@@ -292,6 +432,125 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
+  frontend:
+    name: Frontend tests (Linux)
+    runs-on: ubuntu-latest
+    # The translation report is posted back to the pull request. Everything else this job
+    # does needs only `contents: read`.
+    permissions:
+      contents: read
+      pull-requests: write
+    # Pure TypeScript and Svelte: vitest against happy-dom, and the radial kit's
+    # node --test suite. Neither compiles Rust or needs a Tauri toolchain, so this
+    # job skips every Windows/ASIO/vcpkg step the others carry and finishes in
+    # about a minute.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          # Full history so the translation report can measure the pull request's base
+          # commit and report a delta rather than only a position.
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'yarn'
+          cache-dependency-path: client/yarn.lock
+
+      - name: Install JavaScript dependencies
+        working-directory: ./client
+        # `prepare` runs svelte-kit sync, which generates .svelte-kit/tsconfig.json.
+        # client/tsconfig.json extends it, so skipping this fails later and obscurely.
+        run: yarn install --frozen-lockfile
+
+      - name: Verify translation catalog is current
+        working-directory: ./client
+        # Re-extracts from source and compares against the committed catalog. A string
+        # marked for translation but never extracted reaches no translator, and nothing
+        # else in the build notices — it renders as correct English.
+        run: yarn i18n:check
+
+      # Reporting only — never fails the build. Localization is migrated incrementally, so
+      # being at 1% is the expected state; what matters is whether a change moved it.
+      - name: Check out the base commit for comparison
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: git worktree add ../i18n-base ${{ github.event.pull_request.base.sha }}
+
+      - name: Translation coverage report
+        id: i18n_report
+        working-directory: ./client
+        continue-on-error: true
+        run: |
+          if [ -d ../../i18n-base/client ]; then
+            yarn i18n:report --baseline ../../i18n-base/client --out i18n-report.md
+          else
+            yarn i18n:report --out i18n-report.md
+          fi
+          cat i18n-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment the translation report
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- i18n-coverage -->';
+            const path = 'client/i18n-report.md';
+            if (!fs.existsSync(path)) return;
+
+            const body = `${marker}\n${fs.readFileSync(path, 'utf8')}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            // Updated in place rather than appended, so a long-lived branch carries one
+            // comment showing the current position instead of a column of stale ones.
+            const existing = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number,
+            });
+            const mine = existing.find((c) => c.body?.startsWith(marker));
+
+            if (mine) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Component and unit tests (instrumented)
+        working-directory: ./client
+        run: yarn test:coverage
+
+      - name: Radial kit tests (instrumented)
+        working-directory: ./client
+        # A separate runner on purpose: the kit is framework-free and its tests run
+        # on node --test with no DOM, which is what keeps it honest about being
+        # framework-free. Its coverage is a second lcov file in the same upload.
+        run: yarn radial:test:coverage
+
+      - name: Rebase frontend paths onto the repo root
+        working-directory: ./client
+        # Both runners emit paths relative to their own cwd, which is client/ —
+        # so `src/...`, missing the leading `client/` that the repo has. Codecov
+        # matches coverage records against git paths, so without this it matches
+        # nothing and reports 0 changed lines covered for every frontend PR.
+        #
+        # Separators need no fixing because this job is Linux. Moving it to a
+        # Windows runner needs the `tr` normalization the client-lib job carries.
+        run: |
+          sed -i -E 's|^SF:|SF:client/|' coverage/lcov.info coverage/lcov-radial.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./client/coverage/lcov.info,./client/coverage/lcov-radial.info
+          flags: frontend
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
   e2e-build-server:
     name: Build server cdylib (Windows)
     runs-on: windows-2022
@@ -302,9 +561,15 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: x86_64-pc-windows-msvc
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
 
       - name: Setup private cargo deps auth
         uses: ./.github/actions/setup-private-cargo-deps
@@ -316,7 +581,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./server"
-          shared-key: test-e2e-server
+          # Instrumented artifacts carry different RUSTFLAGS, so they must not
+          # share a cache entry with an uninstrumented build.
+          shared-key: test-e2e-server-cov
 
       - name: Set up LIBCLANG environment
         shell: powershell
@@ -346,11 +613,19 @@ jobs:
           rm -rf target/*/build/libz-sys-* target/*/build/libgit2-sys-* 2>/dev/null || true
           rm -rf target/*/.fingerprint/libz-sys-* target/*/.fingerprint/libgit2-sys-* 2>/dev/null || true
 
-      - name: Build server cdylib
+      - name: Build server cdylib (instrumented)
         working-directory: ./server
         shell: bash
         # The e2e harness loads this cdylib via FFI from server/target/debug/.
-        run: cargo build -p bedrock-voice-chat-server --features bedrock
+        #
+        # `show-env` is the supported way to instrument a build cargo-llvm-cov is
+        # not itself driving — which is required here, because this is a separate
+        # Cargo workspace from the one the tests live in. Only RUSTFLAGS matters
+        # at build time; the LLVM_PROFILE_FILE it also exports is set per-shard at
+        # run time instead.
+        run: |
+          eval "$(cargo llvm-cov show-env --export-prefix)"
+          cargo build -p bedrock-voice-chat-server --features bedrock
 
       - name: Stage cdylib
         shell: bash
@@ -382,14 +657,15 @@ jobs:
           cache-dependency-path: client/yarn.lock
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: x86_64-pc-windows-msvc
+          components: llvm-tools-preview
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest
+          tool: cargo-nextest,cargo-llvm-cov
 
       - name: Setup private cargo deps auth
         uses: ./.github/actions/setup-private-cargo-deps
@@ -400,7 +676,8 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: test-e2e-client
+          # See test-e2e-server-cov: instrumented artifacts get their own key.
+          shared-key: test-e2e-client-cov
 
       - name: Install JavaScript dependencies
         working-directory: ./client
@@ -410,7 +687,7 @@ jobs:
         working-directory: ./client/src-tauri
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip" -OutFile "asiosdk.zip"
+          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip" -OutFile "asiosdk.zip"
           Expand-Archive -Path "asiosdk.zip" -DestinationPath "." -Force
 
       - name: Set up LIBCLANG environment
@@ -425,31 +702,73 @@ jobs:
           }
           echo "LIBCLANG_PATH=$libclangPath" >> $env:GITHUB_ENV
 
+      # Forced rather than trusted. ts-rs bindings are committed, so a build whose author
+      # skipped `mise run bindings` compiles against a TypeScript type that no longer matches
+      # the Rust it came from -- and it compiles, because the stale file is still valid
+      # TypeScript. Regenerating here makes what is built and tested correct regardless.
+      #
+      # Through mise rather than open-coded: the task owns the prune that deletes bindings ts-rs
+      # no longer emits, and a second copy of that logic in YAML is a second thing to drift.
+      - name: Install mise
+        uses: jdx/mise-action@v4
+        with:
+          version: 2026.8.2
+        env:
+          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+      - name: Regenerate ts-rs bindings
+        run: mise run bindings
+        env:
+          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
       - name: Build frontend dist
         working-directory: ./client
         run: yarn build
 
-      - name: Build e2e client harness
+      - name: Build e2e client harness (instrumented)
         shell: bash
         # Separate crate (not an app-package bin) so `tauri build` never bundles it.
         # The integration tests spawn it from target/debug/.
-        run: cargo build -p bvc-client-e2e
+        #
+        # This binary is a SPAWNED CHILD PROCESS, and it only contributes coverage
+        # because it exits through an explicit `__llvm_profile_write_file` call —
+        # see the `#[cfg(coverage)]` block in client/e2e-harness/src/main.rs.
+        # `--cfg=coverage` comes from the RUSTFLAGS below.
+        run: |
+          eval "$(cargo llvm-cov show-env --export-prefix)"
+          cargo build -p bvc-client-e2e
 
-      - name: Archive e2e test binaries
+      - name: Archive e2e test binaries (instrumented)
         shell: bash
         # Compiles the client unit + integration (e2e) test binaries ONCE and packs
-        # them so the shard jobs can run them without recompiling.
-        run: cargo nextest archive -p bedrock-voice-chat-client --features e2e --archive-file nextest-archive.tar.zst
+        # them so the shard jobs can run them without recompiling. The llvm-cov
+        # wrapper exists for exactly this split: it instruments the build, and the
+        # shards then need nothing but an env var at run time.
+        run: >
+          cargo llvm-cov nextest-archive
+          --archive-file nextest-archive.tar.zst
+          -p bedrock-voice-chat-client --features e2e
 
       - name: Stage client artifacts
         shell: bash
         # The harness bin is loaded by the tests via a path baked from
         # CARGO_MANIFEST_DIR; the shard jobs restore it to target/debug. GitHub
         # runners use a stable checkout path, so the baked path matches across jobs.
+        #
+        # The test binaries are staged UNPACKED as well. `llvm-cov export` in
+        # e2e-report needs them as `--object` inputs, and pulling them back out of
+        # a zstd archive there would need a zstd-capable tar on the runner.
+        #
+        # Newest only: a warm rust-cache can leave older integration-<hash>.exe
+        # builds in the target dir, and passing a stale one to llvm-cov produces
+        # mismatched-function warnings against profile data it never generated.
         run: |
-          mkdir -p e2e-client
+          mkdir -p e2e-client/testbins
           cp nextest-archive.tar.zst e2e-client/
           cp target/debug/bvc_client_e2e.exe e2e-client/
+          TESTBIN=$(ls -t target/llvm-cov-target/debug/deps/integration-*.exe | head -1)
+          echo "staging test binary: $TESTBIN"
+          cp "$TESTBIN" e2e-client/testbins/
 
       - name: Upload client artifacts
         uses: actions/upload-artifact@v5
@@ -473,7 +792,10 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          # llvm-profdata, to collapse this shard's profraw before upload.
+          components: llvm-tools-preview
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
@@ -509,13 +831,372 @@ jobs:
         # `not kind(lib)` drops the client's inline #[cfg(test)] unit tests from
         # the shards. They are in the archive (it is built per-package, not
         # per-target) but the `client-lib` job already runs them under coverage,
-        # so without this filter they run twice. What remains here is the
-        # `integration` target — the actual e2e scenarios.
-        run: >
-          cargo nextest run
-          --archive-file e2e-client/nextest-archive.tar.zst
-          --workspace-remap .
-          --partition hash:${{ matrix.shard }}/3
-          -E 'not kind(lib)'
-          --no-fail-fast
-          -j ${{ inputs.test_jobs || '4' }}
+        # so without this filter they run twice. Subtracting the two load-sensitive
+        # filters hands those scenarios to `e2e-relayed-path` and
+        # `e2e-exact-delivery`. What remains here is the rest of the `integration`
+        # target, and `--partition` splits it three ways.
+        #
+        # LLVM_PROFILE_FILE is the ONLY coverage-specific thing here; the binaries
+        # arrive already instrumented. `%p` separates processes so a spawned
+        # `bvc_client_e2e.exe` cannot clobber its parent, and `%m` pools by module
+        # so the dlopen'd cdylib writes alongside the test binary rather than over
+        # it. The pool width bounds the FILE COUNT, not the byte total — measured
+        # identical at `%4m` and `%32m` — so it is set low only to keep the merge
+        # input list small.
+        #
+        # Profile output is bulky: ~475 MB from a single scenario, several GB
+        # across a shard, because every process dumps a counter table for every
+        # module it loaded. Shard count is the lever that divides the peak; raise
+        # it before reaching for anything cleverer.
+        #
+        # RUNNER_TEMP, not the workspace: this must not land inside the checkout
+        # where a later step might glob it up. cygpath -m is required — the LLVM
+        # tools are native Windows binaries and cannot resolve an MSYS /c/... path.
+        run: |
+          PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
+          mkdir -p "$PROF_DIR"
+          export LLVM_PROFILE_FILE="$PROF_DIR/bvc-%p-%4m.profraw"
+          cargo nextest run \
+            --archive-file e2e-client/nextest-archive.tar.zst \
+            --workspace-remap . \
+            --partition hash:${{ matrix.shard }}/3 \
+            -E "(not kind(lib)) - ($RELAYED_PATH_FILTER) - ($EXACT_DELIVERY_FILTER)" \
+            --no-fail-fast \
+            -j ${{ inputs.test_jobs || '4' }}
+
+      - name: Collapse shard profile data
+        # `always()`: a red shard still executed most of its code, and dropping its
+        # coverage would make the report swing with unrelated failures.
+        if: always()
+        shell: bash
+        # Thousands of profraw collapse to a single file of a few MB, which is what
+        # crosses the job boundary. Merging here rather than in e2e-report also
+        # means the raw files never leave the runner that produced them.
+        run: |
+          PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
+          LLVM_BIN="$(rustc --print sysroot)/lib/rustlib/x86_64-pc-windows-msvc/bin"
+          ls "$PROF_DIR"/*.profraw > "$PROF_DIR/inputs.txt" || {
+            echo "no profraw produced — nothing to merge"; exit 0; }
+          echo "profraw files: $(wc -l < "$PROF_DIR/inputs.txt")"
+          mkdir -p e2e-profdata
+          "$LLVM_BIN/llvm-profdata.exe" merge -sparse \
+            -f "$PROF_DIR/inputs.txt" \
+            -o "e2e-profdata/shard-${{ matrix.shard }}.profdata"
+          rm -rf "$PROF_DIR"
+          ls -la e2e-profdata/
+
+      - name: Upload shard profile data
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-profdata-${{ matrix.shard }}
+          path: e2e-profdata
+          retention-days: 1
+          if-no-files-found: ignore
+
+  e2e-relayed-path:
+    name: e2e relayed-path scenarios (Windows)
+    runs-on: windows-2022
+    needs: [e2e-build-server, e2e-build-client]
+    # The scenarios that put a userspace UDP relay between one client and its
+    # server: downlink loss, link stall, path exhaustion. Small — six tests, about
+    # 25s of work — but they assert on timing rather than on content. `link_stall`
+    # waits for a 1s diagnostics ticker to observe three consecutive sends with no
+    # return, while a 20ms frame clock keeps the client transmitting; starve either
+    # and the derivation it is asserting never fires.
+    #
+    # They failed in CI while passing every run in isolation when they shared a
+    # runner with heavier scenarios, which is the signature of contention rather
+    # than a defect. A dedicated runner is the cheapest way to give a timing
+    # assertion a machine whose timing is not already spoken for.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Download cdylib artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-cdylib
+          path: e2e-cdylib
+
+      - name: Download client artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-client
+          path: e2e-client
+
+      - name: Restore harness + cdylib to their load paths
+        shell: bash
+        run: |
+          mkdir -p target/debug server/target/debug
+          cp e2e-client/bvc_client_e2e.exe target/debug/
+          cp e2e-cdylib/bvc_server_lib.dll server/target/debug/
+
+      - name: Run relayed-path scenarios
+        shell: bash
+        # `-j 1`: .config/nextest.toml already caps this group at one, so the flag
+        # only stops a future addition to the set from quietly running two.
+        #
+        # `--retries 1` is a backstop, not a fix. A test that needs its retry is
+        # still a defect — nextest prints it as FLAKY, and that line is the signal
+        # to investigate, not to raise the retry count.
+        run: |
+          PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
+          mkdir -p "$PROF_DIR"
+          export LLVM_PROFILE_FILE="$PROF_DIR/bvc-%p-%4m.profraw"
+          cargo nextest run \
+            --archive-file e2e-client/nextest-archive.tar.zst \
+            --workspace-remap . \
+            -E "(not kind(lib)) & ($RELAYED_PATH_FILTER)" \
+            --no-fail-fast \
+            --retries 1 \
+            -j 1
+
+      - name: Collapse relayed-path profile data
+        if: always()
+        shell: bash
+        run: |
+          PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
+          LLVM_BIN="$(rustc --print sysroot)/lib/rustlib/x86_64-pc-windows-msvc/bin"
+          ls "$PROF_DIR"/*.profraw > "$PROF_DIR/inputs.txt" || {
+            echo "no profraw produced — nothing to merge"; exit 0; }
+          echo "profraw files: $(wc -l < "$PROF_DIR/inputs.txt")"
+          mkdir -p e2e-profdata
+          "$LLVM_BIN/llvm-profdata.exe" merge -sparse \
+            -f "$PROF_DIR/inputs.txt" \
+            -o "e2e-profdata/relayed-path.profdata"
+          rm -rf "$PROF_DIR"
+          ls -la e2e-profdata/
+
+      - name: Upload relayed-path profile data
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-profdata-relayed-path
+          path: e2e-profdata
+          retention-days: 1
+          if-no-files-found: ignore
+
+  e2e-exact-delivery:
+    name: e2e exact-delivery scenarios (Windows)
+    runs-on: windows-2022
+    needs: [e2e-build-server, e2e-build-client]
+    # The audio scenarios that assert *exact* frame delivery — "Alice sent 150,
+    # Bob received 150" — over QUIC datagrams. Datagrams are unreliable by design,
+    # which is why voice uses them, so a starved receiver drops them and waiting
+    # longer does not recover them. .config/nextest.toml caps this group to one
+    # concurrent for that reason; hash-partitioning it across the shards honoured
+    # the cap within each shard while still letting three other tests compete for
+    # the same 4-vCPU runner, which is the starvation the cap exists to prevent.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Download cdylib artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-cdylib
+          path: e2e-cdylib
+
+      - name: Download client artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-client
+          path: e2e-client
+
+      - name: Restore harness + cdylib to their load paths
+        shell: bash
+        run: |
+          mkdir -p target/debug server/target/debug
+          cp e2e-client/bvc_client_e2e.exe target/debug/
+          cp e2e-cdylib/bvc_server_lib.dll server/target/debug/
+
+      - name: Run exact-delivery scenarios
+        shell: bash
+        # `-j 1` matches the group cap in .config/nextest.toml. The assertion these
+        # tests make is an equality, not a threshold, so the run needs headroom
+        # rather than tolerance.
+        #
+        # `--retries 1` is a backstop, not a fix. A FLAKY line in the summary is a
+        # defect to chase, not an acceptable steady state.
+        run: |
+          PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
+          mkdir -p "$PROF_DIR"
+          export LLVM_PROFILE_FILE="$PROF_DIR/bvc-%p-%4m.profraw"
+          cargo nextest run \
+            --archive-file e2e-client/nextest-archive.tar.zst \
+            --workspace-remap . \
+            -E "(not kind(lib)) & ($EXACT_DELIVERY_FILTER)" \
+            --no-fail-fast \
+            --retries 1 \
+            -j 1
+
+      - name: Collapse exact-delivery profile data
+        if: always()
+        shell: bash
+        run: |
+          PROF_DIR="$(cygpath -m "$RUNNER_TEMP")/prof"
+          LLVM_BIN="$(rustc --print sysroot)/lib/rustlib/x86_64-pc-windows-msvc/bin"
+          ls "$PROF_DIR"/*.profraw > "$PROF_DIR/inputs.txt" || {
+            echo "no profraw produced — nothing to merge"; exit 0; }
+          echo "profraw files: $(wc -l < "$PROF_DIR/inputs.txt")"
+          mkdir -p e2e-profdata
+          "$LLVM_BIN/llvm-profdata.exe" merge -sparse \
+            -f "$PROF_DIR/inputs.txt" \
+            -o "e2e-profdata/exact-delivery.profdata"
+          rm -rf "$PROF_DIR"
+          ls -la e2e-profdata/
+
+      - name: Upload exact-delivery profile data
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          # e2e-report globs e2e-profdata-*, so this joins the shards' data with
+          # no change needed there.
+          name: e2e-profdata-exact-delivery
+          path: e2e-profdata
+          retention-days: 1
+          if-no-files-found: ignore
+
+  e2e-report:
+    name: e2e coverage report (Windows)
+    runs-on: windows-2022
+    # `always()`: see the note on the shard merge step. This job reports coverage
+    # and must never be the reason a suite goes red, so every step is tolerant and
+    # the Codecov upload keeps fail_ci_if_error: false.
+    #
+    # continue-on-error carries that the last step of the way: when a build job
+    # fails there is no artifact to download, and without this the missing-artifact
+    # error would turn a suite red over a reporting problem.
+    if: always()
+    continue-on-error: true
+    needs:
+      [e2e-build-server, e2e-build-client, e2e-shard, e2e-relayed-path, e2e-exact-delivery]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: llvm-tools-preview
+
+      - name: Download every shard's profile data
+        uses: actions/download-artifact@v5
+        with:
+          pattern: e2e-profdata-*
+          path: profdata
+          merge-multiple: true
+
+      - name: Download cdylib artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-cdylib
+          path: e2e-cdylib
+
+      - name: Download client artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: e2e-client
+          path: e2e-client
+
+      - name: Export lcov across all three instrumented artifacts
+        shell: bash
+        # cargo-llvm-cov cannot do this step: it reports on objects in its own
+        # target dir and has no `--object` flag, so it can see neither the spawned
+        # harness bin nor a cdylib from the other Cargo workspace. llvm-cov takes
+        # them explicitly.
+        run: |
+          set -o pipefail
+          LLVM_BIN="$(rustc --print sysroot)/lib/rustlib/x86_64-pc-windows-msvc/bin"
+
+          if ! ls profdata/*.profdata >/dev/null 2>&1; then
+            echo "no shard produced profile data; nothing to report"
+            exit 0
+          fi
+          echo "merging $(ls profdata/*.profdata | wc -l) shard profiles"
+          "$LLVM_BIN/llvm-profdata.exe" merge -sparse profdata/*.profdata -o e2e.profdata
+
+          OBJECTS=""
+          for o in e2e-client/testbins/integration-*.exe \
+                   e2e-client/bvc_client_e2e.exe \
+                   e2e-cdylib/bvc_server_lib.dll; do
+            [ -f "$o" ] || continue
+            OBJECTS="$OBJECTS --object $o"
+            # An object built WITHOUT instrumentation contributes nothing and
+            # raises no error in the combined export — its files simply vanish
+            # from the report. That reads as "the e2e suite covers none of this
+            # area", which is indistinguishable from a real coverage drop. Probe
+            # each one alone so the failure is loud.
+            if "$LLVM_BIN/llvm-cov.exe" export --format=lcov \
+                 --instr-profile=e2e.profdata --object "$o" >/dev/null 2>&1; then
+              echo "contributed: $o"
+            else
+              echo "::warning::no profile data matched $o — was it built instrumented?"
+            fi
+          done
+
+          "$LLVM_BIN/llvm-cov.exe" export \
+            --format=lcov \
+            --instr-profile=e2e.profdata \
+            $OBJECTS \
+            --ignore-filename-regex='(registry|\.cargo|rustc|toolchains)' \
+            > lcov-e2e.raw.info
+
+      - name: Rebase absolute paths onto the repo root
+        shell: bash
+        # llvm-cov emits absolute native paths here, because these objects were
+        # built without --remap-path-prefix (two different workspaces, one of them
+        # built outside cargo-llvm-cov). Codecov matches coverage records against
+        # git paths, so both the separators and the checkout prefix must go.
+        # Stripping $GITHUB_WORKSPACE gets client/, server/ and common/ right in
+        # one pass — no per-workspace fixup like the `server` job needs.
+        run: |
+          [ -s lcov-e2e.raw.info ] || { echo "no lcov to rebase"; exit 0; }
+          WS="$(echo "$GITHUB_WORKSPACE" | tr '\\' '/')"
+          tr '\\' '/' < lcov-e2e.raw.info | sed -E "s|^SF:${WS}/|SF:|" > lcov-e2e.info
+          RECORDS=$(grep -c '^SF:' lcov-e2e.info)
+          echo "records: $RECORDS"
+          # A rebase that eats the SF: prefix, or a prefix that never matched,
+          # both yield a file Codecov accepts and then matches against nothing.
+          if [ "$RECORDS" -eq 0 ]; then
+            echo "::error::lcov has no SF: records after rebasing; not uploading"
+            rm -f lcov-e2e.info
+            exit 0
+          fi
+          grep -m 5 '^SF:' lcov-e2e.info
+
+      - name: Upload coverage to Codecov
+        if: hashFiles('lcov-e2e.info') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov-e2e.info
+          flags: e2e
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false

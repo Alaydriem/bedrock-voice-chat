@@ -1,5 +1,10 @@
+mod api_client;
+mod api_error;
 pub mod bootstrap;
 pub mod generate_code;
+
+pub use api_client::AdminApiClient;
+pub use api_error::AdminApiError;
 
 use clap::Parser;
 

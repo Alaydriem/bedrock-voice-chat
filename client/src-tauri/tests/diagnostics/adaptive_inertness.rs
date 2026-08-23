@@ -1,3 +1,4 @@
+use common::structs::metrics::TransportKind;
 use bvc_client_lib::{AdaptationEngine, MetricsCollector};
 
 // The capacity a jitter buffer is actually built with: `buffer_size_ms` is hardcoded to 120
@@ -18,7 +19,7 @@ const BASE_CAPACITY: usize = 6;
 
 #[test]
 fn real_underruns_do_not_move_capacity_or_warmup() {
-    let mut engine = AdaptationEngine::new(BASE_CAPACITY);
+    let mut engine = AdaptationEngine::new(BASE_CAPACITY, TransportKind::Quic);
     let mut metrics = MetricsCollector::default();
 
     let capacity_before = engine.current_capacity();
@@ -69,8 +70,8 @@ fn reorder_tolerance_is_unaffected_by_underruns() {
     // quality off its `Good` construction default regardless of underruns, so comparing
     // pre-assessment to post-assessment would measure that transition instead of the variable
     // under test.
-    let mut with_underruns = AdaptationEngine::new(BASE_CAPACITY);
-    let mut without_underruns = AdaptationEngine::new(BASE_CAPACITY);
+    let mut with_underruns = AdaptationEngine::new(BASE_CAPACITY, TransportKind::Quic);
+    let mut without_underruns = AdaptationEngine::new(BASE_CAPACITY, TransportKind::Quic);
     let mut metrics_with = MetricsCollector::default();
     let mut metrics_without = MetricsCollector::default();
 

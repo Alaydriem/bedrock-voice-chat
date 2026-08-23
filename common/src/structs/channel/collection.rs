@@ -28,10 +28,10 @@ impl ChannelCollection {
         self.channels.iter().map(|(_, channel)| channel).collect()
     }
 
-    pub fn get_player_channels(&self, player_name: &str) -> Vec<String> {
+    pub fn get_player_channels(&self, identity: &crate::PlayerIdentity) -> Vec<String> {
         let mut result = Vec::new();
         for (channel_id, channel) in self.channels.iter() {
-            if channel.contains(player_name) {
+            if channel.contains(identity) {
                 result.push(channel_id.to_string());
             }
         }
@@ -58,9 +58,13 @@ impl ChannelCollection {
         }
     }
 
-    pub async fn add_player_to_channel(&self, player_name: &str, channel_id: &str) -> bool {
+    pub async fn add_player_to_channel(
+        &self,
+        identity: &crate::PlayerIdentity,
+        channel_id: &str,
+    ) -> bool {
         if let Some(mut channel) = self.channels.get(channel_id).await {
-            let _ = channel.add_player(player_name.to_string());
+            channel.add_player(identity.clone());
             self.channels.insert(channel_id.to_string(), channel).await;
             true
         } else {
@@ -68,23 +72,35 @@ impl ChannelCollection {
         }
     }
 
-    pub async fn remove_player_from_channel(&self, player_name: &str, channel_id: &str) {
+    pub async fn remove_player_from_channel(
+        &self,
+        identity: &crate::PlayerIdentity,
+        channel_id: &str,
+    ) {
         if let Some(mut channel) = self.channels.get(channel_id).await {
-            let _ = channel.remove_player(player_name.to_string());
+            channel.remove_player(identity);
             self.channels.insert(channel_id.to_string(), channel).await;
         }
     }
 
-    pub async fn remove_player_from_all_channels(&self, player_name: &str) -> Vec<String> {
+    /// Every channel this player left, with each channel's creator.
+    ///
+    /// The creator travels back because the caller fans a `Leave` per channel and every
+    /// channel event names its owner. Reading it here is the last point the channel is
+    /// still in hand.
+    pub async fn remove_player_from_all_channels(
+        &self,
+        identity: &crate::PlayerIdentity,
+    ) -> Vec<(String, crate::PlayerIdentity)> {
         let mut removed_from = Vec::new();
         let mut updates = Vec::new();
 
         for (channel_id, channel) in self.channels.iter() {
-            if channel.contains(player_name) {
+            if channel.contains(identity) {
                 let mut updated = channel.clone();
-                let _ = updated.remove_player(player_name.to_string());
+                updated.remove_player(identity);
                 let id = channel_id.to_string();
-                removed_from.push(id.clone());
+                removed_from.push((id.clone(), updated.creator.clone()));
                 updates.push((id, updated));
             }
         }

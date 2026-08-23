@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <!-- Meta tags  -->
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta
       name="viewport"
-      content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
+      content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover"
     />
 
     <title>Bedrock Voice Chat</title>
@@ -14,43 +14,95 @@
     <link rel="icon" href="%sveltekit.assets%/images/app-logo.png" />
 
     <!-- Render-blocking on purpose: the preloader below must be styled at
-         first paint, before the app bundle injects the main stylesheet. -->
-    <link rel="stylesheet" href="%sveltekit.assets%/preloader/app-preloader.css" />
+         first paint, before the app bundle injects the main stylesheet.
+
+         ?v= is cache busting. These two are plain static assets, so nothing hashes
+         their filenames and the webview would otherwise serve a stale copy across
+         reloads and restarts. The value is the content hash of both files, computed in
+         vite.config.js — there is nothing to remember to bump. -->
+    <link
+      rel="stylesheet"
+      href="%sveltekit.assets%/preloader/app-preloader.css?v=%sveltekit.env.PUBLIC_PRELOADER_VERSION%"
+    />
 
     %sveltekit.head%
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
-      rel="stylesheet"
-    />
   </head>
 
-  <body
-    data-sveltekit-preload-data="tap"
-    x-data
-    class=" is-sidebar-open is-header-blur"
-  >
-    <!-- App preloader: markup only. Styling and behavior live in
-         static/preloader/ - served outside the app bundle so the overlay
-         works even when a page hangs during init. -->
+  <body data-sveltekit-preload-data="tap">
+    <!-- Everything above this line is head parsing and the render-blocking preloader
+         stylesheet, which no bundle code is around to time. BootTimeline reads this back as
+         its first phase. -->
+    <script>
+      window.__bvcBodyAt = performance.now();
+    </script>
+
+    <!-- App preloader: markup only. Styling lives in
+         static/preloader/app-preloader.css, hand-written.
+
+         Behaviour is static/preloader/app-preloader.js, which is GENERATED from
+         src/preloader/index.ts by vite.preloader.config.ts — do not edit it. Run
+         `yarn preloader:build`, or just `yarn dev` / `yarn build`, which run it first.
+
+         Both are served outside the app bundle so the overlay works even when a page
+         hangs during init, which is the only reason it exists. -->
     <div class="app-preloader">
       <div class="app-preloader-column">
         <div class="app-preloader-card" role="status" aria-live="polite">
-          <div class="app-preloader-ring"></div>
-          <p id="app-preloader-headline" class="app-preloader-headline" hidden>Loading…</p>
+          <!-- The mark, drawn by app-preloader.js from the design system. -->
+          <canvas id="app-preloader-mark" class="app-preloader-mark"></canvas>
+          <!-- Held back rather than absent: `app-preloader-quiet` hides these without
+               taking their space out of the layout, so the wait explaining itself does not
+               move the mark above it. app-preloader.js drops the class when it does. -->
+          <p id="app-preloader-headline" class="app-preloader-headline app-preloader-quiet">
+            Loading…
+          </p>
           <div class="app-preloader-status-row">
-            <span id="app-preloader-frame" class="app-preloader-frame" aria-hidden="true">⠋</span>
-            <span id="app-preloader-status" class="app-preloader-status" hidden
+            <span
+              id="app-preloader-frame"
+              class="app-preloader-frame app-preloader-quiet"
+              aria-hidden="true"
+              >⠋</span
+            >
+            <span id="app-preloader-status" class="app-preloader-status app-preloader-quiet"
               >Getting things ready…</span
             >
           </div>
+          <!-- The phases of a launch, revealed with the status line rather than at first
+               paint: a launch that finishes inside three seconds never shows them. Written by
+               BootProgress in the bundle through `window.__bvcBootStep`, and named and
+               coloured like the /server preflight so one vocabulary describes both. -->
+          <ul id="app-preloader-steps" class="app-preloader-steps app-preloader-quiet">
+            <li class="app-preloader-step" data-step="Session">
+              <span class="app-preloader-step-dot"></span>
+              <span class="app-preloader-step-name">Session</span>
+              <span class="app-preloader-step-note"></span>
+            </li>
+            <li class="app-preloader-step" data-step="Server">
+              <span class="app-preloader-step-dot"></span>
+              <span class="app-preloader-step-name">Server</span>
+              <span class="app-preloader-step-note"></span>
+            </li>
+            <li class="app-preloader-step" data-step="Permissions">
+              <span class="app-preloader-step-dot"></span>
+              <span class="app-preloader-step-name">Permissions</span>
+              <span class="app-preloader-step-note"></span>
+            </li>
+            <li class="app-preloader-step" data-step="Voice path">
+              <span class="app-preloader-step-dot"></span>
+              <span class="app-preloader-step-name">Voice path</span>
+              <span class="app-preloader-step-note"></span>
+            </li>
+            <li class="app-preloader-step" data-step="Audio">
+              <span class="app-preloader-step-dot"></span>
+              <span class="app-preloader-step-name">Audio</span>
+              <span class="app-preloader-step-note"></span>
+            </li>
+          </ul>
           <div id="app-preloader-actions" class="app-preloader-actions" hidden>
             <p class="app-preloader-hint">The app may be stuck.</p>
             <a
               id="app-preloader-action-server"
-              href="/server"
+              href="/"
               class="app-preloader-btn app-preloader-btn--primary"
               >Choose Different Server</a
             >
@@ -66,9 +118,10 @@
         </div>
       </div>
     </div>
-    <script src="%sveltekit.assets%/preloader/app-preloader.js"></script>
+    <!-- ?v= as on the stylesheet above, from the same content hash. -->
+    <script
+      src="%sveltekit.assets%/preloader/app-preloader.js?v=%sveltekit.env.PUBLIC_PRELOADER_VERSION%"
+    ></script>
     <div style="display: contents">%sveltekit.body%</div>
   </body>
-
-  <div id="x-teleport-target"></div>
 </html>

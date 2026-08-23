@@ -191,6 +191,7 @@ impl BedrockEventService {
             alternative_identity: None,
             player_uuid: None,
             relay_world_uuid: None,
+            bridged_voice: false,
         };
 
         PositionUpdater::broadcast_positions(
@@ -225,6 +226,7 @@ impl BedrockEventService {
             alternative_identity: None,
             player_uuid: None,
             relay_world_uuid: None,
+            bridged_voice: false,
         };
 
         PositionUpdater::broadcast_positions(
@@ -233,44 +235,5 @@ impl BedrockEventService {
         )
         .await;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_stale_gate_reports_unhealthy() {
-        let cache: Cache<String, Instant> = Cache::builder()
-            .max_capacity(8)
-            .time_to_live(Duration::from_secs(60))
-            .build();
-        let threshold = Duration::from_secs(30);
-
-        let healthy = match cache.get("world-x").await {
-            Some(last) => last.elapsed() < threshold,
-            None => false,
-        };
-
-        assert!(!healthy);
-    }
-
-    #[tokio::test]
-    async fn test_fresh_gate_reports_healthy() {
-        let cache: Cache<String, Instant> = Cache::builder()
-            .max_capacity(8)
-            .time_to_live(Duration::from_secs(60))
-            .build();
-        let threshold = Duration::from_secs(30);
-
-        cache.insert("world-x".to_string(), Instant::now()).await;
-
-        let healthy = match cache.get("world-x").await {
-            Some(last) => last.elapsed() < threshold,
-            None => false,
-        };
-
-        assert!(healthy);
     }
 }

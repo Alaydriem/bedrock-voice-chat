@@ -9,7 +9,7 @@ pub(crate) use config::CaptureConfig;
 pub(crate) use driver::SourceDriver;
 
 use crate::audio::stream::StreamRecoveryEvent;
-use crate::audio::types::{AudioDevice, AudioDeviceCpal, AudioDeviceType};
+use crate::audio::{AudioDevice, AudioDeviceCpal, AudioDeviceType};
 use anyhow::anyhow;
 use log::{error, warn};
 use rodio::DeviceTrait;
@@ -53,7 +53,7 @@ impl AudioInputSource {
                 })?;
                 let stored_config = device.get_stream_config()?;
 
-                let config = match crate::audio::device::refresh_device_config(&device) {
+                let config = match crate::audio::device::AudioDeviceEnumerator::refresh_device_config(&device) {
                     Some(fresh_configs) if !fresh_configs.is_empty() => {
                         let fresh_config: rodio::cpal::SupportedStreamConfig =
                             fresh_configs[0].clone().into();
@@ -99,7 +99,7 @@ impl AudioInputSource {
                 let buffer_size = rodio::cpal::BufferSize::Default;
 
                 #[cfg(not(any(target_os = "ios", target_os = "android")))]
-                let buffer_size = rodio::cpal::BufferSize::Fixed(crate::audio::types::BUFFER_SIZE);
+                let buffer_size = rodio::cpal::BufferSize::Fixed(crate::audio::BUFFER_SIZE);
 
                 Ok(CaptureConfig {
                     sample_rate: config.sample_rate(),
@@ -118,11 +118,9 @@ impl AudioInputSource {
         }
     }
 
-    // Begins producing frames, pushing each into `process`. The cpal variant
-    // builds a live input stream whose callback invokes `process`; the fake
-    // variant runs the bridge feed loop invoking the same closure. Both keep the
-    // real work on an OS thread and return a tokio handle for the sender to pair
-    // against, plus (cpal only) the oneshot used to stop the stream.
+    // Begins producing frames, pushing each into `process`. The cpal variant builds a live input
+    // stream whose callback invokes `process` and hands the stream back to be held; the fake
+    // variant runs the bridge feed loop on its own thread, invoking the same closure.
     pub(crate) fn drive<F>(
         self,
         config: CaptureConfig,
@@ -169,8 +167,6 @@ impl AudioInputSource {
             )
         })?;
 
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-
         let sample_format = config.sample_format;
         let device_config = rodio::cpal::StreamConfig {
             channels: config.channels,
@@ -178,161 +174,165 @@ impl AudioInputSource {
             buffer_size: config.buffer_size,
         };
 
-        std::thread::Builder::new()
-            .name("audio-input".into())
-            .spawn(move || {
-                let recovery_tx_for_error = recovery_tx.clone();
-                let shutdown_for_error = shutdown.clone();
+        let recovery_tx_for_error = recovery_tx.clone();
+        let shutdown_for_error = shutdown.clone();
 
-                log::info!(
-                    "Input Stream Config: {:?} {:?}",
-                    device_config.channels,
-                    device_config.sample_rate
+        log::info!(
+            "Input Stream Config: {:?} {:?}",
+            device_config.channels,
+            device_config.sample_rate
+        );
+
+        let error_fn = move |error: rodio::cpal::StreamError| {
+            error!(
+                "Audio stream error (device may have disconnected): {}",
+                error
+            );
+            shutdown_for_error.store(true, Ordering::Relaxed);
+
+            let _ = recovery_tx_for_error.send(StreamRecoveryEvent::DeviceError {
+                device_type: AudioDeviceType::InputDevice,
+                error: error.to_string(),
+            });
+        };
+
+        // Wrap process in Arc<Mutex<>> so it can be shared across the
+        // fixed/default buffer-size fallback attempts.
+        let process = std::sync::Arc::new(std::sync::Mutex::new(process));
+
+        // Poisoning is recovered from rather than propagated. A `lock()` that returns
+        // `Err` once returns it for the rest of the process, so a callback that skipped
+        // the frame on `Err` went silent permanently after any single panic in the
+        // processing core — with cpal still reporting a healthy stream, no error
+        // callback, and nothing anywhere to say the microphone had stopped.
+        //
+        // The core's own state may be inconsistent after such a panic; one frame of
+        // damaged audio is a far smaller fault than a microphone that never works again.
+
+        let build_stream = |cfg: &rodio::cpal::StreamConfig,
+                            process: std::sync::Arc<
+            std::sync::Mutex<dyn FnMut(&[f32]) + Send>,
+        >,
+                            err_fn: Box<dyn FnMut(rodio::cpal::StreamError) + Send>|
+         -> Result<rodio::cpal::Stream, rodio::cpal::BuildStreamError> {
+            match sample_format {
+                rodio::cpal::SampleFormat::F32 => {
+                    let process = process.clone();
+                    cpal_device.build_input_stream(
+                        cfg,
+                        move |data: &[f32], _: &rodio::cpal::InputCallbackInfo| {
+                            let mut pf = process.lock().unwrap_or_else(|e| e.into_inner());
+                            pf(data);
+                        },
+                        err_fn,
+                        None,
+                    )
+                }
+                // Both formats are already normalised to [-1.0, 1.0], so the width is the
+                // only difference and the cast is the whole conversion.
+                rodio::cpal::SampleFormat::F64 => {
+                    let process = process.clone();
+                    cpal_device.build_input_stream(
+                        cfg,
+                        move |data: &[f64], _: &rodio::cpal::InputCallbackInfo| {
+                            let f32_data: Vec<f32> =
+                                data.iter().map(|&sample| sample as f32).collect();
+                            let mut pf = process.lock().unwrap_or_else(|e| e.into_inner());
+                            pf(&f32_data);
+                        },
+                        err_fn,
+                        None,
+                    )
+                }
+                rodio::cpal::SampleFormat::I32 => {
+                    let process = process.clone();
+                    cpal_device.build_input_stream(
+                        cfg,
+                        move |data: &[i32], _: &rodio::cpal::InputCallbackInfo| {
+                            const SCALE: f32 = 2147483648.0;
+                            let f32_data: Vec<f32> =
+                                data.iter().map(|&sample| sample as f32 / SCALE).collect();
+                            let mut pf = process.lock().unwrap_or_else(|e| e.into_inner());
+                            pf(&f32_data);
+                        },
+                        err_fn,
+                        None,
+                    )
+                }
+                rodio::cpal::SampleFormat::I16 => {
+                    let process = process.clone();
+                    cpal_device.build_input_stream(
+                        cfg,
+                        move |data: &[i16], _: &rodio::cpal::InputCallbackInfo| {
+                            const SCALE: f32 = 32768.0;
+                            let f32_data: Vec<f32> =
+                                data.iter().map(|&sample| sample as f32 / SCALE).collect();
+                            let mut pf = process.lock().unwrap_or_else(|e| e.into_inner());
+                            pf(&f32_data);
+                        },
+                        err_fn,
+                        None,
+                    )
+                }
+                _ => Err(rodio::cpal::BuildStreamError::StreamConfigNotSupported),
+            }
+        };
+
+        let stream = build_stream(&device_config, process.clone(), Box::new(error_fn));
+
+        // If the config was rejected and we used a Fixed buffer, retry with Default
+        let stream = match stream {
+            Err(e)
+                if Self::is_config_rejection(&e)
+                    && device_config.buffer_size != rodio::cpal::BufferSize::Default =>
+            {
+                warn!(
+                    "Input stream config rejected for {} ({:?}), falling back to default buffer size",
+                    device.display_name, e
                 );
-
-                let error_fn = move |error: rodio::cpal::StreamError| {
-                    error!("Audio stream error (device may have disconnected): {}", error);
-                    shutdown_for_error.store(true, Ordering::Relaxed);
-
-                    let _ = recovery_tx_for_error.send(StreamRecoveryEvent::DeviceError {
+                let fallback_config = rodio::cpal::StreamConfig {
+                    buffer_size: rodio::cpal::BufferSize::Default,
+                    ..device_config
+                };
+                let shutdown_retry = shutdown.clone();
+                let recovery_tx_retry = recovery_tx.clone();
+                let fallback_error_fn = move |error: rodio::cpal::StreamError| {
+                    error!(
+                        "Audio input stream error (device may have disconnected): {}",
+                        error
+                    );
+                    shutdown_retry.store(true, Ordering::Relaxed);
+                    let _ = recovery_tx_retry.send(StreamRecoveryEvent::DeviceError {
                         device_type: AudioDeviceType::InputDevice,
                         error: error.to_string(),
                     });
                 };
+                build_stream(&fallback_config, process, Box::new(fallback_error_fn))
+            }
+            other => other,
+        };
 
-                // Wrap process in Arc<Mutex<>> so it can be shared across the
-                // fixed/default buffer-size fallback attempts.
-                let process = std::sync::Arc::new(std::sync::Mutex::new(process));
+        match stream {
+            Ok(stream) => {
+                if let Err(e) = stream.play() {
+                    shutdown.store(true, Ordering::Relaxed);
+                    return Err(anyhow!("Failed to start input stream: {:?}", e));
+                }
 
-                let build_stream = |cfg: &rodio::cpal::StreamConfig,
-                                    process: std::sync::Arc<std::sync::Mutex<dyn FnMut(&[f32]) + Send>>,
-                                    err_fn: Box<dyn FnMut(rodio::cpal::StreamError) + Send>|
-                    -> Result<rodio::cpal::Stream, rodio::cpal::BuildStreamError> {
-                    match sample_format {
-                        rodio::cpal::SampleFormat::F32 => {
-                            let process = process.clone();
-                            cpal_device.build_input_stream(
-                                cfg,
-                                move |data: &[f32], _: &rodio::cpal::InputCallbackInfo| {
-                                    if let Ok(mut pf) = process.lock() {
-                                        pf(data);
-                                    }
-                                },
-                                err_fn,
-                                None,
-                            )
-                        }
-                        rodio::cpal::SampleFormat::I32 => {
-                            let process = process.clone();
-                            cpal_device.build_input_stream(
-                                cfg,
-                                move |data: &[i32], _: &rodio::cpal::InputCallbackInfo| {
-                                    const SCALE: f32 = 2147483648.0;
-                                    let f32_data: Vec<f32> = data
-                                        .iter()
-                                        .map(|&sample| sample as f32 / SCALE)
-                                        .collect();
-                                    if let Ok(mut pf) = process.lock() {
-                                        pf(&f32_data);
-                                    }
-                                },
-                                err_fn,
-                                None,
-                            )
-                        }
-                        rodio::cpal::SampleFormat::I16 => {
-                            let process = process.clone();
-                            cpal_device.build_input_stream(
-                                cfg,
-                                move |data: &[i16], _: &rodio::cpal::InputCallbackInfo| {
-                                    const SCALE: f32 = 32768.0;
-                                    let f32_data: Vec<f32> = data
-                                        .iter()
-                                        .map(|&sample| sample as f32 / SCALE)
-                                        .collect();
-                                    if let Ok(mut pf) = process.lock() {
-                                        pf(&f32_data);
-                                    }
-                                },
-                                err_fn,
-                                None,
-                            )
-                        }
-                        _ => Err(rodio::cpal::BuildStreamError::StreamConfigNotSupported),
-                    }
-                };
-
-                let stream = build_stream(&device_config, process.clone(), Box::new(error_fn));
-
-                // If the config was rejected and we used a Fixed buffer, retry with Default
-                let stream = match stream {
-                    Err(e)
-                        if Self::is_config_rejection(&e)
-                            && device_config.buffer_size != rodio::cpal::BufferSize::Default =>
-                    {
-                        warn!(
-                            "Input stream config rejected for {} ({:?}), falling back to default buffer size",
-                            device.display_name, e
-                        );
-                        let fallback_config = rodio::cpal::StreamConfig {
-                            buffer_size: rodio::cpal::BufferSize::Default,
-                            ..device_config
-                        };
-                        let shutdown_retry = shutdown.clone();
-                        let recovery_tx_retry = recovery_tx.clone();
-                        let fallback_error_fn = move |error: rodio::cpal::StreamError| {
-                            error!("Audio input stream error (device may have disconnected): {}", error);
-                            shutdown_retry.store(true, Ordering::Relaxed);
-                            let _ = recovery_tx_retry.send(StreamRecoveryEvent::DeviceError {
-                                device_type: AudioDeviceType::InputDevice,
-                                error: error.to_string(),
-                            });
-                        };
-                        build_stream(&fallback_config, process, Box::new(fallback_error_fn))
-                    }
-                    other => other,
-                };
-
-                match stream {
-                    Ok(stream) => {
-                        if let Err(e) = stream.play() {
-                            error!("Failed to start input audio stream: {:?}", e);
-                            shutdown.store(true, Ordering::Relaxed);
-                            let _ = recovery_tx.send(StreamRecoveryEvent::DeviceError {
-                                device_type: AudioDeviceType::InputDevice,
-                                error: format!("Failed to start input stream: {:?}", e),
-                            });
-                            return;
-                        }
-
-                        let _ = shutdown_rx.blocking_recv();
-
-                        if let Err(e) = stream.pause() {
-                            warn!("Failed to pause stream (may already be stopped): {:?}", e);
-                        }
-                        drop(stream);
-                    }
-                    Err(e) => {
-                        // A stream that never opened must trigger the same
-                        // recovery path as one that died at runtime; otherwise
-                        // the client sits connected with a silently dead mic.
-                        error!("Failed to build input audio stream: {:?}", e);
-                        shutdown.store(true, Ordering::Relaxed);
-                        let _ = recovery_tx.send(StreamRecoveryEvent::DeviceError {
-                            device_type: AudioDeviceType::InputDevice,
-                            error: format!("Failed to build input stream: {:?}", e),
-                        });
-                    }
-                };
-            })?;
-
-        // Real work runs on the OS thread; the sender task pairs against this
-        // tokio handle.
-        let handle = tokio::spawn(async {});
-        Ok(SourceDriver {
-            handle,
-            shutdown_tx: Some(shutdown_tx),
-        })
+                Ok(SourceDriver {
+                    stream: Some(stream),
+                })
+            }
+            // A stream that never opened is a failed start, not a start that produced a broken
+            // stream. Reporting it as `Ok` set `capture_expected`, which armed the capture
+            // watchdog over a device that had never been opened, and the recovery event it also
+            // sent had the webview rebuilding it every 500 ms. Neither loop could ever succeed:
+            // both buffer sizes were already refused for this endpoint.
+            Err(e) => {
+                shutdown.store(true, Ordering::Relaxed);
+                Err(anyhow!("Failed to build input stream: {:?}", e))
+            }
+        }
     }
 
     #[cfg(feature = "e2e")]
@@ -356,10 +356,8 @@ impl AudioInputSource {
             })
             .expect("failed to spawn fake audio-input thread");
 
-        let handle = tokio::spawn(async {});
-        SourceDriver {
-            handle,
-            shutdown_tx: None,
-        }
+        // No cpal stream to hold: the bridge feed ends when its own source closes, and the
+        // shutdown flag the closure above reads is what stops it early.
+        SourceDriver { stream: None }
     }
 }

@@ -1,8 +1,9 @@
+use crate::http::guards::PlayerGuard;
 use common::{
     Game, auth::MinecraftAuthProvider, request::LinkJavaIdentityRequest,
     response::LinkJavaIdentityResponse,
 };
-use rocket::{State, http::Status, mtls::Certificate, serde::json::Json};
+use rocket::{State, http::Status, serde::json::Json};
 use rocket_okapi::openapi;
 
 use crate::services::PlayerIdentityService;
@@ -13,7 +14,7 @@ use crate::services::PlayerIdentityService;
 #[openapi(tag = "Identity")]
 #[post("/auth/link-java", data = "<payload>")]
 pub async fn link_java_identity(
-    _identity: Certificate<'_>,
+    _guard: PlayerGuard,
     payload: Json<LinkJavaIdentityRequest>,
     identity_service: &State<PlayerIdentityService>,
 ) -> Result<Json<LinkJavaIdentityResponse>, Status> {

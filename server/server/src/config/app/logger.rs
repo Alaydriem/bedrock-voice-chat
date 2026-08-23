@@ -9,7 +9,7 @@ fn default_log_out() -> String {
 }
 
 /// Logger Configuration
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Logger {
     #[serde(default = "default_log_level")]
     pub level: String,

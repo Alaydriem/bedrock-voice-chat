@@ -1,7 +1,8 @@
+import { I18n } from "$lib/i18n";
 import { writable, type Readable, type Writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { error } from "@tauri-apps/plugin-log";
+import { error } from "@charlesportwoodii/tauri-plugin-curia";
 import { Store } from "@tauri-apps/plugin-store";
 import Analytics from "../../analytics";
 import PlatformDetector from "../../utils/PlatformDetector";
@@ -22,6 +23,8 @@ export class AboutManager {
     public readonly isReady: Readable<boolean>;
     private isMobileStore: Writable<boolean>;
     public readonly isMobile: Readable<boolean>;
+    private isDevStore: Writable<boolean>;
+    public readonly isDev: Readable<boolean>;
 
     private isExportingStore: Writable<boolean>;
     public readonly isExporting: Readable<boolean>;
@@ -31,12 +34,12 @@ export class AboutManager {
     private telemetryStore: Writable<boolean>;
     public readonly telemetry: Readable<boolean>;
 
-    private showPlatformIdStore: Writable<boolean>;
-    public readonly showPlatformId: Readable<boolean>;
     private platformIdStore: Writable<string>;
     public readonly platformId: Readable<string>;
-    private platformIdCopiedStore: Writable<boolean>;
-    public readonly platformIdCopied: Readable<boolean>;
+    private isRefreshingPlatformIdStore: Writable<boolean>;
+    public readonly isRefreshingPlatformId: Readable<boolean>;
+    private platformIdErrorStore: Writable<string>;
+    public readonly platformIdError: Readable<string>;
 
     private isRefreshingFlagsStore: Writable<boolean>;
     public readonly isRefreshingFlags: Readable<boolean>;
@@ -53,27 +56,24 @@ export class AboutManager {
     public readonly links: AboutLink[] = [
         {
             url: "https://github.com/alaydriem/bedrock-voice-chat/issues",
-            title: "Report a Bug",
-            description: "Open a bug report on GitHub",
+            title: I18n.t("Report a Bug"),
+            description: I18n.t("Open a bug report on GitHub"),
             icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>`,
         },
         {
             url: "https://discord.gg/MAHckcEATj",
             title: "Discussions",
-            description: "Community discussions and help",
+            description: I18n.t("Community discussions and help"),
             icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/>`,
         },
         {
             url: "https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md",
-            title: "Privacy Notice",
-            description: "View privacy statement",
+            title: I18n.t("Privacy Notice"),
+            description: I18n.t("View privacy statement"),
             icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>`,
         },
     ];
 
-    private variantClickCount = 0;
-    private variantClickTimer: ReturnType<typeof setTimeout> | null = null;
-    private platformIdCopiedTimer: ReturnType<typeof setTimeout> | null = null;
     private readonly boundLoadDiscord: () => void;
 
     constructor() {
@@ -86,6 +86,8 @@ export class AboutManager {
         this.isReady = { subscribe: this.isReadyStore.subscribe };
         this.isMobileStore = writable(false);
         this.isMobile = { subscribe: this.isMobileStore.subscribe };
+        this.isDevStore = writable(false);
+        this.isDev = { subscribe: this.isDevStore.subscribe };
 
         this.isExportingStore = writable(false);
         this.isExporting = { subscribe: this.isExportingStore.subscribe };
@@ -95,12 +97,12 @@ export class AboutManager {
         this.telemetryStore = writable(true);
         this.telemetry = { subscribe: this.telemetryStore.subscribe };
 
-        this.showPlatformIdStore = writable(false);
-        this.showPlatformId = { subscribe: this.showPlatformIdStore.subscribe };
         this.platformIdStore = writable("");
         this.platformId = { subscribe: this.platformIdStore.subscribe };
-        this.platformIdCopiedStore = writable(false);
-        this.platformIdCopied = { subscribe: this.platformIdCopiedStore.subscribe };
+        this.isRefreshingPlatformIdStore = writable(false);
+        this.isRefreshingPlatformId = { subscribe: this.isRefreshingPlatformIdStore.subscribe };
+        this.platformIdErrorStore = writable("");
+        this.platformIdError = { subscribe: this.platformIdErrorStore.subscribe };
 
         this.isRefreshingFlagsStore = writable(false);
         this.isRefreshingFlags = { subscribe: this.isRefreshingFlagsStore.subscribe };
@@ -125,8 +127,17 @@ export class AboutManager {
         try {
             this.appInfoStore.set(await invoke<AppInfo>("get_app_info"));
             this.telemetryStore.set(await invoke<boolean>("get_telemetry"));
+            this.platformIdStore.set(await invoke<string>("get_platform_id"));
         } catch (e) {
             error(`Failed to get app info: ${e}`);
+        }
+
+        // Gates developer-only controls. A failure here means "not dev" rather
+        // than an unhandled rejection: the pane must render either way.
+        try {
+            this.isDevStore.set((await invoke<string>("get_variant")) === "dev");
+        } catch {
+            this.isDevStore.set(false);
         }
 
         await this.loadDiscord();
@@ -159,46 +170,21 @@ export class AboutManager {
         }
     }
 
-    async handleVariantClick(): Promise<void> {
-        this.variantClickCount++;
-
-        if (this.variantClickTimer) clearTimeout(this.variantClickTimer);
-        this.variantClickTimer = setTimeout(() => {
-            this.variantClickCount = 0;
-        }, 2000);
-
-        let revealed = false;
-        this.showPlatformIdStore.update((value) => {
-            revealed = value;
-            return value;
-        });
-
-        if (this.variantClickCount >= 3 && !revealed) {
-            try {
-                const store = await Store.load("store.json", { autoSave: false, defaults: {} });
-                this.platformIdStore.set((await store.get<string>("install_id")) ?? "");
-            } catch (e) {
-                error(`Failed to read install_id: ${e}`);
-            }
-            this.showPlatformIdStore.set(true);
-        }
-    }
-
-    async copyPlatformId(): Promise<void> {
-        let id = "";
-        this.platformIdStore.update((value) => {
-            id = value;
-            return value;
-        });
+    /**
+     * Trades the current identity for a new one. Analytics and feature flags follow it
+     * without a restart, so the returned value is what the rest of the session reports
+     * under.
+     */
+    async refreshPlatformId(): Promise<void> {
+        this.isRefreshingPlatformIdStore.set(true);
+        this.platformIdErrorStore.set("");
         try {
-            await navigator.clipboard.writeText(id);
-            this.platformIdCopiedStore.set(true);
-            if (this.platformIdCopiedTimer) clearTimeout(this.platformIdCopiedTimer);
-            this.platformIdCopiedTimer = setTimeout(() => {
-                this.platformIdCopiedStore.set(false);
-            }, 1500);
+            this.platformIdStore.set(await invoke<string>("refresh_platform_id"));
         } catch (e) {
-            error(`Failed to copy install_id: ${e}`);
+            this.platformIdErrorStore.set(String(e));
+            error(`Failed to refresh the platform ID: ${e}`);
+        } finally {
+            this.isRefreshingPlatformIdStore.set(false);
         }
     }
 
@@ -207,7 +193,7 @@ export class AboutManager {
         this.refreshFlagsMessageStore.set("");
         try {
             await this.featureFlags.refresh();
-            this.refreshFlagsMessageStore.set("Feature flags refreshed.");
+            this.refreshFlagsMessageStore.set(I18n.t("Feature flags refreshed."));
         } catch (e) {
             this.refreshFlagsMessageStore.set(`Refresh failed: ${e}`);
             error(`Refresh feature flags failed: ${e}`);
@@ -248,8 +234,6 @@ export class AboutManager {
     }
 
     destroy(): void {
-        if (this.variantClickTimer) clearTimeout(this.variantClickTimer);
-        if (this.platformIdCopiedTimer) clearTimeout(this.platformIdCopiedTimer);
         window.removeEventListener("discord-link-updated", this.boundLoadDiscord);
     }
 }

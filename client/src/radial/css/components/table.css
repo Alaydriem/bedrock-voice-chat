@@ -73,6 +73,23 @@
   text-align: right;
 }
 
+/* A row that opens the record it names. A chevron says the row goes somewhere; a
+   kebab would say it has a menu, which is a different promise. */
+.rad-table__go {
+  display: inline-flex;
+  color: var(--color-rad-faint);
+}
+
+.rad-table__go > svg {
+  width: 16px;
+  height: 16px;
+  transform: rotate(-90deg);
+}
+
+.rad-table tr.is-openable td {
+  cursor: pointer;
+}
+
 .rad-row-actions {
   display: flex;
   gap: 2px;
@@ -192,4 +209,84 @@
   padding: 26px;
   text-align: center;
   color: var(--color-rad-faint);
+}
+
+/* ---- one record as a card ----
+ * What a table becomes on a phone: identity, then the field that gets acted on, then
+ * everything else on one meta line. Actions pinned right at full height.
+ *
+ *   <div class="rad-table-wrap rad-table-wrap--wide"> … the table … </div>
+ *   <div class="rad-datacards"> … a .rad-datacard per row … </div>
+ */
+
+.rad-datacards {
+  display: none;
+}
+
+.rad-datacard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--color-rad-line);
+}
+
+.rad-datacard:last-child {
+  border-bottom: 0;
+}
+
+.rad-datacard__name {
+  grid-column: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-rad-md);
+  font-weight: 500;
+  color: var(--color-rad-tx);
+}
+
+/* Selectable, so it can be copied by hand. */
+.rad-datacard__id {
+  grid-column: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-sm);
+  letter-spacing: var(--tracking-rad-wide);
+  color: var(--color-rad-dim);
+  user-select: all;
+}
+
+/* Everything a table would have given its own column. */
+.rad-datacard__meta {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-wide);
+  color: var(--color-rad-faint);
+}
+
+.rad-datacard__actions {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+@container rad (max-width: 620px) {
+  .rad-table-wrap--wide {
+    display: none;
+  }
+
+  .rad-datacards {
+    display: block;
+  }
 }

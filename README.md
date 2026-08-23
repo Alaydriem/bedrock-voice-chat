@@ -31,7 +31,7 @@ Bedrock Voice Chat is an client app + addon for Minecraft Bedrock edition that p
 
 ## Getting Started
 
-[www.bedrockvoicechat.com](https://www.bedrockvoicechat.com) is your source for getting started, finding the most recent download, and getting information on how to run and manage Bedrock Voice Chat. Be sure to checkout the wiki at: https://github.com/Alaydriem/bedrock-voice-chat/wiki for comprehensive documentation.
+[www.bedrockvoicechat.com](https://www.bedrockvoicechat.com) is your source for getting started, finding the most recent download, and getting information on how to run and manage Bedrock Voice Chat. Be sure to checkout the wiki at: https://www.bedrockvoicechat.com/wiki for comprehensive documentation.
 
 For operators running cross-server voice relay (Realms Connect / Proxy Connect with multiple BVC servers sharing a world), see [docs/relay-performance.md](docs/relay-performance.md) for bandwidth and scaling guidance.
 
@@ -57,7 +57,102 @@ Bedrock Voice Chat has 3 components
 2. A Bedrock Voice Chat Server you need to host and maintain that ties position data and audio data together
 3. And a native client for Windows, iOS, and Android.
 
-All 3 components are mandatory. Be sure to checkout the Wiki for more information: https://github.com/Alaydriem/bedrock-voice-chat/wiki
+All 3 components are mandatory. Be sure to checkout the Wiki for more information: https://www.bedrockvoicechat.com/wiki
+
+## Building from Source
+
+Builds and tests run through [mise](https://mise.jdx.dev/). Every build, test and maintenance
+command in this repository is a mise task that sets the working directory, the toolchain and the
+mandatory flags for you. A bare `cargo build` or `yarn tauri build` misses at least one of those
+and fails with an error that does not name its cause.
+
+### Prerequisites
+
+Install these yourself:
+
+| Requirement | Notes |
+| --- | --- |
+| [mise](https://mise.jdx.dev/getting-started.html) | Supplies node, yarn and the two Java versions. Everything below assumes it is on `PATH` |
+| Rust | Pinned by `rust-toolchain.toml`; `rustup` installs the pinned version automatically |
+| `cargo-nextest` | `cargo install cargo-nextest --locked`. Client tests require it — `cargo test` is not a substitute |
+| Visual Studio 2022 Build Tools with Clang (Windows) | Set `LIBCLANG_PATH`, for example `C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib` |
+
+mise provides node, yarn, Java 21 for the Android client build, and Java 25 for the Java mods.
+You do not install those separately.
+
+### First build
+
+```bash
+git clone https://github.com/Alaydriem/bedrock-voice-chat
+cd bedrock-voice-chat
+
+mise trust && mise trust client/mise.toml && mise trust mods/java/mise.toml
+mise run setup
+mise run preflight
+```
+
+`mise trust` is required once per checkout, per config file — mise refuses to read a config it has
+not been told to trust. `mise run setup` downloads the Steinberg ASIO SDK, installs the client JS
+dependencies, builds the i18n resources and builds the SvelteKit frontend; it takes about
+15 seconds. `mise run preflight` then reports anything still missing by name, rather than letting
+a build fail on it later.
+
+### Tasks
+
+Run `mise run <task>` from anywhere in the checkout. `mise tasks` lists all of them with
+descriptions.
+
+| Task | What it does |
+| --- | --- |
+| `mise run build-client` | Builds the Tauri desktop client |
+| `mise run build-server` | Builds the voice chat server |
+| `mise run check-common` | Type-checks the shared `common` crate |
+| `mise run test-client [filter]` | Runs the client test suite, building the server cdylib and e2e binary first |
+| `mise run test-server` | Runs the server test suite |
+| `mise run test-common` | Runs the shared crate tests |
+| `mise run bindings` | Regenerates the ts-rs TypeScript bindings in `client/src/js/bindings/`, and the barrel that re-exports them |
+| `mise run frontend` | Builds the SvelteKit frontend into `client/build` |
+| `mise run dev-bds` | Builds and deploys the BDS packs, then starts a local Bedrock Dedicated Server |
+| `mise run dev-paper` | Builds and deploys the Paper plugin, then starts a local Paper server |
+| `mise run dev-fabric` | Builds and deploys the Fabric mod, then starts a local Fabric server |
+| `mise run preflight` | Reports environment problems by name |
+| `mise run targets-report` | Reports the size and age of the cargo target directories |
+| `mise run clean-incremental` | Reclaims cargo incremental caches. Dry-run unless you pass `--force` |
+| `mise run clean-targets [days]` | Deletes target directories idle for N days. Dry-run unless you pass `--force` |
+
+Tasks declare their own dependencies, so asking for the end product is enough: `test-client`
+builds what it needs first, and `frontend` installs dependencies and builds the i18n catalogs
+first. Flags for the underlying tool go after a `--` separator, so mise does not read them as
+its own: `mise run dev-bds -- --no-net`.
+
+Rust builds in this repository are large. `mise run targets-report` shows what the cargo target
+directories currently cost, and `clean-incremental` reclaims the incremental caches — pure build
+state, at the price of one non-incremental rebuild.
+
+### Minecraft mods
+
+Each platform has a task that builds the mod, deploys it to your local test server and then
+starts that server attached to your terminal. Ctrl+C stops it; re-run to rebuild and restart.
+
+```bash
+mise run dev-bds      # Bedrock Dedicated Server
+mise run dev-paper    # Paper, with the Simple Voice Chat bridge
+mise run dev-fabric   # Fabric, with the Simple Voice Chat bridge
+```
+
+Server paths come from `mods/.env`; copy `mods/.env.example` to get started. The tasks install
+the yarn dependencies and, for Paper and Fabric, stage the relay SDK native library first — that
+library is not committed and the bridge fails without it. Pass `-- --release`, `-- --no-build`, or
+(BDS only) `-- --no-net` to change what they do.
+
+`mise run svc-paper` still works as an alias for `dev-paper`. `mise run svc-native` stages the
+relay native on its own, and `mise run svc-verify` prints the manual checklist for testing the
+bridge by hand.
+
+To build the mods without starting a server, `mods/` also exposes `yarn dev-build` (native
+library and Paper) and `yarn dev-build-all` (adds Fabric and the BDS packs). Run these from
+`mods/java/` or wrap them in `mise x java@temurin-25 --`, so gradlew gets the pinned JDK instead
+of whatever java is first on `PATH`.
 
 ## Telemetry & Metrics
 

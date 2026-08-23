@@ -8,7 +8,7 @@ fn default_max_concurrent_per_uuid() -> usize {
     5
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Audio {
     #[serde(default = "default_file_path")]
     pub file_path: String,

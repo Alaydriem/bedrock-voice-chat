@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use anyhow::{Result, anyhow};
 use bvc_server_lib::config::ApplicationConfig;
-use bvc_server_lib::services::CertificateService;
+use bvc_server_lib::services::{CertificateRevocationService, CertificateService};
 use common::Game;
 use common::structs::permission::PermissionEffect;
 use entity::player;
@@ -41,6 +41,9 @@ pub struct TestServer {
     pub admin_key: String,
     pub admin_id: i32,
     pub cert_service: Arc<CertificateService>,
+    pub revocations: Arc<CertificateRevocationService>,
+    #[cfg(feature = "bedrock")]
+    pub transfer_cache: bvc_server_lib::services::bedrock::TransferTargetCache,
     pub db: DatabaseConnection,
     pub readiness: Arc<bvc_server_lib::runtime::ReadinessState>,
     _tmp: TempDir,
@@ -49,10 +52,26 @@ pub struct TestServer {
 
 impl TestServer {
     pub async fn start() -> Result<Self> {
-        Self::start_with_relay(false).await
+        Self::start_with(true, true, 0).await
     }
 
-    pub async fn start_with_relay(relay_enabled: bool) -> Result<Self> {
+    pub async fn start_with_recording(recording_enabled: bool) -> Result<Self> {
+        Self::start_with(recording_enabled, true, 0).await
+    }
+
+    pub async fn start_with_chat(chat_enabled: bool) -> Result<Self> {
+        Self::start_with(true, chat_enabled, 0).await
+    }
+
+    pub async fn start_with_capacity(connections: u32) -> Result<Self> {
+        Self::start_with(true, true, connections).await
+    }
+
+    async fn start_with(
+        recording_enabled: bool,
+        chat_enabled: bool,
+        connections: u32,
+    ) -> Result<Self> {
         // rustls crypto provider: install once per process; ignore re-install error.
         let _ =
             common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
@@ -113,18 +132,26 @@ impl TestServer {
         config.server.tls.certs_path = certs_path.to_string_lossy().into_owned();
         config.server.assets_path = assets_path.to_string_lossy().into_owned();
         config.server.minecraft.access_token = "test-mc-token".to_string();
+        config.voice.recording.enabled = recording_enabled;
+        config.server.features.chat = chat_enabled;
+        config.voice.limits.connections = connections;
 
         let identity_service =
             bvc_server_lib::services::PlayerIdentityService::new(Arc::new(db.clone()));
         // The harness never boots QUIC, so the flag starts (and stays) false
         // unless a test raises it explicitly.
         let readiness = bvc_server_lib::runtime::ReadinessState::new_shared();
+        let revocations = CertificateRevocationService::new_shared();
+        #[cfg(feature = "bedrock")]
+        let transfer_cache = bvc_server_lib::services::bedrock::TransferTargetCache::new(300);
         let server_task = RocketHarness::launch(
             config,
             cert_service.clone(),
             identity_service,
-            relay_enabled,
             readiness.clone(),
+            revocations.clone(),
+            #[cfg(feature = "bedrock")]
+            transfer_cache.clone(),
         )
         .await?;
 
@@ -141,11 +168,24 @@ impl TestServer {
             admin_key,
             admin_id,
             cert_service,
+            revocations,
+            #[cfg(feature = "bedrock")]
+            transfer_cache,
             db,
             readiness,
             _tmp: tmp,
             _server_task: server_task,
         })
+    }
+
+    /// Revokes a certificate by its PEM, the way banning does.
+    ///
+    /// Writes through the same service instance Rocket holds, so the running server's cache
+    /// is invalidated rather than left holding a stale negative.
+    pub async fn revoke_certificate(&self, cert_pem: &str) -> Result<()> {
+        self.revocations
+            .revoke_pem(&self.db, cert_pem, None, "test")
+            .await
     }
 
     pub fn admin_client(&self) -> Result<reqwest::Client> {
@@ -162,10 +202,15 @@ impl TestServer {
         MtlsClient::no_identity(&self.ca_pem)
     }
 
+    /// Returns the certificate the player row actually holds.
+    ///
+    /// This used to sign a second, different certificate and hand that to the caller, so a
+    /// test client authenticated with a credential the server had no record of — matching
+    /// only by Common Name. Anything keyed on the certificate itself, such as revocation,
+    /// then had nothing to bite on.
     pub async fn issue_player(&self, gamertag: &str, game: &Game) -> Result<(String, String)> {
-        let _ = PlayerFixture::insert(&self.db, &self.cert_service, gamertag, game).await?;
-        let (c, k) = self.cert_service.sign_player_cert(gamertag, game)?;
-        Ok((c.pem(), k.serialize_pem()))
+        let player = PlayerFixture::insert(&self.db, &self.cert_service, gamertag, game).await?;
+        Ok((player.certificate, player.certificate_key))
     }
 
     // Issues a player AND grants it `permission` (Allow), returning its mTLS
@@ -178,8 +223,7 @@ impl TestServer {
     ) -> Result<(String, String)> {
         let player = PlayerFixture::insert(&self.db, &self.cert_service, gamertag, game).await?;
         PermissionFixture::upsert(&self.db, player.id, permission, PermissionEffect::Allow).await?;
-        let (c, k) = self.cert_service.sign_player_cert(gamertag, game)?;
-        Ok((c.pem(), k.serialize_pem()))
+        Ok((player.certificate, player.certificate_key))
     }
 
     pub async fn mark_banished(&self, gamertag: &str, game: &Game, banished: bool) -> Result<()> {
@@ -195,9 +239,28 @@ impl TestServer {
         Ok(())
     }
 
+    // Reserved and released, because Rocket binds its own socket and cannot be handed a
+    // listener. That leaves a window in which another test in this process wins the same
+    // ephemeral port, and the loser's Rocket then fails to bind with an error the test
+    // reports as "server did not become ready" — a port race wearing a readiness failure's
+    // clothes. A held set makes the window one per port instead of one per attempt.
     fn pick_free_port() -> Result<u16> {
-        let l = TcpListener::bind("127.0.0.1:0")?;
-        Ok(l.local_addr()?.port())
+        static TAKEN: std::sync::Mutex<Option<std::collections::HashSet<u16>>> =
+            std::sync::Mutex::new(None);
+
+        for _ in 0..64 {
+            let listener = TcpListener::bind("127.0.0.1:0")?;
+            let port = listener.local_addr()?.port();
+            drop(listener);
+
+            let mut guard = TAKEN.lock().expect("port reservation lock");
+            let taken = guard.get_or_insert_with(std::collections::HashSet::new);
+            if taken.insert(port) {
+                return Ok(port);
+            }
+        }
+
+        Err(anyhow!("could not reserve a free port for the test server"))
     }
 
     async fn wait_for_ready(client: &reqwest::Client, url: &str) -> Result<()> {

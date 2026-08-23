@@ -100,32 +100,6 @@ async fn replacement_does_not_disturb_another_identity() {
     );
 }
 
-// The same gamertag on two games is two identities, so their tickets must be
-// independent.
-#[tokio::test]
-async fn replacement_is_keyed_by_game_as_well_as_gamertag() {
-    let cache = CacheManager::new();
-    let tickets = cache.websocket_tickets();
-
-    let minecraft = tickets
-        .issue(TicketIdentity {
-            gamertag: "Alice".to_string(),
-            game: Game::Minecraft,
-        })
-        .await;
-    tickets
-        .issue(TicketIdentity {
-            gamertag: "Alice".to_string(),
-            game: Game::Hytale,
-        })
-        .await;
-
-    assert!(
-        tickets.redeem(&minecraft).await.is_some(),
-        "a different game must not supersede the Minecraft ticket"
-    );
-}
-
 // Every clone of the manager shares one ticket store. Rocket hands each route a
 // clone, so a ticket issued while serving the mint request has to be redeemable
 // while serving the upgrade.
@@ -144,4 +118,87 @@ async fn tickets_are_shared_across_manager_clones() {
             .map(|i| i.gamertag),
         Some("Alice".to_string())
     );
+}
+
+// The sequential sibling above cannot observe the failure this guards. Two upgrades
+// arriving together both read the ticket before either consumes it, and both are handed
+// the identity -- so redemption has to be one atomic operation, and only a race can
+// demonstrate that it is. The barrier releases every task at once rather than trusting the
+// scheduler to interleave them, and the trials make one unlucky ordering insufficient to
+// pass.
+#[tokio::test(flavor = "multi_thread")]
+async fn concurrent_redemptions_yield_exactly_one_identity() {
+    const RACERS: usize = 32;
+    const TRIALS: usize = 25;
+
+    for trial in 0..TRIALS {
+        let cache = CacheManager::new().websocket_tickets().clone();
+        let ticket = cache.issue(identity("Alice")).await;
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(RACERS));
+
+        let mut racers = tokio::task::JoinSet::new();
+        for _ in 0..RACERS {
+            let cache = cache.clone();
+            let ticket = ticket.clone();
+            let barrier = barrier.clone();
+            racers.spawn(async move {
+                barrier.wait().await;
+                cache.redeem(&ticket).await.is_some()
+            });
+        }
+
+        let mut redeemed = 0;
+        while let Some(result) = racers.join_next().await {
+            if result.expect("racer panicked") {
+                redeemed += 1;
+            }
+        }
+
+        assert_eq!(
+            redeemed, 1,
+            "trial {trial}: one ticket must confer identity exactly once, not {redeemed} times"
+        );
+    }
+}
+
+// The one-outstanding-per-identity rule is the design's stated DoS bound. Concurrent mints
+// that each read the same predecessor all remove that one and leave their own behind,
+// unreachable by any later supersede and live until its TTL -- which is the accumulation
+// the bound exists to prevent.
+#[tokio::test(flavor = "multi_thread")]
+async fn concurrent_issues_leave_exactly_one_live_ticket() {
+    const RACERS: usize = 32;
+    const TRIALS: usize = 25;
+
+    for trial in 0..TRIALS {
+        let cache = CacheManager::new().websocket_tickets().clone();
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(RACERS));
+
+        let mut racers = tokio::task::JoinSet::new();
+        for _ in 0..RACERS {
+            let cache = cache.clone();
+            let barrier = barrier.clone();
+            racers.spawn(async move {
+                barrier.wait().await;
+                cache.issue(identity("Alice")).await
+            });
+        }
+
+        let mut tickets = Vec::with_capacity(RACERS);
+        while let Some(result) = racers.join_next().await {
+            tickets.push(result.expect("racer panicked"));
+        }
+
+        let mut live = 0;
+        for ticket in &tickets {
+            if cache.redeem(ticket).await.is_some() {
+                live += 1;
+            }
+        }
+
+        assert_eq!(
+            live, 1,
+            "trial {trial}: one identity must hold one outstanding ticket, not {live}"
+        );
+    }
 }

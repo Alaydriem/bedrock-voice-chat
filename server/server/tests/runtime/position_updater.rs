@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bvc_server_lib::runtime::position_updater::PositionUpdater;
 use bvc_server_lib::stream::quic::WebhookReceiver;
-use bvc_server_lib::stream::quic::connection_registry::{ConnectionRegistry, RoutedPacket};
+use bvc_server_lib::stream::quic::connection::{ConnectionRegistry, RoutedPacket};
 use common::Game;
 use common::PlayerEnum;
 use common::structs::packet::{MAX_DATAGRAM_SIZE, QuicNetworkPacket, QuicNetworkPacketData};
@@ -249,7 +249,7 @@ fn registry_with(
 
     for (i, name) in listeners.iter().enumerate() {
         let (tx, rx) = mpsc::channel(4096);
-        registry.register(vec![i as u8], name.clone(), Game::Minecraft, tx);
+        registry.try_register(i as u64, Game::Minecraft.membership_key(&name).to_string().into(), format!("fp-{}", i as u64), tx).expect("admitted");
         receivers.push((name.clone(), rx));
     }
 
@@ -266,7 +266,7 @@ async fn emit_packets(players: &[PlayerEnum]) -> Vec<QuicNetworkPacket> {
     drop(receiver);
 
     let mut packets = Vec::new();
-    while let Some(packet) = webhook_rx.recv().await {
+    while let Some((packet, _origin)) = webhook_rx.recv().await {
         packets.push(packet);
     }
     packets

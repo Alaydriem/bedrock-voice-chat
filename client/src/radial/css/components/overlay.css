@@ -5,6 +5,58 @@
  * the container query every component inside it depends on.
  */
 
+/* ---- the popover ----
+ * A dropdown holds items and closes when one is pressed. This holds a live control and
+ * has to survive being dragged in, so it is a separate component rather than a variant
+ * of `.rad-menu` — same surface, different contract.
+ *
+ * Anchored to the header rather than positioned by script: it has exactly one home, and
+ * a measured position would only reproduce where it already is.
+ */
+.rad-pop {
+  position: absolute;
+  top: 60px;
+  right: 16px;
+  z-index: 60;
+  width: 252px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 14px;
+  border: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-lg);
+  background: rgb(37 24 68 / 0.98);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-rad-menu);
+}
+
+.rad-pop[hidden] {
+  display: none;
+}
+
+.rad-pop__head {
+  grid-column: 1 / -1;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+/* Tabular and fixed-width, so the row does not shift under the thumb mid-drag. */
+.rad-pop__value {
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-dim);
+}
+
+.rad-pop > .rad-list-row {
+  grid-column: 1 / -1;
+}
+
 /* ---- the dropdown ----
  * One component, two jobs. As a select it shows tick marks against the current
  * value; as a table row menu it uses dividers and puts a single destructive item
@@ -99,6 +151,20 @@
   height: 1px;
   margin: 5px 8px;
   background: var(--color-rad-line);
+}
+
+/* Indented to the item text, not the tick column. */
+.rad-menu__section {
+  padding: 11px 10px 5px 32px;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-label);
+  text-transform: uppercase;
+  color: var(--color-rad-faint);
+}
+
+.rad-menu__section:first-child {
+  padding-top: 4px;
 }
 
 /* ---- scrim ---- */
@@ -198,6 +264,141 @@
   overflow-y: auto;
 }
 
+/* ---- cover ----
+ * A whole screen presented over another one: settings over the dashboard. Full width,
+ * carrying its own rail, with the screen it came from left visible at the top edge.
+ *
+ *   <div class="rad-under is-covered"> … the dashboard … </div>
+ *   <div class="rad-scrim rad-scrim--cover is-on"></div>
+ *   <div class="rad-cover is-open" data-rad-cover="settings"> … </div>
+ */
+
+.rad-cover {
+  position: absolute;
+  /* The peek carries the safe-area inset, so the cover begins below the status bar.
+     `env()` is 0 on desktop, leaving the plain 14px. */
+  inset: calc(env(safe-area-inset-top, 0px) + var(--rad-cover-peek, 14px)) 0 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid var(--color-rad-line-2);
+  border-radius: var(--radius-rad-xl) var(--radius-rad-xl) 0 0;
+  background: var(--color-rad-void);
+  box-shadow: var(--shadow-rad-sheet);
+  transform: translateY(101%);
+  visibility: hidden;
+  transition:
+    transform 0.36s var(--ease-rad-rise),
+    visibility 0s linear 0.36s;
+}
+
+.rad-cover.is-open {
+  transform: translateY(0);
+  visibility: visible;
+  transition:
+    transform 0.36s var(--ease-rad-rise),
+    visibility 0s;
+}
+
+/* The cover holds a shell, which expects to be the thing that fills a frame. */
+.rad-cover > .rad-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The grip is the touch target; the bar inside it is what reads as a handle.
+ *
+ * `touch-action: none` is required: without it the browser claims the vertical drag as a
+ * scroll and delivers `pointercancel` instead of `pointermove`. */
+.rad-cover__grip {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  height: 26px;
+  touch-action: none;
+  cursor: grab;
+}
+
+.rad-cover__grip:active {
+  cursor: grabbing;
+}
+
+.rad-cover__handle {
+  width: 38px;
+  height: 4px;
+  border-radius: var(--radius-rad-pill);
+  background: var(--color-rad-line-2);
+  transition: background 0.16s;
+}
+
+/* The transition would fight the finger. */
+.rad-cover.is-dragging {
+  transition: none;
+}
+
+.rad-cover.is-dragging .rad-cover__handle,
+.rad-cover__grip:hover .rad-cover__handle {
+  background: var(--color-rad-dim);
+}
+
+/* The screen underneath, scaled from the bottom.
+ *
+ * A flex column, standing in for the frame it replaced: the `.rad-shell` inside is
+ * `flex: 1 1 auto` and collapses to its content height in a block parent. */
+.rad-under {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  transform-origin: 50% 100%;
+  transition:
+    transform 0.36s var(--ease-rad-rise),
+    filter 0.36s ease;
+}
+
+.rad-under > .rad-shell,
+.rad-under > .rad-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.rad-under.is-covered {
+  transform: scale(0.977);
+  filter: brightness(0.72) saturate(0.9);
+}
+
+.rad-scrim--cover {
+  z-index: 29;
+  background: rgb(8 3 16 / 0.45);
+}
+
+/* Fades rather than slides. */
+@media (prefers-reduced-motion: reduce) {
+  .rad-cover {
+    transform: none;
+    opacity: 0;
+    transition:
+      opacity 0.2s linear,
+      visibility 0s linear 0.2s;
+  }
+
+  .rad-cover.is-open {
+    opacity: 1;
+    transition:
+      opacity 0.2s linear,
+      visibility 0s;
+  }
+
+  .rad-under {
+    transition: filter 0.2s linear;
+  }
+
+  .rad-under.is-covered {
+    transform: none;
+  }
+}
+
 /* ---- bottom sheet ----
  * The phone equivalent of the rail and the group panel. Rows enter staggered so the
  * sheet reads as assembling rather than as a block sliding up.
@@ -224,16 +425,96 @@
   transform: translateY(0);
 }
 
+/* The transition would fight the finger. */
+.rad-sheet.is-dragging {
+  transition: none;
+}
+
+/* A sheet that opens to the top of the frame instead of parking at the bottom.
+ *
+ * For a sheet whose contents grow while it is open: parked at the bottom, anything that
+ * appears inside it pushes every row upward, so the thing being read moves out from under
+ * the eye. Anchored to the top, growth extends downward into space that is already there.
+ * The peek matches the settings cover, so both read as the same object. */
+.rad-sheet--full {
+  top: calc(env(safe-area-inset-top, 0px) + var(--rad-cover-peek, 14px));
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.rad-sheet--full > .rad-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* The bar is what reads as a handle; the padding around it is what a thumb can hit.
+ *
+ * `touch-action: none` is required: without it the browser claims the vertical drag as a
+ * scroll and delivers `pointercancel` instead of `pointermove`. */
 .rad-sheet__handle {
   display: block;
+  flex: 0 0 auto;
   width: 38px;
   height: 4px;
-  margin: 6px auto 14px;
+  margin: 11px auto 19px;
   border-radius: var(--radius-rad-pill);
   background: var(--color-rad-line-2);
+  touch-action: none;
+  cursor: grab;
+  box-shadow:
+    0 -11px 0 -6px transparent,
+    0 11px 0 -6px transparent;
+}
+
+.rad-sheet__handle:hover,
+.rad-sheet.is-dragging .rad-sheet__handle {
+  background: var(--color-rad-dim);
+}
+
+.rad-sheet__handle:active {
+  cursor: grabbing;
+}
+
+/* The way out that asks for no gesture.
+ *
+ * The handle advertises a drag, and a drag is a poor sole exit: it has no affordance for a
+ * mouse, it competes with the list's own scroll, and it fails silently when it is misread.
+ *
+ * Out of flow and over the handle's band, so it costs no vertical space and leaves the
+ * centred handle and the title below it exactly where they were. Sitting in the corner
+ * matches where the settings cover puts the same control. */
+.rad-sheet__close {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-rad-md);
+  background: transparent;
+  color: var(--color-rad-dim);
+  cursor: pointer;
+}
+
+.rad-sheet__close:hover {
+  background: var(--color-rad-panel);
+  color: var(--color-rad-tx);
+}
+
+.rad-sheet__close > [data-rad-icon] > svg {
+  width: 17px;
+  height: 17px;
 }
 
 .rad-sheet__title {
+  flex: 0 0 auto;
   margin: 0 0 12px;
   font-family: var(--font-rad-mono);
   font-size: var(--text-rad-mono-xs);
@@ -241,6 +522,25 @@
   letter-spacing: var(--tracking-rad-label);
   text-transform: uppercase;
   color: var(--color-rad-faint);
+}
+
+/* A control and its readout on one line inside a sheet. The value is fixed-width and
+   tabular so a dragging slider does not shift the row under the thumb. */
+.rad-sheet__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 2px 14px;
+}
+
+.rad-sheet__value {
+  flex: 0 0 auto;
+  min-width: 46px;
+  text-align: right;
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-rad-dim);
 }
 
 .rad-sheet__divider {

@@ -1,37 +1,16 @@
-pub mod announce_task;
-pub mod audio;
-pub mod code_crypto;
-pub mod delivery;
-pub mod discovery;
-pub mod manager;
-pub mod observe;
-pub mod offer_delivery;
-pub mod orchestrator;
+//! This server's half of a peer link.
+//!
+//! `bvc-relay` carries the transport — endpoint, handshake, link, admission. What
+//! lives here is everything a *server* adds on top of it: who may peer and for
+//! which worlds, what an inbound frame must satisfy before it reaches local
+//! clients, and which local audio leaves at all.
+
+pub mod grant;
 pub mod peer;
-pub mod peer_identity;
-pub mod presence;
-pub mod relayed_packet;
+pub mod world;
 
-pub use code_crypto::{CodeSealer, RelayCodeKeypair};
-pub use manager::{RelayManager, RelayManagerConfig};
-pub use observe::{
-    CodeDecryptor, CodeRedeemer, ObservedCodeHandler, ProductionObservedCodeHandler,
-};
-pub use offer_delivery::ProductionOfferDelivery;
-pub use peer_identity::{RedeemError, RedeemedPeerIdentity, ServerPeerStore, StorePresenceGate};
-
-pub use announce_task::{ActiveWorldsSource, FnActiveWorldsSource, RelayAnnounceTask};
-pub use audio::{
-    AudioFileExistence, AudioPeerQuery, AudioPuller, AudioSource, DbAudioFileExistence,
-    RelayAudioPuller, ResolvedAudio,
-};
-pub use delivery::BroadcastInjectDelivery;
-pub use discovery::RelayClient;
-pub use orchestrator::{LocalInjectDelivery, OfferDelivery, RelayOrchestrator};
+pub use grant::{Grant, GrantConfigError, GrantTable};
 pub use peer::{
-    Caps, GatedPeerIngest, IDLE_TIMEOUT, PeerDialer, PeerDirection, PeerLink, PeerLinkIngest,
-    PeerLinkState, PeerManager, PeerRole, PeerTable, ProductionPeerDialDriver, RedeemedDial,
-    RelayIngestSink, WebhookIngestSink,
+    IngestRejection, LocalClients, PeerBlock, PeerEgress, PeerIngest, PeerLinks, PeerPlane, PeerSink,
 };
-pub use presence::{AlwaysProven, NeverProven, PresenceGate};
-pub use relayed_packet::{PacketOrigin, RelayedPacket};
+pub use world::{RelayWorldWatch, WorldWatchState};

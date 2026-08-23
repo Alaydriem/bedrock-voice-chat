@@ -27,6 +27,7 @@ pub async fn authenticate(
     cert_service: &State<Arc<CertificateService>>,
     identity_service: &State<PlayerIdentityService>,
     perm_config: &State<Permissions>,
+    revocations: &State<std::sync::Arc<crate::services::CertificateRevocationService>>,
 ) -> NcryptfJsonResponse<LoginResponse> {
     let conn = db.into_inner();
 
@@ -52,17 +53,20 @@ pub async fn authenticate(
         Ok(result) => result,
         Err(e) => {
             tracing::error!("Xbox Live authentication failed: {}", e);
-            return match e {
-                CommonAuthError::ProfileNotFound => NcryptfJsonResponse::from_inner(
-                    JsonMessage::create(Status::Forbidden, None, None, None),
-                ),
-                _ => NcryptfJsonResponse::from_inner(JsonMessage::create(
-                    Status::Forbidden,
-                    None,
-                    None,
-                    None,
-                )),
+            // 403 is reserved for a decision about the account: no Xbox profile here, and
+            // further down, a player this server does not admit. Everything else upstream —
+            // a spent or expired code, an unreachable identity provider — answered 403 too,
+            // so the client could only report that the account had been denied, for a
+            // failure that had not reached the account yet and that another sign-in fixes.
+            let status = match e {
+                CommonAuthError::ProfileNotFound => Status::Forbidden,
+                CommonAuthError::CodeRejected(_) => Status::Unauthorized,
+                CommonAuthError::Network(_)
+                | CommonAuthError::Request(_)
+                | CommonAuthError::InvalidResponse(_) => Status::BadGateway,
+                CommonAuthError::AuthenticationFailed(_) => Status::Unauthorized,
             };
+            return NcryptfJsonResponse::from_inner(JsonMessage::create(status, None, None, None));
         }
     };
 
@@ -76,6 +80,7 @@ pub async fn authenticate(
         config.inner(),
         &cert_service,
         Some(&perm_service),
+        revocations.inner().as_ref(),
         gamertag.clone(),
         auth_result.gamerpic,
         Game::Minecraft,

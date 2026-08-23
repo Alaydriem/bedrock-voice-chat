@@ -7,6 +7,9 @@ authors:
   - Charles R. Portwood II (Alaydriem)
 softdepend:
   - floodgate
+  # Soft, because the bridge is optional. Named so SVC registers its service before
+  # this plugin looks for it; without the ordering the lookup races the load.
+  - voicechat
 permissions:
   bvc.disc:
     description: Allow getting a BVC audio disc via /bvc disc

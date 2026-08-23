@@ -1,35 +1,49 @@
 <script lang="ts">
     import "../../css/app.css";
-    import "../../css/settings-responsive.css";
-    import Settings from "../../js/app/settings.ts";
-    import Sidebar from "../../components/settings/Sidebar.svelte";
-    import { platform } from "@tauri-apps/plugin-os";
+    import { goto } from "$app/navigation";
+    import { page } from "$app/state";
+    import RadFrame from "../../components/shell/RadFrame.svelte";
+    import SettingsScreen from "../../components/settings/SettingsScreen.svelte";
+    import Notification from "../../components/events/Notification.svelte";
+    import { SettingsCatalogue } from "../../js/app/settings/SettingsCatalogue";
 
-    import { onMount } from "svelte";
+    /**
+     * Settings with no dashboard behind it.
+     *
+     * The error screen sends people here — "change audio devices" from a fault that has
+     * already taken the dashboard down — so there is nothing to present this over and
+     * nothing to dismiss back to. The pane comes from the hash rather than the path
+     * because that is the shape of the links already out there.
+     */
+    let pane = $state(SettingsCatalogue.fallback);
 
-    onMount(async () => {
-      try {
-        const os = platform();
-        if (os === "android") document.body.classList.add("android");
-        if (os === "ios") document.body.classList.add("ios");
-      } catch {}
+    /**
+     * Which screen is showing on a phone.
+     *
+     * Held here rather than read from the path: this route carries its pane in the hash,
+     * and there is no dashboard behind it for a second history entry to sit above. Back
+     * therefore leaves outright from either screen, which is what it already did.
+     */
+    let level = $state<"list" | "detail">("list");
 
-      window.App = new Settings();
-      window.dispatchEvent(new CustomEvent("app:mounted"));
-      document.querySelector("body")?.classList.add("is-sidebar-open");
-      window.App.initialize();
-      window.App.preloader();
+    $effect(() => {
+        const asked = page.url.hash.replace(/^#/, "");
+        pane = SettingsCatalogue.resolve(asked, false)?.id ?? SettingsCatalogue.fallback;
     });
 </script>
 
-<div id="root" class="min-h-100vh cloak flex grow bg-slate-50 dark:bg-navy-900">
-  <!-- Desktop sidebar -->
-  <div id="main-sidebar-container" class="sidebar print:hidden">
-    <Sidebar activePage="account.svelte" />
-  </div>
+<RadFrame>
+    <SettingsScreen
+        {pane}
+        {level}
+        standalone
+        onnavigate={(next) => {
+            pane = next;
+            level = "detail";
+        }}
+        onback={() => void goto("/dashboard")}
+        onclose={() => void goto("/dashboard")}
+    />
+</RadFrame>
 
-  <main class="main-content flex-1 settings-main-content 
-    md:static md:block md:transform-none md:z-auto md:bg-transparent md:overflow-visible md:px-[var(--margin-x)] md:pb-8">  
-    <!-- Content will be dynamically mounted here by the Sidebar component -->
-  </main>
-</div>
+<Notification />

@@ -22,6 +22,11 @@ pub struct MinecraftPlayer {
     pub player_uuid: Option<String>,
     #[serde(default)]
     pub relay_world_uuid: Option<String>,
+    // Set by a mod that holds this player's voice connection itself, currently the Simple
+    // Voice Chat bridge. Absent from every other producer, which is why it defaults false
+    // rather than being an Option: there is no third state between bridged and not.
+    #[serde(default)]
+    pub bridged_voice: bool,
 }
 
 impl PlayerData for MinecraftPlayer {
@@ -43,6 +48,18 @@ impl PlayerData for MinecraftPlayer {
 
     fn get_game(&self) -> Game {
         Game::Minecraft
+    }
+
+    fn world_identifier(&self) -> Option<&str> {
+        self.relay_world_uuid.as_deref()
+    }
+
+    fn has_bridged_voice(&self) -> bool {
+        self.bridged_voice
+    }
+
+    fn dimension(&self) -> Option<Dimension> {
+        Some(self.dimension.clone())
     }
 
     fn clone_box(&self) -> Box<dyn PlayerData> {
@@ -124,6 +141,7 @@ impl From<crate::Player> for MinecraftPlayer {
             alternative_identity: None,
             player_uuid: None,
             relay_world_uuid: None,
+            bridged_voice: false,
         }
     }
 }

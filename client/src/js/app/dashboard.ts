@@ -1,16 +1,18 @@
+import { I18n } from "$lib/i18n";
 
 import { Store } from '@tauri-apps/plugin-store';
-import { info, error, warn } from '@tauri-apps/plugin-log';
+import { info, error, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 import type { AudioDevice } from "../../js/bindings/AudioDevice.ts";
 import type { LoginResponse } from "../../js/bindings/LoginResponse.ts";
 import BVCApp from "./BVCApp";
-import Sidebar from "./components/dashboard/sidebar.ts";
-import Onboarding from './onboarding';
+import { AppStore } from "./services/AppStore";
+import SetupFlow from './setup/SetupFlow';
 import PlatformDetector from './utils/PlatformDetector';
 import AgeGateService from './services/AgeGateService';
+import { PublicServerConfig } from './services/PublicServerConfig';
 import FeatureFlagService from './services/FeatureFlagService';
 import ImageCache from './components/imageCache';
 import ImageCacheOptions from './components/imageCacheOptions';
@@ -18,13 +20,21 @@ import ImageCacheOptions from './components/imageCacheOptions';
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
 import { AudioActivityManager } from './managers/AudioActivityManager';
+import { SelfController } from './dashboard/SelfController';
+import { RailView, type RailServer } from './dashboard/RailView';
+import { NearbyManager } from './dashboard/NearbyManager';
+import { PlayerLevelSources } from './dashboard/PlayerLevelSources';
+import type { ScreenLanding } from './shell/ScreenLanding';
+import { BootTimeline } from './shell/BootTimeline';
+import { BootProgress } from './shell/BootProgress';
 import Analytics from './analytics';
 import type { KeybindConfig } from '../bindings/KeybindConfig.ts';
 import type { NoiseGateSettings } from '../bindings/NoiseGateSettings.ts';
-import type { PlayerGainStore } from '../bindings/PlayerGainStore.ts';
+import { NoiseGateModel } from './settings/NoiseGateModel.ts';
 import type { ApiConfigCheckResponse } from '../bindings/ApiConfigCheckResponse.ts';
 import type { ServerListEntry } from '../bindings/ServerListEntry.ts';
-import type { WebSocketConfig } from './managers/settings/WebSocketConfig';
+import { WebSocketSettingsManager } from './managers/settings/WebSocketSettingsManager';
+import GameNameUtils from './utils/GameNameUtils';
 
 import {
   checkPermission,
@@ -48,7 +58,7 @@ export default class Dashboard extends BVCApp {
     private eventUnlisteners: (() => void)[] = [];
     private currentServerCredentials: LoginResponse | null = null;
     private popperProfile: any = null;
-    private onboarding: Onboarding | undefined;
+    private setup: SetupFlow | undefined;
     private ageGate = new AgeGateService(new FeatureFlagService());
 
     // Manager instances for dependency injection
@@ -56,6 +66,37 @@ export default class Dashboard extends BVCApp {
     public channelManager: ChannelManager | undefined;
     public audioActivityManager: AudioActivityManager | undefined;
     public platformDetector: PlatformDetector | undefined;
+    public selfController: SelfController | undefined;
+    public nearby: NearbyManager | undefined;
+    public levels: PlayerLevelSources | undefined;
+
+    /** The rail's servers, resolved during initialize so the shell can draw immediately. */
+    public rail: readonly RailServer[] = [];
+    public currentServer = '';
+    public gamertag = '';
+    /** The game this session authenticated against. */
+    public activeGame = 'minecraft';
+
+    /**
+     * This client's canonical `game:gamertag`.
+     *
+     * The screen holds the bare gamertag to show it, and needs this to recognise itself in
+     * anything the server sent: channel membership, the position feed and the gain store all
+     * carry the certificate's form.
+     */
+    public get identity(): string {
+        return GameNameUtils.canonical(this.gamertag, this.activeGame);
+    }
+
+    /**
+     * The server's own proximity range and how far the position feed reaches past it.
+     *
+     * Read from `/api/config` rather than assumed, so the boundary the roster draws is the
+     * boundary the audio router uses. The kit's 80 m default belongs to a reference page; a
+     * real server's is 48 unless its operator says otherwise.
+     */
+    public voiceRange = 48;
+    public feedScope = 120;
 
     // Per-server age gate. Fetches the server's declared minimum age from
     // /api/config and asks AgeGateService for a decision. Fail-open: any error,
@@ -82,12 +123,55 @@ export default class Dashboard extends BVCApp {
         }
     }
 
-    async initialize() {
-        this.store = await Store.load("store.json", {
-            autoSave: false,
-            defaults: {}
-        });
+    /**
+     * Is the server there at all?
+     *
+     * Asked before anything slow, and answered by the one request a BVC server serves to
+     * anybody — no credentials, no pooled client, and outside the endpoint's circuit
+     * breaker, so it reports the server rather than the state of an earlier verdict about
+     * it.
+     *
+     * A boot against a server that is down otherwise spends its whole budget finding that
+     * out one call at a time: a credential refresh, an age-gate config read and a QUIC
+     * handshake, each of which swallows the failure and carries on, and only the last of
+     * them redirects anywhere. That runs past the preloader's ten-second escape hatch, so
+     * the screen a stopped server produced was "The app may be stuck" rather than the fault
+     * page naming it.
+     */
+    private async answers(server: string): Promise<boolean> {
+        try {
+            await PublicServerConfig.read(server);
+            return true;
+        } catch (e) {
+            warn(`Server ${server} did not answer: ${e}`);
+            return false;
+        }
+    }
+
+    /**
+     * Where a failure inside the boot sequence leads.
+     *
+     * Recorded rather than performed, because several of these are decided inside callbacks
+     * and `.catch` blocks that cannot return a landing to `initialize`. It reports its
+     * destination there instead, so the boot overlay stays up over the redirect rather than
+     * lifting to show a dashboard that is already on its way somewhere else.
+     */
+    private pendingHref: string | null = null;
+
+    private redirect(href: string): ScreenLanding {
+        this.pendingHref = href;
+        return { kind: 'navigate', href };
+    }
+
+    async initialize(): Promise<ScreenLanding> {
+        const timeline = BootTimeline.shared();
+        timeline.mark("dashboard route mounted");
+        const progress = BootProgress.shared();
+        progress.step("Session", "running");
+
+        this.store = await AppStore.load();
         this.platformDetector = new PlatformDetector();
+        timeline.mark("Store.load");
 
         // Stop any recording that was active before a page refresh.
         // The Tauri backend persists across webview reloads, so a recording
@@ -96,29 +180,42 @@ export default class Dashboard extends BVCApp {
             const wasRecording = await invoke<boolean>('is_recording');
             if (wasRecording) {
                 await invoke('stop_recording');
-                info("Stopped recording that was active before page refresh");
+                info(I18n.t("Stopped recording that was active before page refresh"));
             }
         } catch (e) {
             warn(`Failed to check/stop recording on refresh: ${e}`);
         }
+        timeline.mark("is_recording");
 
-        // Check onboarding status before proceeding
-        this.onboarding = new Onboarding(this.store);
-        await this.onboarding.initialize();
+        // Device setup is re-checked on every launch: permissions and audio hardware
+        // change underneath the app, and the OS is the source of truth for both.
+        this.setup = new SetupFlow(this.store);
+        await this.setup.initialize();
+        timeline.mark("SetupFlow.initialize");
 
-        info("Onboarding Status: " + this.onboarding.isComplete());
-        if (!this.onboarding.isComplete()) {
-            const nextStep = this.onboarding.getNextStep();
-            info(`Redirecting to onboarding: ${nextStep}`);
-            if (nextStep) {
-                window.location.href = nextStep;
-                return;
-            }
+        info("Setup complete: " + this.setup.isComplete());
+        if (!this.setup.isComplete()) {
+            info("Redirecting to setup");
+            return this.redirect("/setup");
         }
+
+        Analytics.track("DashboardReached");
 
         const appWebview = getCurrentWebviewWindow();
 
+        // `?server=` is the rail's switch, and it names the server this boot is for. Applied
+        // before anything reads the store, because the connect applied it afterwards: every
+        // step from the certificate check to the dial ran against the server being switched
+        // away from, and only the boot after that one arrived anywhere new.
+        const requested = new URLSearchParams(window.location.search).get("server");
+        if (requested) {
+            await this.store.set("current_server", requested);
+            await this.store.save();
+            info(`Server changed to ${requested}`);
+        }
+
         const currentServer = await this.store.get<string>("current_server");
+        timeline.mark("store.get current_server");
 
         // Check certificate validity before initializing anything that depends on a valid session
         if (currentServer) {
@@ -127,48 +224,73 @@ export default class Dashboard extends BVCApp {
                 if (expired) {
                     warn("Certificate expired for " + currentServer + ", logging out and redirecting to login");
                     await invoke("logout");
-                    window.location.href = "/login?reauth=true&server=" + currentServer;
-                    return;
+                    return this.redirect("/login?reauth=true&server=" + currentServer);
                 }
             } catch (e) {
                 warn("Could not check certificate expiry: " + e);
             }
         }
+        timeline.mark("is_certificate_expired");
+        progress.step("Session", "ok");
+        progress.step("Server", "running");
+
+        if (currentServer && !(await this.answers(currentServer))) {
+            progress.step("Server", "bad", "no response");
+            progress.skipFrom("Voice path");
+            return this.redirect("/error?code=CONN01");
+        }
+        progress.step("Server", "ok");
+        timeline.mark("reachability (public /api/config)");
 
         // Initialize managers with dependency injection
         await this.initializeManagers();
+        timeline.mark("initializeManagers");
 
-        // Start the websocket server if on desktop and is enabled
-        if (!await this.platformDetector.checkMobile()) {
-            const websocketConfig = await this.store.get<WebSocketConfig>("websocket_server");
-            if (websocketConfig?.enabled) {
-                await invoke<boolean>('is_websocket_running').then(async (isRunning) => {
-                    if (!isRunning) {
-                        await invoke('start_websocket_server').catch((e) => {
-                            error(`Error starting WebSocket server: ${e}`);
-                        });
-                    }
-                }).catch((e) => {
-                    error(`Error auto-starting WebSocket server: ${e}`);
-                });
-            }
-
-            // Start keybind listener with saved config
-            const keybindConfig = await this.store!.get<KeybindConfig>("keybinds") ?? {
-                toggleMute: "ControlLeft+BracketLeft",
-                toggleDeafen: "ControlLeft+BracketRight",
-                toggleRecording: "ControlLeft+Backslash",
-                pushToTalk: "Backquote",
-                voiceMode: "openMic",
-            };
-            await invoke('start_keybind_listener', { config: keybindConfig }).catch((e) => {
-                error(`Error starting keybind listener: ${e}`);
+        // The operator-facing server is always on, so there is no enable flag left to consult.
+        // What boot still owes it is a token: nothing else mints one now that the enable step is
+        // gone, and the listener declines to bind without it. Initializing the manager here is
+        // what gives a fresh install a working server before anyone opens its settings pane.
+        await new WebSocketSettingsManager().initialize().catch((e) => {
+            error("failed to prepare the WebSocket server", {
+                error: String(e),
             });
-        }
+        });
+        timeline.mark("websocket server");
+
+        // Every platform, not just desktop.
+        //
+        // Registering global shortcuts is the desktop-only half; applying the voice mode is
+        // not. It is what mutes the input on the way into push-to-talk, and skipping it left
+        // a phone that had push-to-talk saved booting with an open microphone — and with the
+        // backend believing the mode was open mic, so every hold it was later asked for was
+        // refused.
+        const keybindConfig = await this.store!.get<KeybindConfig>("keybinds") ?? {
+            toggleMute: "ControlLeft+BracketLeft",
+            toggleDeafen: "ControlLeft+BracketRight",
+            toggleRecording: "ControlLeft+Backslash",
+            pushToTalk: "Backquote",
+            voiceMode: "openMic",
+        };
+        await invoke('start_keybind_listener', { config: keybindConfig }).catch((e) => {
+            error(`Error starting keybind listener: ${e}`);
+        });
+        timeline.mark("keybinds (store.get + start_keybind_listener)");
 
         // If the audio engine is stopped for either the input or output channel, shutdown the existing one, reinitialize everything
         if (currentServer) {
-            this.currentServerCredentials = await invoke<LoginResponse>("get_credentials", { server: currentServer });
+            const credentials = await invoke<LoginResponse>("get_credentials", { server: currentServer });
+            this.currentServerCredentials = credentials;
+
+            // The API client the refresh below acts on. Nothing else builds one on a launch
+            // that did not sign in: the roster's preflight pools a client without claiming the
+            // current server, and refresh_server_state called without an endpoint reads the
+            // claimed one. Without this the refresh fails before it reaches the network, and
+            // the permission refresh and the certificate rotation it persists never run.
+            await invoke("api_initialize_client", {
+                endpoint: currentServer,
+                cert: credentials.certificate_ca,
+                pem: credentials.certificate + credentials.certificate_key,
+            });
 
             // Refresh server permissions and handle certificate re-issuance
             try {
@@ -177,36 +299,40 @@ export default class Dashboard extends BVCApp {
                 // Re-fetch credentials since refresh_server_state persists updates to keyring
                 this.currentServerCredentials = await invoke<LoginResponse>("get_credentials", { server: currentServer });
             } catch (e) {
-                warn("Failed to refresh server state, using cached permissions");
+                warn(`${I18n.t("Failed to refresh server state, using cached permissions")}: ${e}`);
             }
+            timeline.mark("credentials x2 + api_initialize_client + refresh_server_state (NETWORK)");
 
             if (await this.isAgeBlocked(currentServer, this.currentServerCredentials)) {
-                window.location.href = "/error?code=AGE01";
-                return;
+                return this.redirect("/error?code=AGE01");
             }
+            timeline.mark("age gate (api_initialize_client + api_get_config)");
 
             const isInputStreamStopped = await invoke("is_stopped", { device: "InputDevice" }).then((stopped) => stopped as boolean);
             const isOutputStreamStopped = await invoke("is_stopped", { device: "OutputDevice" }).then((stopped) => stopped as boolean);
+            timeline.mark("is_stopped x2");
 
             if (isInputStreamStopped || isOutputStreamStopped) {
+                progress.step("Permissions", "running");
                 await this.shutdown();
+                timeline.mark("shutdown (audio teardown)");
 
                 // Check audio permission first
-                info("Checking audio permission...");
+                info(I18n.t("Checking audio permission..."));
                 const audioPermission = await checkPermission({ permissionType: PermissionType.Audio });
 
                 if (!audioPermission.granted) {
-                    warn("Audio permission denied");
-                    window.location.href = "/error?code=PERM1";
-                    return;
+                    warn(I18n.t("Audio permission denied"));
+                    progress.step("Permissions", "bad", "microphone denied");
+                    return this.redirect("/error?code=PERM1");
                 }
 
                 const notificationGranted = await checkPermission({ permissionType: PermissionType.Notification });
 
                 if (!notificationGranted.granted) {
-                    warn("Notification permission denied - notifications may not be visible");
-                    window.location.href = "/error?code=PERM2";
-                    return;
+                    warn(I18n.t("Notification permission denied - notifications may not be visible"));
+                    progress.step("Permissions", "bad", "notifications denied");
+                    return this.redirect("/error?code=PERM2");
                 }
 
                 // On mobile we need a running background service to allow microphone capture if the
@@ -216,16 +342,19 @@ export default class Dashboard extends BVCApp {
                     const serviceResult: ServiceResponse = await startForegroundService({
                         onPermissionRevoked: (event) => {
                             warn(`Permission revoked: ${event.permissionType}`);
-                            window.location.href = "/error?code=PERM1";
+                            this.redirect("/error?code=PERM1");
                         }
                     });
 
                     if (!serviceResult.started) {
-                        warn("Foreground service could not be started.");
-                        window.location.href = "/error?code=SERV01";
-                        return;
+                        warn(I18n.t("Foreground service could not be started."));
+                        progress.step("Permissions", "bad", "background service");
+                        return this.redirect("/error?code=SERV01");
                     }
                 }
+
+                progress.step("Permissions", "ok");
+                timeline.mark("permissions + foreground service (OS)");
 
                 // Initialize audio devices and network stream
                 await this.initializeAudioDevicesAndNetworkStream(this.store!, currentServer ?? "", this.currentServerCredentials);
@@ -244,21 +373,180 @@ export default class Dashboard extends BVCApp {
                     await this.playerManager.listenForBackendUpdates();
                 }
 
+                // shutdown() also stopped the level fan-out and the self
+                // controller. The meters hold their sources from mount, so the
+                // objects are reused — but a stopped PlayerLevelSources is
+                // unsubscribed from the feed, and every COLD start shipped a
+                // pill and roster whose meters never moved again while the
+                // level events kept arriving in the window.
+                if (this.levels) {
+                    await this.levels.start();
+                }
+                if (this.selfController) {
+                    await this.selfController.start();
+                }
+
                 // Update notification
                 await updateNotification({
                     title: "Bedrock Voice Chat",
-                    message: "In public voice chat"
+                    message: I18n.t("In public voice chat")
                 });
+            } else {
+                // Nothing was asked of the operating system: both streams were already
+                // running, which is what a warm re-entry looks like.
+                progress.step("Permissions", "skipped", "already granted");
             }
         }
 
+        // A failure decided inside a callback or a `.catch` reports its destination here,
+        // because it could not return one from where it happened.
+        if (this.pendingHref) {
+            return { kind: 'navigate', href: this.pendingHref };
+        }
+
+        timeline.mark("post-connect tail (activity mgr, listeners, notification)");
+
+        await this.loadIdentity();
+        timeline.mark("loadIdentity");
+
+        await this.startNearby();
+        timeline.mark("startNearby (position feed)");
+
+        return { kind: 'show' };
+    }
+
+    /**
+     * The rail's servers and who you are, read once the session is settled.
+     *
+     * Separate from `initializeManagers` because it runs after `refresh_server_state` may
+     * have reissued credentials: reading the gamertag before that would show the name from
+     * a certificate that is no longer the one in use.
+     */
+    private async loadIdentity(): Promise<void> {
+        if (!this.store) return;
+        const saved = (await this.store.get<ServerListEntry[]>("server_list")) ?? [];
+        this.currentServer = (await this.store.get<string>("current_server")) ?? '';
+        this.rail = RailView.rows(saved, this.currentServer);
+        this.gamertag =
+            this.currentServerCredentials?.gamertag ??
+            (await this.store.get<string>("current_player")) ??
+            '';
+    }
+
+    /**
+     * Open the position feed and the per-player level adapter.
+     *
+     * Last, because it needs both the server's range and a settled session: a feed opened
+     * before `refresh_server_state` could reissue credentials would be holding a ticket
+     * bought with a certificate that is no longer in use.
+     */
+    /**
+     * The one object that distributes levels, created before anything asks for one.
+     *
+     * `initializeManagers` runs long before `startNearby`, and the controller needs a source
+     * for the pill at construction — which is exactly why the pill grew a parallel mechanism
+     * of its own. Ensuring it here means both callers get the same instance whichever runs
+     * first, and a reconnect reuses it rather than leaving every mounted meter bound to one
+     * nothing writes to.
+     */
+    private levelSources(): PlayerLevelSources {
+        if (!this.levels) {
+            this.levels = new PlayerLevelSources();
+            void this.levels.start();
+        }
+        return this.levels;
+    }
+
+    private async startNearby(): Promise<void> {
+        if (!this.store || !this.currentServer) return;
+
+        // Both are reused rather than replaced, because a reconnect calls this again and the
+        // screen is already holding references into them: a level source is handed to a meter
+        // at mount, and the roster subscribes to these stores once at boot. Swapping either
+        // object leaves every card on screen bound to one that nothing writes to any more.
+        this.levelSources();
+        if (!this.nearby) {
+            this.nearby = new NearbyManager();
+        }
+
+        // `start` stops itself first, so re-entering it re-opens the feed on a fresh ticket
+        // without stranding the old socket.
+        await this.nearby.start(this.currentServer, this.voiceRange);
+    }
+
+    showPreloader(): void {
         this.preloader();
+    }
+
+    /**
+     * Retry the voice connection in place.
+     *
+     * Runs the whole connect sequence, not just the QUIC dial. `changeNetworkStream` alone
+     * re-dials and leaves everything downstream of the old session in place: the audio streams
+     * keep their per-speaker jitter buffers and decoder state from a connection that no longer
+     * exists, the position feed goes on retrying against a ticket bought with the previous
+     * session, and the channel list is whatever it was before the server went away. Pressing
+     * Reconnect appeared to work and nobody could be heard afterwards.
+     *
+     * `initializeAudioDevicesAndNetworkStream` is the same function boot uses, deliberately:
+     * one path for connecting means a reconnect cannot drift out of step with a cold start.
+     *
+     * Its failures are recorded as a destination rather than thrown, which is right for boot and
+     * wrong for a button inside a status readout — a retry that fails should say so where it was
+     * pressed rather than throwing the whole screen away. So the recorded destination is
+     * restored afterwards and reported as a return value instead.
+     */
+    async reconnect(): Promise<boolean> {
+        if (!this.store || !this.currentServer) return false;
+        const before = this.pendingHref;
+        try {
+            // Closed before the dial rather than after: the feed's retry would otherwise spend
+            // the reconnect asking for tickets the dead session cannot authorise.
+            this.nearby?.stop();
+
+            await this.initializeAudioDevicesAndNetworkStream(
+                this.store,
+                this.currentServer,
+                this.currentServerCredentials,
+            );
+
+            // The world moved on while the link was down. Membership is the server's to state.
+            await this.channelManager?.initialize();
+            await this.startNearby();
+        } catch (e) {
+            warn(`Reconnect failed: ${e}`);
+        }
+        const failed = this.pendingHref !== before;
+        this.pendingHref = before;
+        return !failed;
+    }
+
+    /** The current server's hostname, which is what the glyph is derived from. */
+    host(): string {
+        return this.currentServer.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    }
+
+    /**
+     * Sign out of this server and go to the sign-in.
+     *
+     * Returns the destination rather than assigning it: the same reason `initialize` does,
+     * and it keeps the audio shutdown ordered ahead of the navigation instead of racing it.
+     */
+    async signOut(): Promise<ScreenLanding> {
+        try {
+            await invoke("logout");
+            await this.shutdown();
+        } catch (e) {
+            error(`Logout failed: ${e}`);
+        }
+        return { kind: 'navigate', href: '/login' };
     }
 
     /**
      * Initialize all managers with proper dependency injection
      */
     private async initializeManagers(): Promise<void> {
+        const timeline = BootTimeline.shared();
         if (!this.store) {
             throw new Error('Store must be initialized before managers');
         }
@@ -269,16 +557,38 @@ export default class Dashboard extends BVCApp {
             const currentServer = await this.store.get("current_server") as string | null;
             const currentUser = currentPlayer || '';
             const serverUrl = currentServer || '';
+            // Every key PlayerManager writes is prefixed with this, so it has to be the game the
+            // session actually authenticated against — the login paths all persist it.
+            this.activeGame = (await this.store.get("active_game") as string | null) || 'minecraft';
 
-            this.playerManager = new PlayerManager(this.store, currentUser);
+            timeline.mark('  ↳ managers: store.get x3');
+            this.playerManager = new PlayerManager(currentUser, this.activeGame);
             await this.playerManager.listenForBackendUpdates();
+            timeline.mark('  ↳ managers: player backend listener');
             this.channelManager = new ChannelManager(this.playerManager, this.store, serverUrl);
+
+            // Reused rather than replaced, for the reason `startNearby` gives about the level
+            // sources: the pill is handed `micSource` at mount and the status panel subscribes
+            // to `diagnostics` once, so a reconnect that swapped this object left both bound to
+            // an instance nothing writes to any more — a meter that never moves and a readout
+            // that reports no events, over a microphone that is working.
+            //
+            // `start` is idempotent enough to re-enter: it re-seeds from the backend and
+            // re-attaches the level listener, which is what a reconnect needs anyway.
+            if (!this.selfController) {
+                this.selfController = new SelfController(this.store, this.levelSources());
+            }
+            await this.selfController.start();
+            timeline.mark('  ↳ managers: self controller');
 
             // Initialize AudioActivityManager (independent)
             this.audioActivityManager = new AudioActivityManager(this.store);
             await this.audioActivityManager.initialize();
+            timeline.mark('  ↳ managers: audio activity');
         } catch (err) {
-            error(`Dashboard: Failed to initialize managers: ${err}`);
+            error("dashboard failed to initialize managers", {
+                error: String(err),
+            });
             throw err;
         }
     }
@@ -311,7 +621,6 @@ export default class Dashboard extends BVCApp {
 
         if (avatarElement && this.store) {
             let avatarSrc = "";
-            const activeGame = await this.store.get<string>("active_game");
 
             if (this.currentServerCredentials?.gamerpic) {
                 try {
@@ -326,12 +635,7 @@ export default class Dashboard extends BVCApp {
                     avatarSrc = await imageCache.getImage(options);
                 } catch (err) {
                     warn(`Dashboard: Failed to fetch/decode player avatar: ${err}`);
-                    if (activeGame === "hytale") {
-                        avatarSrc = "/images/hytale-avatar.jpg";
-                    }
                 }
-            } else if (activeGame === "hytale") {
-                avatarSrc = "/images/hytale-avatar.jpg";
             }
 
             avatarElement.setAttribute("src", avatarSrc);
@@ -404,37 +708,23 @@ export default class Dashboard extends BVCApp {
             Analytics.track("Logout");
             await invoke("logout").then(async () => {
                 await this.shutdown().then(() => {
-                    window.location.href = "/login";
+                    // Replaced, not pushed: the session is gone, so the dashboard behind
+                    // this cannot be returned to.
+                    window.location.replace("/login");
                 });
             });
 
         } catch (err) {
             const appWebview = getCurrentWebviewWindow();
             await appWebview.emit('notification', {
-                title: "Logout Failed",
-                body: "An error occurred during logout. Please try again.",
+                title: I18n.t("Logout Failed"),
+                body: I18n.t("An error occurred during logout. Please try again."),
                 level: "error"
             });
         }
     }
 
-    async renderSidebar(store: Store, currentServer: string): Promise<void> {
-        const serverList = await store.get("server_list") as ServerListEntry[];
-
-        if (serverList) {
-            const sidebar = new Sidebar(serverList, currentServer);
-            await sidebar.render();
-        }
-    }
-
     async initializeAudioDevicesAndNetworkStream(store: Store, currentServer: string, credentials: LoginResponse | null): Promise<void> {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has("server")) {
-            await store.set("current_server", urlParams.get("server"));
-            await store.save();
-            info("Server changed to " + urlParams.get("server"));
-        }
-
         if (currentServer) {
             // Update the current player information, then we can render the dashboard views with it
             await invoke("update_stream_metadata", {
@@ -456,19 +746,14 @@ export default class Dashboard extends BVCApp {
                     useNoiseGate = false;
                 }
 
-                let noiseGateSettings = await store.get("noise_gate_settings") as NoiseGateSettings | null;
-
-                if (noiseGateSettings == null) {
-                    await store.set("noise_gate_settings", {
-                        open_threshold: -36.0,
-                        close_threshold: -56.0,
-                        release_rate: 150.0,
-                        attack_rate: 5.0,
-                        hold_time: 150.0
-                    });
-                    await store.save();
-                    noiseGateSettings = await store.get("noise_gate_settings") as NoiseGateSettings | null;
-                }
+                // Seeded from the same constant the settings screen resets to. These were
+                // two separate literals, and the launch gate was therefore not the gate
+                // Reset restored — a microphone that passed nothing until it was reset.
+                let noiseGateSettings = NoiseGateModel.hydrate(
+                    await store.get("noise_gate_settings") as Partial<NoiseGateSettings> | null,
+                );
+                await store.set("noise_gate_settings", noiseGateSettings);
+                await store.save();
 
                 // Set the noise gate
                 await invoke("update_stream_metadata", {
@@ -483,19 +768,9 @@ export default class Dashboard extends BVCApp {
                     device: "InputDevice"
                 });
 
-                // Update the player gain metadata
-                let playerGainStore = await store.get("player_gain_store") as PlayerGainStore | null;
-                if (!playerGainStore || typeof playerGainStore !== "object" || Array.isArray(playerGainStore)) {
-                    playerGainStore = {};
-                    await store.set("player_gain_store", playerGainStore);
-                    await store.save();
-                }
-
-                await invoke("update_stream_metadata", {
-                    key: "player_gain_store",
-                    value: JSON.stringify(playerGainStore),
-                    device: "OutputDevice"
-                });
+                // Seed the mixer with this server's persisted volumes. The projection starts
+                // empty, so until this runs every mute the user set is inert.
+                await invoke("player_settings_publish");
 
                 // Fetch server config to get fresh QUIC port and spatial audio settings
                 try {
@@ -522,41 +797,68 @@ export default class Dashboard extends BVCApp {
                             value: JSON.stringify(configResponse.config.spatial_audio),
                             device: "OutputDevice"
                         });
+
+                        // The metadata above does not survive the app closing, and a recording is
+                        // usually exported after the session it came from has ended. Without this
+                        // copy that export renders on the compiled falloff curve rather than this
+                        // server's, and nothing in the output would say so.
+                        await store.set("spatial_audio_config", configResponse.config.spatial_audio);
+                        await store.save();
+
+                        // The same number the audio router uses, so the line the roster draws
+                        // and the line a voice actually stops at are one line. The feed reaches
+                        // 2.5x past it, which is what gives the ring an approach to animate.
+                        this.voiceRange = configResponse.config.spatial_audio.broadcast_range;
+                        this.feedScope = Math.min(256, this.voiceRange * 2.5);
                     }
                 } catch (e) {
                     warn(`Failed to fetch server config, using stored values: ${e}`);
                 }
 
+                BootTimeline.shared().mark("stream metadata + api_get_config (pre-connect)");
+
+                BootProgress.shared().step("Voice path", "running");
                 await this.changeNetworkStream(currentServer, credentials);
+                BootTimeline.shared().mark(">>> QUIC HANDSHAKE (change_network_stream) <<<");
+                BootProgress.shared().step("Audio", "running");
 
                 await this.updateAudioDevice("OutputDevice");
                 await this.updateAudioDevice("InputDevice");
+                BootTimeline.shared().mark("updateAudioDevice x2");
                 await invoke("change_audio_device").catch((e) => {
                     const errStr = String(e);
                     if (errStr.includes("INCOMPATIBLE_DEVICE")) {
-                        error(`Incompatible audio device: ${e}`);
-                        window.location.href = "/error?code=AUDI01";
+                        error("incompatible audio device", {
+                            defect: "AudioDeviceLost",
+                            error: String(e),
+                        });
+                        BootProgress.shared().step("Audio", "bad", "incompatible device");
+                        this.redirect("/error?code=AUDI01");
                         return;
                     }
                     if (errStr.includes("NO_INPUT_DEVICE")) {
                         error(`No input device available: ${e}`);
-                        window.location.href = "/error?code=AUDI02";
+                        BootProgress.shared().step("Audio", "bad", "no input device");
+                        this.redirect("/error?code=AUDI02");
                         return;
                     }
                     if (errStr.includes("NO_OUTPUT_DEVICE")) {
                         error(`No output device available: ${e}`);
-                        window.location.href = "/error?code=AUDI03";
+                        BootProgress.shared().step("Audio", "bad", "no output device");
+                        this.redirect("/error?code=AUDI03");
                         return;
                     }
                     error(`Audio device error: ${e}`);
                 });
+                BootProgress.shared().step("Audio", "ok");
+                BootTimeline.shared().mark("change_audio_device (stream start)");
             }).catch((e) => {
                 error(`Error updating current player: ${e}`);
             });
         } else {
-            warn("No current server found in store!");
+            warn(I18n.t("No current server found in store!"));
             await this.shutdown();
-            window.location.href = "/server";
+            this.redirect("/");
         }
     }
 
@@ -586,17 +888,31 @@ export default class Dashboard extends BVCApp {
         try {
             await invoke("change_network_stream", { server: currentServer, data: credentials });
             info(`Changed network stream to ${currentServer}`);
+            BootProgress.shared().step("Voice path", "ok");
         } catch (e) {
             const errStr = String(e);
             if (errStr.includes("DNS_FAIL")) {
                 error(`DNS resolution failed: ${e}`);
-                window.location.href = "/error?code=DNS01";
+                BootProgress.shared().step("Voice path", "bad", "DNS lookup failed");
+                this.redirect("/error?code=DNS01");
+            } else if (errStr.includes("CERT_INVALID")) {
+                // Both certificate branches are checked ahead of QUIC_FAIL: the firewall advice
+                // QUIC01 gives would send the user to fix something that is not broken.
+                error(`Server certificate rejected, credentials cleared: ${e}`);
+                BootProgress.shared().step("Voice path", "bad", "certificate rejected");
+                this.redirect("/error?code=CERT01");
+            } else if (errStr.includes("SERVER_CERT")) {
+                error(`Server voice certificate is misconfigured, credentials kept: ${e}`);
+                BootProgress.shared().step("Voice path", "bad", "server certificate");
+                this.redirect("/error?code=CERT02");
             } else if (errStr.includes("QUIC_FAIL")) {
                 error(`QUIC connection failed: ${e}`);
-                window.location.href = "/error?code=QUIC01";
+                BootProgress.shared().step("Voice path", "bad", "no voice transport");
+                this.redirect("/error?code=QUIC01");
             } else {
                 error(`Error changing network stream: ${e}`);
-                window.location.href = "/error?code=CONN01";
+                BootProgress.shared().step("Voice path", "bad", "connect failed");
+                this.redirect("/error?code=CONN01");
             }
         }
     }
@@ -604,6 +920,15 @@ export default class Dashboard extends BVCApp {
     async cleanup(): Promise<void> {
         // Clean up managers
         try {
+            if (this.nearby) {
+                this.nearby.stop();
+            }
+            if (this.levels) {
+                this.levels.stop();
+            }
+            if (this.selfController) {
+                this.selfController.cleanup();
+            }
             if (this.channelManager) {
                 this.channelManager.cleanup();
             }
@@ -626,10 +951,11 @@ export default class Dashboard extends BVCApp {
             }
         });
         this.eventUnlisteners = [];
-    }
 
-    async shutdown() {
-        await this.cleanup();
-        await super.shutdown();
+        // Last, and it was missing: the base holds this instance's deep-link, connection-health
+        // and audio-recovery listeners, and they are process-wide — nothing else releases them.
+        // Skipping it left a second audio-recovery handler live after every teardown, so one
+        // device error invoked `restart_audio_stream` twice.
+        await super.cleanup();
     }
 }

@@ -1,0 +1,194 @@
+name: Build Relay SDK
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version for the published artifact'
+        required: true
+        type: string
+      publish:
+        description: 'Publish the jar to GitHub Packages'
+        required: false
+        default: false
+        type: boolean
+      ref:
+        description: 'Git ref to checkout (tag, branch, or SHA)'
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g., 1.0.0)'
+        required: true
+        type: string
+      publish:
+        description: 'Publish the jar to GitHub Packages'
+        required: false
+        default: false
+        type: boolean
+      ref:
+        description: 'Git ref to checkout (tag, branch, or SHA)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # One runner per platform. The cdylib is loaded by JNA at runtime, so a jar
+  # missing an architecture is not a build failure anywhere — it is a plugin that
+  # will not start on that host.
+  natives:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    env:
+      # Compiled into `bvc-relay`, which this cdylib links, and presented to the
+      # iroh relay as a bearer token. This is the build that reaches the Java mods:
+      # they download this native rather than compiling any Rust, so a token absent
+      # here is a token absent from every mod.
+      #
+      # Not a secret — it ships inside the binary — so an unset value is not a
+      # failure: it expands to empty, which `PeerEndpoint::access_token` treats as
+      # absent, and the native then reaches a relay that admits everyone. That keeps
+      # a fork building without this repository's secrets.
+      BVC_RELAY_ACCESS_TOKEN: ${{ secrets.RELAY_ACCESS_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            jna_prefix: win32-x86-64
+            artifact_name: bvc_relay_sdk.dll
+          - label: linux-x64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            jna_prefix: linux-x86-64
+            artifact_name: libbvc_relay_sdk.so
+          - label: linux-arm64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            jna_prefix: linux-aarch64
+            artifact_name: libbvc_relay_sdk.so
+          - label: darwin-arm64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+            jna_prefix: darwin-aarch64
+            artifact_name: libbvc_relay_sdk.dylib
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: relay-sdk-${{ matrix.label }}
+
+      - name: Build the cdylib
+        run: cargo build -p bvc-relay-sdk --release --target ${{ matrix.target }}
+
+      - name: Stage the library under JNA's prefix
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p staged/${{ matrix.jna_prefix }}
+          cp "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}" \
+             "staged/${{ matrix.jna_prefix }}/${{ matrix.artifact_name }}"
+          ls -la "staged/${{ matrix.jna_prefix }}/"
+
+      - name: Upload the library
+        uses: actions/upload-artifact@v4
+        with:
+          name: relay-sdk-native-${{ matrix.label }}
+          path: staged/
+
+  publish:
+    name: Package and Publish
+    needs: natives
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      # The bindings are checked in, so this job needs no Rust toolchain — only
+      # the natives job does.
+      - name: Download every native
+        uses: actions/download-artifact@v5
+        with:
+          pattern: relay-sdk-native-*
+          path: mods/java/relay-sdk/src/main/resources
+          merge-multiple: true
+
+      - name: Show what will be packaged
+        run: find mods/java/relay-sdk/src/main/resources -type f -ls
+
+      - name: Set the artifact version
+        working-directory: mods/java
+        run: |
+          set -euo pipefail
+          sed -i "s/^modVersion=.*/modVersion=${{ inputs.version }}/" gradle.properties
+          grep '^modVersion=' gradle.properties
+
+      - name: Build the jar
+        working-directory: mods/java
+        run: ./gradlew :relay-sdk:shadowJar --no-daemon
+
+      # Reported rather than assumed: `relocate` silently does nothing when the
+      # dependency is not bundled the way the config expects, and the failure
+      # only surfaces when a second plugin loads on a real server.
+      - name: Verify JNA is relocated
+        working-directory: mods/java
+        run: |
+          set -euo pipefail
+          jar=$(ls relay-sdk/build/libs/*.jar | head -1)
+          echo "inspecting $jar"
+          if unzip -l "$jar" | grep -q ' com/sun/jna/'; then
+            echo "unrelocated JNA classes are present; the relocation did not apply"
+            exit 1
+          fi
+          unzip -l "$jar" | grep -c 'com/alaydriem/bedrockvoicechat/shaded/jna/'
+
+      - name: Publish to GitHub Packages
+        if: ${{ inputs.publish }}
+        working-directory: mods/java
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew :relay-sdk:publishRelaySdkPublicationToGitHubPackagesRepository --no-daemon
+
+      - name: Summary
+        run: |
+          {
+            echo "## Relay SDK Published"
+            echo ""
+            echo "| Name | Value |"
+            echo "| ---- | ----- |"
+            echo "| Artifact | com.alaydriem:bedrock-voice-chat-relay-sdk |"
+            echo "| Version | ${{ inputs.version }} |"
+            echo "| Platforms | windows-x64, linux-x64, linux-arm64, darwin-arm64 |"
+            echo "| Published | ${{ inputs.publish }} |"
+          } >> $GITHUB_STEP_SUMMARY

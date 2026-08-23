@@ -70,13 +70,13 @@ fn advertised_quic_ports_rejects_a_malformed_entry() {
 }
 
 #[test]
-fn unset_advertised_quic_ports_leaves_the_bind_port_alone() {
+fn an_empty_advertised_quic_ports_variable_leaves_the_default_alone() {
     let mut config = ApplicationConfig::default();
     config.server.quic_port = 8443;
     let config = apply(&[("BVC_ADVERTISED_QUIC_PORTS", "")], config);
     assert_eq!(
         config.server.quic_ports(),
-        vec![8443u32],
+        vec![443u32, 28280],
         "an empty variable in a compose file must not blank out the advertisement"
     );
 }
@@ -132,6 +132,20 @@ fn telemetry_parses_bool_or_errors() {
         .apply(ApplicationConfig::default())
         .expect_err("non-bool telemetry must error");
     assert!(format!("{err}").contains("BVC_TELEMETRY"));
+}
+
+#[test]
+fn chat_parses_bool_or_errors() {
+    let config = apply(&[("BVC_CHAT", "false")], ApplicationConfig::default());
+    assert!(!config.server.features.chat);
+
+    let config = apply(&[("BVC_CHAT", "TRUE")], ApplicationConfig::default());
+    assert!(config.server.features.chat);
+
+    let err = EnvOverrides::from_vars(vars(&[("BVC_CHAT", "yes")]))
+        .apply(ApplicationConfig::default())
+        .expect_err("non-bool chat must error");
+    assert!(format!("{err}").contains("BVC_CHAT"));
 }
 
 #[test]
@@ -325,6 +339,7 @@ fn bedrock_servers_parse_compact_syntax_and_replace_config_list() {
         host: "config.example.com".to_string(),
         port: 19132,
         protocol_version: None,
+        addon_mode: Default::default(),
     }];
 
     let config = apply(
@@ -358,4 +373,92 @@ fn bedrock_servers_malformed_entry_is_a_hard_error() {
         .apply(ApplicationConfig::default())
         .unwrap_err();
     assert!(format!("{err}").contains("BVC_BEDROCK_SERVERS"));
+}
+
+#[test]
+fn bvc_recording_false_disables_an_enabled_config() {
+    let config = ApplicationConfig::default();
+    assert!(
+        config.voice.recording.enabled,
+        "precondition: the default permits recording"
+    );
+
+    let config = apply(&[("BVC_RECORDING", "false")], config);
+
+    assert!(!config.voice.recording.enabled);
+}
+
+#[test]
+fn bvc_recording_absent_leaves_the_config_value() {
+    let mut config = ApplicationConfig::default();
+    config.voice.recording.enabled = false;
+
+    let config = apply(&[], config);
+
+    assert!(
+        !config.voice.recording.enabled,
+        "an unset variable must never resurrect a value the operator turned off"
+    );
+}
+
+#[test]
+fn bvc_recording_rejects_a_non_boolean() {
+    let err = EnvOverrides::from_vars(vars(&[("BVC_RECORDING", "sometimes")]))
+        .apply(ApplicationConfig::default())
+        .expect_err("a malformed boolean must be a hard startup error");
+    assert!(format!("{err}").contains("BVC_RECORDING"));
+}
+
+#[test]
+fn bvc_max_connections_overrides_the_config_value() {
+    let mut config = ApplicationConfig::default();
+    config.voice.limits.connections = 10;
+
+    let config = apply(&[("BVC_MAX_CONNECTIONS", "25")], config);
+
+    assert_eq!(config.voice.limits.connections, 25);
+}
+
+#[test]
+fn bvc_max_connections_absent_leaves_the_config_value() {
+    let mut config = ApplicationConfig::default();
+    config.voice.limits.connections = 10;
+
+    let config = apply(&[], config);
+
+    assert_eq!(
+        config.voice.limits.connections, 10,
+        "an unset variable must never lift a limit the operator set"
+    );
+}
+
+#[test]
+fn bvc_max_connections_accepts_zero_as_unlimited() {
+    let mut config = ApplicationConfig::default();
+    config.voice.limits.connections = 10;
+
+    let config = apply(&[("BVC_MAX_CONNECTIONS", "0")], config);
+
+    assert_eq!(
+        config.voice.limits.connections, 0,
+        "zero is the documented way to lift a limit, not an empty value to ignore"
+    );
+}
+
+#[test]
+fn bvc_max_connections_rejects_a_non_integer() {
+    let err = EnvOverrides::from_vars(vars(&[("BVC_MAX_CONNECTIONS", "lots")]))
+        .apply(ApplicationConfig::default())
+        .expect_err("a malformed integer must be a hard startup error");
+    assert!(format!("{err}").contains("BVC_MAX_CONNECTIONS"));
+}
+
+#[test]
+fn bvc_reconnect_grace_overrides_the_config_value() {
+    let config = apply(
+        &[("BVC_RECONNECT_GRACE", "120")],
+        ApplicationConfig::default(),
+    );
+
+    assert_eq!(config.voice.limits.reconnect_grace, 120);
 }

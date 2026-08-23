@@ -93,7 +93,8 @@ async fn same_channel_members_hear_regardless_of_distance() {
 
     // Read stats after the full collection window so counters are stable.
     let (alice_sent, _, _) = alice.stats();
-    let (_, bob_from_quic, bob_received) = bob.stats();
+    let (_, bob_from_quic, bob_received) =
+        bob.await_transport_frames(alice_sent, Duration::from_secs(5));
 
     alice.shutdown();
     bob.shutdown();

@@ -1,4 +1,5 @@
 pub mod access_token;
+pub mod ca_store;
 pub mod ca_cert;
 pub mod readiness;
 pub mod position_updater;
@@ -11,6 +12,7 @@ use crate::services::{
 };
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 use common::traits::StreamTrait;
+pub use ca_store::CaStore;
 pub use readiness::ReadinessState;
 pub use state::RuntimeState;
 
@@ -33,6 +35,12 @@ pub struct ServerRuntime {
     /// Webhook receiver for sending position updates directly (populated after start)
     webhook_receiver: Arc<RwLock<Option<WebhookReceiver>>>,
     cache_manager: Arc<RwLock<Option<crate::stream::quic::CacheManager>>>,
+    /// Published for the FFI so an embedded mod can drive chat without a socket.
+    chat_service: Arc<RwLock<Option<Arc<crate::services::ChatService>>>>,
+    /// Published for the FFI so an embedded mod can report facts about its own host.
+    /// An external mod reports the same facts over HTTP; embedded has no socket to
+    /// use, so it needs this or the population that matters most goes unmeasured.
+    metrics: Arc<RwLock<Option<Arc<crate::services::MetricsService>>>>,
     /// Player registrar for handling player registration (populated after start)
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
     /// Player identity service for cross-platform name resolution (populated after start)
@@ -52,6 +60,8 @@ impl ServerRuntime {
             shutdown_notify: Arc::new(tokio::sync::Notify::new()),
             webhook_receiver: Arc::new(RwLock::new(None)),
             cache_manager: Arc::new(RwLock::new(None)),
+            chat_service: Arc::new(RwLock::new(None)),
+            metrics: Arc::new(RwLock::new(None)),
             player_registrar: Arc::new(RwLock::new(None)),
             identity_service: Arc::new(RwLock::new(None)),
             audio_playback_service: Arc::new(RwLock::new(None)),
@@ -151,14 +161,30 @@ impl ServerRuntime {
             common::consts::version::PROTOCOL_VERSION
         );
 
-        // The CA keypair is generated exactly once per deployment, so its absence
-        // here means this boot is the deployment's first.
-        let ca_minted = !std::path::Path::new(&self.config.server.tls.certs_path)
-            .join("ca.key")
-            .exists();
+        // The database connection and its schema are established before anything that needs
+        // them, which now includes the CA. Migrations otherwise run inside Rocket's ignite
+        // fairing, long after this point, so a table read here would not yet exist.
+        let db_conn = self.create_database_connection().await?;
+        let db_conn = Arc::new(db_conn);
+        {
+            use migration::MigratorTrait;
+            migration::Migrator::up(db_conn.as_ref(), None)
+                .await
+                .map_err(|e| anyhow!("running migrations: {}", e))?;
+        }
 
-        // Generate CA certificates
-        let (ca_pem, _ca_key_pem) = self.generate_ca().await?;
+        // The CA keypair is generated exactly once per deployment, so its absence from both
+        // the database and the certs directory means this boot is the deployment's first.
+        let ca_minted = !CaStore::exists(db_conn.as_ref()).await?
+            && !std::path::Path::new(&self.config.server.tls.certs_path)
+                .join("ca.key")
+                .exists();
+
+        // Database-backed, materialised to disk. The TLS stacks take file paths and read them
+        // once at ignite, so the bytes have to land somewhere readable — but the durable copy
+        // lives in the database, which is what lets a container run without a persistent
+        // volume.
+        let (_ca_pem, _ca_key_pem) = self.generate_ca(db_conn.as_ref()).await?;
 
         // Resolve the Minecraft access token before any component clones the
         // config. Env and config values win; otherwise the persisted token is
@@ -191,13 +217,22 @@ impl ServerRuntime {
             acme_service = Some(Arc::new(service));
         }
 
-        // Create standalone database connection for FFI and shared services
-        let db_conn = self.create_database_connection().await?;
-        let db_conn = Arc::new(db_conn);
-
         // Create certificate manager (caches root CA)
         let cert_manager = CertificateService::new_shared(&self.config.server.tls.certs_path)?;
         let cert_service = Arc::new(CertificateService::new(&self.config.server.tls.certs_path)?);
+
+        // One instance for the whole process. The HTTP guard, the QUIC handshake and the
+        // WebSocket upgrade all consult it, and a second instance would carry its own cache —
+        // so a revocation written through one would be invisible to the others.
+        let certificate_revocations =
+            crate::services::CertificateRevocationService::new_shared();
+
+        // Authorizes the certificate presented at a QUIC or WebSocket handshake. Shares the
+        // revocation list above, so a ban written over HTTP is seen by both transports.
+        let session_authorization =
+            crate::services::SessionAuthorizationService::new_shared(
+                certificate_revocations.clone(),
+            );
 
         // Create player registrar for shared player registration logic
         let player_registrar = PlayerRegistrarService::new(db_conn.clone(), cert_manager);
@@ -224,7 +259,11 @@ impl ServerRuntime {
         }
 
         // QUIC server manager
-        let mut quic_manager = QuicServerManager::new(self.config.clone());
+        let mut quic_manager = QuicServerManager::new(
+            self.config.clone(),
+            session_authorization.clone(),
+            db_conn.clone(),
+        );
         let readiness_state = readiness::ReadinessState::new_shared();
         quic_manager.set_readiness(readiness_state.clone());
         let webhook_receiver = quic_manager.get_webhook_receiver().clone();
@@ -261,32 +300,115 @@ impl ServerRuntime {
             &self.config.server.tls.certificate,
             features_enabled,
             ca_minted,
+            self.config.voice.recording.enabled,
+            Some(cache_manager.player_state().clone()),
         );
         connection_registry.set_metrics(metrics.clone());
+
+        let capacity = crate::stream::quic::connection::CapacityPolicy::new(
+            self.config.voice.limits.connections,
+            std::time::Duration::from_secs(self.config.voice.limits.reconnect_grace),
+        );
+        connection_registry.set_capacity(capacity);
+        metrics.set_voice_capacity_limit(self.config.voice.limits.connections as i64);
+
+        if self.config.voice.limits.connections > 0 {
+            tracing::info!(
+                "Voice capacity limited to {} concurrent sessions, {}s reconnect grace",
+                self.config.voice.limits.connections,
+                self.config.voice.limits.reconnect_grace
+            );
+        }
+
+        if let Ok(mut slot) = self.metrics.write() {
+            *slot = Some(metrics.clone());
+        }
 
         let heartbeat_shutdown = tokio_util::sync::CancellationToken::new();
         let heartbeat_handle = metrics.spawn_heartbeat(heartbeat_shutdown.clone());
 
-        // Cross-server voice relay plane. Discovery is decentralized via in-realm
-        // `!bvca` announces — there is no central relay and no discovery routes.
-        // All relay work runs on dedicated tokio tasks, never on the audio hot
-        // path, so there is NO 4th `tokio::select!` arm. Returns the relay HTTP
-        // state (peer store + inject delivery) the Rocket manager mounts the
-        // `/relay/{offer,peer-redeem,peer-link}` routes against.
-        // Shared stream-token cache: the cross-server jukebox responder mints
-        // single-use tokens into the SAME cache the public `/api/audio/stream`
-        // route validates against, so a peer's HTTP pull resolves.
+        let relay_watch_shutdown = tokio_util::sync::CancellationToken::new();
+        let mut relay_watch_handle: Option<tokio::task::JoinHandle<()>> = None;
+
+        // Shared stream-token cache: single-use tokens minted into the SAME cache
+        // the public `/api/audio/stream` route validates against.
         let audio_stream_token_cache = crate::services::AudioStreamTokenCache::new();
 
-        let relay_client_state = self.wire_relay_client(
-            &webhook_receiver,
-            &cache_manager,
-            &connection_registry,
-            cert_service.clone(),
-            ca_pem,
-            db_conn.clone(),
-            audio_stream_token_cache.clone(),
-        );
+        // Cross-server peering. Declared, never discovered: every peer is named in
+        // `config.hcl`, and a config error here is fatal rather than a silently
+        // unauthorized peer later.
+        let grants = Arc::new(crate::relay::GrantTable::from_config(
+            &self.config.server.peers,
+        )?);
+
+        let mut peer_plane: Option<Arc<crate::relay::PeerPlane>> = None;
+
+        if grants.is_empty() {
+            tracing::info!("peering is not configured; no peer socket bound");
+        } else {
+            let identity =
+                bvc_relay::node::NodeIdentity::load_or_create(&self.config.server.tls.certs_path)?;
+
+            let relay_url = match &self.config.server.peer_relay_url {
+                Some(url) => match url.parse() {
+                    Ok(url) => Some(url),
+                    Err(_) => None
+                },
+                None => None
+            };
+
+            let plane = crate::relay::PeerPlane::bind(
+                &identity,
+                Arc::clone(&grants),
+                connection_registry.clone(),
+                Arc::new(webhook_receiver.clone()),
+                cache_manager.players().inner_arc(),
+                relay_url,
+                self.config.server.peer_port,
+            )
+            .await?;
+
+            // Logged at startup because an operator has no other way to read it,
+            // and the other side's `peer` block needs exactly this string.
+            tracing::info!(
+                node_id = %plane.node_id(),
+                peers = grants.len(),
+                "peering enabled"
+            );
+
+            // Minted off the boot path rather than on it: `ticket()` waits up to two
+            // seconds for iroh to report this endpoint's addresses, and the listeners
+            // behind this line should not wait with it.
+            //
+            // Logged because the peer link is what the far side actually needs, and
+            // `node_id` above is not it. An operator reading only the startup log had
+            // to discover `bvc-server relay peerlink` to get the one string the other
+            // side's config requires.
+            let announced = plane.clone();
+            tokio::spawn(async move {
+                match announced.endpoint().ticket().await {
+                    Ok(peerlink) => {
+                        tracing::info!(peerlink = %peerlink, "this server's peer link")
+                    }
+                    Err(e) => tracing::warn!(
+                        "could not mint this server's peer link ({e});                          `bvc-server relay peerlink` asks again on demand"
+                    ),
+                }
+            });
+
+            plane.spawn_accept_loop();
+            connection_registry.set_peer_plane(plane.clone());
+            peer_plane = Some(plane);
+
+            // Gated on peering rather than unconditional: on a server with no
+            // peer block these lines report a value nothing consumes, and the
+            // `relay worlds` command answers the same question on demand.
+            relay_watch_handle = Some(crate::relay::RelayWorldWatch::spawn(
+                cache_manager.clone(),
+                Arc::clone(&grants),
+                relay_watch_shutdown.clone(),
+            ));
+        }
 
         // Store webhook_receiver for FFI position updates
         {
@@ -311,17 +433,18 @@ impl ServerRuntime {
         // miss can fetch the `.opus` from a peer; otherwise discovery is absent and
         // a miss is a hard error.
         let playback_cancel_token = tokio_util::sync::CancellationToken::new();
-        let peer_query: Option<Arc<dyn crate::relay::AudioPeerQuery>> = relay_client_state
-            .as_ref()
-            .map(|relay| relay.peer_manager() as Arc<dyn crate::relay::AudioPeerQuery>);
         let audio_playback_service = Arc::new(AudioPlaybackService::new(
             webhook_receiver.clone(),
             self.config.audio.file_path.clone(),
             playback_cancel_token.clone(),
             self.config.audio.max_concurrent_per_uuid,
-            peer_query,
-            crate::relay::RelayAudioPuller::new_shared(),
         ));
+
+        // The audio path resolves a server-injected speaker from this registry rather than
+        // from the position cache, whose TTL is a presence lifetime and would lapse part-way
+        // through a track. Shared through a `OnceLock`, so the clone the QUIC path already
+        // holds sees it too.
+        cache_manager.set_injected_speakers(&audio_playback_service);
 
         // Store audio_playback_service and db_conn for FFI access
         {
@@ -353,6 +476,26 @@ impl ServerRuntime {
         quic_manager.set_bedrock_event_service(bedrock_event_service.clone());
         quic_manager.set_control_webhook_receiver(webhook_receiver.clone());
 
+        // Net-mode chat hub. Its dependencies arrive by setter rather than constructor so the
+        // service's own tests can exercise routing without a database or a QUIC registry.
+        let chat_service =
+            crate::services::ChatService::new_shared(self.config.server.features.chat);
+        chat_service.set_db(db_conn.clone());
+        chat_service.set_identities(std::sync::Arc::new(identity_service.clone()));
+        chat_service.set_players(cache_manager.players().inner_arc());
+        if let Some(registry) = cache_manager.get_connection_registry() {
+            chat_service.add_sink(crate::services::QuicChatSink::new_shared(
+                registry,
+                cache_manager.players().inner_arc(),
+            ));
+        }
+
+        quic_manager.set_chat_service(chat_service.clone());
+
+        if let Ok(mut slot) = self.chat_service.write() {
+            *slot = Some(chat_service.clone());
+        }
+
         let eject_scheduler =
             EjectScheduler::new_shared(bedrock_event_service.clone(), webhook_receiver.clone());
         audio_playback_service.set_eject_scheduler(eject_scheduler);
@@ -362,25 +505,34 @@ impl ServerRuntime {
             self.config.server.bedrock.transfer_cache_ttl_secs,
         );
 
+        // The API listener moves to loopback and the TLS demultiplexer takes the public
+        // port, so one hostname and one certificate serve the API, the browser feeds and
+        // the WebSocket voice transport. Resolved once here rather than per launch: an
+        // ACME renewal relaunches Rocket, and a fresh port each time would leave the
+        // demultiplexer relaying to an address nothing is listening on.
+        // Shared rather than a plain address: `LoopbackPort` picks by binding port
+        // zero and releasing, so the number can be taken before Rocket binds it.
+        // Rocket re-picks in that case, and the demultiplexer reads the same cell
+        // so it relays to wherever the listener actually landed.
+        let api_bind = crate::demux::ApiBind::reserve()?;
+
         // Create Rocket manager
-        let mut rocket_manager = RocketManager::new(
+        let rocket_manager = RocketManager::new(
             self.config.clone(),
+            api_bind.clone(),
             webhook_receiver,
             cache_manager,
             player_registrar,
             identity_service,
             audio_playback_service,
             bedrock_event_service,
+            chat_service,
             cert_service,
-            relay_client_state
-                .as_ref()
-                .map(|relay| relay.server_peer_store()),
-            relay_client_state
-                .as_ref()
-                .map(|relay| relay.inject_delivery()),
+            certificate_revocations.clone(),
             Some(audio_stream_token_cache),
             metrics.clone(),
             readiness_state.clone(),
+            peer_plane,
             #[cfg(feature = "bedrock")]
             transfer_target_cache.clone(),
         );
@@ -388,41 +540,12 @@ impl ServerRuntime {
         self.state = RuntimeState::Running;
 
         #[cfg(feature = "bedrock")]
-        let mut dns_service = None;
         #[cfg(feature = "bedrock")]
         let mut transfer_relay = None;
 
         #[cfg(feature = "bedrock")]
         if self.config.server.bedrock.enabled {
             use common::traits::StreamTrait;
-
-            let listen_ip: std::net::IpAddr = self
-                .config
-                .server
-                .listen
-                .parse()
-                .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
-
-            let lan_ip = if listen_ip.is_unspecified() {
-                self.config
-                    .server
-                    .tls
-                    .ips
-                    .first()
-                    .and_then(|ip| ip.parse().ok())
-                    .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
-            } else {
-                listen_ip
-            };
-
-            let mut dns = crate::services::bedrock::DnsService::new(
-                self.config.server.bedrock.dns.clone(),
-                lan_ip,
-            );
-            if let Err(e) = dns.start().await {
-                tracing::error!("Failed to start bedrock DNS service: {}", e);
-            }
-            dns_service = Some(dns);
 
             let mut relay = crate::services::bedrock::TransferRelayService::new(
                 self.config.server.bedrock.transfer_port,
@@ -432,6 +555,16 @@ impl ServerRuntime {
                 tracing::error!("Failed to start bedrock transfer relay: {}", e);
             }
             transfer_relay = Some(relay);
+
+            for entry in &self.config.server.bedrock.servers {
+                tracing::info!(
+                    "Advertising Bedrock server {} at {}:{} (addon transport: {:?})",
+                    entry.name,
+                    entry.host,
+                    entry.port,
+                    entry.addon_mode,
+                );
+            }
         } else {
             tracing::info!(
                 "Bedrock services disabled (server.bedrock.enabled = false); DNS and transfer relay not started"
@@ -497,14 +630,60 @@ impl ServerRuntime {
             drop(acme_renewed_tx);
         }
 
-        // Main event loop: run QUIC + Rocket until one stops or shutdown is requested,
-        // with the low-cadence channel reaper as a structured arm. On exit the pinned
-        // futures drop (structured cancellation) — no detached task, no separate
-        // shutdown wiring for the periodic work.
+        // The public TLS port. A peer of QUIC and Rocket rather than an optional extra:
+        // nothing reaches the API or the voice transport if this cannot bind, so it is an
+        // arm of the loop below and its failure stops the server rather than being logged
+        // into a server that then serves nobody.
+        let public_listen_ip: std::net::IpAddr = self
+            .config
+            .server
+            .unbracketed_listen()
+            .parse()
+            .map_err(|e| {
+                anyhow!(
+                    "server.listen = \"{}\" is not an IP address: {e}",
+                    self.config.server.listen
+                )
+            })?;
+        let public_port = u16::try_from(self.config.server.port).map_err(|_| {
+            anyhow!(
+                "server.port = {} is outside the range of a TCP port",
+                self.config.server.port
+            )
+        })?;
+        // The WebSocket voice transport. Bound before the demultiplexer so the address is
+        // known when it is handed over, and so its readiness gate has something to wait
+        // for rather than a port nothing will ever answer on.
+        let (mut websocket_listener, websocket_bind) = crate::stream::session::WebSocketListener::bind(
+            &self.config.server.tls.certificate,
+            &self.config.server.tls.key,
+            &format!("{}/ca.crt", self.config.server.tls.certs_path),
+            quic_manager.session_spawner(),
+            session_authorization.clone(),
+            db_conn.clone(),
+        )
+        .await?;
+        websocket_listener.set_metrics(metrics.clone());
+        tracing::info!(bind = %websocket_bind, "WebSocket voice transport bound");
+
+        let demux = crate::demux::AlpnDemux::new(
+            std::net::SocketAddr::new(public_listen_ip, public_port),
+            api_bind,
+            Some(websocket_bind),
+        );
+
+        // Main event loop: run QUIC + Rocket + the demultiplexer until one stops or
+        // shutdown is requested, with the low-cadence channel reaper as a structured arm.
+        // On exit the pinned futures drop (structured cancellation) — no detached task, no
+        // separate shutdown wiring for the periodic work.
         // Note: CTRL+C handling is done by the host process (Java/CLI), not here.
         {
         let quic = quic_manager.start();
         tokio::pin!(quic);
+        let demux = demux.start();
+        tokio::pin!(demux);
+        let websocket = websocket_listener.start();
+        tokio::pin!(websocket);
         let mut rocket = Box::pin(rocket_manager.start());
         let mut relaunch_rocket = false;
         let mut reap_interval = tokio::time::interval(std::time::Duration::from_secs(60));
@@ -514,6 +693,20 @@ impl ServerRuntime {
                     match result {
                         Ok(_) => tracing::info!("QUIC server stopped normally"),
                         Err(e) => tracing::error!("QUIC server error: {}", e),
+                    }
+                    break;
+                }
+                result = &mut demux => {
+                    match result {
+                        Ok(_) => tracing::info!("TLS demultiplexer stopped normally"),
+                        Err(e) => tracing::error!("TLS demultiplexer error: {}", e),
+                    }
+                    break;
+                }
+                result = &mut websocket => {
+                    match result {
+                        Ok(_) => tracing::info!("WebSocket voice listener stopped normally"),
+                        Err(e) => tracing::error!("WebSocket voice listener error: {}", e),
                     }
                     break;
                 }
@@ -564,6 +757,11 @@ impl ServerRuntime {
         heartbeat_shutdown.cancel();
         let _ = tokio::time::timeout(std::time::Duration::from_secs(2), heartbeat_handle).await;
 
+        relay_watch_shutdown.cancel();
+        if let Some(handle) = relay_watch_handle {
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(2), handle).await;
+        }
+
         metrics.record_stopped();
 
         // Final PostHog flush: signal the drain and await it briefly so buffered fleet
@@ -582,11 +780,6 @@ impl ServerRuntime {
         #[cfg(feature = "bedrock")]
         {
             use common::traits::StreamTrait;
-            if let Some(ref mut dns) = dns_service {
-                if let Err(e) = dns.stop().await {
-                    tracing::error!("Failed to stop bedrock DNS service: {}", e);
-                }
-            }
             if let Some(ref mut relay) = transfer_relay {
                 if let Err(e) = relay.stop().await {
                     tracing::error!("Failed to stop bedrock transfer relay: {}", e);
@@ -606,96 +799,6 @@ impl ServerRuntime {
         Ok(())
     }
 
-    /// Assemble the cross-server voice relay client plane via `RelayManager`,
-    /// install the peer manager on the connection registry so the QUIC fan-out
-    /// forwards local-origin audio to proven peers, and spawn the relay's
-    /// background + orchestration tasks. No-op unless the relay client builds.
-    /// Returns the manager the runtime retains for the remaining integration
-    /// wires (playback discovery handle + Rocket relay-route state). Everything
-    /// is off the audio hot path (dedicated tasks).
-    fn wire_relay_client(
-        &self,
-        webhook_receiver: &WebhookReceiver,
-        cache_manager: &crate::stream::quic::CacheManager,
-        connection_registry: &Arc<crate::stream::quic::connection_registry::ConnectionRegistry>,
-        cert_service: Arc<CertificateService>,
-        ca_pem: String,
-        db_conn: Arc<DatabaseConnection>,
-        audio_stream_token_cache: crate::services::AudioStreamTokenCache,
-    ) -> Option<Arc<crate::relay::RelayManager>> {
-        use crate::relay::{RelayManager, RelayManagerConfig};
-        use common::structs::relay::RelayEndpoint;
-
-        let self_host = self
-            .config
-            .server
-            .tls
-            .names
-            .iter()
-            .find(|n| n.parse::<std::net::IpAddr>().is_err())
-            .cloned()
-            .or_else(|| self.config.server.tls.ips.first().cloned())
-            .unwrap_or_else(|| "localhost".to_string());
-        // Advertised endpoint is the public HTTPS port; the QUIC datagram port is
-        // divined on demand from the peer's `/api/config` at dial time.
-        let self_endpoint = RelayEndpoint {
-            host: self_host,
-            port: self.config.server.port as u16,
-            primary: false,
-        };
-
-        let relay = match RelayManager::new_shared(RelayManagerConfig {
-            self_endpoint,
-            webhook_receiver: webhook_receiver.clone(),
-            cache_manager: cache_manager.clone(),
-            cert_service,
-            ca_pem,
-            db_conn,
-            audio_storage_path: self.config.audio.file_path.clone(),
-            audio_stream_token_cache,
-            announce_interval: self
-                .config
-                .server
-                .features
-                .relay
-                .announce_interval_secs
-                .map(std::time::Duration::from_secs),
-            orchestration_interval: self
-                .config
-                .server
-                .features
-                .relay
-                .orchestration_interval_secs
-                .map(std::time::Duration::from_secs),
-            idle_timeout: self
-                .config
-                .server
-                .features
-                .relay
-                .idle_timeout_secs
-                .map(std::time::Duration::from_secs),
-        }) {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::error!(
-                    "failed to build relay client, cross-server voice disabled: {}",
-                    e
-                );
-                return None;
-            }
-        };
-
-        connection_registry.set_peer_manager(relay.peer_manager());
-        connection_registry.set_observe_handler(relay.observe_handler());
-        relay.start();
-
-        tracing::info!(
-            "cross-server voice relay client wired (relay url configured); peer dial + presence tasks spawned"
-        );
-
-        Some(relay)
-    }
-
     /// Signal the server to stop gracefully
     pub fn request_shutdown(&self) {
         self.shutdown_flag.store(true, Ordering::SeqCst);
@@ -710,6 +813,19 @@ impl ServerRuntime {
     /// Get a clone of the cache manager Arc for external use (FFI control plane)
     pub fn get_cache_manager(&self) -> Arc<RwLock<Option<crate::stream::quic::CacheManager>>> {
         self.cache_manager.clone()
+    }
+
+    /// The chat hub, for the FFI.
+    ///
+    /// An embedded mod shares this process, so it drives chat through function calls rather
+    /// than dialling a socket back into its own address space.
+    pub fn get_chat_service(&self) -> Arc<RwLock<Option<Arc<crate::services::ChatService>>>> {
+        self.chat_service.clone()
+    }
+
+    /// Get a clone of the metrics Arc for external use (FFI)
+    pub fn get_metrics(&self) -> Arc<RwLock<Option<Arc<crate::services::MetricsService>>>> {
+        self.metrics.clone()
     }
 
     /// Get a clone of the player registrar Arc for external use (FFI)
@@ -844,10 +960,13 @@ impl ServerRuntime {
     /// generated exactly once per deployment; the cert is re-signed with the
     /// same key whenever the configured SAN set drifts. Returns
     /// `(cert_pem, key_pem)`.
-    async fn generate_ca(&self) -> Result<(String, String), anyhow::Error> {
+    async fn generate_ca<C: sea_orm::ConnectionTrait>(
+        &self,
+        conn: &C,
+    ) -> Result<(String, String), anyhow::Error> {
         let mut san_names = self.config.server.tls.names.clone();
         san_names.append(&mut self.config.server.tls.ips.clone());
-        ca_cert::CaCertManager::new(&self.config.server.tls.certs_path).ensure(&san_names)
+        ca_store::CaStore::ensure(conn, &self.config.server.tls.certs_path, &san_names).await
     }
 }
 

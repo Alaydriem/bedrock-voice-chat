@@ -57,12 +57,12 @@ export class NetStateSource implements PanelFeed {
     targets: string[],
   ): Promise<void> {
     const headers: Array<[string, string]> = [
-      ['X-MC-Access-Token', this.config.accessToken],
+      ['Authorization', `Bearer ${this.config.accessToken}`],
       ['Accept', 'application/json'],
     ];
 
     const stateResponse = await httpClient.request(
-      `${this.config.bvcServer}/api/state?id=${encodeURIComponent(name)}`,
+      `${this.config.bvcServer}/api/state?id=${encodeURIComponent(name)}&game=minecraft`,
       'Get',
       undefined,
       headers,
@@ -83,7 +83,7 @@ export class NetStateSource implements PanelFeed {
       return;
     }
     const prefsResponse = await httpClient.request(
-      `${this.config.bvcServer}/api/preferences?owner=${encodeURIComponent(name)}&targets=${encodeURIComponent(targets.join(','))}`,
+      `${this.config.bvcServer}/api/preferences?owner=${encodeURIComponent(name)}&game=minecraft&targets=${encodeURIComponent(targets.join(','))}`,
       'Get',
       undefined,
       headers,

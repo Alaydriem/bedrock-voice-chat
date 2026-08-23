@@ -2,11 +2,11 @@ import { writable, derived, get, type Writable, type Readable } from 'svelte/sto
 import { invoke } from '@tauri-apps/api/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { info, error, debug, warn } from '@tauri-apps/plugin-log';
+import { info, error, debug, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import type { PlayerGainSettings } from '../../bindings/PlayerGainSettings';
-import type { PlayerGainStore } from '../../bindings/PlayerGainStore';
+import type { PlayerSettingsRow } from '../../bindings/PlayerSettingsRow';
 import type { PlayerSource } from '../../bindings/PlayerSource';
-import type { Store } from '@tauri-apps/plugin-store';
+import { Coalescer } from '../utils/Coalescer';
 import GameNameUtils from '../utils/GameNameUtils';
 
 // Define PlayerData interface locally
@@ -23,13 +23,29 @@ interface PlayerData {
  * Consolidates player presence, multi-source tracking, and audio controls.
  */
 export class PlayerManager {
+    /**
+     * How often gain changes are allowed out of the webview.
+     *
+     * The compromise between the two things a flush does: the audio has to track the finger
+     * closely enough to set a level by ear, and the disk does not need writing sixty times a
+     * second to record where a slider ended up.
+     */
+    private static readonly GAIN_WRITE_GAP_MS = 120;
+
     // Internal reactive stores
     private playersMapStore: Writable<Map<string, PlayerData>>;
     private currentUserStore: Writable<string>;
-    private store: Store;
+    /** The game this session authenticated against, the prefix on every key here. */
+    private readonly game: string;
     private gainStoreUnlisten: UnlistenFn | null = null;
     private visibilityHandler: (() => void) | null = null;
     private reseedInterval: ReturnType<typeof setInterval> | null = null;
+
+    /** Settings changed in the webview that have not yet crossed to the backend. */
+    private pendingGains: Record<string, Partial<PlayerGainSettings>> = {};
+    private readonly gainWrites = new Coalescer(PlayerManager.GAIN_WRITE_GAP_MS, () =>
+        this.flushGains(),
+    );
 
     // Readonly exports for components
     public readonly playersMap: Readable<Map<string, PlayerData>>;
@@ -37,23 +53,35 @@ export class PlayerManager {
     public readonly activePlayers: Readable<PlayerData[]>;
 
     /**
-     * Canonical map/store key for a player. Cards arrive from three sources
-     * with two name forms: proximity presence and get_current_players use the
-     * bare gamertag, while channel membership uses the CN form
-     * ("minecraft:Bob"). The persisted gain store, the sink's name remap, and
-     * the control plane all key on the BARE gamertag — so every name entering
-     * this manager is normalized here, or the same player forks into two map
-     * entries and a freshly group-added card never reacts to gain updates.
+     * The map/store key for a player: the canonical `game:gamertag`.
+     *
+     * Cards arrive from several sources in both name forms — proximity presence and
+     * get_current_players report a bare gamertag, channel membership and the audio pipeline
+     * report the canonical form — so every name entering this manager is composed here. Without
+     * that, one player forks into two map entries and a freshly group-added card never reacts
+     * to gain updates.
+     *
+     * Canonical rather than bare because this key reaches the persisted gain store and the
+     * mixer, both of which resolve settings by canonical identity. It also cannot collide:
+     * the same gamertag under two game prefixes is two people, and a bare key merges them.
+     *
+     * Public because the same composition has to be available to anything comparing a name
+     * against these keys — the channel manager compares against certificate-form membership,
+     * and a second implementation of this is how the two forms drifted apart in the first place.
      */
-    private static key(name: string): string {
-        return GameNameUtils.stripPrefix(name);
+    identity(name: string): string {
+        return GameNameUtils.canonical(name, this.game);
     }
 
-    constructor(store: Store, currentUser: string = '') {
+    constructor(currentUser: string = '', game: string = 'minecraft') {
+        this.game = game;
+
         // Initialize internal stores
         this.playersMapStore = writable(new Map<string, PlayerData>());
-        this.currentUserStore = writable(currentUser);
-        this.store = store;
+        // Canonical, because this is compared against channel membership and the roster, both
+        // of which carry the certificate's form. Held bare, the client failed to recognise
+        // itself in its own group and added a card for the person holding the webview.
+        this.currentUserStore = writable(this.identity(currentUser));
 
         // Create readonly exports
         this.playersMap = { subscribe: this.playersMapStore.subscribe };
@@ -64,7 +92,10 @@ export class PlayerManager {
             [this.playersMapStore, this.currentUserStore],
             ([playersMap, currentUser]) => {
                 const players = Array.from(playersMap.values());
-                return players.filter(player => !GameNameUtils.namesMatch(player.name, currentUser));
+                // Both sides are canonical — map keys by construction, `currentUser` because
+                // it is composed on the way in — so this is an exact comparison rather than a
+                // tolerant one.
+                return players.filter(player => player.name !== currentUser);
             }
         );
 
@@ -72,14 +103,17 @@ export class PlayerManager {
     }
 
     /**
-     * Set the current user name
+     * Set the current user name, in any form.
+     *
+     * Composed on the way in: the login response carries a bare gamertag while everything this
+     * is compared against carries the certificate's `game:gamertag`.
      */
     setCurrentUser(name: string): void {
-        this.currentUserStore.set(name);
+        this.currentUserStore.set(this.identity(name));
     }
 
     /**
-     * Get the current user name
+     * The current user's canonical identity.
      */
     getCurrentUser(): string {
         return get(this.currentUserStore);
@@ -90,7 +124,7 @@ export class PlayerManager {
      */
     add(name: string, settings?: PlayerGainSettings): boolean {
         try {
-            name = PlayerManager.key(name);
+            name = this.identity(name);
             const playerSettings = settings || { gain: 1.0, muted: false };
 
             this.playersMapStore.update(map => {
@@ -113,7 +147,7 @@ export class PlayerManager {
      */
     remove(name: string): boolean {
         try {
-            name = PlayerManager.key(name);
+            name = this.identity(name);
             this.playersMapStore.update(map => {
                 const removed = map.delete(name);
                 return new Map(map);
@@ -130,7 +164,7 @@ export class PlayerManager {
      */
     update(name: string, settings: Partial<PlayerGainSettings>): boolean {
         try {
-            name = PlayerManager.key(name);
+            name = this.identity(name);
             this.playersMapStore.update(map => {
                 const player = map.get(name);
                 if (player) {
@@ -153,7 +187,7 @@ export class PlayerManager {
      */
     has(name: string): boolean {
         const currentMap = get(this.playersMapStore);
-        return currentMap.has(PlayerManager.key(name));
+        return currentMap.has(this.identity(name));
     }
 
     /**
@@ -161,7 +195,7 @@ export class PlayerManager {
      */
     get(name: string): PlayerData | undefined {
         const currentMap = get(this.playersMapStore);
-        return currentMap.get(PlayerManager.key(name));
+        return currentMap.get(this.identity(name));
     }
 
     /**
@@ -188,21 +222,20 @@ export class PlayerManager {
     }
 
     /**
-     * Load player settings from persistent store
+     * This player's persisted settings, stamping them as seen in the same call.
+     *
+     * Reached when a player becomes present without settings already in hand, which is the
+     * same moment `last_seen` records. The stamp is coalesced behind a debounce on the Rust
+     * side rather than written per player.
      */
     async loadPlayerSettings(playerName: string): Promise<PlayerGainSettings> {
-        if (!this.store) {
-            warn(`PlayerManager: Store not available, using defaults for ${playerName}`);
-            return { gain: 1.0, muted: false };
-        }
-
         try {
-            const playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
-            const settings = playerGainStore[PlayerManager.key(playerName)] || { gain: 1.0, muted: false };
-            return settings;
+            return await invoke<PlayerGainSettings>("player_settings_touch", {
+                cn: this.identity(playerName),
+            });
         } catch (err) {
             error(`PlayerManager: Failed to load settings for ${playerName}: ${err}`);
-            return { gain: 1.0, muted: false };
+            return { gain: 1.0, muted: false, last_seen: null };
         }
     }
 
@@ -212,7 +245,7 @@ export class PlayerManager {
      */
     async addPlayerSource(name: string, source: PlayerSource, settings?: PlayerGainSettings, gamerpic?: string, game?: string): Promise<boolean> {
         try {
-            name = PlayerManager.key(name);
+            name = this.identity(name);
             // Load settings if not provided
             const playerSettings = settings || await this.loadPlayerSettings(name);
 
@@ -251,7 +284,7 @@ export class PlayerManager {
      * Update a player's gamerpic
      */
     updatePlayerGamepic(name: string, gamerpic: string): void {
-        name = PlayerManager.key(name);
+        name = this.identity(name);
         this.playersMapStore.update(map => {
             const player = map.get(name);
             if (player) {
@@ -267,7 +300,7 @@ export class PlayerManager {
      */
     removePlayerSource(name: string, source: PlayerSource): boolean {
         try {
-            name = PlayerManager.key(name);
+            name = this.identity(name);
             this.playersMapStore.update(map => {
                 const existing = map.get(name);
                 if (existing) {
@@ -319,21 +352,12 @@ export class PlayerManager {
      * Update player gain setting
      */
     async updatePlayerGain(playerName: string, gain: number): Promise<void> {
-        if (!this.store) {
-            error("PlayerManager: Tauri store not initialized");
-            return;
-        }
-
         try {
-            // Get current player to preserve muted state
-            const currentPlayer = this.get(playerName);
-            const currentMuted = currentPlayer?.settings.muted || false;
-
             // Update reactive store
             this.update(playerName, { gain });
 
             // Update persistent store
-            await this.updatePlayerGainStore(playerName, { gain, muted: currentMuted });
+            await this.updatePlayerGainStore(playerName, { gain });
         } catch (err) {
             error(`PlayerManager: Failed to update player gain: ${err}`);
         }
@@ -343,21 +367,12 @@ export class PlayerManager {
      * Update player mute setting
      */
     async updatePlayerMute(playerName: string, muted: boolean): Promise<void> {
-        if (!this.store) {
-            error("PlayerManager: Tauri store not initialized");
-            return;
-        }
-
         try {
-            // Get current player to preserve gain
-            const currentPlayer = this.get(playerName);
-            const currentGain = currentPlayer?.settings.gain || 1.0;
-
             // Update reactive store
             this.update(playerName, { muted });
 
             // Update persistent store
-            await this.updatePlayerGainStore(playerName, { gain: currentGain, muted });
+            await this.updatePlayerGainStore(playerName, { muted });
         } catch (err) {
             error(`PlayerManager: Failed to update player mute: ${err}`);
         }
@@ -367,33 +382,44 @@ export class PlayerManager {
      * Private method to update the persistent Tauri store
      */
     private async updatePlayerGainStore(playerName: string, newSettings: Partial<PlayerGainSettings>): Promise<void> {
-        if (!this.store) return;
+        // The persisted store keys on the canonical identity — the same key the mixer's gain
+        // projection and the control plane resolve against.
+        const key = this.identity(playerName);
+        this.pendingGains[key] = { ...this.pendingGains[key], ...newSettings };
+        this.gainWrites.request();
+    }
+
+    /**
+     * Persist and push whatever has accumulated since the last flush.
+     *
+     * Reads the pending set rather than taking an argument, which is what lets a drag's worth of
+     * events collapse: each one overwrites the last in `pendingGains`, and this runs once against
+     * the result. Previously every input event did this work itself — a `get`, a `set`, a `save`
+     * to disk and an `update_stream_metadata` carrying the whole serialised store, four crossings
+     * per pixel of travel on a channel Android serialises.
+     *
+     * Only the fields the user actually changed are sent. A drag reports a gain and says
+     * nothing about mute, so a concurrent mute from the in-game panel is not overwritten by a
+     * value this side merely read a moment ago.
+     */
+    private async flushGains(): Promise<void> {
+        const pending = this.pendingGains;
+        this.pendingGains = {};
+        if (Object.keys(pending).length === 0) return;
 
         try {
-            // The persisted store keys on the bare gamertag — the same key the
-            // sink's name remap and the control plane use.
-            playerName = PlayerManager.key(playerName);
-            // Get current store
-            let playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
-
-            // Get existing settings or defaults
-            const existingSettings = playerGainStore[playerName] || { gain: 1.0, muted: false };
-
-            // Merge with new settings
-            const updatedSettings = { ...existingSettings, ...newSettings };
-            playerGainStore[playerName] = updatedSettings;
-
-            // Save to Tauri store
-            await this.store.set("player_gain_store", playerGainStore);
-            await this.store.save();
-
-            // Send to backend
-            await invoke("update_stream_metadata", {
-                key: "player_gain_store",
-                value: JSON.stringify(playerGainStore),
-                device: "OutputDevice"
-            });
+            for (const [cn, settings] of Object.entries(pending)) {
+                if (settings.gain !== undefined) {
+                    await invoke("player_settings_set_gain", { cn, gain: settings.gain });
+                }
+                if (settings.muted !== undefined) {
+                    await invoke("player_settings_set_muted", { cn, muted: settings.muted });
+                }
+            }
         } catch (err) {
+            // Put the work back so the next request retries it. Dropping it would lose whatever
+            // the user just set with no indication that it had not taken.
+            this.pendingGains = { ...pending, ...this.pendingGains };
             error(`PlayerManager: Failed to update player gain store: ${err}`);
         }
     }
@@ -443,6 +469,12 @@ export class PlayerManager {
     private static readonly RESEED_BACKSTOP_MS = 10_000;
 
     cleanup(): void {
+        // Flushed rather than cancelled: a level set in the last fraction of a second before
+        // teardown is still a level the user set, and the coalescer's whole job is that the
+        // trailing value survives.
+        this.gainWrites.cancel();
+        void this.flushGains();
+
         if (this.gainStoreUnlisten) {
             this.gainStoreUnlisten();
             this.gainStoreUnlisten = null;
@@ -458,24 +490,18 @@ export class PlayerManager {
     }
 
     async loadFromPersistentStore(): Promise<void> {
-        if (!this.store) {
-            warn("PlayerManager: Tauri store not available for loading");
-            return;
-        }
-
         try {
-            const playerGainStore = await this.store.get("player_gain_store") as PlayerGainStore || {};
+            const rows = await invoke<PlayerSettingsRow[]>("player_settings_list");
 
-            // Update settings for existing players. Store keys are normalized
-            // too: entries written before key canonicalization may carry the
-            // CN-prefixed form.
+            // Row keys are already canonical, so they are used as read. Re-composing one here
+            // would turn a leftover bare key from an older install into a live entry under a
+            // canonical name it was never written for.
             this.playersMapStore.update(map => {
-                for (const [storeKey, settings] of Object.entries(playerGainStore)) {
-                    const playerName = PlayerManager.key(storeKey);
-                    const player = map.get(playerName);
-                    if (player && settings) {
-                        player.settings = settings;
-                        map.set(playerName, { ...player });
+                for (const row of rows) {
+                    const player = map.get(row.key.cn);
+                    if (player && row.settings) {
+                        player.settings = row.settings;
+                        map.set(row.key.cn, { ...player });
                     }
                 }
                 return new Map(map);

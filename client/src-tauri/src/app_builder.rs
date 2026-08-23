@@ -7,6 +7,7 @@ use crate::audio::AudioBackend;
 use crate::audio::stream::stream_manager::sink::AudioOutputSink;
 use crate::audio::stream::stream_manager::source::AudioInputSource;
 use crate::{Receiver, Sender};
+use common::traits::StreamTrait;
 use std::sync::Arc;
 use tauri::Manager;
 use tauri::async_runtime::Mutex;
@@ -35,14 +36,17 @@ impl AppBuilder {
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<
             Arc<crate::bedrock::JukeboxEjectInjector>,
         >,
-        #[cfg(feature = "bedrock-protocol")] presence_injector: Option<
-            Arc<crate::bedrock::PresenceInjector>,
-        >,
-        #[cfg(feature = "bedrock-protocol")] announce_injector: Option<
-            Arc<crate::bedrock::AnnounceInjector>,
-        >,
     ) -> anyhow::Result<()> {
         let handle = app.handle().clone();
+
+        // Absent packs are not an error: message ids are the English source strings, so a
+        // directory that does not exist leaves the app in English rather than broken.
+        let resource_dir = app
+            .path()
+            .resource_dir()
+            .map(|dir| dir.join("resources").join("i18n"))
+            .unwrap_or_default();
+        app.manage(crate::i18n::LocalizationService::new(resource_dir));
 
         // This is our audio producer and consumer
         // The producer is responsible for getting audio from the raw input device, then sending it to the consumer
@@ -93,10 +97,6 @@ impl AppBuilder {
             beacon_cache,
             #[cfg(feature = "bedrock-protocol")]
             eject_injector,
-            #[cfg(feature = "bedrock-protocol")]
-            presence_injector,
-            #[cfg(feature = "bedrock-protocol")]
-            announce_injector,
         );
 
         // Pulled out before the manager is moved behind its mutex, so the diagnostics service
@@ -107,14 +107,86 @@ impl AppBuilder {
         // than constructed here so the writer and the diagnostic share one instance, and pulled out
         // before the move for the same reason as the two above.
         let session_config = audio_stream.session_config();
+        let level_bus = audio_stream.levels();
+        // Read by the runtime-state poll, which must not take the audio manager's lock to learn
+        // that a rebuild gave up — the rebuild itself holds that lock while it runs.
+        let capture_availability = audio_stream.capture_availability();
+        // Read by every mute and deafen surface, which must not take the audio manager's lock
+        // to play a tone — the action that triggered the cue is already holding it.
+        let cue_sink = audio_stream.cue_sink();
 
         app.manage(Mutex::new(audio_stream));
+        app.manage(capture_availability);
+        app.manage(cue_sink);
+
+        // Per-player volume and mute. Registered here rather than in `run()` because both the
+        // desktop app and the e2e harness need it: the in-game control actions and the
+        // control plane's preference report both resolve it out of managed state, and a
+        // binary without it silently applies no volumes at all.
+        //
+        // Kept out of `store.json` because that file holds the auth token and the server
+        // list, and `save()` rewrites all of it — so a player walking into earshot used to
+        // rewrite the token to disk.
+        // `BVC_PLAYER_SETTINGS_PATH` overrides the location. The e2e harness sets it per client,
+        // because every harness process shares one app identifier and therefore one path —
+        // redb takes an exclusive lock, so exactly one of a scenario's clients would get a real
+        // store and the rest would silently fall back to memory, nondeterministically.
+        let player_settings = match std::env::var_os("BVC_PLAYER_SETTINGS_PATH")
+            .map(|path| Ok(std::path::PathBuf::from(path)))
+            .unwrap_or_else(|| {
+                handle
+                    .path()
+                    .app_local_data_dir()
+                    .map(|dir| dir.join("player_settings.redb"))
+            }) {
+            Ok(path) => match crate::players::RedbBackend::open(&path) {
+                Ok(backend) => crate::players::PlayerSettingsService::new_shared(
+                    crate::players::PlayerSettings::Redb(backend),
+                ),
+                Err(cause) => {
+                    // Transient: locked, no permission, disk full. Run in memory so audio
+                    // still applies what the user sets this session, and leave the file alone
+                    // so nothing is lost once the condition clears.
+                    log::error!(
+                        "Player settings unavailable, running in memory this session: {cause}"
+                    );
+                    crate::players::PlayerSettingsService::new_memory_only()
+                }
+            },
+            Err(cause) => {
+                log::error!("No local data directory for player settings: {cause}");
+                crate::players::PlayerSettingsService::new_memory_only()
+            }
+        };
+        player_settings.clone().spawn_debounce();
+        app.manage(crate::players::PlayerSettingsCoordinator::new_shared(
+            player_settings.clone(),
+        ));
+        app.manage(player_settings);
 
         // Initialize WebSocketManager and register the broadcaster
         let ws_manager = crate::websocket::WebSocketManager::new(handle.clone());
         let ws_broadcaster = ws_manager.broadcaster();
         app.manage(ws_broadcaster);
         app.manage(Mutex::new(ws_manager));
+
+        // Bound at start rather than on demand: the first screen that wants a meter must find
+        // the channel already listening, and nothing else in the app has a reason to start it.
+        let handle_for_internal = handle.clone();
+        tauri::async_runtime::spawn(async move {
+            let manager = handle_for_internal.state::<Mutex<crate::websocket::WebSocketManager>>();
+            let mut manager = manager.lock().await;
+            if let Err(cause) = manager.start_internal().await {
+                log::error!("could not bind the internal push listener: {cause}");
+            }
+
+            // The operator-facing listener has no enable switch either. It declines until a
+            // token exists, which on a fresh install is the settings manager's first save, so
+            // this is a start rather than a requirement.
+            if let Err(cause) = manager.start().await {
+                log::info!("the WebSocket server did not bind at start: {cause}");
+            }
+        });
 
         // AudioActionsManager handles mute, deafen, and recording state changes for both user-initiated actions (keybinds) and API calls
         let audio_actions = crate::audio::AudioActionsManager::new(handle.clone());
@@ -137,6 +209,7 @@ impl AppBuilder {
         // cache mirrors the client. The identity is published by the
         // NetworkStreamManager when a QUIC stream comes up.
         app.manage(crate::control::ConnectionIdentity::new_shared());
+        app.manage(crate::chat::ChatPolicy::new_shared());
         let state_bus = crate::control::ControlStateBus::new();
         let state_rx = state_bus.subscribe();
         app.manage(state_bus);
@@ -190,6 +263,7 @@ impl AppBuilder {
             session_config,
             peer_registry,
             device_info,
+            level_bus,
         );
         diagnostics.clone().start(handle.clone());
         app.manage(diagnostics);

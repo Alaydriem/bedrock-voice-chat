@@ -4,11 +4,12 @@
   "windows": ["main"],
   "platforms": ["iOS", "android"],
   "permissions": [
-    "log:default",
+    "curia:default",
     "core:event:default",
     "deep-link:default",
     "os:default",
     "audio-permissions:mobile-audio-permissions",
-    "age-signals:default"
+    "age-signals:default",
+    "dialog:allow-open"
   ]
 }

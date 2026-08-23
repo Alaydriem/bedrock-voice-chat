@@ -10,11 +10,13 @@ const healthy: DiagnosticsInput = {
   jitterDrops: 0,
   datagramsIn: 48,
   datagramsOut: 50,
+  capturing: 50,
   inputDevice: "Focusrite Scarlett 2i2",
   inputRate: 48000,
   outputDevice: "Sennheiser HD 560S",
   outputRate: 48000,
-  quicPort: 443,
+  port: 443,
+  transport: "Quic",
   protocol: "1.3.0",
   rangeMetres: 80,
   falloff: "inverse-square",
@@ -22,6 +24,7 @@ const healthy: DiagnosticsInput = {
   uptimeSeconds: 2531,
   reconnecting: false,
   muted: false,
+  noiseGate: "Open",
   deafened: false,
   pttIdle: false,
   mutedOthers: 0,
@@ -36,13 +39,13 @@ const healthy: DiagnosticsInput = {
  */
 describe("Diagnostics.verdict", () => {
   it("says everything is fine when it is", () => {
-    const [severity, text] = Diagnostics.verdict(healthy);
+    const { severity, code } = Diagnostics.verdict(healthy);
     assert.equal(severity, "ok");
-    assert.match(text, /fine/);
+    assert.equal(code, "fine");
   });
 
   it("leads with reconnecting over everything else", () => {
-    const [severity, text] = Diagnostics.verdict({
+    const { severity, code } = Diagnostics.verdict({
       ...healthy,
       reconnecting: true,
       muted: true,
@@ -51,44 +54,80 @@ describe("Diagnostics.verdict", () => {
       inputRate: 44100,
     });
     assert.equal(severity, "bad");
-    assert.match(text, /Reconnecting/);
+    assert.equal(code, "reconnecting");
   });
 
   it("reports deafened before muted, because deafen implies mute", () => {
     // Both flags are set whenever you deafen, so reporting "you are muted" would name
     // the symptom rather than the thing the user chose.
-    const [severity, text] = Diagnostics.verdict({ ...healthy, deafened: true, muted: true });
+    const { severity, code } = Diagnostics.verdict({ ...healthy, deafened: true, muted: true });
     assert.equal(severity, "warn");
-    assert.match(text, /deafened/);
+    assert.equal(code, "deafened");
   });
 
   it("calls a muted mic a fault, not a warning", () => {
-    const [severity, text] = Diagnostics.verdict({ ...healthy, muted: true });
+    const { severity, code } = Diagnostics.verdict({ ...healthy, muted: true });
     assert.equal(severity, "bad");
-    assert.match(text, /Nobody can hear you/);
+    assert.equal(code, "muted");
   });
 
   it("explains an idle push-to-talk before blaming the hardware", () => {
-    const [, text] = Diagnostics.verdict({ ...healthy, pttIdle: true, inputRate: 44100 });
-    assert.match(text, /Push-to-talk/);
+    const { code } = Diagnostics.verdict({ ...healthy, pttIdle: true, inputRate: 44100 });
+    assert.equal(code, "ptt-idle");
+  });
+
+  // In push-to-talk a shut microphone is the mode at rest, not a fault. Alarming about it
+  // states the same fact twice, in coral, whenever nobody is holding the button.
+  it("reports push-to-talk before muted, because the mode is why it is muted", () => {
+    const { severity, code } = Diagnostics.verdict({ ...healthy, pttIdle: true, muted: true });
+    assert.equal(severity, "warn");
+    assert.equal(code, "ptt-idle");
+  });
+
+  /**
+   * The mic closes a beat after the button is released, so `muted` lags `pttIdle`. Ranked
+   * below it, the panel cycled fine → push-to-talk → muted in a third of a second every
+   * time somebody stopped talking.
+   */
+  it("says the same thing either side of the release tail", () => {
+    const duringTail = Diagnostics.verdict({ ...healthy, pttIdle: true, muted: false });
+    const afterTail = Diagnostics.verdict({ ...healthy, pttIdle: true, muted: true });
+    assert.deepEqual(duringTail, afterTail);
+  });
+
+  // Held, the mic is genuinely open and there is nothing to report.
+  it("is quiet while the button is held", () => {
+    const { severity } = Diagnostics.verdict({ ...healthy, pttIdle: false, muted: false });
+    assert.equal(severity, "ok");
+  });
+
+  // A mute nobody asked push-to-talk for is still a fault worth the alarm.
+  it("still alarms about a mute outside push-to-talk", () => {
+    const { severity, code } = Diagnostics.verdict({ ...healthy, pttIdle: false, muted: true });
+    assert.equal(severity, "bad");
+    assert.equal(code, "muted");
   });
 
   it("names the actual sample rate", () => {
-    const [severity, text] = Diagnostics.verdict({ ...healthy, inputRate: 44100 });
+    const { severity, code, params } = Diagnostics.verdict({ ...healthy, inputRate: 44100 });
     assert.equal(severity, "warn");
-    assert.match(text, /44\.1 kHz/);
+    assert.equal(code, "input-rate");
+    assert.equal(params?.kHz, "44.1");
   });
 
   it("only complains about loss once it is audible", () => {
-    assert.equal(Diagnostics.verdict({ ...healthy, lossPercent: 2.9 })[0], "ok");
-    assert.equal(Diagnostics.verdict({ ...healthy, lossPercent: 3.1 })[0], "warn");
+    assert.equal(Diagnostics.verdict({ ...healthy, lossPercent: 2.9 }).severity, "ok");
+    assert.equal(Diagnostics.verdict({ ...healthy, lossPercent: 3.1 }).severity, "warn");
   });
 
   it("reminds you when you are the one who muted someone", () => {
-    const [severity, text] = Diagnostics.verdict({ ...healthy, mutedOthers: 1 });
+    // The count travels as a number now. Which plural form it needs is the reader's
+    // language's business, and English's two are not enough for Polish.
+    const { severity, code, params } = Diagnostics.verdict({ ...healthy, mutedOthers: 1 });
     assert.equal(severity, "warn");
-    assert.match(text, /1 player is muted by you/);
-    assert.match(Diagnostics.verdict({ ...healthy, mutedOthers: 2 })[1], /2 players are/);
+    assert.equal(code, "muted-others");
+    assert.equal(params?.count, 1);
+    assert.equal(Diagnostics.verdict({ ...healthy, mutedOthers: 2 }).params?.count, 2);
   });
 });
 
@@ -99,14 +138,108 @@ describe("Diagnostics.groups", () => {
     assert.ok(rate?.[1].includes("expected 48.0"));
   });
 
+  /**
+   * The row was labelled "Noise gate" and reported the mute flag, so it read `open`
+   * whenever you were not muted — whether the gate was disabled, bound, open or closed.
+   * Someone whose microphone had gone quiet could not tell from it whether the gate was
+   * even in the audio path, and `open` invited them to conclude that it was.
+   */
+  it("says the gate is off rather than open when it is not in the audio path", () => {
+    const groups = Diagnostics.groups({ ...healthy, noiseGate: "Disabled" });
+    const gate = groups[0].rows.find(([key]) => key === "Noise gate");
+    assert.ok(gate?.[1].includes("off"));
+    assert.ok(!gate?.[1].includes("open"));
+  });
+
+  it("distinguishes a gate that is open from one that is cutting", () => {
+    const open = Diagnostics.groups({ ...healthy, noiseGate: "Open" })[0].rows.find(
+      ([key]) => key === "Noise gate",
+    );
+    assert.ok(open?.[1].includes("open"));
+
+    const closed = Diagnostics.groups({ ...healthy, noiseGate: "Closed" })[0].rows.find(
+      ([key]) => key === "Noise gate",
+    );
+    assert.ok(closed?.[1].includes("closed"));
+  });
+
+  // Only a gate that is bound and shut can be the reason, so only that one says so.
+  it("points at the gate when it is the thing holding the mic shut", () => {
+    const closed = Diagnostics.groups({ ...healthy, noiseGate: "Closed" })[0].rows.find(
+      ([key]) => key === "Noise gate",
+    );
+    assert.ok(closed?.[1].includes("←"));
+
+    const disabled = Diagnostics.groups({ ...healthy, noiseGate: "Disabled" })[0].rows.find(
+      ([key]) => key === "Noise gate",
+    );
+    assert.ok(!disabled?.[1].includes("←"));
+  });
+
+  // Mute is its own row and its own verdict. Reporting it here said nothing about the gate
+  // and hid the one thing this row exists to show.
+  it("reports the gate rather than the mute flag", () => {
+    const muted = Diagnostics.groups({ ...healthy, muted: true, noiseGate: "Open" })[0].rows.find(
+      ([key]) => key === "Noise gate",
+    );
+    assert.ok(!muted?.[1].includes("muted"));
+    assert.ok(muted?.[1].includes("open"));
+  });
+
   it("says so plainly when nothing is going out", () => {
     const groups = Diagnostics.groups({ ...healthy, datagramsOut: 0 });
     const sending = groups[0].rows.find(([key]) => key === "Sending");
     assert.ok(sending?.[1].includes("nothing is going out"));
   });
 
+  /*
+   * The sending figure was taken from every datagram this client sends, and position,
+   * presence, control and health traffic all leave over the same socket. It therefore read as
+   * a healthy microphone on a client capturing nothing at all, which is exactly the reading
+   * that sent a real dead-capture report the wrong way. Naming it audio is half the fix; the
+   * capture row below is the other half.
+   */
+  it("names the sending figure as audio rather than as all traffic", () => {
+    const sending = Diagnostics.groups(healthy)[0].rows.find(([key]) => key === "Sending");
+    assert.ok(sending?.[1].includes("audio datagrams/s"));
+  });
+
+  it("accuses the microphone only once capture has actually been measured", () => {
+    const unmeasured = Diagnostics.groups({ ...healthy, capturing: null })[0].rows.find(
+      ([key]) => key === "Capturing",
+    );
+    assert.ok(!unmeasured?.[1].includes("stopped"));
+    assert.ok(unmeasured?.[1].includes("not measured"));
+  });
+
+  it("points at the microphone when the device has stopped delivering", () => {
+    const stopped = Diagnostics.groups({ ...healthy, capturing: 0 })[0].rows.find(
+      ([key]) => key === "Capturing",
+    );
+    assert.ok(stopped?.[1].includes("←"));
+    assert.ok(stopped?.[1].includes("stopped"));
+  });
+
+  /*
+   * A dead capture device and a client sending nothing are different faults with different
+   * fixes, and the panel has to be able to show one without the other: capture stopping while
+   * the uplink keeps moving is the whole signature of the failure this row was added for.
+   */
+  it("reports capture separately from what reaches the network", () => {
+    const rows = Diagnostics.groups({ ...healthy, capturing: 0, datagramsOut: 50 })[0].rows;
+    assert.ok(rows.find(([key]) => key === "Capturing")?.[1].includes("stopped"));
+    assert.ok(!rows.find(([key]) => key === "Sending")?.[1].includes("nothing is going out"));
+  });
+
+  it("reports a live capture rate without an accusation", () => {
+    const live = Diagnostics.groups({ ...healthy, capturing: 49.6 })[0].rows.find(
+      ([key]) => key === "Capturing",
+    );
+    assert.equal(live?.[1], "50 frames/s");
+  });
+
   it("marks a non-standard QUIC port as a fallback", () => {
-    const groups = Diagnostics.groups({ ...healthy, quicPort: 8443 });
+    const groups = Diagnostics.groups({ ...healthy, port: 8443 });
     const port = groups[2].rows.find(([key]) => key === "QUIC port");
     assert.ok(port?.[1].includes("fallback"));
     const standard = Diagnostics.groups(healthy)[2].rows.find(([key]) => key === "QUIC port");
@@ -116,6 +249,63 @@ describe("Diagnostics.groups", () => {
   it("drops the hours segment from a short uptime", () => {
     assert.equal(Diagnostics.duration(65), "01:05");
     assert.equal(Diagnostics.duration(3725), "1:02:05");
+  });
+});
+
+/**
+ * Which transport carried the session, stated rather than left to be inferred from a port.
+ *
+ * Every latency and loss figure on the panel means something different depending on this: a
+ * reliable ordered transport trades latency for delivery under loss, so the same round trip is
+ * a different verdict on each.
+ */
+describe("Diagnostics transport", () => {
+  const sessionRow = (input: DiagnosticsInput, label: string) =>
+    Diagnostics.groups(input)
+      .find((group) => group.title === "Session")
+      ?.rows.find(([key]) => key === label);
+
+  it("names the transport carrying the session", () => {
+    assert.deepEqual(sessionRow({ ...healthy, transport: "Quic" }, "Connection type"), [
+      "Connection type",
+      "QUIC",
+    ]);
+  });
+
+  it("says WSS for a WebSocket session", () => {
+    assert.deepEqual(sessionRow({ ...healthy, transport: "WebSocket" }, "Connection type"), [
+      "Connection type",
+      "WSS",
+    ]);
+  });
+
+  // Nothing is connected, so there is no transport to name. Defaulting to QUIC would assert a
+  // fact about a session that does not exist.
+  it("shows no transport when nothing is connected", () => {
+    assert.deepEqual(sessionRow({ ...healthy, transport: null }, "Connection type"), [
+      "Connection type",
+      "—",
+    ]);
+  });
+
+  it("labels the port for the transport that is carrying it", () => {
+    const labels = (input: DiagnosticsInput) =>
+      Diagnostics.groups(input)
+        .find((group) => group.title === "Link")
+        ?.rows.map(([key]) => key) ?? [];
+
+    assert.ok(labels({ ...healthy, transport: "Quic" }).includes("QUIC port"));
+    assert.ok(labels({ ...healthy, transport: "WebSocket" }).includes("WSS port"));
+  });
+
+  // 443 is the ordinary WSS port, so the fallback annotation would report the normal case as
+  // a problem. It belongs to QUIC, where 443 is the port a working path uses.
+  it("does not call a WSS port a fallback", () => {
+    const row = Diagnostics.groups({ ...healthy, transport: "WebSocket", port: 8443 })
+      .find((group) => group.title === "Link")
+      ?.rows.find(([key]) => key === "WSS port");
+
+    assert.equal(row?.[1], "8443");
   });
 });
 

@@ -1,0 +1,370 @@
+<script lang="ts">
+  import { I18n } from "$lib/i18n";
+    import ProximityRing from "$radial/components/ProximityRing.svelte";
+    import LevelMeter from "$radial/components/LevelMeter.svelte";
+    import { AnimationLoop } from "$radial/core/canvas/AnimationLoop";
+    import { ProximityCast } from "$radial/core/sources/ProximityCast";
+    import { TimelineBinding } from "$radial/bindings/TimelineBinding";
+    import { StepFlow } from "$radial/core/controllers/StepFlow";
+    import RadScreen from "../shell/RadScreen.svelte";
+    import StepDots from "../shell/StepDots.svelte";
+
+    interface Props {
+        step: number;
+        onstep: (step: number) => void;
+        onnext: () => void;
+        onback: () => void;
+        onskip: () => void;
+    }
+    let { step, onstep, onnext, onback, onskip }: Props = $props();
+
+    const TOTAL = 4;
+
+    const CAPTIONS = [
+        "Four things worth knowing before you sign in",
+        "Proximity keeps running underneath channels",
+        "No special hosting, no separate accounts",
+        "Everything here works on desktop and phone",
+    ];
+
+    /**
+     * Eight people, placed on the ring and moving.
+     *
+     * Synthetic on purpose: the introduction runs before there is a server, so there
+     * is no real data to show. The cast, the falloff and the always-talking level live in
+     * `ProximityCast` because the sign-in gate shows the same demonstration; the reasoning
+     * about phases, radii and the speaking threshold is there with them.
+     */
+    const ROSTER = ProximityCast.ROSTER;
+
+    /**
+     * Step one shows four, not the whole roster: five rows of readout overflowed the
+     * pane at shorter window heights. Step two shows everyone, because a channel with
+     * a couple of people in it reads as empty and teaches the opposite of the point.
+     */
+    const NEARBY = ROSTER.slice(0, 4);
+
+    // The ring is `ProximityRing`, which places the cast itself and reports how many are in
+    // earshot. What is left here is the readout beside it: the same cast, read as rows.
+    let audible = $state(0);
+    let levels = $state(NEARBY.map(() => 0));
+    let readouts = $state(NEARBY.map(() => ({ live: false, gain: "––", range: "–" })));
+
+    $effect(() =>
+        AnimationLoop.shared().add((t) => {
+            if (step !== 1) return;
+            const nextLevels: number[] = [];
+            readouts = NEARBY.map((_p, i) => {
+                const distance = ProximityCast.distance(i, t);
+                // The meter shows the player's own voice, exactly as the channel step
+                // does: raw, floored, always moving. Falloff belongs to the ring and to
+                // the percentage — how loud they are *to you* — not to the waveform,
+                // which greyed out the moment distance pushed it under the meter's
+                // 0.08 speaking threshold.
+                nextLevels.push(ProximityCast.voice(t, i));
+                const volume = ProximityCast.placement(i, t)?.volume ?? 0;
+                return {
+                    live: volume > 0,
+                    gain: `${Math.round(volume * 100)}%`,
+                    range: `${Math.round(distance)} m`,
+                };
+            });
+            levels = nextLevels;
+        }),
+    );
+
+    // Channels are full volume at any distance, which is the entire point of them, so
+    // these carry no falloff.
+    let channelLevels = $state(ROSTER.map(() => 0));
+    $effect(() => {
+        if (step !== 2) return;
+        return AnimationLoop.shared().add((t) => {
+            channelLevels = ROSTER.map((_, i) => ProximityCast.voice(t, i));
+        });
+    });
+
+    /**
+     * Membership moves on its own, because the thing being explained is that proximity
+     * keeps running underneath a channel rather than being replaced by it.
+     *
+     * Both sides stay populated. A channel holding one person reads as empty, which
+     * teaches the opposite of what this step is for.
+     */
+    const MIN_PER_CHANNEL = 3;
+    let assignment = $state([1, 1, 1, 1, 0, 0, 0, 0]);
+    let swapSeed = 2600;
+    $effect(() => {
+        if (step !== 2) return;
+        const id = setInterval(() => {
+            swapSeed += 1;
+            const i = Math.floor(Math.abs(Math.sin(swapSeed * 12.9898)) * ROSTER.length) % ROSTER.length;
+            const next = [...assignment];
+            next[i] = next[i] === 1 ? 0 : 1;
+            const inChannel = next.filter((c) => c === 1).length;
+            if (inChannel < MIN_PER_CHANNEL || ROSTER.length - inChannel < MIN_PER_CHANNEL) return;
+            assignment = next;
+        }, 3200);
+        return () => clearInterval(id);
+    });
+
+    let timelineCanvas: HTMLCanvasElement | undefined = $state();
+    $effect(() => {
+        if (step !== 4 || !timelineCanvas) return;
+        const binding = new TimelineBinding(timelineCanvas, {
+            lanes: NEARBY.map((p) => ({ name: p.name, hue: p.hue })),
+        });
+        return () => binding.destroy();
+    });
+
+    let recTime = $state("04:12");
+    $effect(() => {
+        if (step !== 4) return;
+        return AnimationLoop.shared().add((t) => {
+            const seconds = 252 + (Math.floor(t / 1000) % 600);
+            recTime = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+        });
+    });
+
+    // The entry stagger has to replay when the step changes, or steps two to four
+    // arrive with no entrance at all.
+    let body: HTMLElement | undefined = $state();
+    $effect(() => {
+        void step;
+        if (body) StepFlow.restartStagger(body);
+    });
+
+    // Carries the index so a member's meter reads the same level as its ring bar.
+    function members(channel: number) {
+        return ROSTER.map((player, index) => ({ player, index })).filter(
+            (entry) => assignment[entry.index] === channel,
+        );
+    }
+</script>
+
+<RadScreen>
+    {#snippet topbar()}
+        <StepDots {step} total={TOTAL} onselect={onstep} />
+    {/snippet}
+
+    <div class="rad-split">
+        <div class="rad-visual-pane">
+            {#if step === 1}
+                <div class="rad-visual">
+                    <ProximityRing
+                        count={NEARBY.length}
+                        onaudible={(n) => (audible = n)}
+                        class="rad-ring--fill"
+                    />
+                    <span class="rad-caption">
+                        <span class="rad-label">{I18n.t("Your range")}</span>
+                        <span class="rad-caption__value">80 M · {audible} IN EARSHOT</span>
+                    </span>
+                </div>
+            {:else if step === 2}
+                <div class="rad-visual">
+                    <div class="rad-channels">
+                        {#each [0, 1] as channel (channel)}
+                            <div
+                                class="rad-channel {channel === 1 && members(1).length > 0 ? 'is-active' : ''}"
+                            >
+                                <div class="rad-channel__head">
+                                    <span>{channel === 0 ? "Proximity" : "Raid party"}</span>
+                                    <span>{members(channel).length}</span>
+                                </div>
+                                <div>
+                                    {#each members(channel) as entry (entry.player.name)}
+                                        <div class="rad-channel__member">
+                                            <LevelMeter
+                                                level={channelLevels[entry.index] *
+                                                    (channel === 1 ? 1 : 0.82)}
+                                                color={entry.player.hue}
+                                                cell={3}
+                                            />
+                                            <span class="rad-channel__member-name">
+                                                {entry.player.name}
+                                            </span>
+                                        </div>
+                                    {:else}
+                                        <div class="rad-channel__empty">— nobody here —</div>
+                                    {/each}
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                    <span class="rad-caption">
+                        <span class="rad-label">{I18n.t("Channel")}</span>
+                        <span class="rad-caption__value">{I18n.t("FULL VOLUME · ANY DISTANCE")}</span>
+                    </span>
+                </div>
+            {:else if step === 3}
+                <div class="rad-visual">
+                    <div class="rad-matrix">
+                        <div class="rad-matrix__group">
+                            <div class="rad-matrix__head">
+                                {I18n.t("Where your world can live — the mod goes here")}
+                            </div>
+                            <div class="rad-matrix__row">
+                                <span class="rad-matrix__blocks"><i style="background:#8239d8"></i><i style="background:#6a50e9"></i><i style="background:#466cf3"></i></span>
+                                <span>{I18n.t("Your own server")}</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Supported")}</span>
+                            </div>
+                            <div class="rad-matrix__row">
+                                <span class="rad-matrix__blocks"><i style="background:#28bae1"></i><i style="background:#21d8d8"></i><i style="background:#26ddcd"></i></span>
+                                <span>{I18n.t("Aternos — free hosting")}</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Supported")}</span>
+                            </div>
+                            <div class="rad-matrix__row">
+                                <span class="rad-matrix__blocks"><i style="background:#34d8a0"></i><i style="background:#3bd869"></i><i style="background:#6fd846"></i></span>
+                                <span>Minecraft Realms</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Supported")}</span>
+                            </div>
+                            <div class="rad-matrix__row">
+                                <span class="rad-matrix__blocks"><i style="background:#aee236"></i><i style="background:#f8e433"></i><i style="background:#f9bf21"></i></span>
+                                <span>Java + Geyser & Floodgate</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Supported")}</span>
+                            </div>
+                        </div>
+                        <div class="rad-matrix__group">
+                            <div class="rad-matrix__head">{I18n.t("Who can join")}</div>
+                            <div class="rad-matrix__row">
+                                <span class="rad-matrix__blocks"><i style="background:#8239d8"></i><i style="background:#6a50e9"></i><i style="background:#466cf3"></i></span>
+                                <span>Windows · macOS · Linux</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Ready")}</span>
+                            </div>
+                            <div class="rad-matrix__row">
+                                <span class="rad-matrix__blocks"><i style="background:#28bae1"></i><i style="background:#21d8d8"></i><i style="background:#26ddcd"></i></span>
+                                <span>Android · iOS</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Ready")}</span>
+                            </div>
+                            <div class="rad-matrix__row">
+                                <span class="rad-matrix__blocks"><i style="background:#34d8a0"></i><i style="background:#3bd869"></i><i style="background:#6fd846"></i></span>
+                                <span>Xbox · PlayStation · Switch</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Via phone")}</span>
+                            </div>
+                        </div>
+                        <p class="rad-matrix__note">
+                            <span>{I18n.t("The BVC server runs separately, on")} <b>any machine you control</b> —
+                                your gaming PC, a VPS, or a home box.</span>
+                        </p>
+                    </div>
+                    <span class="rad-caption">
+                        <span class="rad-label">{I18n.t("Reach")}</span>
+                        <span class="rad-caption__value">{I18n.t("YOUR WORLD STAYS WHERE IT IS")}</span>
+                    </span>
+                </div>
+            {:else}
+                <div class="rad-visual">
+                    <div class="rad-timeline">
+                        <div class="rad-timeline__ruler">
+                            <span class="rad-timeline__rec"><i></i>REC <span class="rad-num">{recTime}</span></span>
+                            <span class="rad-timeline__marks">
+                                <span>00:00</span><span>01:24</span><span>02:48</span><span>04:12</span>
+                            </span>
+                        </div>
+                        <div class="rad-timeline-lanes"><canvas bind:this={timelineCanvas}></canvas></div>
+                    </div>
+                    <span class="rad-caption">
+                        <span class="rad-label">{I18n.t("Session")}</span>
+                        <span class="rad-caption__value">3 TRACKS · TIMECODED</span>
+                    </span>
+                </div>
+            {/if}
+        </div>
+
+        <div class="rad-content-pane" bind:this={body}>
+            {#if step === 1}
+                <span class="rad-label rad-rise" style="--d: 50">01 · Proximity</span>
+                <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
+                    {I18n.t("Walk up to someone.")}<br /><b>{I18n.t("You're already talking.")}</b>
+                </h2>
+                <p class="rad-body rad-rise" style="--d: 210">
+                    {I18n.t("Voices get louder as players come toward you and fade as they leave. No lobbies, no invites, and nobody shouting over a call from three biomes away.")}
+                </p>
+                <div class="rad-chips rad-rise" style="--d: 300">
+                    <span class="rad-chip"><i style="background: #21d8d8"></i>{I18n.t("Positional audio")}</span>
+                    <span class="rad-chip"><i style="background: #3bd869"></i>{I18n.t("Whisper & shout")}</span>
+                    <span class="rad-chip"><i style="background: #aee236"></i>{I18n.t("Spectator support")}</span>
+                </div>
+                <div class="rad-readout-list rad-rise" style="--d: 380">
+                    {#each NEARBY as p, i (p.name)}
+                        <div class="rad-readout {readouts[i].live ? 'is-live' : ''}">
+                            <span class="rad-readout__dot" style="background:{p.hue}"></span>
+                            <span>{p.name}</span>
+                            <LevelMeter level={levels[i]} color={p.hue} cell={3} />
+                            <span class="rad-readout__gain">{readouts[i].gain}</span>
+                            <span class="rad-readout__range">{readouts[i].range}</span>
+                        </div>
+                    {/each}
+                </div>
+            {:else if step === 2}
+                <span class="rad-label rad-rise" style="--d: 50">02 · Channels</span>
+                <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
+                    {I18n.t("Split off into")}<br /><b>your own channel.</b>
+                </h2>
+                <p class="rad-body rad-rise" style="--d: 210">
+                    {I18n.t("Running something across the whole map? Drop into a channel and everyone stays at full volume however far apart you get. Proximity keeps running underneath the entire time.")}
+                </p>
+                <div class="rad-chips rad-rise" style="--d: 300">
+                    <span class="rad-chip"><i style="background: #8239d8"></i>{I18n.t("Persistent groups")}</span>
+                    <span class="rad-chip"><i style="background: #28bae1"></i>{I18n.t("Join from in-game")}</span>
+                    <span class="rad-chip"><i style="background: #f9bf21"></i>{I18n.t("Server-wide broadcast")}</span>
+                    <span class="rad-chip"><i style="background: #3bd869"></i>{I18n.t("Per-player volume 0–150%")}</span>
+                    <span class="rad-chip"><i style="background: #f67414"></i>{I18n.t("Moderator controls")}</span>
+                </div>
+            {:else if step === 3}
+                <span class="rad-label rad-rise" style="--d: 50">03 · Anywhere you play</span>
+                <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
+                    {I18n.t("It works with")}<br /><b>the world you already have.</b>
+                </h2>
+                <p class="rad-body rad-rise" style="--d: 210">
+                    {I18n.t("Your world stays exactly where it is. The mod goes on it; the BVC server runs on a machine you control.")}
+                </p>
+                <div class="rad-steps rad-rise" style="--d: 300">
+                    <div class="rad-step">
+                        <span class="rad-step__n">1</span>
+                        <span>
+                            <span class="rad-step__title">{I18n.t("Run the BVC server")}</span>
+                            <span class="rad-step__note">{I18n.t("Your PC, a VPS, or a home box")}</span>
+                        </span>
+                    </div>
+                    <div class="rad-step">
+                        <span class="rad-step__n">2</span>
+                        <span>
+                            <span class="rad-step__title">{I18n.t("Add the mod to your world")}</span>
+                            <span class="rad-step__note">{I18n.t("A Bedrock add-on, or the Fabric or Paper mod for Java")}</span>
+                        </span>
+                    </div>
+                    <div class="rad-step">
+                        <span class="rad-step__n">3</span>
+                        <span>
+                            <span class="rad-step__title">{I18n.t("Share the address and talk")}</span>
+                            <span class="rad-step__note">{I18n.t("Everyone signs in with the account they already play on")}</span>
+                        </span>
+                    </div>
+                </div>
+            {:else}
+                <span class="rad-label rad-rise" style="--d: 50">04 · Record & control</span>
+                <h2 class="rad-display rad-rise" style="--d: 120; margin-top: 12px">
+                    {I18n.t("Record everyone.")}<br /><b>{I18n.t("On separate tracks.")}</b>
+                </h2>
+                <p class="rad-body rad-rise" style="--d: 210">
+                    {I18n.t("Every voice lands on its own timecoded track, ready to drop straight into the edit — and the controls reach the desk beside your keyboard.")}
+                </p>
+                <div class="rad-chips rad-rise" style="--d: 300">
+                    <span class="rad-chip"><i style="background: #21d8d8"></i>{I18n.t("Split-track recording")}</span>
+                    <span class="rad-chip"><i style="background: #aee236"></i>{I18n.t("Stream Deck plugin")}</span>
+                    <span class="rad-chip"><i style="background: #f9bf21"></i>{I18n.t("Push-to-talk & hotkeys")}</span>
+                    <span class="rad-chip"><i style="background: #8239d8"></i>{I18n.t("Noise gate & gain")}</span>
+                    <span class="rad-chip"><i style="background: #f67414"></i>{I18n.t("WebSocket API")}</span>
+                    <span class="rad-chip"><i style="background: #3bd869"></i>{I18n.t("Export to WAV or MP4")}</span>
+                </div>
+            {/if}
+        </div>
+    </div>
+
+    {#snippet footbar()}
+        <span class="rad-label">{CAPTIONS[step - 1]}</span>
+        <span class="rad-footbar__actions">
+            <button class="rad-btn rad-btn--lg rad-btn--quiet" onclick={onskip}>{I18n.t("Skip")}</button>
+            {#if step > 1}
+                <button class="rad-btn rad-btn--lg rad-btn--quiet" onclick={onback}>{I18n.t("Back")}</button>
+            {/if}
+            <button class="rad-btn rad-btn--lg rad-btn--primary" onclick={onnext}>
+                {step === TOTAL ? "Continue" : "Next"}
+            </button>
+        </span>
+    {/snippet}
+</RadScreen>

@@ -1,5 +1,7 @@
+#[cfg(feature = "net")]
 pub mod ncryptflib;
 
+#[cfg(feature = "net")]
 pub mod auth;
 pub mod encoding;
 pub mod errors;
@@ -7,6 +9,7 @@ pub use serde::{Deserialize, Serialize};
 
 pub mod consts;
 pub mod game_data;
+#[cfg(feature = "net")]
 pub mod net;
 pub mod players;
 pub mod request;
@@ -19,10 +22,10 @@ pub mod traits;
 
 // Re-export error types
 pub use errors::{
-    CommunicationError, GameError, GenericCommunicationError, HytaleCommunicationError,
-    MinecraftCommunicationError,
+    CommunicationError, GameError, GenericCommunicationError, MinecraftCommunicationError,
 };
 
+#[cfg(feature = "net")]
 pub use reqwest;
 
 // Re-export s2n-quic when feature is enabled
@@ -44,10 +47,10 @@ pub use bedrock_server;
 pub use structs::game::{Coordinate, Game, GameData, Orientation, Player};
 
 // Re-export important types for easy access
-pub use structs::players::PlayerSource;
+pub use structs::players::{PlayerIdentity, PlayerIdentityError, PlayerSource};
 pub use structs::recording::{RecordingPlayerData, SessionManifest};
 
 // Re-export new player system types
-pub use game_data::{Dimension, GameDataCollection, HytaleDimension};
-pub use players::{GenericPlayer, HytalePlayer, MinecraftPlayer, PlayerEnum};
+pub use game_data::{Dimension, GameDataCollection};
+pub use players::{GenericPlayer, MinecraftPlayer, PlayerEnum};
 pub use traits::player_data::{PlayerData as PlayerDataTrait, SpatialPlayer};

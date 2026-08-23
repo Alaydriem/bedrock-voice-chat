@@ -4,7 +4,7 @@ fn default_minimum() -> u8 {
     13
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Age {
     #[serde(default = "default_minimum")]
     pub minimum: u8,

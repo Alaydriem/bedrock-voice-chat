@@ -4,13 +4,12 @@ use std::time::{Duration, Instant};
 use tokio::net::UdpSocket;
 
 use super::{ProbeInitialPacket, RouteProbe};
+use crate::net::NetTimeouts;
 use crate::structs::reachability::{AnsweredVia, ReachabilityOutcome};
 
 pub struct NegotiationProbe;
 
 impl NegotiationProbe {
-    pub const BUDGET: Duration = Duration::from_millis(750);
-
     // A single lost probe would otherwise burn the whole budget, and the probe
     // runs on the connect path where that delay is visible to a player.
     const RETRANSMIT_AFTER: Duration = Duration::from_millis(250);
@@ -46,7 +45,7 @@ impl NegotiationProbe {
         let mut retransmitted = false;
 
         loop {
-            let remaining = Self::BUDGET.checked_sub(started.elapsed())?;
+            let remaining = NetTimeouts::NEGOTIATION.checked_sub(started.elapsed())?;
             let wait = if retransmitted {
                 remaining
             } else {

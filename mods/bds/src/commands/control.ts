@@ -11,6 +11,7 @@ import type {
   CustomCommandResult,
 } from '@minecraft/server';
 import type { ControlAction } from '../control/action';
+import { JUKEBOX_TARGET, MAX_LEVEL } from '../control/jukebox';
 import type { ControlSender } from '../control/sender';
 import type { PanelTestConfig } from '../ui/panel_test';
 
@@ -139,7 +140,7 @@ export class ControlCommands {
       registry.registerCommand(
         {
           name: 'bvc:volume',
-          description: 'Set your local volume for another player (0-100)',
+          description: 'Set your local volume for another player (0-150)',
           cheatsRequired: false,
           permissionLevel: CommandPermissionLevel.Any,
           mandatoryParameters: [strParam('player'), intParam('level')],
@@ -152,7 +153,7 @@ export class ControlCommands {
           return dispatch(origin, {
             kind: 'volume',
             target,
-            value: Math.max(0, Math.min(100, level)),
+            value: Math.max(0, Math.min(MAX_LEVEL, level)),
           });
         },
       );
@@ -172,6 +173,38 @@ export class ControlCommands {
           }
           return dispatch(origin, { kind: 'hear', target, on });
         },
+      );
+
+      // Neither jukebox command takes a player argument, so `resolveTarget` — which refuses a name
+      // that is not an online player — is correctly not on this path. That is why the jukebox gets
+      // its own commands rather than being typeable as a target on bvc:volume.
+      registry.registerCommand(
+        {
+          name: 'bvc:jukeboxmute',
+          description: 'Choose whether you hear jukebox music',
+          cheatsRequired: false,
+          permissionLevel: CommandPermissionLevel.Any,
+          mandatoryParameters: [boolParam('muted')],
+        },
+        (origin: CustomCommandOrigin, muted: boolean) =>
+          // The plane carries "heard", the command reads as "mute", so the flag inverts here.
+          dispatch(origin, { kind: 'hear', target: JUKEBOX_TARGET, on: !muted }),
+      );
+
+      registry.registerCommand(
+        {
+          name: 'bvc:jukeboxvolume',
+          description: 'Set how loud jukebox music plays (0-150)',
+          cheatsRequired: false,
+          permissionLevel: CommandPermissionLevel.Any,
+          mandatoryParameters: [intParam('level')],
+        },
+        (origin: CustomCommandOrigin, level: number) =>
+          dispatch(origin, {
+            kind: 'volume',
+            target: JUKEBOX_TARGET,
+            value: Math.max(0, Math.min(MAX_LEVEL, level)),
+          }),
       );
 
       registry.registerCommand(

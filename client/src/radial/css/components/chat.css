@@ -49,6 +49,55 @@
   overflow-y: auto;
 }
 
+/* ---- where the message goes ----
+
+   One BVC server can host several worlds. This says which one is listening, and it is a
+   button only when the choice is real — when the player is not in game and has history in
+   more than one. Somebody standing in a world is not offered a choice, because the only
+   thing a choice can do there is put their message in front of the wrong people.
+*/
+
+.rad-chat-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: -8px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-rad-faint);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-tag);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.rad-chat-target:hover {
+  color: var(--color-rad-tx);
+  background: var(--color-rad-panel);
+}
+
+.rad-chat-target__caret > svg {
+  width: 12px;
+  height: 12px;
+  transform: rotate(90deg);
+}
+
+/* Nothing to choose. Same words, no affordance offered. */
+.rad-chat-target.is-static {
+  margin-left: 0;
+  padding-left: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.rad-chat-target.is-static .rad-chat-target__caret {
+  display: none;
+}
+
 .rad-chat__note {
   margin-bottom: 12px;
   padding: 10px 0 16px;
@@ -115,6 +164,22 @@
   vertical-align: middle;
   border-radius: 2px;
   background: var(--color-rad-brand-lift);
+}
+
+/* Sent, but nothing has confirmed it arrived — or something said it did not. The whole row
+ * goes grey, identity colour included, so it cannot be mistaken for a delivered line; the
+ * text stays readable because the sender has to be able to read back what they typed. */
+.rad-msg--unconfirmed {
+  opacity: 0.72;
+}
+
+.rad-msg--unconfirmed .rad-msg__text,
+.rad-msg--unconfirmed .rad-msg__ts {
+  color: var(--color-rad-dim);
+}
+
+.rad-msg--unconfirmed .rad-msg__app {
+  background: var(--color-rad-dim);
 }
 
 .rad-msg--mention {
@@ -245,6 +310,51 @@
 
 .rad-chat-send:hover {
   background: var(--color-rad-brand-lift);
+}
+
+/* ---- nothing is listening ----
+
+   The composer states the reason in the place someone is about to type, and the send
+   button leaves rather than sitting dead. A box that accepts text and silently discards it
+   is worse than one that is obviously shut.
+*/
+
+.rad-chat-bar.is-unavailable .rad-chat-input {
+  color: var(--color-rad-faint);
+  cursor: not-allowed;
+}
+
+.rad-chat-bar.is-unavailable .rad-chat-send {
+  display: none;
+}
+
+/* ---- a send that did not land ----
+
+   The player moved worlds while the app still held the old one. The message was not
+   delivered anywhere, which has to be said: silently posting it into the world they left
+   would put it in front of people they are no longer standing with.
+*/
+
+.rad-chat-notice {
+  flex: 0 0 auto;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 9px 22px;
+  border: 0;
+  border-top: 1px solid var(--color-rad-line);
+  background: rgb(255 207 77 / 0.1);
+  color: var(--color-rad-warn);
+  font-family: var(--font-rad-mono);
+  font-size: var(--text-rad-mono-2xs);
+  letter-spacing: var(--tracking-rad-tag);
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rad-chat-notice:hover {
+  background: rgb(255 207 77 / 0.16);
 }
 
 .rad-chat-send > [data-rad-icon] > svg {

@@ -1,4 +1,5 @@
 pub mod permission;
+pub mod relay;
 pub mod user;
 
 use rocket::http::Status;
@@ -31,11 +32,14 @@ inventory::submit! {
             rocket_okapi::openapi_get_routes_spec![
                 settings:
                     user::create::create_user,
+                    user::list::list_users,
                     user::banish::banish_user,
                     user::generate_code::generate_code,
                     permission::set::set_permission,
                     permission::clear::clear_permission,
-                    permission::list::list_permissions
+                    permission::list::list_permissions,
+                    relay::peerlink::relay_peerlink,
+                    relay::worlds::relay_worlds
             ]
         },
     }

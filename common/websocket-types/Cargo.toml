@@ -2,10 +2,16 @@
 name = "websocket-types"
 version = "0.1.0"
 edition = "2024"
+# One explicit target: `autotests = false` alone silently drops test binaries.
+autotests = false
 
 [[bin]]
 name = "generate-asyncapi-docs"
 path = "src/bin/generate_asyncapi_docs.rs"
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
 
 [dependencies]
 serde = { version = "^1", features = ["derive"] }

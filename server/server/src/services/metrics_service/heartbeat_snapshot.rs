@@ -22,4 +22,9 @@ pub struct HeartbeatSnapshot {
     pub players_reached_mutual_proximity: u64,
     pub players_reached_mutual_channel: u64,
     pub features_enabled: Vec<String>,
+    // What the operator permits. Constant for the process.
+    pub recording_enabled: bool,
+    // Whether anyone is recording at the instant this sample was taken. Independent of
+    // the capability above: a server that permits recording usually reports false here.
+    pub recording_active: bool,
 }

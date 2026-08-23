@@ -1,0 +1,662 @@
+[tools]
+node = "24"
+# yarn classic. The three JS projects (client, mods, mods/bds) all use yarn.lock v1
+# and `--frozen-lockfile`. Nothing else pinned it: CI relies on the runner's
+# preinstalled yarn, and locally it arrived with whichever node manager was on PATH.
+yarn = "1.22.22"
+
+# Every task sets `shell` explicitly. mise ignores windows_default_inline_shell_args
+# in a non-global config, so a project file cannot set the default; and mise's own
+# default on Windows is `cmd /c`. Naming pwsh per task keeps the guarantee in-repo.
+# No task names bash: mise can resolve bash to the WSL launcher, which runs in Linux
+# user-space where mise-managed Windows tools are not visible.
+
+[tasks.preflight]
+description = "Report environment problems by name before they surface as obscure build errors"
+shell = "pwsh -NoLogo -Command"
+run = '''
+$ok = $true
+
+if (-not $env:LIBCLANG_PATH) {
+  Write-Host "FAIL  LIBCLANG_PATH is not set. bindgen will fail without naming it."
+  Write-Host "      Expected something like: C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\lib"
+  $ok = $false
+} elseif (-not (Test-Path $env:LIBCLANG_PATH)) {
+  Write-Host "FAIL  LIBCLANG_PATH is set to a path that does not exist: $env:LIBCLANG_PATH"
+  $ok = $false
+} else {
+  Write-Host "ok    LIBCLANG_PATH  $env:LIBCLANG_PATH"
+}
+
+if (Get-Command pwsh -ErrorAction SilentlyContinue) {
+  Write-Host "ok    pwsh           $($PSVersionTable.PSVersion)"
+} else {
+  Write-Host "FAIL  pwsh is not on PATH. mise tasks are configured to run in PowerShell 7."
+  $ok = $false
+}
+
+if (Get-Command cargo-nextest -ErrorAction SilentlyContinue) {
+  Write-Host "ok    nextest        $((cargo nextest --version) -split ' ' | Select-Object -Index 1)"
+} else {
+  Write-Host "FAIL  cargo-nextest is not installed. Client tests require it; cargo test is not a substitute."
+  Write-Host "      Install with: cargo install cargo-nextest --locked"
+  $ok = $false
+}
+
+Write-Host "ok    node           $(node --version)"
+
+$pinned = (Select-String -Path "$env:MISE_PROJECT_ROOT/rust-toolchain.toml" -Pattern 'channel\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+$actual = (rustc --version).Split(' ')[1]
+if ($actual -eq $pinned) {
+  Write-Host "ok    rustc          $actual"
+} else {
+  Write-Host "FAIL  rustc is $actual but rust-toolchain.toml pins $pinned"
+  $ok = $false
+}
+
+if (Test-Path "$env:MISE_PROJECT_ROOT/client/src-tauri/ASIOSDK/host/asiodrivers.h") {
+  Write-Host "ok    ASIOSDK        present"
+} else {
+  Write-Host "FAIL  client/src-tauri/ASIOSDK is missing or incomplete. Run: mise run asio"
+  $ok = $false
+}
+
+if (-not $ok) { exit 1 }
+Write-Host ""
+Write-Host "preflight passed"
+'''
+
+[tasks.targets-report]
+description = "Size and age of every worktree's cargo target directories. Reads only."
+shell = "pwsh -NoLogo -Command"
+run = '''
+$here = (Resolve-Path $env:MISE_PROJECT_ROOT).Path
+$total = 0
+$rows = @()
+foreach ($line in (git worktree list --porcelain)) {
+  if ($line -notlike 'worktree *') { continue }
+  $wt = (($line -replace '^worktree ', '') -replace '/', '\')
+  if (-not (Test-Path $wt)) { continue }
+  foreach ($sub in 'target', 'server\target') {
+    $dir = Join-Path $wt $sub
+    if (-not (Test-Path $dir)) { continue }
+    $bytes = (Get-ChildItem $dir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+    if (-not $bytes) { $bytes = 0 }
+    $total += $bytes
+    $newest = (Get-ChildItem $dir -Recurse -File -ErrorAction SilentlyContinue |
+               Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+    $rows += [pscustomobject]@{
+      Worktree = (Split-Path $wt -Leaf)
+      Dir      = $sub
+      GB       = [math]::Round($bytes / 1GB, 2)
+      AgeDays  = if ($newest) { [math]::Round(((Get-Date) - $newest).TotalDays, 1) } else { 'n/a' }
+      Current  = if ($wt -eq $here) { 'yes' } else { '' }
+    }
+  }
+}
+if (-not $rows) { Write-Host "no target directories found"; exit 0 }
+$rows | Sort-Object GB -Descending | Format-Table -AutoSize | Out-String | Write-Host
+Write-Host ("total across worktrees: {0} GB" -f [math]::Round($total / 1GB, 2))
+Write-Host ("free on drive:          {0} GB" -f [math]::Round((Get-PSDrive C).Free / 1GB, 2))
+'''
+
+[tasks.clean-targets]
+description = "Delete cargo target dirs in worktrees untouched for N days. Dry-run unless --force."
+shell = "pwsh -NoLogo -Command"
+usage = '''
+arg "[days]" help="Only consider target dirs whose newest file is older than this many days (default 14)"
+flag "--force" help="Actually delete. Without this the task only reports what it would remove."
+'''
+run = '''
+$days  = if ($env:usage_days) { [double]$env:usage_days } else { 14 }
+$force = ($env:usage_force -eq 'true' -or $env:usage_force -eq '1')
+$here  = (Resolve-Path $env:MISE_PROJECT_ROOT).Path
+
+Write-Host ("threshold: older than {0} days   mode: {1}" -f $days, $(if ($force) { 'DELETE' } else { 'dry-run' }))
+Write-Host ("current worktree is always skipped: {0}" -f $here)
+Write-Host ""
+
+$freed = 0
+$found = $false
+foreach ($line in (git worktree list --porcelain)) {
+  if ($line -notlike 'worktree *') { continue }
+  $wt = (($line -replace '^worktree ', '') -replace '/', '\')
+  if (-not (Test-Path $wt)) { continue }
+  if ((Resolve-Path $wt).Path -eq $here) { continue }
+  foreach ($sub in 'target', 'server\target') {
+    $dir = Join-Path $wt $sub
+    if (-not (Test-Path $dir)) { continue }
+    $files = Get-ChildItem $dir -Recurse -File -ErrorAction SilentlyContinue
+    if (-not $files) { continue }
+    $newest = ($files | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+    $age = ((Get-Date) - $newest).TotalDays
+    $gb  = [math]::Round((($files | Measure-Object Length -Sum).Sum) / 1GB, 2)
+    if ($age -lt $days) {
+      Write-Host ("  keep    {0,-6} GB  {1,5:N1}d  {2}" -f $gb, $age, $dir)
+      continue
+    }
+    $found = $true
+    if ($force) {
+      Write-Host ("  DELETE  {0,-6} GB  {1,5:N1}d  {2}" -f $gb, $age, $dir)
+      Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction Continue
+      if (-not (Test-Path $dir)) { $freed += $gb } else { Write-Host "          FAILED - still present" }
+    } else {
+      Write-Host ("  would   {0,-6} GB  {1,5:N1}d  {2}" -f $gb, $age, $dir)
+      $freed += $gb
+    }
+  }
+}
+Write-Host ""
+if (-not $found) { Write-Host "nothing older than $days days"; exit 0 }
+if ($force) { Write-Host ("freed {0} GB" -f $freed) }
+else { Write-Host ("would free {0} GB - re-run with --force to delete" -f $freed) }
+'''
+
+[tasks.clean-incremental]
+description = "Delete cargo incremental caches in every worktree, including the current one. Dry-run unless --force."
+shell = "pwsh -NoLogo -Command"
+usage = '''
+flag "--force" help="Actually delete. Without this the task only reports what it would remove."
+'''
+run = '''
+$force = ($env:usage_force -eq 'true' -or $env:usage_force -eq '1')
+Write-Host ("mode: {0}" -f $(if ($force) { 'DELETE' } else { 'dry-run' }))
+Write-Host "Incremental caches are pure build state. Removing one costs a single"
+Write-Host "non-incremental rebuild of the local crates; deps/ is not touched."
+Write-Host ""
+
+$freed = 0
+foreach ($line in (git worktree list --porcelain)) {
+  if ($line -notlike 'worktree *') { continue }
+  $wt = (($line -replace '^worktree ', '') -replace '/', '\')
+  if (-not (Test-Path $wt)) { continue }
+  foreach ($root in 'target', 'server\target') {
+    $base = Join-Path $wt $root
+    if (-not (Test-Path $base)) { continue }
+    foreach ($inc in (Get-ChildItem $base -Directory -Force -ErrorAction SilentlyContinue |
+                      ForEach-Object { Join-Path $_.FullName 'incremental' } |
+                      Where-Object { Test-Path $_ })) {
+      $gb = [math]::Round(((Get-ChildItem $inc -Recurse -File -Force -ErrorAction SilentlyContinue |
+                            Measure-Object Length -Sum).Sum) / 1GB, 2)
+      if ($gb -eq 0) { continue }
+      if ($force) {
+        Write-Host ("  DELETE  {0,-7} GB  {1}" -f $gb, $inc)
+        Remove-Item -LiteralPath $inc -Recurse -Force -ErrorAction Continue
+        if (-not (Test-Path $inc)) { $freed += $gb } else { Write-Host "          FAILED - still present" }
+      } else {
+        Write-Host ("  would   {0,-7} GB  {1}" -f $gb, $inc)
+        $freed += $gb
+      }
+    }
+  }
+}
+Write-Host ""
+if ($freed -eq 0) { Write-Host "no incremental caches found"; exit 0 }
+if ($force) {
+  Write-Host ("freed {0} GB" -f $freed)
+  Write-Host ("free on drive now: {0} GB" -f [math]::Round((Get-PSDrive C).Free / 1GB, 2))
+  Write-Host "These regrow as you build. Re-run when targets-report shows them large again."
+} else {
+  Write-Host ("would free {0} GB - re-run with --force to delete" -f $freed)
+}
+'''
+
+[tasks.check-rust-pin]
+description = "Fail when rust-toolchain.toml and the workflow action refs disagree"
+shell = "pwsh -NoLogo -Command"
+run = '''
+$root = $env:MISE_PROJECT_ROOT
+$pinned = (Select-String -Path "$root/rust-toolchain.toml" -Pattern 'channel\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+Write-Host "rust-toolchain.toml pins $pinned"
+
+$esc = [regex]::Escape($pinned)
+$stale = Select-String -Path "$root/.github/workflows/*.yml" -Pattern "dtolnay/rust-toolchain@(?!$esc\b)"
+if ($stale) {
+  Write-Host "FAIL  workflow refs disagree with rust-toolchain.toml:"
+  $stale | ForEach-Object { Write-Host "      $($_.Filename):$($_.LineNumber)  $($_.Line.Trim())" }
+  exit 1
+}
+
+$count = (Select-String -Path "$root/.github/workflows/*.yml" -Pattern "dtolnay/rust-toolchain@$esc").Count
+Write-Host "ok    $count workflow refs agree on $pinned"
+'''
+
+[tasks.asio]
+description = "Download and extract the pinned Steinberg ASIO SDK if it is not already present"
+dir = "client/src-tauri"
+shell = "pwsh -NoLogo -Command"
+run = '''
+if (Test-Path "ASIOSDK") {
+  Write-Host "ASIOSDK already present, skipping download"
+  exit 0
+}
+$url = "https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip"
+$zip = Join-Path $env:TEMP "ASIO-SDK_2.3.4_2025-10-15.zip"
+Write-Host "Downloading $url"
+Invoke-WebRequest -Uri $url -OutFile $zip -TimeoutSec 180
+Expand-Archive -Path $zip -DestinationPath "." -Force
+Remove-Item $zip -Force
+if (-not (Test-Path "ASIOSDK/host/asiodrivers.h")) {
+  Write-Host "FAIL  Archive extracted but ASIOSDK/host/asiodrivers.h is missing."
+  Write-Host "      Steinberg may have changed the archive layout. Inspect the zip before proceeding."
+  exit 1
+}
+Write-Host "ASIOSDK extracted to client/src-tauri/ASIOSDK"
+'''
+
+[tasks.deps]
+description = "Install client JS dependencies and generate client/.svelte-kit via the prepare script"
+dir = "client"
+shell = "pwsh -NoLogo -Command"
+run = "yarn install --frozen-lockfile"
+
+[tasks.mods-deps]
+description = "Install the JS dependencies the mod dev servers need, in mods/ and mods/bds/"
+shell = "pwsh -NoLogo -Command"
+# Two projects, not one. `mods/` is a single dependency used by jukebox-test;
+# `mods/bds/` carries the esbuild/typescript toolchain that `yarn run pack`
+# needs, and a fresh worktree fails there rather than in mods/.
+run = [
+  "yarn --cwd mods install --frozen-lockfile",
+  "yarn --cwd mods/bds install --frozen-lockfile",
+]
+
+[tasks.i18n-extract]
+description = "Rewrite client/locales/bvc.pot from the strings in the frontend sources"
+dir = "client"
+depends = ["deps"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn i18n:extract"
+# The frontend sources are the real input here, and the catalogue is the output. Declared as its
+# own task rather than folded into `i18n` because `i18n` lists the .pot among its sources: a task
+# that rewrote one of its own sources could never be current, so every build would re-extract.
+sources = ["src/**/*.ts", "src/**/*.svelte", "scripts/i18n/**/*.mjs"]
+outputs = ["locales/bvc.pot"]
+
+[tasks.i18n]
+description = "Extract the catalogue, then generate client/src-tauri/resources/i18n from the .po files"
+dir = "client"
+depends = ["deps", "i18n-extract"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn i18n:build"
+sources = ["locales/**/*.po", "locales/**/*.pot", "scripts/i18n/**/*.mjs"]
+outputs = ["src-tauri/resources/i18n"]
+
+[tasks.frontend]
+description = "Build the SvelteKit frontend into client/build"
+dir = "client"
+# bindings, and as a dependency of this rather than of each consumer. Vite compiles the
+# TypeScript that imports js/bindings, so the bindings have to be current and settled before
+# it reads them. Listed as a sibling on a consumer instead, mise is free to run the two in
+# parallel and vite can read the directory midway through the prune.
+depends = ["i18n", "bindings"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn build"
+# No sources/outputs. `yarn build` runs preloader:build, which writes into
+# static/preloader/, so the task rewrites its own input and can never be current.
+# A wrong skip here leaves a stale client/build that the Tauri build embeds
+# silently, so this always runs.
+
+[tasks.setup]
+description = "Bootstrap a fresh worktree: ASIO SDK, JS dependencies, i18n resources, frontend build"
+depends = ["asio", "frontend"]
+shell = "pwsh -NoLogo -Command"
+run = 'Write-Host "Worktree ready. Run: mise run preflight"'
+
+[tasks.build-client]
+description = "Build the Tauri client. The Tauri CLI sets up the env that bare cargo does not."
+dir = "client"
+# bindings, not frontend. `yarn tauri build` runs the frontend build itself as
+# beforeBuildCommand, so declaring it here would build it twice. That same
+# ordering is why bindings cannot be generated in-band: beforeBuildCommand runs
+# before cargo, so the TypeScript has to already be on disk when Vite reads it.
+depends = ["bindings"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn tauri build --debug --no-sign"
+
+[tasks.kotlin-config]
+description = "Regenerate the Kotlin config mirror the Java mods compile against. The Rust config is the source of truth; the .kt files are output."
+dir = "server/server"
+shell = "pwsh -NoLogo -Command"
+env = { UPDATE_KOTLIN_CONFIG = "1" }
+run = "cargo nextest run --test integration -E 'test(kotlin_export)'"
+
+[tasks.kotlin-config-check]
+description = "Fail when the checked-in Kotlin config mirror does not match the Rust config. Reports drift rather than hiding it by rewriting the files, which is what CI needs."
+dir = "server/server"
+shell = "pwsh -NoLogo -Command"
+run = "cargo nextest run --test integration -E 'test(kotlin_export)'"
+
+[tasks.build-server]
+description = "Build the server"
+dir = "server/server"
+depends = ["kotlin-config"]
+shell = "pwsh -NoLogo -Command"
+run = "cargo build"
+
+[tasks.check-common]
+description = "Type-check the shared crate"
+shell = "pwsh -NoLogo -Command"
+run = "cargo check -p common"
+
+# cdylib and e2e-bin deliberately declare no sources/outputs. mise would skip them
+# on a file-timestamp comparison layered over cargo's own change detection; when
+# that is wrong for e2e-bin the result is a stale binary, and every scenarios::*
+# test then fails on its own assertions, which reads exactly like a code regression.
+[tasks.cdylib]
+description = "Build the server cdylib the client e2e harness loads over FFI"
+dir = "server"
+depends = ["kotlin-config"]
+shell = "pwsh -NoLogo -Command"
+run = "cargo build -p bedrock-voice-chat-server"
+
+[tasks.e2e-bin]
+description = "Build the e2e client binary the scenario tests spawn as a real process"
+# client/e2e-harness/tauri.conf.json sets frontendDist ../build. Without
+# client/build, generate_context! panics with `The frontendDist configuration is
+# set to "../build" but this path doesn't exist`, and nothing else in this graph
+# builds it for the harness.
+depends = ["frontend"]
+shell = "pwsh -NoLogo -Command"
+run = "cargo build -p bvc-client-e2e"
+
+[tasks.test-client]
+description = "Run client tests. nextest runs each test in its own process; one long-lived cargo test process accumulates native FFI state until it faults."
+dir = "client/src-tauri"
+depends = ["cdylib", "e2e-bin"]
+shell = "pwsh -NoLogo -Command"
+run = "cargo nextest run --features e2e"
+
+[tasks.test-server]
+description = "Run server tests. -j4 is mandatory: every test in the http target boots a real Rocket listener plus a QUIC server."
+dir = "server/server"
+shell = "pwsh -NoLogo -Command"
+run = "cargo test -j4"
+
+[tasks.test-common]
+description = "Run tests for the shared crate"
+shell = "pwsh -NoLogo -Command"
+run = "cargo test -p common"
+
+[tasks.bindings]
+description = "Regenerate the ts-rs TypeScript bindings and the barrel that re-exports them. The only sanctioned way to regenerate them."
+shell = "pwsh -NoLogo -Command"
+# Three steps in one shell because the prune needs the timestamp the run started with,
+# and each entry of a `run` array is its own process.
+#
+# ts-rs only ever writes. It has no notion of a type that used to exist, so deleting one in
+# Rust leaves its .ts behind, and the barrel below re-exports whatever is in the directory —
+# which is how three Hytale bindings survived the type being deleted and kept resolving in
+# TypeScript. The prune is what makes generation authoritative over the directory.
+#
+# By mtime rather than by a manifest: ts-rs opens every exported type with File::create, so
+# each live binding is rewritten on every run and anything left with an older timestamp is,
+# by definition, no longer generated. index.ts is swept up with them and rebuilt in the last
+# step, which is also why the prune has to precede the barrel and not follow it.
+run = '''
+$bindings = Join-Path $env:MISE_PROJECT_ROOT "client/src/js/bindings"
+
+$start = Get-Date
+cargo test -p common
+# Mandatory. A failed cargo run rewrites nothing, so every file predates $start and the
+# prune below would empty the directory rather than tidy it.
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Get-ChildItem $bindings -Filter *.ts |
+  Where-Object { $_.LastWriteTime -lt $start } |
+  ForEach-Object { Write-Host "pruned $($_.Name)"; Remove-Item $_.FullName }
+
+yarn --cwd client bindings:index
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+'''
+
+[tasks.bindings-check]
+description = "Fail when the committed ts-rs bindings do not match the Rust source. Reports drift rather than hiding it, the direction CI needs."
+depends = ["bindings"]
+shell = "pwsh -NoLogo -Command"
+# Compares against git rather than in memory, which is where this differs from
+# kotlin-config-check: the Kotlin exporter returns filename-to-content and can be checked
+# without touching the tree, while ts-rs only writes to disk. So the regeneration above runs
+# first and this reports what it changed.
+run = '''
+git diff --exit-code -- client/src/js/bindings/
+if ($LASTEXITCODE -ne 0) {
+  Write-Host ""
+  Write-Host "FAIL  The committed bindings disagree with the Rust source."
+  Write-Host "      The diff above is the regeneration. Review and commit it."
+  exit 1
+}
+Write-Host "bindings are current"
+'''
+
+[tasks.svc-native]
+description = "Stage the relay SDK cdylib where the native manifest and the runtime fetcher expect it. Required before any SVC bridge run: the native is not committed."
+shell = "pwsh -NoLogo -Command"
+run = '''
+$root = $env:MISE_PROJECT_ROOT
+
+if ($IsWindows) {
+  $lib = "bvc_relay_sdk.dll"; $platform = "windows-x64"
+} elseif ($IsMacOS) {
+  $lib = "libbvc_relay_sdk.dylib"; $platform = "darwin-arm64"
+} else {
+  $lib = "libbvc_relay_sdk.so"; $platform = "linux-x64"
+}
+
+cargo build -p bvc-relay-sdk
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+# Copied from the local debug build, not from a cross-compiled release directory.
+# The Gradle copyNative* tasks read the release triple paths, which a developer
+# building for their own machine has never produced.
+$src = Join-Path $root "target/debug/$lib"
+if (-not (Test-Path $src)) {
+  Write-Host "FAIL  cargo reported success but $src is missing."
+  exit 1
+}
+
+# The same directory as bvc_server_lib, not JNA's own prefix layout. That is what
+# generateNativeManifest hashes, what the skinny jar excludes, and what the runtime
+# provider resolves. Staging under a JNA prefix instead puts the library back in
+# every jar, which is what this arrangement exists to prevent.
+$destDir = Join-Path $root "mods/java/common/src/main/resources/native/$platform"
+New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+Copy-Item -LiteralPath $src -Destination (Join-Path $destDir $lib) -Force
+
+$mb = [math]::Round((Get-Item (Join-Path $destDir $lib)).Length / 1MB, 1)
+Write-Host "ok    staged $lib ($mb MB) -> native/$platform"
+'''
+
+# The three dev-server tasks below build the mod, deploy it to a local test
+# server and then attach that server to the terminal. Flags reach dev-server.js
+# after a `--` separator: `mise run dev-bds -- --no-net`, `-- --release`,
+# `-- --no-build`. Server paths come from mods/.env; copy mods/.env.example.
+#
+# The two Java tasks wrap their run line in `mise x java@temurin-25` so gradlew
+# gets JAVA_HOME from the pin rather than whatever java is first on PATH — on
+# this machine that is Android Studio's bundled JDK 21, which is not what
+# mods/java/mise.toml asks for. A task-level `tools = { java = ... }` would be
+# the obvious way to say this and is silently inert in mise 2026.8.2: the task
+# runs, and java stays at the ambient version. The version here duplicates
+# mods/java/mise.toml; change both together.
+
+[tasks.dev-bds]
+description = "Build the BDS packs, deploy them and start Bedrock Dedicated Server. Requires BDS_SERVER_PATH in mods/.env."
+dir = "mods"
+# No svc-native: Simple Voice Chat is a Java-side bridge and does not exist on
+# Bedrock. The pack build is pure TypeScript, which is what mods-deps supplies.
+depends = ["mods-deps"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn dev-server --bds"
+
+[tasks.dev-paper]
+description = "Build the Paper plugin with the SVC bridge, deploy it and start a local Paper server. Requires PAPER_SERVER_PATH in mods/.env."
+alias = "svc-paper"
+dir = "mods"
+depends = ["mods-deps", "svc-native"]
+shell = "pwsh -NoLogo -Command"
+run = "mise x java@temurin-25 -- yarn dev-server --paper"
+
+[tasks.dev-fabric]
+description = "Build the Fabric mod with the SVC bridge, deploy it and start a local Fabric server. Requires FABRIC_SERVER_PATH in mods/.env."
+dir = "mods"
+# Same svc-native requirement as Paper: the Fabric path runs the same
+# buildRustLibrary and copySdkNativeWindows Gradle tasks, which read the release
+# triple paths a local debug build has never produced.
+depends = ["mods-deps", "svc-native"]
+shell = "pwsh -NoLogo -Command"
+run = "mise x java@temurin-25 -- yarn dev-server --fabric"
+
+[tasks.svc-verify]
+description = "What to look for when testing the Simple Voice Chat bridge by hand. Prints only; runs nothing."
+shell = "pwsh -NoLogo -Command"
+run = '''
+Write-Host ""
+Write-Host "Simple Voice Chat bridge - manual verification"
+Write-Host "=============================================="
+Write-Host ""
+Write-Host "Nothing about this bridge has been exercised against a real Simple Voice"
+Write-Host "Chat instance. Every check below is a first run."
+Write-Host ""
+Write-Host "SETUP"
+Write-Host "  1. Simple Voice Chat server plugin in the Paper server's plugins/"
+Write-Host "  2. mise run dev-paper"
+Write-Host "  3. In plugins/BedrockVoiceChat/config.yml set use-embedded-server: true"
+Write-Host "     Embedded needs no peer link exchange."
+Write-Host ""
+Write-Host "STARTUP LOG - all four, in order"
+Write-Host "  Simple Voice Chat detected; bridging voice between SVC and BVC"
+Write-Host "  Minted this server's relay world identifier"
+Write-Host "  Simple Voice Chat server API acquired"
+Write-Host "  Simple Voice Chat bridge peered, declaring relay world <uuid>"
+Write-Host ""
+Write-Host "  The fourth line is the one that matters. Without it the bridge"
+Write-Host "  registered with Simple Voice Chat and never reached BVC."
+Write-Host ""
+Write-Host "AUDIO - four separate failures, test them separately"
+Write-Host "  [ ] SVC speaker  -> heard by a BVC app listener, quieter with distance"
+Write-Host "  [ ] BVC speaker  -> heard by an SVC listener, quieter with distance"
+Write-Host "  [ ] SVC -> SVC still works with no BVC involved"
+Write-Host "      If this broke, the microphone event is being cancelled."
+Write-Host "  [ ] Nether and Overworld players do NOT hear each other"
+Write-Host "      This is the case a hardcoded dimension used to get wrong."
+Write-Host ""
+Write-Host "FIRST SUSPECTS, most likely first"
+Write-Host "  UnsatisfiedLinkError naming bvc_relay_sdk"
+Write-Host "      The native is not staged. Run: mise run svc-native"
+Write-Host "  No 'Simple Voice Chat detected' line at all"
+Write-Host "      SVC loaded after BVC, or its API is not on the classpath."
+Write-Host "  Warned as not peered, with a peer block printed"
+Write-Host "      Embedded: the peer plane did not bind within 15 seconds."
+Write-Host "      External: svc-bridge-peerlink is unset."
+Write-Host "  Audio one way only"
+Write-Host "      The directions share only the session. Outbound is the"
+Write-Host "      microphone event; inbound is nextFrame into an audio channel."
+Write-Host "  Everyone silent, log clean"
+Write-Host "      Relay world mismatch. The receiving side drops silently."
+Write-Host ""
+Write-Host "STATE THAT PERSISTS BETWEEN RUNS"
+Write-Host "  plugins/BedrockVoiceChat/relay_world.txt"
+Write-Host "  plugins/BedrockVoiceChat/svc-bridge/node.key"
+Write-Host ""
+Write-Host "  Delete both to test the first-run path. Deleting node.key revokes"
+Write-Host "  this bridge on any BVC server that granted the old identity."
+Write-Host ""
+'''
+
+[tasks.test-frontend]
+description = "Run the client Vitest suite"
+dir = "client"
+depends = ["deps"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn test"
+
+[tasks.android-network-config]
+description = "Write the Android network security config that permits cleartext to loopback only. Mandatory: without it the webview cannot reach the app's own push channel in a release build."
+shell = "pwsh -NoLogo -Command"
+run = '''
+$root = $env:MISE_PROJECT_ROOT
+$main = Join-Path $root "client/src-tauri/gen/android/app/src/main"
+if (-not (Test-Path $main)) {
+  Write-Host "FAIL  $main does not exist. Run 'yarn tauri android init' in client/ first."
+  exit 1
+}
+
+$xmlDir = Join-Path $main "res/xml"
+New-Item -ItemType Directory -Force -Path $xmlDir | Out-Null
+
+# Cleartext stays refused everywhere except this device's own loopback, where the
+# app's internal push channel listens. Widening usesCleartextTraffic instead would
+# permit cleartext to every host, which is what this file exists to avoid.
+$config = @'
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>
+'@
+Set-Content -Path (Join-Path $xmlDir "network_security_config.xml") -Value $config -Encoding utf8NoBOM
+
+$manifestPath = Join-Path $main "AndroidManifest.xml"
+$manifest = Get-Content -Raw -Path $manifestPath
+if ($manifest -match 'android:networkSecurityConfig') {
+  Write-Host "ok    manifest already references the network security config"
+} else {
+  $anchor = 'android:usesCleartextTraffic="${usesCleartextTraffic}"'
+  if (-not $manifest.Contains($anchor)) {
+    Write-Host "FAIL  could not find the usesCleartextTraffic attribute to anchor against."
+    Write-Host "      Tauri may have changed the generated manifest. Inspect $manifestPath."
+    exit 1
+  }
+  $replacement = $anchor + "`n        android:networkSecurityConfig=`"@xml/network_security_config`""
+  $manifest = $manifest.Replace($anchor, $replacement)
+  Set-Content -Path $manifestPath -Value $manifest -Encoding utf8NoBOM
+  Write-Host "ok    added networkSecurityConfig to the manifest"
+}
+Write-Host "ok    android network security config written"
+'''
+
+[tasks.android-network-config-check]
+description = "Fail on a missing or altered Android network security config instead of rewriting it. The direction CI runs."
+shell = "pwsh -NoLogo -Command"
+run = '''
+$root = $env:MISE_PROJECT_ROOT
+$main = Join-Path $root "client/src-tauri/gen/android/app/src/main"
+$xml = Join-Path $main "res/xml/network_security_config.xml"
+$manifestPath = Join-Path $main "AndroidManifest.xml"
+$failed = $false
+
+if (-not (Test-Path $xml)) {
+  Write-Host "FAIL  $xml is missing. Run: mise run android-network-config"
+  $failed = $true
+} else {
+  $content = Get-Content -Raw -Path $xml
+  foreach ($needle in @('cleartextTrafficPermitted="false"', '<domain includeSubdomains="false">127.0.0.1</domain>')) {
+    if (-not $content.Contains($needle)) {
+      Write-Host "FAIL  $xml no longer contains: $needle"
+      $failed = $true
+    }
+  }
+}
+
+if (-not (Test-Path $manifestPath)) {
+  Write-Host "FAIL  $manifestPath is missing. Run 'yarn tauri android init' in client/."
+  $failed = $true
+} elseif (-not (Get-Content -Raw -Path $manifestPath).Contains('android:networkSecurityConfig')) {
+  Write-Host "FAIL  the manifest does not reference the network security config. Run: mise run android-network-config"
+  $failed = $true
+}
+
+if ($failed) { exit 1 }
+Write-Host "ok    android network security config present and intact"
+'''
+
+[tasks.build-android]
+description = "Build the Android debug APK. Depends on the network security config, without which the app's push channel is unreachable on device."
+dir = "client"
+depends = ["bindings", "android-network-config"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn tauri android build --debug --apk --target aarch64"

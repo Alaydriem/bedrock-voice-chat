@@ -12,14 +12,12 @@ fn default_tls_ips() -> Vec<String> {
     vec!["127.0.0.1".to_string()]
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Tls {
     #[serde(default)]
     pub certificate: String,
     #[serde(default)]
     pub key: String,
-    #[serde(default)]
-    pub so_reuse_port: bool,
     #[serde(default = "default_certs_path")]
     pub certs_path: String,
     #[serde(default = "default_tls_names")]
@@ -35,7 +33,6 @@ impl Default for Tls {
         Self {
             certificate: String::new(),
             key: String::new(),
-            so_reuse_port: false,
             certs_path: default_certs_path(),
             names: default_tls_names(),
             ips: default_tls_ips(),

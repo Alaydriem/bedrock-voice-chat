@@ -44,7 +44,7 @@ async fn refused_identity_stops_the_reconnect_loop() {
     // the connection never appears to come up.
     client
         .await_ui_event(
-            "connection_health",
+            "health",
             |payload| payload.contains("Unauthorized"),
             Duration::from_secs(20),
         )
@@ -56,7 +56,7 @@ async fn refused_identity_stops_the_reconnect_loop() {
     assert!(
         client
             .await_ui_event(
-                "connection_health",
+                "health",
                 |payload| payload.contains("Reconnecting"),
                 Duration::from_secs(3),
             )

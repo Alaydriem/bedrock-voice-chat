@@ -1,120 +1,159 @@
 import { writable, type Readable, type Writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
-import { error } from "@tauri-apps/plugin-log";
+import { error } from "@charlesportwoodii/tauri-plugin-curia";
 import { Store } from "@tauri-apps/plugin-store";
 import Analytics from "../../analytics";
+import PlatformDetector from "../../utils/PlatformDetector";
 import type { WebSocketConfig } from "./WebSocketConfig";
+import { AppStore } from "../../services/AppStore";
 
+/**
+ * The operator-facing WebSocket server's settings.
+ *
+ * The server has no enable switch. It is bound for the life of the process, on loopback unless
+ * the user asks for more, because the only thing an enable switch bought was a listener that
+ * had to be turned on before a Stream Deck could reach it — and a port on 127.0.0.1 behind a
+ * token is not the exposure the switch was guarding against. What the switch really controlled
+ * was reach, and that is what the toggle now says.
+ */
 export class WebSocketSettingsManager {
+    private readonly platformDetector = new PlatformDetector();
+
     private isReadyStore: Writable<boolean>;
     public readonly isReady: Readable<boolean>;
-    private localhostOnlyStore: Writable<boolean>;
-    public readonly localhostOnly: Readable<boolean>;
+    private isMobileStore: Writable<boolean>;
+    public readonly isMobile: Readable<boolean>;
+    private allowExternalStore: Writable<boolean>;
+    public readonly allowExternal: Readable<boolean>;
     private websocketPortStore: Writable<string>;
     public readonly websocketPort: Readable<string>;
     private authKeyStore: Writable<string>;
     public readonly authKey: Readable<string>;
-    private isRunningStore: Writable<boolean>;
-    public readonly isRunning: Readable<boolean>;
+    private boundPortStore: Writable<number | null>;
+    public readonly boundPort: Readable<number | null>;
 
     private store: Store | null = null;
 
     constructor() {
         this.isReadyStore = writable(false);
         this.isReady = { subscribe: this.isReadyStore.subscribe };
-        this.localhostOnlyStore = writable(true);
-        this.localhostOnly = { subscribe: this.localhostOnlyStore.subscribe };
+        this.isMobileStore = writable(false);
+        this.isMobile = { subscribe: this.isMobileStore.subscribe };
+        this.allowExternalStore = writable(false);
+        this.allowExternal = { subscribe: this.allowExternalStore.subscribe };
         this.websocketPortStore = writable("9595");
         this.websocketPort = { subscribe: this.websocketPortStore.subscribe };
         this.authKeyStore = writable("");
         this.authKey = { subscribe: this.authKeyStore.subscribe };
-        this.isRunningStore = writable(false);
-        this.isRunning = { subscribe: this.isRunningStore.subscribe };
+        this.boundPortStore = writable(null);
+        this.boundPort = { subscribe: this.boundPortStore.subscribe };
     }
 
     async initialize(): Promise<void> {
-        this.store = await Store.load("store.json", {
-            autoSave: false,
-            defaults: {},
-        });
+        this.store = await AppStore.load();
+
+        const mobile = await this.platformDetector.checkMobile().catch(() => false);
+        this.isMobileStore.set(mobile);
 
         const config = await this.store.get<WebSocketConfig>("websocket_server");
-        if (config) {
-            this.localhostOnlyStore.set(config.localhost_only ?? true);
-            this.websocketPortStore.set(config.port?.toString() || "9595");
-            this.authKeyStore.set(config.key || "");
-        }
+        this.allowExternalStore.set(WebSocketSettingsManager.migrateAllowExternal(config, mobile));
+        this.websocketPortStore.set(config?.port?.toString() || "9595");
 
-        try {
-            this.isRunningStore.set(await invoke<boolean>("is_websocket_running"));
-        } catch (e) {
-            error(`Failed to check WebSocket server status: ${e}`);
+        // The server is always running now, so nothing else will ever mint a key. First boot is
+        // the only remaining moment that can.
+        let key = config?.key ?? "";
+        if (!key.trim()) {
+            key = await invoke<string>("generate_encryption_key");
         }
+        this.authKeyStore.set(key);
+
+        // Written back unconditionally, so the migrated shape is on disk rather than recomputed
+        // on every launch from fields that are meant to stop being read.
+        await this.saveConfig();
 
         this.isReadyStore.set(true);
     }
 
-    async handleLocalhostToggle(): Promise<void> {
-        this.localhostOnlyStore.update((value) => !value);
-        await this.saveConfig(this.currentRunning());
-        await this.restartServerIfRunning();
+    /**
+     * Whether this installation ever asked to be reachable from another device.
+     *
+     * A user who never enabled the server never expressed a posture, so the absence of a choice
+     * reads as no. On mobile the stored value was forced rather than chosen — the server bound
+     * every interface because a phone had nothing local to serve — so it cannot be read as a
+     * preference at all, and reading it as one would open every existing phone to the network.
+     */
+    private static migrateAllowExternal(
+        config: WebSocketConfig | null | undefined,
+        mobile: boolean,
+    ): boolean {
+        if (!config) return false;
+        if (mobile) return false;
+        if (typeof config.allow_external === "boolean") return config.allow_external;
+        return Boolean(config.enabled) && !config.localhost_only;
+    }
+
+    async handleAllowExternalToggle(): Promise<void> {
+        this.allowExternalStore.update((value) => !value);
+        await this.saveConfig();
+        Analytics.track("WebsocketExternalAccessToggled", {
+            enabled: this.currentAllowExternal() ? 1 : 0,
+        });
     }
 
     async handlePortChange(value: string): Promise<void> {
         this.websocketPortStore.set(value);
-        await this.saveConfig(this.currentRunning());
-        await this.restartServerIfRunning();
+        await this.saveConfig();
     }
 
     async handleKeyChange(value: string): Promise<void> {
         this.authKeyStore.set(value);
-        await this.saveConfig(this.currentRunning());
-        await this.restartServerIfRunning();
+        await this.saveConfig();
     }
 
     async handleGenerateKey(): Promise<void> {
         try {
             this.authKeyStore.set(await invoke<string>("generate_encryption_key"));
-            await this.saveConfig(this.currentRunning());
-            await this.restartServerIfRunning();
+            await this.saveConfig();
         } catch (e) {
             error(`Failed to generate encryption key: ${e}`);
         }
     }
 
-    async handleToggleServer(): Promise<void> {
-        if (this.currentRunning()) {
-            await this.stopServer();
-        } else {
-            await this.startServer();
-        }
-    }
-
-    private currentRunning(): boolean {
-        let running = false;
-        this.isRunningStore.update((value) => {
-            running = value;
-            return value;
-        });
-        return running;
-    }
-
-    private async saveConfig(enabled: boolean): Promise<void> {
+    /**
+     * Persist the config, tell the backend, and rebind on it.
+     *
+     * The rebind is part of saving rather than a separate step a caller can forget: every field
+     * here — the port, the token, the reach — is read at bind time and nowhere else, so a saved
+     * change that did not rebind would show a setting the running listener does not have.
+     *
+     * The rebind answers with the port it reached, which is not always the one saved: something
+     * else holding the configured port moves the listener to a neighbour. `boundPort` is the
+     * only address a plugin can be pointed at.
+     */
+    private async saveConfig(): Promise<void> {
+        const allowExternal = this.currentAllowExternal();
         const config: WebSocketConfig = {
-            enabled,
-            localhost_only: this.currentLocalhostOnly(),
+            enabled: true,
+            localhost_only: !allowExternal,
+            allow_external: allowExternal,
             port: parseInt(this.currentPort()),
             key: this.currentKey(),
         };
         await this.store?.set("websocket_server", config);
         await this.store?.save();
-
         await invoke("update_websocket_config", { config });
+
+        try {
+            this.boundPortStore.set(await invoke<number>("restart_websocket_external"));
+        } catch (e) {
+            this.boundPortStore.set(null);
+            error(`Failed to rebind the WebSocket server: ${e}`);
+        }
     }
 
-    private currentLocalhostOnly(): boolean {
-        let value = true;
-        this.localhostOnlyStore.update((v) => {
+    private currentAllowExternal(): boolean {
+        let value = false;
+        this.allowExternalStore.update((v) => {
             value = v;
             return v;
         });
@@ -137,38 +176,5 @@ export class WebSocketSettingsManager {
             return v;
         });
         return value;
-    }
-
-    private async restartServerIfRunning(): Promise<void> {
-        if (!this.currentRunning()) return;
-        try {
-            await invoke("stop_websocket_server");
-            await invoke("start_websocket_server");
-        } catch (e) {
-            error(`Failed to restart WebSocket server: ${e}`);
-            this.isRunningStore.set(false);
-        }
-    }
-
-    private async startServer(): Promise<void> {
-        try {
-            await this.saveConfig(true);
-            await invoke("start_websocket_server");
-            this.isRunningStore.set(true);
-            Analytics.track("WebsocketServerToggled", { enabled: 1 });
-        } catch (e) {
-            error(`Failed to start WebSocket server: ${e}`);
-        }
-    }
-
-    private async stopServer(): Promise<void> {
-        try {
-            await invoke("stop_websocket_server");
-            this.isRunningStore.set(false);
-            await this.saveConfig(false);
-            Analytics.track("WebsocketServerToggled", { enabled: 0 });
-        } catch (e) {
-            error(`Failed to stop WebSocket server: ${e}`);
-        }
     }
 }

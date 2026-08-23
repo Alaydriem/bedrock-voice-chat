@@ -1,18 +1,41 @@
 mod bwav;
+pub mod mixer;
 pub mod mp4;
+pub mod naming;
+pub mod settings_provenance;
+pub mod spatial_render_settings;
+pub mod spatial_source;
 mod stream;
+
+pub use mixer::TrackMixer;
+pub use naming::ExportNaming;
+pub use settings_provenance::SettingsProvenance;
+pub use spatial_render_settings::SpatialRenderSettings;
+pub use spatial_source::SpatialSource;
+pub use stream::mixed::MixedPcmTrack;
+
+mod decoded_frame;
+mod session_info;
+mod wal_entry;
+
+pub use decoded_frame::DecodedAudioFrame;
+pub use session_info::SessionInfo;
+pub use wal_entry::WalEntry;
 
 use async_trait::async_trait;
 use common::structs::AudioFormat;
-use common::structs::recording::{RecordingHeader, SessionManifest};
+use common::structs::recording::{RecordingHeader, RecordingTrack};
 use log::debug;
 use std::fs;
 use std::path::Path;
+
+use crate::audio::spatial::SpatialResolver;
 
 use crate::audio::recording::renderer::{
     bwav::BwavRenderer,
     mp4::Mp4Renderer,
     stream::{
+        mixed::MixedOpusStream,
         opus::{OpusChunk, OpusPacketStream, OpusStreamInfo},
         pcm::{PcmChunk, PcmStream},
     },
@@ -27,6 +50,19 @@ pub trait AudioFormatRenderer {
         session_path: &Path,
         player_name: &str,
         output_path: &Path,
+    ) -> Result<(), anyhow::Error>;
+
+    /// One output file from one or more WAL keys. A single key is the path everything
+    /// took before the jukebox needed several.
+    ///
+    /// A spatial render sends every track down the mixing path, single key or not: placing a
+    /// voice needs its samples, and the flat path never decodes them.
+    async fn render_track(
+        &self,
+        session_path: &Path,
+        track: &RecordingTrack,
+        output_path: &Path,
+        spatial: Option<&SpatialRenderSettings>,
     ) -> Result<(), anyhow::Error>;
 }
 
@@ -52,6 +88,55 @@ impl AudioFormatRenderer for AudioFormat {
             }
         }
     }
+
+    async fn render_track(
+        &self,
+        session_path: &Path,
+        track: &RecordingTrack,
+        output_path: &Path,
+        spatial: Option<&SpatialRenderSettings>,
+    ) -> Result<(), anyhow::Error> {
+        let keys = track.keys.as_slice();
+
+        if keys.is_empty() {
+            return Err(anyhow::anyhow!(
+                "a track with no keys behind it has nothing to render"
+            ));
+        }
+
+        if let Some(settings) = spatial {
+            let resolver = SpatialResolver::new(settings.clone());
+            let positioned = MixedPcmTrack::spatial(session_path, keys, &resolver)?;
+
+            return match self {
+                AudioFormat::Bwav => {
+                    BwavRenderer::new().write_samples(&positioned, &track.display, output_path)
+                }
+                AudioFormat::Mp4Opus => {
+                    let stream = MixedOpusStream::from_track(&positioned)?;
+                    let info = stream.info().clone();
+                    Mp4Renderer::new().mux(stream, info, output_path)
+                }
+            };
+        }
+
+        match keys {
+            // The path everything took before the jukebox needed several, kept whole so
+            // the common case does not pay a decode and a re-encode for the rare one.
+            [single] => self.render(session_path, single, output_path).await,
+            many => match self {
+                AudioFormat::Bwav => {
+                    let mixed = MixedPcmTrack::new(session_path, many)?;
+                    BwavRenderer::new().write_samples(&mixed, &track.display, output_path)
+                }
+                AudioFormat::Mp4Opus => {
+                    let stream = MixedOpusStream::new(session_path, many)?;
+                    let info = stream.info().clone();
+                    Mp4Renderer::new().mux(stream, info, output_path)
+                }
+            },
+        }
+    }
 }
 
 /// Trait for rendering audio from WAL recordings to various file formats
@@ -65,46 +150,6 @@ pub trait AudioRenderer {
     ) -> Result<(), anyhow::Error>;
 
     fn file_extension(&self) -> &str;
-}
-
-/// Decoded audio frame with metadata
-#[derive(Debug)]
-pub struct DecodedAudioFrame {
-    pub pcm_data: Vec<f32>,
-    pub sample_rate: u32,
-    pub channels: u16,
-    pub relative_timestamp_ms: u64,
-}
-
-#[derive(Debug, Clone)]
-pub struct SessionInfo {
-    pub session_id: String,
-    pub start_timestamp: u64,
-    pub player_name: String,
-    pub duration_ms: Option<u64>,
-}
-
-impl SessionInfo {
-    pub fn load(session_path: &Path) -> Result<Self, anyhow::Error> {
-        let session_json_path = session_path.join("session.json");
-        let manifest: SessionManifest =
-            serde_json::from_str(&std::fs::read_to_string(session_json_path)?)?;
-
-        Ok(Self {
-            session_id: manifest.session_id,
-            start_timestamp: manifest.start_timestamp,
-            player_name: manifest.emitter_player,
-            duration_ms: manifest.duration_ms,
-        })
-    }
-}
-
-/// Raw WAL entry containing Opus packet and metadata
-#[derive(Debug)]
-pub struct WalEntry {
-    pub header: RecordingHeader,
-    pub opus_data: Vec<u8>,
-    pub relative_timestamp_ms: u64,
 }
 
 /// WAL audio reader that decodes Opus frames and handles silence gaps
@@ -208,7 +253,8 @@ impl WalAudioReader {
 
     pub fn calculate_silence_before_next(&self) -> Option<usize> {
         const OPUS_FRAME_MS: u64 = 20;
-        const NETWORK_JITTER_TOLERANCE_MS: u64 = 39; // 0-39ms = consecutive packets
+        // 0-39 ms apart counts as consecutive packets
+        const NETWORK_JITTER_TOLERANCE_MS: u64 = 39;
 
         if self.current_index == 0 || self.current_index >= self.entries.len() {
             return None;
@@ -257,15 +303,6 @@ impl WalAudioReader {
         self.entries.len()
     }
 
-    /// Sanitize a WAL key the same way nano_wal does internally.
-    /// Keeps only alphanumeric, underscore, and hyphen characters, truncated to 20 chars.
-    fn sanitize_wal_key(key: &str) -> String {
-        key.chars()
-            .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
-            .take(20)
-            .collect()
-    }
-
     /// Read WAL entries with headers by parsing segment files directly
     fn read_entries_with_headers(
         wal_path: &Path,
@@ -276,16 +313,13 @@ impl WalAudioReader {
         const MAX_CONTENT_SIZE: usize = 50 * 1024;
         let mut entries = Vec::new();
 
-        let sanitized_name = Self::sanitize_wal_key(player_name);
-
-        // Find all segment files for this player (files are named: SanitizedName-hash-sequence.log)
         debug!("Reading directory: {:?}", wal_path);
         let dir_entries = fs::read_dir(wal_path)?;
         let mut segment_files = Vec::new();
 
         for entry in dir_entries.flatten() {
             if let Some(filename) = entry.file_name().to_str() {
-                if filename.starts_with(&sanitized_name) && filename.ends_with(".log") {
+                if crate::audio::recording::WalKey::matches(filename, player_name) {
                     segment_files.push(entry.path());
                 }
             }

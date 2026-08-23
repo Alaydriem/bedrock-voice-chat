@@ -15,6 +15,10 @@ pub enum AnsweredVia {
     Handshake,
     // An HTTPS request returned a response.
     Https,
+    // The WebSocket voice transport negotiated its ALPN. Observed from the server's own
+    // flight, before it rejects a peer that presents no client certificate, so it proves
+    // the listener is there without proving anything about credentials.
+    VoiceWebSocket,
 }
 
 // The strongest outcome an unauthenticated probe can observe is that a server

@@ -24,11 +24,27 @@
   color: var(--color-rad-dim);
   cursor: pointer;
   transition: 0.16s;
+  /* The fill alone is one step from the card behind it. Inset, so the size is unchanged. */
+  box-shadow: inset 0 0 0 1px var(--color-rad-line-2);
 }
 
 .rad-btn:hover {
   background: var(--color-rad-panel);
   color: var(--color-rad-tx);
+  box-shadow: inset 0 0 0 1px var(--color-rad-brand-lift);
+}
+
+/* The filled variants carry their own contrast. */
+.rad-btn--primary,
+.rad-btn--danger,
+.rad-btn--quiet {
+  box-shadow: none;
+}
+
+.rad-btn--primary:hover,
+.rad-btn--danger:hover,
+.rad-btn--quiet:hover {
+  box-shadow: none;
 }
 
 .rad-btn > [data-rad-icon] > svg {
@@ -163,6 +179,12 @@
   background: var(--color-rad-panel);
 }
 
+/* A playing preview: the one row you can stop, held lit while it plays. */
+.rad-kebab.is-on {
+  color: var(--color-rad-accent);
+  background: var(--color-rad-panel);
+}
+
 .rad-kebab > [data-rad-icon] > svg {
   width: 17px;
   height: 17px;
@@ -198,6 +220,23 @@
 .rad-header-btn > [data-rad-icon] > svg {
   width: 21px;
   height: 21px;
+}
+
+/* The second half of a split header control: the chip beside it carries the action,
+   this opens the detail. Narrow and tucked in, so the pair reads as one control with
+   two jobs rather than as two buttons that happen to be adjacent. */
+.rad-header-btn--caret {
+  width: 22px;
+  margin-left: -8px;
+}
+
+.rad-header-btn--caret > [data-rad-icon] > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rad-header-btn--caret[aria-expanded="true"] {
+  color: var(--color-rad-brand-lift);
 }
 
 /* Something happened in there. Ringed in the frame colour so it reads as a dot on

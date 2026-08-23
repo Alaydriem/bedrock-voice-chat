@@ -20,12 +20,16 @@ pub enum Metric {
     PositionDatagramBytes,
     PositionPlayersAdvertisedTotal,
     PositionOversizeDropsTotal,
+    WebsocketHandshakeRejectionsTotal,
+    VoiceCapacityLimit,
+    ConnectionsRefusedTotal,
     BuildInfo,
 }
 
 impl Metric {
     pub fn name(&self) -> &'static str {
         match self {
+            Metric::WebsocketHandshakeRejectionsTotal => "bvc_websocket_handshake_rejections_total",
             Metric::PlayerConnectionsTotal => "bvc_player_connections_total",
             Metric::PlayerDisconnectionsTotal => "bvc_player_disconnections_total",
             Metric::SessionDurationSeconds => "bvc_session_duration_seconds",
@@ -44,13 +48,15 @@ impl Metric {
             Metric::PositionDatagramBytes => "bvc_position_datagram_bytes",
             Metric::PositionPlayersAdvertisedTotal => "bvc_position_players_advertised_total",
             Metric::PositionOversizeDropsTotal => "bvc_position_oversize_drops_total",
+            Metric::VoiceCapacityLimit => "bvc_voice_capacity_limit",
+            Metric::ConnectionsRefusedTotal => "bvc_connections_refused_total",
             Metric::BuildInfo => "bvc_build_info",
         }
     }
 
     /// Counter families that must be pre-registered at 0 so an idle server's
     /// `/metrics` shows them (metrics-rs registers lazily on first emission).
-    pub fn counters() -> [Metric; 9] {
+    pub fn counters() -> [Metric; 10] {
         [
             Metric::PlayerConnectionsTotal,
             Metric::PlayerDisconnectionsTotal,
@@ -61,6 +67,7 @@ impl Metric {
             Metric::PositionDatagramsTotal,
             Metric::PositionPlayersAdvertisedTotal,
             Metric::PositionOversizeDropsTotal,
+            Metric::ConnectionsRefusedTotal,
         ]
     }
 }

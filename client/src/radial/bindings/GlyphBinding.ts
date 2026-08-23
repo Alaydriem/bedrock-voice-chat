@@ -53,7 +53,9 @@ export class GlyphBinding implements Binding {
   }
 
   destroy(): void {
-    // Nothing to release: no loop registration and no subscription.
+    // No loop registration and no subscription of its own; the surface holds a resize
+    // subscription that does have to be released.
+    this.#surface.destroy();
   }
 
   #measured(): number {

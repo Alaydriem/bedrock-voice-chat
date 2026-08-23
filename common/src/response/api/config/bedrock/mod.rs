@@ -14,10 +14,6 @@ pub struct ApiConfigBedrock {
     // false they render an unsupported-server notice instead of the feature UI.
     #[serde(default)]
     pub enabled: bool,
-    // Whether the server's Bedrock DNS override service is running (requires the
-    // relay enabled and DNS turned on).
-    #[serde(default)]
-    pub dns_enabled: bool,
     // Transfer relay entry port, present only when `enabled`. Clients advertise
     // this as a connection option distinct from the local proxy listen port.
     #[serde(default)]

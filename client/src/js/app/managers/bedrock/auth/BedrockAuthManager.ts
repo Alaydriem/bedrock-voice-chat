@@ -2,7 +2,7 @@ import { writable, get, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { info, error as logError } from '@tauri-apps/plugin-log';
+import { info, error as logError } from '@charlesportwoodii/tauri-plugin-curia';
 import type { BedrockAuthManagerCallbacks } from './BedrockAuthManagerCallbacks';
 
 export class BedrockAuthManager {

@@ -23,16 +23,6 @@ sealed interface Dimension {
     }
 
     /**
-     * Hytale dimensions.
-     */
-    enum class Hytale(private val value: String) : Dimension {
-        ORBIS("orbis"),
-        DEATH("death");
-
-        override fun toApiString(): String = value
-    }
-
-    /**
      * Custom/unknown dimensions for extensibility.
      */
     data class Custom(val name: String) : Dimension {
@@ -56,11 +46,6 @@ sealed interface Dimension {
                     "minecraft:the_nether", "the_nether", "nether", "world_nether" -> Minecraft.NETHER
                     "minecraft:the_end", "the_end", "world_the_end" -> Minecraft.THE_END
                     "death" -> Minecraft.DEATH
-                    else -> Custom(raw)
-                }
-                GameType.HYTALE -> when (raw.lowercase()) {
-                    "orbis" -> Hytale.ORBIS
-                    "death" -> Hytale.DEATH
                     else -> Custom(raw)
                 }
             }

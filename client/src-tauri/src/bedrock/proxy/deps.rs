@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
+use super::chat::{BedrockChatChannel, ChatInjector};
 use super::connect_error_channel::BedrockConnectErrorChannel;
 use super::event_emitter::BedrockEventEmitter;
 use super::jukebox::{JukeboxBeaconCache, JukeboxEjectInjector};
 use super::player_state_cache::BedrockPlayerStateCache;
-use super::presence::{AnnounceInjector, PresenceInjector, QueryStateInjector};
+use super::presence::QueryStateInjector;
 use crate::bedrock::ProtocolGatingService;
 use crate::control::{ControlActionSender, ControlStateBus};
 
@@ -16,10 +17,10 @@ pub(crate) struct ProxyDeps {
     pub(crate) gating: Arc<ProtocolGatingService>,
     pub(crate) beacon_cache: Arc<JukeboxBeaconCache>,
     pub(crate) error_channel: Arc<BedrockConnectErrorChannel>,
+    pub(crate) chat_channel: Arc<BedrockChatChannel>,
+    pub(crate) chat_injector: Arc<ChatInjector>,
     pub(crate) event_emitter: Arc<BedrockEventEmitter>,
     pub(crate) eject_injector: Arc<JukeboxEjectInjector>,
-    pub(crate) presence_injector: Arc<PresenceInjector>,
-    pub(crate) announce_injector: Arc<AnnounceInjector>,
     pub(crate) control_tx: ControlActionSender,
     pub(crate) query_state_injector: Arc<QueryStateInjector>,
     pub(crate) state_bus: ControlStateBus,
@@ -32,10 +33,10 @@ impl ProxyDeps {
         gating: Arc<ProtocolGatingService>,
         beacon_cache: Arc<JukeboxBeaconCache>,
         error_channel: Arc<BedrockConnectErrorChannel>,
+        chat_channel: Arc<BedrockChatChannel>,
+        chat_injector: Arc<ChatInjector>,
         event_emitter: Arc<BedrockEventEmitter>,
         eject_injector: Arc<JukeboxEjectInjector>,
-        presence_injector: Arc<PresenceInjector>,
-        announce_injector: Arc<AnnounceInjector>,
         control_tx: ControlActionSender,
         query_state_injector: Arc<QueryStateInjector>,
         state_bus: ControlStateBus,
@@ -45,10 +46,10 @@ impl ProxyDeps {
             gating,
             beacon_cache,
             error_channel,
+            chat_channel,
+            chat_injector,
             event_emitter,
             eject_injector,
-            presence_injector,
-            announce_injector,
             control_tx,
             query_state_injector,
             state_bus,

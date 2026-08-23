@@ -12,14 +12,15 @@ pub use permissions::Permissions;
 pub use server::Acme;
 pub use server::AcmeProviderKind;
 pub use server::BedrockConfig;
-pub use server::BedrockDnsConfig;
 pub use server::BedrockServerEntry;
 pub use server::Features;
 pub use server::Meridian;
 pub use server::Minecraft;
+pub use server::PeerConfig;
 pub use server::Server;
 pub use server::Tls;
 pub use voice::Voice;
+pub use voice::VoiceLimits;
 
 use common::ncryptflib::randombytes_buf;
 use rocket::{
@@ -29,11 +30,12 @@ use rocket::{
 
 use anyhow::anyhow;
 use sea_orm::{ConnectOptions, DatabaseConnection};
+use std::net::SocketAddr;
 use serde::{Deserialize, Serialize};
 use tracing::Level;
 
 /// Application Configuration as described in homemaker.hcl configuration file
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct ApplicationConfig {
     #[serde(default)]
     pub database: Database,
@@ -88,6 +90,19 @@ impl ApplicationConfig {
         Self::from_hcl_str_with_env(content, &std::env::vars().collect())
     }
 
+    /// Parses the JSON an embedder supplies and applies environment overrides
+    /// with the same precedence the CLI uses: env > config > serde default.
+    /// The variable map is a parameter so callers can be tested without
+    /// mutating process-global environment state.
+    pub fn from_json_with_env(
+        json: &str,
+        vars: std::collections::HashMap<String, String>,
+    ) -> Result<Self, anyhow::Error> {
+        let config: Self =
+            serde_json::from_str(json).map_err(|e| anyhow!("invalid configuration: {e}"))?;
+        crate::config::EnvOverrides::from_vars(vars).apply(config)
+    }
+
     /// Returns the database DSN string from the configuration.
     pub fn get_dsn(&self) -> String {
         self.database.get_dsn()
@@ -116,7 +131,13 @@ impl ApplicationConfig {
         }
     }
 
-    pub fn get_rocket_config(&self) -> Result<Figment, anyhow::Error> {
+    /// The Rocket configuration, bound where `bind` says rather than where `server.port`
+    /// does.
+    ///
+    /// The public port belongs to the TLS demultiplexer, which relays to this listener on
+    /// loopback. `server.port` therefore names what a client dials, never what Rocket
+    /// binds, and the two are no longer the same thing.
+    pub fn get_rocket_config(&self, bind: SocketAddr) -> Result<Figment, anyhow::Error> {
         let cert_path = std::path::Path::new(&self.server.tls.certificate);
         let key_path = std::path::Path::new(&self.server.tls.key);
 
@@ -141,8 +162,8 @@ impl ApplicationConfig {
             .merge(("profile", rocket::figment::Profile::new("release")))
             .merge(("ident", false))
             .merge(("log_level", self.get_rocket_log_level()))
-            .merge(("port", &self.server.port))
-            .merge(("address", self.server.http_listen_ip()))
+            .merge(("port", bind.port()))
+            .merge(("address", bind.ip().to_string()))
             .merge(("limits", Limits::new().limit("json", (10).megabytes())))
             .merge(("secret_key", randombytes_buf(32)))
             .merge(("tls.certs", &self.server.tls.certificate))

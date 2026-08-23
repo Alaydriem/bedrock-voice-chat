@@ -11,7 +11,7 @@ use common::bedrock_protocol::protocol::codec::PacketDecode;
 use common::bedrock_protocol::protocol::packets::PacketHeader;
 use common::bedrock_protocol::protocol::packets::generated::ids;
 use common::bedrock_protocol::protocol::packets::generated::misc::play_sound::{
-    PlaySoundPacketAny, PlaySoundPacketV975, PlaySoundPacketV2169,
+    PlaySoundPacketAny, PlaySoundPacketV975, PlaySoundPacketV2168,
 };
 use common::bedrock_protocol::protocol::packets::generated::misc::text::TextPacket;
 use common::bedrock_protocol::protocol::types::generated::TextPacketBody;
@@ -143,59 +143,6 @@ impl FakeBedrockUpstream {
             .expect("send PlaySound ctl");
     }
 
-    /// Realm fan-out for the relay presence proof: drain any pending serverbound
-    /// packets on every connection, and for each `!bvcp <token>` chat the proxy
-    /// injected, re-emit it clientbound (a Chat TextPacket) to EVERY connection —
-    /// exactly what a vanilla server does when a member chats. The peer's client
-    /// then observes the token and completes the mutual proof.
-    ///
-    /// Each connection is polled with a short timeout so an idle stream does not
-    /// block the pump; the test calls this on a loop (see `RelayWorld::pump_presence`).
-    pub async fn rebroadcast_presence_chat(&mut self) {
-        const POLL: Duration = Duration::from_millis(30);
-        let version = self.version;
-        let names: Vec<String> = self.conns.keys().cloned().collect();
-
-        let mut messages: Vec<String> = Vec::new();
-        for name in &names {
-            let conn = self.conns.get_mut(name).expect("known conn");
-            // Drain whatever is buffered right now; stop on the first idle poll.
-            loop {
-                match tokio::time::timeout(POLL, conn.recv_raw()).await {
-                    Ok(Ok(subs)) => {
-                        for sub in subs {
-                            if let Some(m) = Self::bvc_message_from_sub(version, sub) {
-                                messages.push(m);
-                            }
-                        }
-                    }
-                    // Timeout (nothing pending) or recv error: nothing more to drain.
-                    _ => break,
-                }
-            }
-        }
-
-        for message in messages {
-            let pkt = TextPacketConfig::chat(&message).into_packet();
-            for name in &names {
-                let conn = self.conns.get_mut(name).expect("known conn");
-                let _ = conn.send_packet(&pkt).await;
-            }
-        }
-    }
-
-    /// Extract a `!bvc…`-prefixed chat message (presence `!bvcp` or announce
-    /// `!bvca`) verbatim from a serverbound sub-packet, if it is a TEXT packet
-    /// carrying one. A real realm rebroadcasts all chat; this mirrors that for the
-    /// BVC control lines. Non-TEXT and non-bvc chat return None.
-    fn bvc_message_from_sub(version: ProtocolVersion, sub: Bytes) -> Option<String> {
-        let message = Self::chat_message_from_sub(version, sub)?;
-        if message.starts_with("!bvcp ") || message.starts_with("!bvca ") {
-            Some(message)
-        } else {
-            None
-        }
-    }
 
     /// Extract any chat message from a serverbound sub-packet, if it is a TEXT
     /// packet. Non-TEXT sub-packets return None.
@@ -249,6 +196,39 @@ impl FakeBedrockUpstream {
         }
     }
 
+    /// Every serverbound chat message `name`'s proxy session sends within
+    /// `window`, in arrival order.
+    ///
+    /// Collecting rather than matching is what lets a caller assert an absence:
+    /// `await_bvcs` answers "did this arrive", which cannot distinguish a ride
+    /// that was suppressed from one that was merely slow. This drains the whole
+    /// window every time, so an empty result means the window really was silent.
+    pub async fn drain_serverbound_chat(&mut self, name: &str, window: Duration) -> Vec<String> {
+        let version = self.version;
+        let deadline = tokio::time::Instant::now() + window;
+        let conn = self.conns.get_mut(name).expect("known player");
+        let mut seen = vec![];
+
+        loop {
+            let now = tokio::time::Instant::now();
+            if now >= deadline {
+                return seen;
+            }
+            match tokio::time::timeout(deadline - now, conn.recv_raw()).await {
+                Ok(Ok(subs)) => {
+                    for sub in subs {
+                        if let Some(m) = Self::chat_message_from_sub(version, sub) {
+                            seen.push(m);
+                        }
+                    }
+                }
+                // Timeout closes the window; a closed upstream ends it early with
+                // whatever was already observed.
+                _ => return seen,
+            }
+        }
+    }
+
     /// Build the PlaySound variant matching the negotiated peer version. The
     /// `versioned_codec_dispatch!` macro routes each version to its own codec, and
     /// a codec silently encodes a DEFAULT-ZERO packet (empty name) for any other
@@ -257,8 +237,8 @@ impl FakeBedrockUpstream {
     /// value is world_coord * 8 (handler divides by 8 to recover block coords).
     fn play_packet(&self, name: &str, x: i32, y: i32, z: i32) -> PlaySoundPacketAny {
         let position = BlockPos::new(x * 8, y * 8, z * 8);
-        if self.version >= ProtocolVersion::V2169 {
-            PlaySoundPacketAny::V2169(PlaySoundPacketV2169 {
+        if self.version >= ProtocolVersion::V2168 {
+            PlaySoundPacketAny::V2168(PlaySoundPacketV2168 {
                 name: name.to_string(),
                 position,
                 volume: 1.0,

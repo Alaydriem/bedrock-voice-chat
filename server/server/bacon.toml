@@ -1,0 +1,49 @@
+#:schema https://dystroy.org/bacon/.bacon.schema.json
+
+# Watch config for the BVC server. Run `bacon` from this directory (server/server)
+# so the binary picks up ./config.hcl the same way a manual `cargo run` does.
+
+default_job = "run-bedrock"
+env.CARGO_TERM_COLOR = "always"
+
+# Path dependencies that live outside this cargo workspace. Without these, edits
+# to common/ or the SeaORM crates compile on the next manual run but never
+# trigger a rebuild here.
+watch = ["../entity/src", "../migration/src", "../../common/src"]
+
+[jobs.run-bedrock]
+command = [
+    "cargo", "run",
+    "--features", "bedrock",
+    "--",
+    "server",
+]
+need_stdout = true
+allow_warnings = true
+background = false
+on_change_strategy = "kill_then_restart"
+# No `kill` override: on Windows bacon terminates the whole cargo run tree
+# itself, so bvc-server releases its ports before the rebuild restarts it. On
+# Linux/macOS the cargo child survives bacon's kill and needs
+# `kill = ["pkill", "-TERM", "-P"]`.
+scroll_anchor = "auto"
+
+[jobs.check]
+command = ["cargo", "check", "--features", "bedrock"]
+need_stdout = false
+
+[jobs.check-all]
+command = ["cargo", "check", "--all-targets", "--features", "bedrock"]
+need_stdout = false
+
+[jobs.clippy]
+command = ["cargo", "clippy", "--features", "bedrock"]
+need_stdout = false
+
+[jobs.test]
+command = ["cargo", "test", "--features", "bedrock"]
+need_stdout = true
+
+[keybindings]
+r = "job:run-bedrock"
+c = "job:check-all"

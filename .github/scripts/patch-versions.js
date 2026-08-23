@@ -173,20 +173,6 @@ function patchGradleProperties(filePath, encodedVersion) {
   console.log(`Patched: ${filePath} -> modVersion=${encodedVersion}`);
 }
 
-/**
- * Patch Hytale manifest.json - updates Version field
- */
-function patchHytaleManifest(filePath, encodedVersion) {
-  if (!fs.existsSync(filePath)) {
-    console.log(`Skipping (not found): ${filePath}`);
-    return;
-  }
-  const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  content.Version = encodedVersion;
-  fs.writeFileSync(filePath, JSON.stringify(content, null, 2) + '\n');
-  console.log(`Patched: ${filePath} -> Version="${encodedVersion}"`);
-}
-
 // Main execution
 const rootDir = path.resolve(__dirname, '../..');
 
@@ -215,7 +201,6 @@ console.log(`\nEncoded mod version: ${encodedDisplay}`);
 
 patchGradleProperties(path.join(rootDir, 'mods/java/gradle.properties'), encodedDisplay);
 patchGradleProperties(path.join(rootDir, 'mods/java/fabric/gradle.properties'), encodedDisplay);
-patchHytaleManifest(path.join(rootDir, 'mods/java/hytale/src/main/resources/manifest.json'), encodedDisplay);
 
 console.log('');
 console.log(`All files patched to version ${version}`);

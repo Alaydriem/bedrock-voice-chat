@@ -2,15 +2,12 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::Duration;
 
-use base64::{Engine as _, engine::general_purpose};
 use common::Game;
 use common::ncryptflib as ncryptf;
 use common::ncryptflib::rocket::Utc;
 use common::traits::player_data::PlayerData;
 use entity::{player, player_identity};
-use moka::sync::Cache;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
@@ -18,36 +15,9 @@ use sea_orm::{
 
 use crate::services::CertificateService;
 
-/// Cache of registered player names to avoid repeated database queries
-#[derive(Clone)]
-pub struct RegisteredPlayersCache {
-    cache: Cache<String, bool>,
-}
+mod cache;
 
-impl RegisteredPlayersCache {
-    pub fn new() -> Self {
-        Self {
-            cache: Cache::builder()
-                .time_to_live(Duration::from_secs(86400)) // 1 day
-                .max_capacity(512)
-                .build(),
-        }
-    }
-
-    pub fn contains(&self, player_name: &str) -> bool {
-        self.cache.get(player_name).is_some()
-    }
-
-    pub fn insert(&self, player_name: String) {
-        self.cache.insert(player_name, true);
-    }
-}
-
-impl Default for RegisteredPlayersCache {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub use cache::RegisteredPlayersCache;
 
 /// Service for player registration logic.
 /// Creates new player records in the database with certificates.
@@ -85,7 +55,7 @@ impl PlayerRegistrarService {
     ///
     /// # Arguments
     /// * `players` - List of player position data
-    /// * `game_type` - The game type (Minecraft, Hytale, etc.)
+    /// * `game_type` - The game type
     pub async fn process_players(&self, players: &[common::PlayerEnum], game_type: Game) {
         // Build name → UUID map for players that have a platform UUID
         let uuid_map: HashMap<String, String> = players
@@ -132,10 +102,6 @@ impl PlayerRegistrarService {
                         if let Some(uuid) = uuid_map.get(name) {
                             self.store_platform_uuid(existing.id, uuid, &game_type)
                                 .await;
-
-                            if game_type == Game::Hytale && existing.gamerpic.is_none() {
-                                self.generate_hytale_gamerpic(existing.id, uuid).await;
-                            }
                         }
                     }
                 }
@@ -159,7 +125,6 @@ impl PlayerRegistrarService {
     }
 
     /// Create a new player record in the database.
-    /// If a platform UUID is provided and the game is Hytale, a gamerpic is generated.
     pub async fn create_player(
         &self,
         player_name: &str,
@@ -188,11 +153,7 @@ impl PlayerRegistrarService {
                 anyhow::anyhow!("failed to sign certificate: {}", e)
             })?;
 
-        // Generate gamerpic for Hytale players if we have their UUID
-        let gamerpic = match (game_type, player_uuid) {
-            (Game::Hytale, Some(uuid)) => Some(Self::hytale_gamerpic_from_uuid(uuid)),
-            _ => None,
-        };
+        let gamerpic: Option<String> = None;
 
         let p = player::ActiveModel {
             id: ActiveValue::NotSet,
@@ -259,27 +220,5 @@ impl PlayerRegistrarService {
                 e
             );
         }
-    }
-
-    /// Update gamerpic for an existing Hytale player that has none.
-    async fn generate_hytale_gamerpic(&self, player_id: i32, uuid: &str) {
-        let gamerpic = Self::hytale_gamerpic_from_uuid(uuid);
-
-        let mut model: player::ActiveModel = Default::default();
-        model.id = ActiveValue::Unchanged(player_id);
-        model.gamerpic = ActiveValue::Set(Some(gamerpic));
-
-        if let Err(e) = model.update(self.db.as_ref()).await {
-            tracing::error!(
-                "Failed to update gamerpic for player_id {}: {}",
-                player_id,
-                e
-            );
-        }
-    }
-
-    fn hytale_gamerpic_from_uuid(uuid: &str) -> String {
-        let avatar_url = format!("https://crafthead.net/hytale/avatar/{}", uuid);
-        general_purpose::STANDARD.encode(&avatar_url)
     }
 }

@@ -5,11 +5,10 @@ use std::fs;
 use std::{process::exit, sync::Arc};
 
 pub(crate) mod admin;
-pub(crate) mod admin_api_client;
-pub(crate) mod admin_api_error;
 pub(crate) mod login;
 pub(crate) mod logout;
 mod permission;
+mod relay;
 pub(crate) mod server;
 mod user;
 pub(crate) mod whoami;
@@ -28,6 +27,8 @@ pub enum SubCommand {
     Admin(admin::Config),
     User(user::Config),
     Permission(permission::Config),
+    /// Cross-server peering diagnostics
+    Relay(relay::Config),
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -77,6 +78,7 @@ impl Cli {
             SubCommand::Whoami(command) => command.run(cfg.identity.as_deref()).await,
             SubCommand::User(command) => command.run(&cfg).await,
             SubCommand::Permission(command) => command.run(&cfg).await,
+            SubCommand::Relay(command) => command.run(&cfg).await,
         }
     }
 

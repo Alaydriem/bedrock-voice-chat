@@ -1,9 +1,10 @@
 import { writable, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { Store } from '@tauri-apps/plugin-store';
-import { error as logError } from '@tauri-apps/plugin-log';
+import { error as logError } from '@charlesportwoodii/tauri-plugin-curia';
 import type { ApiConfigCheckResponse } from '../../../bindings/ApiConfigCheckResponse';
 import type { ProxyServerEntry } from './ProxyServerEntry';
+import { AppStore } from "../../services/AppStore";
 
 export type BedrockCapabilityStatus = 'enabled' | 'disabled' | 'unknown';
 
@@ -33,6 +34,10 @@ export class BedrockCapabilityManager {
     // show progress and confirm the check actually ran.
     private checkingStore: Writable<boolean>;
     public readonly isChecking: Readable<boolean>;
+    // The transfer relay's port, null unless the server runs one. Clients offer it
+    // beside the local addresses.
+    private transferPortStore: Writable<number | null>;
+    public readonly transferPort: Readable<number | null>;
 
     private retryTimer: ReturnType<typeof setTimeout> | null = null;
     private focusHandler: (() => void) | null = null;
@@ -48,6 +53,8 @@ export class BedrockCapabilityManager {
         this.serverHost = { subscribe: this.serverHostStore.subscribe };
         this.checkingStore = writable(false);
         this.isChecking = { subscribe: this.checkingStore.subscribe };
+        this.transferPortStore = writable(null);
+        this.transferPort = { subscribe: this.transferPortStore.subscribe };
     }
 
     async refresh(): Promise<void> {
@@ -60,6 +67,7 @@ export class BedrockCapabilityManager {
             const check = await invoke<ApiConfigCheckResponse>('api_get_config');
             const bedrock = check.config.bedrock;
             this.statusStore.set(bedrock.enabled ? 'enabled' : 'disabled');
+            this.transferPortStore.set(bedrock.transfer_port ?? null);
             this.serverProvidedStore.set(
                 bedrock.servers.map((s) => ({
                     // Deterministic id so favorites persist across restarts and
@@ -69,13 +77,18 @@ export class BedrockCapabilityManager {
                     host: s.host,
                     port: s.port,
                     ...(s.protocol_version != null ? { protocolVersion: s.protocol_version } : {}),
+                    addonMode: s.addon_mode,
                     source: 'server' as const,
                 })),
             );
         } catch (e) {
+            // The status becomes unknown, but the operator's list and transfer port are kept:
+            // a check that could not complete is not evidence the server has no servers. This
+            // path runs on every focus refresh, so discarding them made adding a server of
+            // your own — which closes a modal, which raises a focus — erase the advertised
+            // ones. Only a successful response replaces either.
             logError(`Bedrock capability check failed: ${e}`);
             this.statusStore.set('unknown');
-            this.serverProvidedStore.set([]);
             this.scheduleRetry();
         } finally {
             this.checkingStore.set(false);
@@ -84,7 +97,7 @@ export class BedrockCapabilityManager {
 
     private async loadServerHost(): Promise<void> {
         try {
-            const store = await Store.load('store.json', { autoSave: false, defaults: {} });
+            const store = await AppStore.load();
             const url = await store.get<string>('current_server');
             this.serverHostStore.set(url ? url.replace(/^https?:\/\//, '') : '');
         } catch {

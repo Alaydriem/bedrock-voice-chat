@@ -100,7 +100,7 @@ jobs:
           cache-dependency-path: client/yarn.lock
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: x86_64-pc-windows-msvc
 
@@ -124,7 +124,7 @@ jobs:
         shell: powershell
         run: |
           Write-Host "Downloading ASIO SDK..."
-          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip" -OutFile "asiosdk.zip"
+          Invoke-WebRequest -Uri "https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip" -OutFile "asiosdk.zip"
           Expand-Archive -Path "asiosdk.zip" -DestinationPath "." -Force
           Get-ChildItem -Path "." -Name
           Write-Host "ASIO SDK downloaded and extracted"
@@ -162,6 +162,29 @@ jobs:
           DISCORD_REDIRECT_URI=${{ secrets.DISCORD_REDIRECT_URI }}
           APP_BUILD_NUMBER=${{ inputs.build_number }}
           ENVEOF
+
+      # Forced rather than trusted. ts-rs bindings are committed, so a client whose author
+      # skipped `mise run bindings` builds and ships a TypeScript type that no longer matches
+      # the Rust it was generated from — and it compiles, because the stale file is still valid
+      # TypeScript. Regenerating here makes the artifact correct regardless.
+      #
+      # Through mise rather than open-coded: the task owns the prune that deletes bindings ts-rs
+      # no longer emits, and a second copy of that logic in YAML is a second thing to drift.
+      - name: Install mise
+        uses: jdx/mise-action@v4
+        with:
+          version: 2026.8.2
+          # Installing here rather than letting the task do it: `mise run` installs a missing
+          # pinned tool on demand, so skipping this would move the node and yarn download into
+          # the build step itself, uncached, on every run. cargo is not mise's to install --
+          # rust-toolchain.toml owns it.
+        env:
+          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+      - name: Regenerate ts-rs bindings
+        run: mise run bindings
+        env:
+          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
 
       - name: Build Windows client (debug)
         if: github.event_name == 'pull_request' || inputs.build_mode == 'debug' || inputs.build_mode == '' || inputs.build_mode == null

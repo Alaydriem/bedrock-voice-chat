@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 
 use crate::services::metrics_service::heartbeat_snapshot::HeartbeatSnapshot;
+use crate::services::metrics_service::host_capability::HostCapability;
 
 pub enum TelemetryEvent {
     ServerStarted {
@@ -35,6 +36,13 @@ pub enum TelemetryEvent {
         at: DateTime<Utc>,
         time_since_disconnect_secs: u64,
     },
+    // Reported by a Java mod, which has no telemetry channel of its own. Named for
+    // the mod rather than the server because the fact it carries is about the
+    // Minecraft host, not about this server.
+    ModHostCapability {
+        at: DateTime<Utc>,
+        report: HostCapability,
+    },
 }
 
 impl TelemetryEvent {
@@ -49,6 +57,7 @@ impl TelemetryEvent {
             TelemetryEvent::Stopped { .. } => "Server::Stopped",
             TelemetryEvent::FirstSeen { .. } => "Server::FirstSeen",
             TelemetryEvent::PlayerReconnected { .. } => "Server::PlayerReconnected",
+            TelemetryEvent::ModHostCapability { .. } => "Mod::HostCapability",
         }
     }
 
@@ -63,6 +72,7 @@ impl TelemetryEvent {
             TelemetryEvent::Stopped { at, .. } => *at,
             TelemetryEvent::FirstSeen { at } => *at,
             TelemetryEvent::PlayerReconnected { at, .. } => *at,
+            TelemetryEvent::ModHostCapability { at, .. } => *at,
         }
     }
 }

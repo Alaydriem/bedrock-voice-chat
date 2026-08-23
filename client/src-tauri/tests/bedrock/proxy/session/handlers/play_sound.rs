@@ -10,7 +10,7 @@ use common::bedrock_protocol::protocol::packets::generated::misc::play_sound::{
     PlaySoundPacketAny, PlaySoundPacketV897,
 };
 use common::bedrock_protocol::protocol::types::primitives::BlockPos;
-use common::structs::control::ClientActionType;
+use common::structs::control::{ClientAction, ClientActionType};
 use common::structs::packet::{BedrockEvent, PacketType, QuicNetworkPacketData};
 
 fn make_emitter() -> (Arc<BedrockEventEmitter>, flume::Receiver<NetworkPacket>) {
@@ -44,7 +44,7 @@ fn drive_with_control(
     world: Option<&str>,
 ) -> (
     Option<NetworkPacket>,
-    flume::Receiver<ClientActionType>,
+    flume::Receiver<ClientAction>,
     tokio::sync::broadcast::Receiver<ControlStateSignal>,
 ) {
     let (emitter, rx) = make_emitter();
@@ -159,11 +159,14 @@ fn bvc_ctl_self_action_rides_the_control_channel_not_serverbound() {
         queued.is_none(),
         "a self control action must not emit a ServerBound ClientAction"
     );
-    assert_eq!(
-        control_rx.try_recv().ok(),
-        Some(ClientActionType::SetMuted(true)),
-        "the self action must be pushed onto the local control channel"
-    );
+    let pushed = control_rx
+        .try_recv()
+        .expect("the self action must be pushed onto the local control channel");
+    assert_eq!(pushed.action, ClientActionType::SetMuted(true));
+    // The game rides with the action because a preference target keys on `game:gamertag`, and
+    // this proxy only ever fronts a Minecraft session.
+    assert_eq!(pushed.game, Some(common::Game::Minecraft));
+    assert_eq!(pushed.id, "Alice");
 }
 
 #[test]

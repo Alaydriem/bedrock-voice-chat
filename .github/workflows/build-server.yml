@@ -34,6 +34,12 @@ jobs:
     env:
       POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
       POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+      # Compiled into `bvc-relay` and presented to the iroh relay as a bearer
+      # token. Not a secret — it ships inside the binary — so an unset value is
+      # not a failure: it expands to empty, which `PeerEndpoint::access_token`
+      # treats as absent, and the binary then reaches a relay that admits
+      # everyone. That keeps a fork building without this repository's secrets.
+      BVC_RELAY_ACCESS_TOKEN: ${{ secrets.RELAY_ACCESS_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -87,7 +93,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: ${{ matrix.target }}
 
@@ -288,6 +294,50 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # The Java mods compile against a Kotlin mirror of the Rust config that is
+  # checked in under mods/java/. This job runs the drift test in its reporting
+  # direction: it fails on a stale mirror rather than regenerating one, since
+  # nothing in CI would commit the regenerated files. The mod builds are gated on
+  # this workflow succeeding, so drift stops them before they can produce a jar
+  # built against a config the server no longer has.
+  # Locally the same test runs in its generating direction: `mise run kotlin-config`.
+  kotlin-config:
+    name: Verify Kotlin Config Mirror
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./server"
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y             pkg-config             cmake             build-essential             libasound2-dev
+
+      - name: Check the Kotlin config mirror against the Rust config
+        working-directory: ./server/server
+        run: cargo nextest run --test integration -E 'test(kotlin_export)'
+
   generate-openapi-spec:
     name: Generate OpenAPI Spec
     runs-on: ubuntu-latest
@@ -298,7 +348,7 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
 
       - name: Setup private cargo deps auth
         uses: ./.github/actions/setup-private-cargo-deps

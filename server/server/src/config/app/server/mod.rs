@@ -5,18 +5,18 @@ pub mod cors;
 pub mod features;
 pub mod meridian;
 pub mod minecraft;
-pub mod relay;
+pub mod peer;
 pub mod tls;
 
 pub use acme::{Acme, AcmeProviderKind};
 pub use age::Age;
 pub use bedrock::BedrockConfig;
-pub use bedrock::BedrockDnsConfig;
 pub use bedrock::BedrockServerEntry;
 pub use cors::Cors;
 pub use features::Features;
 pub use meridian::Meridian;
 pub use minecraft::Minecraft;
+pub use peer::PeerConfig;
 pub use tls::Tls;
 
 use serde::{Deserialize, Serialize};
@@ -38,14 +38,22 @@ fn default_quic_port() -> u32 {
 }
 
 fn default_advertised_quic_ports() -> Vec<u32> {
-    Vec::new()
+    vec![443, 28280]
 }
 
 fn default_assets_path() -> String {
     "./assets".to_string()
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+fn default_peer_port() -> Option<u16> {
+    Some(28284)
+}
+
+fn default_peer_relay() -> Option<String> {
+    Some("https://relay.bedrockvoicechat.com".to_string())
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Server {
     #[serde(default = "default_listen")]
     pub listen: String,
@@ -71,6 +79,29 @@ pub struct Server {
     pub bedrock: BedrockConfig,
     #[serde(default)]
     pub age: Age,
+
+    // Declared peers, keyed by the block label. hcl-rs deserializes a labeled
+    // block into a label-keyed object, so `peer "name" { ... }` arrives as a map
+    // rather than a list.
+    #[serde(default)]
+    pub peers: std::collections::HashMap<String, PeerConfig>,
+
+    // The iroh relay peers reach this server through when they have no direct
+    // path to it. Absent means peers must already hold a reachable address,
+    // which is the same-host and local-network arrangement.
+    #[serde(default = "default_peer_relay")]
+    pub peer_relay_url: Option<String>,
+
+    // The UDP port the peer endpoint binds.
+    //
+    // Defaulted rather than left to the operating system, because this port is part
+    // of the ticket a peer is given: an ephemeral one changes on every restart and
+    // silently invalidates what the far side was already handed. A peer reached only
+    // through the relay does not depend on it.
+    //
+    // `0` asks for an ephemeral port back, the same way `quic_port` reads it.
+    #[serde(default = "default_peer_port")]
+    pub peer_port: Option<u16>,
 }
 
 impl Default for Server {
@@ -88,6 +119,9 @@ impl Default for Server {
             meridian: None,
             bedrock: BedrockConfig::default(),
             age: Age::default(),
+            peers: std::collections::HashMap::new(),
+            peer_relay_url: default_peer_relay(),
+            peer_port: default_peer_port(),
         }
     }
 }
@@ -176,15 +210,19 @@ impl Server {
         true
     }
 
-    fn unbracketed_listen(&self) -> &str {
+    pub fn unbracketed_listen(&self) -> &str {
         self.listen.trim_start_matches('[').trim_end_matches(']')
     }
 
     // Public UDP ports a client should try, in the operator's preferred order.
     // Deliberately independent of `quic_port`: the server binds one socket, but a
     // fronting proxy and a direct port publish can both deliver to it, so
-    // reachability is many-to-one. An empty list means the bind port is the only
-    // way in.
+    // reachability is many-to-one.
+    //
+    // The default names both public ways in, so a client whose network drops UDP/443
+    // has a second port to try without the operator configuring anything. A list in
+    // `config.hcl` replaces it outright — including the bind port, which is why an
+    // operator who moves `quic_port` names the list as well.
     pub fn quic_ports(&self) -> Vec<u32> {
         if self.advertised_quic_ports.is_empty() {
             return vec![self.quic_port];

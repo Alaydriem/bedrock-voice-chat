@@ -1,7 +1,6 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
 import { readdirSync } from "node:fs";
 
@@ -26,7 +25,6 @@ export default defineConfig({
   },
 
   plugins: [
-    tailwindcss(),
     svelte({
       configFile: false,
       preprocess: vitePreprocess(),

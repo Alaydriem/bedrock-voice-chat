@@ -1,9 +1,13 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkQuality {
-    Excellent, // < 1% loss, < 20ms jitter, stable RTT
-    Good,      // < 3% loss, < 50ms jitter, moderate RTT variance
-    Moderate,  // < 8% loss, < 100ms jitter, high RTT variance
-    Poor,      // > 8% loss, > 100ms jitter, very unstable
+    // < 1% loss, < 20ms jitter, stable RTT
+    Excellent,
+    // < 3% loss, < 50ms jitter, moderate RTT variance
+    Good,
+    // < 8% loss, < 100ms jitter, high RTT variance
+    Moderate,
+    // > 8% loss, > 100ms jitter, very unstable
+    Poor,
 }
 
 impl NetworkQuality {
@@ -20,10 +24,10 @@ impl NetworkQuality {
     /// Get recommended buffer size multiplier
     pub fn buffer_multiplier(&self) -> f64 {
         match self {
-            NetworkQuality::Excellent => 0.8, // Can use smaller buffer
-            NetworkQuality::Good => 1.0,      // Normal buffer size
-            NetworkQuality::Moderate => 1.5,  // Increase buffer
-            NetworkQuality::Poor => 2.0,      // Large buffer for stability
+            NetworkQuality::Excellent => 0.8,
+            NetworkQuality::Good => 1.0,
+            NetworkQuality::Moderate => 1.5,
+            NetworkQuality::Poor => 2.0,
         }
     }
 
@@ -38,50 +42,14 @@ impl NetworkQuality {
     }
 
     /// Get reorder tolerance window (in milliseconds)
+    ///
+    /// Each step is a whole number of 20 ms frames: 2, 4, 8 and 16 respectively.
     pub fn reorder_window_ms(&self) -> u64 {
         match self {
-            NetworkQuality::Excellent => 40, // 2 frames
-            NetworkQuality::Good => 80,      // 4 frames
-            NetworkQuality::Moderate => 160, // 8 frames
-            NetworkQuality::Poor => 320,     // 16 frames
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CongestionLevel {
-    None,     // Minimal buffering needed
-    Light,    // Slight buffer increase
-    Moderate, // Significant buffer increase
-    Severe,   // Maximum buffering + aggressive drop policy
-}
-
-impl CongestionLevel {
-    /// Assess congestion from buffer metrics
-    pub fn from_buffer_metrics(
-        avg_depth: f64,
-        target_depth: usize,
-        underruns: u64,
-        overflows: u64,
-    ) -> Self {
-        let depth_ratio = avg_depth / target_depth as f64;
-        let total_issues = underruns + overflows;
-
-        match (depth_ratio, total_issues) {
-            (ratio, issues) if ratio < 0.5 && issues == 0 => CongestionLevel::None,
-            (ratio, issues) if ratio < 1.5 && issues < 5 => CongestionLevel::Light,
-            (ratio, issues) if ratio < 3.0 && issues < 20 => CongestionLevel::Moderate,
-            _ => CongestionLevel::Severe,
-        }
-    }
-
-    /// Get adjustment factor for buffer capacity
-    pub fn capacity_adjustment(&self) -> f64 {
-        match self {
-            CongestionLevel::None => 0.9,
-            CongestionLevel::Light => 1.0,
-            CongestionLevel::Moderate => 1.3,
-            CongestionLevel::Severe => 1.8,
+            NetworkQuality::Excellent => 40,
+            NetworkQuality::Good => 80,
+            NetworkQuality::Moderate => 160,
+            NetworkQuality::Poor => 320,
         }
     }
 }

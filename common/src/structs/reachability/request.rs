@@ -13,6 +13,12 @@ pub struct ReachabilityRequest {
     // operator serving HTTP on another port is reported at the port actually
     // measured.
     pub https_port: u16,
+    // Whether the server advertised the WebSocket voice transport, from
+    // `ApiConfigResponse::voice_websocket`. False suppresses that probe rather than
+    // failing it: a server which never claimed the transport would answer the ALPN
+    // with a refusal, and spending a TLS handshake to be told what the config
+    // already said costs the player time on the one screen that waits for it.
+    pub voice_websocket: bool,
 }
 
 impl ReachabilityRequest {
@@ -24,6 +30,7 @@ impl ReachabilityRequest {
         quic_ports: Vec<u16>,
         https_url: String,
         https_port: u16,
+        voice_websocket: bool,
     ) -> Self {
         Self {
             host,
@@ -31,6 +38,7 @@ impl ReachabilityRequest {
             quic_ports,
             https_url,
             https_port,
+            voice_websocket,
         }
     }
 }

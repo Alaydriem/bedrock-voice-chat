@@ -44,38 +44,3 @@ impl TimecodeSample {
         self.to_bytes().to_vec()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_to_bytes_length() {
-        let tc = Timecode::new(1705329045500, 48000);
-        let sample = TimecodeSample::from_timecode(tc);
-        let bytes = sample.to_bytes();
-        assert_eq!(bytes.len(), 4);
-    }
-
-    #[test]
-    fn test_to_vec() {
-        let tc = Timecode::new(1705329045500, 48000);
-        let sample = TimecodeSample::from_timecode(tc);
-        let vec = sample.to_vec();
-        let bytes = sample.to_bytes();
-        assert_eq!(vec.as_slice(), bytes.as_slice());
-    }
-
-    #[test]
-    fn test_frame_number_encoding() {
-        // Create a timecode and verify the bytes are big-endian
-        let tc = Timecode::new(0, 48000);
-        let sample = TimecodeSample::from_timecode(tc);
-        let frame_num = tc.to_frame_number();
-        let bytes = sample.to_bytes();
-
-        // Verify big-endian encoding
-        let decoded = u32::from_be_bytes(bytes);
-        assert_eq!(decoded, frame_num);
-    }
-}

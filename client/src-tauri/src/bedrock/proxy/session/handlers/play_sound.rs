@@ -46,7 +46,7 @@ impl<'a> PlaySoundHandler<'a> {
             PlaySoundPacketAny::V897(p) => &p.position,
             PlaySoundPacketAny::V944(p) => &p.position,
             PlaySoundPacketAny::V975(p) => &p.position,
-            PlaySoundPacketAny::V2169(p) => &p.position,
+            PlaySoundPacketAny::V2168(p) => &p.position,
         }
     }
 
@@ -94,12 +94,21 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
             match CtlCodec::decode(name) {
                 Some(CtlMessage::Action(action)) => {
                     if action.is_group_action() {
+                        // This proxy only ever sits in front of a Minecraft session, so
+                        // the game is known here rather than left for the server to assume.
                         emitter.try_send_client_action(ClientAction {
                             id: self.player_name.to_string(),
+                            game: Some(common::Game::Minecraft),
                             action,
                         });
                     } else {
-                        self.control_tx.send(action);
+                        // Same known game as the group branch above: this proxy only ever
+                        // fronts a Minecraft session.
+                        self.control_tx.send(ClientAction {
+                            id: self.player_name.to_string(),
+                            game: Some(common::Game::Minecraft),
+                            action,
+                        });
                     }
                 }
                 Some(CtlMessage::Sync { targets }) => {

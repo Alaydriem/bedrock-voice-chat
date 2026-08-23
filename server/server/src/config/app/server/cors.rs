@@ -4,7 +4,7 @@ fn default_allow_credentials() -> bool {
     true
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Cors {
     // Origins permitted by CORS. An empty list allows all origins (the historical
     // default, harmless for the native mTLS client); a non-empty list restricts

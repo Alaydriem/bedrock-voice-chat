@@ -21,15 +21,18 @@ tauri-build = { version = "^2.4", features = [] }
 dotenvy = { version = "^0.15" }
 
 [dependencies]
-common = { path = "./../../common", features = ["quic", "audio", "browser"] }
+common = { path = "./../../common", features = ["quic", "audio", "browser", "net"] }
 websocket-types = { path = "./../../common/websocket-types" }
 tokio = { version = "^1", features = ["full"] }
+dirs = { version = "^6", optional = true }
 
 serde = { version = "^1", features = ["derive"] }
 base64 = { version = "^0.22" }
 serde_json = { version = "^1" }
 log = { version = "^0.4" }
 anyhow = { version = "^1" }
+icu_plurals = { version = "^2.2" }
+icu_locale_core = { version = "^2.2" }
 spmc = { version = "^0.3" }
 rand = { version = "^0.10" }
 strum = { version = "0.26", features = ["derive"] }
@@ -60,12 +63,19 @@ tauri-plugin-http = { version = "^2", default-features = false, features = [
 tauri-plugin-audio-permissions = { git = "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions" }
 tauri-plugin-keyring = { git = "https://github.com/charlesportwoodii/tauri-plugin-keyring" }
 tauri-plugin-store = { version = "^2" }
+tauri-plugin-dialog = { version = "^2" }
 tauri-plugin-notification = { version = "^2" }
-tauri-plugin-log = { version = "^2" }
+tauri-plugin-curia = { git = "https://github.com/charlesportwoodii/tauri-plugin-curia", tag = "0.1.2" }
 tauri-plugin-os = { version = "^2" }
 once_cell = { version = "^1.21", features = ["atomic-polyfill"] }
 reqwest = { version = "0.12", features = ["rustls-tls", "json", "multipart"], default-features = false }
 nano-wal = { workspace = true }
+# Pinned exactly rather than floated. Precedent: nano-wal 1.0 shipped POSIX-only and broke the
+# Windows build, so a storage crate's minor version is not a safe range here. Pure Rust
+# deliberately — no C toolchain to cross-compile for Android and iOS, which is the same reason
+# SQLite and LMDB were both rejected for this. LMDB also pre-allocates its full map size on
+# Windows, which has no sparse files.
+redb = "=4.1.0"
 uuid = { version = "^1.18", features = ["v4", "v7"] }
 postcard = { version = "^1.0", features = ["alloc"] }
 bwavfile = { version = "2.0.1" }
@@ -76,6 +86,9 @@ enum_dispatch = { version = "^0.3" }
 url = { version = "2" }
 x509-parser = { workspace = true }
 rustls = { version = "0.23" }
+rustls-pemfile = { version = "^2.0" }
+thiserror = { version = "^2" }
+webpki-roots = { version = "^0.26" }
 sha2 = { version = "0.10" }
 tar = { version = "^0.4" }
 zstd = { version = "^0.13" }
@@ -99,7 +112,6 @@ tauri-plugin-updater = { version = "^2" }
 tauri-plugin-process = { version = "^2" }
 tauri-plugin-global-shortcut = { version = "^2" }
 sentry-rust-minidump = { version = "^0.14" }
-tauri-plugin-dialog = "^2"
 
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 windows-targets = { version = "^0.53.0" }
@@ -117,16 +129,24 @@ ndk-context = "0.1"
 libloading = { version = "^0.8" }
 tempfile = { version = "^3" }
 hound = { version = "^3.5" }
-bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.3" }
-bedrock-client = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.3" }
+bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.12" }
+bedrock-client = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.12" }
+
+[[test]]
+name = "unit"
+path = "tests/unit.rs"
 
 [[test]]
 name = "integration"
 path = "tests/integration.rs"
-# The integration tests use `bvc_client_lib::testkit`, which is gated behind the
-# `e2e` feature. Without this, a plain `cargo test`/`cargo nextest run` tries to
-# compile this target with `testkit` configured out and fails. `required-features`
-# makes cargo skip the target entirely unless `e2e` is enabled.
+# `integration` holds the modules that use `bvc_client_lib::testkit`, which is
+# gated behind the `e2e` feature. Without this, a plain `cargo test`/`cargo
+# nextest run` tries to compile the  target with `testkit` configured out and
+# fails. `required-features` makes cargo skip it entirely unless `e2e` is on.
+#
+# Everything that does NOT need testkit lives in the `unit` target above, so the
+# gate costs the fast suite nothing. Adding a module here that does not use
+# testkit hides it from `cargo nextest run`.
 required-features = ["e2e"]
 
 [features]
@@ -138,4 +158,8 @@ bedrock-protocol = [
 # Gates the `testkit` module and the e2e integration test target. The e2e
 # harness binary itself lives in its own crate (`client/e2e-harness`) so
 # `tauri build` never enumerates it as an app-package bin to bundle.
-e2e = []
+#
+# `dirs` is what `E2eAppData` reclaims through: Tauri resolves app-data from
+# `dirs`, not from `%APPDATA%`, so anything that wants to find those directories
+# has to ask the same way or it looks in a place Tauri never wrote to.
+e2e = ["dep:dirs"]

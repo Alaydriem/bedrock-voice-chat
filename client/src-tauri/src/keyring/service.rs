@@ -1,21 +1,25 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use common::Game;
 use common::response::LoginResponse;
 use common::structs::config::Keypair;
 use common::structs::permission::ServerPermissions;
 use std::collections::HashMap;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_keyring::{CredentialType, CredentialValue, KeyringExt};
 
-const KEY_GAMERPIC: &str = "gamerpic";
-const KEY_GAMERTAG: &str = "gamertag";
-const KEY_KEYPAIR: &str = "keypair";
-const KEY_SIGNATURE: &str = "signature";
-const KEY_CERTIFICATE: &str = "certificate";
-const KEY_CERTIFICATE_KEY: &str = "certificate_key";
-const KEY_CERTIFICATE_CA: &str = "certificate_ca";
-const KEY_QUIC_CONNECT_STRING: &str = "quic_connect_string";
-const KEY_SERVER_PERMISSIONS: &str = "server_permissions";
-const KEY_MINECRAFT_USERNAME: &str = "minecraft_username";
+use super::KeyringFault;
+
+pub(super) const KEY_GAMERPIC: &str = "gamerpic";
+pub(super) const KEY_GAMERTAG: &str = "gamertag";
+pub(super) const KEY_KEYPAIR: &str = "keypair";
+pub(super) const KEY_SIGNATURE: &str = "signature";
+pub(super) const KEY_CERTIFICATE: &str = "certificate";
+pub(super) const KEY_CERTIFICATE_KEY: &str = "certificate_key";
+pub(super) const KEY_CERTIFICATE_CA: &str = "certificate_ca";
+pub(super) const KEY_QUIC_CONNECT_STRING: &str = "quic_connect_string";
+pub(super) const KEY_SERVER_PERMISSIONS: &str = "server_permissions";
+pub(super) const KEY_MINECRAFT_USERNAME: &str = "minecraft_username";
+pub(super) const KEY_GAME: &str = "game";
 
 const ALL_CREDENTIAL_KEYS: &[&str] = &[
     KEY_GAMERPIC,
@@ -28,11 +32,16 @@ const ALL_CREDENTIAL_KEYS: &[&str] = &[
     KEY_QUIC_CONNECT_STRING,
     KEY_SERVER_PERMISSIONS,
     KEY_MINECRAFT_USERNAME,
+    KEY_GAME,
 ];
 
 pub struct KeyringService {
     app_handle: AppHandle,
     cache: HashMap<String, LoginResponse>,
+    // When each server's certificate stops being valid. The parse that produces it is the
+    // expensive half and its answer never changes; whether the certificate has expired changes
+    // with the clock, so only that is recomputed.
+    cert_expiry: HashMap<String, i64>,
 }
 
 impl KeyringService {
@@ -40,6 +49,7 @@ impl KeyringService {
         Self {
             app_handle,
             cache: HashMap::new(),
+            cert_expiry: HashMap::new(),
         }
     }
 
@@ -52,46 +62,87 @@ impl KeyringService {
             .map_err(|e| anyhow::anyhow!("Failed to initialize keyring service: {}", e))
     }
 
+    /// Write one server's credentials, or leave the keystore as it was.
+    ///
+    /// A failure rolls back the keys already written and leaves the in-memory cache untouched.
+    /// Both matter: a half-written identity reads back partly present, and a cache populated
+    /// after a failed write would make the running session look saved when nothing was.
+    ///
+    /// The error is prefixed with the fault code the error route renders, so the webview
+    /// classifies on a code this crate owns rather than on a platform message.
     pub fn store_credentials(
         &mut self,
         server: &str,
         response: &LoginResponse,
     ) -> Result<(), anyhow::Error> {
-        self.set_keyring_password(server, KEY_GAMERPIC, &response.gamerpic)?;
-        self.set_keyring_password(server, KEY_GAMERTAG, &response.gamertag)?;
-        self.set_keyring_password(
-            server,
-            KEY_KEYPAIR,
-            &serde_json::to_string(&response.keypair)?,
-        )?;
-        self.set_keyring_password(
-            server,
-            KEY_SIGNATURE,
-            &serde_json::to_string(&response.signature)?,
-        )?;
-        self.set_keyring_password(server, KEY_CERTIFICATE, &response.certificate)?;
-        self.set_keyring_password(server, KEY_CERTIFICATE_KEY, &response.certificate_key)?;
-        self.set_keyring_password(server, KEY_CERTIFICATE_CA, &response.certificate_ca)?;
-        self.set_keyring_password(
-            server,
-            KEY_QUIC_CONNECT_STRING,
-            &response.quic_connect_string,
-        )?;
+        let entries = super::CredentialWriteSet::build(response)?;
 
-        if let Some(ref perms) = response.server_permissions {
-            self.set_keyring_password(
-                server,
-                KEY_SERVER_PERMISSIONS,
-                &serde_json::to_string(perms)?,
-            )?;
-        }
+        for (index, (key, value)) in entries.iter().enumerate() {
+            if let Err(e) = self.set_keyring_password(server, key, value) {
+                let message = e.to_string();
 
-        if let Some(ref mc_username) = response.minecraft_username {
-            self.set_keyring_password(server, KEY_MINECRAFT_USERNAME, mc_username)?;
+                for (written, _) in entries.iter().take(index) {
+                    let _ = self.delete_keyring_password(server, written);
+                }
+
+                return Err(anyhow::anyhow!(
+                    "{}: {}",
+                    KeyringFault::label(&message),
+                    message
+                ));
+            }
         }
 
         self.cache.insert(server.to_string(), response.clone());
+        self.cert_expiry.remove(server);
         Ok(())
+    }
+
+    /// The server a launch will ask about, or `None` when there is nothing saved.
+    ///
+    /// `current_server` first, because a client with several saved servers reads credentials for
+    /// whichever one it opens; the single entry is the fallback for an install that has never
+    /// recorded a current one.
+    fn launch_server(app: &AppHandle) -> Option<String> {
+        use tauri_plugin_store::StoreExt;
+
+        let store = app.store("store.json").ok()?;
+
+        if let Some(current) = store
+            .get("current_server")
+            .and_then(|v| v.as_str().map(str::to_string))
+        {
+            return Some(current);
+        }
+
+        store
+            .get("server_list")
+            .and_then(|v| v.as_array().cloned())
+            .and_then(|list| list.first().cloned())
+            .and_then(|entry| entry.get("server")?.as_str().map(str::to_string))
+    }
+
+    /// Read one server's credentials so the platform keystore initialises off the launch path.
+    ///
+    /// On Android the first touch of the keystore costs hundreds of milliseconds whatever is
+    /// read, and it lands in the launch route with the webview already waiting on it. Started
+    /// here it overlaps with the bundle parse instead, and the read fills the cache the launch
+    /// route then hits.
+    ///
+    /// Absent credentials are the expected first-run state, so a failure is logged at debug and
+    /// otherwise ignored.
+    ///
+    /// Goes through the managed service rather than a private instance, so the launch route gets
+    /// a cache hit instead of eleven warm keystore lookups.
+    pub async fn warm(app: AppHandle) {
+        let Some(server) = Self::launch_server(&app) else {
+            return;
+        };
+
+        let state = app.state::<tauri::async_runtime::Mutex<Self>>();
+        if let Err(e) = state.lock().await.get_credentials(&server) {
+            log::debug!("Keyring warm-up read failed for {}: {}", server, e);
+        }
     }
 
     pub fn get_credentials(&mut self, server: &str) -> Result<LoginResponse, anyhow::Error> {
@@ -127,8 +178,17 @@ impl KeyringService {
     }
 
     pub fn is_certificate_expired(&mut self, server: &str) -> Result<bool, anyhow::Error> {
-        let cert_pem = self.get_credential(server, KEY_CERTIFICATE)?;
-        super::CertificateValidator::is_expired(&cert_pem)
+        let not_after = match self.cert_expiry.get(server) {
+            Some(not_after) => *not_after,
+            None => {
+                let cert_pem = self.get_credential(server, KEY_CERTIFICATE)?;
+                let not_after = super::CertificateValidator::not_after(&cert_pem)?;
+                self.cert_expiry.insert(server.to_string(), not_after);
+                not_after
+            }
+        };
+
+        Ok(not_after <= chrono::Utc::now().timestamp())
     }
 
     pub fn delete_credentials(&mut self, server: &str) -> Result<(), anyhow::Error> {
@@ -137,6 +197,7 @@ impl KeyringService {
         }
 
         self.cache.remove(server);
+        self.cert_expiry.remove(server);
         Ok(())
     }
 
@@ -207,6 +268,14 @@ impl KeyringService {
             .get_keyring_password(server, KEY_MINECRAFT_USERNAME)
             .ok();
 
+        // Absent for any identity stored before the game was part of a login response.
+        // None is honest there — the keyring genuinely does not know — and the next
+        // successful login writes it.
+        let game = self
+            .get_keyring_password(server, KEY_GAME)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok());
+
         Ok(LoginResponse {
             gamerpic,
             gamertag,
@@ -218,6 +287,7 @@ impl KeyringService {
             quic_connect_string,
             server_permissions,
             minecraft_username,
+            game,
         })
     }
 
@@ -236,6 +306,10 @@ impl KeyringService {
                 .as_ref()
                 .and_then(|p| serde_json::to_string(p).ok()),
             KEY_MINECRAFT_USERNAME => response.minecraft_username.clone(),
+            KEY_GAME => response
+                .game
+                .as_ref()
+                .and_then(|g| serde_json::to_string(g).ok()),
             _ => None,
         }
     }
@@ -265,6 +339,9 @@ impl KeyringService {
                 }
                 KEY_MINECRAFT_USERNAME => {
                     cached.minecraft_username = Some(value.to_string());
+                }
+                KEY_GAME => {
+                    cached.game = serde_json::from_str::<Game>(value).ok();
                 }
                 _ => {}
             }

@@ -9,14 +9,6 @@
 # here. The groups below bound only the heaviest tests on top of that lever.
 
 [test-groups]
-# The cross-server voice/jukebox scenarios each boot 2-3 in-process server
-# runtimes plus up to 3 client procs — by far the heaviest tests. The FFI runtime
-# is now thread-bounded (server/server/src/ffi/mod.rs), which fixed the hard
-# crash and lets these run concurrently; but several at once is still enough load
-# to exhaust a small machine, so they are capped at 2 concurrent. Everything else
-# parallelizes up to `-j`. Raise this only with headroom to spare.
-heavy-relay-e2e = { max-threads = 2 }
-
 # Scenarios that put a UDP relay between a client and the server, so every datagram
 # takes an extra userspace hop through a tokio task.
 #
@@ -26,6 +18,22 @@ heavy-relay-e2e = { max-threads = 2 }
 # raised full-suite load enough that those equalities began failing by one frame,
 # on a different test each run. Capping the relay group keeps that headroom.
 relayed-e2e = { max-threads = 1 }
+
+# The audio scenarios that assert *exact* frame delivery, capped for the reason
+# described above rather than relaxed.
+#
+# Capping the relay group alone stopped being enough as the suite grew: at 597
+# tests the machine is starved regardless of what the relay scenarios are doing,
+# and the loss that follows is real. QUIC datagrams are unreliable by design —
+# that is why voice uses them — so a starved receiver drops them and waiting
+# longer does not recover them. Only the WebSocket case is a measurement
+# artifact, TCP being unable to lose anything.
+#
+# A tolerance was the alternative and is worse: "lossless over loopback" is the
+# property worth asserting, and a percentage threshold would pass a genuine
+# regression that dropped a few percent. Bounding concurrency restores the
+# condition the assertion depends on instead of weakening the assertion.
+exact-delivery-e2e = { max-threads = 1 }
 
 [profile.default]
 # Per test, not per run: a test is flagged slow after `period`, and killed after
@@ -40,16 +48,9 @@ relayed-e2e = { max-threads = 1 }
 slow-timeout = { period = "60s", terminate-after = 3 }
 
 [[profile.default.overrides]]
-filter = 'test(/scenarios::relay_/)'
-test-group = 'heavy-relay-e2e'
-# `relay_dropped_link_reconnects_and_audio_resumes` legitimately takes ~52s: it
-# drops a peer link and waits for the reconnect to re-establish. The rest of the
-# relay set runs 25-33s. 120s therefore still means "unexpected", and 360s keeps
-# ~7x headroom so a contended machine cannot manufacture a false TIMEOUT — this
-# suite is load-sensitive enough to produce spurious failures under parallel
-# builds.
-slow-timeout = { period = "120s", terminate-after = 3 }
-
-[[profile.default.overrides]]
 filter = 'test(/scenarios::downlink_loss::/) + test(/scenarios::link_stall::/) + test(/scenarios::path_exhaustion::/)'
 test-group = 'relayed-e2e'
+
+[[profile.default.overrides]]
+filter = 'test(/scenarios::audio_flow::/) + test(/scenarios::audio_routing::/) + test(/scenarios::channel_without_position::/) + test(/scenarios::same_channel::/) + test(/scenarios::websocket_transport::/)'
+test-group = 'exact-delivery-e2e'

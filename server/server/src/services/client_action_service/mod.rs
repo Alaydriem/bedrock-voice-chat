@@ -1,3 +1,4 @@
+use common::structs::audio::PlayerGainSettings;
 use common::structs::channel::ChannelCollection;
 use common::structs::control::{
     ClientAction, ClientActionType, PlayerPreference, PreferenceKey, QueryState,
@@ -8,7 +9,7 @@ use common::structs::packet::{
 
 use crate::services::ChannelMembershipService;
 use crate::stream::quic::WebhookReceiver;
-use crate::stream::quic::connection_registry::ConnectionRegistry;
+use crate::stream::quic::connection::ConnectionRegistry;
 use crate::stream::quic::{CacheTrait, PlayerPreferenceCache, PlayerStateCache};
 
 /// Applies inbound `ClientAction`s. Self/preference actions are delivered back to
@@ -16,38 +17,55 @@ use crate::stream::quic::{CacheTrait, PlayerPreferenceCache, PlayerStateCache};
 /// actions go through `ChannelMembershipService`. The wire `action.id` is never
 /// trusted for routing — the authenticated actor the caller supplies is
 /// authoritative.
-pub struct ClientActionService;
+pub struct ClientActionService {
+    recording_enabled: bool,
+}
 
 impl ClientActionService {
-    pub fn new() -> Self {
-        Self
+    pub fn new(recording_enabled: bool) -> Self {
+        Self { recording_enabled }
     }
 
-    /// Delivers a self/preference action to the authenticated actor's own
-    /// connection. `actor_name` (the authenticated identity) is authoritative; the
-    /// wire `action.id` is overwritten with it. Returns whether a live connection
-    /// received it.
+    /// Whether this action may be applied at all.
+    ///
+    /// Only arming a recording is ever refused. Stopping stays available on a server
+    /// whose operator turned recording off while someone was already recording, and
+    /// nothing else this service routes is subject to operator policy.
+    ///
+    /// The recording itself is written on the player's own machine, so a refusal here
+    /// states the server's answer rather than preventing anything.
+    pub fn permits(&self, action: &ClientActionType) -> bool {
+        !matches!(action, ClientActionType::SetRecording(true)) || self.recording_enabled
+    }
+
+    /// Delivers a self/preference action to the authenticated actor's own connection.
+    ///
+    /// `actor_identity` is the canonical `game:gamertag` and is authoritative; the wire
+    /// `action.id` is overwritten with it. A bare gamertag here matches no connection, so
+    /// callers holding one compose it with `ClientAction::actor_key` first.
+    ///
+    /// Returns whether a live connection received it.
     pub fn route_self(
         &self,
         action: &ClientAction,
-        actor_name: &str,
+        actor_identity: &str,
         registry: &ConnectionRegistry,
     ) -> bool {
         let packet = ClientActionPacket::new(
             ClientAction {
-                id: actor_name.to_string(),
+                id: actor_identity.to_string(),
+                game: action.game.clone(),
                 action: action.action.clone(),
             },
             PacketDirection::ClientBound,
         );
         let envelope = QuicNetworkPacket {
             packet_type: PacketType::ClientAction,
-            owner: None,
             data: QuicNetworkPacketData::ClientAction(packet),
                     // Not a server fan-out, so this envelope carries no sequence.
             ..Default::default()
         };
-        registry.send_to_player(actor_name, &envelope)
+        registry.send_to_player(actor_identity, &envelope)
     }
 
     /// `route_self` plus an optimistic cache echo: when a live connection actually
@@ -60,38 +78,38 @@ impl ClientActionService {
     pub async fn route_self_with_echo(
         &self,
         action: &ClientAction,
-        actor_name: &str,
+        actor_identity: &str,
         registry: &ConnectionRegistry,
         player_state: &PlayerStateCache,
         preferences: &PlayerPreferenceCache,
     ) -> bool {
-        if !self.route_self(action, actor_name, registry) {
+        if !self.route_self(action, actor_identity, registry) {
             return false;
         }
 
         match &action.action {
             ClientActionType::SetMuted(on) => {
-                Self::patch_self_state(player_state, actor_name, |s| s.muted = *on).await;
+                Self::patch_self_state(player_state, actor_identity, |s| s.muted = *on).await;
             }
             ClientActionType::SetDeafened(on) => {
-                Self::patch_self_state(player_state, actor_name, |s| s.deafened = *on).await;
+                Self::patch_self_state(player_state, actor_identity, |s| s.deafened = *on).await;
             }
             ClientActionType::SetRecording(on) => {
-                Self::patch_self_state(player_state, actor_name, |s| s.recording = *on).await;
+                Self::patch_self_state(player_state, actor_identity, |s| s.recording = *on).await;
             }
             ClientActionType::SetVolume { target, volume } => {
-                // Mirror the client's own sanitation (ignore non-finite, clamp to
-                // [0,1]) so the echo never publishes a gain the client won't apply.
+                // Mirror the client's own sanitation (ignore non-finite, clamp to the
+                // shared ceiling) so the echo never publishes a gain the client won't apply.
                 if volume.is_finite() {
-                    let volume = volume.clamp(0.0, 1.0);
-                    Self::patch_preference(preferences, actor_name, target, |p| {
+                    let volume = volume.clamp(0.0, PlayerGainSettings::MAX_GAIN);
+                    Self::patch_preference(preferences, actor_identity, target, |p| {
                         p.volume = volume
                     })
                     .await;
                 }
             }
             ClientActionType::SetHeard { target, muted } => {
-                Self::patch_preference(preferences, actor_name, target, |p| p.muted = *muted)
+                Self::patch_preference(preferences, actor_identity, target, |p| p.muted = *muted)
                     .await;
             }
             _ => {}
@@ -101,27 +119,27 @@ impl ClientActionService {
 
     async fn patch_self_state(
         player_state: &PlayerStateCache,
-        actor_name: &str,
+        actor_identity: &str,
         apply: impl FnOnce(&mut QueryState),
     ) {
-        if let Some(mut state) = player_state.get(&actor_name.to_string()).await {
+        if let Some(mut state) = player_state.get(&actor_identity.to_string()).await {
             apply(&mut state);
-            player_state.set(actor_name.to_string(), state).await;
+            player_state.set(actor_identity.to_string(), state).await;
         }
     }
 
     async fn patch_preference(
         preferences: &PlayerPreferenceCache,
-        actor_name: &str,
+        actor_identity: &str,
         target: &str,
         apply: impl FnOnce(&mut PlayerPreference),
     ) {
-        let key = PreferenceKey::new(actor_name, target);
+        let key = PreferenceKey::new(actor_identity, target);
         let mut pref = preferences
             .get(&key)
             .await
             .unwrap_or_else(|| PlayerPreference {
-                owner: actor_name.to_string(),
+                owner: actor_identity.to_string(),
                 target: target.to_string(),
                 volume: 1.0,
                 muted: false,
@@ -130,8 +148,7 @@ impl ClientActionService {
         preferences.set(key, pref).await;
     }
 
-    /// Applies a group action for the authenticated actor (cert-CN form
-    /// `game:gamertag`). `CreateGroup` and `JoinGroup` are MOVES — the actor's
+    /// Applies a group action for the authenticated actor. `CreateGroup` and `JoinGroup` are MOVES — the actor's
     /// current groups are left first, so a player occupies at most one group
     /// through this plane (multi-membership renders as an invalid state in the
     /// desktop client, whose own flow also moves). Returns the new nanoid for
@@ -139,23 +156,22 @@ impl ClientActionService {
     /// exist (never creates phantom membership, never disturbs the current
     /// group on a bad code). Any channel left empty is closed.
     pub async fn route_group(
-        &self,
         action: &ClientActionType,
-        actor_cn: &str,
+        actor: &common::PlayerIdentity,
         channels: &ChannelCollection,
         webhook: &WebhookReceiver,
     ) -> anyhow::Result<Option<String>> {
         match action {
             ClientActionType::CreateGroup => {
-                Self::leave_all(channels, webhook, actor_cn).await;
+                Self::leave_all(channels, webhook, actor).await;
                 let id = ChannelMembershipService::create(
                     channels,
                     webhook,
-                    format!("{actor_cn} group"),
-                    actor_cn.to_string(),
+                    format!("{actor} group"),
+                    actor.clone(),
                 )
                 .await;
-                ChannelMembershipService::join(channels, webhook, actor_cn.to_string(), &id).await;
+                ChannelMembershipService::join(channels, webhook, actor, &id).await;
                 Ok(Some(id))
             }
             ClientActionType::JoinGroup { channel } => {
@@ -167,39 +183,35 @@ impl ClientActionService {
                 // A repeat join of the current group is a no-op, not a move —
                 // leaving first would close the group under its last member.
                 if channels
-                    .get_player_channels(actor_cn)
+                    .get_player_channels(actor)
                     .iter()
                     .any(|c| c == channel)
                 {
                     return Ok(None);
                 }
-                Self::leave_all(channels, webhook, actor_cn).await;
-                if ChannelMembershipService::join(channels, webhook, actor_cn.to_string(), channel)
-                    .await
-                {
+                Self::leave_all(channels, webhook, actor).await;
+                if ChannelMembershipService::join(channels, webhook, actor, channel).await {
                     Ok(None)
                 } else {
                     anyhow::bail!("channel does not exist: {channel}")
                 }
             }
             ClientActionType::LeaveGroup => {
-                Self::leave_all(channels, webhook, actor_cn).await;
+                Self::leave_all(channels, webhook, actor).await;
                 Ok(None)
             }
             _ => Ok(None),
         }
     }
 
-    async fn leave_all(channels: &ChannelCollection, webhook: &WebhookReceiver, actor_cn: &str) {
-        for cid in channels.get_player_channels(actor_cn) {
-            ChannelMembershipService::leave(channels, webhook, actor_cn.to_string(), &cid, true)
-                .await;
+    async fn leave_all(
+        channels: &ChannelCollection,
+        webhook: &WebhookReceiver,
+        actor: &common::PlayerIdentity,
+    ) {
+        for cid in channels.get_player_channels(actor) {
+            ChannelMembershipService::leave(channels, webhook, actor, &cid, true).await;
         }
     }
 }
 
-impl Default for ClientActionService {
-    fn default() -> Self {
-        Self::new()
-    }
-}

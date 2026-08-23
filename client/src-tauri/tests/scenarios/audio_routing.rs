@@ -99,8 +99,11 @@ async fn in_range_hears_out_of_range_silent() {
     let alice = feed_a.join().expect("Phase A feed thread panicked");
 
     // Read stats after the full collection window so counters are stable.
+    // Settled rather than snapshotted. Phase B subtracts this baseline, so reading
+    // it before the tail lands would also inflate Phase B's delta.
     let (alice_sent_a, _, _) = alice.stats();
-    let (_, bob_from_quic_a, bob_received_a) = bob.stats();
+    let (_, bob_from_quic_a, bob_received_a) =
+        bob.await_transport_frames(alice_sent_a, Duration::from_secs(5));
 
     let mono_near = Signal::to_mono(&cap_near);
     let rms_near = Signal::rms(&mono_near);

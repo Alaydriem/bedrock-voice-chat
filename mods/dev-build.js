@@ -14,7 +14,6 @@ function getArg(name) {
 
 const fabricDest = getArg('fabric-dest');
 const paperDest = getArg('paper-dest');
-const hytaleDest = getArg('hytale-dest');
 const bdsBpDest = getArg('bds-bp-dest');
 const bdsRpDest = getArg('bds-rp-dest');
 
@@ -25,12 +24,11 @@ const bdsDir = path.join(modsDir, 'bds');
 const isWindows = process.platform === 'win32';
 const gradlew = isWindows ? '.\\gradlew.bat' : './gradlew';
 
-// Step 1: Build Java mods (Rust lib + Paper + Hytale, optionally Fabric)
+// Step 1: Build Java mods (Rust lib + Paper, optionally Fabric)
 const gradleTask = buildAll ? 'devBuildAll' : 'devBuild';
 const gradleArgs = [];
 if (fabricDest) gradleArgs.push(`-PfabricDest=${fabricDest}`);
 if (paperDest) gradleArgs.push(`-PpaperDest=${paperDest}`);
-if (hytaleDest) gradleArgs.push(`-PhytaleDest=${hytaleDest}`);
 if (release) gradleArgs.push('-Prelease');
 
 const gradleCmd = [gradlew, gradleTask, ...gradleArgs].join(' ');

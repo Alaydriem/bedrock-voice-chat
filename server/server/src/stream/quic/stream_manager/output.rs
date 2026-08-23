@@ -1,29 +1,29 @@
-use crate::stream::quic::client_id_hasher::ClientIdHasher;
-use crate::stream::quic::connection_registry::RoutedPacket;
+use crate::stream::quic::connection::RoutedPacket;
+use crate::stream::session::{SendOutcome, SessionLink};
 use anyhow::Error;
-use bytes::Bytes;
-use common::s2n_quic::Connection;
 use common::traits::StreamTrait;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::mpsc;
 
 pub(crate) struct OutputStream {
-    connection: Option<Arc<Connection>>,
+    link: Option<SessionLink>,
     packet_rx: Option<mpsc::Receiver<RoutedPacket>>,
     is_stopped: Arc<AtomicBool>,
+    // Microseconds the send loop waits after the first queued datagram before flushing,
+    // so concurrent speakers' frames share one transport flush. 0 disables the wait.
+    send_batch_wait_micros: u64,
     pub(crate) player_id: Arc<std::sync::OnceLock<String>>,
-    pub(crate) client_id: Arc<std::sync::OnceLock<Vec<u8>>>,
 }
 
 impl OutputStream {
-    pub fn new(connection: Option<Arc<Connection>>) -> Self {
+    pub fn new(link: Option<SessionLink>, send_batch_wait_micros: u64) -> Self {
         Self {
-            connection,
+            link,
             packet_rx: None,
             is_stopped: Arc::new(AtomicBool::new(true)),
+            send_batch_wait_micros,
             player_id: Arc::new(std::sync::OnceLock::new()),
-            client_id: Arc::new(std::sync::OnceLock::new()),
         }
     }
 
@@ -31,48 +31,12 @@ impl OutputStream {
         self.packet_rx = Some(packet_rx);
     }
 
-    pub fn get_player_id(&self) -> Option<String> {
-        self.player_id.get().cloned()
+    // Borrows rather than clones. The send loop below names the player only on its error arms, and
+    // it runs once per outbound datagram, so resolving this by clone allocated a `String` per
+    // datagram to build a log line that almost never happens.
+    fn log_label(&self) -> &str {
+        self.player_id.get().map(String::as_str).unwrap_or("unknown")
     }
-
-    pub fn get_client_id(&self) -> Option<Vec<u8>> {
-        self.client_id.get().cloned()
-    }
-
-    fn send_datagram(&self, connection: &Connection, payload: Bytes) -> DatagramResult {
-        let send_res = connection.datagram_mut(
-            |dg: &mut common::s2n_quic::provider::datagram::default::Sender| {
-                dg.send_datagram(payload)
-            },
-        );
-
-        match send_res {
-            Ok(Ok(())) => DatagramResult::Ok,
-            Ok(Err(e)) => {
-                let emsg = e.to_string();
-                let lower = emsg.to_ascii_lowercase();
-                if (lower.contains("connection") && lower.contains("clos"))
-                    || lower.contains("closed")
-                    || lower.contains("reset")
-                {
-                    DatagramResult::ConnectionClosed(emsg)
-                } else if lower.contains("capacity") || lower.contains("queue") {
-                    DatagramResult::Capacity(emsg)
-                } else {
-                    DatagramResult::Other(emsg)
-                }
-            }
-            Err(e) => DatagramResult::Fatal(e.to_string()),
-        }
-    }
-}
-
-enum DatagramResult {
-    Ok,
-    ConnectionClosed(String),
-    Capacity(String),
-    Other(String),
-    Fatal(String),
 }
 
 impl StreamTrait for OutputStream {
@@ -87,55 +51,42 @@ impl StreamTrait for OutputStream {
     }
 
     async fn start(&mut self) -> Result<(), Error> {
-        tracing::info!("Starting QUIC output stream");
+        tracing::info!("Starting session output stream");
         self.is_stopped.store(false, Ordering::Relaxed);
 
-        if let (Some(connection), Some(mut packet_rx)) =
-            (self.connection.clone(), self.packet_rx.take())
-        {
-            while let Some(routed) = packet_rx.recv().await {
-                let payload = match routed {
-                    RoutedPacket::Serialized(bytes) => bytes,
-                };
-
-                let player = self.get_player_id().unwrap_or_else(|| "unknown".into());
-                let client_hash = self
-                    .get_client_id()
-                    .map(|cid| ClientIdHasher::hash(&cid))
-                    .unwrap_or_else(|| "????".into());
-
-                match self.send_datagram(&connection, payload) {
-                    DatagramResult::Ok => {}
-                    DatagramResult::ConnectionClosed(emsg) => {
+        if let (Some(link), Some(mut packet_rx)) = (self.link.clone(), self.packet_rx.take()) {
+            let batcher =
+                crate::stream::quic::stream_manager::SendBatcher::new(self.send_batch_wait_micros);
+            let mut batch: Vec<bytes::Bytes> = Vec::with_capacity(32);
+            while batcher.collect(&mut packet_rx, &mut batch).await.is_some() {
+                match link.send_batch(&mut batch) {
+                    SendOutcome::Ok => {}
+                    SendOutcome::ConnectionClosed(emsg) => {
                         tracing::error!(
-                            "datagram_send_closed player={} client={} err={}",
-                            player,
-                            client_hash,
+                            "datagram_send_closed player={} err={}",
+                            self.log_label(),
                             emsg
                         );
                         break;
                     }
-                    DatagramResult::Capacity(emsg) => {
+                    SendOutcome::Capacity(emsg) => {
                         tracing::debug!(
-                            "datagram send capacity issue player={} client={} err={}",
-                            player,
-                            client_hash,
+                            "datagram send capacity issue player={} err={}",
+                            self.log_label(),
                             emsg
                         );
                     }
-                    DatagramResult::Other(emsg) => {
+                    SendOutcome::Other(emsg) => {
                         tracing::debug!(
-                            "datagram send error player={} client={} err={}",
-                            player,
-                            client_hash,
+                            "datagram send error player={} err={}",
+                            self.log_label(),
                             emsg
                         );
                     }
-                    DatagramResult::Fatal(emsg) => {
+                    SendOutcome::Fatal(emsg) => {
                         tracing::error!(
-                            "datagram_send_query_failed player={} client={} err={}",
-                            player,
-                            client_hash,
+                            "datagram_send_query_failed player={} err={}",
+                            self.log_label(),
                             emsg
                         );
                         break;

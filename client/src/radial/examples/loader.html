@@ -398,11 +398,31 @@
         </div>
         <div class="g-item">
           <div class="g-item__head">
+            <span class="g-item__name">The long wait</span>
+            <span class="g-item__note">
+              A dancing mark says the app is alive. After a few seconds the question becomes
+              which of five things it is waiting on, so the loader starts answering. Omit
+              <code>phrases</code> and it stays silent.
+            </span>
+          </div>
+          <pre class="g-code"><b>&lt;Loader</b>
+  loading={busy}
+  phrases={["Reaching your server…", "Checking your permissions…"]}
+  slowAfterSeconds={4}
+<b>&gt;</b>
+  <b>&lt;button</b> class="rad-btn rad-btn--quiet" onclick={recover}<b>&gt;</b>Start over<b>&lt;/button&gt;</b>
+<b>&lt;/Loader&gt;</b></pre>
+        </div>
+        <div class="g-item">
+          <div class="g-item__head">
             <span class="g-item__name">What it replaces</span>
             <span class="g-item__note">
               The current preloader: <code>.bvc-ring</code> (a borrowed CSS spinner),
-              <code>.bvc-badge</code>, <code>.bvc-shimmer</code>, and the ten-second escape hatch
-              bolted on when the spinner could not say whether anything was happening.
+              <code>.bvc-badge</code> and <code>.bvc-shimmer</code>. The ten-second escape hatch
+              stays: it runs a real teardown of the audio and network streams, not a cosmetic
+              one. What changes is that it appears as a quiet affordance on a long wait rather
+              than as a button bolted on because the spinner could not say whether anything was
+              happening.
             </span>
           </div>
         </div>

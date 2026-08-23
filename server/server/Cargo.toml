@@ -35,7 +35,7 @@ bedrock = [
 ]
 
 [dependencies]
-common = { path = "../../common", features = ["quic", "server"] }
+common = { path = "../../common", features = ["quic", "server", "openapi"] }
 entity = { path = "../entity" }
 migration = { path = "../migration" }
 sea-orm = { workspace = true }
@@ -91,9 +91,9 @@ async-channel = { version = "^2.3" }
 nanoid = { workspace = true }
 blake3 = { version = "^1.8" }
 hex = { version = "^0.4" }
+argon2 = { version = "^0.5" }
 redcon = { version = "^0.1" }
 rocket_cors = { version = "^0.6" }
-rocket-governor = { version = "0.2.0-rc.4" }
 dryoc = { version = "^0.7" }
 semver = { version = "^1.0" }
 dashmap = { version = "^6" }
@@ -114,6 +114,13 @@ metrics-util = { version = "^0.20" }
 metrics-exporter-prometheus = { version = "^0.18", default-features = false }
 metrics-exporter-dogstatsd = { version = "^0.9" }
 rustls = { version = "^0.23", features = ["aws_lc_rs"] }
+iroh = { version = "1", default-features = false, features = ["tls-aws-lc-rs"] }
+bvc-relay = { path = "../../relay/lib" }
+socket2 = { version = "^0.5" }
+tokio-tungstenite = { version = "^0.29" }
+tokio-rustls = { version = "^0.26" }
+futures-util = { version = "^0.3", default-features = false, features = ["sink"] }
+governor = { version = "^0.6" }
 
 dirs = { version = "^5" }
 toml = { version = "^0.8" }
@@ -122,6 +129,7 @@ constant_time_eq = "0.4"
 
 [build-dependencies]
 built = { version = "^0.7", features = ["git2", "chrono", "semver"] }
+dotenvy = { version = "^0.15" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { version = "0.1.0" }
@@ -136,6 +144,9 @@ read-process-memory ={ version = "^0.1" }
 proc_mem = { version = "^0.1"}
 tempfile = { version = "^3" }
 ring = { version = "^0.17" }
+# Test-only. Lets the peer tests drive the object a plugin actually calls rather
+# than a hand-built frame that merely resembles what the SDK produces.
+bvc-relay-sdk = { path = "../../relay/sdk" }
 
 [target.'cfg(target_env = "musl")'.dependencies]
 libsqlite3-sys = { version = "^0.30", features = ["bundled"] }

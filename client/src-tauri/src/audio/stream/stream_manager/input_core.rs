@@ -2,7 +2,7 @@ use super::resampler::AudioResampler;
 use super::{AudioFrame, AudioFrameData};
 use audio_gate::NoiseGate;
 use common::consts::OPUS_FRAME_DURATION_MS;
-use common::structs::audio::NoiseGateSettings;
+use common::structs::audio::{InputLevel, NoiseGateSettings};
 use log::warn;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -10,6 +10,7 @@ use std::sync::atomic::Ordering;
 use super::input::{
     MUTE_INPUT_STREAM, NOISE_GATE_SETTINGS, UPDATE_NOISE_GATE_SETTINGS, USE_NOISE_GATE,
 };
+use crate::audio::stream::level_bus::{LevelBus, LoudnessTracker};
 use crate::diagnostics::InputPipelineStats;
 
 // Owned processing core for the input pipeline: noise gate, channel conversion,
@@ -25,6 +26,16 @@ pub(crate) struct InputProcessCore {
     tail_frame_count: u32,
     producer: flume::Sender<AudioFrame>,
     stats: Arc<InputPipelineStats>,
+    // A channel rather than an AppHandle: an AppHandle-bearing field drags the
+    // Tauri GUI into test binaries through drop glue. The owner emits.
+    //
+    // `None` in a session. The unquantised level at capture rate is the setup screen's
+    // calibration meter and nothing else; a session publishes through `levels` instead.
+    level_tx: Option<flume::Sender<InputLevel>>,
+    // Where the meter's state goes in a session. Written every frame and read by one publisher
+    // on its own schedule, so this costs two atomic stores in the callback and nothing else.
+    levels: Arc<LevelBus>,
+    loudness: LoudnessTracker,
 }
 
 impl InputProcessCore {
@@ -36,6 +47,8 @@ impl InputProcessCore {
         tail_frame_count: u32,
         producer: flume::Sender<AudioFrame>,
         stats: Arc<InputPipelineStats>,
+        level_tx: Option<flume::Sender<InputLevel>>,
+        levels: Arc<LevelBus>,
     ) -> Self {
         Self {
             gate,
@@ -47,6 +60,9 @@ impl InputProcessCore {
             tail_frame_count,
             producer,
             stats,
+            level_tx,
+            levels,
+            loudness: LoudnessTracker::new(),
         }
     }
 
@@ -66,7 +82,7 @@ impl InputProcessCore {
                 let current_settings = NOISE_GATE_SETTINGS.lock().unwrap();
                 match serde_json::from_value::<NoiseGateSettings>(current_settings.clone()) {
                     Ok(settings) => {
-                        log::info!("Updating noise gate settings: {:?}", settings);
+                        log::debug!("Updating noise gate settings: {:?}", settings);
                         self.gate.update(
                             settings.open_threshold,
                             settings.close_threshold,
@@ -113,7 +129,23 @@ impl InputProcessCore {
             mono_pcm
         };
 
-        let is_silent = mono_pcm.iter().all(|&e| f32::abs(e) == 0.0);
+        // Silence and amplitude come out of one traversal. This is the capture
+        // callback, so a second pass over the frame buys nothing.
+        let mut sum_squares = 0.0f32;
+        let mut nonzero = false;
+        for &sample in mono_pcm.iter() {
+            sum_squares += sample * sample;
+            if sample != 0.0 {
+                nonzero = true;
+            }
+        }
+        let is_silent = !nonzero;
+        let rms = if mono_pcm.is_empty() {
+            0.0
+        } else {
+            (sum_squares / mono_pcm.len() as f32).sqrt()
+        };
+
         let is_muted = MUTE_INPUT_STREAM.load(Ordering::Relaxed);
 
         // A frame that survives the gate with any nonzero sample is a frame the gate passed. The
@@ -124,6 +156,28 @@ impl InputProcessCore {
         // samples, so reporting the gate open while the mic is muted would print "gate open" and
         // "muted true" side by side in the same report.
         self.stats.record_frame(is_silent || is_muted);
+
+        // A frame that survived the gate with signal in it, and was not hard-muted, is a frame
+        // somebody can hear. That is what drives the meter — not amplitude, which cannot tell a
+        // loud frame the gate threw away from one that got through.
+        let passing = !(is_silent || is_muted);
+
+        // Two atomic stores. Nothing is queued and nothing is sent: the publisher reads this on
+        // its own schedule and decides for itself whether it is worth a message. The callback
+        // has a hard deadline, so it does no more work than this.
+        self.levels.set_own(
+            self.loudness
+                .observe(if is_muted { 0.0 } else { rms }, passing),
+        );
+
+        // Dropped rather than queued when the consumer is behind: a meter rendering
+        // a level from two seconds ago is worse than one that skips a frame.
+        if let Some(level_tx) = &self.level_tx {
+            let _ = level_tx.try_send(InputLevel {
+                rms: if is_muted { 0.0 } else { rms },
+                gate_open: passing,
+            });
+        }
 
         if is_muted {
             // Hard mute: reset state, send nothing
@@ -189,6 +243,9 @@ mod tests {
         let (producer, consumer) = flume::bounded::<AudioFrame>(10000);
 
         // 48 kHz mono → no resampler needed
+        let (level_tx, _) = flume::unbounded();
+        let level_tx = Some(level_tx);
+        let levels = LevelBus::new_shared();
         let mut core = InputProcessCore::new(
             make_gate_disabled(),
             None,
@@ -197,6 +254,8 @@ mod tests {
             2,
             producer,
             Arc::new(InputPipelineStats::new()),
+            level_tx,
+            levels,
         );
 
         // 20 ms at 48 kHz = 960 frames per chunk

@@ -4,7 +4,6 @@ import type { BedrockLogEntry } from '../../../../bindings/BedrockLogEntry';
 
 export class BedrockLogsManager {
     private static readonly MAX_LOG_ENTRIES = 200;
-    private static readonly ALLOWED_LOG_LEVELS = new Set(['INFO', 'WARN', 'ERROR']);
 
     private realmsLogsStore: Writable<BedrockLogEntry[]>;
     private logsExpandedStore: Writable<boolean>;
@@ -33,9 +32,10 @@ export class BedrockLogsManager {
             'bedrock-log',
             (event) => {
                 const entry = event.payload;
-                if (!BedrockLogsManager.ALLOWED_LOG_LEVELS.has(entry.level)) {
-                    return;
-                }
+
+                // Every level is buffered. The view decides what to show, so its
+                // debug toggle has something to reveal; dropping levels here made
+                // that toggle inert.
                 this.realmsLogsStore.update((current) =>
                     [...current, entry].slice(-BedrockLogsManager.MAX_LOG_ENTRIES),
                 );

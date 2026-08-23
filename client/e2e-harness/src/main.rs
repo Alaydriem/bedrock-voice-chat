@@ -12,8 +12,30 @@ use std::sync::Arc;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
+// `AppHandle::exit` terminates the tao event loop without unwinding through the
+// CRT's atexit table, so the coverage runtime's writer never fires and the
+// process contributes no profile data. Flushing explicitly at each exit site is
+// what makes this bin measurable. `coverage` is set by cargo-llvm-cov.
+#[cfg(coverage)]
+unsafe extern "C" {
+    fn __llvm_profile_write_file() -> i32;
+}
+
+#[cfg(coverage)]
+struct CoverageFlush;
+
+#[cfg(coverage)]
+impl CoverageFlush {
+    fn flush() {
+        unsafe {
+            __llvm_profile_write_file();
+        }
+    }
+}
+
 use bvc_client_lib::app_builder::AppBuilder;
 use bvc_client_lib::audio::AudioBackend;
+use bvc_client_lib::testkit::E2eAppData;
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
 use bvc_client_lib::testkit::connect::Connector;
 use bvc_client_lib::{BridgeInputSource, CapturingSink};
@@ -55,9 +77,12 @@ fn main() {
     // Move app_data_dir into a throwaway e2e namespace so every identifier-scoped
     // write — the seeded store, the audio input path's own `app.store("store.json")`
     // read, the webview's store/cookies — lands off the real client's app-data dir.
-    // The harness wipes this namespace between runs.
+    //
+    // The namespace is per spawning test process and per gamertag rather than one
+    // shared constant. Sharing it put every client in the suite on one tree, which
+    // the harness then deleted between spawns; see `E2eAppData`.
     let mut context = tauri::generate_context!();
-    context.config_mut().identifier = "com.alaydriem.bvc.client.e2e".to_string();
+    context.config_mut().identifier = E2eAppData::identifier();
     // Headless: drop the configured window so no WebView2 instance is created. This
     // removes the dominant per-process cost (each WebView2 spawns several helper
     // processes), letting many client procs run without exhausting resources. The
@@ -113,18 +138,14 @@ fn main() {
             #[cfg(feature = "bedrock-protocol")]
             let harness_eject_injector = Connector::eject_injector();
             #[cfg(feature = "bedrock-protocol")]
-            let harness_presence_injector = Connector::presence_injector();
-            #[cfg(feature = "bedrock-protocol")]
-            let harness_announce_injector = Connector::announce_injector();
-            #[cfg(feature = "bedrock-protocol")]
             {
                 app.manage(Connector::bedrock_state());
                 app.manage(Connector::feature_flag_service());
                 app.manage(Arc::clone(&harness_beacon_cache));
                 app.manage(Arc::clone(&harness_eject_injector));
-                app.manage(Arc::clone(&harness_presence_injector));
-                app.manage(Arc::clone(&harness_announce_injector));
                 app.manage(Connector::connect_error_channel());
+                app.manage(Connector::chat_channel());
+                app.manage(Connector::chat_injector());
             }
 
             AppBuilder::build_managed_state(
@@ -136,10 +157,6 @@ fn main() {
                 Some(Arc::clone(&harness_beacon_cache)),
                 #[cfg(feature = "bedrock-protocol")]
                 Some(Arc::clone(&harness_eject_injector)),
-                #[cfg(feature = "bedrock-protocol")]
-                Some(Arc::clone(&harness_presence_injector)),
-                #[cfg(feature = "bedrock-protocol")]
-                Some(Arc::clone(&harness_announce_injector)),
             )?;
 
             // Self-state reporter: poll the client's audio-control state and emit
@@ -169,18 +186,47 @@ fn main() {
             // moment, so the orchestrator can assert the render trigger and the
             // state a card would show.
             let gain_handle = handle.clone();
+            // Serialises the snapshot-and-emit pairs below, so the orchestrator's single
+            // "latest store" slot cannot be moved backwards by a task that read earlier but
+            // finished later.
+            let gain_order = std::sync::Arc::new(tauri::async_runtime::Mutex::new(()));
             tauri::Listener::listen(
                 &handle.clone(),
                 bvc_client_lib::events::event::player_gain_store::PLAYER_GAIN_STORE_UPDATED,
                 move |_| {
-                    use tauri_plugin_store::StoreExt;
-                    let store_json = gain_handle
-                        .store("store.json")
-                        .ok()
-                        .and_then(|store| store.get("player_gain_store"))
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|| "{}".to_string());
-                    StdoutBridge::emit(&OutMsg::GainStoreUpdated { store_json });
+                    // Spawned, never blocked on. This callback runs on the async runtime's own
+                    // worker thread, and `block_on` there panics with "cannot start a runtime
+                    // from within a runtime". The panic is the dangerous part rather than the
+                    // lost emit: it unwinds while the event listener registry mutex is held,
+                    // poisoning it, after which every later emit in the process silently falls
+                    // into the pending queue and no Rust-side event is ever delivered again.
+                    // The orchestrator polls with a timeout, so emitting a moment later costs
+                    // nothing.
+                    let handle = gain_handle.clone();
+                    let order = gain_order.clone();
+                    tauri::async_runtime::spawn(async move {
+                        // Read and emit under one lock. Two events spawn two tasks, and
+                        // without this the slower one can publish an older snapshot after the
+                        // newer one — the orchestrator keeps only the latest, so it would sit
+                        // on stale state until the test timed out.
+                        let _ordered = order.lock().await;
+                        // Read from the settings service, which owns these now. The
+                        // projection is keyed on identity and scoped to the current server,
+                        // so this is the same shape and contents the mixer is handed.
+                        let store_json = match tauri::Manager::try_state::<
+                            std::sync::Arc<bvc_client_lib::players::PlayerSettingsCoordinator>,
+                        >(&handle)
+                        {
+                            Some(coordinator) => coordinator
+                                .store_for_current_server(&handle)
+                                .await
+                                .ok()
+                                .and_then(|gains| serde_json::to_string(&gains).ok())
+                                .unwrap_or_else(|| "{}".to_string()),
+                            None => "{}".to_string(),
+                        };
+                        StdoutBridge::emit(&OutMsg::GainStoreUpdated { store_json });
+                    });
                 },
             );
 
@@ -197,7 +243,6 @@ fn main() {
                 "player_presence",
                 "recording:started",
                 "recording:stopped",
-                "connection_health",
             ];
             for name in FORWARDED_UI_EVENTS {
                 let event_name = (*name).to_string();
@@ -206,6 +251,40 @@ fn main() {
                         event: event_name.clone(),
                         payload: event.payload().to_string(),
                     });
+                });
+            }
+
+            // The push channel, surfaced under the same `UiEvent` name the webview subscribes
+            // to. These frames do not travel as Tauri events, so listening for one would
+            // observe nothing — a scenario asserting on health has to read the channel the app
+            // reads.
+            //
+            // `levels` and `input_level` are deliberately filtered out for the reason
+            // `audio-activity` is absent above: they arrive at meter rate and would flood the
+            // bridge.
+            const FORWARDED_PUSH_FRAMES: &[&str] = &["health", "metrics"];
+            if let Some(broadcaster) =
+                tauri::Manager::try_state::<bvc_client_lib::websocket::WebSocketBroadcaster>(
+                    &handle,
+                )
+            {
+                let mut frames = broadcaster.events.subscribe();
+                tauri::async_runtime::spawn(async move {
+                    while let Ok(json) = frames.recv().await {
+                        let Ok(envelope) = serde_json::from_str::<serde_json::Value>(&json) else {
+                            continue;
+                        };
+                        let Some(kind) = envelope.get("type").and_then(|v| v.as_str()) else {
+                            continue;
+                        };
+                        if !FORWARDED_PUSH_FRAMES.contains(&kind) {
+                            continue;
+                        }
+                        StdoutBridge::emit(&OutMsg::UiEvent {
+                            event: kind.to_string(),
+                            payload: json.clone(),
+                        });
+                    }
                 });
             }
 
@@ -277,6 +356,8 @@ fn main() {
                             });
                         }
                         Ok(InMsg::Shutdown) => {
+                            #[cfg(coverage)]
+                            CoverageFlush::flush();
                             stdin_handle.exit(0);
                             break;
                         }
@@ -304,6 +385,10 @@ fn main() {
                                     .as_ref()
                                     .map(|s| s.playback.datagrams_per_sec as u64)
                                     .unwrap_or(0),
+                                transport: snapshot
+                                    .as_ref()
+                                    .and_then(|s| s.session.transport)
+                                    .map(|t| t.as_str().to_string()),
                                 peers: snapshot
                                     .as_ref()
                                     .map(|s| {
@@ -334,6 +419,7 @@ fn main() {
                             upstream_host,
                             upstream_port,
                             listen_port,
+                            addon_mode,
                         }) => {
                             let h = stdin_handle.clone();
                             tauri::async_runtime::spawn(async move {
@@ -342,6 +428,7 @@ fn main() {
                                     upstream_host,
                                     upstream_port,
                                     listen_port,
+                                    addon_mode,
                                 )
                                 .await
                                 {
@@ -362,6 +449,8 @@ fn main() {
                             });
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                            #[cfg(coverage)]
+                            CoverageFlush::flush();
                             stdin_handle.exit(0);
                             break;
                         }

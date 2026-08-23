@@ -6,6 +6,7 @@ import com.alaydriem.bedrockvoicechat.audio.AudioPlayerState
 import com.alaydriem.bedrockvoicechat.audio.dto.AudioEventResponse
 import com.alaydriem.bedrockvoicechat.audio.dto.AudioPlayRequest
 import com.alaydriem.bedrockvoicechat.audio.dto.GameAudioRequest
+import com.alaydriem.bedrockvoicechat.svc.RelayWorld
 import com.alaydriem.bedrockvoicechat.dto.Coordinates
 import com.google.gson.Gson
 import org.bukkit.plugin.java.JavaPlugin
@@ -14,7 +15,10 @@ import java.util.concurrent.ConcurrentHashMap
 
 class PaperAudioPlayerManager(
     private val audioEventSender: AudioEventSender,
-    private val plugin: JavaPlugin
+    private val plugin: JavaPlugin,
+    // Declared on every playback so the peer boundary can forward it. Absent, the
+    // playback is audible to this server's own clients and to nobody bridged.
+    private val relayWorld: RelayWorld? = null
 ) : AudioPlayerManager {
 
     private val activePlaybacks = ConcurrentHashMap<String, AudioPlayerState>()
@@ -61,7 +65,8 @@ class PaperAudioPlayerManager(
                 game = "minecraft",
                 coordinates = Coordinates(x, y, z),
                 dimension = dimensionId,
-                worldUuid = worldUuid
+                worldUuid = worldUuid,
+                relayWorldUuid = relayWorld?.id()
             )
         )
         val json = gson.toJson(request)

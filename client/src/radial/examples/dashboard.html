@@ -33,12 +33,27 @@
         <div class="g-bar">
           <span class="g-ctls">
             <label>Nearby</label>
-            <button data-act="minus">&minus; Player</button>
-            <button data-act="plus">+ Player</button>
+            <button data-act="minus">&minus;</button>
+            <button data-act="plus">+</button>
+            <button data-act="preset" data-n="6">6</button>
+            <button data-act="preset" data-n="15">15</button>
+            <button data-act="preset" data-n="16">16</button>
+            <button data-act="preset" data-n="40">40</button>
+            <button data-act="game" style="margin-left: 10px" aria-pressed="false">
+              Off voice: 0
+            </button>
             <label style="margin-left: 10px">Mode</label>
             <button data-act="ptt" aria-pressed="false">Push-to-talk</button>
+            <button data-act="approach" style="margin-left: 10px">Approaching: 0</button>
+            <button data-act="link" style="margin-left: 10px">Link: up</button>
             <button data-act="fault" style="margin-left: 10px">Fault: none</button>
             <button data-act="status" style="margin-left: 10px">Status</button>
+            <label style="margin-left: 10px">Chat target</label>
+            <button data-act="chat-target" data-target="in-game" aria-pressed="true">In game</button>
+            <button data-act="chat-target" data-target="only" aria-pressed="false">One world</button>
+            <button data-act="chat-target" data-target="choose" aria-pressed="false">Several</button>
+            <button data-act="chat-target" data-target="unavailable" aria-pressed="false">Off</button>
+            <button data-act="chat-target" data-target="moved" aria-pressed="false">Moved</button>
             <button data-act="reset" style="margin-left: 10px">Reset</button>
           </span>
           <span class="g-seg" data-g-device="dsh-frame">
@@ -63,8 +78,7 @@
               <div class="rad-panel">
                 <div class="rad-panel__head">Groups</div>
                 <div class="rad-panel__body">
-                  <button class="rad-new-group"><span data-rad-icon="plus"></span> New group</button>
-                  <div data-groups></div>
+                  <div class="rad-group-list" data-groups></div>
                 </div>
               </div>
 
@@ -84,6 +98,22 @@
                     </button>
                   </span>
                   <span class="rad-dash-top__state">
+                    <button
+                      class="rad-header-btn"
+                      data-jukebox-chip
+                      aria-pressed="false"
+                      aria-label="Mute jukeboxes"
+                    >
+                      <span data-rad-icon="note"></span>
+                    </button>
+                    <button
+                      class="rad-header-btn rad-header-btn--caret rad-desk-only"
+                      data-jukebox-caret
+                      aria-expanded="false"
+                      aria-label="Jukebox volume"
+                    >
+                      <span data-rad-icon="chev"></span>
+                    </button>
                     <span class="rad-desk-only">
                       <span style="display: flex; align-items: center; gap: 10px">
                         <span class="rad-health-dot"></span>
@@ -106,15 +136,23 @@
                 </div>
 
                 <div class="rad-main" data-main>
+                  <!--
+                    Scanning by default, not at rest. A proximity client with nobody nearby is
+                    looking, which is the register the loader shows while it waits; `empty` is
+                    kept for the one case that really is nothing happening, a link that is down.
+                  -->
                   <div class="rad-idle" data-idle>
-                    <div class="rad-ring rad-ring--fixed"><canvas data-rad-ring="empty" data-rad-id="idle-ring"></canvas></div>
+                    <div class="rad-ring rad-ring--fixed"><canvas data-rad-ring="live" data-rad-id="idle-ring"></canvas></div>
                     <span class="rad-idle__caption">
-                      <span class="rad-idle__kicker">Listening</span>
-                      <span class="rad-idle__headline">Nobody within 80 m</span>
-                      <span class="rad-idle__note">
+                      <span class="rad-idle__kicker" data-idle-kicker>Listening</span>
+                      <span class="rad-idle__headline" data-idle-headline>Nobody nearby</span>
+                      <span class="rad-idle__note" data-idle-note>
                         Voices appear here the moment someone walks into range. Nothing to join,
                         nothing to dial.
                       </span>
+                      <button class="rad-btn rad-idle__action" data-idle-status hidden>
+                        Connection status
+                      </button>
                     </span>
                   </div>
 
@@ -152,8 +190,11 @@
                 <div class="rad-chat-dock">
                   <div class="rad-chat-history">
                     <div class="rad-chat__head">
-                      <span class="rad-label">Server chat</span>
-                      <span class="rad-status-chip rad-status-chip--live">Live</span>
+                      <button class="rad-chat-target is-static" data-chat-target data-rad-sheet-open="chat-worlds" aria-label="Where this message goes">
+                        <span class="rad-chat-target__name" data-chat-target-name>Server chat</span>
+                        <span class="rad-chat-target__caret" data-rad-icon="chev"></span>
+                      </button>
+                      <span class="rad-status-chip rad-status-chip--live" data-chat-status>Live</span>
                       <span class="rad-spacer"></span>
                       <button class="rad-icon-btn" data-chat-close aria-label="Close chat">
                         <span data-rad-icon="close"></span>
@@ -161,6 +202,9 @@
                     </div>
                     <div class="rad-chat__body" data-chat-body></div>
                   </div>
+                  <button class="rad-chat-notice" data-chat-notice hidden>
+                    You moved out of Survival &mdash; that message was not sent
+                  </button>
                   <div class="rad-chat-bar">
                     <button class="rad-chat-toggle" data-chat-toggle aria-label="Chat">
                       <span data-rad-icon="chat"></span>
@@ -180,6 +224,24 @@
             <div data-self-pill></div>
 
             <div class="rad-menu" data-rad-menu></div>
+
+            <div class="rad-pop rad-desk-only" data-jukebox-pop hidden>
+              <div class="rad-pop__head">Jukeboxes</div>
+              <input
+                class="rad-range"
+                type="range"
+                min="0"
+                max="1.5"
+                step="0.05"
+                value="1"
+                data-jukebox-gain
+                aria-label="Jukebox volume"
+              />
+              <span class="rad-pop__value" data-jukebox-value>100%</span>
+              <button class="rad-list-row" data-jukebox-mute>
+                <span class="rad-list-row__icon" data-rad-icon="noteoff"></span> Mute jukeboxes
+              </button>
+            </div>
             <div class="rad-scrim" data-rad-sheet-scrim></div>
 
             <div class="rad-sheet" data-rad-sheet="servers">
@@ -198,12 +260,49 @@
               </button>
             </div>
 
+            <div class="rad-sheet" data-rad-sheet="jukebox">
+              <span class="rad-sheet__handle"></span>
+              <button class="rad-sheet__close" data-rad-sheet-close aria-label="Close jukeboxes">
+                <span data-rad-icon="close"></span>
+              </button>
+              <h4 class="rad-sheet__title">Jukeboxes</h4>
+              <div class="rad-sheet__row">
+                <input
+                  class="rad-range"
+                  type="range"
+                  min="0"
+                  max="1.5"
+                  step="0.05"
+                  value="1"
+                  data-jukebox-gain
+                  style="width: 100%"
+                  aria-label="Jukebox volume"
+                />
+                <span class="rad-sheet__value" data-jukebox-value>100%</span>
+              </div>
+              <button class="rad-list-row" data-jukebox-mute>
+                <span class="rad-list-row__icon" data-rad-icon="noteoff"></span> Mute jukeboxes
+              </button>
+            </div>
+
             <div class="rad-sheet" data-rad-sheet="groups">
               <span class="rad-sheet__handle"></span>
+              <button class="rad-sheet__close" data-rad-sheet-close aria-label="Close groups">
+                <span data-rad-icon="close"></span>
+              </button>
               <h4 class="rad-sheet__title">Groups</h4>
-              <div data-sheet-groups></div>
-              <div class="rad-sheet__divider"></div>
-              <button class="rad-list-row"><span class="rad-list-row__icon" data-rad-icon="plus"></span> New group</button>
+              <div class="rad-group-list" data-sheet-groups></div>
+            </div>
+
+            <!-- Only reachable when the player is out of game and has been in more than
+                 one world. In game the target is not a choice, so this never opens. -->
+            <div class="rad-sheet" data-rad-sheet="chat-worlds">
+              <span class="rad-sheet__handle"></span>
+              <button class="rad-sheet__close" data-rad-sheet-close aria-label="Close world picker">
+                <span data-rad-icon="close"></span>
+              </button>
+              <h4 class="rad-sheet__title">Post to</h4>
+              <div data-sheet-chat-worlds></div>
             </div>
           </div>
         </div>
@@ -211,7 +310,7 @@
 
       <section class="g-sec">
         <p class="g-sec__kick">Why it is shaped this way</p>
-        <h2 class="g-sec__title">Four decisions worth keeping</h2>
+        <h2 class="g-sec__title">Five decisions worth keeping</h2>
         <div class="g-grid" style="margin-top: 18px">
           <div class="g-item" style="margin-top: 0">
             <div class="g-item__head"><span class="g-item__name">the ring earns the empty state</span></div>
@@ -249,6 +348,19 @@
               <p class="g-sec__note" style="margin: 0">
                 Pull the list down on a phone, press the dial on desktop. Reconnect lives inside the
                 panel: pulling a list is exploratory and must never take an action on the connection.
+              </p>
+            </div>
+          </div>
+          <div class="g-item" style="margin-top: 0">
+            <div class="g-item__head"><span class="g-item__name">a choice only where there is one</span></div>
+            <div class="g-stage" style="padding: 18px 20px">
+              <p class="g-sec__note" style="margin: 0">
+                One server can host several worlds, so a message has to land in exactly one. Standing
+                in a world settles it and the target is plain text; out of game with one world there is
+                nothing to pick; only out of game with several does it become a button. Offering the
+                choice anywhere else can only put someone&rsquo;s message in front of the wrong people.
+                The world is named in the composer, not just the header, because the scrollback is shut
+                at the moment anyone decides what to type.
               </p>
             </div>
           </div>

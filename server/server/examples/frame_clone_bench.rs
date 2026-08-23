@@ -20,9 +20,10 @@ use clap::Parser;
 use common::game_data::Dimension;
 use common::players::MinecraftPlayer;
 use common::structs::packet::{
-    AudioFramePacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+    AudioFramePacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
 use common::{Coordinate, Orientation, PlayerEnum};
+use common::structs::packet::SpeakerPosition;
 
 #[derive(Debug, Parser)]
 #[clap(about = "Measure the per-frame clone + no-op process_packet cost the routing guard removes")]
@@ -55,19 +56,19 @@ impl CloneBench {
             alternative_identity: None,
             player_uuid: Some("11111111-1111-1111-1111-111111111111".to_string()),
             relay_world_uuid: None,
+            bridged_voice: false,
         });
 
         let packet = QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: Some(PacketOwner {
-                name: "SpeakerPlayer".to_string(),
-                client_id: vec![7u8; 32],
-            }),
+            sender: Some(PacketSender::player(
+                common::Game::Minecraft.membership_key("SpeakerPlayer"),
+                7,
+            )),
             // 160 bytes ~= one 20ms Opus frame at 64kbps
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
-                48000,
-                Some(sender),
+                Some(SpeakerPosition::from_player(&sender)),
                 Some(true),
             )),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
@@ -87,13 +88,13 @@ impl CloneBench {
         let warmup = (self.args.iterations / 20).max(1);
         for _ in 0..warmup {
             let clone = self.packet.clone();
-            let _ = self.cache_manager.process_packet(clone, None).await;
+            let _ = self.cache_manager.process_packet(clone).await;
         }
 
         let started = Instant::now();
         for _ in 0..self.args.iterations {
             let clone = self.packet.clone();
-            let _ = self.cache_manager.process_packet(clone, None).await;
+            let _ = self.cache_manager.process_packet(clone).await;
         }
         started.elapsed().as_nanos() as f64 / self.args.iterations as f64
     }

@@ -58,6 +58,18 @@ impl EndpointBreaker {
         }
     }
 
+    /// Close an endpoint's breaker on proof of reachability gathered outside it.
+    ///
+    /// The reconnect probe reaches the same host over plain HTTPS and is not routed
+    /// through any breaker, so it can observe a server answering while this one is
+    /// still holding a cooldown from the outage that just ended. Left standing, that
+    /// verdict short-circuits the whole recovery — the config refresh, the channel
+    /// list and the position feed's ticket all fail against a server that is up, for
+    /// as long as the cooldown has left to run.
+    pub(crate) fn note_reachable(endpoint: &str) {
+        Self::for_endpoint(endpoint).on_success();
+    }
+
     /// Record a reachable server response (any HTTP status). The server answered,
     /// so the circuit closes.
     pub(crate) fn on_success(&self) {

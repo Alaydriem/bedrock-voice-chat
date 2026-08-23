@@ -1,69 +1,41 @@
 mod audio_sink;
+pub(crate) mod device_lease;
 #[cfg(feature = "e2e")]
 pub(crate) mod frame_clock;
 mod input;
 mod input_core;
+pub(crate) mod job_set;
 mod mono_to_panned;
-mod output;
+pub mod output;
 mod resampler;
 pub(crate) mod sink;
 mod sink_manager;
 pub(crate) mod source;
 
+use anyhow::anyhow;
 use common::structs::audio::StreamEvent;
 use std::sync::Arc;
 
-use crate::audio::types::AudioDevice;
+use crate::audio::AudioDevice;
 
 pub(crate) use audio_sink::AudioSinkType;
+pub(crate) use device_lease::DeviceLease;
+pub(crate) use job_set::JobSet;
 pub(crate) use common::traits::StreamTrait;
 pub(crate) use input::InputStream;
 pub(crate) use output::OutputStream;
 pub(crate) use sink::AudioOutputSink;
 pub(crate) use source::AudioInputSource;
 
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub(crate) enum AudioFrame {
-    F32(AudioFrameData<f32>),
-    I32(AudioFrameData<i32>),
-    I16(AudioFrameData<i16>),
-}
+mod audio_frame;
+mod audio_frame_data;
+mod mute_flags;
+mod noise_gate_flags;
 
-impl AudioFrame {
-    pub fn f32(self) -> Option<AudioFrameData<f32>> {
-        if let AudioFrame::F32(f) = self {
-            return Some(f);
-        }
-
-        None
-    }
-
-    #[allow(unused)]
-    pub fn i32(self) -> Option<AudioFrameData<i32>> {
-        if let AudioFrame::I32(f) = self {
-            return Some(f);
-        }
-
-        None
-    }
-
-    #[allow(unused)]
-    pub fn i16(self) -> Option<AudioFrameData<i16>> {
-        if let AudioFrame::I16(f) = self {
-            return Some(f);
-        }
-
-        None
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct AudioFrameData<T> {
-    pub pcm: Vec<T>,
-    /// Timestamp when audio was captured at the CPAL callback, for accurate recording timecode
-    pub captured_at_ms: u64,
-}
+pub(crate) use audio_frame::AudioFrame;
+pub(crate) use audio_frame_data::AudioFrameData;
+pub(crate) use mute_flags::MuteFlags;
+pub(crate) use noise_gate_flags::NoiseGateFlags;
 
 pub(crate) enum StreamTraitType {
     Input(InputStream),
@@ -129,36 +101,32 @@ impl StreamTraitType {
             Self::Output(stream) => stream.mute_status(),
         }
     }
-}
 
-// Live mute state, readable without locking the audio manager. Both flags are process-global
-// already; this exists so a diagnostic can observe them without reaching into the private stream
-// modules.
-pub(crate) struct MuteFlags;
-
-impl MuteFlags {
-    pub(crate) fn input_muted() -> bool {
-        input::MUTE_INPUT_STREAM.load(std::sync::atomic::Ordering::Relaxed)
+    /// Capture and meter with nothing attached to the network. Input only — there is no
+    /// output equivalent, because a level with no session behind it is a property of a
+    /// microphone and an output stream has nothing to measure.
+    pub async fn start_metering(&mut self) -> Result<(), anyhow::Error> {
+        match self {
+            Self::Input(stream) => stream.start_metering().await,
+            Self::Output(_) => Err(anyhow!("output streams cannot be metered")),
+        }
     }
 
-    pub(crate) fn output_muted() -> bool {
-        output::MUTE_OUTPUT_STREAM.load(std::sync::atomic::Ordering::Relaxed)
+    pub fn reset_stats(&self) {
+        match self {
+            Self::Input(stream) => stream.reset_stats(),
+            Self::Output(_) => {}
+        }
     }
 
-    // Test-only setters. The flags are process-global and normally moved by a keybind, the UI, an
-    // in-game command or a WebSocket client; without these a test can only observe the default and
-    // so cannot tell a wired field from a hardcoded one.
-    #[cfg(any(test, feature = "e2e"))]
-    pub(crate) fn set_input_muted(muted: bool) {
-        input::MUTE_INPUT_STREAM.store(muted, std::sync::atomic::Ordering::Relaxed);
+    /// Whether a session capture stream is supposed to be delivering frames right now.
+    ///
+    /// Always false for an output stream: there is no capture counter behind it, so absence
+    /// there says nothing.
+    pub fn capture_expected(&self) -> bool {
+        match self {
+            Self::Input(stream) => stream.capture_expected(),
+            Self::Output(_) => false,
+        }
     }
-
-    #[cfg(any(test, feature = "e2e"))]
-    pub(crate) fn set_output_muted(muted: bool) {
-        output::MUTE_OUTPUT_STREAM.store(muted, std::sync::atomic::Ordering::Relaxed);
-    }
-}
-
-pub(crate) fn output_mute_state() -> bool {
-    output::MUTE_OUTPUT_STREAM.load(std::sync::atomic::Ordering::Relaxed)
 }

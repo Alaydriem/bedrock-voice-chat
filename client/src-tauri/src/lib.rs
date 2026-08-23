@@ -4,9 +4,9 @@ pub use crate::structs::app_state::AppState;
 pub(crate) use audio::AudioPacket;
 pub(crate) use audio::AudioStreamManager;
 pub(crate) use audio::recording::RecordingManager;
-use common::consts::variant::{Variant, get_variant};
+use common::consts::variant::{Variant};
 pub(crate) use flume::{Receiver, Sender};
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 pub use network::NetworkPacket;
 pub(crate) use network::NetworkStreamManager;
 use std::sync::Arc;
@@ -17,17 +17,25 @@ use tauri_plugin_store::StoreExt;
 
 use common::structs::DeepLink;
 use deep_links::DeepLinkHandler;
+use tauri_plugin_curia::curia;
 
-mod analytics;
+pub mod analytics;
+pub mod android;
 // Re-exported for the integration test crate (a separate crate root that can
 // only reach `pub` items) to cover first-run and install-date resolution.
 pub use analytics::InstallMarker;
+pub use analytics::PlatformId;
 mod api;
+pub use api::FetchCache;
 pub mod app_builder;
 pub mod audio;
 mod auth;
+// Re-exported for the integration test crate (a separate crate root that can only reach
+// `pub` items) to cover how a server URL and an API path are joined.
+pub use auth::ServerEndpoint;
 #[cfg(feature = "bedrock-protocol")]
 pub mod bedrock;
+pub mod chat;
 mod commands;
 pub mod control;
 mod deep_links;
@@ -37,23 +45,29 @@ pub use discord::{
     DiscordLinkService, DiscordOAuth, DiscordRoleClient, DiscordTraitState, RoleCategory,
 };
 pub mod events;
-mod feature_flags;
+pub mod feature_flags;
+pub mod groups;
 pub use feature_flags::FeatureFlagService;
 pub use feature_flags::flagsmith::FlagsmithProvider;
 // Re-exported for the integration test crate to assert that an unconfigured
 // Flagsmith leaves the Realms Connect kill switch open.
-#[cfg(feature = "e2e")]
-pub use feature_flags::flags::bedrock::RealmsConnectEnabled;
+pub mod i18n;
 mod iap;
 // Re-exported for the integration test crate (a separate crate root that can
 // only reach `pub` items) to cover the store price-selection fallback.
 #[cfg(feature = "e2e")]
 pub use crate::iap::store::StoreProvider;
-#[cfg(desktop)]
 pub mod keybinds;
 mod keyring;
-mod logging;
-mod network;
+// Re-exported for the integration test crate (a separate crate root that can only reach
+// `pub` items) to cover how a platform keystore failure is classified.
+pub use keyring::{CredentialWriteSet, KeyringFault, KeyringFaultKind};
+pub mod logging;
+// Public for the one behavioural seam the integration tests need: `TransportVerdict`,
+// whose contract is that a demotion outlives the reconnect that produced it. That cannot
+// be observed from outside the crate any other way.
+pub mod network;
+pub mod players;
 mod structs;
 #[cfg(feature = "e2e")]
 pub mod testkit;
@@ -124,7 +138,7 @@ pub fn run() {
             enable_logs: true,
             traces_sample_rate: 0.1,
             environment: Some(
-                match get_variant() {
+                match Variant::get() {
                     Variant::Dev => "development",
                     Variant::Release => "production",
                 }
@@ -163,50 +177,27 @@ pub fn run() {
                 None => warn!("Second instance launched but no main window exists to focus"),
             }
         }));
-        builder = builder.plugin(tauri_plugin_dialog::init());
     }
 
-    let sentry_logger = Arc::new(logging::SentryLogger::new(true));
+    // Every platform. It had been registered inside the desktop-only block above, next to
+    // single-instance, so on a phone `dialog.open` failed with "plugin not found" — and the
+    // audio library's upload is a file picker.
+    builder = builder.plugin(tauri_plugin_dialog::init());
 
     #[cfg(feature = "bedrock-protocol")]
     let bedrock_log_channel = Arc::new(crate::bedrock::proxy::log::BedrockLogChannel::new());
-    #[cfg(feature = "bedrock-protocol")]
-    let bedrock_log_sender = bedrock_log_channel.sender();
 
     #[cfg(feature = "bedrock-protocol")]
     let bedrock_connect_error_channel = Arc::new(crate::bedrock::BedrockConnectErrorChannel::new());
 
+    #[cfg(feature = "bedrock-protocol")]
+    let bedrock_chat_channel = Arc::new(crate::bedrock::BedrockChatChannel::new());
+
+    #[cfg(feature = "bedrock-protocol")]
+    let bedrock_chat_injector = crate::bedrock::ChatInjector::new_shared();
+
     builder
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .level(
-                    std::env::var("LOG_LEVEL")
-                        .ok()
-                        .and_then(|s| s.parse::<log::LevelFilter>().ok())
-                        .unwrap_or(log::LevelFilter::Info),
-                )
-                .level_for("webrtc", log::LevelFilter::Warn)
-                .level_for("webrtc_ice", log::LevelFilter::Warn)
-                .level_for("webrtc_sctp", log::LevelFilter::Warn)
-                .level_for("webrtc_mdns", log::LevelFilter::Warn)
-                .level_for("webrtc_dtls", log::LevelFilter::Warn)
-                .level_for("dtls", log::LevelFilter::Warn)
-                .targets([
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stderr),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Dispatch({
-                        let dispatch = fern::Dispatch::new()
-                            .chain(Box::new(sentry_logger.clone()) as Box<dyn log::Log>);
-                        #[cfg(feature = "bedrock-protocol")]
-                        let dispatch = dispatch.chain(Box::new(
-                            crate::bedrock::proxy::log::BedrockLogger::new(bedrock_log_sender.clone()),
-                        ) as Box<dyn log::Log>);
-                        dispatch
-                    })),
-                ])
-                .build()
-        )
+        .plugin(tauri_plugin_curia::init())
         .plugin(tauri_plugin_audio_permissions::init())
         .plugin(tauri_plugin_age_signals::init())
         .plugin(tauri_plugin_keyring::init())
@@ -225,16 +216,21 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::diagnostics::get_link_diagnostics,
             commands::diagnostics::get_diagnostics_report,
+            commands::diagnostics::reset_link_diagnostics,
+            // Localization
+            crate::commands::i18n::i18n_locales,
+            crate::commands::i18n::i18n_load,
             // About
             crate::commands::about::get_app_info,
             crate::commands::about::export_logs,
+            crate::commands::diagnostics::logging_smoke_test,
             crate::commands::about::get_telemetry,
             crate::commands::about::set_telemetry,
+            crate::commands::about::get_platform_id,
+            crate::commands::about::refresh_platform_id,
             // Authentication
             crate::auth::commands::server_login,
             crate::auth::commands::logout,
-            crate::auth::commands::start_hytale_device_flow,
-            crate::auth::commands::poll_hytale_status,
             crate::auth::commands::code_login,
             crate::auth::commands::link_java_identity,
             // Environment Variable Data
@@ -247,9 +243,14 @@ pub fn run() {
             crate::commands::audio::stop_audio_device,
             crate::commands::audio::get_devices,
             crate::commands::audio::mute,
+            crate::commands::audio::set_mute,
+            crate::commands::audio::set_deafened,
             crate::commands::audio::mute_status,
             crate::commands::audio::is_stopped,
             crate::commands::audio::update_stream_metadata,
+            crate::commands::audio::set_jukebox_muted,
+            crate::commands::audio::toggle_jukebox_muted,
+            crate::commands::audio::set_jukebox_gain,
             crate::commands::audio::reset_asm,
             crate::commands::audio::start_recording,
             crate::commands::audio::stop_recording,
@@ -257,35 +258,58 @@ pub fn run() {
             crate::commands::audio::is_recording,
             crate::commands::audio::get_current_players,
             crate::commands::audio::restart_audio_stream,
+            crate::commands::audio::start_input_meter,
+            crate::commands::audio::stop_input_meter,
+            crate::commands::audio::test_output_device,
             // Recordings Management
+            // Per-player volume and mute
+            crate::commands::players::player_settings_list,
+            crate::commands::players::player_settings_set_gain,
+            crate::commands::players::player_settings_set_muted,
+            crate::commands::players::player_settings_forget,
+            crate::commands::players::player_settings_reset_all,
+            crate::commands::players::player_settings_touch,
+            crate::commands::players::player_settings_publish,
             crate::commands::recordings::get_recording_sessions,
+            crate::commands::recordings::get_recording_tracks,
             crate::commands::recordings::delete_recording_session,
+            crate::commands::recordings::rename_recording_session,
             crate::commands::recordings::export_recording,
             // Stream Information
             crate::commands::network::stop_network_stream,
             crate::commands::network::change_network_stream,
+            crate::commands::network::probe_server,
+            crate::commands::network::probe_voice_path,
+            crate::commands::network::check_protocol_compatibility,
             crate::commands::network::reset_nsm,
             // API implementation
             crate::api::commands::api_initialize_client,
+            crate::api::commands::api_pool_client,
             crate::api::commands::api_ping,
             crate::api::commands::api_get_config,
+            crate::api::commands::api_websocket_ticket,
             crate::api::commands::api_create_channel,
             crate::api::commands::api_delete_channel,
             crate::api::commands::api_list_channels,
             crate::api::commands::api_get_channel,
             crate::api::commands::api_channel_event,
+            crate::commands::groups::group_create,
+            crate::commands::groups::group_join,
+            crate::commands::groups::group_leave,
             crate::api::commands::api_rename_channel,
             crate::api::commands::api_get_player_gamerpic,
             // WebSocket Server
             crate::commands::websocket::update_websocket_config,
-            crate::commands::websocket::start_websocket_server,
-            crate::commands::websocket::stop_websocket_server,
-            crate::commands::websocket::is_websocket_running,
+            crate::commands::websocket::restart_websocket_external,
+            crate::commands::websocket::websocket_internal_endpoint,
+            crate::commands::websocket::websocket_clients,
             crate::commands::websocket::generate_encryption_key,
             // Analytics
             crate::commands::analytics::track_event,
             // Keybinds
             crate::commands::keybinds::start_keybind_listener,
+            crate::commands::keybinds::set_ptt,
+            crate::commands::keybinds::voice_runtime_state,
             // Feature Flags
             crate::commands::feature_flags::get_feature_flag,
             crate::commands::feature_flags::refresh_feature_flags,
@@ -298,10 +322,20 @@ pub fn run() {
             crate::commands::discord::discord_unlink,
             // Audio Library
             crate::commands::audio_library::upload_audio_file,
+            crate::commands::audio_library::upload_audio_bytes,
+            crate::commands::audio_library::resolve_display_name,
             crate::commands::audio_library::list_audio_files,
             crate::commands::audio_library::delete_audio_file,
             crate::auth::commands::refresh_server_state,
             crate::commands::audio_library::get_audio_stream_url,
+            // Admin
+            crate::commands::admin::admin_list_users,
+            crate::commands::admin::admin_create_user,
+            crate::commands::admin::admin_set_banished,
+            crate::commands::admin::admin_list_permissions,
+            crate::commands::admin::admin_set_permission,
+            crate::commands::admin::admin_clear_permission,
+            crate::commands::admin::api_introspect,
             // Keyring
             crate::commands::keyring::store_credentials,
             crate::commands::keyring::get_credentials,
@@ -317,6 +351,12 @@ pub fn run() {
             // Bedrock
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_start_proxy,
+            crate::commands::bedrock::bedrock_send_chat,
+            crate::commands::chat::chat_availability,
+            crate::commands::chat::chat_enabled,
+            crate::commands::chat::chat_send,
+            crate::commands::chat::chat_transport,
+            crate::commands::chat::chat_worlds,
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_stop_proxy,
             #[cfg(feature = "bedrock-protocol")]
@@ -343,15 +383,12 @@ pub fn run() {
             crate::commands::bedrock::bedrock_restore_auth,
             #[cfg(feature = "bedrock-protocol")]
             crate::commands::bedrock::bedrock_force_refresh,
-            #[cfg(feature = "bedrock-protocol")]
-            crate::commands::bedrock::bedrock_realms_enabled,
             crate::commands::iap::iap_list_offers,
             crate::commands::iap::iap_purchase,
             crate::commands::iap::iap_restore,
             crate::commands::iap::iap_refresh,
         ])
         .setup(move |app| {
-            let sentry_logger = sentry_logger.clone();
             // Set Windows timer resolution for high-precision audio timing
             #[cfg(target_os = "windows")]
             {
@@ -368,13 +405,13 @@ pub fn run() {
                 unsafe {
                     NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
                     let current_ms = current_res as f64 / 10_000.0;
-                    info!("Current Windows timer resolution: {:.2}ms", current_ms);
+                    debug!("Current Windows timer resolution: {:.2}ms", current_ms);
 
                     timeBeginPeriod(1);
 
                     NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
                     let new_ms = current_res as f64 / 10_000.0;
-                    info!("Set Windows timer resolution to 1ms (actual: {:.2}ms)", new_ms);
+                    debug!("Set Windows timer resolution to 1ms (actual: {:.2}ms)", new_ms);
 
                     if new_ms > 2.0 {
                         warn!("WARNING: Timer resolution is degraded ({:.2}ms). This will cause audio jitter!", new_ms);
@@ -383,30 +420,121 @@ pub fn run() {
                 }
             }
 
-            info!("BVC Variant {:?}", crate::commands::env::get_variant());
-            info!("Protocol Version: {}", common::consts::version::PROTOCOL_VERSION);
+            debug!("BVC Variant {:?}", crate::commands::env::get_variant());
+            debug!("Protocol Version: {}", common::consts::version::PROTOCOL_VERSION);
             let sentry_enabled = sentry::Hub::current().client().map(|c| c.is_enabled()).unwrap_or(false);
-            info!("Sentry: {}", if sentry_enabled { "initialized" } else { "not configured (DSN missing or invalid)" });
+            debug!("Sentry: {}", if sentry_enabled { "initialized" } else { "not configured (DSN missing or invalid)" });
             let store = app.store("store.json")?;
 
             let telemetry = Arc::new(crate::logging::Telemetry::new(store.get("telemetry").and_then(|v| v.as_bool()).unwrap_or(true)));
 
-            sentry_logger.set(telemetry.is_enabled());
+            let log_context = crate::logging::LogContext::new_shared();
 
-            let telemetry_filter = telemetry.clone();
-            use tracing_subscriber::prelude::*;
-            let registry = tracing_subscriber::registry()
-                .with(
-                    sentry::integrations::tracing::layer()
-                        .with_filter(tracing_subscriber::filter::dynamic_filter_fn(move |_, _| {
-                            telemetry_filter.is_enabled()
-                        }))
-                );
+            let mut sinks = vec![crate::logging::LogSinkType::Console(
+                tauri_plugin_curia::ConsoleSink::new(
+                    curia::Level::Info,
+                    crate::logging::HumanFormatter::new().formatter(),
+                ),
+            )];
+
+            // Logging must never take the app down with it. An unwritable log
+            // directory degrades to console-only and says so once, rather than
+            // aborting startup.
+            match app.path().app_log_dir().map_err(|e| e.to_string()).and_then(|dir| {
+                tauri_plugin_curia::FileSink::new(
+                    dir,
+                    "bedrock-voice-chat".to_string(),
+                    curia::Level::Debug,
+                    crate::logging::JsonFormatter::new(log_context.clone()).formatter(),
+                )
+                .map_err(|e| e.to_string())
+            }) {
+                Ok(file) => sinks.push(crate::logging::LogSinkType::File(file)),
+                Err(e) => eprintln!("log file unavailable, continuing without it: {e}"),
+            }
+
+            if sentry_enabled {
+                let sentry_sink = Arc::new(crate::logging::SentrySink::new(
+                    telemetry.clone(),
+                    log_context.clone(),
+                    curia::Level::Info,
+                ));
+                app.manage(sentry_sink.clone());
+                sinks.push(crate::logging::LogSinkType::Sentry(sentry_sink));
+            }
+
+            // Feeds the Connect pane's log view. Registered at Debug so the
+            // buffer holds everything and the view decides what to show.
             #[cfg(feature = "bedrock-protocol")]
-            let registry = registry.with(crate::bedrock::proxy::log::BedrockTracingLayer::new(
-                bedrock_log_channel.sender(),
+            sinks.push(crate::logging::LogSinkType::Bedrock(
+                crate::logging::BedrockSink::new(
+                    bedrock_log_channel.sender(),
+                    std::env::var("LOG_LEVEL")
+                        .ok()
+                        .and_then(|s| match s.to_lowercase().as_str() {
+                            "error" => Some(curia::Level::Error),
+                            "warn" => Some(curia::Level::Warn),
+                            "info" => Some(curia::Level::Info),
+                            "debug" => Some(curia::Level::Debug),
+                            "trace" => Some(curia::Level::Trace),
+                            _ => None,
+                        })
+                        .unwrap_or(curia::Level::Debug),
+                ),
             ));
-            registry.init();
+
+            curia::Logger::install(Box::new(curia::Dispatcher::new(sinks)))
+                .map_err(|e| e.to_string())?;
+
+            // Restores the policy tauri_plugin_log's .level() / .level_for()
+            // carried. Without it every dependency's debug output reaches every
+            // sink: h2 and rustls alone will fill the log file.
+            let max_level = std::env::var("LOG_LEVEL")
+                .ok()
+                .and_then(|s| match s.to_lowercase().as_str() {
+                    "error" => Some(curia::Level::Error),
+                    "warn" => Some(curia::Level::Warn),
+                    "info" => Some(curia::Level::Info),
+                    "debug" => Some(curia::Level::Debug),
+                    "trace" => Some(curia::Level::Trace),
+                    _ => None,
+                })
+                .unwrap_or(curia::Level::Info);
+
+            let bridge = curia::TracingBridge::to_global()
+                .with_max_level(max_level)
+                .with_target_level("webrtc", curia::Level::Warn)
+                .with_target_level("webrtc_ice", curia::Level::Warn)
+                .with_target_level("webrtc_sctp", curia::Level::Warn)
+                .with_target_level("webrtc_mdns", curia::Level::Warn)
+                .with_target_level("webrtc_dtls", curia::Level::Warn)
+                .with_target_level("dtls", curia::Level::Warn)
+                .with_target_level("h2", curia::Level::Warn)
+                .with_target_level("hyper", curia::Level::Warn)
+                .with_target_level("rustls", curia::Level::Warn)
+                .with_target_level("tokio_util", curia::Level::Warn)
+                // The Connect pane wants this traffic in full; the Sentry sink
+                // excludes it by target rather than by level.
+                .with_target_level("bedrock_protocol", curia::Level::Debug)
+                .with_target_level("bedrock_client", curia::Level::Debug)
+                .with_target_level("bedrock_network", curia::Level::Debug)
+                .with_target_level("bedrock_server", curia::Level::Debug)
+                .with_target_level("rust_raknet", curia::Level::Debug)
+                .with_target_level("raknet", curia::Level::Debug)
+                .with_target_level("rakrs", curia::Level::Debug);
+
+            use tracing_subscriber::prelude::*;
+            tracing_subscriber::registry().with(bridge).init();
+
+            // Dependencies still emitting through the log crate. Only one global
+            // log logger can exist, so a plugin that registers its own wins the
+            // race and every log:: event downstream is lost. Silent loss is worse
+            // than the noise of saying so.
+            if curia::TracingBridge::install_log_capture().is_err() {
+                eprintln!(
+                    "log capture unavailable: another component already registered a global log logger; log:: events will not reach the sinks"
+                );
+            }
 
             #[cfg(feature = "bedrock-protocol")]
             {
@@ -438,6 +566,38 @@ pub fn run() {
                         }
                     }
                 });
+
+                // Realm chat, observed by the proxy. Lagged is skipped rather than fatal: a
+                // reader that fell behind loses the oldest lines, which is the right trade for
+                // a live relay that stores nothing anyway.
+                let mut chat_rx = bedrock_chat_channel.sender().subscribe();
+                let chat_emit_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        match chat_rx.recv().await {
+                            Ok(line) => {
+                                // Resolved per line rather than captured here. This runs long
+                                // before `build_managed_state`, so reading the policy at setup
+                                // panics; by the time a line arrives it has been managed.
+                                // A missing policy reads as permitted.
+                                //
+                                // Skipped rather than ending the loop: the policy changes when
+                                // the client connects somewhere else, and a broken loop would
+                                // never relay again for the life of the process.
+                                let relay = tauri::Manager::try_state::<
+                                    std::sync::Arc<crate::chat::ChatPolicy>,
+                                >(&chat_emit_handle)
+                                .is_none_or(|policy| policy.is_enabled());
+                                if !relay {
+                                    continue;
+                                }
+                                let _ = chat_emit_handle.emit("bedrock-chat", &line);
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                        }
+                    }
+                });
             }
 
             let stored_install_id = store
@@ -461,12 +621,17 @@ pub fn run() {
                 let _ = store.save();
             }
             let install_id = marker.install_id.clone();
-            log::info!("Platform ID: {}", install_id);
+            log::debug!("Platform ID: {}", install_id);
+
+            // One identity, shared by analytics and feature flags, so the About pane can
+            // replace it without a restart.
+            let platform_id = analytics::PlatformId::new_shared(install_id.clone());
+            app.manage(platform_id.clone());
 
             // Analytics service with provider pattern
             let mut analytics_service = analytics::AnalyticsService::new(
                 telemetry.clone(),
-                install_id.clone(),
+                platform_id.clone(),
             );
 
             if let (Some(key), Some(host)) = (option_env!("POSTHOG_KEY"), option_env!("POSTHOG_HOST")) {
@@ -481,7 +646,7 @@ pub fn run() {
                             )
                         )
                     );
-                    info!("PostHog analytics provider configured");
+                    debug!("PostHog analytics provider configured");
                 }
             }
 
@@ -491,7 +656,7 @@ pub fn run() {
                         analytics::sentry::Provider::new(),
                     ),
                 );
-                info!("Sentry analytics provider configured");
+                debug!("Sentry analytics provider configured");
             }
 
             let analytics_service = Arc::new(analytics_service);
@@ -504,7 +669,7 @@ pub fn run() {
                     option_env!("FLAGSMITH_SERVER")
                         .unwrap_or("https://flagsmith.bedrockvoicechat.com")
                         .to_string(),
-                    install_id.clone(),
+                    platform_id.clone(),
                     option_env!("APP_BUILD_NUMBER")
                         .and_then(|s| s.parse::<i64>().ok())
                         .unwrap_or(0),
@@ -574,7 +739,7 @@ pub fn run() {
             // Register event handler for incoming deep links (when app is already running)
             let app_handle = handle.clone();
             app.deep_link().on_open_url(move |event| {
-                info!("on_open_url callback fired");
+                debug!("on_open_url callback fired");
                 for url in event.urls() {
                     info!(
                         "Processing deep link URL from on_open_url: {}",
@@ -623,9 +788,17 @@ pub fn run() {
             keyring_service.initialize()?;
             app.manage(Mutex::new(keyring_service));
 
+            // Spawned so the platform keystore's first touch runs alongside the webview's bundle
+            // parse rather than in front of the launch route, which is where it was measured
+            // costing 662 ms of a 3081 ms launch. State is registered above, so the task cannot
+            // race it.
+            let keyring_warm_handle = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                keyring::KeyringService::warm(keyring_warm_handle).await;
+            });
+
             let app_state = AppState::new(store.clone(), handle.clone());
             app.manage(telemetry);
-            app.manage(sentry_logger);
             app.manage(Mutex::new(app_state));
 
             handle.plugin(tauri_plugin_iap::init())?;
@@ -684,15 +857,9 @@ pub fn run() {
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_eject_injector));
             #[cfg(feature = "bedrock-protocol")]
-            let bedrock_presence_injector = crate::bedrock::PresenceInjector::new_shared();
-            #[cfg(feature = "bedrock-protocol")]
-            app.manage(Arc::clone(&bedrock_presence_injector));
-            #[cfg(feature = "bedrock-protocol")]
-            let bedrock_announce_injector = crate::bedrock::AnnounceInjector::new_shared();
-            #[cfg(feature = "bedrock-protocol")]
-            app.manage(Arc::clone(&bedrock_announce_injector));
-            #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_connect_error_channel));
+            app.manage(Arc::clone(&bedrock_chat_channel));
+            app.manage(Arc::clone(&bedrock_chat_injector));
             #[cfg(feature = "bedrock-protocol")]
             app.manage(Arc::clone(&bedrock_log_channel));
 
@@ -709,11 +876,13 @@ pub fn run() {
                 Some(Arc::clone(&bedrock_beacon_cache)),
                 #[cfg(feature = "bedrock-protocol")]
                 Some(Arc::clone(&bedrock_eject_injector)),
-                #[cfg(feature = "bedrock-protocol")]
-                Some(Arc::clone(&bedrock_presence_injector)),
-                #[cfg(feature = "bedrock-protocol")]
-                Some(Arc::clone(&bedrock_announce_injector)),
             )?;
+
+            // The listener owns the voice-mode transition and the push-to-talk hold. Both
+            // exist on a phone, which reaches them through commands rather than hotkeys, so
+            // it is managed everywhere and only the shortcut plumbing below is desktop-only.
+            let listener = Arc::new(keybinds::KeybindListener::new(handle.clone()));
+            app.manage(listener.clone());
 
             // KeybindManager listens for global key events and triggers actions in AudioActionsManager for desktop
             #[cfg(desktop)]
@@ -722,7 +891,6 @@ pub fn run() {
 
                 let action_map: Arc<parking_lot::RwLock<keybinds::ActionMap>> =
                     Arc::new(parking_lot::RwLock::new(Vec::new()));
-                let listener = Arc::new(keybinds::listener::KeybindListener::new(handle.clone()));
 
                 let handler_map = action_map.clone();
                 let handler_listener = listener.clone();
@@ -758,6 +926,7 @@ pub fn run() {
 
             // Event Handlers
             crate::events::Notification::register(app);
+
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -768,6 +937,24 @@ pub fn run() {
                 analytics.track(common::structs::AnalyticsEvent::AppExited, None);
                 tauri::async_runtime::block_on(analytics.flush())
                     .unwrap_or_else(|e| log::warn!("Final analytics flush failed: {}", e));
+
+                // Proximity stamps are held back for two seconds of quiet, so an exit inside
+                // that window would otherwise drop them. This is the only exit hook the app
+                // has — a Tauri desktop client installs no signal handlers.
+                if let Some(players) =
+                    app_handle.try_state::<Arc<crate::players::PlayerSettingsService>>()
+                {
+                    players
+                        .flush()
+                        .unwrap_or_else(|e| log::warn!("Final player settings flush failed: {e}"));
+                }
+
+                // Drains the queued tail before the Sentry guard drops. Last
+                // events of a session are the ones worth having.
+                if let Some(sentry_sink) = app_handle.try_state::<Arc<crate::logging::SentrySink>>()
+                {
+                    sentry_sink.shutdown();
+                }
             }
         });
 }

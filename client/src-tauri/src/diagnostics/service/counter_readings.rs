@@ -10,6 +10,14 @@ pub(super) struct CounterReadings {
     pub(super) at: Option<Instant>,
     pub(super) datagrams_sent: u64,
     pub(super) datagrams_received: u64,
+    // Audio frames only, told apart from `datagrams_sent`, which counts position, presence,
+    // control and health traffic as well. A microphone rate taken from the latter reads as
+    // healthy on a client whose capture stream is dead.
+    pub(super) audio_frames_sent: u64,
+    // Meter messages published to the webview. The cost this whole path is tuned against on
+    // Android, where every message is a unit of main-thread work.
+    pub(super) meter_events: u64,
+    pub(super) frames_captured: u64,
     pub(super) frames_with_signal: u64,
     pub(super) packets_sent: u64,
     pub(super) packets_received: u64,

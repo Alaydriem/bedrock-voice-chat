@@ -1,7 +1,7 @@
-pub mod diagnostic_metrics;
-pub mod metrics_collector;
-pub mod network_metrics;
+mod collector;
+mod diagnostic;
+mod network;
 
-pub use diagnostic_metrics::DiagnosticMetrics;
-pub use metrics_collector::MetricsCollector;
-pub use network_metrics::NetworkMetrics;
+pub use collector::MetricsCollector;
+pub use diagnostic::DiagnosticMetrics;
+pub use network::NetworkMetrics;

@@ -1,7 +1,7 @@
-pub(crate) mod create;
-pub(crate) mod delete;
-pub(crate) mod event;
-pub(crate) mod rename;
+pub mod create;
+pub mod delete;
+pub mod event;
+pub mod rename;
 
 use crate::http::openapi::{RouteSpec, TagDefinition};
 use crate::stream::quic::CacheManager;
@@ -30,16 +30,17 @@ inventory::submit! {
         },
     }
 }
+use crate::http::guards::PlayerGuard;
 use crate::http::openapi::CustomJsonResponseRequired;
 use common::structs::channel::Channel;
-use rocket::{State, http::Status, mtls::Certificate};
+use rocket::{State, http::Status};
 use rocket_okapi::openapi;
 
 /// List channels on the server.
 #[openapi(tag = "Channels")]
 #[get("/?<id>")]
 pub async fn channel_list(
-    _identity: Certificate<'_>,
+    _guard: PlayerGuard,
     cache_manager: &State<CacheManager>,
     id: Option<String>,
 ) -> CustomJsonResponseRequired<Vec<Channel>> {

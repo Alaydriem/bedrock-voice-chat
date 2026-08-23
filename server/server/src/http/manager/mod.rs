@@ -20,20 +20,30 @@ use std::sync::{Arc, Mutex};
 /// Manager for the Rocket HTTP server
 pub struct RocketManager {
     config: ApplicationConfig,
+    /// Where this listener binds, which is loopback: the public port belongs to the TLS
+    /// demultiplexer. Shared with the demultiplexer rather than copied, so a port this
+    /// has to re-pick is one the demultiplexer relays to rather than one it has lost.
+    bind: crate::demux::ApiBind,
     webhook_receiver: WebhookReceiver,
     cache_manager: CacheManager,
     player_registrar: PlayerRegistrarService,
     identity_service: PlayerIdentityService,
     audio_playback_service: Arc<AudioPlaybackService>,
     bedrock_event_service: Arc<BedrockEventService>,
+    chat_service: Arc<crate::services::ChatService>,
     cert_service: Arc<CertificateService>,
-    hytale_session_cache: routes::api::HytaleSessionCache,
+    revocations: Arc<crate::services::CertificateRevocationService>,
     audio_stream_token_cache: AudioStreamTokenCache,
-    server_peer_store: Option<Arc<crate::relay::ServerPeerStore>>,
-    relay_inject_delivery: Option<Arc<dyn crate::relay::LocalInjectDelivery>>,
     metrics: Arc<crate::services::MetricsService>,
     readiness: Arc<crate::runtime::ReadinessState>,
+    /// `None` when no `peer` block is configured, which is the default. The peer
+    /// link route reports that as a 404 rather than failing to mount, so the
+    /// route's absence never has to be distinguished from a server that is down.
+    peer_plane: Option<Arc<crate::relay::PeerPlane>>,
     shutdown_handle: Arc<Mutex<Option<rocket::Shutdown>>>,
+    /// Stops the shared position pass when the HTTP server does, so a restart does not
+    /// leave a second ticker rebuilding the index alongside the first.
+    feed_cancel: tokio_util::sync::CancellationToken,
     #[cfg(feature = "bedrock")]
     transfer_target_cache: crate::services::bedrock::TransferTargetCache,
 }
@@ -41,99 +51,56 @@ pub struct RocketManager {
 impl RocketManager {
     pub fn new(
         config: ApplicationConfig,
+        bind: crate::demux::ApiBind,
         webhook_receiver: WebhookReceiver,
         cache_manager: CacheManager,
         player_registrar: PlayerRegistrarService,
         identity_service: PlayerIdentityService,
         audio_playback_service: Arc<AudioPlaybackService>,
         bedrock_event_service: Arc<BedrockEventService>,
+        chat_service: Arc<crate::services::ChatService>,
         cert_service: Arc<CertificateService>,
-        server_peer_store: Option<Arc<crate::relay::ServerPeerStore>>,
-        relay_inject_delivery: Option<Arc<dyn crate::relay::LocalInjectDelivery>>,
+        revocations: Arc<crate::services::CertificateRevocationService>,
         audio_stream_token_cache: Option<AudioStreamTokenCache>,
         metrics: Arc<crate::services::MetricsService>,
         readiness: Arc<crate::runtime::ReadinessState>,
+        peer_plane: Option<Arc<crate::relay::PeerPlane>>,
         #[cfg(feature = "bedrock")]
         transfer_target_cache: crate::services::bedrock::TransferTargetCache,
     ) -> Self {
         Self {
             config,
+            bind,
             webhook_receiver,
             cache_manager,
             player_registrar,
             identity_service,
             audio_playback_service,
             bedrock_event_service,
+            chat_service,
             cert_service,
-            hytale_session_cache: routes::api::HytaleSessionCache::new(),
+            revocations,
             audio_stream_token_cache: audio_stream_token_cache
                 .unwrap_or_else(AudioStreamTokenCache::new),
-            server_peer_store,
-            relay_inject_delivery,
             metrics,
             readiness,
+            peer_plane,
             shutdown_handle: Arc::new(Mutex::new(None)),
+            feed_cancel: tokio_util::sync::CancellationToken::new(),
             #[cfg(feature = "bedrock")]
             transfer_target_cache,
         }
     }
 
 
-    /// Announces, unmissably, that this host cannot give the HTTP listener a
-    /// dual-stack socket even though `listen` asks for one.
-    ///
-    /// Emitted at ERROR rather than WARN deliberately. `get_tracing_log_level` maps
-    /// both `error` and any unrecognised level to `Level::ERROR`, so a warning would
-    /// be filtered out on exactly the hosts whose operator has turned logging down —
-    /// and the failure this describes is otherwise silent: IPv4 clients keep working,
-    /// so nothing looks wrong until an IPv6-only player cannot log in.
-    fn warn_if_http_is_not_dual_stack(&self) {
-        if !self.config.server.http_listen_is_downgraded() {
-            if self.config.server.listen_is_wildcard_v6() {
-                tracing::info!(
-                    "HTTP and QUIC are both listening dual-stack on [{}]",
-                    self.config.server.listen
-                );
-            }
-            return;
-        }
-
-        let platform_cause = if cfg!(windows) {
-            "Windows enables IPV6_V6ONLY by default and Rocket 0.5 binds its own \
-             socket (no listener API), so the flag cannot be cleared."
-        } else {
-            "net.ipv6.bindv6only is set to 1 on this host; it must be 0 for a \
-             wildcard IPv6 bind to accept IPv4 peers."
-        };
-
-        tracing::error!(
-            "\n\
-             ==========================================================================\n\
-             ==  IPv6 HTTP IS NOT AVAILABLE ON THIS HOST                             ==\n\
-             ==========================================================================\n\
-             listen = \"{}\" requests a dual-stack listener, but a wildcard IPv6 TCP\n\
-             bind is not dual-stack here, so HTTP is bound to {} and serves IPv4 only.\n\
-             \n\
-             Cause: {}\n\
-             \n\
-             Effect: QUIC voice remains dual-stack, so IPv6 works for audio. Login,\n\
-             channels, and every other API call go over HTTP, so an IPv6-ONLY CLIENT\n\
-             CANNOT SIGN IN TO THIS SERVER. IPv4 clients are unaffected.\n\
-             \n\
-             Fix: run the server on Linux with net.ipv6.bindv6only=0 (the default), or\n\
-             put a dual-stack reverse proxy in front of the HTTP port.\n\
-             ==========================================================================",
-            self.config.server.listen,
-            crate::config::Server::FALLBACK_LISTEN,
-            platform_cause
-        );
-    }
-
     /// Starts the Rocket HTTP server - this is the main entry point
     pub async fn start(&self) -> Result<(), Error> {
-        tracing::info!("Starting Rocket HTTP server manager");
+        // The reservation is released here and nowhere else, so the port stays
+        // occupied for the whole of startup and is free only for the moment
+        // between this line and Rocket's own bind.
+        let bind = self.bind.claim_for_bind()?;
 
-        self.warn_if_http_is_not_dual_stack();
+        tracing::info!(bind = %bind, "Starting Rocket HTTP server manager");
 
         // Ensure the assets directory exists
         let assets_path = std::path::Path::new(&self.config.server.assets_path);
@@ -147,7 +114,7 @@ impl RocketManager {
             }
         }
 
-        match self.config.get_rocket_config() {
+        match self.config.get_rocket_config(bind) {
             Ok(figment) => {
                 let cache = cached::TimedCache::with_lifespan_and_refresh(
                     std::time::Duration::from_secs(3600),
@@ -172,7 +139,25 @@ impl RocketManager {
                     )
                     .allow_credentials(cors_config.allow_credentials);
 
+                // One pass per tick, feeding every open position socket. Spawned here rather
+                // than per connection: the scan it replaced ran per socket over the whole
+                // player cache, which is quadratic in observers times players.
+                //
+                // Bucketed at the feed's scope rather than voice range, so an observer's own
+                // cell and the eight around it are guaranteed to hold everyone in scope of
+                // them.
+                let position_feed = crate::services::PositionFeedService::new_shared(
+                    crate::services::PositionService::for_voice_range(
+                        self.config.voice.spatial_audio.broadcast_range,
+                    )
+                    .scope_range(),
+                );
+                position_feed
+                    .clone()
+                    .spawn(self.cache_manager.clone(), self.feed_cancel.clone());
+
                 let mut rocket = rocket::custom(figment)
+                    .manage(position_feed)
                     .manage(crate::services::HealthService::new_shared(
                         self.readiness.clone(),
                         self.config.server.tls.certificate.clone(),
@@ -187,12 +172,14 @@ impl RocketManager {
                     .manage(self.identity_service.clone())
                     .manage(self.audio_playback_service.clone())
                     .manage(self.bedrock_event_service.clone())
+                    .manage(self.chat_service.clone())
                     .manage(self.cert_service.clone())
+                    .manage(self.revocations.clone())
                     .manage(self.config.permissions.clone())
                     .manage(self.config.audio.clone())
-                    .manage(self.hytale_session_cache.clone())
                     .manage(self.audio_stream_token_cache.clone())
-                    .manage(self.metrics.clone());
+                    .manage(self.metrics.clone())
+                    .manage(self.peer_plane.clone());
 
                 #[cfg(feature = "bedrock")]
                 {
@@ -203,26 +190,10 @@ impl RocketManager {
                 // peer-link endpoints two servers sharing a realm use directly.
                 // Discovery is decentralized (in-realm `!bvca` announce); there is no
                 // central relay role to mount. Present whenever the relay plane built.
-                if let (Some(store), Some(inject)) =
-                    (&self.server_peer_store, &self.relay_inject_delivery)
-                {
-                    tracing::info!(
-                        "relay plane active, mounting /relay/{{offer,peer-redeem,peer-link}}"
-                    );
-                    rocket = rocket.manage(store.clone()).manage(inject.clone()).mount(
-                        "/api/relay",
-                        routes![
-                            routes::api::relay::offer::offer,
-                            routes::api::relay::peer_redeem::peer_redeem,
-                            routes::api::relay::peer_link::peer_link,
-                        ],
-                    );
-                }
-
                 let mut rocket = rocket
                     .attach(AppDb::init())
                     .attach(cors.to_cors().unwrap())
-                    .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", migrate))
+                    .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", RocketManager::migrate))
                     .mount(
                         "/assets",
                         rocket::fs::FileServer::from(&self.config.server.assets_path),
@@ -237,7 +208,10 @@ impl RocketManager {
                     // upgrade is not a JSON route and has no response schema.
                     .mount(
                         "/api",
-                        routes![routes::api::websocket::positions::positions],
+                        routes![
+                            routes::api::websocket::positions::positions,
+                            routes::api::websocket::chat::chat,
+                        ],
                     );
 
                 for (prefix, route_list) in crate::http::openapi::OpenApiSpec::routes() {
@@ -254,13 +228,7 @@ impl RocketManager {
                     tracing::info!("OpenAPI docs enabled at /docs");
                 }
 
-                let rocket = rocket.register(
-                    "/",
-                    catchers![
-                        routes::catchers::default_catcher,
-                        rocket_governor::rocket_governor_catcher
-                    ],
-                );
+                let rocket = rocket.register("/", catchers![routes::catchers::default_catcher]);
 
                 match rocket.ignite().await {
                     Ok(ignite) => {
@@ -285,6 +253,7 @@ impl RocketManager {
     /// while a `start()` future is still being polled.
     pub async fn stop(&self) -> Result<(), Error> {
         tracing::info!("Stopping Rocket HTTP server");
+        self.feed_cancel.cancel();
         if let Some(handle) = self.shutdown_handle.lock().unwrap().take() {
             handle.notify();
         }
@@ -315,19 +284,21 @@ impl common::traits::StreamTrait for RocketManager {
     }
 }
 
-/// Migrate the database
-async fn migrate(rocket: rocket::Rocket<rocket::Build>) -> rocket::fairing::Result {
-    let conn = match AppDb::fetch(&rocket) {
-        Some(db) => &db.conn,
-        None => {
-            tracing::error!("Migration: Failed to fetch database connection from Rocket");
-            return Err(rocket);
-        }
-    };
+impl RocketManager {
+    /// Migrate the database
+    async fn migrate(rocket: rocket::Rocket<rocket::Build>) -> rocket::fairing::Result {
+        let conn = match AppDb::fetch(&rocket) {
+            Some(db) => &db.conn,
+            None => {
+                tracing::error!("Migration: Failed to fetch database connection from Rocket");
+                return Err(rocket);
+            }
+        };
 
-    match Migrator::up(conn, None).await {
-        Ok(_) => tracing::info!("Migration: All migrations applied successfully"),
-        Err(e) => tracing::error!("Migration: Failed to run migrations: {}", e),
+        match Migrator::up(conn, None).await {
+            Ok(_) => tracing::info!("Migration: All migrations applied successfully"),
+            Err(e) => tracing::error!("Migration: Failed to run migrations: {}", e),
+        }
+        Ok(rocket)
     }
-    Ok(rocket)
 }

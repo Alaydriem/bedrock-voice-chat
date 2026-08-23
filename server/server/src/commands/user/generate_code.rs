@@ -3,8 +3,8 @@ use common::Game;
 use common::request::admin::GenerateCodeRequest;
 
 use super::super::Cli;
-use crate::commands::admin_api_client::AdminApiClient;
-use crate::commands::admin_api_error::AdminApiError;
+use crate::commands::admin::AdminApiClient;
+use crate::commands::admin::AdminApiError;
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Generate a login code for a player", long_about = None)]
@@ -13,7 +13,7 @@ pub struct Config {
     #[clap(short, long)]
     pub player: String,
 
-    /// The game type (minecraft or hytale)
+    /// The game type (minecraft)
     #[clap(short, long, value_enum)]
     pub game: Game,
 

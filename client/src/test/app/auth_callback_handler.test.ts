@@ -1,0 +1,264 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockInvoke, invokeCalls } from "../tauri";
+import { AuthCallbackHandler } from "../../js/app/deepLinkHandlers/authCallbackHandler";
+
+vi.mock("../../js/app/analytics", () => ({
+  default: { track: vi.fn() },
+}));
+
+/**
+ * An authorization code is single-use, and this app has several ways to present the same
+ * one: every deep-link intent writes `pending_deep_link` *and* emits `deep-link-received`,
+ * and on Android an intent arrives while the app is backgrounded or cold. The callback
+ * therefore lands either side of a page load, and the router's in-memory record of what it
+ * has already routed does not survive one.
+ *
+ * The second exchange spends a code the provider has retired. It answers that the code is
+ * invalid, the server reports the login as failed, and the screen tells someone their
+ * account was refused — for a code that worked the first time.
+ *
+ * A fresh handler on a shared store is the test's stand-in for that second page: same
+ * device, same store, no memory.
+ */
+
+const STATE = "state-token";
+const SERVER = "https://s4.example.com";
+
+function fakeStore(seed: Record<string, unknown> = {}) {
+  const data = new Map<string, unknown>(Object.entries(seed));
+  return {
+    get: vi.fn(async (key: string) => data.get(key)),
+    set: vi.fn(async (key: string, value: unknown) => void data.set(key, value)),
+    delete: vi.fn(async (key: string) => void data.delete(key)),
+    save: vi.fn(async () => {}),
+    has: vi.fn(async (key: string) => data.has(key)),
+  };
+}
+
+function store() {
+  return fakeStore({ auth_state_token: STATE, auth_state_endpoint: SERVER });
+}
+
+function callback(code: string): string {
+  return `bedrock-voice-chat://auth/?code=${code}&state=${STATE}`;
+}
+
+function loginAttempts(): number {
+  return invokeCalls().filter((call) => call.cmd === "server_login").length;
+}
+
+describe("exchanging an authorization code", () => {
+  beforeEach(() => {
+    // Keeps failLogin from navigating: it only redirects when the callback landed
+    // somewhere other than the login page.
+    window.history.replaceState({}, "", "/login");
+    mockInvoke({
+      server_login: () => {
+        throw new Error("401 Unauthorized: the sign-in did not complete");
+      },
+    });
+  });
+
+  it("sends the code for exchange", async () => {
+    const handler = new AuthCallbackHandler(store() as never);
+    await handler.handle(callback("CODE_A"));
+    expect(loginAttempts()).toBe(1);
+  });
+
+  it("does not send the same code again from a fresh page", async () => {
+    const shared = store();
+
+    await new AuthCallbackHandler(shared as never).handle(callback("CODE_B"));
+    await new AuthCallbackHandler(shared as never).handle(callback("CODE_B"));
+
+    expect(loginAttempts()).toBe(1);
+  });
+
+  /**
+   * Claimed before the exchange, not after. A code is spent the moment it is sent, so a
+   * failed exchange must not leave it looking available — retrying it cannot succeed, and
+   * the failure it produces is the one that reads as a refused account.
+   */
+  it("treats a code as spent even when the exchange failed", async () => {
+    const shared = store();
+    const handler = new AuthCallbackHandler(shared as never);
+
+    await handler.handle(callback("CODE_C"));
+    await handler.handle(callback("CODE_C"));
+
+    expect(loginAttempts()).toBe(1);
+  });
+
+  it("still exchanges a code from a second sign-in", async () => {
+    const shared = store();
+
+    await new AuthCallbackHandler(shared as never).handle(callback("CODE_D"));
+    await new AuthCallbackHandler(shared as never).handle(callback("CODE_E"));
+
+    expect(loginAttempts()).toBe(2);
+  });
+
+  /**
+   * The guard keeps a bounded history. Older codes falling out of it is intended — they are
+   * long expired — but the sign-in in front of the user must never be the one evicted.
+   */
+  it("keeps the most recent codes, not the oldest", async () => {
+    const shared = store();
+
+    for (const code of ["C1", "C2", "C3", "C4", "C5", "C6"]) {
+      await new AuthCallbackHandler(shared as never).handle(callback(code));
+    }
+    expect(loginAttempts()).toBe(6);
+
+    await new AuthCallbackHandler(shared as never).handle(callback("C6"));
+    expect(loginAttempts()).toBe(6);
+  });
+
+  it("clears the pending callback so the next launch does not replay it", async () => {
+    const shared = store();
+
+    await new AuthCallbackHandler(shared as never).handle(callback("CODE_F"));
+    await new AuthCallbackHandler(shared as never).handle(callback("CODE_F"));
+
+    expect(shared.delete).toHaveBeenCalledWith("pending_deep_link");
+  });
+
+  // The state is compared to what was stored when the sign-in opened. A callback from some
+  // other attempt must not spend a code against this one.
+  it("does not exchange a callback whose state does not match", async () => {
+    const handler = new AuthCallbackHandler(store() as never);
+    await handler.handle(`bedrock-voice-chat://auth/?code=CODE_G&state=someone-elses`);
+    expect(loginAttempts()).toBe(0);
+  });
+
+  /**
+   * A successful login deletes the state token, so a duplicate intent arriving afterwards
+   * cannot pass the state comparison. Recognised as a duplicate it must not be treated as a
+   * state mismatch, which would persist a login error and send somebody who is signed in and
+   * part-way through setup back to the login page.
+   */
+  it("does not report an error for a duplicate that arrives after the login succeeded", async () => {
+    mockInvoke({
+      get_credentials: () => ({ gamertag: "Someone", certificate: "PEM" }),
+    });
+    const spent = fakeStore({ redeemed_auth_codes: ["CODE_H"], auth_state_endpoint: SERVER });
+
+    await new AuthCallbackHandler(spent as never).handle(callback("CODE_H"));
+
+    expect(loginAttempts()).toBe(0);
+    expect(spent.set).not.toHaveBeenCalledWith("login_error", expect.anything());
+  });
+
+  /**
+   * A code is claimed before it is exchanged, so "spent" does not mean "signed in". On Android
+   * the auth intent routinely reloads the webview mid-exchange: the in-flight `server_login`
+   * dies with the context, the pending callback survives because only success clears it, and
+   * the fresh context routes it again and finds the code already claimed.
+   *
+   * Dropping it there was silent — no error, no navigation — so the sign-in appeared to do
+   * nothing at all. Whether it worked is a question about the session, not about the code.
+   */
+  it("carries a spent code through to setup when the session exists", async () => {
+    mockInvoke({
+      get_credentials: () => ({ gamertag: "Someone", certificate: "PEM" }),
+    });
+    const spent = fakeStore({ redeemed_auth_codes: ["CODE_I"], auth_state_endpoint: SERVER });
+
+    await new AuthCallbackHandler(spent as never).handle(callback("CODE_I"));
+
+    expect(spent.set).toHaveBeenCalledWith("current_server", SERVER);
+    expect(spent.set).toHaveBeenCalledWith("current_player", "Someone");
+  });
+
+  it("reports a failure for a spent code when no session was established", async () => {
+    // Unmocked, so the credential lookup rejects exactly as it does with an empty keyring.
+    mockInvoke({});
+    const spent = fakeStore({ redeemed_auth_codes: ["CODE_J"], auth_state_endpoint: SERVER });
+
+    await new AuthCallbackHandler(spent as never).handle(callback("CODE_J"));
+
+    expect(spent.set).toHaveBeenCalledWith("login_error", expect.any(String));
+    expect(spent.set).not.toHaveBeenCalledWith("current_server", expect.anything());
+  });
+
+  it("reports a failure for a spent code with no server to check", async () => {
+    mockInvoke({});
+    const spent = fakeStore({ redeemed_auth_codes: ["CODE_K"] });
+
+    await new AuthCallbackHandler(spent as never).handle(callback("CODE_K"));
+
+    expect(spent.set).toHaveBeenCalledWith("login_error", expect.any(String));
+  });
+});
+
+/**
+ * The sign-in succeeded and the credentials could not be persisted. Retrying cannot help until
+ * the device's secure storage is fixed, so it is a terminal screen with the remedy rather than an
+ * inline warning on the login form.
+ *
+ * The Rust command prefixes the fault code, so the webview classifies on a code this app owns
+ * rather than on a platform message it does not control.
+ */
+describe("a credential write that failed", () => {
+  let replaced: string[];
+
+  beforeEach(() => {
+    window.history.replaceState({}, "", "/login");
+    replaced = [];
+    vi.spyOn(window.location, "replace").mockImplementation((url: string | URL) => {
+      replaced.push(String(url));
+    });
+  });
+
+  function failingWith(message: string) {
+    mockInvoke({
+      server_login: () => {
+        throw new Error(message);
+      },
+    });
+  }
+
+  it("sends an unusable keyring to the keyring fault screen", async () => {
+    failingWith(
+      "AUTH04: Failed to set keyring password for gamerpic: Platform error: Couldn't access platform storage: Secret Service: no result found",
+    );
+
+    await new AuthCallbackHandler(store() as never).handle(callback("CODE_K1"));
+
+    expect(replaced).toContain("/error?code=AUTH04");
+  });
+
+  it("sends any other storage failure to the generic storage fault screen", async () => {
+    failingWith(
+      "AUTH03: Failed to set keyring password for gamerpic: Platform error: no space left on device",
+    );
+
+    await new AuthCallbackHandler(store() as never).handle(callback("CODE_K2"));
+
+    expect(replaced).toContain("/error?code=AUTH03");
+  });
+
+  /**
+   * A platform message can contain "denied". Reaching the 403 branch it would tell someone to
+   * join the Minecraft server in-game to fix their keyring, so the storage branch has to be
+   * tested before it.
+   */
+  it("does not mistake a storage message containing 'denied' for an access denial", async () => {
+    failingWith("AUTH03: Platform error: access is denied");
+
+    await new AuthCallbackHandler(store() as never).handle(callback("CODE_K3"));
+
+    expect(replaced).toContain("/error?code=AUTH03");
+    expect(replaced).not.toContain("/error?code=AUTH02");
+  });
+
+  // The single-use code must not be left looking replayable on a launch that follows.
+  it("clears the pending callback", async () => {
+    failingWith("AUTH04: Secret Service: no result found");
+    const shared = store();
+
+    await new AuthCallbackHandler(shared as never).handle(callback("CODE_K4"));
+
+    expect(shared.delete).toHaveBeenCalledWith("pending_deep_link");
+  });
+});

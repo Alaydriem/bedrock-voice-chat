@@ -6,38 +6,30 @@ use crate::structs::channel::ChannelEvents;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ChannelEventPacket {
     pub event: ChannelEvents,
-    pub name: String,
+    /// The player the membership change applies to, which is legitimately somebody other
+    /// than the sender when the channel API acts on a player's behalf.
+    pub name: crate::PlayerIdentity,
     pub channel: String,
     pub channel_name: Option<String>,
-    pub creator: Option<String>,
+    /// `None` only when the channel is already gone and there is no owner left to name.
+    pub creator: Option<crate::PlayerIdentity>,
     pub timestamp: Option<i64>,
 }
 
 impl ChannelEventPacket {
-    pub fn new(event: ChannelEvents, player_name: String, channel_id: String) -> Self {
-        Self {
-            event,
-            name: player_name,
-            channel: channel_id,
-            channel_name: None,
-            creator: None,
-            timestamp: None,
-        }
-    }
-
-    pub fn new_full(
+    pub fn new(
         event: ChannelEvents,
-        player_name: String,
-        channel_id: String,
+        name: crate::PlayerIdentity,
+        channel: String,
         channel_name: Option<String>,
-        creator: Option<String>,
+        creator: Option<crate::PlayerIdentity>,
     ) -> Self {
         use std::time::{SystemTime, UNIX_EPOCH};
 
         Self {
             event,
-            name: player_name,
-            channel: channel_id,
+            name,
+            channel,
             channel_name,
             creator,
             timestamp: Some(

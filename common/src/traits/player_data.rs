@@ -1,3 +1,4 @@
+use crate::game_data::Dimension;
 use crate::{Coordinate, Game, Orientation};
 
 /// Core trait - ALL players implement this
@@ -10,6 +11,57 @@ pub trait PlayerData: Send + Sync {
     }
     fn get_game(&self) -> Game;
     fn clone_box(&self) -> Box<dyn PlayerData>;
+
+    /// The canonical identity this player is keyed on everywhere: `game:gamertag`.
+    ///
+    /// Derived rather than stored, because the game is already the variant tag and the bare
+    /// name is already the `name` field. Holding the composed form as a third piece of state
+    /// is what let the two forms drift apart.
+    ///
+    /// This is the only place a canonical identity is produced in Rust. `Game::membership_key`
+    /// is its equivalent for callers that hold the game and the name loose.
+    fn identity(&self) -> crate::PlayerIdentity {
+        self.get_game().membership_key(self.get_name())
+    }
+
+    /// The world this player is in, as the identifier cross-server peering scopes on.
+    ///
+    /// Each game answers for itself: Minecraft's is the mod-supplied `relay_world_uuid`,
+    /// which is deliberately not a Minecraft world UUID. `None` means the player cannot
+    /// be scoped to a world, so peering has no question to which "yes" is a safe answer.
+    ///
+    /// On the trait rather than on `Game`, because `Game` is only the variant tag — the
+    /// value itself lives on the player. Callers must never reach for a concrete variant
+    /// to find it; doing so is what silently confined peering to one game.
+    fn world_identifier(&self) -> Option<&str> {
+        None
+    }
+
+    /// Whether this player's voice connection is held by something other than this server.
+    ///
+    /// A bridged player never appears in the QUIC registry, because their client speaks to
+    /// the mod and their audio reaches us over the peer link. Without this the server's only
+    /// answer is "no voice connection", and the client tells everybody standing beside them
+    /// that they cannot hear you — while they are hearing you.
+    ///
+    /// Reported by the source that owns the other connection, never inferred from traffic:
+    /// traffic answers who is speaking, and a connected listener who is quiet answers no.
+    fn has_bridged_voice(&self) -> bool {
+        false
+    }
+
+    /// This player's dimension, as the type anything positional is placed against.
+    ///
+    /// `None` means the player cannot be placed in one — either the game has no notion of
+    /// a dimension, or it has its own type that is not this one. A game in the second case
+    /// answers `None` here rather than pretending to convert.
+    ///
+    /// On the trait for the same reason as `world_identifier` — a caller reaching
+    /// for a concrete variant to read it is how a behaviour ends up quietly
+    /// confined to one game.
+    fn dimension(&self) -> Option<Dimension> {
+        None
+    }
 }
 
 /// Spatial communication trait

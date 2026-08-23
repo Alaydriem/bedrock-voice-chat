@@ -16,6 +16,8 @@ use crate::http::pool::Db;
 pub async fn banish_user(
     admin: AdminGuard,
     db: Db<'_>,
+    revocations: &rocket::State<std::sync::Arc<crate::services::CertificateRevocationService>>,
+    cache_manager: &rocket::State<crate::stream::quic::CacheManager>,
     payload: Json<BanishUserRequest>,
 ) -> Result<Json<BanishedUserResponse>, Status> {
     let conn = db.into_inner();
@@ -44,6 +46,9 @@ pub async fn banish_user(
         })?
         .ok_or(Status::NotFound)?;
 
+    let certificate = player_record.certificate.clone();
+    let player_id = player_record.id;
+
     let mut active: player::ActiveModel = player_record.into();
     active.banished = ActiveValue::Set(req.banish);
 
@@ -51,6 +56,35 @@ pub async fn banish_user(
         tracing::error!("banish_user: update failed: {}", e);
         Status::InternalServerError
     })?;
+
+    // Banning has to act on the certificate the player already holds. Setting the flag alone
+    // took effect only at their next login, which a banned player has no reason to perform.
+    //
+    // A failure here is a 500, not a warning: a ban that wrote the flag but not the
+    // revocation is precisely the defect this closes, and reporting success would hide it.
+    if req.banish {
+        revocations
+            .revoke_pem(conn, &certificate, Some(player_id), "banished")
+            .await
+            .map_err(|e| {
+                tracing::error!("banish_user: failed to revoke certificate: {}", e);
+                Status::InternalServerError
+            })?;
+
+        if let Some(fingerprint) =
+            common::structs::certificate::CertificateFingerprint::from_pem(&certificate)
+            && let Some(registry) = cache_manager.get_connection_registry()
+            && registry.revoke_session(&fingerprint, "Your access to this server has been revoked.")
+        {
+            tracing::info!(
+                "banish_user: closed the live session held by {}",
+                req.gamertag
+            );
+        }
+    }
+
+    // Unbanning deliberately does not un-revoke. The certificate is gone; the player logs in
+    // and is issued a new one, which `banished` no longer blocks.
 
     Ok(Json(BanishedUserResponse {
         gamertag: req.gamertag,

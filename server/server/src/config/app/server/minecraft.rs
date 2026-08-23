@@ -4,7 +4,7 @@ fn default_minecraft_client_id() -> String {
     "a17f9693-f01f-4d1d-ad12-1f179478375d".to_string()
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Minecraft {
     pub access_token: String,
     #[serde(default = "default_minecraft_client_id")]

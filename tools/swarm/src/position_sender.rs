@@ -105,7 +105,7 @@ impl PositionSender {
         let resp = self
             .client
             .post(&self.url)
-            .header("X-MC-Access-Token", &self.access_token)
+            .header("Authorization", format!("Bearer {}", self.access_token))
             .json(&json!({ "game": "minecraft", "players": players }))
             .send()
             .await

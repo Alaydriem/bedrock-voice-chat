@@ -1,0 +1,22 @@
+services:
+  relay:
+    build:
+      context: .
+      args:
+        # Keep in step with the `iroh` version in relay/lib/Cargo.toml.
+        IROH_VERSION: "1.0.3"
+    restart: unless-stopped
+    # Host networking: the relay reports the addresses it observes, and a bridged
+    # network makes it observe the bridge rather than the internet.
+    network_mode: host
+    environment:
+      # Replaces the whole `access.shared_token` list in relay.toml, so the real
+      # token never lives in the file or the image. Must equal the value BVC was
+      # built with (`BVC_RELAY_ACCESS_TOKEN` in CI).
+      IROH_RELAY_ACCESS_TOKEN: ${IROH_RELAY_ACCESS_TOKEN:?set it to the token BVC was built with}
+    volumes:
+      - ./relay.toml:/etc/iroh-relay/relay.toml:ro
+      - relay-certs:/var/lib/iroh-relay/certs
+
+volumes:
+  relay-certs:

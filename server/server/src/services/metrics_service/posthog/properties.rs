@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use crate::services::metrics_service::heartbeat_snapshot::HeartbeatSnapshot;
+use crate::services::metrics_service::host_capability::HostCapability;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct EventProperties {
@@ -25,4 +26,10 @@ pub struct EventProperties {
     pub uptime_secs: Option<u64>,
     #[serde(flatten)]
     pub heartbeat: Option<HeartbeatSnapshot>,
+    // Nested rather than flattened, unlike `heartbeat`. Its fields are `variant`,
+    // `platform` and `fetch` — names general enough that flattening them into the
+    // shared property namespace invites exactly the silent duplicate-key collision
+    // described above.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_capability: Option<HostCapability>,
 }

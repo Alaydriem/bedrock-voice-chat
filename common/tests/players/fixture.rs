@@ -20,6 +20,7 @@ impl PlayerFixture {
             alternative_identity: None,
             player_uuid: None,
             relay_world_uuid: None,
+            bridged_voice: false,
         }
     }
 
@@ -29,6 +30,7 @@ impl PlayerFixture {
     ) -> MinecraftPlayer {
         MinecraftPlayer {
             relay_world_uuid: relay_world_uuid.map(String::from),
+            bridged_voice: false,
             ..Self::make(world_uuid)
         }
     }

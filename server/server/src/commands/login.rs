@@ -2,23 +2,20 @@ use clap::Parser;
 use common::Game;
 use common::request::CodeLoginRequest;
 
-use crate::commands::admin_api_client::AdminApiClient;
+use crate::commands::admin::AdminApiClient;
 use crate::identity::{Identity, IdentityStore};
 
+/// The code is the whole credential.
+///
+/// Neither a gamertag nor a game is asked for: the server resolves both from the code and
+/// returns them on the response, so the identity is written from what the server says
+/// rather than from what the operator typed.
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "Authenticate the CLI against a BVC server using a one-time code", long_about = None)]
 pub struct Config {
-    /// Gamertag the code was issued for
-    #[clap(short = 'p', long, env = "BVC_GAMERTAG")]
-    pub gamertag: String,
-
     /// One-time login code (will be prompted on stdin if omitted)
     #[clap(long)]
     pub code: Option<String>,
-
-    /// Game (minecraft or hytale)
-    #[clap(short, long, value_enum, default_value = "minecraft")]
-    pub game: Game,
 }
 
 impl Config {
@@ -41,10 +38,7 @@ impl Config {
             std::process::exit(1);
         }
 
-        let request = CodeLoginRequest {
-            gamertag: self.gamertag.clone(),
-            code,
-        };
+        let request = CodeLoginRequest { code };
 
         let response = match AdminApiClient::login_with_code(&server_url, None, &request).await {
             Ok(r) => r,
@@ -54,9 +48,13 @@ impl Config {
             }
         };
 
+        // A server too old to report the game predates this flow's only other caller
+        // being Minecraft, which is what it would have defaulted to anyway.
+        let game = response.game.clone().unwrap_or(Game::Minecraft);
+
         let identity = Identity {
             gamertag: response.gamertag.clone(),
-            game: self.game.clone(),
+            game: game.clone(),
             server_url: server_url.clone(),
             cert_pem: response.certificate,
             key_pem: response.certificate_key,
@@ -72,7 +70,7 @@ impl Config {
         println!(
             "Logged in as {} ({}) -> identity stored",
             response.gamertag,
-            self.game.as_str()
+            game.as_str()
         );
     }
 

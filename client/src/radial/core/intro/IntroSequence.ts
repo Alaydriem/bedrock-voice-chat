@@ -180,8 +180,12 @@ export class IntroSequence {
   renderAt(t: number): void {
     const cfg = this.#cfg;
     const reduce = this.#reduce;
-    const w = cfg.width;
-    const h = cfg.height;
+    // A fluid sequence measures its box every frame, which is what makes a window
+    // resize need no handling here. `fit` returning false means the canvas has no
+    // layout box yet, and painting into a 0x0 store would only clear it.
+    if (cfg.fluid && !this.surface.fit()) return;
+    const w = cfg.fluid ? this.surface.width : cfg.width;
+    const h = cfg.fluid ? this.surface.height : cfg.height;
     // The renderers take milliseconds; the sequence is expressed in seconds.
     const ms = t * 1000;
 
@@ -264,6 +268,7 @@ export class IntroSequence {
   }
 
   #applySize(): void {
+    if (this.#cfg.fluid) return;
     this.surface.resize(this.#cfg.width, this.#cfg.height);
   }
 }

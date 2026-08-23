@@ -27,7 +27,7 @@ export class NetControlSender implements ControlSender {
         body,
         [
           ['Content-Type', 'application/json'],
-          ['X-MC-Access-Token', this.config.accessToken],
+          ['Authorization', `Bearer ${this.config.accessToken}`],
           ['Accept', 'application/json'],
         ],
         5,

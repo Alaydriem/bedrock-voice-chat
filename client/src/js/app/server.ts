@@ -1,11 +1,12 @@
-import { info, error } from '@tauri-apps/plugin-log';
-import { writable, type Writable, type Readable } from 'svelte/store';
+import { info } from '@charlesportwoodii/tauri-plugin-curia';
 
 import BVCApp from './BVCApp.ts';
 
-import { ServerHealthService } from './services/ServerHealthService';
-import { ServerListStore } from './services/ServerListStore';
-import type { ServerListEntry } from './services/ServerListStore';
+import { AddServerRoute } from './server/AddServerRoute';
+import { ServerRosterManager } from './server/ServerRosterManager';
+import type { ServerLanding } from './server/ServerLanding';
+import type { NextAction } from './shell/NextAction';
+import { BootTimeline } from './shell/BootTimeline';
 
 declare global {
   interface Window {
@@ -14,87 +15,54 @@ declare global {
 }
 
 export default class Server extends BVCApp {
-  private isRefreshingStore: Writable<boolean>;
-  public readonly isRefreshing: Readable<boolean>;
+  public readonly roster: ServerRosterManager;
 
-  private serversStore: Writable<ServerListEntry[]>;
-  public readonly servers: Readable<ServerListEntry[]>;
-
-  private healthService: ServerHealthService;
-  private serverListStore: ServerListStore;
-
-  constructor() {
+  constructor(roster: ServerRosterManager = new ServerRosterManager()) {
     super();
-    this.isRefreshingStore = writable(false);
-    this.isRefreshing = { subscribe: this.isRefreshingStore.subscribe };
-    this.serversStore = writable([]);
-    this.servers = { subscribe: this.serversStore.subscribe };
-    this.healthService = new ServerHealthService();
-    this.serverListStore = new ServerListStore();
+    this.roster = roster;
   }
 
-  async initialize() {
+  /**
+   * Decide whether this screen is the destination.
+   *
+   * No saved servers goes to sign-in, and one saved server goes straight to its dashboard once
+   * local credentials check out. Returning the destination rather than navigating lets the
+   * caller keep the boot overlay up over both, so the list cannot flash on its way past.
+   *
+   * The preflight never gates this. It is the list's diagnostic — it explains a server that
+   * will not work to somebody choosing between several — and the connect path measures the
+   * network for itself either way.
+   */
+  async initialize(): Promise<ServerLanding> {
+    const timeline = BootTimeline.shared();
+
     if (await this.initializeDeepLinks()) {
-      return;
+      return { kind: 'handoff' };
+    }
+    timeline.mark('/ deep links');
+
+    const count = await this.roster.load();
+    timeline.mark(`/ roster.load (${count} server(s))`);
+
+    if (count === 0) {
+      info('No servers saved, going to sign-in');
+      return { kind: 'navigate', href: ServerRosterManager.SIGN_IN_HREF };
     }
 
-    const serverList = await this.serverListStore.getServerList();
-
-    if (serverList.length === 0) {
-      info("No servers found, redirecting to login page");
-      window.location.href = "/login";
-      return;
+    if (count === 1) {
+      const sole = await this.roster.soleDestination();
+      timeline.mark('/ soleDestination (credentials + cert, local)');
+      if (sole.kind === 'navigate') return sole;
     }
 
-    if (serverList.length === 1) {
-      const server = serverList[0].server;
-
-      try {
-        const result = await this.healthService.check(server);
-        switch (result.status) {
-          case 'connect':
-            window.location.href = "/dashboard";
-            return;
-          case 'reauth':
-            window.location.href = `/login?reauth=true&server=${server}`;
-            return;
-          case 'missing':
-            window.location.href = "/login";
-            return;
-          case 'version_mismatch':
-            break;
-        }
-      } catch (e) {
-        error(`Server unreachable or credentials invalid for ${server}: ${e}`);
-        window.location.href = `/login?reauth=true&server=${server}`;
-        return;
-      }
-    }
-
-    // Reveal the selection UI only once we know we are staying on this page.
-    // Every branch above either redirects or returns, keeping the preloader
-    // overlay up so a single-server auto-redirect never flashes the grid.
-    this.serversStore.set(serverList);
-    this.showPreloader();
+    // The list is the destination, so the plates settle in front of the user rather than
+    // behind the overlay.
+    void this.roster.sweep();
+    return { kind: 'show' };
   }
 
-  async refreshAll(): Promise<void> {
-    this.isRefreshingStore.set(true);
-    try {
-      const serverList = await this.serverListStore.getServerList();
-      if (serverList.length === 0) {
-        info("Server list empty after refresh, redirecting to login page");
-        window.location.href = "/login";
-        return;
-      }
-      this.serversStore.set(serverList);
-    } finally {
-      this.isRefreshingStore.set(false);
-    }
-  }
-
-  addServer(): void {
-    window.location.href = "/login?addserver=true&return=/server";
+  addServer(): NextAction {
+    return { kind: 'navigate', href: AddServerRoute.HREF };
   }
 
   showPreloader(): void {

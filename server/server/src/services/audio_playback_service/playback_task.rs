@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use common::game_data::Dimension;
 use common::structs::packet::{
-    AudioFrameMetadata, AudioFramePacket, JukeboxMetadata, PacketOwner, PacketType,
+    AudioFrameMetadata, AudioFramePacket, JukeboxMetadata, PacketSender, PacketType,
+    SpeakerPosition,
     QuicNetworkPacket, QuicNetworkPacketData,
 };
 use common::{Coordinate, PlayerEnum};
@@ -55,10 +56,10 @@ impl PlaybackTask {
         let start = tokio::time::Instant::now();
         let mut sent = 0usize;
 
-        let packet_owner = PacketOwner {
-            name: self.jukebox_name.clone(),
-            client_id: self.event_id.as_bytes().to_vec(),
-        };
+        // The jukebox name already carries a slice of the event id, so concurrent playbacks
+        // stay distinguishable without a device id — and a device id would be a lie, because
+        // no connection is speaking.
+        let packet_sender = PacketSender::for_service(self.jukebox_name.clone());
 
         for (i, frame) in self.frames.iter().enumerate() {
             let next_tick = start + Duration::from_millis(20 * i as u64);
@@ -79,15 +80,14 @@ impl PlaybackTask {
                     ))];
                     let audio_frame = AudioFramePacket::new(
                         frame.clone(),
-                        48000,
-                        Some(self.synthetic_player.clone()),
+                        Some(SpeakerPosition::from_player(&self.synthetic_player)),
                         Some(true),
                     )
                     .with_metadata(metadata);
 
                     let packet = QuicNetworkPacket {
                         packet_type: PacketType::AudioFrame,
-                        owner: Some(packet_owner.clone()),
+                        sender: Some(packet_sender.clone()),
                         data: QuicNetworkPacketData::AudioFrame(audio_frame),
                                             // Not a server fan-out, so this envelope carries no sequence.
                         ..Default::default()

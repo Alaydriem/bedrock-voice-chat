@@ -1,4 +1,4 @@
-use common::net::{NegotiationProbe, ProbeInitialPacket};
+use common::net::{NegotiationProbe, NetTimeouts, ProbeInitialPacket};
 use common::structs::reachability::{AnsweredVia, ReachabilityOutcome};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::net::UdpSocket;
@@ -6,7 +6,7 @@ use tokio::net::UdpSocket;
 // Stands in for a QUIC server: reads one probe, reflects its Source Connection ID
 // back inside a Version Negotiation packet. Building the reply from the received
 // bytes is what makes this exercise the real accept rule.
-async fn spawn_negotiating_server() -> SocketAddr {
+pub async fn spawn_negotiating_server() -> SocketAddr {
     let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let addr = socket.local_addr().unwrap();
 
@@ -34,7 +34,10 @@ async fn spawn_negotiating_server() -> SocketAddr {
     addr
 }
 
-async fn spawn_silent_server() -> SocketAddr {
+/// A bound port that reads and never replies, which is what a blackholed UDP path looks
+/// like: the negotiation probe waits out its budget and the handshake probe then waits out
+/// its own.
+pub async fn spawn_silent_server() -> SocketAddr {
     let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let addr = socket.local_addr().unwrap();
 
@@ -54,9 +57,9 @@ async fn a_negotiating_server_answers_with_a_measured_round_trip() {
         ReachabilityOutcome::Answered { via, rtt_micros } => {
             assert_eq!(via, AnsweredVia::VersionNegotiation);
             assert!(
-                (rtt_micros as u128) <= NegotiationProbe::BUDGET.as_micros(),
+                (rtt_micros as u128) <= NetTimeouts::NEGOTIATION.as_micros(),
                 "measured {rtt_micros}us, budget is {}us",
-                NegotiationProbe::BUDGET.as_micros()
+                NetTimeouts::NEGOTIATION.as_micros()
             );
         }
         other => panic!("expected Answered, got {other:?}"),

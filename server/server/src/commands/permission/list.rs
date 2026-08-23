@@ -3,8 +3,8 @@ use common::Game;
 use common::structs::permission::PermissionEffect;
 
 use crate::commands::Cli;
-use crate::commands::admin_api_client::AdminApiClient;
-use crate::commands::admin_api_error::AdminApiError;
+use crate::commands::admin::AdminApiClient;
+use crate::commands::admin::AdminApiError;
 
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about = "List permission overrides for a player", long_about = None)]

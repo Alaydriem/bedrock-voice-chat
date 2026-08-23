@@ -1,0 +1,4 @@
+# Java 25 matches build-mod-fabric.yml and build-mod-paper.yml.
+# Node is inherited from the root config.
+[tools]
+java = "temurin-25"

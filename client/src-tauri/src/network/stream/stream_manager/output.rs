@@ -1,7 +1,7 @@
 use crate::NetworkPacket;
 use bytes::Bytes;
-use common::s2n_quic::Connection;
-use common::structs::packet::{DebugPacket, PacketOwner, QuicNetworkPacket};
+use crate::network::stream::link::DatagramLink;
+use common::structs::packet::{DebugPacket, QuicNetworkPacket};
 use log::{error, info};
 use std::sync::{
     Arc,
@@ -16,8 +16,11 @@ use common::consts::version::PROTOCOL_VERSION as CLIENT_VERSION;
 /// Then sends it to the server
 pub(crate) struct OutputStream {
     pub bus: Arc<flume::Receiver<NetworkPacket>>,
-    pub packet_owner: Option<PacketOwner>,
-    pub connection: Option<Arc<Connection>>,
+    /// This connection's canonical identity. Reported in the opening Debug packet only —
+    /// every other packet leaves here unattributed, because the server takes the sender
+    /// from the certificate rather than from anything written here.
+    pub identity: String,
+    pub link: Option<DatagramLink>,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
     pub metadata: Arc<moka::future::Cache<String, String>>,
@@ -55,8 +58,8 @@ impl common::traits::StreamTrait for OutputStream {
 
         let mut jobs = vec![];
         let rx = self.bus.clone();
-        let connection = self.connection.clone().unwrap();
-        let packet_owner = self.packet_owner.clone();
+        let link = self.link.clone().unwrap();
+        let identity = self.identity.clone();
         let app_handle = self.app_handle.clone();
         let transport_stats = self.transport_stats.clone();
 
@@ -66,10 +69,8 @@ impl common::traits::StreamTrait for OutputStream {
             // Send a DEBUG Packet to initialize the stream on the server
             let debug_packet = QuicNetworkPacket {
                 packet_type: common::structs::packet::PacketType::Debug,
-                owner: packet_owner.clone(),
                 data: common::structs::packet::QuicNetworkPacketData::Debug(
                     DebugPacket {
-                        owner: packet_owner.clone().unwrap().name,
                         version: CLIENT_VERSION.to_string(),
                         timestamp: Instant::now().elapsed().as_millis() as u64,
                     }
@@ -82,7 +83,7 @@ impl common::traits::StreamTrait for OutputStream {
                 Ok(bytes) => {
                     info!("Sent debug packet to server.");
                     let payload = Bytes::from(bytes);
-                    if let Err(e) = connection.datagram_mut(|dg: &mut common::s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone())) { error!("Debug datagram send error: {:?}", e); }
+                    if let Err(e) = link.send(payload.clone()) { error!("Debug datagram send error: {:?}", e); }
                 }
                 Err(e) => { error!("Failed to serialize DEBUG packet: {:?}", e); }
             }
@@ -97,14 +98,13 @@ impl common::traits::StreamTrait for OutputStream {
                             break;
                         }
 
-                        let mut quic_network_packet = network_packet.data;
-                        quic_network_packet.owner = packet_owner.clone();
+                        let quic_network_packet = network_packet.data;
 
                         // Send immediately for real-time performance
                         match quic_network_packet.to_datagram() {
                             Ok(bytes) => {
                                 let payload = Bytes::from(bytes);
-                                let send_res = connection.datagram_mut(|dg: &mut common::s2n_quic::provider::datagram::default::Sender| dg.send_datagram(payload.clone()));
+                                let send_res = link.send(payload.clone());
                                 if let Err(e) = send_res {
                                     transport_stats.record_send_error();
                                     error_count += 1;
@@ -149,15 +149,15 @@ impl common::traits::StreamTrait for OutputStream {
 impl OutputStream {
     pub fn new(
         consumer: Arc<flume::Receiver<NetworkPacket>>,
-        packet_owner: Option<PacketOwner>,
-        connection: Option<Arc<Connection>>,
+        identity: String,
+        link: Option<DatagramLink>,
         app_handle: tauri::AppHandle,
         transport_stats: Arc<crate::diagnostics::TransportStats>,
     ) -> Self {
         Self {
             bus: consumer.clone(),
-            packet_owner,
-            connection,
+            identity,
+            link,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
             metadata: Arc::new(moka::future::Cache::builder().build()),

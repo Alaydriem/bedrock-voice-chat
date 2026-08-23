@@ -54,7 +54,7 @@ class ControlCommands(
             .then(
                 Commands.literal("volume").then(
                     Commands.argument("player", StringArgumentType.string()).then(
-                        Commands.argument("level", IntegerArgumentType.integer(0, 100)).executes { ctx ->
+                        Commands.argument("level", IntegerArgumentType.integer(0, ControlAction.MAX_LEVEL)).executes { ctx ->
                             dispatchTargeted(ctx, StringArgumentType.getString(ctx, "player")) { target ->
                                 ControlAction.Volume(target, IntegerArgumentType.getInteger(ctx, "level"))
                             }
@@ -72,6 +72,38 @@ class ControlCommands(
                         }
                     )
                 )
+            )
+            // Neither jukebox subcommand takes a player argument, so `dispatchTargeted` and its
+            // canonical-name resolution are correctly not on this path.
+            .then(
+                Commands.literal("jukebox")
+                    .then(
+                        Commands.literal("mute").then(
+                            Commands.argument("on", BoolArgumentType.bool()).executes { ctx ->
+                                // The plane carries "heard", the command reads as "mute".
+                                dispatch(
+                                    ctx,
+                                    ControlAction.Hear(
+                                        ControlAction.JUKEBOX_TARGET,
+                                        !BoolArgumentType.getBool(ctx, "on"),
+                                    ),
+                                )
+                            }
+                        )
+                    )
+                    .then(
+                        Commands.literal("volume").then(
+                            Commands.argument("level", IntegerArgumentType.integer(0, ControlAction.MAX_LEVEL)).executes { ctx ->
+                                dispatch(
+                                    ctx,
+                                    ControlAction.Volume(
+                                        ControlAction.JUKEBOX_TARGET,
+                                        IntegerArgumentType.getInteger(ctx, "level"),
+                                    ),
+                                )
+                            }
+                        )
+                    )
             )
             .then(
                 Commands.literal("group")

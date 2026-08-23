@@ -1,13 +1,14 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use bvc_server_lib::stream::quic::connection_registry::RoutedPacket;
+use bvc_server_lib::stream::quic::connection::RoutedPacket;
 use common::game_data::Dimension;
 use common::players::MinecraftPlayer;
 use common::structs::packet::{
-    AudioFramePacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+    AudioFramePacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
 use common::{Coordinate, Orientation, PlayerEnum};
+use common::structs::packet::SpeakerPosition;
 use moka::future::Cache;
 use tokio::sync::mpsc;
 
@@ -29,20 +30,45 @@ impl RoutingFixture {
             alternative_identity: None,
             player_uuid: None,
             relay_world_uuid: None,
+            bridged_voice: false,
         })
     }
 
-    pub fn audio_packet(sender: PlayerEnum, sender_name: &str) -> QuicNetworkPacket {
+    // A canonical name is a player; anything else is a service, which is how the fixture
+    // expresses server-injected audio such as jukebox playback.
+    fn sender_for(identity: &str) -> PacketSender {
+        match identity.parse::<common::PlayerIdentity>() {
+            Ok(identity) => PacketSender::player(identity, 1),
+            Err(_) => PacketSender::for_service(identity),
+        }
+    }
+
+    // Lets a test choose the envelope sender rather than deriving it from a name, so a service
+    // sender can be exercised without going through the canonical-identity path.
+    pub fn audio_packet_from_sender(
+        speaker: PlayerEnum,
+        sender: PacketSender,
+    ) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: Some(PacketOwner {
-                name: sender_name.to_string(),
-                client_id: vec![1],
-            }),
+            sender: Some(sender),
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
-                48000,
-                Some(sender),
+                Some(SpeakerPosition::from_player(&speaker)),
+                Some(true),
+            )),
+            // Not a server fan-out to one connection, so this envelope carries no sequence.
+            ..Default::default()
+        }
+    }
+
+    pub fn audio_packet(sender: PlayerEnum, sender_identity: &str) -> QuicNetworkPacket {
+        QuicNetworkPacket {
+            packet_type: PacketType::AudioFrame,
+            sender: Some(Self::sender_for(sender_identity)),
+            data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
+                vec![0u8; 160],
+                Some(SpeakerPosition::from_player(&sender)),
                 Some(true),
             )),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
@@ -52,16 +78,12 @@ impl RoutingFixture {
 
     // An audio frame from a sender that carries NO PlayerEnum: what a client emits
     // before it has any position, i.e. it joined a channel but not the game yet.
-    pub fn audio_packet_without_position(sender_name: &str) -> QuicNetworkPacket {
+    pub fn audio_packet_without_position(sender_identity: &str) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: Some(PacketOwner {
-                name: sender_name.to_string(),
-                client_id: vec![1],
-            }),
+            sender: Some(Self::sender_for(sender_identity)),
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
-                48000,
                 None,
                 Some(true),
             )),
@@ -74,7 +96,9 @@ impl RoutingFixture {
         let cache: Arc<Cache<String, PlayerEnum>> = Arc::new(Cache::builder().build());
         for p in players {
             use common::traits::player_data::PlayerData;
-            cache.insert(p.get_name().to_string(), p.clone()).await;
+            // Keyed the way the router reads it: on the canonical identity, not the
+            // bare name. Seeding it bare made every lookup miss.
+            cache.insert(p.identity().to_string(), p.clone()).await;
         }
         cache
     }
@@ -89,6 +113,35 @@ impl RoutingFixture {
                 match packet.data {
                     QuicNetworkPacketData::AudioFrame(af) => af.spatial,
                     _ => panic!("expected an AudioFrame datagram"),
+                }
+            }
+            _ => None,
+        }
+    }
+
+    // The whole delivered envelope, for asserting on the sender rather than the frame.
+    // None when nothing was delivered within the timeout.
+    pub async fn delivered_envelope(
+        rx: &mut mpsc::Receiver<RoutedPacket>,
+    ) -> Option<QuicNetworkPacket> {
+        match tokio::time::timeout(Duration::from_millis(100), rx.recv()).await {
+            Ok(Some(RoutedPacket::Serialized(bytes))) => {
+                Some(QuicNetworkPacket::from_datagram(&bytes).expect("routed datagram decodes"))
+            }
+            _ => None,
+        }
+    }
+
+    // The full decoded audio frame a recipient received, for asserting fields beyond
+    // the spatial flag. None when nothing was delivered within the timeout.
+    pub async fn delivered_frame(rx: &mut mpsc::Receiver<RoutedPacket>) -> Option<AudioFramePacket> {
+        match tokio::time::timeout(Duration::from_millis(100), rx.recv()).await {
+            Ok(Some(RoutedPacket::Serialized(bytes))) => {
+                let packet =
+                    QuicNetworkPacket::from_datagram(&bytes).expect("routed datagram decodes");
+                match packet.data {
+                    QuicNetworkPacketData::AudioFrame(af) => Some(af),
+                    _ => None,
                 }
             }
             _ => None,

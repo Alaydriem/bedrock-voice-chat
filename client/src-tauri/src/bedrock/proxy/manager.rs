@@ -14,6 +14,8 @@ use common::bedrock_protocol::{
     protocol::types::generated::{AuthorAndMessage, TextPacketBody, TextPacketType},
     proxy::{WarmPool, WarmTarget},
 };
+use common::net::PositionCadence;
+use common::structs::bedrock::AddonMode;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use common::traits::StreamTrait;
 use log::{debug, error, info, warn};
@@ -22,16 +24,13 @@ use tokio::sync::{oneshot, watch};
 use tokio::task::{AbortHandle, JoinHandle};
 
 use crate::bedrock::PendingEject;
-use crate::bedrock::proxy::presence::{
-    BvcpCodec, PendingAnnounce, PendingInject, PendingQueryState,
-};
+use crate::bedrock::proxy::chat::PendingChatSend;
+use crate::bedrock::proxy::presence::PendingQueryState;
 use crate::bedrock::proxy::session::{BedrockSessionEventDispatcher, DispatchOutcome};
 
 const RELAY_DRAIN_DELAY: Duration = Duration::from_millis(500);
 
 const CLIENT_DISCONNECT_DRAIN: Duration = Duration::from_millis(150);
-
-const POSITION_HEARTBEAT_INTERVAL: Duration = Duration::from_millis(250);
 
 const BVC_DISCONNECT_MESSAGE: &str = "Connection was closed by the Bedrock Voice Chat app so your link to this server was ended on purpose. Reconnect through the Bedrock Voice Chat app reconnect to this server.";
 
@@ -43,6 +42,11 @@ pub struct BedrockProxyManager {
     listen_port: u16,
     backend: Option<Backend>,
     advertised_version: AdvertisedVersion,
+    addon_mode: AddonMode,
+    // Advert line one: the world the user picked.
+    world: String,
+    // Advert line two: whose session this is, then the branding.
+    owner: String,
     deps: ProxyDeps,
     jobs: Vec<AbortHandle>,
     shutdown: Arc<AtomicBool>,
@@ -57,6 +61,9 @@ impl BedrockProxyManager {
         listen_port: u16,
         auth_manager: Arc<AuthManager>,
         advertised_version: AdvertisedVersion,
+        addon_mode: AddonMode,
+        world: String,
+        owner: String,
         deps: ProxyDeps,
     ) -> Self {
         Self {
@@ -67,6 +74,9 @@ impl BedrockProxyManager {
                 auth_manager,
             }),
             advertised_version,
+            addon_mode,
+            world,
+            owner,
             deps,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
@@ -83,6 +93,8 @@ impl BedrockProxyManager {
         access_token: String,
         realms_api: common::bedrock_protocol::RealmsApi,
         advertised_version: AdvertisedVersion,
+        world: String,
+        owner: String,
         deps: ProxyDeps,
     ) -> Self {
         let auth = AuthInfo::xbl_token_with_access(xbl_token, user_hash, access_token);
@@ -91,12 +103,23 @@ impl BedrockProxyManager {
             listen_port,
             backend: Some(Backend::Realm { realm_config, auth }),
             advertised_version,
+            // A Realm never has an HTTP addon channel, so its proxy always
+            // carries state in-band.
+            addon_mode: AddonMode::NoNet,
+            world,
+            owner,
             deps,
             jobs: vec![],
             shutdown: Arc::new(AtomicBool::new(false)),
             shutdown_tx: None,
             listener_handle: None,
         }
+    }
+
+    // The command layer routes a composed chat line on this, so the declaration has to be
+    // readable without reaching into a per-connection session.
+    pub(crate) fn addon_mode(&self) -> AddonMode {
+        self.addon_mode
     }
 }
 
@@ -165,16 +188,26 @@ impl BedrockProxyManager {
         let gating = Arc::clone(&self.deps.gating);
         let beacon_cache = Arc::clone(&self.deps.beacon_cache);
         let eject_injector = Arc::clone(&self.deps.eject_injector);
-        let presence_injector = Arc::clone(&self.deps.presence_injector);
-        let announce_injector = Arc::clone(&self.deps.announce_injector);
         let error_channel = Arc::clone(&self.deps.error_channel);
+        let chat_channel = Arc::clone(&self.deps.chat_channel);
+        let chat_injector = Arc::clone(&self.deps.chat_injector);
         let control_tx = self.deps.control_tx.clone();
         let query_state_injector = Arc::clone(&self.deps.query_state_injector);
         let state_bus = self.deps.state_bus.clone();
         let advertised_version = self.advertised_version.clone();
+        let addon_mode = self.addon_mode;
+        let world = self.world.clone();
+        let owner = self.owner.clone();
+        // Computed once rather than per arm so the five outbound paths cannot
+        // drift apart on what the mode means.
+        let process_events = !addon_mode.relays_only();
 
         let handle = tokio::spawn(async move {
-            let bind_addr: SocketAddr = match format!("0.0.0.0:{}", listen_port).parse() {
+            // `[::]`, not `0.0.0.0`: the listener is dual-stack, so this one
+            // socket answers both the IPv6 dial that follows LAN discovery and a
+            // manually typed `127.0.0.1:<port>`. Binding IPv4-only leaves the
+            // discovered entry unjoinable.
+            let bind_addr: SocketAddr = match format!("[::]:{}", listen_port).parse() {
                 Ok(a) => a,
                 Err(e) => {
                     error!("Bedrock listener invalid bind: {}", e);
@@ -182,17 +215,14 @@ impl BedrockProxyManager {
                 }
             };
 
+            // Advert fields 2 and 7, which are the two lines Minecraft's Friends tab
+            // renders. The world leads because it is what the user picked; the owner
+            // line is what separates two clients advertising the same world.
             let (proxy_config_realm, motd, sub_motd) = match &backend {
-                Backend::Direct { .. } => (
-                    None,
-                    "BVC Proxy Connect".to_string(),
-                    "Bedrock Voice Chat Proxy".to_string(),
-                ),
-                Backend::Realm { realm_config, .. } => (
-                    Some(realm_config.clone()),
-                    "BVC Realms Connect".to_string(),
-                    "Bedrock Voice Chat Realms Proxy".to_string(),
-                ),
+                Backend::Direct { .. } => (None, world.clone(), owner.clone()),
+                Backend::Realm { realm_config, .. } => {
+                    (Some(realm_config.clone()), world.clone(), owner.clone())
+                }
             };
 
             // Resolve the direct backend hostname before binding: a Direct
@@ -251,6 +281,17 @@ impl BedrockProxyManager {
                 Ok(p) => p,
                 Err(e) => {
                     error!("Bedrock proxy bind failed: {}", e);
+                    // A bind failure is the one startup error the user is most
+                    // likely to cause and least able to see: the port is already
+                    // taken, the session never starts, and without this the UI is
+                    // indistinguishable from having done nothing at all.
+                    error_channel.emit(
+                        common::structs::bedrock::BedrockConnectError::Transport {
+                            message: format!(
+                                "Could not listen on port {listen_port}: {e}. Another program may already be using it."
+                            ),
+                        },
+                    );
                     return;
                 }
             };
@@ -306,12 +347,19 @@ impl BedrockProxyManager {
             let mut child_handles: Vec<JoinHandle<()>> = vec![];
             let (child_cancel_tx, _) = watch::channel(false);
 
-            {
+            // On a net world the addon posts every player's position over HTTP,
+            // so this feed would write the same cache key from a second source —
+            // one whose entry carries no world uuid, making that field flap.
+            if addon_mode.relays_only() {
+                info!(
+                    "Bedrock: position heartbeat disabled; the addon feeds this world over HTTP"
+                );
+            } else {
                 let emitter = Arc::clone(&event_emitter);
                 let heartbeat_cache = Arc::clone(&player_state_cache);
                 let mut heartbeat_cancel_rx = child_cancel_tx.subscribe();
                 let heartbeat_handle = tokio::spawn(async move {
-                    let mut interval = tokio::time::interval(POSITION_HEARTBEAT_INTERVAL);
+                    let mut interval = tokio::time::interval(PositionCadence::INTERVAL);
                     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
                     loop {
                         tokio::select! {
@@ -372,7 +420,8 @@ impl BedrockProxyManager {
                         };
                         let connect_data = AnalyticsEventData::new()
                             .insert("protocol", peer_protocol.0 as i64)
-                            .insert("backend", backend_label);
+                            .insert("backend", backend_label)
+                            .insert("addon_mode", format!("{:?}", addon_mode));
                         gating
                             .analytics()
                             .track(AnalyticsEvent::BedrockConnected, Some(connect_data));
@@ -386,24 +435,32 @@ impl BedrockProxyManager {
                         let child_gating = Arc::clone(&gating);
                         let child_beacon_cache = Arc::clone(&beacon_cache);
                         let child_eject_rx = eject_injector.receiver();
-                        let child_presence_rx = presence_injector.receiver();
-                        let child_announce_rx = announce_injector.receiver();
                         let child_bvcs_rx = query_state_injector.receiver();
                         let child_state_bus = state_bus.clone();
                         let child_error_channel = Arc::clone(&error_channel);
+                        let child_chat_channel = Arc::clone(&chat_channel);
+                        let child_chat_send_rx = chat_injector.receiver();
+                        let child_process_events = process_events;
                         let mut child_cancel_rx = child_cancel_tx.subscribe();
 
                         let h = tokio::spawn(async move {
                             let auth_for_dial = match child_backend.as_ref() {
                                 Backend::Realm { auth, .. } => auth.clone(),
                                 Backend::Direct { auth_manager, .. } => {
-                                    match auth_manager
-                                        .auth_for(&conn.player, |code, url, _name| {
-                                            info!("Device code: {} URL: {}", code, url);
-                                        })
-                                        .await
-                                    {
+                                    match auth_manager.renew(&conn.player).await {
                                         Ok(a) => a,
+                                        Err(
+                                            common::bedrock_protocol::Error::ReauthRequired { .. },
+                                        ) => {
+                                            error!(
+                                                "Xbox credential rejected for {}; re-authentication required",
+                                                child_player_name
+                                            );
+                                            child_error_channel.emit(
+                                                common::structs::bedrock::BedrockConnectError::ReauthRequired,
+                                            );
+                                            return;
+                                        }
                                         Err(e) => {
                                             error!("Auth failed for {}: {}", child_player_name, e);
                                             child_error_channel.emit(
@@ -463,6 +520,8 @@ impl BedrockProxyManager {
                                 Some(Arc::clone(&child_emitter)),
                                 child_control_tx.clone(),
                                 child_state_bus.clone(),
+                                Some(Arc::clone(&child_chat_channel)),
+                                addon_mode,
                             );
 
                             let disconnect_reason: &'static str;
@@ -499,30 +558,35 @@ impl BedrockProxyManager {
                                     }
                                     eject = child_eject_rx.recv_async() => {
                                         if let Ok(eject) = eject {
-                                            Self::dispatch_jukebox_eject(
-                                                &session,
-                                                &state,
-                                                &child_player_name,
-                                                eject,
-                                            );
+                                            if !child_process_events {
+                                                debug!(
+                                                    "Bedrock: dropping jukebox eject for {}; the addon receives it over HTTP",
+                                                    child_player_name
+                                                );
+                                            } else {
+                                                Self::dispatch_jukebox_eject(
+                                                    &session,
+                                                    &state,
+                                                    &child_player_name,
+                                                    eject,
+                                                );
+                                            }
                                         }
                                     }
-                                    inject = child_presence_rx.recv_async() => {
-                                        if let Ok(inject) = inject {
-                                            Self::inject_presence(
-                                                &session,
-                                                &child_player_name,
-                                                inject,
-                                            );
-                                        }
-                                    }
-                                    inject = child_announce_rx.recv_async() => {
-                                        if let Ok(inject) = inject {
-                                            Self::inject_announce(
-                                                &session,
-                                                &child_player_name,
-                                                inject,
-                                            );
+                                    send = child_chat_send_rx.recv_async() => {
+                                        if let Ok(send) = send {
+                                            if child_process_events {
+                                                Self::inject_chat(
+                                                    &session,
+                                                    &child_player_name,
+                                                    send,
+                                                );
+                                            } else {
+                                                info!(
+                                                    "Bedrock: dropping chat send for {}; the addon relays chat itself",
+                                                    child_player_name
+                                                );
+                                            }
                                         }
                                     }
                                     ride = child_bvcs_rx.recv_async() => {
@@ -531,7 +595,7 @@ impl BedrockProxyManager {
                                         // rides instead of broadcasting the player's audio
                                         // state to the whole server.
                                         if let Ok(ride) = ride {
-                                            if state.bvcs_armed() {
+                                            if child_process_events && state.bvcs_armed() {
                                                 Self::inject_bvcs(
                                                     &session,
                                                     &child_player_name,
@@ -546,7 +610,8 @@ impl BedrockProxyManager {
                             let mut disconnect_data = AnalyticsEventData::new()
                                 .insert("reason", disconnect_reason)
                                 .insert("protocol", peer_protocol.0 as i64)
-                                .insert("backend", backend_label);
+                                .insert("backend", backend_label)
+                                .insert("addon_mode", format!("{:?}", addon_mode));
                             if let Some(detail) = disconnect_detail {
                                 disconnect_data = disconnect_data.insert("detail", detail);
                             }
@@ -671,75 +736,7 @@ impl BedrockProxyManager {
         });
     }
 
-    fn build_bvcp_chat_batch(
-        version: common::bedrock_protocol::ProtocolVersion,
-        token: &str,
-        chat_sender_name: String,
-        player_xuid: String,
-    ) -> Result<Bytes, anyhow::Error> {
-        let message = BvcpCodec::format_bvcp(token);
-
-        let text = TextPacket {
-            localize: false,
-            body: TextPacketBody::AuthorAndMessage(AuthorAndMessage {
-                message_type: TextPacketType::Chat,
-                player_name: chat_sender_name,
-                message,
-            }),
-            sender_s_xuid: player_xuid,
-            platform_id: String::new(),
-            filtered_message: None,
-        };
-
-        let mut pkt_buf = BytesMut::new();
-        PacketHeader::write(&mut pkt_buf, ids::TEXT);
-        text.encode_for(version, &mut pkt_buf);
-
-        BatchCodec::encode(&[pkt_buf.freeze()], true, 1)
-            .map_err(|e| anyhow::anyhow!("failed to batch-encode bvcp chat: {:?}", e))
-    }
-
-    fn inject_presence(session: &Session, player_name: &str, inject: PendingInject) {
-        if inject.is_expired(std::time::Instant::now()) {
-            info!(
-                "Bedrock: dropping expired presence inject for {} token={}",
-                player_name, inject.token
-            );
-            return;
-        }
-
-        let writer = session.writer().clone();
-        let version = session.protocol_version();
-        let player_xuid = session.player.xuid.clone();
-        let chat_sender_name = session.player.name.clone();
-        let player_name_owned = player_name.to_string();
-        let token = inject.token.clone();
-
-        let batch =
-            match Self::build_bvcp_chat_batch(version, &token, chat_sender_name, player_xuid) {
-                Ok(b) => b,
-                Err(e) => {
-                    warn!(
-                        "Bedrock: failed to encode bvcp presence chat for {}: {:?}",
-                        player_name_owned, e
-                    );
-                    return;
-                }
-            };
-
-        match writer.send_to_server(batch) {
-            Ok(()) => debug!(
-                "Bedrock: injected presence chat token={} for {}",
-                token, player_name_owned
-            ),
-            Err(e) => warn!(
-                "Bedrock: failed to inject presence chat (player {}) token={}: {:?}",
-                player_name_owned, token, e
-            ),
-        }
-    }
-
-    fn build_bvcs_chat_batch(
+    fn build_chat_batch(
         version: common::bedrock_protocol::ProtocolVersion,
         message: String,
         chat_sender_name: String,
@@ -762,7 +759,51 @@ impl BedrockProxyManager {
         text.encode_for(version, &mut pkt_buf);
 
         BatchCodec::encode(&[pkt_buf.freeze()], true, 1)
-            .map_err(|e| anyhow::anyhow!("failed to batch-encode bvcs chat: {:?}", e))
+            .map_err(|e| anyhow::anyhow!("failed to batch-encode chat: {:?}", e))
+    }
+
+    // Sends an app-composed line into the realm as ordinary chat, under the
+    // player's own name and XUID. Nothing marks it as app-sent: the packet is
+    // genuinely from their session, which is what makes it indistinguishable in
+    // game. Unlike the !bvcs: rides this needs no armed session — there is
+    // nothing for an addon to cancel, because it is a real chat message.
+    fn inject_chat(session: &Session, player_name: &str, send: PendingChatSend) {
+        if send.is_expired(std::time::Instant::now()) {
+            debug!(
+                "Bedrock: dropping expired chat send for {}: {}",
+                player_name, send.text
+            );
+            return;
+        }
+
+        let writer = session.writer().clone();
+        let version = session.protocol_version();
+        let player_xuid = session.player.xuid.clone();
+        let chat_sender_name = session.player.name.clone();
+
+        let batch = match Self::build_chat_batch(
+            version,
+            send.text.clone(),
+            chat_sender_name,
+            player_xuid,
+        ) {
+            Ok(b) => b,
+            Err(e) => {
+                warn!(
+                    "Bedrock: failed to encode chat for {}: {:?}",
+                    player_name, e
+                );
+                return;
+            }
+        };
+
+        match writer.send_to_server(batch) {
+            Ok(()) => debug!("Bedrock: injected chat for {}", player_name),
+            Err(e) => warn!(
+                "Bedrock: failed to inject chat (player {}): {:?}",
+                player_name, e
+            ),
+        }
     }
 
     // Rides an encoded !bvcs: state message serverbound into the BDS world as
@@ -782,7 +823,7 @@ impl BedrockProxyManager {
         let player_xuid = session.player.xuid.clone();
         let chat_sender_name = session.player.name.clone();
 
-        let batch = match Self::build_bvcs_chat_batch(
+        let batch = match Self::build_chat_batch(
             version,
             ride.message.clone(),
             chat_sender_name,
@@ -806,70 +847,6 @@ impl BedrockProxyManager {
             Err(e) => warn!(
                 "Bedrock: failed to inject bvcs ride (player {}): {:?}",
                 player_name, e
-            ),
-        }
-    }
-
-    fn build_bvca_chat_batch(
-        version: common::bedrock_protocol::ProtocolVersion,
-        endpoint: &str,
-        chat_sender_name: String,
-        player_xuid: String,
-    ) -> Result<Bytes, anyhow::Error> {
-        let message = BvcpCodec::format_bvca(endpoint);
-
-        let text = TextPacket {
-            localize: false,
-            body: TextPacketBody::AuthorAndMessage(AuthorAndMessage {
-                message_type: TextPacketType::Chat,
-                player_name: chat_sender_name,
-                message,
-            }),
-            sender_s_xuid: player_xuid,
-            platform_id: String::new(),
-            filtered_message: None,
-        };
-
-        let mut pkt_buf = BytesMut::new();
-        PacketHeader::write(&mut pkt_buf, ids::TEXT);
-        text.encode_for(version, &mut pkt_buf);
-
-        BatchCodec::encode(&[pkt_buf.freeze()], true, 1)
-            .map_err(|e| anyhow::anyhow!("failed to batch-encode bvca chat: {:?}", e))
-    }
-
-    fn inject_announce(session: &Session, player_name: &str, inject: PendingAnnounce) {
-        if inject.is_expired(std::time::Instant::now()) {
-            return;
-        }
-
-        let writer = session.writer().clone();
-        let version = session.protocol_version();
-        let player_xuid = session.player.xuid.clone();
-        let chat_sender_name = session.player.name.clone();
-        let player_name_owned = player_name.to_string();
-        let endpoint = inject.endpoint.clone();
-
-        let batch =
-            match Self::build_bvca_chat_batch(version, &endpoint, chat_sender_name, player_xuid) {
-                Ok(b) => b,
-                Err(e) => {
-                    warn!(
-                        "Bedrock: failed to encode bvca announce chat for {}: {:?}",
-                        player_name_owned, e
-                    );
-                    return;
-                }
-            };
-
-        match writer.send_to_server(batch) {
-            Ok(()) => debug!(
-                "Bedrock: injected announce chat endpoint={} for {}",
-                endpoint, player_name_owned
-            ),
-            Err(e) => warn!(
-                "Bedrock: failed to inject announce chat (player {}) endpoint={}: {:?}",
-                player_name_owned, endpoint, e
             ),
         }
     }
@@ -912,23 +889,24 @@ mod tests {
     use crate::analytics::AnalyticsService;
     use crate::bedrock::ProtocolGatingService;
     use crate::bedrock::{
-        AnnounceInjector, BedrockConnectErrorChannel, BedrockEventEmitter, BedrockPlayerStateCache,
-        JukeboxBeaconCache, JukeboxEjectInjector, PresenceInjector,
+        BedrockConnectErrorChannel, BedrockEventEmitter, BedrockPlayerStateCache,
+        JukeboxBeaconCache, JukeboxEjectInjector,
     };
     use crate::feature_flags::FeatureFlagService;
     use common::bedrock_protocol::AuthManager;
 
     fn build_gating() -> Arc<ProtocolGatingService> {
+        let platform_id = crate::analytics::PlatformId::new_shared(String::new());
         let flag_service = Arc::new(FeatureFlagService::new(
             String::new(),
             String::new(),
-            String::new(),
+            platform_id.clone(),
             0,
             std::time::Duration::from_secs(3600),
             None,
         ));
         let telemetry = Arc::new(crate::logging::Telemetry::new(false));
-        let analytics = Arc::new(AnalyticsService::new(telemetry, String::new()));
+        let analytics = Arc::new(AnalyticsService::new(telemetry, platform_id));
         ProtocolGatingService::new_shared(flag_service, analytics)
     }
 
@@ -939,39 +917,14 @@ mod tests {
             build_gating(),
             Arc::new(JukeboxBeaconCache::new()),
             Arc::new(BedrockConnectErrorChannel::new()),
+            Arc::new(crate::bedrock::BedrockChatChannel::new()),
+            crate::bedrock::ChatInjector::new_shared(),
             Arc::new(BedrockEventEmitter::new(Arc::new(tx))),
             JukeboxEjectInjector::new_shared(),
-            PresenceInjector::new_shared(),
-            AnnounceInjector::new_shared(),
             crate::control::ControlActionSender::channel().0,
             crate::bedrock::QueryStateInjector::new_shared(),
             crate::control::ControlStateBus::new(),
         )
-    }
-
-    #[test]
-    fn build_bvcp_chat_batch_encodes_presence_token() {
-        use common::bedrock_protocol::ProtocolVersion;
-        use common::bedrock_protocol::protocol::batch::BatchCodec;
-        use common::bedrock_protocol::protocol::packets::{PacketHeader, ids};
-
-        let version = ProtocolVersion::LATEST;
-        let batch = BedrockProxyManager::build_bvcp_chat_batch(
-            version,
-            "tok-xyz",
-            "alice".to_string(),
-            "xuid-1".to_string(),
-        )
-        .expect("batch should encode");
-
-        let frames = BatchCodec::decode(batch, true, 1).expect("batch should decode");
-        let mut frame = frames.into_iter().next().expect("one frame");
-        let packet_id = PacketHeader::read(&mut frame).expect("header");
-        assert_eq!(packet_id, ids::TEXT);
-
-        let needle = b"!bvcp tok-xyz";
-        let found = frame.windows(needle.len()).any(|window| window == needle);
-        assert!(found, "encoded text frame should carry the bvcp message");
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -994,6 +947,9 @@ mod tests {
             port,
             Arc::clone(&auth_mgr),
             AdvertisedVersion::Auto,
+            AddonMode::NoNet,
+            "Test World".to_string(),
+            "Tester · Bedrock Voice Chat".to_string(),
             build_deps(),
         );
 
@@ -1025,6 +981,9 @@ mod tests {
             port,
             auth_mgr,
             AdvertisedVersion::Auto,
+            AddonMode::NoNet,
+            "Test World".to_string(),
+            "Tester · Bedrock Voice Chat".to_string(),
             build_deps(),
         );
         mgr2.start().await.expect("second start on same port");

@@ -1,5 +1,13 @@
 [workspace]
-members = ["common", "common/websocket-types", "client/src-tauri", "client/e2e-harness"]
+members = [
+    "common",
+    "common/websocket-types",
+    "client/src-tauri",
+    "client/e2e-harness",
+    "relay/lib",
+    "relay/sdk",
+    "relay/testpeer",
+]
 resolver = "2"
 
 [profile.release]
@@ -18,17 +26,12 @@ incremental = true
 codegen-units = 4
 
 [workspace.dependencies]
-# Shared across common + client.
-# When server-side equivalents exist, mirror these in server/Cargo.toml's
-# [workspace.dependencies] so both workspaces stay on the same versions.
 nanoid = { version = "^0.5" }
 # Locked at 0.8 — rocket_okapi/OpenAPI stack does not yet support schemars 1.x.
 schemars = { version = "0.8" }
 opus2 = { version = "^0.4" }
 x509-parser = { version = "^0.18" }
 if-addrs = { version = "^0.15" }
-# nano-wal pinned at 0.5 — 1.0 is POSIX-only (uses std::os::fd + libc::preadv
-# without cfg gates) and does not compile on Windows desktop targets.
 nano-wal = { version = "^0.5" }
 hickory-resolver = { version = "^0.26", default-features = false, features = ["serde", "tokio"] }
 rubato = { version = "^2" }
@@ -38,4 +41,4 @@ audioadapter-buffers = { version = "^3" }
 tauri-plugin-deep-link = { git = "https://github.com/charlesportwoodii/tauri-plugin-deep-link", branch = "master" }
 sentry = { git = "https://github.com/Alaydriem/sentry-rust", branch = "0.46.x" }
 sentry-rust-minidump = { git = "https://github.com/Alaydriem/sentry-rust-minidump", branch = "master" }
-webrtc = { git = "https://github.com/alaydriem/webrtc", branch = "larger-buffer-size" }
+webrtc = { git = "https://github.com/alaydriem/webrtc", rev = "6f07e0cf" }

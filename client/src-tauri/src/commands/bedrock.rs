@@ -1,35 +1,23 @@
 use std::sync::Arc;
 
 use tauri::Emitter;
-use tauri::Manager;
 use tauri::State;
 use tauri::async_runtime::Mutex;
 
 use common::bedrock_protocol::{RealmsApi, RealmsEnvironment};
 use common::consts::bedrock::{
-    BEDROCK_KEYRING_KEY_REFRESH_TOKEN, BEDROCK_KEYRING_KEY_XUID, BEDROCK_LISTEN_PORT,
-    XBOX_CLIENT_ID,
+    BEDROCK_KEYRING_KEY_REFRESH_TOKEN, BEDROCK_KEYRING_KEY_XUID, XBOX_CLIENT_ID,
 };
 use common::structs::bedrock::{
-    BedrockBackendKind, BedrockConnectionInfo, BedrockStatus, HIVE_DNS_HOSTNAME, NetworkInterface,
-    ProtocolVersionOption, RealmEntry,
+    AddonMode, BedrockRenewal, BedrockStatus, NetworkInterface, ProtocolVersionOption, RealmEntry,
 };
 use common::traits::StreamTrait;
 
-use crate::NetworkPacket;
-use crate::analytics::AnalyticsService;
-use crate::bedrock::BedrockConnectErrorChannel;
-use crate::bedrock::BedrockEventEmitter;
-use crate::bedrock::BedrockProxyManager;
+use crate::bedrock::ChatInjector;
 use crate::bedrock::{
-    AdvertisedVersionResolver, AnnounceInjector, BedrockAuthService, BedrockKeyringService,
-    BedrockState, JukeboxBeaconCache, JukeboxEjectInjector, PresenceInjector, ProtocolGatingService,
-    ProtocolVersionCatalog, ProxyDeps,
+    BedrockAuthService, BedrockConnector, BedrockKeyringService, BedrockState,
+    ProtocolVersionCatalog, ProxyConnectRequest, RealmConnectRequest,
 };
-use crate::control::ControlActionSender;
-use crate::feature_flags::FeatureFlagService;
-use crate::feature_flags::flags::bedrock::RealmsConnectEnabled;
-use crate::structs::app_state::AppState;
 
 #[tauri::command(async)]
 pub(crate) async fn bedrock_start_proxy(
@@ -39,120 +27,28 @@ pub(crate) async fn bedrock_start_proxy(
     listen_port: Option<u16>,
     network_interface: String,
     advertised_protocol: Option<u32>,
-    state: State<'_, Mutex<BedrockState>>,
-    app_state: State<'_, Mutex<AppState>>,
-    quic_producer: State<'_, Arc<flume::Sender<NetworkPacket>>>,
-    flag_service: State<'_, Arc<FeatureFlagService>>,
-    analytics: State<'_, Arc<AnalyticsService>>,
-    beacon_cache: State<'_, Arc<JukeboxBeaconCache>>,
-    eject_injector: State<'_, Arc<JukeboxEjectInjector>>,
-    presence_injector: State<'_, Arc<PresenceInjector>>,
-    announce_injector: State<'_, Arc<AnnounceInjector>>,
-    error_channel: State<'_, Arc<BedrockConnectErrorChannel>>,
+    addon_mode: Option<AddonMode>,
 ) -> Result<(), String> {
-    let mut state = state.lock().await;
-
-    if state.realms.as_ref().is_some_and(|r| !r.is_stopped()) {
-        return Err("Realms session is active. Stop it before starting proxy.".to_string());
-    }
-
-    if state.proxy.as_ref().is_some_and(|p| !p.is_stopped()) {
-        return Err("Proxy is already running.".to_string());
-    }
-
-    let auth_manager = state
-        .auth_manager
-        .as_ref()
-        .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?;
-
-    let gating = ProtocolGatingService::new_shared(
-        Arc::clone(flag_service.inner()),
-        Arc::clone(analytics.inner()),
-    );
-
-    let effective_listen_port = listen_port.unwrap_or(BEDROCK_LISTEN_PORT);
-    let deps = ProxyDeps::new(
-        Arc::clone(&state.player_state_cache),
-        gating,
-        Arc::clone(beacon_cache.inner()),
-        Arc::clone(error_channel.inner()),
-        Arc::new(BedrockEventEmitter::new(quic_producer.inner().clone())),
-        Arc::clone(eject_injector.inner()),
-        Arc::clone(presence_injector.inner()),
-        Arc::clone(announce_injector.inner()),
-        app_handle.state::<ControlActionSender>().inner().clone(),
-        app_handle
-            .state::<Arc<crate::bedrock::QueryStateInjector>>()
-            .inner()
-            .clone(),
-        app_handle
-            .state::<crate::control::ControlStateBus>()
-            .inner()
-            .clone(),
-    );
-    let advertised_version = AdvertisedVersionResolver::proxy(advertised_protocol);
-    let mut proxy = BedrockProxyManager::new_direct(
-        target_host.clone(),
-        target_port,
-        effective_listen_port,
-        Arc::clone(auth_manager),
-        advertised_version,
-        deps,
-    );
-    proxy.start().await.map_err(|e| e.to_string())?;
-
-    let server_api = {
-        let app = app_state.lock().await;
-        if let Err(e) = state
-            .start_keepalive(&app, effective_listen_port, &network_interface)
-            .await
-        {
-            log::warn!("Transfer keepalive failed to start: {}", e);
-        }
-        app.api_client.clone()
-    };
-
-    let (server_transfer_relay, server_dns_enabled) = match server_api {
-        Some(api) => api.resolve_bedrock_connection_hints().await,
-        None => (None, false),
-    };
-
-    state.proxy = Some(proxy);
-    state.proxy_target_host = Some(target_host.clone());
-    state.proxy_target_port = Some(target_port);
-    state.proxy_listen_port = Some(effective_listen_port);
-
-    let info = BedrockConnectionInfo {
-        local_address: "127.0.0.1".to_string(),
-        lan_address: network_interface.clone(),
-        port: effective_listen_port,
-        backend: BedrockBackendKind::Direct,
-        remote_label: format!("{}:{}", target_host, target_port),
-        hive_dns_hostname: HIVE_DNS_HOSTNAME.to_string(),
-        server_dns_enabled,
-        server_transfer_relay,
-    };
-    if let Err(e) = app_handle.emit("bedrock_connection_info", &info) {
-        log::warn!("Failed to emit bedrock_connection_info: {}", e);
-    }
-
-    Ok(())
+    BedrockConnector::new(app_handle)
+        .start_proxy(ProxyConnectRequest {
+            target_host,
+            target_port,
+            listen_port,
+            network_interface: Some(network_interface),
+            advertised_protocol,
+            addon_mode,
+        })
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
-pub(crate) async fn bedrock_stop_proxy(
-    state: State<'_, Mutex<BedrockState>>,
-) -> Result<(), String> {
-    let mut state = state.lock().await;
-    state.stop_keepalive().await;
-    if let Some(ref mut proxy) = state.proxy {
-        proxy.stop().await.map_err(|e| e.to_string())?;
-    }
-    state.proxy = None;
-    state.proxy_target_host = None;
-    state.proxy_target_port = None;
-    state.proxy_listen_port = None;
-    Ok(())
+pub(crate) async fn bedrock_stop_proxy(app_handle: tauri::AppHandle) -> Result<(), String> {
+    BedrockConnector::new(app_handle)
+        .stop_proxy()
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
@@ -161,146 +57,24 @@ pub(crate) async fn bedrock_start_realms(
     realm_id: u64,
     realm_name: String,
     network_interface: String,
-    state: State<'_, Mutex<BedrockState>>,
-    app_state: State<'_, Mutex<AppState>>,
-    quic_producer: State<'_, Arc<flume::Sender<NetworkPacket>>>,
-    flag_service: State<'_, Arc<FeatureFlagService>>,
-    analytics: State<'_, Arc<AnalyticsService>>,
-    beacon_cache: State<'_, Arc<JukeboxBeaconCache>>,
-    error_channel: State<'_, Arc<BedrockConnectErrorChannel>>,
-    eject_injector: State<'_, Arc<JukeboxEjectInjector>>,
-    presence_injector: State<'_, Arc<PresenceInjector>>,
-    announce_injector: State<'_, Arc<AnnounceInjector>>,
 ) -> Result<(), String> {
-    // Scope is deliberate: the switch is read once, here, so it stops new
-    // sessions from starting. A session already running is not torn down when
-    // the flag flips off — it ends when the player disconnects. Cutting live
-    // sessions would need a watcher on the flag generation, not a check here.
-    if !flag_service.get(RealmsConnectEnabled).await {
-        return Err("Realms Connect is currently unavailable.".to_string());
-    }
-
-    let mut state = state.lock().await;
-
-    if state.proxy.as_ref().is_some_and(|p| !p.is_stopped()) {
-        return Err("Proxy session is active. Stop it before starting realms.".to_string());
-    }
-
-    if state.realms.as_ref().is_some_and(|r| !r.is_stopped()) {
-        return Err("Realms is already running.".to_string());
-    }
-
-    let realms_api = state
-        .realms_api
-        .as_ref()
-        .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
-        .clone();
-
-    let xbl_token = state
-        .xbl_token
-        .as_ref()
-        .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
-        .clone();
-
-    let user_hash = state
-        .user_hash
-        .as_ref()
-        .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
-        .clone();
-
-    let access_token = state
-        .access_token
-        .as_ref()
-        .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
-        .clone();
-
-    let gating = ProtocolGatingService::new_shared(
-        Arc::clone(flag_service.inner()),
-        Arc::clone(analytics.inner()),
-    );
-
-    let deps = ProxyDeps::new(
-        Arc::clone(&state.player_state_cache),
-        gating,
-        Arc::clone(beacon_cache.inner()),
-        Arc::clone(error_channel.inner()),
-        Arc::new(BedrockEventEmitter::new(quic_producer.inner().clone())),
-        Arc::clone(eject_injector.inner()),
-        Arc::clone(presence_injector.inner()),
-        Arc::clone(announce_injector.inner()),
-        app_handle.state::<ControlActionSender>().inner().clone(),
-        app_handle
-            .state::<Arc<crate::bedrock::QueryStateInjector>>()
-            .inner()
-            .clone(),
-        app_handle
-            .state::<crate::control::ControlStateBus>()
-            .inner()
-            .clone(),
-    );
-    let advertised_version = AdvertisedVersionResolver::realms(flag_service.inner()).await;
-    let mut realms = BedrockProxyManager::new_realm(
-        realm_id,
-        BEDROCK_LISTEN_PORT,
-        xbl_token,
-        user_hash,
-        access_token,
-        realms_api,
-        advertised_version,
-        deps,
-    );
-    realms.start().await.map_err(|e| e.to_string())?;
-
-    let server_api = {
-        let app = app_state.lock().await;
-        if let Err(e) = state
-            .start_keepalive(&app, BEDROCK_LISTEN_PORT, &network_interface)
-            .await
-        {
-            log::warn!("Transfer keepalive failed to start: {}", e);
-        }
-        app.api_client.clone()
-    };
-
-    let (server_transfer_relay, server_dns_enabled) = match server_api {
-        Some(api) => api.resolve_bedrock_connection_hints().await,
-        None => (None, false),
-    };
-
-    state.realms = Some(realms);
-    state.active_realm_id = Some(realm_id);
-    state.active_realm_name = Some(realm_name.clone());
-
-    let info = BedrockConnectionInfo {
-        local_address: "127.0.0.1".to_string(),
-        lan_address: network_interface.clone(),
-        port: BEDROCK_LISTEN_PORT,
-        backend: BedrockBackendKind::Realm,
-        remote_label: realm_name,
-        hive_dns_hostname: HIVE_DNS_HOSTNAME.to_string(),
-        server_dns_enabled,
-        server_transfer_relay,
-    };
-    if let Err(e) = app_handle.emit("bedrock_connection_info", &info) {
-        log::warn!("Failed to emit bedrock_connection_info: {}", e);
-    }
-
-    Ok(())
+    BedrockConnector::new(app_handle)
+        .start_realm(RealmConnectRequest {
+            realm_id,
+            realm_name,
+            network_interface: Some(network_interface),
+        })
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
-pub(crate) async fn bedrock_stop_realms(
-    state: State<'_, Mutex<BedrockState>>,
-) -> Result<(), String> {
-    let mut state = state.lock().await;
-    state.stop_keepalive().await;
-    if let Some(ref mut realms) = state.realms {
-        realms.stop().await.map_err(|e| e.to_string())?;
-    }
-    state.realms = None;
-    state.active_realm_id = None;
-    state.active_realm_name = None;
-    Ok(())
+pub(crate) async fn bedrock_stop_realms(app_handle: tauri::AppHandle) -> Result<(), String> {
+    BedrockConnector::new(app_handle)
+        .stop_realm()
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
@@ -347,7 +121,17 @@ pub(crate) async fn bedrock_xbox_login(
 
     let mut state = state.lock().await;
     state.login_cancel_tx = None;
-    state.apply_auth(api, xbl_token, user_hash, access_token, refresh_token, xuid);
+    let auth_manager =
+        auth.build_auth_manager(refresh_token.as_deref(), &xuid, Some(&app_handle));
+    state.apply_auth(
+        auth_manager,
+        api,
+        xbl_token,
+        user_hash,
+        access_token,
+        refresh_token,
+        xuid,
+    );
 
     Ok(())
 }
@@ -372,21 +156,30 @@ pub(crate) async fn bedrock_restore_auth(
     };
     let stored_xuid = keyring.load(BEDROCK_KEYRING_KEY_XUID);
 
-    let result = RealmsApi::authenticate_refresh(XBOX_CLIENT_ID, &refresh_token, RealmsEnvironment::Retail)
-        .await
-        .map_err(|e| {
+    // Only a credential the provider actually rejected is worth deleting. `authenticate_refresh`
+    // reaches the token endpoint over the network, so an unreachable host arrives here too, and
+    // discarding on that trades a device-code prompt for a dropped connection.
+    let result = RealmsApi::authenticate_refresh(
+        XBOX_CLIENT_ID,
+        &refresh_token,
+        RealmsEnvironment::Retail,
+    )
+    .await
+    .map_err(|e| {
+        if matches!(BedrockRenewal::from(&e), BedrockRenewal::ReauthRequired) {
             keyring.clear();
-            e.to_string()
-        })?;
+        }
+        e.to_string()
+    })?;
 
     let (api, xbl_token, user_hash, access_token, new_refresh_token) = result;
     let auth = BedrockAuthService::new();
     let xuid = match stored_xuid {
         Some(x) => x,
-        None => auth.extract_xuid(&xbl_token).await.map_err(|e| {
-            keyring.clear();
-            format!("Failed to extract XUID during auth restore: {}", e)
-        })?,
+        None => auth
+            .extract_xuid(&xbl_token)
+            .await
+            .map_err(|e| format!("Failed to extract XUID during auth restore: {}", e))?,
     };
     keyring.store(BEDROCK_KEYRING_KEY_XUID, &xuid);
 
@@ -395,8 +188,12 @@ pub(crate) async fn bedrock_restore_auth(
         keyring.store(BEDROCK_KEYRING_KEY_REFRESH_TOKEN, rt);
     }
 
+    let auth_manager =
+        auth.build_auth_manager(effective_refresh.as_deref(), &xuid, Some(&app_handle));
+
     let mut state = state.lock().await;
     state.apply_auth(
+        auth_manager,
         api,
         xbl_token,
         user_hash,
@@ -412,46 +209,10 @@ pub(crate) async fn bedrock_restore_auth(
 pub(crate) async fn bedrock_force_refresh(
     state: State<'_, Mutex<BedrockState>>,
     app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    let refresh_token = {
-        let s = state.lock().await;
-        s.refresh_token
-            .clone()
-            .ok_or_else(|| "No refresh token available. Sign in again.".to_string())?
-    };
-
-    let (api, xbl_token, user_hash, access_token, new_refresh_token) =
-        RealmsApi::authenticate_refresh(XBOX_CLIENT_ID, &refresh_token, RealmsEnvironment::Retail)
-            .await
-            .map_err(|e| e.to_string())?;
-
-    let stored_xuid = {
-        let s = state.lock().await;
-        s.xuid.clone()
-    };
-    let auth = BedrockAuthService::new();
-    let xuid = match stored_xuid {
-        Some(x) => x,
-        None => auth.extract_xuid(&xbl_token).await?,
-    };
-
-    let keyring = BedrockKeyringService::new(&app_handle);
-    let effective_refresh = new_refresh_token.or(Some(refresh_token));
-    if let Some(ref rt) = effective_refresh {
-        keyring.store(BEDROCK_KEYRING_KEY_REFRESH_TOKEN, rt);
-    }
-    keyring.store(BEDROCK_KEYRING_KEY_XUID, &xuid);
-
-    let mut state = state.lock().await;
-    state.apply_auth(
-        api,
-        xbl_token,
-        user_hash,
-        access_token,
-        effective_refresh,
-        xuid,
-    );
-    Ok(())
+) -> Result<BedrockRenewal, String> {
+    Ok(BedrockAuthService::new()
+        .renew(state.inner(), &app_handle)
+        .await)
 }
 
 #[tauri::command(async)]
@@ -479,15 +240,7 @@ pub(crate) async fn bedrock_xbox_logout(
         return Err("Stop the realms session before signing out.".to_string());
     }
 
-    state.auth_manager = None;
-    state.realms_api = None;
-    state.xbl_token = None;
-    state.user_hash = None;
-    state.access_token = None;
-    state.refresh_token = None;
-    state.xuid = None;
-
-    BedrockKeyringService::new(&app_handle).clear();
+    BedrockAuthService::new().sign_out(&mut state, &app_handle);
     Ok(())
 }
 
@@ -498,40 +251,52 @@ pub(crate) async fn bedrock_list_protocol_versions() -> Result<Vec<ProtocolVersi
 
 #[tauri::command(async)]
 pub(crate) async fn bedrock_list_interfaces() -> Result<Vec<NetworkInterface>, String> {
-    let mut interfaces: Vec<NetworkInterface> = if_addrs::get_if_addrs()
-        .map_err(|e| e.to_string())?
-        .into_iter()
-        .filter(|iface| !iface.is_loopback())
-        .map(|iface| {
-            let ip = iface.ip();
-            NetworkInterface {
-                name: iface.name.clone(),
-                ip: ip.to_string(),
-                is_ipv4: ip.is_ipv4(),
-            }
-        })
-        .collect();
-    // Bedrock clients (especially on mobile) reach BVC over IPv4 in practice,
-    // so surface IPv4 entries first — both for the default selection and for
-    // dropdown ordering.
-    interfaces.sort_by_key(|iface| !iface.is_ipv4);
-    Ok(interfaces)
+    BedrockConnector::interfaces().map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
 pub(crate) async fn bedrock_list_realms(
     state: State<'_, Mutex<BedrockState>>,
+    app_handle: tauri::AppHandle,
 ) -> Result<Vec<RealmEntry>, String> {
     let api = {
         let state = state.lock().await;
-        state
-            .realms_api
-            .as_ref()
-            .ok_or_else(|| "Xbox Live authentication required. Please sign in first.".to_string())?
-            .clone()
+        state.realms_api.as_ref().cloned()
     };
 
-    let worlds = api.list_worlds().await.map_err(|e| e.to_string())?;
+    let listed = match api {
+        Some(api) => api.list_worlds().await.map_err(|e| e.to_string()),
+        None => Err(crate::bedrock::XBOX_AUTH_REQUIRED.to_string()),
+    };
+
+    // A stale XSTS token recovers here without anyone being told; only a rejected credential
+    // reaches the player.
+    let worlds = match listed {
+        Ok(w) => w,
+        Err(_) => {
+            match BedrockAuthService::new()
+                .renew(state.inner(), &app_handle)
+                .await
+            {
+                BedrockRenewal::ReauthRequired => {
+                    return Err(crate::bedrock::REAUTH_REQUIRED.to_string());
+                }
+                BedrockRenewal::Unavailable { message } => return Err(message),
+                BedrockRenewal::Renewed => {}
+            }
+
+            let api = {
+                let state = state.lock().await;
+                state
+                    .realms_api
+                    .as_ref()
+                    .cloned()
+                    .ok_or_else(|| crate::bedrock::XBOX_AUTH_REQUIRED.to_string())?
+            };
+            api.list_worlds().await.map_err(|e| e.to_string())?
+        }
+    };
+
     let entries = worlds
         .into_iter()
         .map(|r| RealmEntry {
@@ -565,18 +330,61 @@ pub(crate) async fn bedrock_get_status(
     Ok(BedrockStatus {
         proxy_running: state.proxy.as_ref().is_some_and(|p| !p.is_stopped()),
         realms_running: state.realms.as_ref().is_some_and(|r| !r.is_stopped()),
-        xbox_authenticated: state.auth_manager.is_some(),
+        xbox_authenticated: state.is_authenticated(),
+        reauth_required: state.reauth_required,
         proxy_target_host: state.proxy_target_host.clone(),
         proxy_target_port: state.proxy_target_port,
         proxy_listen_port: state.proxy_listen_port,
+        proxy_started_at: state.proxy_started_at,
         active_realm_id: state.active_realm_id,
         active_realm_name: state.active_realm_name.clone(),
+        // Resolved once at connect time by the connector, which is also what names the entry in
+        // Minecraft's Friends tab, so both surfaces call the world the same thing.
+        active_connection_name: state
+            .active_connection
+            .as_ref()
+            .map(|connection| connection.name.clone()),
     })
 }
 
-#[tauri::command(async)]
-pub(crate) async fn bedrock_realms_enabled(
-    flag_service: State<'_, Arc<FeatureFlagService>>,
-) -> Result<bool, String> {
-    Ok(flag_service.get(RealmsConnectEnabled).await)
+/// Sends a line from the app into the realm the proxy is connected to.
+///
+/// No-net only. The line is queued for the session loop, which injects it as ordinary chat
+/// under the player's own name — see `BedrockProxyManager::inject_chat`.
+#[tauri::command]
+pub(crate) async fn bedrock_send_chat(
+    text: String,
+    state: State<'_, Mutex<BedrockState>>,
+    chat_injector: State<'_, Arc<ChatInjector>>,
+    policy: State<'_, Arc<crate::chat::ChatPolicy>>,
+) -> Result<(), String> {
+    let text = text.trim().to_string();
+    if text.is_empty() {
+        return Err("Nothing to send.".to_string());
+    }
+
+    // Ahead of the session check: chat being off is the true reason, and reporting a missing
+    // connection would send somebody looking for a problem that is not there.
+    if !policy.is_enabled() {
+        return Err("Chat is disabled on this server.".to_string());
+    }
+
+    let state = state.lock().await;
+    let running = state
+        .proxy
+        .as_ref()
+        .is_some_and(|p| !p.is_stopped())
+        || state.realms.as_ref().is_some_and(|r| !r.is_stopped());
+
+    if !running {
+        return Err("Not connected to a world.".to_string());
+    }
+
+    // A full queue means the session loop is not draining. Reporting it beats a message that
+    // silently disappears.
+    if !chat_injector.enqueue(text) {
+        return Err("Chat is backed up. Try again in a moment.".to_string());
+    }
+
+    Ok(())
 }

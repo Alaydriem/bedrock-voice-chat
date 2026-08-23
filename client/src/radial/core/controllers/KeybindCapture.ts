@@ -8,6 +8,12 @@
  * `Shift + Ctrl + M`: two spellings of one binding look like two bindings.
  */
 export class KeybindCapture {
+  /**
+   * Shown where a keybind has none.
+   *
+   * A default rather than a constant: the kit cannot reach the application's translation
+   * surface, so a caller that has one passes the translated word to `label`.
+   */
   static readonly UNSET = "Not set";
 
   readonly root: HTMLElement;

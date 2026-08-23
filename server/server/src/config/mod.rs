@@ -1,5 +1,10 @@
 mod app;
 mod env_overrides;
+pub mod kotlin_export;
+
+pub use kotlin_export::KotlinExporter;
+pub use kotlin_export::KotlinGeneratedFiles;
+pub use kotlin_export::KotlinType;
 
 pub use app::Acme;
 pub use app::AcmeProviderKind;
@@ -9,11 +14,13 @@ pub use app::Audio;
 pub use app::Features;
 pub use app::Meridian;
 pub use app::Permissions;
+pub use app::PeerConfig;
 pub use app::Server;
 pub use app::Voice;
+#[allow(unused_imports)]
+pub use app::VoiceLimits;
 
 pub use app::BedrockConfig;
-pub use app::BedrockDnsConfig;
 #[allow(unused_imports)]
 pub use app::BedrockServerEntry;
 #[allow(unused_imports)]

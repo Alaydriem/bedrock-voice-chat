@@ -1,4 +1,5 @@
-use crate::http::guards::MCAccessToken;
+use crate::config::Voice;
+use crate::http::guards::GameAccessToken;
 use crate::http::openapi::{CustomJsonResponse, RouteSpec, TagDefinition};
 use crate::services::{ClientActionService, PlayerIdentityService};
 use crate::stream::quic::{CacheManager, WebhookReceiver};
@@ -11,7 +12,7 @@ inventory::submit! {
     TagDefinition {
         name: "Control",
         description: "In-game audio control plane. The mod submits ClientActions on behalf \
-                      of the authenticated in-game player (X-MC-Access-Token).",
+                      of the authenticated in-game player (Authorization: Bearer).",
     }
 }
 
@@ -37,28 +38,38 @@ inventory::submit! {
 #[openapi(tag = "Control")]
 #[post("/control", data = "<action>")]
 pub async fn control(
-    _access_token: MCAccessToken,
+    _access_token: GameAccessToken,
     cache_manager: &State<CacheManager>,
     webhook_receiver: &State<WebhookReceiver>,
     identity_service: &State<PlayerIdentityService>,
+    voice: &State<Voice>,
     action: Json<ClientAction>,
 ) -> CustomJsonResponse<Option<String>> {
     let mut action = action.0;
     // Resolve the in-game name to its canonical gamertag (Floodgate/Java aliases)
     // before routing, matching the position ingress so control actions key on the
-    // same identity the voice plane uses.
-    action.id = identity_service
-        .resolve_name(&action.id, &Game::Minecraft)
-        .await;
+    // same identity the voice plane uses. The alias table is per-game, so this uses
+    // the game the request declared rather than assuming one.
+    let game = action.game.clone().unwrap_or(Game::Minecraft);
+    action.id = identity_service.resolve_name(&action.id, &game).await;
 
-    let svc = ClientActionService::new();
+    let svc = ClientActionService::new(voice.recording.enabled);
+
+    if !svc.permits(&action.action) {
+        tracing::info!("control refused: this server does not permit recording");
+        return CustomJsonResponse::error(Status::Forbidden);
+    }
 
     if action.action.is_group_action() {
         let channels = cache_manager.get_channel_collection();
-        let actor_cn = Game::Minecraft.membership_key(&action.id);
-        match svc
-            .route_group(&action.action, &actor_cn, &channels, webhook_receiver.inner())
-            .await
+        let actor = action.actor_identity();
+        match ClientActionService::route_group(
+            &action.action,
+            &actor,
+            &channels,
+            webhook_receiver.inner(),
+        )
+        .await
         {
             Ok(created) => CustomJsonResponse::ok(created),
             Err(e) => {
@@ -73,7 +84,7 @@ pub async fn control(
             Some(registry) => {
                 svc.route_self_with_echo(
                     &action,
-                    &action.id,
+                    &action.actor_key(),
                     registry.as_ref(),
                     cache_manager.player_state(),
                     cache_manager.preferences(),

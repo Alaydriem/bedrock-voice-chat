@@ -1,7 +1,7 @@
 use std::net::{IpAddr, SocketAddr};
-use std::time::Duration;
 
 use super::ConnectCandidate;
+use crate::net::NetTimeouts;
 use crate::structs::reachability::{AddressFamily, ServerReachability};
 
 #[derive(Debug, Clone)]
@@ -11,27 +11,39 @@ pub struct CandidatePlan {
 }
 
 impl CandidatePlan {
-    // The budget a probe-endorsed family earns. Matches the per-port budget that
-    // shipped before any family logic existed.
-    pub const PREFERRED_BUDGET: Duration = Duration::from_secs(3);
-
-    // The fallback family's budget. Shorter because reaching it means the preferred
-    // family already failed, and the walk is bounded by the sum.
-    pub const FALLBACK_BUDGET: Duration = Duration::from_millis(1500);
-
-    // Ordered attempt list: port order is the operator's, family order is the
-    // probe's verdict, and measured latency breaks ties inside a family. A negative
-    // verdict changes order only — every candidate stays, so a wrong verdict costs
-    // time and never connectivity.
+    // Ordered attempt list: ports the probe reached lead ports it did not, the operator's
+    // order decides between ports of equal standing, family order is the probe's verdict,
+    // and measured latency breaks ties inside a family. A negative verdict changes order
+    // only — every candidate stays, so a wrong verdict costs time and never connectivity.
+    //
+    // A port that answered nothing used to lead the walk purely because it was advertised
+    // first, and cost a full handshake budget before the walk reached a port that answers
+    // instantly — with the report saying so already in hand.
+    //
+    // Ports that all answered keep the operator's order rather than racing on latency,
+    // because that order is a routing instruction and not a preference. The advertised
+    // port is how clients are steered through Meridian, and the backend's own port is
+    // reachable and faster wherever it is exposed; ranking those two by latency would walk
+    // every client around the proxy that provides their tenant routing.
+    //
+    // Every candidate gets the same budget. A shorter one for the fallback family bounded
+    // the walk, but it also meant the attempt made after the preferred family had already
+    // failed — the one most likely to be the unusual path that actually works — was the
+    // attempt given the least time to complete.
     pub fn build(addrs: &[IpAddr], ports: &[u16], reachability: &ServerReachability) -> Self {
         let preference = reachability.preference();
         let v6_socket = addrs
             .iter()
             .any(|ip| AddressFamily::of(ip) == AddressFamily::Ipv6);
 
+        // Stable, so the operator's order decides within each group: among the ports that
+        // answered, and among the ports that did not.
+        let mut ports = ports.to_vec();
+        ports.sort_by_key(|port| !Self::answered_on(addrs, *port, reachability));
+
         let mut candidates = Vec::new();
 
-        for port in ports {
+        for port in &ports {
             for family in preference.order() {
                 let mut of_family: Vec<&IpAddr> = addrs
                     .iter()
@@ -42,18 +54,12 @@ impl CandidatePlan {
                 // silent endpoint never displaces one known to answer.
                 of_family.sort_by_key(|ip| reachability.rtt_for(ip, *port).unwrap_or(u32::MAX));
 
-                let budget = if preference.is_preferred(family) {
-                    Self::PREFERRED_BUDGET
-                } else {
-                    Self::FALLBACK_BUDGET
-                };
-
                 for ip in of_family {
                     candidates.push(ConnectCandidate::new(
                         Self::dial_address(*ip, *port, v6_socket),
                         family,
                         *port,
-                        budget,
+                        NetTimeouts::HANDSHAKE,
                     ));
                 }
             }
@@ -63,6 +69,14 @@ impl CandidatePlan {
             candidates,
             v6_socket,
         }
+    }
+
+    // One address answering is the whole of what this asks. Requiring more would let a
+    // single dead address sink a port that another address reaches instantly.
+    fn answered_on(addrs: &[IpAddr], port: u16, reachability: &ServerReachability) -> bool {
+        addrs
+            .iter()
+            .any(|ip| reachability.rtt_for(ip, port).is_some())
     }
 
     pub fn requires_v6_socket(&self) -> bool {

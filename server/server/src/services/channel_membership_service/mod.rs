@@ -1,6 +1,6 @@
 use common::structs::channel::{Channel, ChannelCollection, ChannelEvents};
 use common::structs::packet::{
-    ChannelEventPacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+    ChannelEventPacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
 
 use crate::stream::quic::WebhookReceiver;
@@ -17,7 +17,7 @@ impl ChannelMembershipService {
         channels: &ChannelCollection,
         webhook: &WebhookReceiver,
         name: String,
-        creator: String,
+        creator: common::PlayerIdentity,
     ) -> String {
         let channel = Channel::new(name, creator.clone());
         let id = channel.id();
@@ -25,7 +25,7 @@ impl ChannelMembershipService {
         channels.insert(channel).await;
         Self::fan(
             webhook,
-            ChannelEventPacket::new_full(
+            ChannelEventPacket::new(
                 ChannelEvents::Create,
                 creator.clone(),
                 id.clone(),
@@ -42,16 +42,22 @@ impl ChannelMembershipService {
     pub async fn join(
         channels: &ChannelCollection,
         webhook: &WebhookReceiver,
-        member: String,
+        member: &common::PlayerIdentity,
         channel_id: &str,
     ) -> bool {
-        if channels.get(channel_id).await.is_none() {
+        let Some(channel) = channels.get(channel_id).await else {
             return false;
-        }
-        channels.add_player_to_channel(&member, channel_id).await;
+        };
+        channels.add_player_to_channel(member, channel_id).await;
         Self::fan(
             webhook,
-            ChannelEventPacket::new(ChannelEvents::Join, member, channel_id.to_string()),
+            ChannelEventPacket::new(
+                ChannelEvents::Join,
+                member.clone(),
+                channel_id.to_string(),
+                Some(channel.name.clone()),
+                Some(channel.creator),
+            ),
         )
         .await;
         true
@@ -62,28 +68,47 @@ impl ChannelMembershipService {
     pub async fn leave(
         channels: &ChannelCollection,
         webhook: &WebhookReceiver,
-        member: String,
+        member: &common::PlayerIdentity,
         channel_id: &str,
         close_if_empty: bool,
     ) {
+        // Read before the mutation: closing an empty channel removes it, and the owner has
+        // to be in hand for the Delete that follows.
+        let owner = channels
+            .get(channel_id)
+            .await
+            .map(|channel| (channel.name.clone(), channel.creator));
+
         channels
-            .remove_player_from_channel(&member, channel_id)
+            .remove_player_from_channel(member, channel_id)
             .await;
+
         Self::fan(
             webhook,
-            ChannelEventPacket::new(ChannelEvents::Leave, member.clone(), channel_id.to_string()),
+            ChannelEventPacket::new(
+                ChannelEvents::Leave,
+                member.clone(),
+                channel_id.to_string(),
+                owner.as_ref().map(|(name, _)| name.clone()),
+                owner.as_ref().map(|(_, creator)| creator.clone()),
+            ),
         )
         .await;
+
         if close_if_empty {
             if let Some(ch) = channels.get(channel_id).await {
                 if ch.players.is_empty() {
+                    let channel_name = ch.name.clone();
+                    let creator = ch.creator.clone();
                     channels.remove(channel_id).await;
                     Self::fan(
                         webhook,
                         ChannelEventPacket::new(
                             ChannelEvents::Delete,
-                            member,
+                            member.clone(),
                             channel_id.to_string(),
+                            Some(channel_name),
+                            Some(creator),
                         ),
                     )
                     .await;
@@ -94,10 +119,7 @@ impl ChannelMembershipService {
 
     async fn fan(webhook: &WebhookReceiver, event: ChannelEventPacket) {
         let packet = QuicNetworkPacket {
-            owner: Some(PacketOwner {
-                name: String::from("channel_api"),
-                client_id: vec![0u8; 0],
-            }),
+            sender: Some(PacketSender::for_service(PacketSender::CHANNEL_API)),
             packet_type: PacketType::ChannelEvent,
             data: QuicNetworkPacketData::ChannelEvent(event),
                     // Not a server fan-out, so this envelope carries no sequence.

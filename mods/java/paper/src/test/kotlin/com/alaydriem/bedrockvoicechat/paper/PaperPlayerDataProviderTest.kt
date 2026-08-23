@@ -7,6 +7,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 
 /**
@@ -101,5 +102,115 @@ class PaperPlayerDataProviderTest {
     @Test
     fun `getGameType should return MINECRAFT`() {
         assertEquals(GameType.MINECRAFT, provider.getGameType())
+    }
+
+    /**
+     * The two identity forms are not interchangeable.
+     *
+     * Everything the BVC server indexes a player by is keyed `game:gamertag`, and a
+     * bare gamertag matches none of it. It does not fail either — it answers no, for
+     * every player, which is how the SVC bridge came to mark every BVC player as
+     * disconnected and to suppress double audio for nobody.
+     */
+    @Test
+    fun `the membership key carries the game prefix and the canonical name does not`() {
+        val player = server.addPlayer("TestPlayer")
+
+        assertEquals("TestPlayer", provider.resolveCanonicalName(player))
+        assertEquals(listOf("minecraft:TestPlayer"), provider.resolveMembershipKeys(player))
+    }
+
+    /**
+     * A linked Bedrock player answers to two names and we cannot tell which one their
+     * BVC client registered under: the mod sends their Java account name while the
+     * client authenticates against Xbox Live. Offering only one of them misses that
+     * player whichever is chosen.
+     */
+    @Test
+    fun `a linked player offers both their java name and their gamertag`() {
+        val provider = PaperPlayerDataProvider(xboxGamertagOf = { "XboxTag" })
+        provider.server = server
+        val player = server.addPlayer("JavaName")
+
+        val keys = provider.resolveMembershipKeys(player)
+
+        assertTrue(keys.contains("minecraft:JavaName"), "java name missing from $keys")
+        assertTrue(keys.contains("minecraft:XboxTag"), "gamertag missing from $keys")
+    }
+
+    /**
+     * A Floodgate-prefixed player is already known by their gamertag alone, so the
+     * prefixed Java username is not a second identity — it is the same one wearing a
+     * prefix, and nothing registers under it.
+     */
+    @Test
+    fun `a prefixed bedrock player offers only their gamertag`() {
+        val provider = PaperPlayerDataProvider(xboxGamertagOf = { "XboxTag" })
+        provider.server = server
+        val player = server.addPlayer(".XboxTag")
+
+        assertEquals(listOf("minecraft:XboxTag"), provider.resolveMembershipKeys(player))
+    }
+
+    /**
+     * One name in, one key out. A player whose two names agree must not be offered
+     * twice, or every lookup for them costs two.
+     */
+    /**
+     * The name a frame carries came out of [PaperPlayerDataProvider.resolveCanonicalName],
+     * so it must go back in. Looking a speaker up by their raw profile name is a
+     * different question, and answering it wrongly is silent: the speaker falls back
+     * to a fixed position, which sounds close enough that only the missing talking
+     * indicator gives it away.
+     */
+    @Test
+    fun `a canonical name finds the body it was taken from`() {
+        val player = server.addPlayer("TestPlayer")
+
+        val found = provider.findByIdentity(provider.resolveCanonicalName(player))
+
+        assertEquals(player.uniqueId, found?.uniqueId)
+    }
+
+    // The Floodgate case, where the profile name and the canonical name genuinely
+    // differ. Matching the profile name finds nobody for exactly the players the
+    // bridge exists to carry.
+    @Test
+    fun `a prefixed bedrock player is found by their gamertag`() {
+        val provider = PaperPlayerDataProvider(xboxGamertagOf = { "XboxTag" })
+        provider.server = server
+        val player = server.addPlayer(".XboxTag")
+
+        assertEquals(player.uniqueId, provider.findByIdentity("XboxTag")?.uniqueId)
+    }
+
+    // A linked player is named by their Java account here and may be named by their
+    // gamertag on the far side, so both have to come back to the same body.
+    @Test
+    fun `a linked player is found by either of their names`() {
+        val provider = PaperPlayerDataProvider(xboxGamertagOf = { "XboxTag" })
+        provider.server = server
+        val player = server.addPlayer("JavaName")
+
+        assertEquals(player.uniqueId, provider.findByIdentity("JavaName")?.uniqueId)
+        assertEquals(player.uniqueId, provider.findByIdentity("XboxTag")?.uniqueId)
+    }
+
+    // A speaker on another server has no body here, and inventing one would attach
+    // their audio to a stranger.
+    @Test
+    fun `a name nobody answers to finds no body`() {
+        server.addPlayer("TestPlayer")
+
+        assertNull(provider.findByIdentity("SomeoneElse"))
+    }
+
+    @Test
+    fun `a player whose names agree is offered once`() {
+        val provider = PaperPlayerDataProvider(xboxGamertagOf = { "SameName" })
+        provider.server = server
+        val player = server.addPlayer("SameName")
+
+        assertEquals(listOf("minecraft:SameName"), provider.resolveMembershipKeys(player))
     }
 }

@@ -124,6 +124,9 @@ mod tests {
 
         // Its own counters. This bridge drives a test source rather than a capture device, so its
         // frame accounting must not be reported as a real microphone's.
+        // No meter here: this bridge drives a test source, and there is no window for a level to
+        // reach. The raw emitter is absent and the bus is its own, so neither can be mistaken
+        // for a real microphone's.
         let mut core = InputProcessCore::new(
             gate,
             audio_resampler,
@@ -132,6 +135,8 @@ mod tests {
             2,
             producer,
             Arc::new(crate::diagnostics::InputPipelineStats::new()),
+            None,
+            crate::audio::stream::level_bus::LevelBus::new_shared(),
         );
 
         let shutdown_thread = shutdown.clone();

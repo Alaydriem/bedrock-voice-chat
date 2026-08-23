@@ -13,14 +13,15 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use bvc_server_lib::stream::quic::connection_registry::{ConnectionRegistry, RoutedPacket};
+use bvc_server_lib::stream::quic::connection::{ConnectionRegistry, RoutedPacket};
 use clap::Parser;
 use common::game_data::Dimension;
 use common::players::MinecraftPlayer;
 use common::structs::packet::{
-    AudioFramePacket, PacketOwner, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
+    AudioFramePacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
 };
-use common::{Coordinate, Orientation, PlayerEnum};
+use common::{Coordinate, Game, Orientation, PlayerEnum};
+use common::structs::packet::SpeakerPosition;
 use moka::future::Cache;
 use tokio::sync::mpsc;
 
@@ -99,21 +100,21 @@ impl RouteBench {
             alternative_identity: None,
             player_uuid: None,
             relay_world_uuid: None,
+            bridged_voice: false,
         })
     }
 
     fn audio_packet(&self, i: usize, sender: PlayerEnum) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,
-            owner: Some(PacketOwner {
-                name: Self::player_name(i),
-                client_id: vec![i as u8, (i >> 8) as u8],
-            }),
+            sender: Some(PacketSender::player(
+                Game::Minecraft.membership_key(&Self::player_name(i)),
+                i as u64,
+            )),
             // 160 bytes ~= one 20ms Opus frame at 64kbps
             data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
                 vec![0u8; 160],
-                48000,
-                Some(sender),
+                Some(SpeakerPosition::from_player(&sender)),
                 Some(true),
             )),
             // Not a server fan-out to one connection, so this envelope carries no sequence.
@@ -125,12 +126,24 @@ impl RouteBench {
         for i in 0..self.args.connections {
             let player = self.player(i);
             self.player_cache
-                .insert(Self::player_name(i), player)
+                .insert(
+                    Game::Minecraft.membership_key(&Self::player_name(i)).to_string(),
+                    player,
+                )
                 .await;
 
             let (tx, mut rx) = mpsc::channel::<RoutedPacket>(500);
             self.registry
-                .register(vec![i as u8, (i >> 8) as u8], Self::player_name(i), common::Game::Minecraft, tx);
+                .try_register(
+                    i as u64,
+                    Game::Minecraft
+                        .membership_key(&Self::player_name(i))
+                        .to_string()
+                        .into(),
+                    format!("bench-{i}"),
+                    tx,
+                )
+                .expect("the bench installs no capacity policy");
 
             let delivered = self.delivered.clone();
             tokio::spawn(async move {
@@ -142,8 +155,8 @@ impl RouteBench {
             if self.args.channels {
                 let cluster = i / self.args.group_size.max(1);
                 self.registry.update_player_channel(
-                    format!("minecraft:{}", Self::player_name(i)),
-                    format!("chan{}", cluster),
+                    &format!("minecraft:{}", Self::player_name(i)),
+                    &format!("chan{}", cluster),
                 );
             }
         }
@@ -159,6 +172,10 @@ impl RouteBench {
             let registry = self.registry.clone();
             let cache = self.player_cache.clone();
             let sender = self.player(i);
+            // Handed to the router rather than left for it to look up, the same way the live
+            // paths resolve it once and pass it in. `None` here would make every recipient a
+            // no-route and the bench would measure nothing.
+            let speaker = sender.clone();
             let packet = self.audio_packet(i, sender);
             let range = self.args.broadcast_range;
             let paced = self.args.paced;
@@ -171,7 +188,9 @@ impl RouteBench {
                         ticker.tick().await;
                     }
                     let started = Instant::now();
-                    registry.route_audio_frame(&packet, &cache, range, 5.0).await;
+                    registry
+                        .route_audio_frame(&packet, Some(&speaker), &cache, range, 5.0)
+                        .await;
                     latencies_ns.push(started.elapsed().as_nanos() as u64);
                 }
                 latencies_ns

@@ -4,7 +4,7 @@ use serde::Deserialize;
 use tauri::Wry;
 use tauri_plugin_store::Store;
 
-use crate::audio::types::{AudioDeviceHost, AudioDeviceType, StreamConfig};
+use crate::audio::{AudioDeviceHost, AudioDeviceType, StreamConfig};
 
 // The persisted form of a selected audio device.
 //

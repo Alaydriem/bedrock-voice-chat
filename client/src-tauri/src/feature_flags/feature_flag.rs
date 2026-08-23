@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use crate::feature_flags::flagsmith_value::FlagsmithValue;
+use crate::feature_flags::FlagsmithValue;
 
 // One feature flag definition = one struct that implements `FeatureFlag`.
 // The struct holds any parameters needed to build the Flagsmith key

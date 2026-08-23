@@ -45,7 +45,7 @@ pub struct SwarmConfig {
     pub admin_cert: String,
     /// Admin mTLS identity used for minting: private key PEM path.
     pub admin_key: String,
-    /// The server's Minecraft mod access token, sent as `X-MC-Access-Token`
+    /// The server's Minecraft mod access token, sent as `Authorization: Bearer <token>`
     /// when agents POST bot positions to `/api/position`.
     pub access_token: String,
     /// Bot gamertag prefix; the i-th bot is `{prefix}{i:03}`.

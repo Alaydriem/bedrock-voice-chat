@@ -1,5 +1,6 @@
 pub mod event;
 pub mod heartbeat_snapshot;
+pub mod host_capability;
 pub mod interaction;
 pub mod metric;
 pub mod posthog;
@@ -11,6 +12,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
+use common::structs::metrics::TransportKind;
 use metrics::{counter, describe_histogram, gauge, histogram};
 use metrics_exporter_dogstatsd::DogStatsDBuilder;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
@@ -21,6 +23,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::services::metrics_service::event::TelemetryEvent;
 use crate::services::metrics_service::heartbeat_snapshot::HeartbeatSnapshot;
+use crate::services::metrics_service::host_capability::HostCapability;
 use crate::services::metrics_service::interaction::InteractionRoute;
 use crate::services::metrics_service::interaction::InteractionTracker;
 use crate::services::metrics_service::metric::Metric;
@@ -46,9 +49,14 @@ pub struct MetricsService {
     // gauge carries, so both are written by the one method below.
     active_players: AtomicI64,
     peak_players: AtomicI64,
+    capacity_refusals: AtomicI64,
     interactions: InteractionTracker,
     started_at: Instant,
     features_enabled: Vec<String>,
+    recording_enabled: bool,
+    // Sampled at beat time rather than pushed on change: the write paths that set a
+    // player's recording flag are several, and a counter hooked into each would drift.
+    player_state: Option<crate::stream::quic::PlayerStateCache>,
     // Recently disconnected players, so a return inside the window is reported as a
     // reconnect rather than a fresh session. The name is a local key and never
     // leaves the process — only the elapsed delta is emitted.
@@ -65,6 +73,8 @@ impl MetricsService {
         server_cert_path: &str,
         features_enabled: Vec<String>,
         ca_minted: bool,
+        recording_enabled: bool,
+        player_state: Option<crate::stream::quic::PlayerStateCache>,
     ) -> (Arc<Self>, Option<JoinHandle<()>>) {
         let version = env!("CARGO_PKG_VERSION");
         let prometheus = Self::global_prometheus_handle();
@@ -114,9 +124,12 @@ impl MetricsService {
             posthog_drain: drain,
             active_players: AtomicI64::new(0),
             peak_players: AtomicI64::new(0),
+            capacity_refusals: AtomicI64::new(0),
             interactions: InteractionTracker::new(),
             started_at: Instant::now(),
             features_enabled,
+            recording_enabled,
+            player_state,
             recent_disconnects: moka::sync::Cache::builder()
                 .time_to_live(RECONNECT_WINDOW)
                 .max_capacity(RECONNECT_CACHE_CAPACITY)
@@ -294,8 +307,12 @@ impl MetricsService {
         &self.server_id
     }
 
-    pub fn record_connect(&self, player_name: &str) {
-        counter!(Metric::PlayerConnectionsTotal.name()).increment(1);
+    /// `transport` is a label rather than a separate metric so one query answers both
+    /// "how many players are connected" and "how many of them could not use QUIC". The
+    /// second question has no client-side answer an operator can see.
+    pub fn record_connect(&self, player_name: &str, transport: TransportKind) {
+        counter!(Metric::PlayerConnectionsTotal.name(), "transport" => transport.as_str())
+            .increment(1);
         match self.recent_disconnects.get(player_name) {
             Some(left_at) => {
                 self.recent_disconnects.invalidate(player_name);
@@ -308,15 +325,42 @@ impl MetricsService {
         }
     }
 
-    pub fn record_disconnect(&self, player_name: &str, duration: Duration) {
-        counter!(Metric::PlayerDisconnectionsTotal.name()).increment(1);
-        histogram!(Metric::SessionDurationSeconds.name()).record(duration.as_secs_f64());
+    pub fn record_disconnect(&self, player_name: &str, duration: Duration, transport: TransportKind) {
+        counter!(Metric::PlayerDisconnectionsTotal.name(), "transport" => transport.as_str())
+            .increment(1);
+        histogram!(Metric::SessionDurationSeconds.name(), "transport" => transport.as_str())
+            .record(duration.as_secs_f64());
         self.recent_disconnects
             .insert(player_name.to_string(), Instant::now());
         self.emit(TelemetryEvent::PlayerDisconnected {
             at: Utc::now(),
             duration_secs: duration.as_secs(),
         });
+    }
+
+    /// A WebSocket connection that reached the listener and was refused before it became a
+    /// session — a certificate that verified but named no player, or an upgrade that never
+    /// completed. Distinct from a connect failure the client reports: this one is only
+    /// visible here.
+    pub fn record_websocket_rejection(&self) {
+        counter!(Metric::WebsocketHandshakeRejectionsTotal.name()).increment(1);
+    }
+
+    pub fn record_capacity_refusal(&self) {
+        counter!(Metric::ConnectionsRefusedTotal.name()).increment(1);
+        self.capacity_refusals.fetch_add(1, Ordering::Relaxed);
+    }
+
+    // Observable seam for the refusal count, so the registry's decision is testable without
+    // scraping /metrics.
+    pub fn capacity_refusals(&self) -> i64 {
+        self.capacity_refusals.load(Ordering::Relaxed)
+    }
+
+    // 0 is unlimited, reported rather than omitted: a missing series cannot be told apart
+    // from a server that is not exporting it.
+    pub fn set_voice_capacity_limit(&self, limit: i64) {
+        gauge!(Metric::VoiceCapacityLimit.name()).set(limit as f64);
     }
 
     // Observable seam for the reconnect window, so the gating logic is testable
@@ -332,6 +376,19 @@ impl MetricsService {
             at: Utc::now(),
             uptime_secs: self.started_at.elapsed().as_secs(),
             stop_reason: "graceful",
+        });
+    }
+
+    /// Whether a Minecraft host could fetch and write a native library, reported by
+    /// the Java mod because the mod has no telemetry channel of its own.
+    ///
+    /// Gated by the same `features.telemetry` flag as everything else here. When it
+    /// is off the mod performs no check, so this is never called rather than called
+    /// and dropped — but `emit` drops it anyway if the sender is absent.
+    pub fn record_host_capability(&self, report: HostCapability) {
+        self.emit(TelemetryEvent::ModHostCapability {
+            at: Utc::now(),
+            report,
         });
     }
 
@@ -492,8 +549,20 @@ impl MetricsService {
                 players_reached_mutual_proximity: proximity.mutual,
                 players_reached_mutual_channel: channel.mutual,
                 features_enabled: self.features_enabled.clone(),
+                recording_enabled: self.recording_enabled,
+                recording_active: self.recording_active(),
             },
         });
+    }
+
+    pub fn recording_enabled(&self) -> bool {
+        self.recording_enabled
+    }
+
+    pub fn recording_active(&self) -> bool {
+        self.player_state
+            .as_ref()
+            .is_some_and(|states| states.any_recording())
     }
 
     pub fn render(&self) -> String {

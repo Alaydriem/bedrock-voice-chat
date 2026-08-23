@@ -1,38 +1,20 @@
+use crate::AudioStreamManager;
 use crate::analytics::AnalyticsService;
-use crate::audio::recording::renderer::AudioFormatRenderer;
+use crate::audio::recording::{
+    DirectorySize, ExportRun, ManifestStore, SessionSink, TrackIndex,
+};
+use crate::audio::spatial::SpatialSettingsResolver;
 use common::structs::AudioFormat;
-use common::structs::recording::SessionManifest;
+use common::structs::recording::{ExportOutcome, RecordingTrack, SessionManifest};
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use log::{error, info};
 use std::fs;
-use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::async_runtime::Mutex;
+use tauri::{Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use common::structs::recording::RecordingSession;
-
-struct DirectorySize;
-
-impl DirectorySize {
-    fn calculate(path: &PathBuf) -> Result<u64, std::io::Error> {
-        let mut total_size = 0u64;
-
-        if path.is_dir() {
-            for entry in fs::read_dir(path)? {
-                let entry = entry?;
-                let path = entry.path();
-                if path.is_dir() {
-                    total_size += Self::calculate(&path)?;
-                } else {
-                    total_size += entry.metadata()?.len();
-                }
-            }
-        }
-
-        Ok(total_size)
-    }
-}
 
 #[tauri::command]
 pub async fn get_recording_sessions(
@@ -104,6 +86,21 @@ pub async fn get_recording_sessions(
 }
 
 #[tauri::command]
+pub async fn get_recording_tracks(
+    app_handle: tauri::AppHandle,
+    session_id: String,
+) -> Result<Vec<RecordingTrack>, String> {
+    let session_path = app_handle
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?
+        .join("recordings")
+        .join(&session_id);
+
+    TrackIndex::for_session(&session_path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn delete_recording_session(
     app_handle: tauri::AppHandle,
     session_id: String,
@@ -126,18 +123,35 @@ pub async fn delete_recording_session(
 }
 
 #[tauri::command]
-#[tracing::instrument(skip(app_handle, selected_players), fields(session_id = %session_id, format = ?format, player_count = selected_players.len()))]
+pub async fn rename_recording_session(
+    app_handle: tauri::AppHandle,
+    session_id: String,
+    name: String,
+) -> Result<(), String> {
+    let recordings_dir = app_handle
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?
+        .join("recordings");
+
+    ManifestStore::rename(&recordings_dir, &session_id, &name)
+}
+
+
+#[tauri::command]
+#[tracing::instrument(skip(app_handle, tracks, asm), fields(session_id = %session_id, format = ?format, track_count = tracks.len()))]
 pub async fn export_recording(
     session_id: String,
-    selected_players: Vec<String>,
+    tracks: Vec<RecordingTrack>,
     spatial: bool,
     format: AudioFormat,
     app_handle: tauri::AppHandle,
-) -> Result<bool, String> {
+    asm: State<'_, Mutex<AudioStreamManager>>,
+) -> Result<ExportOutcome, String> {
     log::info!(
-        "Export recording called - Session ID: {}, Players: {}, Spatial: {}, Format: {:?}",
+        "Export recording called - Session ID: {}, Tracks: {}, Spatial: {}, Format: {:?}",
         session_id,
-        selected_players.len(),
+        tracks.len(),
         spatial,
         format
     );
@@ -165,72 +179,79 @@ pub async fn export_recording(
         );
     }
 
-    let session_path = rec_path.clone();
     let render_path = rec_path.join("renders");
     let _ = fs::create_dir_all(render_path.clone().to_path_buf());
-    let render_path_for_open = render_path.clone();
 
-    let export_player_count = selected_players.len();
     let export_format = format!("{:?}", format);
     let render_start = std::time::Instant::now();
 
-    let task = tokio::spawn({
-        use tracing::Instrument;
-        async move {
-            for (index, player) in selected_players.iter().enumerate() {
-                let span = tracing::info_span!("render_player", index = index);
-                let output_path = render_path.join(format!("{}.{}", player, format.extension()));
-                async {
-                    match format.render(&session_path, player, &output_path).await {
-                        Ok(()) => {
-                            info!("Rendered player {}", index);
-                        }
-                        Err(e) => {
-                            error!("Error rendering player {}: {}", index, e);
-                        }
-                    }
-                }
-                .instrument(span)
-                .await;
-            }
-        }
-        .instrument(tracing::Span::current())
-    });
+    // Resolved before the run starts, and the lock released before any rendering: a render
+    // decodes a whole session and must never hold the audio manager while it does.
+    let spatial = if spatial {
+        let live = {
+            let asm = asm.lock().await;
+            SpatialSettingsResolver::live(&asm).await
+        };
+        let settings = SpatialSettingsResolver::choose(
+            live,
+            SpatialSettingsResolver::last_known(&app_handle),
+        );
 
-    match task.await {
-        Ok(()) => {
-            let render_time_ms = render_start.elapsed().as_millis() as u64;
+        info!(
+            "Spatial export using {} settings, falloff {}",
+            settings.provenance().as_str(),
+            settings.config().falloff_distance
+        );
 
-            let analytics = app_handle.state::<Arc<AnalyticsService>>();
-            let event_data = AnalyticsEventData::new()
-                .insert(
-                    "participant_count",
-                    session_manifest
-                        .as_ref()
-                        .map(|m| m.participants.len() as u64)
-                        .unwrap_or(0),
-                )
-                .insert("export_count", export_player_count as u64)
-                .insert(
-                    "duration_ms",
-                    session_manifest
-                        .as_ref()
-                        .and_then(|m| m.duration_ms)
-                        .unwrap_or(0),
-                )
-                .insert("format", export_format)
-                .insert("render_time_ms", render_time_ms);
-            analytics.track(AnalyticsEvent::RecordingExported, Some(event_data));
-
-            let _ = app_handle.opener().open_path(
-                render_path_for_open.to_string_lossy().to_string(),
-                None::<&str>,
-            );
-        }
-        Err(e) => {
-            error!("JoinHandler for Recording failed to join, {}", e);
-        }
+        Some(settings)
+    } else {
+        None
     };
 
-    Ok(true)
+    let sink = SessionSink {
+        app_handle: app_handle.clone(),
+        session_id: session_id.clone(),
+        session_path: rec_path.clone(),
+        render_path: render_path.clone(),
+        format,
+        spatial,
+    };
+    let outcome = ExportRun::execute(&tracks, &sink).await;
+
+    for failure in &outcome.failed {
+        error!("Error rendering {}: {}", failure.track, failure.reason);
+    }
+    info!("Rendered {} of {} tracks", outcome.written.len(), tracks.len());
+
+    let render_time_ms = render_start.elapsed().as_millis() as u64;
+    let analytics = app_handle.state::<Arc<AnalyticsService>>();
+    let event_data = AnalyticsEventData::new()
+        .insert(
+            "participant_count",
+            session_manifest
+                .as_ref()
+                .map(|m| m.participants.len() as u64)
+                .unwrap_or(0),
+        )
+        .insert("export_count", outcome.written.len() as u64)
+        .insert(
+            "duration_ms",
+            session_manifest
+                .as_ref()
+                .and_then(|m| m.duration_ms)
+                .unwrap_or(0),
+        )
+        .insert("format", export_format)
+        .insert("render_time_ms", render_time_ms);
+    analytics.track(AnalyticsEvent::RecordingExported, Some(event_data));
+
+    // The folder opens when anything at all landed in it. Opening an empty one on a total
+    // failure hands somebody a directory to search instead of a reason.
+    if !outcome.written.is_empty() {
+        let _ = app_handle
+            .opener()
+            .open_path(render_path.to_string_lossy().to_string(), None::<&str>);
+    }
+
+    Ok(outcome)
 }

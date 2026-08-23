@@ -29,6 +29,7 @@ impl EnvOverrides {
 
     pub fn apply(&self, mut config: ApplicationConfig) -> Result<ApplicationConfig, anyhow::Error> {
         self.apply_server(&mut config)?;
+        self.apply_voice(&mut config)?;
         self.apply_tls(&mut config);
         self.apply_database(&mut config)?;
         self.apply_meridian(&mut config)?;
@@ -52,7 +53,7 @@ impl EnvOverrides {
             Some(raw) => raw
                 .parse::<u32>()
                 .map(Some)
-                .map_err(|_| anyhow!("{key} must be an integer port, got {raw:?}")),
+                .map_err(|_| anyhow!("{key} must be a non-negative integer, got {raw:?}")),
         }
     }
 
@@ -129,6 +130,22 @@ impl EnvOverrides {
         }
         if let Some(telemetry) = self.get_bool("BVC_TELEMETRY")? {
             config.server.features.telemetry = telemetry;
+        }
+        if let Some(chat) = self.get_bool("BVC_CHAT")? {
+            config.server.features.chat = chat;
+        }
+        Ok(())
+    }
+
+    fn apply_voice(&self, config: &mut ApplicationConfig) -> Result<(), anyhow::Error> {
+        if let Some(recording) = self.get_bool("BVC_RECORDING")? {
+            config.voice.recording.enabled = recording;
+        }
+        if let Some(connections) = self.get_u32("BVC_MAX_CONNECTIONS")? {
+            config.voice.limits.connections = connections;
+        }
+        if let Some(grace) = self.get_u32("BVC_RECONNECT_GRACE")? {
+            config.voice.limits.reconnect_grace = grace as u64;
         }
         Ok(())
     }

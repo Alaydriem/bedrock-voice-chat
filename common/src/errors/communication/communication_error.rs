@@ -1,6 +1,4 @@
-use super::{
-    GameError, GenericCommunicationError, HytaleCommunicationError, MinecraftCommunicationError,
-};
+use super::{GameError, GenericCommunicationError, MinecraftCommunicationError};
 use crate::Game;
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -21,10 +19,6 @@ pub enum CommunicationError {
 impl CommunicationError {
     pub fn minecraft(err: MinecraftCommunicationError) -> Self {
         CommunicationError::Game(GameError::Minecraft(err))
-    }
-
-    pub fn hytale(err: HytaleCommunicationError) -> Self {
-        CommunicationError::Game(GameError::Hytale(err))
     }
 
     pub fn generic(err: GenericCommunicationError) -> Self {

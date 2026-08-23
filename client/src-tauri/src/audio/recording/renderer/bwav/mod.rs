@@ -1,3 +1,4 @@
+use crate::audio::recording::renderer::stream::mixed::MixedPcmTrack;
 use crate::audio::recording::renderer::{AudioRenderer, PcmChunk, PcmStream, SessionInfo};
 use async_trait::async_trait;
 use bwavfile::{Bext, WaveFmt, WaveWriter};
@@ -25,6 +26,7 @@ impl BwavRenderer {
         player_name: &str,
         sample_rate: u32,
         first_frame_relative_timestamp_ms: u64,
+        channels: u16,
     ) -> Bext {
         // Convert Unix timestamp (ms) to DateTime, using the actual first packet time
         let actual_start_timestamp =
@@ -61,9 +63,42 @@ impl BwavRenderer {
                 "A=PCM,F={},W={},M={},T=BVC\r\n",
                 sample_rate,
                 self.bits_per_sample,
-                "mono" // should always be mono?
+                if channels == 1 { "mono" } else { "stereo" }
             ),
         }
+    }
+
+    /// Write a track that arrived as one buffer rather than as a stream of WAL chunks.
+    ///
+    /// Mixed audio has no packets of its own to walk and no gaps left to fill — the
+    /// silence between its sources is already in the samples.
+    pub(crate) fn write_samples(
+        &self,
+        track: &MixedPcmTrack,
+        display: &str,
+        output_path: &Path,
+    ) -> Result<(), anyhow::Error> {
+        let format = if track.channels == 1 {
+            WaveFmt::new_pcm_mono(track.sample_rate, self.bits_per_sample)
+        } else {
+            WaveFmt::new_pcm_stereo(track.sample_rate, self.bits_per_sample)
+        };
+
+        let mut writer = WaveWriter::create(output_path, format)?;
+        let bext = self.create_bext(
+            &track.session_info,
+            display,
+            track.sample_rate,
+            track.first_sound_ms,
+            track.channels,
+        );
+        writer.write_broadcast_metadata(&bext)?;
+
+        let mut frame_writer = writer.audio_frame_writer()?;
+        frame_writer.write_frames(&track.samples)?;
+        frame_writer.end()?;
+
+        Ok(())
     }
 }
 
@@ -101,6 +136,7 @@ impl AudioRenderer for BwavRenderer {
             player_name,
             info.sample_rate,
             info.first_frame_timestamp_ms,
+            info.channels,
         );
         writer.write_broadcast_metadata(&bext)?;
 

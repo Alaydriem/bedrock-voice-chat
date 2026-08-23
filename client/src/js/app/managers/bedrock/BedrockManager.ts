@@ -1,14 +1,14 @@
 import { writable, derived, type Writable, type Readable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { Store } from '@tauri-apps/plugin-store';
-import { error as logError } from '@tauri-apps/plugin-log';
+import { error as logError } from '@charlesportwoodii/tauri-plugin-curia';
 import type { BedrockStatus } from '../../../bindings/BedrockStatus';
 import type { BedrockLogEntry } from '../../../bindings/BedrockLogEntry';
 import type { BedrockConnectionInfo } from '../../../bindings/BedrockConnectionInfo';
 import type { RealmEntry } from '../../../bindings/RealmEntry';
 import type { NetworkInterface } from '../../../bindings/NetworkInterface';
 import type { ProtocolVersionOption } from '../../../bindings/ProtocolVersionOption';
+import type { AddonMode } from '../../../bindings/AddonMode';
 import type { ProxyServerEntry } from './ProxyServerEntry';
 import type { BedrockCapabilityManager } from './BedrockCapabilityManager';
 import { BedrockAuthManager } from './auth/BedrockAuthManager';
@@ -18,6 +18,7 @@ import { BedrockLogsManager } from './logs/BedrockLogsManager';
 import { BedrockConnectionManager } from './connection/BedrockConnectionManager';
 import type { RealmsConnectionError } from './connection/RealmsConnectionError';
 import type { RealmsConnectionErrorKind } from './connection/RealmsConnectionErrorKind';
+import { AppStore } from '../../services/AppStore';
 
 export type { RealmsConnectionError, RealmsConnectionErrorKind };
 
@@ -77,7 +78,6 @@ export class BedrockManager {
 
     private initialized = false;
     private store: Store | null = null;
-    private flagsUnlisten: UnlistenFn | null = null;
 
     constructor(capability: BedrockCapabilityManager) {
         this.statusMessageStore = writable('');
@@ -106,6 +106,7 @@ export class BedrockManager {
                 onRealmsUnavailable: () => {
                     this.realmsUnavailableModalStore.set(true);
                 },
+                onReauthRequired: () => this.handleReauthRequired(),
             },
         );
 
@@ -116,6 +117,8 @@ export class BedrockManager {
                 await this.realmsManager.loadRealms();
             },
         });
+
+        this.connectionManager.setReauthHandler(() => this.handleReauthRequired());
 
         this.isAuthenticated = this.authManager.isAuthenticated;
         this.isRestoringAuth = this.authManager.isRestoringAuth;
@@ -172,9 +175,18 @@ export class BedrockManager {
         await this.logsManager.initialize();
         await this.connectionManager.initialize();
 
-        this.store = await Store.load('store.json', { autoSave: false, defaults: {} });
+        this.store = await AppStore.load();
         await this.realmsManager.initialize(this.store);
         await this.proxyManager.initialize(this.store);
+
+        // Nothing else reads /api/config on this path. Without this the
+        // advertised server list stays empty, the capability status stays null so
+        // the retry affordance never renders, and the focus-refresh handler never
+        // arms because it is registered inside refresh() itself.
+        //
+        // Not awaited: a slow or unreachable server must not hold up the panes,
+        // and a failure schedules its own retry.
+        void this.capability.refresh();
 
         await this.authManager.restoreAuth();
 
@@ -233,30 +245,8 @@ export class BedrockManager {
     // blocked connect attempt, so it must not survive into a later mount.
     async initializeRealmsAccess(): Promise<void> {
         this.realmsUnavailableModalStore.set(false);
-        await this.refreshRealmsEnabled();
-        if (!this.flagsUnlisten) {
-            try {
-                this.flagsUnlisten = await listen('feature-flags-updated', () => {
-                    void this.refreshRealmsEnabled();
-                });
-            } catch (e) {
-                logError(`feature-flags-updated subscription failed: ${e}`);
-            }
-        }
     }
 
-    // Fails open on read failure, matching both the flag's own default and
-    // SettingsSidebarManager: the two must agree or the sidebar item and the
-    // page can disagree about whether the feature exists.
-    async refreshRealmsEnabled(): Promise<void> {
-        try {
-            const enabled = await invoke<boolean>('bedrock_realms_enabled');
-            this.realmsEnabledStore.set(enabled);
-        } catch (e) {
-            logError(`Realms Connect flag check failed: ${e}`);
-            this.realmsEnabledStore.set(true);
-        }
-    }
 
     dismissRealmsUnavailableModal(): void {
         this.realmsUnavailableModalStore.set(false);
@@ -281,6 +271,15 @@ export class BedrockManager {
 
     dismissConnectionInfo(): void {
         this.connectionManager.dismissConnectionInfo();
+    }
+
+    /**
+     * The stored Xbox credential was rejected. Nothing on the device can repair it, so the
+     * only useful response is to put a device code in front of the player.
+     */
+    handleReauthRequired(): void {
+        this.authManager.setAuthenticated(false);
+        void this.authManager.openLoginModal();
     }
 
     async openLoginModal(): Promise<void> {
@@ -319,8 +318,9 @@ export class BedrockManager {
         host: string,
         port: number,
         protocolVersion?: number,
+        addonMode?: AddonMode,
     ): Promise<ProxyServerEntry> {
-        return this.proxyManager.addProxyServer(name, host, port, protocolVersion);
+        return this.proxyManager.addProxyServer(name, host, port, protocolVersion, addonMode);
     }
 
     async updateProxyServer(id: string, patch: Partial<Omit<ProxyServerEntry, 'id'>>): Promise<void> {
@@ -363,10 +363,6 @@ export class BedrockManager {
         this.authManager.destroy();
         this.logsManager.destroy();
         this.connectionManager.destroy();
-        if (this.flagsUnlisten) {
-            this.flagsUnlisten();
-            this.flagsUnlisten = null;
-        }
         // The capability manager itself is owned by SettingsSidebarManager;
         // only the subscription is ours to release.
         if (this.capabilityUnsubscribe) {

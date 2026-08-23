@@ -1,11 +1,19 @@
 <script lang="ts">
   import "../../css/app.css";
-  import App from "../../js/app/app.ts";
-  import { onMount } from 'svelte';
+  import BootOverlay from "../../js/app/shell/BootOverlay";
+  import { I18n } from "$lib/i18n";
+  import RadFrame from "../../components/shell/RadFrame.svelte";
+  import FaultScreen from "../../components/error/FaultScreen.svelte";
+  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { stopForegroundService, isServiceRunning } from 'tauri-plugin-audio-permissions';
+  import { openUrl } from "@tauri-apps/plugin-opener";
+  import { getVersion } from "@tauri-apps/api/app";
+  import { stopForegroundService, isServiceRunning } from "tauri-plugin-audio-permissions";
   import { Store } from "@tauri-apps/plugin-store";
+  import FaultCatalog from "../../js/app/error/FaultCatalog";
+  import HelpLinks from "../../js/app/HelpLinks";
   import PlatformDetector from "../../js/app/utils/PlatformDetector";
+  import { AppStore } from "../../js/app/services/AppStore";
 
   /**
    * Tears down audio streams, network streams, and the foreground service.
@@ -27,249 +35,23 @@
     }
   }
 
-  // Error configuration object - add new error codes here
-  const ERROR_DEFINITIONS: Record<string, {
-    code: string;
-    title: string;
-    message: string;
-    icon?: string; // FontAwesome icon class
-    primaryAction: {
-      label: string;
-      url: string;
-      style?: 'primary' | 'secondary' | 'danger';
-    };
-    secondaryAction?: {
-      label: string;
-      url: string;
-      style?: 'primary' | 'secondary' | 'danger';
-    };
-  }> = {
-    'PERM1': {
-      code: 'PERM1',
-      title: 'Microphone Permission Required',
-      message: 'Bedrock Voice Chat needs access to your microphone to enable voice communication. Please grant microphone permissions in your system settings and return to the dashboard.',
-      icon: 'fa-solid fa-microphone-slash',
-      primaryAction: {
-        label: 'Back to Dashboard',
-        url: '/dashboard',
-        style: 'primary'
-      }
-    },
-    'PERM2': {
-      code: 'PERM2',
-      title: 'Notification Permission Required',
-      message: 'Bedrock Voice Chat needs access to send you notifications on your platform to allow for background audio recording. Please grant notification permissions in your system settings and then return to the dashboard.',
-      icon: 'fa-solid fa-bell-slash',
-      primaryAction: {
-        label: 'Back to Dashboard',
-        url: '/dashboard',
-        style: 'primary'
-      }
-    },
-    'AUDI01': {
-      code: 'AUDI01',
-      title: 'Incompatible Audio Input Device',
-      message: 'Your microphone configuration is not supported. Make sure your input device on Windows is running at 48kHz sample rate, or change to a different input device',
-      icon: 'fa-solid fa-volume-xmark',
-      primaryAction: {
-        label: 'Change Audio Devices',
-        url: '/settings',
-        style: 'primary'
-      },
-      secondaryAction: {
-        label: 'View FAQ',
-        url: 'https://github.com/Alaydriem/bedrock-voice-chat/discussions/32',
-        style: 'secondary'
-      }
-    },
-    'AUDI02': {
-      code: 'AUDI02',
-      title: 'No Input Device Found',
-      message: 'No microphone was detected on your system. Connect a microphone or headset, verify it appears in your system sound settings, then try again.',
-      icon: 'fa-solid fa-microphone-slash',
-      primaryAction: {
-        label: 'Try Again',
-        url: '/dashboard',
-        style: 'primary'
-      },
-      secondaryAction: {
-        label: 'Change Audio Devices',
-        url: '/settings',
-        style: 'secondary'
-      }
-    },
-    'AUDI03': {
-      code: 'AUDI03',
-      title: 'No Output Device Found',
-      message: 'No speakers or headphones were detected on your system. Connect an audio output device, verify it appears in your system sound settings, then try again.',
-      icon: 'fa-solid fa-volume-xmark',
-      primaryAction: {
-        label: 'Try Again',
-        url: '/dashboard',
-        style: 'primary'
-      },
-      secondaryAction: {
-        label: 'Change Audio Devices',
-        url: '/settings',
-        style: 'secondary'
-      }
-    },
-    'VER01': {
-      code: 'VER01',
-      title: 'Client Update Required',
-      message: 'Your client version is outdated. Download the latest BVC client to connect to this server.',
-      icon: 'fa-solid fa-cloud-arrow-down',
-      primaryAction: {
-        label: 'Back to Dashboard',
-        url: '/dashboard',
-        style: 'primary'
-      }
-    },
-    'VER02': {
-      code: 'VER02',
-      title: 'Server Update Required',
-      message: 'The server is running an older version of BVC that this client cannot connect to. Contact your server owner to have them update to the latest version.',
-      icon: 'fa-solid fa-server',
-      primaryAction: {
-        label: 'Choose Different Server',
-        url: '/server',
-        style: 'primary'
-      }
-    },
-    'DNS01': {
-      code: 'DNS01',
-      title: 'DNS Resolution Failed',
-      message: 'Could not resolve the server address. Check that the server URL is correct and that your internet connection is working. If you are using a custom DNS provider, ensure it can resolve the server hostname.',
-      icon: 'fa-solid fa-globe',
-      primaryAction: {
-        label: 'Try Again',
-        url: '/dashboard',
-        style: 'primary'
-      },
-      secondaryAction: {
-        label: 'Choose Different Server',
-        url: '/server',
-        style: 'secondary'
-      }
-    },
-    'QUIC01': {
-      code: 'QUIC01',
-      title: 'Voice Connection Blocked',
-      message: 'HTTP connection succeeded but the voice connection (QUIC/UDP) was blocked. This usually means a firewall is blocking UDP traffic on the voice port. Check your firewall settings or contact your server administrator.',
-      icon: 'fa-solid fa-shield-halved',
-      primaryAction: {
-        label: 'Try Again',
-        url: '/dashboard',
-        style: 'primary'
-      },
-      secondaryAction: {
-        label: 'Choose Different Server',
-        url: '/server',
-        style: 'secondary'
-      }
-    },
-    'CONN01': {
-      code: 'CONN01',
-      title: 'Connection Failed',
-      message: 'Unable to establish a voice connection to the server. The server may be offline, unreachable, or your certificates may have expired. Please try again.',
-      icon: 'fa-solid fa-plug-circle-xmark',
-      primaryAction: {
-        label: 'Try Again',
-        url: '/dashboard',
-        style: 'primary'
-      },
-      secondaryAction: {
-        label: 'Choose Different Server',
-        url: '/server',
-        style: 'secondary'
-      }
-    },
-    'AUTH01': {
-      code: 'AUTH01',
-      title: 'Connection Refused',
-      message: 'The server refused this connection because it could not verify your identity. Your certificate may have been revoked or reissued. Sign in again to get fresh credentials.',
-      icon: 'fa-solid fa-user-shield',
-      primaryAction: {
-        label: 'Sign In Again',
-        url: '/login',
-        style: 'primary'
-      },
-      secondaryAction: {
-        label: 'Choose Different Server',
-        url: '/server',
-        style: 'secondary'
-      }
-    },
-    'AUTH02': {
-      code: 'AUTH02',
-      title: 'Access Denied',
-      message: 'This server has not granted you account access. Join the Minecraft server in-game at least once so it can register you, or ask the server operator to add you.',
-      icon: 'fa-solid fa-user-lock',
-      primaryAction: {
-        label: 'Try Again',
-        url: '/login',
-        style: 'primary'
-      },
-      secondaryAction: {
-        label: 'Choose Different Server',
-        url: '/server',
-        style: 'secondary'
-      }
-    },
-    'UPD01': {
-      code: 'UPD01',
-      title: 'Update Available',
-      message: 'A new version of Bedrock Voice Chat is available. This will download and install the update immediately.',
-      icon: 'fa-solid fa-cloud-arrow-down',
-      primaryAction: {
-        label: 'Update Now',
-        url: '',
-        style: 'primary'
-      },
-      secondaryAction: {
-        label: 'Stay on This Version',
-        url: '/server',
-        style: 'secondary'
-      }
-    },
-    'AGE01': {
-      code: 'AGE01',
-      title: 'We need a grown-ups help to get started',
-      message: "To use Bedrock Voice Chat, a parent or guardian needs to turn it on for your device. Ask them to help you unlock it -- then you're good to go!",
-      icon: 'fa-solid fa-user-shield',
-      primaryAction: {
-        label: 'Choose Different Server',
-        url: '/server',
-        style: 'primary'
-      },
-      secondaryAction: {
-        label: 'How do I unlock this?',
-        url: 'https://github.com/Alaydriem/bedrock-voice-chat/wiki/Age-Signals-&-Declared-Age-Ranges',
-        style: 'secondary'
-      }
-    },
-    // Default error (used when code is not found or not provided)
-    'DEFAULT': {
-      code: 'ERROR',
-      title: 'Something Went Wrong',
-      message: 'An unexpected error occurred. Please try again or contact support if the problem persists.',
-      icon: 'fa-solid fa-triangle-exclamation',
-      primaryAction: {
-        label: 'Back to Home',
-        url: '/dashboard',
-        style: 'primary'
-      }
-    }
-  };
+  /**
+   * The inputs the screen is decided by, rather than the decision itself.
+   *
+   * Holding the resolved definition would freeze its copy at the moment `onMount` ran,
+   * because the strings are read out of the catalog on access. Deriving it instead means a
+   * language change re-reads them, and the screen follows.
+   */
+  let errorCode = $state<string | null>(null);
+  let updateVersion = $state<string | null>(null);
+  let singleServer = $state(false);
 
-  let currentError = $state(ERROR_DEFINITIONS['DEFAULT']);
+  const currentError = $derived(
+    FaultCatalog.forScreen(errorCode, updateVersion, singleServer),
+  );
 
-  // Button style configurations
-  const BUTTON_STYLES = {
-    primary: 'btn mt-5 w-full bg-primary font-medium text-white hover:bg-primary-focus focus:bg-primary-focus active:bg-primary-focus/90 dark:bg-accent dark:hover:bg-accent-focus dark:focus:bg-accent-focus dark:active:bg-accent/90',
-    secondary: 'btn mt-3 w-full border border-slate-300 font-medium text-slate-800 hover:bg-slate-150 focus:bg-slate-150 active:bg-slate-150/80 dark:border-navy-450 dark:text-navy-50 dark:hover:bg-navy-500 dark:focus:bg-navy-500 dark:active:bg-navy-500/90',
-    danger: 'btn mt-3 w-full bg-error font-medium text-white hover:bg-error-focus focus:bg-error-focus active:bg-error-focus/90'
-  };
+  let appVersion = $state("");
+  let platformId = $state("");
 
   let isUpdating = $state(false);
   let updateError = $state<string | null>(null);
@@ -285,166 +67,108 @@
     }
   }
 
+  /**
+   * An external link opens in the system browser; everything else is a route. The old
+   * page used anchors and let the WebView work it out, which navigated the app window to
+   * GitHub with no way back.
+   */
+  function go(url: string): void {
+    if (url.startsWith("http")) {
+      void openUrl(url);
+      return;
+    }
+    window.location.href = url;
+  }
+
+  const actions = $derived.by(() => {
+    const isUpdate = FaultCatalog.isUpdate(currentError.code);
+    const list = [
+      {
+        label: isUpdate && isUpdating ? I18n.t("Updating…") : currentError.primaryAction.label,
+        onclick: isUpdate ? handleUpdate : () => go(currentError.primaryAction.url),
+        primary: true,
+        disabled: isUpdating,
+      },
+    ];
+    if (currentError.secondaryAction) {
+      list.push({
+        label: currentError.secondaryAction.label,
+        onclick: () => go(currentError.secondaryAction!.url),
+        primary: false,
+        disabled: isUpdating,
+      });
+    }
+    return list;
+  });
+
   onMount(async () => {
-    window.App = new App();
     window.dispatchEvent(new CustomEvent("app:mounted"));
-    window.App.preloader();
+    BootOverlay.dismiss();
 
-    // Read error code from query parameter
+    try { appVersion = await getVersion(); } catch (_) {}
+
+    // Read before the teardown below, so the identifier is on screen even if stopping
+    // the streams is what goes wrong.
+    try { platformId = await invoke<string>("get_platform_id"); } catch (_) {}
+
     const urlParams = new URLSearchParams(window.location.search);
-    const errorCode = urlParams.get('code');
+    errorCode = urlParams.get("code");
+    updateVersion = urlParams.get("version");
+    const isUpdate = FaultCatalog.isUpdate(errorCode);
 
-    // Skip teardown for update page — no streams running from splash
-    if (errorCode !== 'UPD01') {
+    // Nothing is streaming when the splash routes here, and the update is the one screen
+    // reached before a session exists.
+    if (!isUpdate) {
       await teardown();
     }
 
-    if (errorCode && ERROR_DEFINITIONS[errorCode]) {
-      currentError = ERROR_DEFINITIONS[errorCode];
-    } else if (errorCode) {
-      currentError = {
-        ...ERROR_DEFINITIONS['DEFAULT'],
-        code: errorCode
-      };
-    }
-
-    // Append version to update message if provided
-    const version = urlParams.get('version');
-    if (errorCode === 'UPD01' && version) {
-      currentError = {
-        ...currentError,
-        message: `A new version (v${version}) of Bedrock Voice Chat is available. This will download and install the update immediately.`
-      };
-    }
-
-    // Only show "Choose Different Server" actions when multiple servers exist
-    // Skip for UPD01 — "Stay on This Version" should always be available
-    if (errorCode !== 'UPD01') {
-      const store = await Store.load("store.json", { autoSave: false, defaults: {} });
+    // "Stay on This Version" is not a server switch, so the update keeps both of its
+    // actions however many servers are configured.
+    if (!isUpdate) {
+      const store = await AppStore.load();
       const serverList = await store.get("server_list") as Array<{ server: string; player: string }> | null;
-      const hasMultipleServers = serverList != null && serverList.length > 1;
 
-      if (!hasMultipleServers) {
-        if (currentError.secondaryAction?.url === '/server') {
-          currentError = { ...currentError, secondaryAction: undefined };
-        }
-        if (currentError.primaryAction.url === '/server') {
-          currentError = {
-            ...currentError,
-            primaryAction: { ...ERROR_DEFINITIONS['DEFAULT'].primaryAction }
-          };
-        }
-      }
+      singleServer = serverList == null || serverList.length <= 1;
     }
   });
 </script>
 
-<div
-      id="root"
-      class="min-h-80vh cloak flex grow bg-slate-50 dark:bg-navy-900"
-    >
-      <main class="grid w-full grow grid-cols-1 place-items-center">
-        <div class="w-full max-w-[26rem] p-4 sm:px-5">
-          <div class="text-center">
-            <img
-              class="mx-auto h-32 w-32"
-              src="/images/app-logo-transparent.png"
-              alt="Bedrock Voice Chat Logo"
-            />
-            <div class="mt-4">
-              <h2
-                class="text-2xl font-semibold text-slate-600 dark:text-navy-100"
-              >
-                Bedrock Voice Chat
-              </h2>
-            </div>
-          </div>
-
-          <div class="card mt-5 rounded-lg p-5 lg:p-7">
-            <div class="text-center">
-              <!-- Error Icon -->
-              {#if currentError.icon}
-                <div class="mb-4">
-                  <i class="{currentError.icon} text-5xl {currentError.code === 'UPD01' ? 'text-success' : 'text-error'}"></i>
-                </div>
-              {/if}
-
-              <!-- Error Code -->
-              <p class="text-5xl font-bold {currentError.code === 'UPD01' ? 'text-success' : 'text-primary dark:text-accent'}">
-                {currentError.code}
-              </p>
-
-              <!-- Error Title -->
-              <p class="mt-4 text-xl font-semibold text-slate-800 dark:text-navy-50">
-                {currentError.title}
-              </p>
-
-              <!-- Error Message -->
-              <p class="mt-2 text-slate-500 dark:text-navy-200">
-                {currentError.message}
-              </p>
-
-              {#if updateError}
-                <div class="mt-3 rounded-lg bg-error/10 border border-error/20 p-3 text-sm text-error">
-                  <i class="fa-solid fa-circle-exclamation mr-1"></i>
-                  Update failed. Please try again.
-                </div>
-              {/if}
-
-              <!-- Primary Action Button -->
-              {#if currentError.code === 'UPD01'}
-                <button
-                  onclick={handleUpdate}
-                  disabled={isUpdating}
-                  class="{BUTTON_STYLES[currentError.primaryAction.style || 'primary']}{isUpdating ? ' opacity-75 cursor-not-allowed' : ''}"
-                >
-                  {#if isUpdating}
-                    <i class="fa-solid fa-spinner fa-spin mr-2"></i>
-                    Updating...
-                  {:else}
-                    {currentError.primaryAction.label}
-                  {/if}
-                </button>
-              {:else}
-                <a
-                  href={currentError.primaryAction.url}
-                  class={BUTTON_STYLES[currentError.primaryAction.style || 'primary']}
-                >
-                  {currentError.primaryAction.label}
-                </a>
-              {/if}
-
-              <!-- Secondary Action Button (Optional) -->
-              {#if currentError.secondaryAction}
-                {#if isUpdating}
-                  <span class="{BUTTON_STYLES[currentError.secondaryAction.style || 'secondary']} opacity-50 cursor-not-allowed pointer-events-none">
-                    {currentError.secondaryAction.label}
-                  </span>
-                {:else if currentError.code === 'UPD01'}
-                  <button
-                    onclick={() => { window.location.href = currentError.secondaryAction!.url; }}
-                    class={BUTTON_STYLES[currentError.secondaryAction.style || 'secondary']}
-                  >
-                    {currentError.secondaryAction.label}
-                  </button>
-                {:else}
-                  <a
-                    href={currentError.secondaryAction.url}
-                    class={BUTTON_STYLES[currentError.secondaryAction.style || 'secondary']}
-                  >
-                    {currentError.secondaryAction.label}
-                  </a>
-                {/if}
-              {/if}
-            </div>
-          </div>
-
-          <div
-            class="mt-8 flex justify-center text-xs text-slate-400 dark:text-navy-300"
-          >
-            <a href="https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md">Privacy Notice</a>
-            <div class="mx-3 my-1 w-px bg-slate-200 dark:bg-navy-500"></div>
-          </div>
+<RadFrame>
+  <FaultScreen
+    code={currentError.code}
+    title={currentError.title}
+    message={currentError.message}
+    icon={currentError.icon}
+    severity={currentError.severity}
+    category={currentError.category}
+    chip={currentError.chip}
+    caption={currentError.caption}
+    label={currentError.label}
+    hint={currentError.hint}
+    {appVersion}
+    {platformId}
+    {actions}
+    working={isUpdating}
+    workingPhrases={FaultCatalog.UPDATE_PHRASES}
+  >
+    {#snippet footnote()}
+      {#if updateError}
+        <div class="rad-callout rad-callout--bad rad-rise" style="--d: 340; margin-top: 18px">
+          <span>{I18n.t("The update could not be installed. Try again, or download the new version by hand.")}</span>
         </div>
-      </main>
-    </div>
+      {:else if currentError.severity !== 'ok'}
+        <span class="rad-label rad-rise" style="--d: 360; display: block; margin-top: 26px">
+          {I18n.t("Still stuck?")}
+        </span>
+        <div class="rad-swatchrow rad-rise" style="--d: 390">
+          <button class="rad-pill-link" onclick={() => void HelpLinks.openWiki()}>
+            {I18n.t("Wiki")} <span class="rad-pill-link__ext">&#8599;</span>
+          </button>
+          <button class="rad-pill-link" onclick={() => void HelpLinks.openDiscord()}>
+            Discord <span class="rad-pill-link__ext">&#8599;</span>
+          </button>
+        </div>
+      {/if}
+    {/snippet}
+  </FaultScreen>
+</RadFrame>

@@ -42,6 +42,33 @@ describe("ServerGlyph", () => {
       }
     }
   });
+
+  // The other half of the drift guard. `common/websocket-types/tests/glyph/server.rs` asserts
+  // these same values, so a controller draws the tile the desktop draws. Nothing at runtime can
+  // detect the two derivations diverging — the glyphs would simply stop matching.
+  //
+  // The non-ASCII rows are the ones that matter most: an implementation hashing bytes rather
+  // than UTF-16 code units passes every ASCII case and fails only these.
+  it("agrees with the Rust derivation on fixed vectors", () => {
+    const cases: [string, string, number, string][] = [
+      ["bvc.alaydriem.com", "#f9871d", 17, "1b57eb5"],
+      ["voice.hearthhold.net", "#f67414", 18, "15faa31"],
+      ["a", "#f8e434", 14, "0a212a4"],
+      ["Ops", "#466cf3", 4, "1b013fb"],
+      ["café", "#466cf3", 4, "1bfc7e4"],
+      ["日本", "#8238d8", 1, "1bfa884"],
+    ];
+
+    for (const [name, hue, hueIndex, pattern] of cases) {
+      const glyph = ServerGlyph.of(name);
+      let value = 0n;
+      for (let i = 0; i < 25; i++) if (glyph.bits[i]) value |= 1n << BigInt(i);
+
+      assert.equal(glyph.hue, hue, `hue for ${name}`);
+      assert.equal(glyph.hueIndex, hueIndex, `hue index for ${name}`);
+      assert.equal(value.toString(16).padStart(7, "0"), pattern, `pattern for ${name}`);
+    }
+  });
 });
 
 describe("PlayerHue", () => {
@@ -53,10 +80,11 @@ describe("PlayerHue", () => {
     assert.equal(PlayerHue.of("minecraft:Alaydriem"), PlayerHue.of("MINECRAFT:alaydriem"));
   });
 
-  it("separates the same name on different games", () => {
-    // The same gamertag on two games is two identities as far as certificates go.
+  it("separates the same name under different game prefixes", () => {
+    // The hue is keyed on the whole canonical identity, so the same gamertag under two
+    // prefixes is two identities as far as certificates go.
     const a = PlayerHue.columnOf("minecraft:Alaydriem");
-    const b = PlayerHue.columnOf("hytale:Alaydriem");
+    const b = PlayerHue.columnOf("othergame:Alaydriem");
     assert.notEqual(a, b);
   });
 

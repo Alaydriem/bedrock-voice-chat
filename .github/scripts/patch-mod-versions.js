@@ -60,14 +60,5 @@ if (fs.existsSync(bdsPackage)) {
 // which derives the encoded version from bds/package.json at pack time.
 // Nothing to patch here.
 
-// 4. Patch Hytale manifest.json
-const hytaleManifest = path.join(modsDir, 'java/hytale/src/main/resources/manifest.json');
-if (fs.existsSync(hytaleManifest)) {
-  const content = JSON.parse(fs.readFileSync(hytaleManifest, 'utf8'));
-  content.Version = encoded.display;
-  fs.writeFileSync(hytaleManifest, JSON.stringify(content, null, 2) + '\n');
-  console.log(`Patched: hytale/manifest.json -> Version="${encoded.display}"`);
-}
-
 console.log('');
 console.log('All mod files patched successfully.');

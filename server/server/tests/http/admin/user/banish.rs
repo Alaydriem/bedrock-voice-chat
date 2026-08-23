@@ -165,3 +165,73 @@ async fn rejects_self_banish() {
         .unwrap();
     HttpAssert::status(resp.status().as_u16(), 409);
 }
+
+// Banning has to act on the certificate the player already holds. Setting the flag alone
+// took effect only at their next login, which a banned player has no reason to perform.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn banning_revokes_the_players_current_certificate() {
+    let env = TestServer::start().await.unwrap();
+    let (cert, key) = env.issue_player("Target", &Game::Minecraft).await.unwrap();
+
+    let before = MtlsClient::with_identity(&env.ca_pem, &cert, &key)
+        .unwrap()
+        .get(format!("{}/api/channel", env.base_url))
+        .send()
+        .await
+        .unwrap();
+    HttpAssert::status(before.status().as_u16(), 200);
+
+    let banish = env
+        .admin_client()
+        .unwrap()
+        .patch(format!("{}{}", env.base_url, ENDPOINT))
+        .json(&BanishUserRequest {
+            gamertag: "Target".into(),
+            game: Game::Minecraft,
+            banish: true,
+        })
+        .send()
+        .await
+        .unwrap();
+    HttpAssert::status(banish.status().as_u16(), 200);
+
+    let after = MtlsClient::with_identity(&env.ca_pem, &cert, &key)
+        .unwrap()
+        .get(format!("{}/api/channel", env.base_url))
+        .send()
+        .await
+        .unwrap();
+    HttpAssert::status(after.status().as_u16(), 403);
+}
+
+// Unbanning does not un-revoke: the certificate is gone for good. The player logs in and is
+// issued a new one, which `banished` no longer blocks.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn unbanning_does_not_restore_the_revoked_certificate() {
+    let env = TestServer::start().await.unwrap();
+    let (cert, key) = env.issue_player("Target", &Game::Minecraft).await.unwrap();
+
+    for banish in [true, false] {
+        let resp = env
+            .admin_client()
+            .unwrap()
+            .patch(format!("{}{}", env.base_url, ENDPOINT))
+            .json(&BanishUserRequest {
+                gamertag: "Target".into(),
+                game: Game::Minecraft,
+                banish,
+            })
+            .send()
+            .await
+            .unwrap();
+        HttpAssert::status(resp.status().as_u16(), 200);
+    }
+
+    let after = MtlsClient::with_identity(&env.ca_pem, &cert, &key)
+        .unwrap()
+        .get(format!("{}/api/channel", env.base_url))
+        .send()
+        .await
+        .unwrap();
+    HttpAssert::status(after.status().as_u16(), 403);
+}
