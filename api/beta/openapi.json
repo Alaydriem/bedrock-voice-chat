@@ -10,123 +10,6 @@
     "version": "1.0.0-beta.20"
   },
   "paths": {
-    "/api/position": {
-      "get": {
-        "tags": [
-          "Positions"
-        ],
-        "description": "Return the positions the server currently holds.\n\nUseful for confirming the game server is actually relaying: an empty response means it is not.",
-        "operationId": "position",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PlayerEnum"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "GameAccessToken": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "Positions"
-        ],
-        "description": "Report player positions from the game server.\n\nCalled by the Addon or Java mod on every position update, authenticated with the shared access token. This is what makes proximity audio possible.",
-        "operationId": "update_position",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GameDataCollection"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "GameAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/clients/live": {
-      "get": {
-        "tags": [
-          "Clients"
-        ],
-        "description": "The identities with a live voice connection to this server.\n\nAsked for by a mod that also delivers audio — the Simple Voice Chat bridge — so it can leave those players out of its own injection. A Java player running both SVC and the BVC desktop client would otherwise hear every remote speaker twice.\n\nEmpty is a real answer, not a failure: a server whose players have not opened a voice client suppresses nobody.",
-        "operationId": "live_clients",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "GameAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/chat/worlds": {
-      "get": {
-        "tags": [
-          "Chat"
-        ],
-        "description": "Worlds this player has been seen in, newest first.\n\n`active` and `available` are independent, and the composer has to tell them apart: a world can be hosting players with its chat channel down, which reads very differently from a world nobody is in.",
-        "operationId": "worlds",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ChatWorld"
-                  }
-                }
-              }
-            }
-          },
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
     "/api/websocket/ticket": {
       "post": {
         "tags": [
@@ -182,6 +65,62 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/position": {
+      "get": {
+        "tags": [
+          "Positions"
+        ],
+        "description": "Return the positions the server currently holds.\n\nUseful for confirming the game server is actually relaying: an empty response means it is not.",
+        "operationId": "position",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlayerEnum"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Positions"
+        ],
+        "description": "Report player positions from the game server.\n\nCalled by the Addon or Java mod on every position update, authenticated with the shared access token. This is what makes proximity audio possible.",
+        "operationId": "update_position",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameDataCollection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "description": ""
           }
         },
         "security": [
@@ -818,153 +757,29 @@
         ]
       }
     },
-    "/api/auth/minecraft": {
-      "post": {
-        "tags": [
-          "Authentication"
-        ],
-        "description": "Authenticates the Player via Xbox Live to grab their gamertag and other identifying information",
-        "operationId": "minecraft_authenticate",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonMessage_LoginResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/auth/code": {
-      "post": {
-        "tags": [
-          "Authentication"
-        ],
-        "description": "Redeem a one-time login code for an mTLS certificate bundle.\n\nThe non-interactive sign-in path, used by `bvc login`. Always enabled.",
-        "operationId": "code_code_authenticate",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CodeLoginRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonMessage_LoginResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/auth/introspect": {
+    "/api/chat/worlds": {
       "get": {
         "tags": [
-          "Authentication"
+          "Chat"
         ],
-        "description": "Return the calling identity and its effective permissions.\n\nBacks `bvc whoami`. Reports the identity, certificate expiry, and the permissions in force after overrides are applied to the defaults.\n\nBehind `PlayerGuard` like every other player route, so a banished or revoked caller is refused here too. An earlier iteration left this open so a locked-out player could read why; the decision is that they cannot.",
-        "operationId": "introspect_introspect",
+        "description": "Worlds this player has been seen in, newest first.\n\n`active` and `available` are independent, and the composer has to tell them apart: a world can be hosting players with its chat channel down, which reads very differently from a world nobody is in.",
+        "operationId": "worlds",
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IntrospectResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatWorld"
+                  }
                 }
               }
             }
           },
           "default": {
             "description": ""
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/auth/link-java": {
-      "post": {
-        "tags": [
-          "Identity"
-        ],
-        "description": "Link a Java account to an existing Xbox identity.\n\nLets one player be recognised as the same person across both editions.",
-        "operationId": "link_java_link_java_identity",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LinkJavaIdentityRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LinkJavaIdentityResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/auth/state": {
-      "get": {
-        "tags": [
-          "Identity"
-        ],
-        "description": "Return the state of an in-progress sign-in flow.",
-        "operationId": "state_auth_state",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthStateResponse"
-                }
-              }
-            }
           }
         },
         "security": [
@@ -1171,6 +986,162 @@
         ]
       }
     },
+    "/api/auth/minecraft": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "description": "Authenticates the Player via Xbox Live to grab their gamertag and other identifying information",
+        "operationId": "minecraft_authenticate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonMessage_LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/code": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "description": "Redeem a one-time login code for an mTLS certificate bundle.\n\nThe non-interactive sign-in path, used by `bvc login`. Always enabled.",
+        "operationId": "code_code_authenticate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonMessage_LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/introspect": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "description": "Return the calling identity and its effective permissions.\n\nBacks `bvc whoami`. Reports the identity, certificate expiry, and the permissions in force after overrides are applied to the defaults.\n\nBehind `PlayerGuard` like every other player route, so a banished or revoked caller is refused here too. An earlier iteration left this open so a locked-out player could read why; the decision is that they cannot.",
+        "operationId": "introspect_introspect",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntrospectResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/auth/link-java": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "description": "Link a Java account to an existing Xbox identity.\n\nLets one player be recognised as the same person across both editions.",
+        "operationId": "link_java_link_java_identity",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkJavaIdentityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkJavaIdentityResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/auth/state": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "description": "Return the state of an in-progress sign-in flow.",
+        "operationId": "state_auth_state",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthStateResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
     "/api/gamerpic/{game}/{gamertag}": {
       "get": {
         "tags": [
@@ -1250,6 +1221,56 @@
             "GameAccessToken": []
           }
         ]
+      }
+    },
+    "/api/clients/live": {
+      "get": {
+        "tags": [
+          "Clients"
+        ],
+        "description": "The identities with a live voice connection to this server.\n\nAsked for by a mod that also delivers audio — the Simple Voice Chat bridge — so it can leave those players out of its own injection. A Java player running both SVC and the BVC desktop client would otherwise hear every remote speaker twice.\n\nEmpty is a real answer, not a failure: a server whose players have not opened a voice client suppresses nobody.",
+        "operationId": "live_clients",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "description": "Return the configuration a client needs before connecting.\n\nUnauthenticated, and the usual way to confirm a server is reachable and its TLS is valid.",
+        "operationId": "get_config",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConfigResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/state": {
@@ -1351,31 +1372,28 @@
           }
         ]
       }
-    },
-    "/api/config": {
-      "get": {
-        "tags": [
-          "Server"
-        ],
-        "description": "Return the configuration a client needs before connecting.\n\nUnauthenticated, and the usual way to confirm a server is reachable and its TLS is valid.",
-        "operationId": "get_config",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiConfigResponse"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
     "schemas": {
+      "WebsocketTicketResponse": {
+        "type": "object",
+        "required": [
+          "expires_in",
+          "ticket"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "string"
+          },
+          "expires_in": {
+            "description": "Seconds until expiry, so the caller can decide whether to reuse a held ticket or fetch a fresh one before reconnecting.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
+      },
       "GameDataCollection": {
         "type": "object",
         "required": [
@@ -1564,70 +1582,6 @@
           },
           "game": {
             "$ref": "#/components/schemas/Game"
-          }
-        }
-      },
-      "ChatWorld": {
-        "description": "A world this player has been seen in, and whether chat works there right now.",
-        "type": "object",
-        "required": [
-          "active",
-          "available",
-          "last_seen",
-          "mode",
-          "world_name",
-          "world_uuid"
-        ],
-        "properties": {
-          "world_uuid": {
-            "description": "Never rendered. A random UUID on the mod path and a derived hash on the proxy path, polymorphic in length, and meaningless to a person either way.",
-            "type": "string"
-          },
-          "world_name": {
-            "description": "The only user-facing label.",
-            "type": "string"
-          },
-          "last_seen": {
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "active": {
-            "description": "The world is being hosted: position ingress is recent.",
-            "type": "boolean"
-          },
-          "available": {
-            "description": "A mod chat channel is registered for it right now. A world can be active and unavailable — positions flowing while the chat socket is down.",
-            "type": "boolean"
-          },
-          "mode": {
-            "$ref": "#/components/schemas/ChatMode"
-          }
-        }
-      },
-      "ChatMode": {
-        "description": "Which chat implementation is live for a world.\n\nDistinct from availability: this says whether a mod or the local proxy is the source of chat, not whether chat works right now. A world can be `Server` mode with its chat channel down, and the composer has to tell those apart.",
-        "type": "string",
-        "enum": [
-          "Server",
-          "Local"
-        ]
-      },
-      "WebsocketTicketResponse": {
-        "type": "object",
-        "required": [
-          "expires_in",
-          "ticket"
-        ],
-        "properties": {
-          "ticket": {
-            "type": "string"
-          },
-          "expires_in": {
-            "description": "Seconds until expiry, so the caller can decide whether to reuse a held ticket or fetch a fresh one before reconnecting.",
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
           }
         }
       },
@@ -2178,6 +2132,111 @@
           }
         }
       },
+      "ChatWorld": {
+        "description": "A world this player has been seen in, and whether chat works there right now.",
+        "type": "object",
+        "required": [
+          "active",
+          "available",
+          "last_seen",
+          "mode",
+          "world_name",
+          "world_uuid"
+        ],
+        "properties": {
+          "world_uuid": {
+            "description": "Never rendered. A random UUID on the mod path and a derived hash on the proxy path, polymorphic in length, and meaningless to a person either way.",
+            "type": "string"
+          },
+          "world_name": {
+            "description": "The only user-facing label.",
+            "type": "string"
+          },
+          "last_seen": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "active": {
+            "description": "The world is being hosted: position ingress is recent.",
+            "type": "boolean"
+          },
+          "available": {
+            "description": "A mod chat channel is registered for it right now. A world can be active and unavailable — positions flowing while the chat socket is down.",
+            "type": "boolean"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ChatMode"
+          }
+        }
+      },
+      "ChatMode": {
+        "description": "Which chat implementation is live for a world.\n\nDistinct from availability: this says whether a mod or the local proxy is the source of chat, not whether chat works right now. A world can be `Server` mode with its chat channel down, and the composer has to tell those apart.",
+        "type": "string",
+        "enum": [
+          "Server",
+          "Local"
+        ]
+      },
+      "ChannelEvent": {
+        "type": "object",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ChannelEvents"
+          },
+          "game": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvents": {
+        "type": "string",
+        "enum": [
+          "Join",
+          "Leave",
+          "Create",
+          "Delete",
+          "Rename"
+        ]
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "creator",
+          "id",
+          "name",
+          "players"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerIdentity"
+            }
+          },
+          "creator": {
+            "$ref": "#/components/schemas/PlayerIdentity"
+          }
+        }
+      },
+      "PlayerIdentity": {
+        "type": "string"
+      },
       "JsonMessage_LoginResponse": {
         "type": "object",
         "required": [
@@ -2433,65 +2492,6 @@
           }
         }
       },
-      "ChannelEvent": {
-        "type": "object",
-        "required": [
-          "event"
-        ],
-        "properties": {
-          "event": {
-            "$ref": "#/components/schemas/ChannelEvents"
-          },
-          "game": {
-            "default": null,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Game"
-              }
-            ],
-            "nullable": true
-          }
-        }
-      },
-      "ChannelEvents": {
-        "type": "string",
-        "enum": [
-          "Join",
-          "Leave",
-          "Create",
-          "Delete",
-          "Rename"
-        ]
-      },
-      "Channel": {
-        "type": "object",
-        "required": [
-          "creator",
-          "id",
-          "name",
-          "players"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "players": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PlayerIdentity"
-            }
-          },
-          "creator": {
-            "$ref": "#/components/schemas/PlayerIdentity"
-          }
-        }
-      },
-      "PlayerIdentity": {
-        "type": "string"
-      },
       "GamerpicResponse": {
         "type": "object",
         "required": [
@@ -2651,57 +2651,6 @@
             "additionalProperties": false
           }
         ]
-      },
-      "QueryState": {
-        "type": "object",
-        "required": [
-          "deafened",
-          "id",
-          "muted",
-          "recording"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "muted": {
-            "type": "boolean"
-          },
-          "deafened": {
-            "type": "boolean"
-          },
-          "recording": {
-            "type": "boolean"
-          },
-          "current_group": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "PlayerPreference": {
-        "type": "object",
-        "required": [
-          "muted",
-          "owner",
-          "target",
-          "volume"
-        ],
-        "properties": {
-          "owner": {
-            "type": "string"
-          },
-          "target": {
-            "type": "string"
-          },
-          "volume": {
-            "type": "number",
-            "format": "float"
-          },
-          "muted": {
-            "type": "boolean"
-          }
-        }
       },
       "ApiConfigResponse": {
         "type": "object",
@@ -2967,18 +2916,69 @@
             "minimum": 0.0
           }
         }
+      },
+      "QueryState": {
+        "type": "object",
+        "required": [
+          "deafened",
+          "id",
+          "muted",
+          "recording"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "muted": {
+            "type": "boolean"
+          },
+          "deafened": {
+            "type": "boolean"
+          },
+          "recording": {
+            "type": "boolean"
+          },
+          "current_group": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PlayerPreference": {
+        "type": "object",
+        "required": [
+          "muted",
+          "owner",
+          "target",
+          "volume"
+        ],
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "volume": {
+            "type": "number",
+            "format": "float"
+          },
+          "muted": {
+            "type": "boolean"
+          }
+        }
       }
     },
     "securitySchemes": {
-      "GameAccessToken": {
-        "description": "Game server access token, as `Authorization: Bearer <token>`.",
-        "type": "http",
-        "scheme": "bearer"
-      },
       "PlayerGuard": {
         "description": "Player mTLS client certificate.",
         "type": "http",
         "scheme": "mutual"
+      },
+      "GameAccessToken": {
+        "description": "Game server access token, as `Authorization: Bearer <token>`.",
+        "type": "http",
+        "scheme": "bearer"
       },
       "AdminGuard": {
         "description": "Operator mTLS client certificate. Caller must additionally hold the `admin` permission.",
@@ -2989,24 +2989,16 @@
   },
   "tags": [
     {
-      "name": "Positions",
-      "description": "Player position updates from game mods. Used by the Minecraft server plugin to push player coordinates for spatial audio calculations."
-    },
-    {
-      "name": "Clients",
-      "description": "Which players currently hold a voice connection, for a mod that delivers audio of its own alongside this server's."
-    },
-    {
-      "name": "Chat",
-      "description": "In-game chat relay. Lists the worlds a player has been seen in and which of them currently have a chat channel."
-    },
-    {
       "name": "WebSocket",
       "description": "Ticket exchange and streaming feeds for client UI surfaces. A browser cannot present a client certificate when opening a socket, so identity is established over mTLS here and spent once at upgrade time."
     },
     {
       "name": "Telemetry",
       "description": "Facts a Java mod observes about its own host, which the mod has no channel of its own to report."
+    },
+    {
+      "name": "Positions",
+      "description": "Player position updates from game mods. Used by the Minecraft server plugin to push player coordinates for spatial audio calculations."
     },
     {
       "name": "Bedrock",
@@ -3025,6 +3017,14 @@
       "description": "Operator-only administrative endpoints. Caller must present a valid mTLS certificate AND hold the `admin` permission."
     },
     {
+      "name": "Chat",
+      "description": "In-game chat relay. Lists the worlds a player has been seen in and which of them currently have a chat channel."
+    },
+    {
+      "name": "Channels",
+      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
+    },
+    {
       "name": "Identity",
       "description": "Player identity management. Retrieve current session state, permissions, and certificate renewal. Link external accounts such as Minecraft Java."
     },
@@ -3033,16 +3033,16 @@
       "description": "OAuth2 authentication via Microsoft (Minecraft). Returns mTLS certificates and ncryptf keys for subsequent API calls. Interacting with these endpoints REQUIRES ncryptf. non-ncryptf request/response bodies are provided here as sample references."
     },
     {
-      "name": "Channels",
-      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
-    },
-    {
       "name": "Gamerpic",
       "description": "Player avatar/gamerpic retrieval by gamertag and game type."
     },
     {
       "name": "Control",
       "description": "In-game audio control plane. The mod submits ClientActions on behalf of the authenticated in-game player (Authorization: Bearer)."
+    },
+    {
+      "name": "Clients",
+      "description": "Which players currently hold a voice connection, for a mod that delivers audio of its own alongside this server's."
     },
     {
       "name": "Server",
