@@ -1514,8 +1514,13 @@
 }
 
 @container rad (max-width: 560px) {
+  /* 48px rather than the desktop 66px, and lower than a phone bar would otherwise want.
+     The status bar above it is the OS's and can be tall — 45dp on OxygenOS, where the
+     glyphs fill only its middle third — so the two stack into a band that reads as one
+     oversized header. The bar is the only half we control. Still clears the 44px touch
+     target floor below. */
   .rad-dash-top {
-    height: calc(60px + var(--rad-inset-top, 0px));
+    height: calc(48px + var(--rad-inset-top, 0px));
     padding: var(--rad-inset-top, 0px) calc(18px + var(--rad-inset-right, 0px)) 0
       calc(18px + var(--rad-inset-left, 0px));
   }

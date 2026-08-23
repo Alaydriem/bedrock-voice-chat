@@ -431,8 +431,11 @@
     overflow-x: hidden;
   }
 
+  /* Matches `.rad-dash-top` on a phone, for the reason recorded there: the system status
+     bar stacks on top of this and can be tall, so the two together read as one band. The
+     two headers have to agree or moving between them steps the chrome height. */
   .rad-topbar {
-    height: calc(60px + var(--rad-inset-top, 0px));
+    height: calc(48px + var(--rad-inset-top, 0px));
     padding: var(--rad-inset-top, 0px) calc(18px + var(--rad-inset-right, 0px)) 0
       calc(18px + var(--rad-inset-left, 0px));
   }
