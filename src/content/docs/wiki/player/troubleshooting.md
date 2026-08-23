@@ -66,15 +66,36 @@ Quote the code when you ask for help.
 |---|---|---|
 | `AUTH02` | The server has not granted you access | Join the Minecraft server in game once, or ask the operator to add you |
 | `AUTH01` | The server could not verify your identity | Sign in again |
+| `AUTH03` | This device could not save your sign-in to its secure storage | Try again. If it keeps happening, restart the device |
+| `AUTH04` | This device has no unlocked keyring to save your sign-in in | See [secure storage](#secure-storage) |
 | `CONN01` | No answer from the server | Ask your operator |
 | `QUIC01` | HTTP got through, voice did not | Something blocks UDP on the voice port. Check your network, then ask your operator |
 | `DNS01` | The address did not resolve | Check for a typo |
+| `CERT01` | The server's certificate does not match the one this device was issued | Sign in again. Your saved sign-in for that server was removed. If it recurs, ask your operator to fix their certificate |
+| `CERT02` | The voice connection presented a certificate this device cannot verify | Ask your operator. Only they can fix it, and your sign-in is kept |
 | `VER01` | Your app is older than the server | Update the app |
 | `VER02` | The server is older than your app | Ask your operator to update |
 | `AUDI01` `AUDI02` `AUDI03` | An input or output device is missing or unusable | Open Settings → Audio |
+| `PERM1` | Microphone permission is not granted | Grant microphone access in your system settings, then return to the dashboard |
+| `PERM2` | Notification permission is not granted | Grant notifications in your system settings, then return to the dashboard. Mobile needs it for background audio |
+| `SERV01` | The background audio service could not start | Mobile only. Check that your system is not restricting the app in the background |
 | `AGE01` | An adult needs to finish setting up this account | See [parents and age settings](/wiki/player/parents-and-age/) |
 
 `AUTH02` is not a fault. The server has not registered you yet.
+
+## Secure storage
+
+Bedrock Voice Chat keeps your per-server sign-in in your operating system's credential store. `AUTH03` and `AUTH04` both mean the sign-in worked and the storing did not, so the app cannot complete it.
+
+`AUTH03` is a rejected write, and is usually temporary. Try again, then restart the device.
+
+`AUTH04` means there is no unlocked keyring to write to. This is a Linux setup step.
+
+1. Open **Passwords and Keys** (`seahorse`).
+2. Create a password keyring named **Login**.
+3. Set it as the default.
+
+If your desktop signs you in automatically, no keyring is unlocked at login. Turn automatic sign-in off and sign in with your password once; that creates and unlocks the keyring.
 
 ## Still stuck
 

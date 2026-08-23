@@ -21,7 +21,7 @@ Bedrock Voice Chat bridges [Simple Voice Chat](https://modrinth.com/plugin/simpl
 Bedrock Voice Chat will automatically configure Simple Voice Chat when the embedded server is enabled. Simply:
 
 1. Install both BVC and SVC plugin / mod to your PaperMC or Fabric Server
-2. Enable BVC's embedded server [see configuration per your platform for details](http://localhost:4321/wiki/server/java-mod/)
+2. Enable BVC's embedded server [see configuration per your platform for details](/wiki/server/java-mod/)
 
 ## Setup with an external server
 

@@ -47,8 +47,8 @@ Your Bedrock Voice Chat server needs the following firewall ports opened to work
 | 443 | tcp | Enables API, Websockets, and fallback voice traffic |
 | 443 | udp | Primary voice traffic ingress |
 | 28280 | udp | Fallback voice traffic ingress, if 443/udp is blocked |
-| 28283 | tcp | Minecraft Server transfer port |
-| 28284 | tcp+udp | Iroh endpoint for SVC Peering. Only open if needed |
+| 28283 | udp | Minecraft Server transfer port |
+| 28284 | udp | Iroh endpoint for SVC Peering. Only open if needed |
 
 ## Running Bedrock Voice Chat with Docker
 
@@ -82,7 +82,7 @@ Review the full [configuration reference](/wiki/reference/configuration/) to see
 
 ```bash
 docker run -d --restart=always \
-  -p 443:443/tcp -p 443:443/udp -p 28280:28280/udp -p 28283:28283/tcp \
+  -p 443:443/tcp -p 443:443/udp -p 28280:28280/udp -p 28283:28283/udp \
   -e CF_API_TOKEN="your_cloudflare_api_token"
   -v ${PWD}:/data \
   ghcr.io/alaydriem/bedrock-voice-chat/server:beta.21

@@ -43,9 +43,11 @@ These talk to the database directly. Run them on the server host with `config.hc
 | Command | Flags | Does |
 |---|---|---|
 | `admin bootstrap` | `-p, --player <name>`; `-g, --game <minecraft>` | Grant `admin` to an existing player. |
-| `admin generate-code` | `-p, --player <name>`; `-g, --game <minecraft>`; `-d, --duration <secs>` | Generate a one-time login code, creating the player record if needed. |
+| `admin generate-code` | `-p, --player <name>`; `-g, --game <minecraft>`; `-d, --duration <secs>`; `--ephemeral <true\|false>` | Generate a one-time login code, creating the player record if needed. |
 
-`-d` defaults to 3600 and caps at 86400.
+`-d` defaults to 3600.
+
+`--ephemeral` defaults to `true`, meaning the code is consumed when it is redeemed. Pass `--ephemeral false` to mint a code that stays valid until it expires and can be redeemed more than once.
 
 `admin generate-code` creates the player if missing. `admin bootstrap` requires the player to exist.
 
@@ -59,7 +61,7 @@ Over HTTPS with mTLS. Requires an active admin identity. `whoami` should list `a
 | `user banish` | `PATCH /api/admin/user/banish` | Toggle the banished flag. |
 | `user generate-code` | `POST /api/admin/user/code` | Generate a login code for an existing player. 404 if they do not exist. |
 
-Flags: `-p, --player <name>`, `-g, --game <minecraft>`. `user banish` also takes `-b, --banish <true|false>` (default `true`). `user generate-code` also takes `-d, --duration <secs>`.
+Flags: `-p, --player <name>`, `-g, --game <minecraft>`. `user banish` also takes `-b, --banish <true|false>` (default `true`). `user generate-code` also takes `-d, --duration <secs>` (default 3600) and `--ephemeral <true|false>` (default `true`).
 
 ## Permissions
 
@@ -84,12 +86,12 @@ Over HTTPS with mTLS. Requires an active admin identity.
 
 | Command | Endpoint | Does |
 |---|---|---|
-| `relay peerlink` | `GET /api/admin/relay/peerlink` | Print this server's peer link, its node id, and a `peer` block to paste into the other server's `config.hcl`. |
+| `relay peerlink` | `GET /api/admin/relay/peerlink` | Print this server's peer link, its node id, and a `peers` block to paste into the other server's `config.hcl`. |
 | `relay worlds` | `GET /api/admin/relay/worlds` | List relay worlds with player counts. |
 
 `relay peerlink` takes `-l, --label <label>`, the block label rendered in the printed example. Default `bvc-server`. Use what the far side will call this server.
 
-`relay peerlink` exits non-zero on a server with no `peer` block in `config.hcl`. The peer endpoint binds only when one exists.
+`relay peerlink` exits non-zero on a server with no `peers` block in `config.hcl`. The peer endpoint binds only when one exists.
 
 `relay worlds` prints nothing until a player joins a relay world.
 

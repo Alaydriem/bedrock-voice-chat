@@ -7,8 +7,7 @@ sidebar:
 ---
 
 :::caution[Work in progress]
-Peering is under active development. The configuration shape, the CLI, and the wire protocol all change between releases. Treat everything here as provisional.
-:::
+Peering is under active development. The configuration shape, the CLI, and the wire protocol all change between releases. Peering protocol is subject to change until the spec is finalized
 
 Peering links two Bedrock Voice Chat servers together, letting players whose worlds overlap hear each other across both.
 
@@ -39,8 +38,6 @@ server {
     }
 }
 ```
-
-`bvc relay peerlink` exits non-zero on a server with no `peer` block. The peer endpoint binds only when one exists. Write a placeholder peer block on the first side, restart, then read the link.
 
 ## Configuration
 

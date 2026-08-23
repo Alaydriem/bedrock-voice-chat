@@ -130,7 +130,7 @@ Peering is rewritten. A 1.0.0-beta.20 peer link does not carry over.
 | `peer_link` player permission | Removed. The declaration in `config.hcl` is the authorization |
 | `server::{host}:{port}` certificates | Refused at connect |
 
-Relink each pair of servers. Run `bvc relay peerlink` on each side and paste the printed `peer` block into the other's `config.hcl`. See [peering](/wiki/reference/peering/).
+Relink each pair of servers. Run `bvc relay peerlink` on each side and paste the printed `peers` block into the other's `config.hcl`. See [peering](/wiki/reference/peering/).
 
 Capabilities default to `carry_speakers` alone. `query_audio` and `serve_audio` are granted only where named. An explicitly empty `capabilities` list stays empty.
 

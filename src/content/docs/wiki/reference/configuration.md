@@ -45,7 +45,6 @@ The default `::` gives QUIC a dual-stack socket on every platform. On Linux this
 | `names` | `["localhost"]` | SAN hostnames clients use to reach the server. |
 | `ips` | `["127.0.0.1"]` | SAN IPs clients use to reach the server. |
 | `certs_path` | `./certificates` | Directory holding the mTLS CA (`ca.crt`) used to authenticate clients. Managed for you. |
-| `so_reuse_port` | `false` | Enable `SO_REUSEPORT` on the QUIC socket. Linux only. |
 | `acme` | — | Automatic certificates. Mutually exclusive with `certificate`/`key`. |
 
 ## `server.tls.acme`
