@@ -18,13 +18,39 @@
     </head>
   
     <body>
-      <div id="root"><section class="aui-root"><div class="container:xl relative md:flex bg-white leading-normal" id=""><div class="burger-menu rounded-full h-16 w-16 bg-white fixed bottom-16 right-8 flex items-center justify-center z-30 cursor-pointer shadow-md bg-teal-500" data-lol="false"><svg viewBox="0 0 100 70" width="40" height="30" class="fill-current text-gray-200"><rect width="100" height="10"></rect><rect y="30" width="100" height="10"></rect><rect y="60" width="100" height="10"></rect></svg></div><div class="hidden sidebar relative w-64 max-h-screen h-full bg-gray-200 shadow z-20"><div class=" block fixed max-h-screen h-full font-sans px-4 pt-8 pb-16 overflow-y-auto bg-gray-200"><div class="sidebar--content"><div><h1 class="text-2xl font-light">Bedrock Voice Chat WebSocket API<!-- --> <!-- -->1.0.0</h1></div><ul class="text-sm mt-10 relative"><li class="mb-3"><a class="text-gray-700 no-underline hover:text-gray-900" href="#introduction">Introduction</a></li><li class="mb-3 mt-9"><a class="text-xs uppercase text-gray-700 mt-10 mb-4 font-thin hover:text-gray-900" href="#servers">Servers</a><ul class="text-sm mt-2"><li><a class="flex no-underline text-gray-700 mb-2 hover:text-gray-900" href="#server-local"><span class="break-all inline-block">local</span></a></li></ul></li><li class="mb-3 mt-9"><a class="text-xs uppercase text-gray-700 mt-10 mb-4 font-thin hover:text-gray-900" href="#messages">Messages</a><ul class="text-sm mt-2"><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-Command"><div class="break-all inline-block">Command</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-ErrorResponse"><div class="break-all inline-block">ErrorResponse</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-MetricsPush"><div class="break-all inline-block">MetricsPush</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-SuccessResponse"><div class="break-all inline-block">SuccessResponse</div></a></li></ul></li><li class="mb-3 mt-9"><a class="text-xs uppercase text-gray-700 mt-10 mb-4 font-thin hover:text-gray-900" href="#schemas">Schemas</a><ul class="text-sm mt-2"><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-DeviceType"><div class="break-all inline-block">DeviceType</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-MuteData"><div class="break-all inline-block">MuteData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-PongData"><div class="break-all inline-block">PongData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-RecordData"><div class="break-all inline-block">RecordData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-ResponseData"><div class="break-all inline-block">ResponseData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-StateData"><div class="break-all inline-block">StateData</div></a></li></ul></li></ul></div></div></div><div class="panel--center relative py-8 flex-1"><div class="relative z-10"><div class="panel-item"><div class="panel-item--center px-8 text-left" id="introduction"><div class="text-4xl">Bedrock Voice Chat WebSocket API<!-- --> <!-- -->1.0.0</div><div class="mt-4"><div class="prose max-w-none text-sm"><p>A local WebSocket API for controlling Bedrock Voice Chat client via Stream Deck and other integrations</p>
+      <div id="root"><section class="aui-root"><div class="container:xl relative md:flex bg-white leading-normal" id=""><div class="burger-menu rounded-full h-16 w-16 bg-white fixed bottom-16 right-8 flex items-center justify-center z-30 cursor-pointer shadow-md bg-teal-500" data-lol="false"><svg viewBox="0 0 100 70" width="40" height="30" class="fill-current text-gray-200"><rect width="100" height="10"></rect><rect y="30" width="100" height="10"></rect><rect y="60" width="100" height="10"></rect></svg></div><div class="hidden sidebar relative w-64 max-h-screen h-full bg-gray-200 shadow z-20"><div class=" block fixed max-h-screen h-full font-sans px-4 pt-8 pb-16 overflow-y-auto bg-gray-200"><div class="sidebar--content"><div><h1 class="text-2xl font-light">Bedrock Voice Chat WebSocket API<!-- --> <!-- -->1.0.0</h1></div><ul class="text-sm mt-10 relative"><li class="mb-3"><a class="text-gray-700 no-underline hover:text-gray-900" href="#introduction">Introduction</a></li><li class="mb-3 mt-9"><a class="text-xs uppercase text-gray-700 mt-10 mb-4 font-thin hover:text-gray-900" href="#servers">Servers</a><ul class="text-sm mt-2"><li><a class="flex no-underline text-gray-700 mb-2 hover:text-gray-900" href="#server-local"><span class="break-all inline-block">local</span></a></li></ul></li><li class="mb-3 mt-9"><a class="text-xs uppercase text-gray-700 mt-10 mb-4 font-thin hover:text-gray-900" href="#messages">Messages</a><ul class="text-sm mt-2"><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-Command"><div class="break-all inline-block">Command</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-ErrorResponse"><div class="break-all inline-block">ErrorResponse</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-HealthPush"><div class="break-all inline-block">HealthPush</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-MetricsPush"><div class="break-all inline-block">MetricsPush</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#message-SuccessResponse"><div class="break-all inline-block">SuccessResponse</div></a></li></ul></li><li class="mb-3 mt-9"><a class="text-xs uppercase text-gray-700 mt-10 mb-4 font-thin hover:text-gray-900" href="#schemas">Schemas</a><ul class="text-sm mt-2"><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-ActiveConnection"><div class="break-all inline-block">ActiveConnection</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-ConnectData"><div class="break-all inline-block">ConnectData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-ConnectTarget"><div class="break-all inline-block">ConnectTarget</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-ConnectTargetKind"><div class="break-all inline-block">ConnectTargetKind</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-DeviceType"><div class="break-all inline-block">DeviceType</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-Glyph"><div class="break-all inline-block">Glyph</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-GroupData"><div class="break-all inline-block">GroupData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-JukeboxData"><div class="break-all inline-block">JukeboxData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-MuteData"><div class="break-all inline-block">MuteData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-PongData"><div class="break-all inline-block">PongData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-PttData"><div class="break-all inline-block">PttData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-RecordData"><div class="break-all inline-block">RecordData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-ResponseData"><div class="break-all inline-block">ResponseData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-StateData"><div class="break-all inline-block">StateData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-TargetsData"><div class="break-all inline-block">TargetsData</div></a></li><li><a class="flex break-words no-underline text-gray-700 mt-2 hover:text-gray-900" href="#schema-VoiceMode"><div class="break-all inline-block">VoiceMode</div></a></li></ul></li></ul></div></div></div><div class="panel--center relative py-8 flex-1"><div class="relative z-10"><div class="panel-item"><div class="panel-item--center px-8 text-left" id="introduction"><div class="text-4xl">Bedrock Voice Chat WebSocket API<!-- --> <!-- -->1.0.0</div><div class="mt-4"><div class="prose max-w-none text-sm"><p>A local WebSocket API for controlling Bedrock Voice Chat client via Stream Deck and other integrations</p>
 </div></div></div><div class="panel-item--right"></div></div><section id="servers" class="mt-16"><h2 class="2xl:w-7/12 text-3xl font-light mb-4 px-8">Servers</h2><ul><li class="mb-4" id="server-local"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border bg-gray-100"><div><span class="font-mono text-base">ws://127.0.0.1:9595/</span><strong class="bg-teal-500 no-underline text-white uppercase rounded mx-2 px-2 py-1 text-sm">ws</strong><strong class="bg-blue-500 no-underline text-white uppercase rounded px-2 py-1 text-sm">local</strong></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Local websocket server running from Bedrock Voice Chat client</p>
-</div></div><div id="server-local-security"></div><div class="mt-2"></div></div></div><div class="panel-item--right"></div></div></li></ul></section><section id="messages" class="mt-16"><h2 class="2xl:w-7/12 text-3xl font-light mb-4 px-8">Messages</h2><ul><li class="mb-4" id="message-Command"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->1</strong><span class="text-gray-700 mr-2">WebSocket Command</span></div><p class="text-gray-600 text-sm">Commands that can be sent to the WebSocket server</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">Command</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Tagged union of all available commands (ping, mute, record)</p>
+</div></div><div id="server-local-security"></div><div class="mt-2"></div></div></div><div class="panel-item--right"></div></div></li></ul></section><section id="messages" class="mt-16"><h2 class="2xl:w-7/12 text-3xl font-light mb-4 px-8">Messages</h2><ul><li class="mb-4" id="message-Command"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->1</strong><span class="text-gray-700 mr-2">WebSocket Command</span></div><p class="text-gray-600 text-sm">Commands that can be sent to the WebSocket server</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">Command</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Tagged union of all available commands (ping, mute, record, state, ptt, targets, connect, disconnect)</p>
 </div></div><div class="mt-2" id="message-Command-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">oneOf</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li><li class="mb-4" id="message-ErrorResponse"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->2</strong><span class="text-gray-700 mr-2">Error Response</span></div><p class="text-gray-600 text-sm">Response sent when command fails</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">ErrorResponse</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Contains success flag (false) and error message</p>
-</div></div><div class="mt-2" id="message-ErrorResponse-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object [ErrorResponse]</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li><li class="mb-4" id="message-MetricsPush"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->3</strong><span class="text-gray-700 mr-2">Link Diagnostics Push</span></div><p class="text-gray-600 text-sm">Live link, device and per-speaker diagnostics</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">MetricsPush</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Tagged envelope carrying a full diagnostics snapshot. Tagged rather than riding on ResponseData, which is an untagged union a consumer could not discriminate.</p>
-</div></div><div class="mt-2" id="message-MetricsPush-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li><li class="mb-4" id="message-SuccessResponse"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->4</strong><span class="text-gray-700 mr-2">Success Response</span></div><p class="text-gray-600 text-sm">Response sent when command succeeds</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">SuccessResponse</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Contains success flag and command-specific data</p>
-</div></div><div class="mt-2" id="message-SuccessResponse-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object [SuccessResponse]</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li></ul></section><section id="schemas" class="mt-16"><h2 class="2xl:w-7/12 text-3xl font-light mb-4 px-8">Schemas</h2><ul><li class="mb-4" id="schema-DeviceType"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">DeviceType</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">string</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-MuteData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">MuteData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-PongData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">PongData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-RecordData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">RecordData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-ResponseData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">ResponseData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">anyOf</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-StateData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">StateData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li></ul></section></div><div class="panel--right absolute top-0 right-0 h-full bg-gray-800"></div></div></div></section></div>
+</div></div><div class="mt-2" id="message-ErrorResponse-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object [ErrorResponse]</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li><li class="mb-4" id="message-HealthPush"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->3</strong><span class="text-gray-700 mr-2">Connection Health Push</span></div><p class="text-gray-600 text-sm">Why the metrics stream is silent, or that it is not</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">HealthPush</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Tagged envelope carrying the current connection verdict. Separate from MetricsPush rather than fields on it: a snapshot with zeroed measurements renders as a flawless link, which misleads worse than no frame at all.</p>
+</div></div><div class="mt-2" id="message-HealthPush-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li><li class="mb-4" id="message-MetricsPush"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->4</strong><span class="text-gray-700 mr-2">Link Diagnostics Push</span></div><p class="text-gray-600 text-sm">Live link, device and per-speaker diagnostics</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">MetricsPush</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Tagged envelope carrying a full diagnostics snapshot. Tagged rather than riding on ResponseData, which is an untagged union a consumer could not discriminate.</p>
+</div></div><div class="mt-2" id="message-MetricsPush-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li><li class="mb-4" id="message-SuccessResponse"><div class="panel-item"><div class="panel-item--center px-8"><div class="shadow rounded bg-gray-200 p-4 border"><div><strong class="text-gray-700 mr-2">#<!-- -->5</strong><span class="text-gray-700 mr-2">Success Response</span></div><p class="text-gray-600 text-sm">Response sent when command succeeds</p><ul class="leading-normal mt-2 mb-4 space-x-2 space-y-2"><li class="inline-block"><a href="https://www.iana.org/assignments/media-types/application/json" title="Opens in new window" class="border border-solid border-orange-300 hover:bg-orange-300 hover:text-orange-600 text-orange-500 font-bold no-underline text-xs uppercase rounded px-3 py-1" target="_blank" rel="nofollow noopener noreferrer"><span>application/json</span></a></li></ul><div class="border bg-gray-100 rounded px-4 py-2 mt-2"><div class="text-sm text-gray-700">Message ID<span class="bg-orange-600 text-white rounded text-xs ml-2 py-0 px-2">SuccessResponse</span></div></div><div class="mt-2"><div class="prose max-w-none text-sm"><p>Contains success flag and command-specific data</p>
+</div></div><div class="mt-2" id="message-SuccessResponse-payload"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Payload</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object [SuccessResponse]</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div></div></div></li></ul></section><section id="schemas" class="mt-16"><h2 class="2xl:w-7/12 text-3xl font-light mb-4 px-8">Schemas</h2><ul><li class="mb-4" id="schema-ActiveConnection"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">ActiveConnection</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div><div class="mt-2 text-sm text-gray-600"><div class="prose max-w-none text-sm"><p>The world this client is connected to right now.</p>
+<p>Rides on every state frame so a controller draws its toggle from the same push it
+already subscribes to, rather than polling a second endpoint that would go stale the
+moment the user disconnects from the app itself.</p>
+</div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-ConnectData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">ConnectData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div><div class="mt-2 text-sm text-gray-600"><div class="prose max-w-none text-sm"><p>The outcome of a connect or a disconnect, so a caller can fail fast rather than poll for
+a state change that may never come.</p>
+<p><code>id</code> and <code>name</code> are absent when a disconnect found nothing running.</p>
+</div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-ConnectTarget"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">ConnectTarget</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div><div class="mt-2 text-sm text-gray-600"><div class="prose max-w-none text-sm"><p>One world a controller can ask the client to connect to.</p>
+<p>Carries no address. A controller picks a name from this list and quotes the id back; the
+client is what knows where that world is. <code>kind</code> is derivable from the id's prefix and is
+named anyway so a picker can group without parsing.</p>
+</div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-ConnectTargetKind"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">ConnectTargetKind</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">string</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-DeviceType"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">DeviceType</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">string</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-Glyph"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">Glyph</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div><div class="mt-2 text-sm text-gray-600"><div class="prose max-w-none text-sm"><p>A target's derived identity, so a controller can tell one world from another on a button.</p>
+<p>Field names are snake_case, as the rest of this protocol is.</p>
+</div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-GroupData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">GroupData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div><div class="mt-2 text-sm text-gray-600"><div class="prose max-w-none text-sm"><p>Whether this client is in a group, and which.</p>
+<p><code>id</code> and <code>name</code> are absent when a leave found nothing to leave, matching how <code>ConnectData</code>
+reports a disconnect that found nothing running.</p>
+</div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-JukeboxData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">JukeboxData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-MuteData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">MuteData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-PongData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">PongData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-PttData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">PttData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-RecordData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">RecordData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-ResponseData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">ResponseData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">anyOf</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div><div class="mt-2 text-sm text-gray-600"><div class="prose max-w-none text-sm"><p>An untagged enum is tried in declaration order, so a new variant goes at the end: a
+permissive shape placed earlier would swallow payloads meant for a later one.</p>
+</div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-StateData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">StateData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-TargetsData"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">TargetsData</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">object</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li><li class="mb-4" id="schema-VoiceMode"><div><div class="panel-item--center px-8"><div class="shadow rounded px-4 py-2 border bg-gray-200"><div class="flex mb-4 gap-2"><div class="border rounded overflow-visible w-full"><div class="flex flex-col justify-center p-4 bg-gray-100 border-b"><div class="flex justify-between items-start"><div class="flex items-center gap-2 w-full"><div class="flex items-center gap-2"><button class="focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " type="button"><div class="inline-block"><span class="break-anywhere text-sm w-full ">VoiceMode</span></div><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 20 20" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg" class="inline-block align-baseline cursor-pointer ml-0.5 -mb-1 w-5 h-5 transform transition-transform duration-150 ease-linear  "><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button></div><span class="capitalize text-sm text-teal-500 font-bold">string</span><div class="ml-auto flex gap-4"><button type="button" class="text-sm text-gray-500 hover:text-gray-700">Expand all</button></div></div></div><div class="mt-2 text-sm text-gray-600"><div class="prose max-w-none text-sm"><p>The voice mode, as it appears on the wire.</p>
+<p>A local mirror of the client's own enum, like <code>DeviceType</code>: this crate is the protocol
+schema an external controller compiles against, and it does not carry the client's
+dependencies to get one enum.</p>
+<p>It decides what the mute control means. In <code>openMic</code> the mic button is a toggle; in
+<code>pushToTalk</code> it is a hold, and a toggle there would be a second word for a state the
+hold already owns.</p>
+</div></div></div><div class="flex "></div></div></div></div></div><div class="w-full mt-4"></div></div></li></ul></section></div><div class="panel--right absolute top-0 right-0 h-full bg-gray-800"></div></div></div></section></div>
   
       <script type="text/javascript">
     /*! For license information please see without-parser.js.LICENSE.txt */
@@ -43,22 +69,22 @@
   "channels": {
     "metrics": {
       "address": "/metrics",
-      "description": "Push-only link diagnostics, one frame per second while a connection is live. Authenticate with the configured key as a `key` query parameter; the upgrade is refused outright when it is missing or wrong. Inbound frames other than close and ping are ignored.",
+      "description": "Push-only. A `health` frame is sent immediately on subscribe and again on every transition; `metrics` frames follow once per second while a connection is live and stop entirely while it is not — the `health` frame is what says why. Authenticate with the configured key as a `key` query parameter; the upgrade is refused outright when it is missing or wrong. Inbound frames other than close and ping are ignored.",
       "messages": {
-        "metrics": {
+        "health": {
           "contentType": "application/json",
-          "description": "Tagged envelope carrying a full diagnostics snapshot. Tagged rather than riding on ResponseData, which is an untagged union a consumer could not discriminate.",
-          "name": "MetricsPush",
+          "description": "Tagged envelope carrying the current connection verdict. Separate from MetricsPush rather than fields on it: a snapshot with zeroed measurements renders as a flawless link, which misleads worse than no frame at all.",
+          "name": "HealthPush",
           "payload": {
             "properties": {
               "data": {
-                "description": "LinkDiagnosticsSnapshot. Field-level contract: client/src/js/bindings/LinkDiagnosticsSnapshot.ts, generated from the Rust definition in common/src/structs/metrics/.",
+                "description": "ConnectionHealth. Field-level contract: client/src/js/bindings/ConnectionHealth.ts, generated from the Rust definition in common/src/structs/network/. Discriminated by `status`: Connected, Reconnecting (with attempt), Disconnected, Failed, VersionMismatch, Unauthorized.",
                 "type": "object",
                 "x-parser-schema-id": "<anonymous-schema-2>"
               },
               "type": {
-                "const": "metrics",
-                "description": "Discriminant. Present so a consumer can tell this from a state frame.",
+                "const": "health",
+                "description": "Discriminant. Present so a consumer can tell this from a metrics frame.",
                 "type": "string",
                 "x-parser-schema-id": "<anonymous-schema-3>"
               }
@@ -69,6 +95,35 @@
             ],
             "type": "object",
             "x-parser-schema-id": "<anonymous-schema-1>"
+          },
+          "summary": "Why the metrics stream is silent, or that it is not",
+          "title": "Connection Health Push",
+          "x-parser-unique-object-id": "health"
+        },
+        "metrics": {
+          "contentType": "application/json",
+          "description": "Tagged envelope carrying a full diagnostics snapshot. Tagged rather than riding on ResponseData, which is an untagged union a consumer could not discriminate.",
+          "name": "MetricsPush",
+          "payload": {
+            "properties": {
+              "data": {
+                "description": "LinkDiagnosticsSnapshot. Field-level contract: client/src/js/bindings/LinkDiagnosticsSnapshot.ts, generated from the Rust definition in common/src/structs/metrics/.",
+                "type": "object",
+                "x-parser-schema-id": "<anonymous-schema-5>"
+              },
+              "type": {
+                "const": "metrics",
+                "description": "Discriminant. Present so a consumer can tell this from a state frame.",
+                "type": "string",
+                "x-parser-schema-id": "<anonymous-schema-6>"
+              }
+            },
+            "required": [
+              "type",
+              "data"
+            ],
+            "type": "object",
+            "x-parser-schema-id": "<anonymous-schema-4>"
           },
           "summary": "Live link, device and per-speaker diagnostics",
           "title": "Link Diagnostics Push",
@@ -82,7 +137,7 @@
       "messages": {
         "command": {
           "contentType": "application/json",
-          "description": "Tagged union of all available commands (ping, mute, record)",
+          "description": "Tagged union of all available commands (ping, mute, record, state, ptt, targets, connect, disconnect)",
           "name": "Command",
           "payload": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -92,21 +147,21 @@
                   "action": {
                     "const": "ping",
                     "type": "string",
-                    "x-parser-schema-id": "<anonymous-schema-6>"
+                    "x-parser-schema-id": "<anonymous-schema-9>"
                   }
                 },
                 "required": [
                   "action"
                 ],
                 "type": "object",
-                "x-parser-schema-id": "<anonymous-schema-5>"
+                "x-parser-schema-id": "<anonymous-schema-8>"
               },
               {
                 "properties": {
                   "action": {
                     "const": "mute",
                     "type": "string",
-                    "x-parser-schema-id": "<anonymous-schema-8>"
+                    "x-parser-schema-id": "<anonymous-schema-11>"
                   },
                   "device": {
                     "enum": [
@@ -122,39 +177,202 @@
                   "device"
                 ],
                 "type": "object",
-                "x-parser-schema-id": "<anonymous-schema-7>"
+                "x-parser-schema-id": "<anonymous-schema-10>"
               },
               {
                 "properties": {
                   "action": {
                     "const": "record",
                     "type": "string",
-                    "x-parser-schema-id": "<anonymous-schema-10>"
+                    "x-parser-schema-id": "<anonymous-schema-13>"
                   }
                 },
                 "required": [
                   "action"
                 ],
                 "type": "object",
-                "x-parser-schema-id": "<anonymous-schema-9>"
+                "x-parser-schema-id": "<anonymous-schema-12>"
+              },
+              {
+                "description": "Toggle whether jukebox music plays.\n\nA toggle rather than a setter, matching `Mute`: a controller button cannot read the\ncurrent state before it is pressed.",
+                "properties": {
+                  "action": {
+                    "const": "jukebox",
+                    "type": "string",
+                    "x-parser-schema-id": "<anonymous-schema-15>"
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "type": "object",
+                "x-parser-schema-id": "<anonymous-schema-14>"
+              },
+              {
+                "description": "Set how loud jukebox music plays, as a percent where 100 is untouched.\n\nA level rather than a toggle, unlike `Jukebox`: a dial sends an absolute value and knows\nwhat it is asking for. A level above the ceiling is clamped rather than refused, so a\ncontroller with a wider dial still lands at the loudest the client will play.",
+                "properties": {
+                  "action": {
+                    "const": "jukeboxvolume",
+                    "type": "string",
+                    "x-parser-schema-id": "<anonymous-schema-17>"
+                  },
+                  "level": {
+                    "format": "uint8",
+                    "maximum": 255,
+                    "minimum": 0,
+                    "type": "integer",
+                    "x-parser-schema-id": "<anonymous-schema-18>"
+                  }
+                },
+                "required": [
+                  "action",
+                  "level"
+                ],
+                "type": "object",
+                "x-parser-schema-id": "<anonymous-schema-16>"
               },
               {
                 "properties": {
                   "action": {
                     "const": "state",
                     "type": "string",
-                    "x-parser-schema-id": "<anonymous-schema-12>"
+                    "x-parser-schema-id": "<anonymous-schema-20>"
                   }
                 },
                 "required": [
                   "action"
                 ],
                 "type": "object",
-                "x-parser-schema-id": "<anonymous-schema-11>"
+                "x-parser-schema-id": "<anonymous-schema-19>"
+              },
+              {
+                "description": "Push-to-talk, held. `down` is the press; the mic closes on the release.\n\nA controller holding this open is responsible for sending the release. A dropped\nconnection does not close the mic, so a button that latches leaves it open.",
+                "properties": {
+                  "action": {
+                    "const": "ptt",
+                    "type": "string",
+                    "x-parser-schema-id": "<anonymous-schema-22>"
+                  },
+                  "down": {
+                    "type": "boolean",
+                    "x-parser-schema-id": "<anonymous-schema-23>"
+                  }
+                },
+                "required": [
+                  "action",
+                  "down"
+                ],
+                "type": "object",
+                "x-parser-schema-id": "<anonymous-schema-21>"
+              },
+              {
+                "description": "The worlds this client can be asked to connect to.",
+                "properties": {
+                  "action": {
+                    "const": "targets",
+                    "type": "string",
+                    "x-parser-schema-id": "<anonymous-schema-25>"
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "type": "object",
+                "x-parser-schema-id": "<anonymous-schema-24>"
+              },
+              {
+                "description": "Connect to one of them. `id` comes from a prior `targets` response.",
+                "properties": {
+                  "action": {
+                    "const": "connect",
+                    "type": "string",
+                    "x-parser-schema-id": "<anonymous-schema-27>"
+                  },
+                  "id": {
+                    "type": "string",
+                    "x-parser-schema-id": "<anonymous-schema-28>"
+                  }
+                },
+                "required": [
+                  "action",
+                  "id"
+                ],
+                "type": "object",
+                "x-parser-schema-id": "<anonymous-schema-26>"
+              },
+              {
+                "description": "Stop whichever session is live.\n\nNames no target. Idempotent, so a controller that lost track of the client can send\nit without first asking what is running.",
+                "properties": {
+                  "action": {
+                    "const": "disconnect",
+                    "type": "string",
+                    "x-parser-schema-id": "<anonymous-schema-30>"
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "type": "object",
+                "x-parser-schema-id": "<anonymous-schema-29>"
+              },
+              {
+                "description": "Create a group with this name and join it.\n\nA name that already exists is created anyway: the caller named a create.",
+                "properties": {
+                  "action": {
+                    "const": "creategroup",
+                    "type": "string",
+                    "x-parser-schema-id": "<anonymous-schema-32>"
+                  },
+                  "name": {
+                    "type": "string",
+                    "x-parser-schema-id": "<anonymous-schema-33>"
+                  }
+                },
+                "required": [
+                  "action",
+                  "name"
+                ],
+                "type": "object",
+                "x-parser-schema-id": "<anonymous-schema-31>"
+              },
+              {
+                "description": "Join the existing group with this name.\n\nRefused when the name matches no group, and when it matches more than one.",
+                "properties": {
+                  "action": {
+                    "const": "joingroup",
+                    "type": "string",
+                    "x-parser-schema-id": "<anonymous-schema-35>"
+                  },
+                  "name": {
+                    "type": "string",
+                    "x-parser-schema-id": "<anonymous-schema-36>"
+                  }
+                },
+                "required": [
+                  "action",
+                  "name"
+                ],
+                "type": "object",
+                "x-parser-schema-id": "<anonymous-schema-34>"
+              },
+              {
+                "description": "Leave whichever group this client is in.\n\nNames nothing, and is idempotent, so a controller that lost track can send it without\nfirst asking what it is in.",
+                "properties": {
+                  "action": {
+                    "const": "leavegroup",
+                    "type": "string",
+                    "x-parser-schema-id": "<anonymous-schema-38>"
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "type": "object",
+                "x-parser-schema-id": "<anonymous-schema-37>"
               }
             ],
             "title": "Command",
-            "x-parser-schema-id": "<anonymous-schema-4>"
+            "x-parser-schema-id": "<anonymous-schema-7>"
           },
           "summary": "Commands that can be sent to the WebSocket server",
           "title": "WebSocket Command",
@@ -169,11 +387,11 @@
             "properties": {
               "error": {
                 "type": "string",
-                "x-parser-schema-id": "<anonymous-schema-14>"
+                "x-parser-schema-id": "<anonymous-schema-40>"
               },
               "success": {
                 "type": "boolean",
-                "x-parser-schema-id": "<anonymous-schema-15>"
+                "x-parser-schema-id": "<anonymous-schema-41>"
               }
             },
             "required": [
@@ -182,7 +400,7 @@
             ],
             "title": "ErrorResponse",
             "type": "object",
-            "x-parser-schema-id": "<anonymous-schema-13>"
+            "x-parser-schema-id": "<anonymous-schema-39>"
           },
           "summary": "Response sent when command fails",
           "title": "Error Response",
@@ -201,7 +419,7 @@
                     "properties": {
                       "pong": {
                         "type": "boolean",
-                        "x-parser-schema-id": "<anonymous-schema-17>"
+                        "x-parser-schema-id": "<anonymous-schema-43>"
                       }
                     },
                     "required": [
@@ -214,11 +432,11 @@
                     "properties": {
                       "device": {
                         "type": "string",
-                        "x-parser-schema-id": "<anonymous-schema-18>"
+                        "x-parser-schema-id": "<anonymous-schema-44>"
                       },
                       "muted": {
                         "type": "boolean",
-                        "x-parser-schema-id": "<anonymous-schema-19>"
+                        "x-parser-schema-id": "<anonymous-schema-45>"
                       }
                     },
                     "required": [
@@ -232,7 +450,7 @@
                     "properties": {
                       "recording": {
                         "type": "boolean",
-                        "x-parser-schema-id": "<anonymous-schema-20>"
+                        "x-parser-schema-id": "<anonymous-schema-46>"
                       }
                     },
                     "required": [
@@ -243,33 +461,257 @@
                   },
                   {
                     "properties": {
+                      "connection": {
+                        "anyOf": [
+                          {
+                            "description": "The world this client is connected to right now.\n\nRides on every state frame so a controller draws its toggle from the same push it\nalready subscribes to, rather than polling a second endpoint that would go stale the\nmoment the user disconnects from the app itself.",
+                            "properties": {
+                              "glyph": {
+                                "description": "A target's derived identity, so a controller can tell one world from another on a button.\n\nField names are snake_case, as the rest of this protocol is.",
+                                "properties": {
+                                  "hue": {
+                                    "description": "The column colour, `#rrggbb`.",
+                                    "type": "string",
+                                    "x-parser-schema-id": "<anonymous-schema-48>"
+                                  },
+                                  "hue_index": {
+                                    "description": "Which of the mark's columns, so a caller can reference the same identity elsewhere.",
+                                    "format": "uint8",
+                                    "maximum": 255,
+                                    "minimum": 0,
+                                    "type": "integer",
+                                    "x-parser-schema-id": "<anonymous-schema-49>"
+                                  },
+                                  "pattern": {
+                                    "description": "The 5x5 grid as seven lowercase hex characters. Bit `row * 5 + col`, set means filled.\n\nThe whole grid rather than the fifteen independent bits, so a consumer never has to know\nthe pattern is mirrored about its centre column.",
+                                    "type": "string",
+                                    "x-parser-schema-id": "<anonymous-schema-50>"
+                                  }
+                                },
+                                "required": [
+                                  "hue",
+                                  "hue_index",
+                                  "pattern"
+                                ],
+                                "type": "object",
+                                "x-parser-schema-id": "Glyph"
+                              },
+                              "id": {
+                                "type": "string",
+                                "x-parser-schema-id": "<anonymous-schema-51>"
+                              },
+                              "kind": {
+                                "enum": [
+                                  "proxy",
+                                  "realm"
+                                ],
+                                "type": "string",
+                                "x-parser-schema-id": "ConnectTargetKind"
+                              },
+                              "name": {
+                                "type": "string",
+                                "x-parser-schema-id": "<anonymous-schema-52>"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "kind",
+                              "glyph"
+                            ],
+                            "type": "object",
+                            "x-parser-schema-id": "ActiveConnection"
+                          },
+                          {
+                            "type": "null",
+                            "x-parser-schema-id": "<anonymous-schema-53>"
+                          }
+                        ],
+                        "description": "The world this client is connected to, absent when nothing is running.",
+                        "x-parser-schema-id": "<anonymous-schema-47>"
+                      },
                       "deafened": {
                         "type": "boolean",
-                        "x-parser-schema-id": "<anonymous-schema-21>"
+                        "x-parser-schema-id": "<anonymous-schema-54>"
+                      },
+                      "jukebox_gain": {
+                        "description": "How loud jukebox music plays, as a fraction where 1.0 is untouched.",
+                        "format": "float",
+                        "type": "number",
+                        "x-parser-schema-id": "<anonymous-schema-55>"
+                      },
+                      "jukebox_muted": {
+                        "description": "Whether jukebox music is muted.",
+                        "type": "boolean",
+                        "x-parser-schema-id": "<anonymous-schema-56>"
                       },
                       "muted": {
                         "type": "boolean",
-                        "x-parser-schema-id": "<anonymous-schema-22>"
+                        "x-parser-schema-id": "<anonymous-schema-57>"
+                      },
+                      "ptt_active": {
+                        "description": "Whether push-to-talk is held right now. Always false in `openMic`.",
+                        "type": "boolean",
+                        "x-parser-schema-id": "<anonymous-schema-58>"
                       },
                       "recording": {
                         "type": "boolean",
-                        "x-parser-schema-id": "<anonymous-schema-23>"
+                        "x-parser-schema-id": "<anonymous-schema-59>"
+                      },
+                      "voice_mode": {
+                        "description": "The voice mode, as it appears on the wire.\n\nA local mirror of the client's own enum, like `DeviceType`: this crate is the protocol\nschema an external controller compiles against, and it does not carry the client's\ndependencies to get one enum.\n\nIt decides what the mute control means. In `openMic` the mic button is a toggle; in\n`pushToTalk` it is a hold, and a toggle there would be a second word for a state the\nhold already owns.",
+                        "enum": [
+                          "openMic",
+                          "pushToTalk"
+                        ],
+                        "type": "string",
+                        "x-parser-schema-id": "VoiceMode"
                       }
                     },
                     "required": [
                       "muted",
                       "deafened",
-                      "recording"
+                      "recording",
+                      "voice_mode",
+                      "ptt_active",
+                      "jukebox_muted",
+                      "jukebox_gain"
                     ],
                     "type": "object",
                     "x-parser-schema-id": "StateData"
+                  },
+                  {
+                    "properties": {
+                      "active": {
+                        "type": "boolean",
+                        "x-parser-schema-id": "<anonymous-schema-60>"
+                      }
+                    },
+                    "required": [
+                      "active"
+                    ],
+                    "type": "object",
+                    "x-parser-schema-id": "PttData"
+                  },
+                  {
+                    "properties": {
+                      "targets": {
+                        "items": {
+                          "description": "One world a controller can ask the client to connect to.\n\nCarries no address. A controller picks a name from this list and quotes the id back; the\nclient is what knows where that world is. `kind` is derivable from the id's prefix and is\nnamed anyway so a picker can group without parsing.",
+                          "properties": {
+                            "glyph": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[3].properties.connection.anyOf[0].properties.glyph",
+                            "id": {
+                              "type": "string",
+                              "x-parser-schema-id": "<anonymous-schema-62>"
+                            },
+                            "kind": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[3].properties.connection.anyOf[0].properties.kind",
+                            "name": {
+                              "type": "string",
+                              "x-parser-schema-id": "<anonymous-schema-63>"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "kind",
+                            "glyph"
+                          ],
+                          "type": "object",
+                          "x-parser-schema-id": "ConnectTarget"
+                        },
+                        "type": "array",
+                        "x-parser-schema-id": "<anonymous-schema-61>"
+                      }
+                    },
+                    "required": [
+                      "targets"
+                    ],
+                    "type": "object",
+                    "x-parser-schema-id": "TargetsData"
+                  },
+                  {
+                    "description": "The outcome of a connect or a disconnect, so a caller can fail fast rather than poll for\na state change that may never come.\n\n`id` and `name` are absent when a disconnect found nothing running.",
+                    "properties": {
+                      "connected": {
+                        "type": "boolean",
+                        "x-parser-schema-id": "<anonymous-schema-64>"
+                      },
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "x-parser-schema-id": "<anonymous-schema-65>"
+                      },
+                      "name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "x-parser-schema-id": "<anonymous-schema-66>"
+                      }
+                    },
+                    "required": [
+                      "connected"
+                    ],
+                    "type": "object",
+                    "x-parser-schema-id": "ConnectData"
+                  },
+                  {
+                    "properties": {
+                      "gain": {
+                        "description": "The level as a fraction, where 1.0 is untouched.\n\nReported alongside `muted` so a controller learns both halves from either command and never\nhas to infer one from the other — they are independent, and a level survives a mute.",
+                        "format": "float",
+                        "type": "number",
+                        "x-parser-schema-id": "<anonymous-schema-67>"
+                      },
+                      "muted": {
+                        "type": "boolean",
+                        "x-parser-schema-id": "<anonymous-schema-68>"
+                      }
+                    },
+                    "required": [
+                      "muted",
+                      "gain"
+                    ],
+                    "type": "object",
+                    "x-parser-schema-id": "JukeboxData"
+                  },
+                  {
+                    "description": "Whether this client is in a group, and which.\n\n`id` and `name` are absent when a leave found nothing to leave, matching how `ConnectData`\nreports a disconnect that found nothing running.",
+                    "properties": {
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "x-parser-schema-id": "<anonymous-schema-69>"
+                      },
+                      "in_group": {
+                        "type": "boolean",
+                        "x-parser-schema-id": "<anonymous-schema-70>"
+                      },
+                      "name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "x-parser-schema-id": "<anonymous-schema-71>"
+                      }
+                    },
+                    "required": [
+                      "in_group"
+                    ],
+                    "type": "object",
+                    "x-parser-schema-id": "GroupData"
                   }
                 ],
+                "description": "An untagged enum is tried in declaration order, so a new variant goes at the end: a\npermissive shape placed earlier would swallow payloads meant for a later one.",
                 "x-parser-schema-id": "ResponseData"
               },
               "success": {
                 "type": "boolean",
-                "x-parser-schema-id": "<anonymous-schema-24>"
+                "x-parser-schema-id": "<anonymous-schema-72>"
               }
             },
             "required": [
@@ -278,7 +720,7 @@
             ],
             "title": "SuccessResponse",
             "type": "object",
-            "x-parser-schema-id": "<anonymous-schema-16>"
+            "x-parser-schema-id": "<anonymous-schema-42>"
           },
           "summary": "Response sent when command succeeds",
           "title": "Success Response",
@@ -292,16 +734,27 @@
     "messages": {
       "Command": "$ref:$.channels.root.messages.command",
       "ErrorResponse": "$ref:$.channels.root.messages.error",
+      "HealthPush": "$ref:$.channels.metrics.messages.health",
       "MetricsPush": "$ref:$.channels.metrics.messages.metrics",
       "SuccessResponse": "$ref:$.channels.root.messages.success"
     },
     "schemas": {
+      "ActiveConnection": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[3].properties.connection.anyOf[0]",
+      "ConnectData": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[6]",
+      "ConnectTarget": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[5].properties.targets.items",
+      "ConnectTargetKind": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[3].properties.connection.anyOf[0].properties.kind",
       "DeviceType": "$ref:$.channels.root.messages.command.payload.oneOf[1].properties.device",
+      "Glyph": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[3].properties.connection.anyOf[0].properties.glyph",
+      "GroupData": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[8]",
+      "JukeboxData": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[7]",
       "MuteData": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[1]",
       "PongData": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[0]",
+      "PttData": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[4]",
       "RecordData": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[2]",
       "ResponseData": "$ref:$.channels.root.messages.success.payload.properties.data",
-      "StateData": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[3]"
+      "StateData": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[3]",
+      "TargetsData": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[5]",
+      "VoiceMode": "$ref:$.channels.root.messages.success.payload.properties.data.anyOf[3].properties.voice_mode"
     }
   },
   "info": {
