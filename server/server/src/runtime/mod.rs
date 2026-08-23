@@ -1,7 +1,9 @@
 pub mod access_token;
 pub mod ca_store;
 pub mod ca_cert;
+pub mod node_key;
 pub mod readiness;
+pub mod secret_store;
 pub mod position_updater;
 pub mod state;
 use crate::config::ApplicationConfig;
@@ -13,6 +15,8 @@ use crate::services::{
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 use common::traits::StreamTrait;
 pub use ca_store::CaStore;
+pub use node_key::NodeKeyStore;
+pub use secret_store::{SecretName, SecretStore};
 pub use readiness::ReadinessState;
 pub use state::RuntimeState;
 
@@ -186,13 +190,21 @@ impl ServerRuntime {
         // volume.
         let (_ca_pem, _ca_key_pem) = self.generate_ca(db_conn.as_ref()).await?;
 
-        // Resolve the Minecraft access token before any component clones the
-        // config. Env and config values win; otherwise the persisted token is
-        // reused or a fresh one is generated once and logged.
+        // Resolved before any component clones the config. A configured value wins and is
+        // mirrored into the database; otherwise the stored value is used, a pre-database
+        // file is imported, or a fresh token is generated.
         let token_manager =
             access_token::AccessTokenManager::new(&self.config.server.tls.certs_path);
         self.config.server.minecraft.access_token = token_manager
-            .resolve(&self.config.server.minecraft.access_token)?;
+            .resolve(db_conn.as_ref(), &self.config.server.minecraft.access_token)
+            .await?;
+
+        // Resolved whether or not peering is configured. Deferring this to the peering
+        // branch below would mean an operator who enables peering later has already lost the
+        // key, and every far-side `peer` block naming it would be dead.
+        let node_secret = node_key::NodeKeyStore::new(&self.config.server.tls.certs_path)
+            .resolve(db_conn.as_ref())
+            .await?;
 
         // ACME DNS-01: mutually exclusive with manual cert paths. Issuance
         // must complete before Rocket starts — the HTTPS listener cannot
@@ -210,6 +222,7 @@ impl ServerRuntime {
                 acme_config,
                 &self.config.server.tls.names,
                 &self.config.server.tls.certs_path,
+                db_conn.clone(),
             )?;
             let paths = service.ensure_certificate().await?;
             self.config.server.tls.certificate = paths.certificate;
@@ -346,8 +359,7 @@ impl ServerRuntime {
         if grants.is_empty() {
             tracing::info!("peering is not configured; no peer socket bound");
         } else {
-            let identity =
-                bvc_relay::node::NodeIdentity::load_or_create(&self.config.server.tls.certs_path)?;
+            let identity = bvc_relay::node::NodeIdentity::from_secret_bytes(&node_secret);
 
             let relay_url = match &self.config.server.peer_relay_url {
                 Some(url) => match url.parse() {
@@ -539,7 +551,6 @@ impl ServerRuntime {
 
         self.state = RuntimeState::Running;
 
-        #[cfg(feature = "bedrock")]
         #[cfg(feature = "bedrock")]
         let mut transfer_relay = None;
 

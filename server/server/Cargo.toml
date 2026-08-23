@@ -144,6 +144,10 @@ read-process-memory ={ version = "^0.1" }
 proc_mem = { version = "^0.1"}
 tempfile = { version = "^3" }
 ring = { version = "^0.17" }
+# Test-only. `verify_signature` is feature-gated, and the upgrade tests assert that a player
+# certificate issued before the upgrade still chains to the authority after it — the one
+# property a field comparison cannot stand in for.
+x509-parser = { workspace = true, features = ["verify"] }
 # Test-only. Lets the peer tests drive the object a plugin actually calls rather
 # than a hand-built frame that merely resembles what the SDK produces.
 bvc-relay-sdk = { path = "../../relay/sdk" }

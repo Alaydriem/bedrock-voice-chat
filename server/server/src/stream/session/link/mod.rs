@@ -1,6 +1,7 @@
 use super::{ReceiveError, SendOutcome};
 use bytes::Bytes;
 use common::s2n_quic::Connection;
+use common::s2n_quic::provider::datagram::default::DatagramError;
 use std::sync::Arc;
 
 mod recv_datagram;
@@ -75,7 +76,7 @@ impl SessionLink {
 
         match send_res {
             Ok(Ok(())) => SendOutcome::Ok,
-            Ok(Err(e)) => Self::classify_datagram_error(e.to_string()),
+            Ok(Err(e)) => Self::classify_datagram_error(e),
             Err(e) => SendOutcome::Fatal(e.to_string()),
         }
     }
@@ -100,22 +101,28 @@ impl SessionLink {
 
         match send_res {
             Ok(Ok(())) => SendOutcome::Ok,
-            Ok(Err(e)) => Self::classify_datagram_error(e.to_string()),
+            Ok(Err(e)) => Self::classify_datagram_error(e),
             Err(e) => SendOutcome::Fatal(e.to_string()),
         }
     }
 
-    fn classify_datagram_error(emsg: String) -> SendOutcome {
-        let lower = emsg.to_ascii_lowercase();
-        if (lower.contains("connection") && lower.contains("clos"))
-            || lower.contains("closed")
-            || lower.contains("reset")
-        {
-            SendOutcome::ConnectionClosed(emsg)
-        } else if lower.contains("capacity") || lower.contains("queue") {
-            SendOutcome::Capacity(emsg)
-        } else {
-            SendOutcome::Other(emsg)
+    // Matched on the variant rather than on `Display`. The two are not interchangeable
+    // here: `ConnectionError` renders as "Connection-level error occurred.", which carries
+    // neither "closed" nor "reset", so a text match read a dead connection as a transient
+    // error and left the send loop running against it.
+    //
+    // The enum and every variant are `#[non_exhaustive]`, hence the `{ .. }` patterns and
+    // the catch-all. A variant added upstream is treated as transient, which costs a few
+    // dropped datagrams rather than a session closed on a guess.
+    fn classify_datagram_error(error: DatagramError) -> SendOutcome {
+        let emsg = error.to_string();
+        match error {
+            DatagramError::ConnectionError { error, .. } => {
+                SendOutcome::ConnectionClosed(error.to_string())
+            }
+            DatagramError::QueueAtCapacity { .. } => SendOutcome::Capacity(emsg),
+            DatagramError::ExceedsPeerTransportLimits { .. } => SendOutcome::Other(emsg),
+            _ => SendOutcome::Other(emsg),
         }
     }
 }

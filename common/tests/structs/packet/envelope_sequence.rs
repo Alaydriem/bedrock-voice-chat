@@ -160,6 +160,11 @@ fn sequence_bytes_sit_at_a_fixed_offset() {
     // recipient instead of re-encoding. That is only sound while `seq` is the first field and
     // fixed-width. A field reorder or a dropped `fixint` attribute would break it silently — the
     // datagram would still serialize, and the recipient would read a mangled packet.
+    //
+    // One envelope, re-stamped in place, because that is what the fan-out holds. A second
+    // `audio_envelope()` would carry a second `AudioFramePacket::new` timestamp, so the two
+    // encodes would differ in the timestamp rather than in the sequence whenever the
+    // millisecond turns over between them.
     let mut packet = audio_envelope();
     packet.stamp(0);
     let template = packet.to_datagram().expect("template serializes");
@@ -168,9 +173,8 @@ fn sequence_bytes_sit_at_a_fixed_offset() {
         let mut patched = template.clone();
         patched[QuicNetworkPacket::SEQ_VALUE_RANGE].copy_from_slice(&value.to_le_bytes());
 
-        let mut expected = audio_envelope();
-        expected.stamp(value);
-        let encoded = expected.to_datagram().expect("serializes");
+        packet.stamp(value);
+        let encoded = packet.to_datagram().expect("serializes");
 
         assert_eq!(
             patched, encoded,

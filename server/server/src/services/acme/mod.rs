@@ -35,15 +35,26 @@ pub struct AcmeService {
 }
 
 impl AcmeService {
-    pub fn new(config: Acme, tls_names: &[String], certs_path: &str) -> Result<Self> {
+    pub fn new(
+        config: Acme,
+        tls_names: &[String],
+        certs_path: &str,
+        conn: Arc<sea_orm::DatabaseConnection>,
+    ) -> Result<Self> {
         config.validate(tls_names)?;
         let domains = config.effective_domains(tls_names)?;
         let provider = DnsProvider::from_config(&config)?;
+        let storage = AcmeStorage::new(
+            certs_path,
+            conn,
+            config.directory.clone(),
+            domains.clone(),
+        );
         Ok(Self {
             config,
             domains,
             provider,
-            storage: AcmeStorage::new(certs_path),
+            storage,
             propagation: PropagationChecker::new(),
         })
     }
@@ -54,9 +65,15 @@ impl AcmeService {
     /// boot should not require operator intervention, but a persistent
     /// misconfiguration must still fail startup with the failing step named.
     pub async fn ensure_certificate(&self) -> Result<AcmeCertPaths> {
+        // Adopts an account and certificate a pre-database deployment left on disk, before
+        // anything decides to issue. Re-registering and re-issuing both cost quota with the
+        // provider, and neither is recoverable by trying again.
+        self.storage.import_legacy().await?;
+
         if self
             .storage
-            .load_certificate_valid_for(RENEWAL_WINDOW)?
+            .load_certificate_valid_for(RENEWAL_WINDOW)
+            .await?
             .is_none()
         {
             info!(domains = ?self.domains, "No valid ACME certificate stored; issuing");
@@ -94,7 +111,8 @@ impl AcmeService {
     pub async fn renew_if_needed(&self) -> Result<bool> {
         if self
             .storage
-            .load_certificate_valid_for(RENEWAL_WINDOW)?
+            .load_certificate_valid_for(RENEWAL_WINDOW)
+            .await?
             .is_some()
         {
             return Ok(false);
@@ -195,7 +213,8 @@ impl AcmeService {
             .context("downloading certificate chain")?;
 
         self.storage
-            .store_certificate(&cert_chain_pem, &private_key_pem)?;
+            .store_certificate(&cert_chain_pem, &private_key_pem)
+            .await?;
         info!(domains = ?self.domains, "ACME certificate issued and stored");
 
         for domain in published {
@@ -209,7 +228,7 @@ impl AcmeService {
     /// Reuses the persisted ACME account or registers a new one. The account
     /// key is generate-once, like ca.key.
     async fn load_or_create_account(&self) -> Result<instant_acme::Account> {
-        if let Some(json) = self.storage.load_account_credentials()? {
+        if let Some(json) = self.storage.load_account_credentials().await? {
             let credentials: instant_acme::AccountCredentials =
                 serde_json::from_str(&json).context("parsing stored ACME account credentials")?;
             return Ok(instant_acme::Account::builder()
@@ -231,9 +250,12 @@ impl AcmeService {
             )
             .await
             .context("creating ACME account")?;
-        self.storage.store_account_credentials(
-            &serde_json::to_string(&credentials).context("serializing ACME account credentials")?,
-        )?;
+        self.storage
+            .store_account_credentials(
+                &serde_json::to_string(&credentials)
+                    .context("serializing ACME account credentials")?,
+            )
+            .await?;
         Ok(account)
     }
 }

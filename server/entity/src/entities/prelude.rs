@@ -1,3 +1,4 @@
+pub use super::acme_credential::{self, Entity as AcmeCredential};
 pub use super::audio_file::{self, Entity as AudioFile};
 pub use super::certificate_authority::{self, Entity as CertificateAuthority};
 pub use super::certificate_revocation::{self, Entity as CertificateRevocation};
@@ -6,3 +7,4 @@ pub use super::player_auth_code::{self, Entity as PlayerAuthCode};
 pub use super::player_identity::{self, Entity as PlayerIdentity};
 pub use super::player_permission::{self, Entity as PlayerPermission};
 pub use super::player_world::{self, Entity as PlayerWorld};
+pub use super::server_secret::{self, Entity as ServerSecret};

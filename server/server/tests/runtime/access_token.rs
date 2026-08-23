@@ -1,50 +1,70 @@
 use bvc_server_lib::runtime::access_token::AccessTokenManager;
+use bvc_server_lib::runtime::{SecretName, SecretStore};
 use tempfile::TempDir;
 
-#[test]
-fn configured_token_wins_and_writes_nothing() {
-    let dir = TempDir::new().unwrap();
-    let mgr = AccessTokenManager::new(dir.path().to_str().unwrap());
-    let token = mgr.resolve("configured-token").unwrap();
+use crate::harness::DatabaseFixture;
+
+#[tokio::test]
+async fn a_configured_token_wins_and_is_mirrored_into_the_database() {
+    let db = DatabaseFixture::create().await.expect("fixture");
+    let dir = TempDir::new().expect("tempdir");
+    let manager = AccessTokenManager::new(dir.path().to_str().unwrap());
+
+    let token = manager
+        .resolve(&db.connection, "configured-token")
+        .await
+        .expect("resolve");
+
     assert_eq!(token, "configured-token");
-    assert!(
-        !dir.path().join("access_token").exists(),
-        "a configured token must not be persisted"
+    assert_eq!(
+        SecretStore::read(&db.connection, SecretName::MinecraftAccessToken)
+            .await
+            .expect("read"),
+        Some("configured-token".to_string())
     );
 }
 
-#[test]
-fn generates_persists_and_reuses() {
-    let dir = TempDir::new().unwrap();
-    let mgr = AccessTokenManager::new(dir.path().to_str().unwrap());
+// The upgrade path: beta.20 wrote the token to `<certs_path>/access_token`.
+#[tokio::test]
+async fn an_existing_token_file_is_imported() {
+    let db = DatabaseFixture::create().await.expect("fixture");
+    let dir = TempDir::new().expect("tempdir");
+    std::fs::write(dir.path().join("access_token"), "beta-20-token").expect("write");
+    let manager = AccessTokenManager::new(dir.path().to_str().unwrap());
 
-    let first = mgr.resolve("").unwrap();
-    assert_eq!(first.len(), 32);
-    assert!(first.chars().all(|c| c.is_ascii_alphanumeric()));
-    assert!(dir.path().join("access_token").exists());
+    let token = manager.resolve(&db.connection, "").await.expect("resolve");
 
-    let second = mgr.resolve("").unwrap();
-    assert_eq!(first, second, "second boot must reuse the persisted token");
+    assert_eq!(
+        token, "beta-20-token",
+        "a mod configured against this token must keep working across the upgrade"
+    );
 }
 
-#[test]
-fn existing_file_is_trimmed_and_reused() {
-    let dir = TempDir::new().unwrap();
-    std::fs::write(dir.path().join("access_token"), "pre-existing-token\n").unwrap();
-    let mgr = AccessTokenManager::new(dir.path().to_str().unwrap());
-    let token = mgr.resolve("  ").unwrap();
-    assert_eq!(token, "pre-existing-token");
+// A fresh install must not leave the token on disk. That file is what makes a container
+// need a persistent volume.
+#[tokio::test]
+async fn a_generated_token_is_never_written_to_disk() {
+    let db = DatabaseFixture::create().await.expect("fixture");
+    let dir = TempDir::new().expect("tempdir");
+    let manager = AccessTokenManager::new(dir.path().to_str().unwrap());
+
+    let token = manager.resolve(&db.connection, "").await.expect("resolve");
+
+    assert_eq!(token.len(), 32);
+    assert!(
+        !dir.path().join("access_token").exists(),
+        "the database is the only durable copy"
+    );
 }
 
-#[test]
-fn distinct_paths_generate_distinct_tokens() {
-    let a = TempDir::new().unwrap();
-    let b = TempDir::new().unwrap();
-    let token_a = AccessTokenManager::new(a.path().to_str().unwrap())
-        .resolve("")
-        .unwrap();
-    let token_b = AccessTokenManager::new(b.path().to_str().unwrap())
-        .resolve("")
-        .unwrap();
-    assert_ne!(token_a, token_b);
+#[tokio::test]
+async fn a_second_boot_reuses_the_stored_token() {
+    let db = DatabaseFixture::create().await.expect("fixture");
+    let dir = TempDir::new().expect("tempdir");
+    let manager = AccessTokenManager::new(dir.path().to_str().unwrap());
+
+    let first = manager.resolve(&db.connection, "").await.expect("first");
+    let second = manager.resolve(&db.connection, "").await.expect("second");
+
+    assert_eq!(first, second);
 }

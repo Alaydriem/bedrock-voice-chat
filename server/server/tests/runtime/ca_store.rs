@@ -138,3 +138,119 @@ async fn a_san_change_resigns_and_is_written_back() {
         .expect("third");
     assert_eq!(second_cert, third_cert);
 }
+
+// A first boot that stored the wrong authority — a missing volume mount, a mistyped
+// certs_path, a CLI run against another directory — makes that authority the source of
+// truth, and the original would then be clobbered on every later boot. The rename is what
+// keeps the original recoverable.
+#[tokio::test]
+async fn a_disagreeing_disk_file_is_renamed_rather_than_overwritten() {
+    let db = DatabaseFixture::create().await.expect("fixture");
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().to_str().unwrap();
+
+    let (stored_cert, _stored_key) = CaStore::ensure(&db.connection, path, &sans())
+        .await
+        .expect("seed the database");
+
+    // A different authority appears on disk under the same names.
+    let other = TempDir::new().expect("tempdir");
+    let other_db = DatabaseFixture::create().await.expect("fixture");
+    let (other_cert, other_key) =
+        CaStore::ensure(&other_db.connection, other.path().to_str().unwrap(), &sans())
+            .await
+            .expect("other authority");
+    std::fs::write(dir.path().join("ca.crt"), &other_cert).expect("write");
+    std::fs::write(dir.path().join("ca.key"), &other_key).expect("write");
+
+    let (result_cert, _result_key) = CaStore::ensure(&db.connection, path, &sans())
+        .await
+        .expect("ensure");
+
+    assert_eq!(
+        result_cert, stored_cert,
+        "the database is the source of truth"
+    );
+
+    let superseded: Vec<String> = std::fs::read_dir(dir.path())
+        .expect("read_dir")
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.contains(".superseded-"))
+        .collect();
+    assert_eq!(
+        superseded.len(),
+        2,
+        "both ca.crt and ca.key must be preserved, got {superseded:?}"
+    );
+}
+
+// An upgrade has no row to disagree with, so it must produce no superseded file at all.
+// One appearing during an upgrade is a defect, not a diagnostic.
+#[tokio::test]
+async fn importing_from_disk_never_supersedes_anything() {
+    let db = DatabaseFixture::create().await.expect("fixture");
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().to_str().unwrap();
+
+    // A deployment that predates the database-backed store.
+    let seed = TempDir::new().expect("tempdir");
+    let seed_db = DatabaseFixture::create().await.expect("fixture");
+    let (cert, key) = CaStore::ensure(&seed_db.connection, seed.path().to_str().unwrap(), &sans())
+        .await
+        .expect("seed");
+    std::fs::write(dir.path().join("ca.crt"), &cert).expect("write");
+    std::fs::write(dir.path().join("ca.key"), &key).expect("write");
+
+    CaStore::ensure(&db.connection, path, &sans())
+        .await
+        .expect("upgrade");
+
+    let superseded: Vec<String> = std::fs::read_dir(dir.path())
+        .expect("read_dir")
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.contains(".superseded-"))
+        .collect();
+    assert!(
+        superseded.is_empty(),
+        "an upgrade adopts the disk authority; nothing is superseded, got {superseded:?}"
+    );
+}
+
+// A mismatched pair must never become the authoritative copy. Whatever produced it, the
+// database is where it would become permanent.
+#[tokio::test]
+async fn a_mismatched_pair_is_never_stored() {
+    let db = DatabaseFixture::create().await.expect("fixture");
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().to_str().unwrap();
+
+    // ca.crt from one authority, ca.key from another, with nothing yet in the database.
+    let a = TempDir::new().expect("tempdir");
+    let b = TempDir::new().expect("tempdir");
+    let a_db = DatabaseFixture::create().await.expect("fixture");
+    let b_db = DatabaseFixture::create().await.expect("fixture");
+    let (a_cert, _a_key) = CaStore::ensure(&a_db.connection, a.path().to_str().unwrap(), &sans())
+        .await
+        .expect("a");
+    let (_b_cert, b_key) = CaStore::ensure(&b_db.connection, b.path().to_str().unwrap(), &sans())
+        .await
+        .expect("b");
+    std::fs::write(dir.path().join("ca.crt"), &a_cert).expect("write");
+    std::fs::write(dir.path().join("ca.key"), &b_key).expect("write");
+
+    let (cert, key) = CaStore::ensure(&db.connection, path, &sans())
+        .await
+        .expect("ensure repairs rather than failing");
+
+    assert_eq!(key, b_key, "the key on disk is the trust anchor");
+    assert_ne!(cert, a_cert, "the foreign certificate must be re-signed");
+    assert!(
+        bvc_server_lib::runtime::ca_cert::KeyMatch::matches(
+            &cert,
+            &KeyPair::from_pem(&key).expect("kp")
+        ),
+        "what reaches the database must correspond"
+    );
+}

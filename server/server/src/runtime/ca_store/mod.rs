@@ -81,13 +81,29 @@ impl CaStore {
 
     /// Writes the CA to `certs_path` for the TLS stacks to read.
     ///
-    /// Skips a file whose contents already match, so a restart does not churn the mtime of
-    /// material that nothing has changed.
+    /// A file whose contents already match is left alone, so a restart does not churn the
+    /// mtime of material nothing has changed. A file that disagrees is renamed rather than
+    /// overwritten: the database wins, but the bytes it displaced stay recoverable.
     fn materialise(dir: &Path, certificate_pem: &str, key_pem: &str) -> Result<()> {
+        let now = common::ncryptflib::rocket::Utc::now().timestamp();
+
         for (name, contents) in [("ca.crt", certificate_pem), ("ca.key", key_pem)] {
             let path = dir.join(name);
-            if fs::read_to_string(&path).is_ok_and(|existing| existing == contents) {
-                continue;
+            match fs::read_to_string(&path) {
+                Ok(existing) if existing == contents => continue,
+                Ok(_) => {
+                    let superseded = dir.join(format!("{name}.superseded-{now}"));
+                    fs::rename(&path, &superseded).with_context(|| {
+                        format!("preserving {} as {}", path.display(), superseded.display())
+                    })?;
+                    tracing::warn!(
+                        path = %path.display(),
+                        preserved_as = %superseded.display(),
+                        "The stored certificate authority differs from the one on disk. The \
+                         database is authoritative; the displaced file is preserved."
+                    );
+                }
+                Err(_) => {}
             }
             fs::write(&path, contents)
                 .with_context(|| format!("writing {} at {}", name, path.display()))?;
@@ -101,6 +117,18 @@ impl CaStore {
         certificate_pem: &str,
         key_pem: &str,
     ) -> Result<()> {
+        // The pair `CaCertManager::ensure` returns always corresponds, but the guard belongs
+        // next to the write as well: this is where a mismatch would become permanent, and a
+        // caller two modules away is not where that invariant should live.
+        let keypair = rcgen::KeyPair::from_pem(key_pem)
+            .map_err(|e| anyhow!("parsing the certificate authority key: {e}"))?;
+        if !super::ca_cert::KeyMatch::matches(certificate_pem, &keypair) {
+            return Err(anyhow!(
+                "refusing to store a certificate authority whose certificate was not issued \
+                 by its key"
+            ));
+        }
+
         let now = common::ncryptflib::rocket::Utc::now().timestamp();
 
         if exists {

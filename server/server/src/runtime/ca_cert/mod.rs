@@ -10,8 +10,10 @@
 //! trust for every player cert ever issued, and keeps the Subject DN + SPKI of
 //! the trust anchor stable for clients that have pinned the root cert.
 
+mod key_match;
 mod san_key_set;
 
+pub use key_match::KeyMatch;
 pub use san_key_set::SanKeySet;
 
 use anyhow::{Context, Result, anyhow};
@@ -62,23 +64,50 @@ impl CaCertManager {
             let existing_pem = fs::read_to_string(&cert_path)
                 .with_context(|| format!("reading ca.crt at {}", cert_path.display()))?;
             let existing = SanKeySet::from_certificate_pem(&existing_pem)?;
-            if existing == desired {
+
+            if !KeyMatch::matches(&existing_pem, &keypair) {
+                tracing::warn!(
+                    "ca.crt was not issued by ca.key; re-signing from the key. Certificates \
+                     issued under this key stay valid, but any signed while the pair was \
+                     mismatched will not verify and their holders must authenticate again."
+                );
+            } else if Self::is_expiring(&existing_pem) {
+                info!("ca.crt is inside its renewal window; re-signing with existing keypair");
+            } else if existing == desired {
                 return Ok((existing_pem, key_pem));
+            } else {
+                info!(
+                    "ca.crt SAN set drifted from config (was: {:?}, now: {:?}); re-signing with existing keypair",
+                    existing.sorted(),
+                    desired.sorted(),
+                );
             }
-            info!(
-                "ca.crt SAN set drifted from config (was: {:?}, now: {:?}); re-signing with existing keypair",
-                existing.sorted(),
-                desired.sorted(),
-            );
         }
 
         let new_cert_pem = Self::sign_ca_cert(&keypair, san_strings)?;
         Self::write_atomically(&cert_path, &new_cert_pem)?;
         Ok((new_cert_pem, key_pem))
     }
-
-
-
+
+
+
+
+    // Re-sign once the certificate is inside this window of its expiry. `sign_ca_cert`
+    // issues 90 days and, before this, re-signed only on SAN drift — so a deployment left
+    // running longer than that served an expired trust anchor with nothing to refresh it.
+    const RENEWAL_WINDOW: Duration = Duration::days(30);
+
+    fn is_expiring(cert_pem: &str) -> bool {
+        use x509_parser::prelude::*;
+
+        let Ok((_, parsed_pem)) = x509_parser::pem::parse_x509_pem(cert_pem.as_bytes()) else {
+            return true;
+        };
+        let Ok((_, cert)) = X509Certificate::from_der(&parsed_pem.contents) else {
+            return true;
+        };
+        cert.validity().not_after.to_datetime() - OffsetDateTime::now_utc() < Self::RENEWAL_WINDOW
+    }
 
     /// Load `ca.key` from disk if it exists, otherwise generate a new keypair and
     /// write it. Returns the keypair and the PEM we have on disk for it.
@@ -146,7 +175,7 @@ impl CaCertManager {
             .with_context(|| format!("renaming {} -> {}", tmp.display(), path.display()))?;
         Ok(())
     }
-
+
 }
 
 #[cfg(test)]

@@ -32,6 +32,19 @@ impl NodeIdentity {
         Self::create(&path)
     }
 
+    // The key held somewhere other than this directory — the BVC server keeps it in its
+    // database and writes no file. Infallible: 32 bytes is the whole of a secret key, so
+    // there is nothing here that can be malformed.
+    pub fn from_secret_bytes(bytes: &[u8; Self::KEY_LEN]) -> Self {
+        Self {
+            secret: SecretKey::from_bytes(bytes),
+        }
+    }
+
+    pub fn secret_bytes(&self) -> [u8; Self::KEY_LEN] {
+        self.secret.to_bytes()
+    }
+
     fn load(path: &Path) -> Result<Self, NodeIdentityError> {
         let bytes = std::fs::read(path).map_err(|source| NodeIdentityError::Read {
             path: path.to_path_buf(),
