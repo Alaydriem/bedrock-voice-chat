@@ -22,17 +22,6 @@
   border-bottom: 1px solid var(--color-rad-line);
 }
 
-/* Inside a cover the top inset is already spent: `.rad-cover` offsets its own top by it
-   so the screen underneath stays visible at the top edge, and a header that pays it again
-   pushes the title a second status bar down. Zeroing the token rather than the two
-   properties leaves both this rule's 66px and the phone rule's 60px intact.
-
-   Scoped to the header and not to `.rad-cover` itself, because the cover's own offset
-   reads the same token and would zero itself. */
-.rad-cover .rad-dash-top {
-  --rad-inset-top: 0px;
-}
-
 .rad-dash-top__who {
   display: flex;
   align-items: center;

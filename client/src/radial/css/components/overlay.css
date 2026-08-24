@@ -294,6 +294,19 @@
     visibility 0s linear 0.36s;
 }
 
+/* Inside a cover the top inset is already spent: the rule above offsets the cover's own top
+   by it so the screen underneath stays visible at the top edge, and anything in here that
+   pays it a second time pushes its content a status bar further down. Every column of the
+   shell pays it — the rail, the second column's header and the stage's header — so the token
+   is zeroed once here rather than per element.
+
+   On the children and not on `.rad-cover` itself, because the offset above reads the same
+   token and would zero itself. Zeroing the token rather than the properties leaves each
+   element's own base padding intact. */
+.rad-cover > * {
+  --rad-inset-top: 0px;
+}
+
 .rad-cover.is-open {
   transform: translateY(0);
   visibility: visible;

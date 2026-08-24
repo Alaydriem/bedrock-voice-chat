@@ -224,7 +224,11 @@
 
 /* Every measurement in the rail derives from the plate, so widening it is one number rather
    than six that have to be kept in agreement. The rail is the plate plus its breathing room; the
-   glyph inside each plate is sized from the same base in `ServerRail`. */
+   glyph inside each plate is sized from the same base in `ServerRail`.
+
+   The rail is a sibling of the stage, not a child of it, so nothing above it pays the top
+   safe-area inset on its behalf — the stage pays its own in `.rad-dash-top`. A tablet is the
+   only place that shows: a phone hides the rail, and the token is 0 on desktop. */
 .rad-rail {
   --rad-rail-plate: 58px;
   --rad-rail-gutter: 17px;
@@ -234,7 +238,7 @@
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 18px 0 104px;
+  padding: calc(18px + var(--rad-inset-top, 0px)) 0 104px;
   background: rgb(20 12 38 / 0.55);
   border-right: 1px solid var(--color-rad-line);
 }
@@ -346,8 +350,10 @@
   border-right: 1px solid var(--color-rad-line);
 }
 
+/* Carries the top inset for the same reason the rail does: this column starts at the top of
+   the shell, and the header in the stage beside it pays only for itself. */
 .rad-panel__head {
-  padding: 18px 18px 10px;
+  padding: calc(18px + var(--rad-inset-top, 0px)) 18px 10px;
   font-family: var(--font-rad-mono);
   font-size: var(--text-rad-mono-xs);
   letter-spacing: var(--tracking-rad-label);
