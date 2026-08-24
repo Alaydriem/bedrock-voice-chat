@@ -378,7 +378,12 @@
     min-height: 0;
   }
 
-  .rad-frame.is-chat .rad-main {
+  /* Except under the status panel, which lives inside `.rad-main`.
+     The panel is a second page of the whole stage, not of the roster tab, so on a phone it
+     has to survive whichever tab is showing. Hidden with its parent it left the stage empty:
+     `is-status` hides the tabs and the dock, so nothing remained on screen and the panel's
+     own close button — the only phone control that clears the state — went with it. */
+  .rad-frame.is-chat:not(.is-status) .rad-main {
     display: none;
   }
 
