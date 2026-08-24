@@ -1000,6 +1000,7 @@ jobs:
       ref: ${{ needs.prepare-release.outputs.new_tag }}
       build_mode: release
       push: true
+      latest: true
     secrets: inherit
 
   # Post-approval: Build and push the peering relay image.
@@ -1018,6 +1019,7 @@ jobs:
       version: ${{ needs.prepare-release.outputs.new_version }}
       ref: ${{ needs.prepare-release.outputs.new_tag }}
       push: true
+      latest: true
     secrets: inherit
 
   # Post-approval: build the SDK natives and publish the bridge-facing jar.

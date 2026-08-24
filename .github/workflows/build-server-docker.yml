@@ -17,6 +17,11 @@ on:
         required: false
         default: false
         type: boolean
+      latest:
+        description: 'Also tag the image :latest (release tags only)'
+        required: false
+        default: false
+        type: boolean
       ref:
         description: 'Git ref to checkout (tag, branch, or SHA)'
         required: false
@@ -37,6 +42,11 @@ on:
           - release
       push:
         description: 'Push the image to the registry'
+        required: false
+        default: false
+        type: boolean
+      latest:
+        description: 'Also tag the image :latest (release tags only)'
         required: false
         default: false
         type: boolean
@@ -104,7 +114,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ inputs.version }}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ inputs.latest }}
 
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v6

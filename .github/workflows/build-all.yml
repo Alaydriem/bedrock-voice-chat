@@ -171,6 +171,19 @@ jobs:
       push: ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta' }}
     secrets: inherit
 
+  # Build the peering relay image.
+  #
+  # The image is upstream iroh-relay pinned to the iroh version relay/lib is
+  # built against, so it does not wait on build-server and carries the branch
+  # name rather than a server build mode.
+  build-relay-docker:
+    name: Build Relay Image
+    uses: ./.github/workflows/build-relay-docker.yml
+    with:
+      version: ${{ github.ref_name }}
+      push: ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta' }}
+    secrets: inherit
+
   # Build Android client
   build-android:
     name: Build Android Client (${{ needs.changes.outputs.is_release_branch == 'true' && 'release' || needs.changes.outputs.build_mode }})
