@@ -5,7 +5,9 @@ pub mod cors;
 pub mod features;
 pub mod meridian;
 pub mod minecraft;
+pub mod enrollment;
 pub mod peer;
+pub mod registry;
 pub mod tls;
 
 pub use acme::{Acme, AcmeProviderKind};
@@ -16,7 +18,9 @@ pub use cors::Cors;
 pub use features::Features;
 pub use meridian::Meridian;
 pub use minecraft::Minecraft;
+pub use enrollment::Enrollment;
 pub use peer::PeerConfig;
+pub use registry::Registry;
 pub use tls::Tls;
 
 use serde::{Deserialize, Serialize};
@@ -49,9 +53,6 @@ fn default_peer_port() -> Option<u16> {
     Some(28284)
 }
 
-fn default_peer_relay() -> Option<String> {
-    Some("https://relay.bedrockvoicechat.com".to_string())
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Server {
@@ -86,11 +87,10 @@ pub struct Server {
     #[serde(default)]
     pub peers: std::collections::HashMap<String, PeerConfig>,
 
-    // The iroh relay peers reach this server through when they have no direct
-    // path to it. Absent means peers must already hold a reachable address,
-    // which is the same-host and local-network arrangement.
-    #[serde(default = "default_peer_relay")]
-    pub peer_relay_url: Option<String>,
+    // Enrolling with the BVC registry for a hostname and a certificate. Absent means
+    // this server brings its own domain, which is the pre-existing arrangement.
+    #[serde(default)]
+    pub enrollment: Enrollment,
 
     // The UDP port the peer endpoint binds.
     //
@@ -120,7 +120,7 @@ impl Default for Server {
             bedrock: BedrockConfig::default(),
             age: Age::default(),
             peers: std::collections::HashMap::new(),
-            peer_relay_url: default_peer_relay(),
+            enrollment: Enrollment::default(),
             peer_port: default_peer_port(),
         }
     }
@@ -129,6 +129,37 @@ impl Default for Server {
 impl Server {
     // Used when a v6 bind fails, which means the host has no IPv6 stack.
     pub const FALLBACK_LISTEN: &'static str = "0.0.0.0";
+
+    // Which source certificate material comes from. Exactly one, or none.
+    //
+    // Returns the sentence an operator reads, naming both sources they set, because
+    // the failure is always that two are configured rather than that one is wrong.
+    //
+    // A blank token is no token: an operator who cleared the value rather than
+    // deleting the line has configured nothing, and reading it as a source would
+    // refuse a server that is otherwise correct.
+    pub fn tls_source_conflict(&self) -> Option<String> {
+        let manual = !self.tls.certificate.is_empty() || !self.tls.key.is_empty();
+        let acme = self.tls.acme.is_some();
+        let enrollment = self.enrollment.token().is_some();
+
+        match (enrollment, manual, acme) {
+            (true, true, _) => Some(
+                "server.enrollment.token and tls.certificate/tls.key are mutually exclusive; \
+                 remove one"
+                    .to_string(),
+            ),
+            (true, _, true) => Some(
+                "server.enrollment.token and tls.acme are mutually exclusive; remove one"
+                    .to_string(),
+            ),
+            (_, true, true) => Some(
+                "tls.acme and tls.certificate/tls.key are mutually exclusive; remove one"
+                    .to_string(),
+            ),
+            _ => None,
+        }
+    }
 
     // A bare IPv6 address needs brackets before a port is appended. An address an
     // operator already bracketed parses as neither an IpAddr nor a host:port pair,

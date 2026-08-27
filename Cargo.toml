@@ -6,6 +6,7 @@ members = [
     "client/e2e-harness",
     "relay/lib",
     "relay/sdk",
+    "relay/service",
     "relay/testpeer",
 ]
 resolver = "2"

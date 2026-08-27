@@ -1,5 +1,7 @@
 mod access_token;
+mod assigned_name;
 mod ca_cert;
+mod enrollment;
 mod ca_store;
 mod logging;
 mod node_key;

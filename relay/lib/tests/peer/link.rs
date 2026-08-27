@@ -10,7 +10,7 @@ use tempfile::TempDir;
 async fn endpoint(dir: &TempDir) -> PeerEndpoint {
     let path = dir.path().to_str().expect("utf-8 path");
     let identity = NodeIdentity::load_or_create(path).expect("identity");
-    PeerEndpoint::bind(&identity, None).await.expect("bind")
+    PeerEndpoint::bind(&identity).await.expect("bind")
 }
 
 fn loopback_addr(endpoint: &PeerEndpoint) -> EndpointAddr {
@@ -124,20 +124,3 @@ async fn the_speakers_position_crosses_with_the_frame() {
     );
 }
 
-// A relay is what makes a ticket dialable off the local network. Binding
-// without one is the deliberate default; binding with one must not fail.
-#[tokio::test]
-async fn an_endpoint_binds_with_a_relay_configured() {
-    let dir = TempDir::new().expect("tempdir");
-    let identity =
-        NodeIdentity::load_or_create(dir.path().to_str().expect("path")).expect("identity");
-
-    let endpoint = PeerEndpoint::bind(
-        &identity,
-        Some("https://relay.example.".parse().expect("relay url")),
-    )
-    .await
-    .expect("bind with a relay");
-
-    assert_eq!(endpoint.node_id(), identity.node_id());
-}

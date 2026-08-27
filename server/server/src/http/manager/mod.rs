@@ -37,6 +37,10 @@ pub struct RocketManager {
     audio_stream_token_cache: AudioStreamTokenCache,
     metrics: Arc<crate::services::MetricsService>,
     readiness: Arc<crate::runtime::ReadinessState>,
+    /// The challenge the relay registry last sent over the enrollment session, echoed
+    /// by an unauthenticated route so the relay can bind the published address record
+    /// to this server's node key.
+    nonce: Arc<crate::services::CurrentNonce>,
     /// `None` when no `peer` block is configured, which is the default. The peer
     /// link route reports that as a 404 rather than failing to mount, so the
     /// route's absence never has to be distinguished from a server that is down.
@@ -65,6 +69,7 @@ impl RocketManager {
         audio_stream_token_cache: Option<AudioStreamTokenCache>,
         metrics: Arc<crate::services::MetricsService>,
         readiness: Arc<crate::runtime::ReadinessState>,
+        nonce: Arc<crate::services::CurrentNonce>,
         peer_plane: Option<Arc<crate::relay::PeerPlane>>,
         #[cfg(feature = "bedrock")]
         transfer_target_cache: crate::services::bedrock::TransferTargetCache,
@@ -85,6 +90,7 @@ impl RocketManager {
                 .unwrap_or_else(AudioStreamTokenCache::new),
             metrics,
             readiness,
+            nonce,
             peer_plane,
             shutdown_handle: Arc::new(Mutex::new(None)),
             feed_cancel: tokio_util::sync::CancellationToken::new(),
@@ -180,6 +186,7 @@ impl RocketManager {
                     .manage(self.config.audio.clone())
                     .manage(self.audio_stream_token_cache.clone())
                     .manage(self.metrics.clone())
+                    .manage(self.nonce.clone())
                     .manage(self.peer_plane.clone());
 
                 #[cfg(feature = "bedrock")]

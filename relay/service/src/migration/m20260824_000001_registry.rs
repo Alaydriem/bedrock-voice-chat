@@ -1,0 +1,259 @@
+use sea_orm_migration::prelude::*;
+
+#[derive(DeriveMigrationName)]
+pub struct Migration;
+
+#[derive(DeriveIden)]
+enum Registration {
+    Table,
+    NodeId,
+    Name,
+    DiscordUserId,
+    State,
+    DeclaredAddress,
+    AddressVerifiedAt,
+    EntitlementCheckedAt,
+    EntitlementOk,
+    ValidatedAt,
+    ValidationFailures,
+    CreatedAt,
+    SuspendedAt,
+    RetiredAt,
+}
+
+#[derive(DeriveIden)]
+enum EnrollmentToken {
+    Table,
+    Token,
+    DiscordUserId,
+    ExpiresAt,
+    RedeemedAt,
+    RedeemedByNodeId,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum DnsRecord {
+    Table,
+    RecordId,
+    Name,
+    RecordType,
+    Content,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum RetiredName {
+    Table,
+    Name,
+    RetiredAt,
+}
+
+#[derive(DeriveIden)]
+enum IssuanceLog {
+    Table,
+    Id,
+    Name,
+    IsRenewal,
+    IssuedAt,
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for Migration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(Registration::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(Registration::NodeId)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(Registration::Name)
+                            .string()
+                            .not_null()
+                            .unique_key(),
+                    )
+                    .col(
+                        ColumnDef::new(Registration::DiscordUserId)
+                            .string()
+                            .not_null()
+                            .unique_key(),
+                    )
+                    .col(ColumnDef::new(Registration::State).string().not_null())
+                    .col(ColumnDef::new(Registration::DeclaredAddress).string().null())
+                    .col(
+                        ColumnDef::new(Registration::AddressVerifiedAt)
+                            .big_integer()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(Registration::EntitlementCheckedAt)
+                            .big_integer()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(Registration::EntitlementOk)
+                            .boolean()
+                            .not_null()
+                            .default(false),
+                    )
+                    .col(
+                        ColumnDef::new(Registration::ValidatedAt)
+                            .big_integer()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(Registration::ValidationFailures)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(Registration::CreatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Registration::SuspendedAt)
+                            .big_integer()
+                            .null(),
+                    )
+                    .col(ColumnDef::new(Registration::RetiredAt).big_integer().null())
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(EnrollmentToken::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(EnrollmentToken::Token)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(EnrollmentToken::DiscordUserId)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(EnrollmentToken::ExpiresAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(EnrollmentToken::RedeemedAt)
+                            .big_integer()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(EnrollmentToken::RedeemedByNodeId)
+                            .string()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(EnrollmentToken::CreatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(DnsRecord::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(DnsRecord::RecordId)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(DnsRecord::Name).string().not_null())
+                    .col(ColumnDef::new(DnsRecord::RecordType).string().not_null())
+                    .col(ColumnDef::new(DnsRecord::Content).string().not_null())
+                    .col(
+                        ColumnDef::new(DnsRecord::CreatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(RetiredName::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(RetiredName::Name)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(RetiredName::RetiredAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(IssuanceLog::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(IssuanceLog::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(IssuanceLog::Name).string().not_null())
+                    .col(
+                        ColumnDef::new(IssuanceLog::IsRenewal)
+                            .boolean()
+                            .not_null()
+                            .default(false),
+                    )
+                    .col(
+                        ColumnDef::new(IssuanceLog::IssuedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        for table in [
+            IssuanceLog::Table.into_iden(),
+            RetiredName::Table.into_iden(),
+            DnsRecord::Table.into_iden(),
+            EnrollmentToken::Table.into_iden(),
+            Registration::Table.into_iden(),
+        ] {
+            manager
+                .drop_table(Table::drop().table(table).to_owned())
+                .await?;
+        }
+        Ok(())
+    }
+}

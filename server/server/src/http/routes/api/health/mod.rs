@@ -1,3 +1,4 @@
+pub mod enrollment_nonce;
 pub mod liveness;
 pub(crate) mod ping;
 pub mod readiness;
@@ -30,6 +31,7 @@ inventory::submit! {
         spec_fn: || {
             let settings = rocket_okapi::settings::OpenApiSettings::default();
             rocket_okapi::openapi_get_routes_spec![settings:
+                enrollment_nonce::enrollment_nonce,
                 liveness::liveness,
                 readiness::readiness
             ]

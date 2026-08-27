@@ -18,6 +18,7 @@ pub mod channel_membership_service;
 pub mod client_action_service;
 pub mod certificate_revocation_service;
 pub mod certificate_service;
+pub mod relay_enrollment;
 pub mod session_authorization_service;
 pub mod gamerpic_decoder;
 pub mod health_service;
@@ -54,3 +55,5 @@ pub use position_feed::{GridCell, PositionFeedService, WorldIndex};
 pub use position_service::{FAR_TIER_MAX, PositionService};
 
 pub use session_authorization_service::{SessionAuthorizationService, SessionRejection};
+
+pub use relay_enrollment::{CurrentNonce, EnrollmentError, RelayEnrollmentClient};

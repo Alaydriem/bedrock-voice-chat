@@ -1,3 +1,4 @@
+pub mod advertised;
 pub mod block;
 pub mod egress;
 pub mod ingest;
@@ -6,6 +7,7 @@ pub mod local_clients;
 pub mod plane;
 pub mod sink;
 
+pub use advertised::AdvertisedAddress;
 pub use block::PeerBlock;
 pub use egress::PeerEgress;
 pub use ingest::{IngestRejection, PeerIngest};

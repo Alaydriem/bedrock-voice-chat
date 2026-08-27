@@ -153,7 +153,6 @@ class SvcBridgeHost(
                     nodeDir = nodeDir.absolutePath,
                     peerlink = link,
                     worlds = listOf(relayWorld.id()),
-                    relayUrl = null,
                     inboxCapacity = INBOX_CAPACITY
                 )
             )

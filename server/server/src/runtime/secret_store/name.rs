@@ -7,6 +7,7 @@
 pub enum SecretName {
     MinecraftAccessToken,
     RelayNodeKey,
+    RelayAssignedName,
 }
 
 impl SecretName {
@@ -14,6 +15,7 @@ impl SecretName {
         match self {
             Self::MinecraftAccessToken => "minecraft_access_token",
             Self::RelayNodeKey => "relay_node_key",
+            Self::RelayAssignedName => "relay_assigned_name",
         }
     }
 }

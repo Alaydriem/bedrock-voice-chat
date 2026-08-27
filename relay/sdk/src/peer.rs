@@ -38,7 +38,6 @@ impl BvcPeer {
             node_dir: config.node_dir,
             peerlink: config.peerlink,
             worlds: config.worlds,
-            relay_url: config.relay_url,
             inbox_capacity: config.inbox_capacity.max(1) as usize,
         })
         .await

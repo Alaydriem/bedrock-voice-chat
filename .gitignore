@@ -28,3 +28,13 @@ client/coverage
 # in the crate dirs rather than under target/ — hundreds per run.
 *.profraw
 *.profdata
+
+# The relay registry local run: node key, database and certificates.
+# config.local.hcl reads its secrets from the environment, but the node key it
+# creates IS the registry identity every enrolled server dials.
+relay/service/.local/
+relay/service/config.local.hcl
+
+# Build-time secrets read by server/server/build.rs and the client. Baked into the
+# binary via cargo:rustc-env, so the file never ships but its contents do.
+.env.local

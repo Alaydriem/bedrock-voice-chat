@@ -1898,8 +1898,6 @@ data class SdkConfig (
     , 
     var `worlds`: List<kotlin.String>
     , 
-    var `relayUrl`: kotlin.String?
-    , 
     var `inboxCapacity`: kotlin.UInt
     
 ){
@@ -1920,7 +1918,6 @@ public object FfiConverterTypeSdkConfig: FfiConverterRustBuffer<SdkConfig> {
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterSequenceString.read(buf),
-            FfiConverterOptionalString.read(buf),
             FfiConverterUInt.read(buf),
         )
     }
@@ -1929,7 +1926,6 @@ public object FfiConverterTypeSdkConfig: FfiConverterRustBuffer<SdkConfig> {
             FfiConverterString.allocationSize(value.`nodeDir`) +
             FfiConverterString.allocationSize(value.`peerlink`) +
             FfiConverterSequenceString.allocationSize(value.`worlds`) +
-            FfiConverterOptionalString.allocationSize(value.`relayUrl`) +
             FfiConverterUInt.allocationSize(value.`inboxCapacity`)
     )
 
@@ -1937,7 +1933,6 @@ public object FfiConverterTypeSdkConfig: FfiConverterRustBuffer<SdkConfig> {
             FfiConverterString.write(value.`nodeDir`, buf)
             FfiConverterString.write(value.`peerlink`, buf)
             FfiConverterSequenceString.write(value.`worlds`, buf)
-            FfiConverterOptionalString.write(value.`relayUrl`, buf)
             FfiConverterUInt.write(value.`inboxCapacity`, buf)
     }
 }

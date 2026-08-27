@@ -92,7 +92,6 @@ async fn bridged(granted: &[&str]) -> Bridged {
         Arc::new(ChannelSink(tx)),
         Arc::new(moka::future::Cache::new(16)),
         None,
-        None,
     )
     .await
     .expect("bind server plane");
@@ -104,7 +103,6 @@ async fn bridged(granted: &[&str]) -> Bridged {
         node_dir: sdk_dir.path().to_str().expect("path").to_string(),
         peerlink,
         worlds: vec![WORLD.to_string()],
-        relay_url: None,
         inbox_capacity: 8,
     })
     .await

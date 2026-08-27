@@ -48,17 +48,9 @@ impl PeerSession {
         let addr = PeerTicket::parse(&config.peerlink)
             .map_err(|e| PeerError::Bind(format!("peerlink: {e}")))?;
 
-        let relay_url = match config.relay_url.as_deref() {
-            Some(raw) => Some(
-                raw.parse()
-                    .map_err(|_| PeerError::Bind(format!("relay url: {raw}")))?,
-            ),
-            None => None,
-        };
-
         let identity = NodeIdentity::load_or_create(&config.node_dir)
             .map_err(|e| PeerError::Bind(e.to_string()))?;
-        let endpoint = PeerEndpoint::bind(&identity, relay_url).await?;
+        let endpoint = PeerEndpoint::bind(&identity).await?;
 
         let session = Arc::new(Self {
             endpoint,

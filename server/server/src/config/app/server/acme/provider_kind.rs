@@ -11,15 +11,17 @@ use serde::{Deserialize, Serialize};
 pub enum AcmeProviderKind {
     Cloudflare,
     AcmeDns,
+    BvcRelay,
 }
 
 impl AcmeProviderKind {
-    pub const SUPPORTED: &str = "cloudflare, acme-dns";
+    pub const SUPPORTED: &str = "cloudflare, acme-dns, bvc-relay";
 
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Cloudflare => "cloudflare",
             Self::AcmeDns => "acme-dns",
+            Self::BvcRelay => "bvc-relay",
         }
     }
 }
@@ -31,6 +33,7 @@ impl FromStr for AcmeProviderKind {
         match s {
             "cloudflare" => Ok(Self::Cloudflare),
             "acme-dns" => Ok(Self::AcmeDns),
+            "bvc-relay" => Ok(Self::BvcRelay),
             other => Err(anyhow!(
                 "unknown acme provider {other:?}; supported: {}",
                 Self::SUPPORTED

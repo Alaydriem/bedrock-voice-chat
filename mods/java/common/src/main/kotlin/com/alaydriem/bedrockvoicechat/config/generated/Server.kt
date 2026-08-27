@@ -39,8 +39,8 @@ class Server {
     @SerializedName("peers")
     var peers: Map<String, PeerConfig>? = null
 
-    @SerializedName("peer_relay_url")
-    var peerRelayUrl: String? = null
+    @SerializedName("enrollment")
+    var enrollment: Enrollment? = null
 
     @SerializedName("peer_port")
     var peerPort: Int? = null

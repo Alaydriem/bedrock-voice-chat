@@ -1,7 +1,9 @@
 mod acme_dns;
+mod bvc_relay;
 mod cloudflare;
 
 pub use acme_dns::AcmeDnsProvider;
+pub use bvc_relay::BvcRelayProvider;
 pub use cloudflare::CloudflareProvider;
 
 use anyhow::{Result, anyhow};
@@ -13,6 +15,7 @@ use crate::config::{Acme, AcmeProviderKind};
 pub enum DnsProvider {
     Cloudflare(CloudflareProvider),
     AcmeDns(AcmeDnsProvider),
+    BvcRelay(BvcRelayProvider),
 }
 
 impl DnsProvider {
@@ -48,13 +51,27 @@ impl DnsProvider {
                     server_url, username, password, subdomain,
                 )))
             }
+            AcmeProviderKind::BvcRelay => Err(anyhow!(
+                "the bvc-relay provider is built from the live enrollment session; \
+                 use DnsProvider::from_relay"
+            )),
         }
+    }
+
+    // Built from the live enrollment session rather than from config, because the
+    // relay provider's only parameter is a session `Acme` cannot carry.
+    pub fn from_relay(
+        client: std::sync::Arc<crate::services::RelayEnrollmentClient>,
+        name: String,
+    ) -> Self {
+        Self::BvcRelay(BvcRelayProvider::new(client, name))
     }
 
     pub async fn publish_txt(&self, domain: &str, value: &str) -> Result<()> {
         match self {
             Self::Cloudflare(p) => p.publish_txt(domain, value).await,
             Self::AcmeDns(p) => p.publish_txt(domain, value).await,
+            Self::BvcRelay(p) => p.publish_txt(domain, value).await,
         }
     }
 
@@ -62,6 +79,7 @@ impl DnsProvider {
         match self {
             Self::Cloudflare(p) => p.cleanup_txt(domain).await,
             Self::AcmeDns(p) => p.cleanup_txt(domain).await,
+            Self::BvcRelay(p) => p.cleanup_txt(domain).await,
         }
     }
 }

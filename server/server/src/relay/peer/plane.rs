@@ -2,12 +2,13 @@ use common::curia;
 use std::sync::Arc;
 
 use common::structs::packet::QuicNetworkPacket;
-use iroh::{EndpointAddr, PublicKey, RelayUrl};
+use iroh::{EndpointAddr, PublicKey};
 
 use bvc_relay::node::NodeIdentity;
 use bvc_relay::peer::{AdmissionControl, Handshake, PeerEndpoint, PeerError, PeerLink};
 
 use crate::relay::grant::GrantTable;
+use crate::relay::peer::AdvertisedAddress;
 
 use super::egress::PeerEgress;
 use super::ingest::PeerIngest;
@@ -45,13 +46,12 @@ impl PeerPlane {
         locals: Arc<dyn LocalClients>,
         sink: Arc<dyn PeerSink>,
         speakers: Arc<moka::future::Cache<String, common::PlayerEnum>>,
-        relay_url: Option<RelayUrl>,
         // `server.peer_port`. Absent leaves the port to the operating system, which
         // is a different one on every start — and this endpoint's port is part of
         // the ticket an operator pastes into the far side's config.
         port: Option<u16>,
     ) -> Result<Arc<Self>, PeerError> {
-        let endpoint = PeerEndpoint::bind_on(identity, relay_url, port).await?;
+        let endpoint = PeerEndpoint::bind_on(identity, port).await?;
 
         Ok(Arc::new(Self {
             endpoint,
@@ -62,6 +62,50 @@ impl PeerPlane {
             sink,
             speakers,
         }))
+    }
+
+    /// A ticket carrying the address the registry saw this server at.
+    ///
+    /// Observed lazily, when an operator asks for a peer link rather than at startup:
+    /// a registry that is down then costs one command instead of a boot. An
+    /// observation that fails is not fatal — the ticket still carries the locally
+    /// observed addresses, which is everything a same-host or LAN peer needs.
+    pub async fn ticket_observed(
+        &self,
+        registry: Option<String>,
+        peer_port: Option<u16>,
+    ) -> Result<String, PeerError> {
+        let advertised =
+            AdvertisedAddress::from_observation(self.observe(registry).await, peer_port);
+
+        self.endpoint
+            .ticket_advertising(advertised)
+            .await
+            .map_err(|e| PeerError::Transport(e.to_string()))
+    }
+
+    // A failed observation is reported and dropped rather than raised. An operator
+    // asking for a peer link on an isolated host has no registry to reach and still
+    // needs the ticket.
+    async fn observe(&self, registry: Option<String>) -> Option<std::net::SocketAddr> {
+        let peerlink = registry?;
+        let addr = match bvc_relay::node::PeerTicket::parse(&peerlink) {
+            Ok(addr) => addr,
+            Err(e) => {
+                curia::warn!(format!("the configured registry is not a peer link: {e}"));
+                return None;
+            }
+        };
+
+        match bvc_relay::peer::AddressObserver::observe(self.endpoint.endpoint(), addr).await {
+            Ok(observed) => observed,
+            Err(e) => {
+                curia::warn!(format!(
+                    "could not ask the registry for this server's address: {e}"
+                ));
+                None
+            }
+        }
     }
 
     pub fn node_id(&self) -> PublicKey {

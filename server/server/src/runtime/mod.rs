@@ -1,6 +1,8 @@
 pub mod access_token;
+pub mod assigned_name;
 pub mod ca_store;
 pub mod ca_cert;
+pub mod enrollment;
 pub mod node_key;
 pub mod readiness;
 pub mod secret_store;
@@ -14,6 +16,7 @@ use crate::services::{
 };
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 use common::traits::StreamTrait;
+pub use assigned_name::AssignedNameStore;
 pub use ca_store::CaStore;
 pub use node_key::NodeKeyStore;
 pub use secret_store::{SecretName, SecretStore};
@@ -53,6 +56,10 @@ pub struct ServerRuntime {
     identity_service: Arc<RwLock<Option<PlayerIdentityService>>>,
     audio_playback_service: Arc<RwLock<Option<Arc<AudioPlaybackService>>>>,
     db_conn: Arc<RwLock<Option<Arc<sea_orm::DatabaseConnection>>>>,
+    /// The held enrollment session, once one exists. Kept so the ACME provider and the
+    /// challenge responder share the connection this server opened rather than each
+    /// dialling their own — the relay pushes challenges down whichever one it holds.
+    relay_enrollment: Arc<RwLock<Option<Arc<crate::services::RelayEnrollmentClient>>>>,
 }
 
 impl ServerRuntime {
@@ -71,6 +78,7 @@ impl ServerRuntime {
             identity_service: Arc::new(RwLock::new(None)),
             audio_playback_service: Arc::new(RwLock::new(None)),
             db_conn: Arc::new(RwLock::new(None)),
+            relay_enrollment: Arc::new(RwLock::new(None)),
         })
     }
 
@@ -177,12 +185,47 @@ impl ServerRuntime {
                 .map_err(|e| anyhow!("running migrations: {}", e))?;
         }
 
+        // Populated by the relay enrollment session's challenge responder, and read by
+        // the unauthenticated route the relay fetches from the declared address.
+        // Created here so it exists whether or not this server enrolls: the route then
+        // answers 404 rather than being absent, which is a clearer thing for an
+        // operator to see.
+        let enrollment_nonce = crate::services::CurrentNonce::new_shared();
+
         // The CA keypair is generated exactly once per deployment, so its absence from both
         // the database and the certs directory means this boot is the deployment's first.
         let ca_minted = !CaStore::exists(db_conn.as_ref()).await?
             && !std::path::Path::new(&self.config.server.tls.certs_path)
                 .join("ca.key")
                 .exists();
+
+        // Certificate material comes from exactly one of three places: an enrollment
+        // token, manual paths, or an ACME block. Checked before any of them is acted
+        // on, so a conflict between the other two is caught as well.
+        if let Some(conflict) = self.config.server.tls_source_conflict() {
+            return Err(anyhow!(conflict));
+        }
+
+        // Resolved whether or not peering is configured. Deferring this to the peering
+        // branch below would mean an operator who enables peering later has already lost the
+        // key, and every far-side `peer` block naming it would be dead.
+        //
+        // Resolved BEFORE the CA is signed, because enrollment needs this key and the CA
+        // needs the name enrollment returns. Signing first would produce a CA whose SAN
+        // set omits this server's own name; `SanKeySet` notices the drift on the NEXT
+        // boot and re-signs, leaving the QUIC leaf wrong for a whole run with nothing in
+        // the log saying so.
+        let node_secret = node_key::NodeKeyStore::new(&self.config.server.tls.certs_path)
+            .resolve(db_conn.as_ref())
+            .await?;
+
+        let assigned_name = self
+            .resolve_assignment(db_conn.as_ref(), &node_secret)
+            .await?;
+        if let Some(name) = assigned_name.clone() {
+            crate::runtime::enrollment::EnrollmentStep::apply(&mut self.config, name.clone());
+            curia::info!("this server is reachable at its assigned name", { "url": format!("https://{name}") });
+        }
 
         // Database-backed, materialised to disk. The TLS stacks take file paths and read them
         // once at ignite, so the bytes have to land somewhere readable — but the durable copy
@@ -199,31 +242,59 @@ impl ServerRuntime {
             .resolve(db_conn.as_ref(), &self.config.server.minecraft.access_token)
             .await?;
 
-        // Resolved whether or not peering is configured. Deferring this to the peering
-        // branch below would mean an operator who enables peering later has already lost the
-        // key, and every far-side `peer` block naming it would be dead.
-        let node_secret = node_key::NodeKeyStore::new(&self.config.server.tls.certs_path)
-            .resolve(db_conn.as_ref())
-            .await?;
-
-        // ACME DNS-01: mutually exclusive with manual cert paths. Issuance
-        // must complete before Rocket starts — the HTTPS listener cannot
-        // exist without a certificate.
+        // ACME DNS-01. Issuance must complete before Rocket starts — the HTTPS
+        // listener cannot exist without a certificate.
         let mut acme_service: Option<Arc<crate::services::acme::AcmeService>> = None;
         if let Some(acme_config) = self.config.server.tls.acme.clone() {
-            if !self.config.server.tls.certificate.is_empty()
-                || !self.config.server.tls.key.is_empty()
-            {
-                return Err(anyhow!(
-                    "tls.acme and tls.certificate/tls.key are mutually exclusive; remove one"
-                ));
-            }
-            let service = crate::services::acme::AcmeService::new(
-                acme_config,
-                &self.config.server.tls.names,
-                &self.config.server.tls.certs_path,
-                db_conn.clone(),
-            )?;
+            let service = match acme_config.provider_kind()? {
+                // The relay provider's only parameter is the live enrollment session,
+                // which `Acme` cannot carry, so it is built here rather than from
+                // configuration the way the others are.
+                crate::config::AcmeProviderKind::BvcRelay => {
+                    let name = assigned_name.clone().ok_or_else(|| {
+                        anyhow!("the bvc-relay acme provider requires an assigned name")
+                    })?;
+                    let client = self.relay_session(db_conn.as_ref(), &node_secret).await?;
+                    client.spawn_challenge_responder(
+                        bvc_relay::node::NodeIdentity::from_secret_bytes(&node_secret)
+                            .secret_key()
+                            .clone(),
+                        enrollment_nonce.clone(),
+                    );
+
+                    match self.config.server.enrollment.address() {
+                        Some(address) => {
+                            client.declare_address(address).await?;
+                            curia::info!("published this server's address for the assigned name", { "address": address.to_string() });
+                        }
+                        // The certificate is valid and the name resolves to nothing, so
+                        // every client fails to connect with a DNS error that names
+                        // neither this server nor this setting. Said out loud because
+                        // there is no other symptom to follow back here.
+                        None => curia::warn!(
+                            "no address declared, so the assigned name has no DNS record and nobody can reach this server by it; set server.enrollment.address to this server's public IP",
+                            { "name": name.clone() }
+                        ),
+                    }
+
+                    crate::services::acme::AcmeService::with_provider(
+                        acme_config,
+                        &self.config.server.tls.names,
+                        &self.config.server.tls.certs_path,
+                        db_conn.clone(),
+                        crate::services::acme::provider::DnsProvider::from_relay(
+                            client,
+                            name,
+                        ),
+                    )?
+                }
+                _ => crate::services::acme::AcmeService::new(
+                    acme_config,
+                    &self.config.server.tls.names,
+                    &self.config.server.tls.certs_path,
+                    db_conn.clone(),
+                )?,
+            };
             let paths = service.ensure_certificate().await?;
             self.config.server.tls.certificate = paths.certificate;
             self.config.server.tls.key = paths.key;
@@ -361,21 +432,12 @@ impl ServerRuntime {
         } else {
             let identity = bvc_relay::node::NodeIdentity::from_secret_bytes(&node_secret);
 
-            let relay_url = match &self.config.server.peer_relay_url {
-                Some(url) => match url.parse() {
-                    Ok(url) => Some(url),
-                    Err(_) => None
-                },
-                None => None
-            };
-
             let plane = crate::relay::PeerPlane::bind(
                 &identity,
                 Arc::clone(&grants),
                 connection_registry.clone(),
                 Arc::new(webhook_receiver.clone()),
                 cache_manager.players().inner_arc(),
-                relay_url,
                 self.config.server.peer_port,
             )
             .await?;
@@ -538,6 +600,7 @@ impl ServerRuntime {
             Some(audio_stream_token_cache),
             metrics.clone(),
             readiness_state.clone(),
+            enrollment_nonce.clone(),
             peer_plane,
             #[cfg(feature = "bedrock")]
             transfer_target_cache.clone(),
@@ -977,6 +1040,87 @@ impl ServerRuntime {
     /// generated exactly once per deployment; the cert is re-signed with the
     /// same key whenever the configured SAN set drifts. Returns
     /// `(cert_pem, key_pem)`.
+    /// The assigned name, from the database if this server has enrolled before and
+    /// from the relay if it has not.
+    ///
+    /// A stored name wins and the relay is never contacted, so an unreachable relay on
+    /// a later boot is a non-event: the server starts on its own name with the
+    /// certificate already on disk. Only a first enrollment needs the relay to answer.
+    async fn resolve_assignment<C: sea_orm::ConnectionTrait>(
+        &self,
+        conn: &C,
+        node_secret: &[u8; 32],
+    ) -> Result<Option<String>, anyhow::Error> {
+        if let Some(name) = assigned_name::AssignedNameStore::read(conn).await? {
+            return Ok(Some(name));
+        }
+
+        let Some(token) = self.config.server.enrollment.token() else {
+            return Ok(None);
+        };
+
+        let client = self.dial_registry(node_secret).await?;
+        let name = client.enroll(token).await?;
+        assigned_name::AssignedNameStore::write(conn, &name).await?;
+
+        curia::info!("this server enrolled with the relay registry", { "name": name.clone() });
+        curia::warn!(
+            "This server's assigned name is bound to its relay node key, which lives in \
+             the database. Back the database up: a lost key means a new name, and the old \
+             one is retired permanently rather than reissued."
+        );
+
+        Ok(Some(name))
+    }
+
+    /// The held enrollment session, dialling one if `resolve_assignment` did not.
+    ///
+    /// A server whose name came from the database never dialled, so the session it
+    /// needs to publish a challenge does not exist yet.
+    async fn relay_session<C: sea_orm::ConnectionTrait>(
+        &self,
+        _conn: &C,
+        node_secret: &[u8; 32],
+    ) -> Result<Arc<crate::services::RelayEnrollmentClient>, anyhow::Error> {
+        if let Some(client) = self
+            .relay_enrollment
+            .read()
+            .map_err(|_| anyhow!("relay enrollment lock poisoned"))?
+            .clone()
+        {
+            return Ok(client);
+        }
+
+        let client = self.dial_registry(node_secret).await?;
+        Ok(client)
+    }
+
+    async fn dial_registry(
+        &self,
+        node_secret: &[u8; 32],
+    ) -> Result<Arc<crate::services::RelayEnrollmentClient>, anyhow::Error> {
+        let Some(peerlink) = crate::config::Registry::peerlink() else {
+            return Err(anyhow!(
+                "this build has no registry baked in. BVC_REGISTRY_PEERLINK must be set in \
+                 .env.local at build time; it cannot be supplied at runtime"
+            ));
+        };
+
+        let addr = bvc_relay::node::PeerTicket::parse(&peerlink)
+            .map_err(|e| anyhow!("the baked-in BVC_REGISTRY_PEERLINK is not a peer link: {e}"))?;
+
+        let identity = bvc_relay::node::NodeIdentity::from_secret_bytes(node_secret);
+        let client =
+            crate::services::RelayEnrollmentClient::connect(&identity, addr, None).await?;
+
+        self.relay_enrollment
+            .write()
+            .map_err(|_| anyhow!("relay enrollment lock poisoned"))?
+            .replace(client.clone());
+
+        Ok(client)
+    }
+
     async fn generate_ca<C: sea_orm::ConnectionTrait>(
         &self,
         conn: &C,

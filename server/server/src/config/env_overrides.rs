@@ -128,6 +128,14 @@ impl EnvOverrides {
         if let Some(token) = self.get("BVC_ACCESS_TOKEN") {
             config.server.minecraft.access_token = token.to_string();
         }
+        // Where most enrollment tokens actually arrive: the docker image is the
+        // common deployment and never sees a hand-edited config file.
+        if let Some(token) = self.get("BVC_ENROLLMENT_TOKEN") {
+            config.server.enrollment.token = Some(token.to_string());
+        }
+        if let Some(address) = self.get("BVC_ENROLLMENT_ADDRESS") {
+            config.server.enrollment.address = Some(address.to_string());
+        }
         if let Some(telemetry) = self.get_bool("BVC_TELEMETRY")? {
             config.server.features.telemetry = telemetry;
         }

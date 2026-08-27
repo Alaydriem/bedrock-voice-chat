@@ -3,7 +3,7 @@
 mod cert_paths;
 mod expiry;
 mod propagation;
-mod provider;
+pub mod provider;
 mod storage;
 
 pub use cert_paths::AcmeCertPaths;
@@ -41,9 +41,23 @@ impl AcmeService {
         certs_path: &str,
         conn: Arc<sea_orm::DatabaseConnection>,
     ) -> Result<Self> {
+        let provider = DnsProvider::from_config(&config)?;
+        Self::with_provider(config, tls_names, certs_path, conn, provider)
+    }
+
+    /// Builds the service around a provider the caller already holds.
+    ///
+    /// The relay provider's only parameter is a live enrollment session, which `Acme`
+    /// cannot carry, so it cannot be built from configuration the way the others are.
+    pub fn with_provider(
+        config: Acme,
+        tls_names: &[String],
+        certs_path: &str,
+        conn: Arc<sea_orm::DatabaseConnection>,
+        provider: DnsProvider,
+    ) -> Result<Self> {
         config.validate(tls_names)?;
         let domains = config.effective_domains(tls_names)?;
-        let provider = DnsProvider::from_config(&config)?;
         let storage = AcmeStorage::new(
             certs_path,
             conn,

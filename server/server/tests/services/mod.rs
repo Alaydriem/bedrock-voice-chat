@@ -11,5 +11,6 @@ mod interaction_tracker;
 mod meridian_service;
 mod metrics_service;
 mod position_feed;
+mod relay_enrollment;
 mod position_service;
 mod session_authorization_service;

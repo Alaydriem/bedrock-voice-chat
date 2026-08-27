@@ -85,10 +85,20 @@ impl Acme {
     /// Full startup validation: email, provider, provider-specific fields,
     /// and a non-empty effective domain list.
     pub fn validate(&self, tls_names: &[String]) -> Result<(), anyhow::Error> {
+        let kind = self.provider_kind()?;
+
+        // The relay provider is configured by enrollment, not by the operator. It has
+        // no credential to check — the enrollment session authenticates this server's
+        // node key — and RFC 8555 makes the account contact optional, so asking for an
+        // email would be friction and personal data for nothing.
+        if matches!(kind, AcmeProviderKind::BvcRelay) {
+            self.effective_domains(tls_names)?;
+            return Ok(());
+        }
+
         if self.email.trim().is_empty() {
             return Err(anyhow!("acme.email is required"));
         }
-        let kind = self.provider_kind()?;
         let required: Vec<(&str, &Option<String>)> = match kind {
             AcmeProviderKind::Cloudflare => vec![("api_token", &self.api_token)],
             AcmeProviderKind::AcmeDns => vec![
@@ -97,6 +107,7 @@ impl Acme {
                 ("password", &self.password),
                 ("subdomain", &self.subdomain),
             ],
+            AcmeProviderKind::BvcRelay => Vec::new(),
         };
         let missing: Vec<&str> = required
             .into_iter()

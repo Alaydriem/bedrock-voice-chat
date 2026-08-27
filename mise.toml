@@ -454,6 +454,40 @@ description = "Run tests for the shared crate"
 shell = "pwsh -NoLogo -Command"
 run = "cargo test -p common"
 
+[tasks.test-relay]
+description = "Run tests for the relay registry service"
+shell = "pwsh -NoLogo -Command"
+run = "cargo test -p bvc-relay-service"
+
+[tasks.build-relay]
+description = "Build the relay registry service"
+shell = "pwsh -NoLogo -Command"
+run = "cargo build -p bvc-relay-service"
+
+[tasks.relay]
+description = "Run the relay registry from source. Reads config.local.hcl in relay/service; name another path to use it instead."
+dir = "relay/service"
+# The registry obtains its own certificate through DNS-01 before it binds, so the first
+# start on an empty cert_dir takes as long as DNS propagation does. That is the run,
+# not a hang.
+shell = "pwsh -NoLogo -Command"
+# Declared rather than left to pass-through. An undeclared argument is *appended* to the
+# run command, so `mise run relay other.hcl` would leave config.local.hcl in argv ahead
+# of it and the binary would read the wrong file.
+usage = 'arg "[config]" help="Path to the registry config, relative to relay/service. Defaults to config.local.hcl."'
+run = '''
+$config = if ($env:usage_config) { $env:usage_config } else { "config.local.hcl" }
+if (-not (Test-Path $config)) {
+  Write-Host "No $config in relay/service."
+  Write-Host "Copy config.local.example.hcl to config.local.hcl, then set the environment it names."
+  exit 1
+}
+# SQLite will not create a missing directory for its file, and the failure names
+# only "unable to open database file". The node key and certificates land here too.
+New-Item -ItemType Directory -Force .local | Out-Null
+cargo run -p bvc-relay-service -- $config
+'''
+
 [tasks.bindings]
 description = "Regenerate the ts-rs TypeScript bindings and the barrel that re-exports them. The only sanctioned way to regenerate them."
 shell = "pwsh -NoLogo -Command"

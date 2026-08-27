@@ -11,6 +11,6 @@ pub mod world;
 
 pub use grant::{Grant, GrantConfigError, GrantTable};
 pub use peer::{
-    IngestRejection, LocalClients, PeerBlock, PeerEgress, PeerIngest, PeerLinks, PeerPlane, PeerSink,
+    AdvertisedAddress, IngestRejection, LocalClients, PeerBlock, PeerEgress, PeerIngest, PeerLinks, PeerPlane, PeerSink,
 };
 pub use world::{RelayWorldWatch, WorldWatchState};

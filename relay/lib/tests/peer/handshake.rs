@@ -44,7 +44,7 @@ impl PeerAuthority for TestAuthority {
 async fn endpoint(dir: &TempDir) -> PeerEndpoint {
     let path = dir.path().to_str().expect("utf-8 path");
     let identity = NodeIdentity::load_or_create(path).expect("identity");
-    PeerEndpoint::bind(&identity, None).await.expect("bind")
+    PeerEndpoint::bind(&identity).await.expect("bind")
 }
 
 fn loopback_addr(endpoint: &PeerEndpoint) -> EndpointAddr {
