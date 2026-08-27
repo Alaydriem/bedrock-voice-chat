@@ -1005,15 +1005,25 @@ jobs:
 
   # Post-approval: Build and push the peering relay image.
   #
-  # Tagged with the BVC version even though the image is upstream iroh-relay:
-  # the relay protocol is tied to the iroh release the peer code is built
-  # against, so a BVC version is what tells an operator which relay their
-  # servers can reach. It builds from source rather than a release artifact, so
-  # it does not wait on build-server.
-  publish-relay-docker:
-    name: Publish Relay Image
+  # The registry binaries the image is assembled from. Built on the runner because
+  # `common` carries an optional private git dependency that cargo loads while
+  # resolving the workspace, which a build container has no credentials for.
+  build-relay-binaries:
+    name: Build Registry Binaries
     needs: [prepare-release, approve-publish]
     if: needs.approve-publish.result == 'success'
+    uses: ./.github/workflows/build-relay.yml
+    with:
+      build_mode: release
+      ref: ${{ needs.prepare-release.outputs.new_tag }}
+    secrets: inherit
+
+  # Tagged with the BVC version: the registry's wire protocol moves with BVC, so the
+  # version is what tells an operator which registry their servers can enroll with.
+  publish-relay-docker:
+    name: Publish Relay Image
+    needs: [prepare-release, build-relay-binaries]
+    if: needs.build-relay-binaries.result == 'success'
     uses: ./.github/workflows/build-relay-docker.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_version }}

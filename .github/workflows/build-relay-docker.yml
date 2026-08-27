@@ -60,11 +60,26 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
-      - name: Setup private cargo deps auth
-        uses: ./.github/actions/setup-private-cargo-deps
+      - name: Download amd64 artifact
+        uses: actions/download-artifact@v5
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          name: bvc-relay-service-amd64
+          path: relay/service/binaries/amd64
+
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: bvc-relay-service-arm64
+          path: relay/service/binaries/arm64
+
+      - name: Prepare binaries
+        run: |
+          mv relay/service/binaries/amd64/bvc-relay-service-amd64 relay/service/binaries/amd64/bvc-relay-service
+          mv relay/service/binaries/arm64/bvc-relay-service-arm64 relay/service/binaries/arm64/bvc-relay-service
+          chmod +x relay/service/binaries/amd64/bvc-relay-service
+          chmod +x relay/service/binaries/arm64/bvc-relay-service
+          ls -la relay/service/binaries/amd64/
+          ls -la relay/service/binaries/arm64/
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -91,7 +106,7 @@ jobs:
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ./relay/service
           file: ./relay/service/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: ${{ inputs.push }}

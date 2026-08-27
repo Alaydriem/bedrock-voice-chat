@@ -1,0 +1,121 @@
+name: Build Registry Binaries
+
+# Cross-compiles the registry for the two architectures its image ships.
+#
+# Built here rather than inside the Dockerfile because `common` carries an optional
+# git dependency on a private repository. Cargo loads that source while resolving the
+# workspace even though the registry never compiles it, so the build needs credentials
+# — and a `docker build` runs in a container that cannot see the ones this runner sets
+# up. Building on the runner is also what keeps arm64 on a native machine instead of
+# under QEMU.
+
+on:
+  workflow_call:
+    inputs:
+      build_mode:
+        description: 'Build mode (debug or release)'
+        required: false
+        default: 'release'
+        type: string
+      ref:
+        description: 'Git ref to checkout (tag, branch, or SHA)'
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: false
+        default: 'release'
+        type: choice
+        options:
+          - debug
+          - release
+      ref:
+        description: 'Git ref to checkout (tag, branch, or SHA)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-registry-binaries:
+    name: Build Registry (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            arch: amd64
+
+          # A native arm64 runner. The same build under QEMU takes long enough to
+          # threaten the job timeout, and this crate's C dependencies — aws-lc-sys and
+          # libsqlite3-sys — are the slowest part of it.
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+            arch: arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "v1-relay"
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            cmake \
+            clang \
+            build-essential \
+            musl-tools \
+            musl-dev
+
+      - name: Build the registry
+        shell: bash
+        run: |
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'release' }}"
+          echo "Effective build mode: $BUILD_MODE"
+
+          if [ "$BUILD_MODE" = "release" ]; then
+            cargo build --release --locked -p bvc-relay-service --target ${{ matrix.target }}
+          else
+            cargo build --locked -p bvc-relay-service --target ${{ matrix.target }}
+          fi
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'release' }}"
+          cp "target/${{ matrix.target }}/$BUILD_MODE/bvc-relay-service" \
+             "bvc-relay-service-${{ matrix.arch }}"
+          chmod +x "bvc-relay-service-${{ matrix.arch }}"
+          ls -la "bvc-relay-service-${{ matrix.arch }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: bvc-relay-service-${{ matrix.arch }}
+          path: bvc-relay-service-${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 30
