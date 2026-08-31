@@ -11,6 +11,7 @@ use tempfile::TempDir;
 
 struct AcceptsAnyone;
 
+#[async_trait::async_trait]
 impl PeerAuthority for AcceptsAnyone {
     fn authorize(&self, _node: &iroh::PublicKey, declared: &[String]) -> Option<PeerScope> {
         Some(PeerScope {
@@ -61,10 +62,10 @@ async fn a_ticket_reaches_a_peer_on_the_same_host_without_a_relay() {
         NodeIdentity::load_or_create(b_dir.path().to_str().expect("path")).expect("identity");
 
     // No relay on either side: this is the whole point of the case.
-    let server = PeerEndpoint::bind(&server_identity, None)
+    let server = PeerEndpoint::bind(&server_identity)
         .await
         .expect("bind server");
-    let bridge = PeerEndpoint::bind(&bridge_identity, None)
+    let bridge = PeerEndpoint::bind(&bridge_identity)
         .await
         .expect("bind bridge");
 

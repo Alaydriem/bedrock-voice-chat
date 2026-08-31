@@ -2,12 +2,13 @@ use common::curia;
 use std::sync::Arc;
 
 use common::structs::packet::QuicNetworkPacket;
-use iroh::{EndpointAddr, PublicKey, RelayUrl};
+use iroh::{EndpointAddr, PublicKey};
 
 use bvc_relay::node::NodeIdentity;
 use bvc_relay::peer::{AdmissionControl, Handshake, PeerEndpoint, PeerError, PeerLink};
 
 use crate::relay::grant::GrantTable;
+use crate::relay::peer::AdvertisedAddress;
 
 use super::egress::PeerEgress;
 use super::ingest::PeerIngest;
@@ -32,6 +33,11 @@ pub struct PeerPlane {
     // way it resolves a local player's. Written per frame because a relayed peer moves, and
     // the cache's own presence TTL is what ages a silent one out.
     speakers: Arc<moka::future::Cache<String, common::PlayerEnum>>,
+    // The minted ticket, so `/api/config` can serve it on every request without paying a
+    // registry round trip each time. One entry because there is one ticket; a TTL rather
+    // than a permanent cell so a server whose observed address changes picks the new one up
+    // without a restart.
+    ticket: moka::future::Cache<(), String>,
 }
 
 impl PeerPlane {
@@ -39,19 +45,23 @@ impl PeerPlane {
     // descriptors over.
     const MAX_UNAUTHORIZED: usize = 64;
 
+    // Long enough that a polled endpoint costs one observation rather than thousands,
+    // short enough that a server whose public address moved is not advertising a dead one
+    // for the rest of its uptime.
+    const TICKET_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+
     pub async fn bind(
         identity: &NodeIdentity,
         grants: Arc<GrantTable>,
         locals: Arc<dyn LocalClients>,
         sink: Arc<dyn PeerSink>,
         speakers: Arc<moka::future::Cache<String, common::PlayerEnum>>,
-        relay_url: Option<RelayUrl>,
         // `server.peer_port`. Absent leaves the port to the operating system, which
         // is a different one on every start — and this endpoint's port is part of
         // the ticket an operator pastes into the far side's config.
         port: Option<u16>,
     ) -> Result<Arc<Self>, PeerError> {
-        let endpoint = PeerEndpoint::bind_on(identity, relay_url, port).await?;
+        let endpoint = PeerEndpoint::bind_on(identity, port).await?;
 
         Ok(Arc::new(Self {
             endpoint,
@@ -61,7 +71,87 @@ impl PeerPlane {
             admission: AdmissionControl::new(Self::MAX_UNAUTHORIZED),
             sink,
             speakers,
+            ticket: moka::future::Cache::builder()
+                .time_to_live(Self::TICKET_TTL)
+                .max_capacity(1)
+                .build(),
         }))
+    }
+
+    /// The peer link, minted once and reused until its TTL lapses.
+    ///
+    /// `/api/config` is polled, and `ticket_observed` spends a registry round trip bounded
+    /// by `AddressObserver::TIMEOUT`. Paying that per request would make an unreachable
+    /// registry into a ten-second stall on an endpoint every client calls.
+    ///
+    /// A failure is not cached: a registry that was briefly down would otherwise leave this
+    /// server advertising nothing for the whole TTL.
+    pub async fn cached_ticket(
+        &self,
+        registry: Option<String>,
+        peer_port: Option<u16>,
+    ) -> Result<String, PeerError> {
+        if let Some(cached) = self.ticket.get(&()).await {
+            return Ok(cached);
+        }
+
+        let ticket = self.ticket_observed(registry, peer_port).await?;
+        self.ticket.insert((), ticket.clone()).await;
+
+        Ok(ticket)
+    }
+
+    /// A ticket carrying the address the registry saw this server at.
+    ///
+    /// Observed lazily, when an operator asks for a peer link rather than at startup:
+    /// a registry that is down then costs one command instead of a boot. An
+    /// observation that fails is not fatal — the ticket still carries the locally
+    /// observed addresses, which is everything a same-host or LAN peer needs.
+    pub async fn ticket_observed(
+        &self,
+        registry: Option<String>,
+        peer_port: Option<u16>,
+    ) -> Result<String, PeerError> {
+        let advertised =
+            AdvertisedAddress::from_observation(self.observe(registry).await, peer_port);
+
+        self.endpoint
+            .ticket_advertising(advertised)
+            .await
+            .map_err(|e| PeerError::Transport(e.to_string()))
+    }
+
+    // A failed observation is reported and dropped rather than raised. An operator
+    // asking for a peer link on an isolated host has no registry to reach and still
+    // needs the ticket.
+    async fn observe(&self, registry: Option<String>) -> Option<std::net::SocketAddr> {
+        let peerlink = registry?;
+        let addr = match bvc_relay::node::PeerTicket::parse(&peerlink) {
+            Ok(addr) => addr,
+            Err(e) => {
+                curia::warn!(format!("the configured registry is not a peer link: {e}"));
+                return None;
+            }
+        };
+
+        match bvc_relay::peer::AddressObserver::observe(self.endpoint.endpoint(), addr).await {
+            Ok(observed) => observed,
+            Err(e) => {
+                curia::warn!(format!(
+                    "could not ask the registry for this server's address: {e}"
+                ));
+                None
+            }
+        }
+    }
+
+    /// The table this plane authorizes against.
+    ///
+    /// Exposed so a revocation reaching the HTTP surface can drop the grant from the
+    /// running table as well as the row. Without it a revoked bridge keeps its
+    /// authorization until the process restarts.
+    pub fn grants(&self) -> &Arc<GrantTable> {
+        &self.grants
     }
 
     pub fn node_id(&self) -> PublicKey {

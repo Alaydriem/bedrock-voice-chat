@@ -93,10 +93,6 @@ impl RecordingManager {
         // Emit event to notify UI components
         self.app_handle.emit("recording:started", &session_id).ok();
 
-        info!(
-            "Recording session {} started via RecordingManager",
-            session_id
-        );
         Ok(())
     }
 
@@ -110,12 +106,7 @@ impl RecordingManager {
         self.recording_state.store(false, Ordering::SeqCst);
 
         if let Some(recorder) = &mut self.recorder {
-            // Now drain and finish
             recorder.stop().await?;
-            info!(
-                "Recording session {} stopped via RecordingManager",
-                recorder.session_id()
-            );
         }
 
         self.recorder = None;

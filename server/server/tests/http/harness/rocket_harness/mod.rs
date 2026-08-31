@@ -32,6 +32,9 @@ impl RocketHarness {
         // Two instances would each carry their own cache, and a revocation written by a test
         // would never be seen by the running server.
         revocations: Arc<CertificateRevocationService>,
+        // Held by the test as well as by Rocket, so a test can set the nonce the relay
+        // would have pushed over the enrollment session and then read it back.
+        nonce: Arc<bvc_server_lib::services::CurrentNonce>,
         #[cfg(feature = "bedrock")]
         transfer_cache: bvc_server_lib::services::bedrock::TransferTargetCache,
     ) -> Result<tokio::task::JoinHandle<()>> {
@@ -135,6 +138,7 @@ impl RocketHarness {
             // No `peer` block, so no peer endpoint — which is the state every
             // server is in by default, and the one the peer link route reports
             // as a 404.
+            .manage(nonce)
             .manage(None::<std::sync::Arc<bvc_server_lib::relay::PeerPlane>>)
             .attach(AppDb::init())
             .mount("/ncryptf", ncryptf_routes)
@@ -147,6 +151,7 @@ impl RocketHarness {
             .mount(
                 "/health",
                 routes![
+                    routes::api::health::enrollment_nonce::enrollment_nonce,
                     routes::api::health::liveness::liveness,
                     routes::api::health::readiness::readiness,
                 ],

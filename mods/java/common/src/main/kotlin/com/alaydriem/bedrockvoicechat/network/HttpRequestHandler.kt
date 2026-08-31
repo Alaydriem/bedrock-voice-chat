@@ -2,6 +2,7 @@ package com.alaydriem.bedrockvoicechat.network
 
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import org.slf4j.LoggerFactory
 import java.net.URI
 import java.net.http.HttpClient
@@ -102,6 +103,33 @@ class HttpRequestHandler(
             GSON.fromJson(response.body(), Array<String>::class.java).toList()
         } catch (e: Exception) {
             LOGGER.debug("Failed to read live clients: {}", e.toString())
+            null
+        }
+    }
+
+    /**
+     * This server's peer link, or null when it does not peer.
+     *
+     * `/api/config` is unauthenticated, so this works before the mod has an access token
+     * and on a server that has never seen this mod. The Authorization header the shared
+     * builder adds is ignored by that route.
+     */
+    fun serverPeerLink(): String? {
+        val request = requestBuilder("$serverUrl/api/config")
+            .header("Accept", "application/json")
+            .GET()
+            .build()
+
+        return try {
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() !in 200..299) {
+                LOGGER.debug("BVC server returned {} for config", response.statusCode())
+                return null
+            }
+            val body = GSON.fromJson(response.body(), JsonObject::class.java)
+            body.get("peer_link")?.takeIf { !it.isJsonNull }?.asString
+        } catch (e: Exception) {
+            LOGGER.debug("Failed to read the server config: {}", e.toString())
             null
         }
     }

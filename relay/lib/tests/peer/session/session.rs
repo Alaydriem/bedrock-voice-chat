@@ -13,6 +13,7 @@ use tempfile::TempDir;
 
 struct AcceptsAnyone;
 
+#[async_trait::async_trait]
 impl PeerAuthority for AcceptsAnyone {
     fn authorize(&self, _node: &iroh::PublicKey, declared: &[String]) -> Option<PeerScope> {
         Some(PeerScope {
@@ -62,7 +63,7 @@ async fn acceptor(dir: &TempDir, burst: usize) -> (String, Arc<PeerEndpoint>) {
     let identity =
         NodeIdentity::load_or_create(dir.path().to_str().expect("path")).expect("identity");
     let endpoint = Arc::new(
-        PeerEndpoint::bind(&identity, None)
+        PeerEndpoint::bind(&identity)
             .await
             .expect("bind acceptor"),
     );
@@ -109,7 +110,7 @@ async fn recording_acceptor(
     let identity =
         NodeIdentity::load_or_create(dir.path().to_str().expect("path")).expect("identity");
     let endpoint = Arc::new(
-        PeerEndpoint::bind(&identity, None)
+        PeerEndpoint::bind(&identity)
             .await
             .expect("bind acceptor"),
     );
@@ -160,7 +161,6 @@ fn config(node_dir: &TempDir, peerlink: String) -> SessionConfig {
         node_dir: node_dir.path().to_str().expect("path").to_string(),
         peerlink,
         worlds: vec!["W1".to_string()],
-        relay_url: None,
         inbox_capacity: 8,
     }
 }

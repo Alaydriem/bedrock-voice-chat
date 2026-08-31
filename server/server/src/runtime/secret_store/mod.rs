@@ -26,6 +26,20 @@ impl SecretStore {
             .map(|row| row.value))
     }
 
+    /// Stores a value, replacing whatever was there.
+    ///
+    /// Distinct from `resolve`, which is for a secret this process may have to invent.
+    /// A value handed to us by something else — the relay's assignment, for instance —
+    /// has no generator and no legacy file, and reaching for `resolve` to write one
+    /// would mean supplying a closure that must never run.
+    pub async fn write<C: ConnectionTrait>(
+        conn: &C,
+        name: SecretName,
+        value: &str,
+    ) -> Result<()> {
+        Self::persist(conn, name, value).await
+    }
+
     /// Resolves a secret and leaves the database holding it.
     ///
     /// 1. A non-blank `configured` value is authoritative and is mirrored into the database.

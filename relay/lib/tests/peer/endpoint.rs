@@ -65,7 +65,7 @@ async fn a_pinned_port_is_the_port_the_ticket_advertises() {
     let identity = identity(&dir).await;
 
     on_a_free_port(async |port| {
-        let endpoint = PeerEndpoint::bind_on(&identity, None, Some(port)).await?;
+        let endpoint = PeerEndpoint::bind_on(&identity, Some(port)).await?;
 
         let addr =
             PeerTicket::parse(&endpoint.ticket().await.expect("ticket")).expect("parse ticket");
@@ -90,7 +90,7 @@ async fn a_pinned_port_survives_a_restart_on_the_same_identity() {
     let identity = identity(&dir).await;
 
     on_a_free_port(async |port| {
-        let first = PeerEndpoint::bind_on(&identity, None, Some(port)).await?;
+        let first = PeerEndpoint::bind_on(&identity, Some(port)).await?;
         let before = first.ticket().await.expect("first ticket");
 
         // Closed rather than dropped. Dropping schedules iroh's teardown without waiting
@@ -99,7 +99,7 @@ async fn a_pinned_port_survives_a_restart_on_the_same_identity() {
         first.endpoint().close().await;
         drop(first);
 
-        let second = PeerEndpoint::bind_on(&identity, None, Some(port)).await?;
+        let second = PeerEndpoint::bind_on(&identity, Some(port)).await?;
         let after = second.ticket().await.expect("second ticket");
 
         let before = PeerTicket::parse(&before).expect("parse the first ticket");
@@ -123,7 +123,7 @@ async fn no_pinned_port_still_binds() {
     let dir = TempDir::new().expect("temp dir");
     let identity = identity(&dir).await;
 
-    let endpoint = PeerEndpoint::bind_on(&identity, None, None)
+    let endpoint = PeerEndpoint::bind_on(&identity, None)
         .await
         .expect("bind without a pinned port");
 

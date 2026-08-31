@@ -17,6 +17,15 @@ fn main() {
     built::write_built_file_with_opts(Some(&src), &dst)
         .expect("Failed to acquire build-time information");
 
+    // The registry this build talks to. Baked in rather than configured: an operator
+    // never writes it, so it has to survive from `.env.local` into rustc's environment
+    // the same way the telemetry keys do. Without the re-emission below, `option_env!`
+    // reads the environment cargo was launched with and never sees the file at all.
+    println!("cargo:rerun-if-env-changed=BVC_REGISTRY_PEERLINK");
+    if let Ok(peerlink) = std::env::var("BVC_REGISTRY_PEERLINK") {
+        println!("cargo:rustc-env=BVC_REGISTRY_PEERLINK={}", peerlink);
+    }
+
     println!("cargo:rerun-if-env-changed=POSTHOG_KEY");
     if let Ok(key) = std::env::var("POSTHOG_KEY") {
         println!("cargo:rustc-env=POSTHOG_KEY={}", key);

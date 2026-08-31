@@ -4,6 +4,7 @@ pub const XBOX_CLIENT_ID: &str = "0000000048183522";
 // this value: it rides a separate IPv6 multicast socket, and the RakNet
 // advertisement carries whichever port is bound.
 pub const BEDROCK_LISTEN_PORT: u16 = 28282;
+pub const BEDROCK_TRANSFER_PORT: u16 = 28283;
 
 pub const BEDROCK_KEYRING_NS: &str = "bedrock-xbox";
 pub const BEDROCK_KEYRING_KEY_REFRESH_TOKEN: &str = "refresh_token";

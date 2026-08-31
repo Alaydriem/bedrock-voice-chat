@@ -680,6 +680,8 @@ internal object IntegrityCheckingUniffiLib {
         uniffiCheckContractApiVersion(this)
         uniffiCheckApiChecksums(this)
     }
+    external fun uniffi_bvc_relay_sdk_checksum_func_bvc_enrol(
+    ): Int
     external fun uniffi_bvc_relay_sdk_checksum_method_bvcidentity_node_id(
     ): Int
     external fun uniffi_bvc_relay_sdk_checksum_method_bvcidentity_peerlink(
@@ -741,6 +743,8 @@ internal object UniffiLib {
     external fun uniffi_bvc_relay_sdk_fn_method_bvcpeer_send(`ptr`: Long,`frame`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_bvc_relay_sdk_fn_method_bvcpeer_shutdown(`ptr`: Long,
+    ): Long
+    external fun uniffi_bvc_relay_sdk_fn_func_bvc_enrol(`nodeDir`: RustBuffer.ByValue,`peerlink`: RustBuffer.ByValue,`worlds`: RustBuffer.ByValue,`code`: RustBuffer.ByValue,
     ): Long
     external fun ffi_bvc_relay_sdk_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -861,6 +865,9 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if (lib.uniffi_bvc_relay_sdk_checksum_func_bvc_enrol() != 8053) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_bvc_relay_sdk_checksum_method_bvcidentity_node_id() != 31661) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1898,8 +1905,6 @@ data class SdkConfig (
     , 
     var `worlds`: List<kotlin.String>
     , 
-    var `relayUrl`: kotlin.String?
-    , 
     var `inboxCapacity`: kotlin.UInt
     
 ){
@@ -1920,7 +1925,6 @@ public object FfiConverterTypeSdkConfig: FfiConverterRustBuffer<SdkConfig> {
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterSequenceString.read(buf),
-            FfiConverterOptionalString.read(buf),
             FfiConverterUInt.read(buf),
         )
     }
@@ -1929,7 +1933,6 @@ public object FfiConverterTypeSdkConfig: FfiConverterRustBuffer<SdkConfig> {
             FfiConverterString.allocationSize(value.`nodeDir`) +
             FfiConverterString.allocationSize(value.`peerlink`) +
             FfiConverterSequenceString.allocationSize(value.`worlds`) +
-            FfiConverterOptionalString.allocationSize(value.`relayUrl`) +
             FfiConverterUInt.allocationSize(value.`inboxCapacity`)
     )
 
@@ -1937,7 +1940,6 @@ public object FfiConverterTypeSdkConfig: FfiConverterRustBuffer<SdkConfig> {
             FfiConverterString.write(value.`nodeDir`, buf)
             FfiConverterString.write(value.`peerlink`, buf)
             FfiConverterSequenceString.write(value.`worlds`, buf)
-            FfiConverterOptionalString.write(value.`relayUrl`, buf)
             FfiConverterUInt.write(value.`inboxCapacity`, buf)
     }
 }
@@ -2024,6 +2026,149 @@ public object FfiConverterTypeSdkFrame: FfiConverterRustBuffer<SdkFrame> {
             FfiConverterOptionalString.write(value.`jukebox`, buf)
     }
 }
+
+
+
+sealed class SdkEnrolOutcome {
+    
+    data class Paired(
+        val `worlds`: List<kotlin.String>) : SdkEnrolOutcome()
+        
+    {
+        
+
+        companion object
+    }
+    
+    object WrongCode : SdkEnrolOutcome()
+    
+    
+    object Expired : SdkEnrolOutcome()
+    
+    
+    object NotAuthorized : SdkEnrolOutcome()
+    
+    
+    object NoSharedWorld : SdkEnrolOutcome()
+    
+    
+    object NoCommonVersion : SdkEnrolOutcome()
+    
+    
+    object Unreachable : SdkEnrolOutcome()
+    
+    
+
+    
+
+    
+    
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSdkEnrolOutcome : FfiConverterRustBuffer<SdkEnrolOutcome>{
+    override fun read(buf: ByteBuffer): SdkEnrolOutcome {
+        return when(buf.getInt()) {
+            1 -> SdkEnrolOutcome.Paired(
+                FfiConverterSequenceString.read(buf),
+                )
+            2 -> SdkEnrolOutcome.WrongCode
+            3 -> SdkEnrolOutcome.Expired
+            4 -> SdkEnrolOutcome.NotAuthorized
+            5 -> SdkEnrolOutcome.NoSharedWorld
+            6 -> SdkEnrolOutcome.NoCommonVersion
+            7 -> SdkEnrolOutcome.Unreachable
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: SdkEnrolOutcome): ULong = when(value) {
+        is SdkEnrolOutcome.Paired -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterSequenceString.allocationSize(value.`worlds`)
+            )
+        }
+        is SdkEnrolOutcome.WrongCode -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is SdkEnrolOutcome.Expired -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is SdkEnrolOutcome.NotAuthorized -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is SdkEnrolOutcome.NoSharedWorld -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is SdkEnrolOutcome.NoCommonVersion -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is SdkEnrolOutcome.Unreachable -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+    }
+
+    override fun write(value: SdkEnrolOutcome, buf: ByteBuffer) {
+        when(value) {
+            is SdkEnrolOutcome.Paired -> {
+                buf.putInt(1)
+                FfiConverterSequenceString.write(value.`worlds`, buf)
+                Unit
+            }
+            is SdkEnrolOutcome.WrongCode -> {
+                buf.putInt(2)
+                Unit
+            }
+            is SdkEnrolOutcome.Expired -> {
+                buf.putInt(3)
+                Unit
+            }
+            is SdkEnrolOutcome.NotAuthorized -> {
+                buf.putInt(4)
+                Unit
+            }
+            is SdkEnrolOutcome.NoSharedWorld -> {
+                buf.putInt(5)
+                Unit
+            }
+            is SdkEnrolOutcome.NoCommonVersion -> {
+                buf.putInt(6)
+                Unit
+            }
+            is SdkEnrolOutcome.Unreachable -> {
+                buf.putInt(7)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
 
 
 
@@ -2221,5 +2366,34 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 
 
 
+
+        /**
+         * Redeems a pairing code against a BVC server, once.
+         *
+         * A free function rather than a method on `BvcPeer`: enrolment happens before a session
+         * can succeed, and modelling it as a method would require holding an object whose whole
+         * purpose is to fail until this has run.
+         *
+         * `node_dir` must be the directory the session will later use. The grant this writes is
+         * pinned to that key, and a different one would pair a peer that never connects.
+         */
+    @Throws(SdkException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `bvcEnrol`(`nodeDir`: kotlin.String, `peerlink`: kotlin.String, `worlds`: List<kotlin.String>, `code`: kotlin.String) : SdkEnrolOutcome {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_bvc_relay_sdk_fn_func_bvc_enrol(
+        FfiConverterString.lower(`nodeDir`),
+        FfiConverterString.lower(`peerlink`),
+        FfiConverterSequenceString.lower(`worlds`),
+        FfiConverterString.lower(`code`),),
+        { future, callback, continuation -> UniffiLib.ffi_bvc_relay_sdk_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_bvc_relay_sdk_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_bvc_relay_sdk_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeSdkEnrolOutcome.lift(it) },
+        // Error FFI converter
+        SdkException.ErrorHandler,
+    )
+    }
 
 

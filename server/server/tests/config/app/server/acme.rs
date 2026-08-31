@@ -110,3 +110,66 @@ fn directory_defaults_to_lets_encrypt_production() {
         "https://acme-v02.api.letsencrypt.org/directory"
     );
 }
+
+fn relay_acme() -> Acme {
+    let mut acme = Acme::default();
+    acme.provider = Some(AcmeProviderKind::BvcRelay);
+    acme.domains = Some(vec!["creeper-diorite-badlands.bedrockvc.stream".to_string()]);
+    acme
+}
+
+// The relay provider asks the operator for nothing. An email would be friction and
+// personal data the Discord scope deliberately avoids, and RFC 8555 treats the
+// account contact as optional.
+#[test]
+fn the_relay_provider_requires_neither_an_email_nor_provider_fields() {
+    assert!(relay_acme().validate(&["localhost".to_string()]).is_ok());
+}
+
+// Relaxing validation for one provider must not relax it for the others.
+#[test]
+fn cloudflare_still_requires_an_email_after_the_relay_provider_exists() {
+    let mut acme = Acme::default();
+    acme.provider = Some(AcmeProviderKind::Cloudflare);
+    acme.api_token = Some("cf-token".to_string());
+
+    assert!(acme.validate(&["voice.example.com".to_string()]).is_err());
+}
+
+#[test]
+fn the_relay_provider_parses_from_its_config_spelling() {
+    assert_eq!(
+        "bvc-relay".parse::<AcmeProviderKind>().unwrap(),
+        AcmeProviderKind::BvcRelay
+    );
+}
+
+// `localhost` is not an IP, so it survives the IP filter in the fallback and would
+// enter the certificate order and fail it. Enrollment sets `domains` explicitly for
+// exactly this reason; this asserts the explicit list is what gets used.
+#[test]
+fn an_explicit_domain_list_keeps_localhost_out_of_the_order() {
+    let names = vec!["localhost".to_string(), "127.0.0.1".to_string()];
+
+    let domains = relay_acme().effective_domains(&names).expect("resolves");
+
+    assert_eq!(
+        domains,
+        vec!["creeper-diorite-badlands.bedrockvc.stream".to_string()]
+    );
+}
+
+// Without the explicit list the fallback carries `localhost` into the order. This is
+// the regression the pairing above exists to prevent, pinned so a future change to
+// `effective_domains` cannot quietly make the explicit list unnecessary-looking.
+#[test]
+fn the_fallback_would_carry_localhost_into_the_order() {
+    let mut acme = relay_acme();
+    acme.domains = None;
+
+    let domains = acme
+        .effective_domains(&["localhost".to_string(), "127.0.0.1".to_string()])
+        .expect("resolves");
+
+    assert_eq!(domains, vec!["localhost".to_string()]);
+}

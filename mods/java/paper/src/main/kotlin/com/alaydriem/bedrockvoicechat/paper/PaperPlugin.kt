@@ -22,7 +22,11 @@ import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.paper.svc.PaperSvcChannelFactory
 import com.alaydriem.bedrockvoicechat.paper.svc.PaperSvcWiring
 import com.alaydriem.bedrockvoicechat.svc.BridgePeering
+import com.alaydriem.bedrockvoicechat.paper.commands.PeerCommand
 import com.alaydriem.bedrockvoicechat.svc.EmbeddedGrant
+import com.alaydriem.bedrockvoicechat.svc.PairingRequest
+import com.alaydriem.bedrockvoicechat.svc.PeeringEligibility
+import com.alaydriem.bedrockvoicechat.svc.SvcPairing
 import com.alaydriem.bedrockvoicechat.svc.LiveClients
 import com.alaydriem.bedrockvoicechat.svc.RelayWorld
 import com.alaydriem.bedrockvoicechat.svc.SvcAvailability
@@ -56,6 +60,10 @@ class PaperPlugin : JavaPlugin(), Listener {
 
     private var embeddedServer: BvcServerManager? = null
     private var relayWorld: RelayWorld? = null
+
+    // Held so `/bvc peer` and the bridge's own peerlink lookup share one answer, and one
+    // fetch of `/api/config`.
+    private var pairingEligibility: PeeringEligibility? = null
     private var svcBridgeHost: SvcBridgeHost? = null
 
     // One instance: it caches its answer and logs on first resolve, so a second
@@ -179,8 +187,24 @@ class PaperPlugin : JavaPlugin(), Listener {
      * Embedded reads the server's own link back over FFI once it is running;
      * external takes the operator's configured value.
      */
+    // Embedded asks the server it started. External asks the server over `/api/config`,
+    // which is unauthenticated and is what removes the hand-copied peerlink.
     private fun svcServerPeerlink(config: ModConfig): String? =
-        embeddedServer?.serverPeerlink() ?: config.svcBridgePeerlink
+        embeddedServer?.serverPeerlink() ?: pairingEligibility?.resolve()
+
+    // `null` in embedded mode, where the mod grants itself and no code exists to redeem.
+    private fun svcPairingRequest(): PairingRequest? {
+        if (embeddedServer != null) {
+            return null
+        }
+
+        return SvcPairing.forExternal(
+            pairingEligibility,
+            File(dataFolder, "svc-bridge"),
+            worlds = { listOfNotNull(relayWorld?.id()) },
+            onPaired = { svcBridgeHost?.onPaired() },
+        )
+    }
 
     override fun onEnable() {
         logger.info("Initializing Bedrock Voice Chat")
@@ -262,6 +286,7 @@ class PaperPlugin : JavaPlugin(), Listener {
         } else {
             // External server mode: use HTTP handler
             httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
+            pairingEligibility = PeeringEligibility(httpHandler!!::serverPeerLink)
             positionSender = PositionSender(httpHandler, null)
             audioEventSender = AudioEventSender(httpHandler, null)
             controlSender = ControlSender(httpHandler, null)
@@ -296,6 +321,7 @@ class PaperPlugin : JavaPlugin(), Listener {
             val bvc = Commands.literal("bvc")
             discCommands.addTo(bvc)
             ctlCommands?.addTo(bvc)
+            PeerCommand(::svcPairingRequest).addTo(bvc)
             event.registrar().register(bvc.build(), "Bedrock Voice Chat commands")
         }
 

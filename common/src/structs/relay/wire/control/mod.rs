@@ -1,6 +1,8 @@
 pub mod accept;
 pub mod audio_available;
 pub mod audio_query;
+pub mod enrol;
+pub mod enrolled;
 pub mod hello;
 pub mod refuse;
 pub mod refuse_reason;
@@ -8,6 +10,8 @@ pub mod refuse_reason;
 pub use accept::Accept;
 pub use audio_available::AudioAvailable;
 pub use audio_query::AudioQuery;
+pub use enrol::Enrol;
+pub use enrolled::Enrolled;
 pub use hello::Hello;
 pub use refuse::Refuse;
 pub use refuse_reason::RefuseReason;
@@ -28,6 +32,8 @@ pub enum ControlFrame {
     Refuse(Refuse),
     AudioQuery(AudioQuery),
     AudioAvailable(AudioAvailable),
+    Enrol(Enrol),
+    Enrolled(Enrolled),
 }
 
 impl ControlFrame {

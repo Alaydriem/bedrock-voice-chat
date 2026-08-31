@@ -10,7 +10,7 @@ fn default_enabled() -> bool {
 }
 
 fn default_transfer_port() -> u16 {
-    28283
+     common::consts::bedrock::BEDROCK_TRANSFER_PORT
 }
 
 // The relay sends players to the client proxy, so this is not an independent

@@ -1,8 +1,8 @@
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use iroh::endpoint::presets::Minimal;
-use iroh::{Endpoint, EndpointAddr, PublicKey, RelayConfig, RelayMap, RelayMode, RelayUrl};
-use iroh_relay::RelayQuicConfig;
+use iroh::{Endpoint, EndpointAddr, PublicKey};
 
 use crate::node::{NodeIdentity, PeerTicket, PeerTicketError};
 
@@ -15,9 +15,9 @@ use super::error::PeerError;
 // defaults to opt out of; `N0` is what reaches n0's infrastructure, and it is
 // never chosen here.
 //
-// Without a relay a peer is reachable only at an address the far side already
-// holds, which is a local-network or same-host arrangement. The relay is what
-// makes a peer ticket enough on its own, so it is supplied rather than assumed.
+// A peer is reachable at an address the far side already holds, which a peer ticket
+// carries. There is no relay: this project never proxies traffic, so two peers that
+// cannot reach each other directly do not connect at all.
 pub struct PeerEndpoint {
     endpoint: Endpoint,
     node_id: PublicKey,
@@ -32,16 +32,8 @@ impl PeerEndpoint {
     // command an operator is waiting on still feels immediate.
     const ADDRESS_WAIT: Duration = Duration::from_secs(2);
 
-    // Environment variable an operator running their own relay overrides the
-    // built-in token with. They cannot recompile, so without this the token
-    // would make a self-hosted relay unusable rather than merely restricted.
-    const TOKEN_ENV: &'static str = "BVC_RELAY_ACCESS_TOKEN";
-
-    pub async fn bind(
-        identity: &NodeIdentity,
-        relay_url: Option<RelayUrl>,
-    ) -> Result<Self, PeerError> {
-        Self::bind_on(identity, relay_url, None).await
+    pub async fn bind(identity: &NodeIdentity) -> Result<Self, PeerError> {
+        Self::bind_on(identity, None).await
     }
 
     /// Binds this endpoint, optionally on a port the operator chose.
@@ -51,18 +43,28 @@ impl PeerEndpoint {
     /// system it is a different port on every start, and the pasted value stops
     /// resolving to anywhere the moment this process restarts — which is invisible
     /// until someone tries to speak.
+    pub async fn bind_on(identity: &NodeIdentity, port: Option<u16>) -> Result<Self, PeerError> {
+        Self::bind_with_alpns(identity, port, vec![Self::ALPN.to_vec()]).await
+    }
+
+    /// Binds this endpoint answering on the ALPNs given rather than on the peer
+    /// wire's alone.
     ///
-    /// Optional because a pinned port is a deployment decision, not a default: it is
-    /// one an operator has to open or forward, and a peer that only ever dials out
-    /// needs nothing of the sort.
-    pub async fn bind_on(
+    /// A parameter rather than a constant because one endpoint can serve more than
+    /// one protocol: the registry answers enrollment and address observation on the
+    /// same socket, and they authorize differently.
+    ///
+    /// No relay is configured, and there is no parameter through which one could be.
+    /// A relay is a path this project's traffic must never take, and the only way to
+    /// guarantee that is for the configuration not to exist.
+    pub async fn bind_with_alpns(
         identity: &NodeIdentity,
-        relay_url: Option<RelayUrl>,
         port: Option<u16>,
+        alpns: Vec<Vec<u8>>,
     ) -> Result<Self, PeerError> {
         let mut builder = Endpoint::builder(Minimal)
             .secret_key(identity.secret_key().clone())
-            .alpns(vec![Self::ALPN.to_vec()]);
+            .alpns(alpns);
 
         if let Some(port) = port {
             // The builder arrives pre-configured with an unspecified-address IPv4
@@ -76,18 +78,6 @@ impl PeerEndpoint {
                     port,
                 )))
                 .map_err(|e| PeerError::Bind(e.to_string()))?;
-        }
-
-        if let Some(url) = relay_url {
-            // `RelayConfig` is non-exhaustive, so it is built through its
-            // constructor and the token set after. The QUIC config is supplied
-            // rather than left off: without address discovery a peer never
-            // learns its own public address, and every pair relays forever
-            // instead of upgrading to a direct path.
-            let mut relay = RelayConfig::new(url, Some(RelayQuicConfig::default()));
-            relay.auth_token = Self::access_token();
-
-            builder = builder.relay_mode(RelayMode::Custom(RelayMap::from_iter([relay])));
         }
 
         let endpoint = builder
@@ -116,22 +106,35 @@ impl PeerEndpoint {
 
     // The value an operator gives the far side.
     //
-    // Carries the direct addresses as well as the relay, which is what lets one
-    // ticket serve a peer across the internet and a bridge on this same host:
-    // iroh prefers a direct path and falls back to the relay, so a loopback
-    // address in the ticket is what keeps same-host traffic on `lo`.
+    // Carries every address this endpoint can be dialled at, because a ticket is the
+    // whole of what a peer is given: there is no relay to fall back to, so an address
+    // missing from here is a path that does not exist. The loopback entry is what
+    // keeps a bridge on this same host talking over `lo`.
     //
     // Iroh fills those addresses in after the bind returns, so a ticket minted
     // the instant a process starts would carry only the key. Waiting bounds
     // that: a ticket is minted rarely and by hand, and one that cannot be
     // dialled is worse than one that took a moment.
     pub async fn ticket(&self) -> Result<String, PeerTicketError> {
+        self.ticket_advertising(None).await
+    }
+
+    /// A ticket that also names an address this endpoint was observed at.
+    ///
+    /// A node behind NAT reports only its LAN address, which no far side can dial.
+    /// The observed address is added rather than substituted: the locally observed
+    /// entries are what let a same-host bridge stay on `lo`, and iroh probes every
+    /// candidate in parallel and keeps whichever answers.
+    pub async fn ticket_advertising(
+        &self,
+        advertised: Option<SocketAddr>,
+    ) -> Result<String, PeerTicketError> {
         let deadline = tokio::time::Instant::now() + Self::ADDRESS_WAIT;
 
         while tokio::time::Instant::now() < deadline {
             let addr = self.addr();
             if !addr.addrs.is_empty() {
-                return PeerTicket::mint(&self.with_loopback(addr));
+                return PeerTicket::mint(&self.with_advertised(addr, advertised));
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
@@ -139,7 +142,21 @@ impl PeerEndpoint {
         // Timed out with nothing to report. A key-only ticket is still valid for
         // a peer that reaches us some other way, so this is minted rather than
         // refused.
-        PeerTicket::mint(&self.with_loopback(self.addr()))
+        PeerTicket::mint(&self.with_advertised(self.addr(), advertised))
+    }
+
+    fn with_advertised(
+        &self,
+        addr: EndpointAddr,
+        advertised: Option<SocketAddr>,
+    ) -> EndpointAddr {
+        let mut addr = self.with_loopback(addr);
+
+        if let Some(socket) = advertised {
+            addr = addr.with_ip_addr(socket);
+        }
+
+        addr
     }
 
     // Adds this endpoint's loopback address to what iroh reports.
@@ -163,23 +180,6 @@ impl PeerEndpoint {
         }
 
         addr
-    }
-
-    // The token presented to our relay, baked in at build time.
-    //
-    // Not a secret: it ships inside every binary and anyone who looks can read
-    // it. It raises the cost of using our relay from "point at the URL" to
-    // "extract a string from a binary", and nothing more is claimed for it. What
-    // protects a call is the peer's key and its grant, neither of which is here.
-    //
-    // `None` on a build with the variable unset, which is every local build —
-    // and a relay running `access = "everyone"` takes those.
-    fn access_token() -> Option<String> {
-        std::env::var(Self::TOKEN_ENV)
-            .ok()
-            .filter(|token| !token.is_empty())
-            .or_else(|| option_env!("BVC_RELAY_ACCESS_TOKEN").map(str::to_string))
-            .filter(|token| !token.is_empty())
     }
 
     pub fn endpoint(&self) -> &Endpoint {

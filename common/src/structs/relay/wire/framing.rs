@@ -1,7 +1,5 @@
 use crate::errors::PeerWireError;
 
-use super::control::ControlFrame;
-
 // Length-prefixed framing for the control stream.
 //
 // A postcard frame is not self-delimiting and the control stream is a byte
@@ -18,8 +16,12 @@ impl Framing {
 
     pub const HEADER_LEN: usize = 4;
 
-    pub fn encode(frame: &ControlFrame) -> Result<Vec<u8>, PeerWireError> {
-        let payload = frame.encode()?;
+    // Generic over the frame type because two wires share this framing: the peer
+    // control stream and the enrollment stream. They version and evolve
+    // independently, so they must not share a frame enum — but the length prefix
+    // that delimits them is the same problem in both.
+    pub fn encode<T: serde::Serialize>(frame: &T) -> Result<Vec<u8>, PeerWireError> {
+        let payload = postcard::to_stdvec(frame).map_err(PeerWireError::Encode)?;
 
         if payload.len() > Self::MAX_FRAME {
             return Err(PeerWireError::TooLarge {
@@ -32,6 +34,10 @@ impl Framing {
         out.extend_from_slice(&(payload.len() as u32).to_be_bytes());
         out.extend_from_slice(&payload);
         Ok(out)
+    }
+
+    pub fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, PeerWireError> {
+        postcard::from_bytes(bytes).map_err(PeerWireError::Decode)
     }
 
     // A zero length is refused alongside an oversized one: there is no empty

@@ -8,6 +8,11 @@ use common::curia::{Level, LineFormatter, LogEvent};
 // cannot drown the console. The full value is still in the file.
 const MAX_INLINE_VALUE: usize = 96;
 
+// Exempt from the length limit. A peer link is the one string the far side's `peer`
+// block requires and the startup log is where an operator reads it; naming its length
+// instead of printing it leaves them with nothing to copy.
+const VERBATIM_KEYS: &[&str] = &["peerlink"];
+
 const RESET: &str = "\x1b[0m";
 const DIM: &str = "\x1b[2m";
 
@@ -64,7 +69,9 @@ impl HumanFormatter {
                 other => other.to_string(),
             };
 
-            let rendered = if rendered.len() > MAX_INLINE_VALUE {
+            let rendered = if rendered.len() > MAX_INLINE_VALUE
+                && !VERBATIM_KEYS.contains(&key.as_str())
+            {
                 format!("<{} bytes>", rendered.len())
             } else {
                 rendered

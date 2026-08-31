@@ -442,11 +442,19 @@ pub fn run() {
             // directory degrades to console-only and says so once, rather than
             // aborting startup.
             match app.path().app_log_dir().map_err(|e| e.to_string()).and_then(|dir| {
-                tauri_plugin_curia::FileSink::new(
+                tauri_plugin_curia::FileSink::with_rotation(
                     dir,
                     "bedrock-voice-chat".to_string(),
                     curia::Level::Debug,
                     crate::logging::JsonFormatter::new(log_context.clone()).formatter(),
+                    crate::logging::LOG_MAX_FILE_SIZE,
+                    tauri_plugin_curia::RotationStrategy::KeepSome(
+                        crate::logging::LOG_ARCHIVES_KEPT,
+                    ),
+                    tauri_plugin_curia::TimezoneStrategy::UseUtc,
+                    // Matches the server, and is what keeps a relaunch appending rather
+                    // than starting a fresh file.
+                    tauri_plugin_curia::FileOpenStrategy::Append,
                 )
                 .map_err(|e| e.to_string())
             }) {
@@ -770,7 +778,7 @@ pub fn run() {
                         }
                     },
                     None => {
-                        info!("No cold-start deep links found");
+                        warn!("No cold-start deep links found");
                     }
                 }
                 Err(e) => {

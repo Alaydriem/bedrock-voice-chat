@@ -46,6 +46,7 @@ pub struct TestServer {
     pub transfer_cache: bvc_server_lib::services::bedrock::TransferTargetCache,
     pub db: DatabaseConnection,
     pub readiness: Arc<bvc_server_lib::runtime::ReadinessState>,
+    pub nonce: Arc<bvc_server_lib::services::CurrentNonce>,
     _tmp: TempDir,
     _server_task: tokio::task::JoinHandle<()>,
 }
@@ -142,6 +143,7 @@ impl TestServer {
         // unless a test raises it explicitly.
         let readiness = bvc_server_lib::runtime::ReadinessState::new_shared();
         let revocations = CertificateRevocationService::new_shared();
+        let nonce = bvc_server_lib::services::CurrentNonce::new_shared();
         #[cfg(feature = "bedrock")]
         let transfer_cache = bvc_server_lib::services::bedrock::TransferTargetCache::new(300);
         let server_task = RocketHarness::launch(
@@ -150,6 +152,7 @@ impl TestServer {
             identity_service,
             readiness.clone(),
             revocations.clone(),
+            nonce.clone(),
             #[cfg(feature = "bedrock")]
             transfer_cache.clone(),
         )
@@ -173,6 +176,7 @@ impl TestServer {
             transfer_cache,
             db,
             readiness,
+            nonce,
             _tmp: tmp,
             _server_task: server_task,
         })

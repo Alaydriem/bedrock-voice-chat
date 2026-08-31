@@ -10,6 +10,5 @@ pub struct SessionConfig {
     pub node_dir: String,
     pub peerlink: String,
     pub worlds: Vec<String>,
-    pub relay_url: Option<String>,
     pub inbox_capacity: usize,
 }

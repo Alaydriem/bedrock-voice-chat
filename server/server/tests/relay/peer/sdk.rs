@@ -64,6 +64,10 @@ fn loopback_addr(endpoint: &PeerEndpoint) -> EndpointAddr {
 struct Bridged {
     peer: Arc<BvcPeer>,
     server_rx: mpsc::UnboundedReceiver<QuicNetworkPacket>,
+    // The receiving server's position cache. The plane publishes every relayed speaker into
+    // it, and the position feed reads presence back out of it, so it is where a bridged
+    // speaker's record can be observed as the rest of the server sees it.
+    speakers: Arc<moka::future::Cache<String, common::PlayerEnum>>,
     _server: Arc<PeerPlane>,
     _dirs: (TempDir, TempDir),
 }
@@ -84,14 +88,14 @@ async fn bridged(granted: &[&str]) -> Bridged {
         NodeIdentity::load_or_create(sdk_dir.path().to_str().expect("path")).expect("identity");
 
     let (tx, server_rx) = mpsc::unbounded_channel();
+    let speakers = Arc::new(moka::future::Cache::new(16));
 
     let server = PeerPlane::bind(
         &server_identity,
         grants_for(sdk_identity.node_id(), granted),
         Arc::new(NoLocals),
         Arc::new(ChannelSink(tx)),
-        Arc::new(moka::future::Cache::new(16)),
-        None,
+        Arc::clone(&speakers),
         None,
     )
     .await
@@ -104,7 +108,6 @@ async fn bridged(granted: &[&str]) -> Bridged {
         node_dir: sdk_dir.path().to_str().expect("path").to_string(),
         peerlink,
         worlds: vec![WORLD.to_string()],
-        relay_url: None,
         inbox_capacity: 8,
     })
     .await
@@ -122,6 +125,7 @@ async fn bridged(granted: &[&str]) -> Bridged {
     Bridged {
         peer,
         server_rx,
+        speakers,
         _server: server,
         _dirs: (server_dir, sdk_dir),
     }
@@ -226,5 +230,38 @@ async fn a_frame_naming_a_world_outside_the_grant_is_dropped_at_the_boundary() {
             .await
             .is_err(),
         "an ungranted world must not reach the server's clients"
+    );
+}
+
+// A bridge holds the voice connection of every speaker it names, and the record the plane
+// publishes has to say so.
+//
+// The position cache this writes to is the same one the game mod posts positions into,
+// keyed on the same canonical identity, and a bridged player is posted there with the mark
+// set. A relayed record without it therefore does not merely omit a field — it replaces the
+// mod's record with one asserting the speaker holds no voice connection, and it does so on
+// every frame, which is far faster than the mod posts. The player is reported as being in
+// the world with no voice for exactly as long as they keep talking, and every client beside
+// them is told they cannot hear you while their audio is arriving.
+#[tokio::test]
+async fn a_relayed_speaker_is_published_as_holding_a_bridged_voice_connection() {
+    let mut bridged = bridged(&[WORLD]).await;
+
+    bridged.peer.send(outbound(WORLD)).expect("send");
+
+    tokio::time::timeout(Duration::from_secs(10), bridged.server_rx.recv())
+        .await
+        .expect("the server must publish within the timeout")
+        .expect("a packet");
+
+    let speaker = bridged
+        .speakers
+        .get("minecraft:BridgeSpeaker")
+        .await
+        .expect("the plane publishes the speaker where routing resolves it");
+
+    assert!(
+        speaker.has_bridged_voice(),
+        "a relayed speaker must not read as being in the world without voice"
     );
 }

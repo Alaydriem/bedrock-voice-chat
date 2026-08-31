@@ -12,4 +12,10 @@ pub enum RefuseReason {
     // connects and carries nothing is indistinguishable from a healthy one
     // until someone notices the silence, so it is refused instead.
     NoSharedWorld,
+    // The code is not one this server minted, or it was minted by a server whose
+    // database has since been replaced.
+    UnknownCode,
+    // Already redeemed, or its attempt budget is spent.
+    CodeSpent,
+    CodeExpired,
 }

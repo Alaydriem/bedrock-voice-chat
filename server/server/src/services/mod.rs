@@ -18,12 +18,14 @@ pub mod channel_membership_service;
 pub mod client_action_service;
 pub mod certificate_revocation_service;
 pub mod certificate_service;
+pub mod relay_enrollment;
 pub mod session_authorization_service;
 pub mod gamerpic_decoder;
 pub mod health_service;
 pub mod meridian_service;
 pub mod permission_service;
 pub mod metrics_service;
+pub mod pairing_service;
 pub mod player_identity_service;
 pub mod player_registrar_service;
 pub mod position_feed;
@@ -48,9 +50,12 @@ pub use meridian_service::MeridianService;
 pub use permission_service::{PermissionService, PermissionServiceError};
 pub use metrics_service::MetricsService;
 pub use metrics_service::host_capability::HostCapability;
+pub use pairing_service::PairingService;
 pub use player_identity_service::PlayerIdentityService;
 pub use player_registrar_service::{PlayerRegistrarService, RegisteredPlayersCache};
 pub use position_feed::{GridCell, PositionFeedService, WorldIndex};
 pub use position_service::{FAR_TIER_MAX, PositionService};
 
 pub use session_authorization_service::{SessionAuthorizationService, SessionRejection};
+
+pub use relay_enrollment::{CurrentNonce, EnrollmentError, RelayEnrollmentClient};

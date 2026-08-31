@@ -16,6 +16,7 @@ pub struct EchoPeer;
 
 struct AcceptsAnyone;
 
+#[async_trait::async_trait]
 impl PeerAuthority for AcceptsAnyone {
     fn authorize(&self, _node: &iroh::PublicKey, declared: &[String]) -> Option<PeerScope> {
         Some(PeerScope {
@@ -47,7 +48,7 @@ impl EchoPeer {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let dir = tempfile::tempdir()?;
         let identity = NodeIdentity::load_or_create(dir.path().to_str().ok_or("path")?)?;
-        let endpoint = PeerEndpoint::bind(&identity, None).await?;
+        let endpoint = PeerEndpoint::bind_on(&identity, None).await?;
 
         // The only line the harness parses. Flushed immediately, because the
         // caller is blocked reading for it.

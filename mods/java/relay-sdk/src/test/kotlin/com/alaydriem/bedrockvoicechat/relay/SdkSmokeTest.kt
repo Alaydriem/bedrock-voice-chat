@@ -74,7 +74,6 @@ class SdkSmokeTest {
         nodeDir = Files.createTempDirectory("bvc-sdk-test").toString(),
         peerlink = peerlink,
         worlds = listOf("W1"),
-        relayUrl = null,
         inboxCapacity = 8u,
     )
 

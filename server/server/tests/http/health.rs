@@ -44,3 +44,41 @@ async fn readiness_reports_components_and_follows_quic_flag() {
     assert_eq!(body["quic"], "ok");
     assert_eq!(body["certificate"], "ok");
 }
+
+// Before the relay has pushed a challenge there is nothing to echo. A 404 says that
+// plainly; an empty 200 would read to the relay as a server answering with the wrong
+// value rather than one that has not been asked.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_enrollment_nonce_is_absent_until_the_relay_sends_one() {
+    let env = TestServer::start().await.unwrap();
+
+    let resp = env
+        .noauth_client()
+        .unwrap()
+        .get(format!("{}/health/enrollment-nonce", env.base_url))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status().as_u16(), 404);
+}
+
+// The relay compares the body byte for byte against what it pushed, so the route
+// echoes it verbatim and unauthenticated — the relay holds no credential for this
+// server at the moment it probes the declared address.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_enrollment_nonce_is_echoed_verbatim_and_unauthenticated() {
+    let env = TestServer::start().await.unwrap();
+    env.nonce.set("abc123".to_string());
+
+    let resp = env
+        .noauth_client()
+        .unwrap()
+        .get(format!("{}/health/enrollment-nonce", env.base_url))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status().as_u16(), 200);
+    assert_eq!(resp.text().await.unwrap(), "abc123");
+}

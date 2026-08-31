@@ -14,6 +14,9 @@ impl Config {
         match &self.cmd {
             SubCommand::Peerlink(command) => command.run(cfg).await,
             SubCommand::Worlds(command) => command.run(cfg).await,
+            SubCommand::Pair(command) => command.run(cfg).await,
+            SubCommand::Peers(command) => command.run(cfg).await,
+            SubCommand::Unpair(command) => command.run(cfg).await,
         }
     }
 }

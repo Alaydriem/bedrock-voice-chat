@@ -1,6 +1,7 @@
 package com.alaydriem.bedrockvoicechat.svc
 
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel
+import org.slf4j.LoggerFactory
 import uniffi.bvc_relay_sdk.SdkFrame
 import java.nio.charset.StandardCharsets
 import java.util.UUID
@@ -65,7 +66,22 @@ class SvcChannels(
     private fun open(frame: SdkFrame): AudioChannel? {
         // A playback is a block, not a body, so it never resolves to an entity.
         if (frame.jukebox == null) {
-            factory.entityChannel(frame.speaker)?.let { return it }
+            factory.entityChannel(frame.speaker)?.let {
+                logger.info("Opened an entity channel for {}", frame.speaker)
+                return it
+            }
+
+            // The two kinds sound different to a listener and the fallback is
+            // otherwise silent, so which one a speaker got is stated rather than
+            // inferred from how their voice behaves.
+            logger.info(
+                "No body here for {}; opening a locational channel at {} {} {} in {}",
+                frame.speaker,
+                frame.x,
+                frame.y,
+                frame.z,
+                frame.dimension
+            )
         }
 
         return factory.locationalChannel(
@@ -86,4 +102,8 @@ class SvcChannels(
      */
     private fun channelId(key: String): UUID =
         UUID.nameUUIDFromBytes(key.toByteArray(StandardCharsets.UTF_8))
+
+    companion object {
+        private val logger = LoggerFactory.getLogger("BVC SVC")
+    }
 }

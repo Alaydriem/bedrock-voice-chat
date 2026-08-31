@@ -1,7 +1,7 @@
 use common::structs::relay::Capability;
 use common::structs::relay::wire::WireVersion;
 use common::structs::relay::wire::control::{
-    Accept, AudioQuery, ControlFrame, Hello, Refuse, RefuseReason,
+    Accept, AudioQuery, ControlFrame, Enrol, Enrolled, Hello, Refuse, RefuseReason,
 };
 
 // Fixed encodings, not round-trips.
@@ -113,4 +113,58 @@ fn an_unknown_variant_index_is_an_error() {
 #[test]
 fn empty_input_is_an_error() {
     assert!(ControlFrame::decode(&[]).is_err());
+}
+
+// Appended after AudioAvailable. The index is the contract: a variant inserted
+// anywhere but the end shifts every later one and silently mis-decodes frames from a
+// bridge built against a different order.
+#[test]
+fn enrol_encodes_to_its_pinned_bytes() {
+    let frame = ControlFrame::Enrol(Enrol {
+        versions: vec![WireVersion(1)],
+        worlds: vec!["w".to_string()],
+        code: "AB".to_string(),
+    });
+
+    // ControlFrame::Enrol = 5, one version, version 1, one world of one byte "w",
+    // then the code as two bytes "AB".
+    assert_eq!(
+        frame.encode().expect("encode"),
+        vec![0x05, 0x01, 0x01, 0x01, 0x01, 0x77, 0x02, 0x41, 0x42]
+    );
+}
+
+#[test]
+fn enrolled_encodes_to_its_pinned_bytes() {
+    let frame = ControlFrame::Enrolled(Enrolled {
+        version: WireVersion(1),
+        worlds: vec!["w".to_string()],
+        capabilities: vec![Capability::CarrySpeakers],
+    });
+
+    // ControlFrame::Enrolled = 6, version 1, one world of one byte "w",
+    // one capability, CarrySpeakers = 0.
+    assert_eq!(
+        frame.encode().expect("encode"),
+        vec![0x06, 0x01, 0x01, 0x01, 0x77, 0x01, 0x00]
+    );
+}
+
+// The three code refusals are appended after NoSharedWorld = 3, so a bridge that
+// knows only the original four reasons still decodes those four correctly.
+#[test]
+fn the_code_refusal_reasons_encode_to_their_pinned_bytes() {
+    let unknown = ControlFrame::Refuse(Refuse {
+        reason: RefuseReason::UnknownCode,
+    });
+    let spent = ControlFrame::Refuse(Refuse {
+        reason: RefuseReason::CodeSpent,
+    });
+    let expired = ControlFrame::Refuse(Refuse {
+        reason: RefuseReason::CodeExpired,
+    });
+
+    assert_eq!(unknown.encode().expect("encode"), vec![0x02, 0x04]);
+    assert_eq!(spent.encode().expect("encode"), vec![0x02, 0x05]);
+    assert_eq!(expired.encode().expect("encode"), vec![0x02, 0x06]);
 }

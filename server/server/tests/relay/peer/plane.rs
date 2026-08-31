@@ -121,7 +121,6 @@ async fn peered(world: &str) -> Pair {
         Arc::new(ChannelSink(tx)),
         Arc::new(moka::future::Cache::new(16)),
         None,
-        None,
     )
     .await
     .expect("bind acceptor");
@@ -133,7 +132,6 @@ async fn peered(world: &str) -> Pair {
         Arc::new(NoLocals),
         Arc::new(ChannelSink(dead_tx)),
         Arc::new(moka::future::Cache::new(16)),
-        None,
         None,
     )
     .await

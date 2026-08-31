@@ -171,13 +171,25 @@ jobs:
       push: ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta' }}
     secrets: inherit
 
-  # Build the peering relay image.
+  # Build the registry binaries.
   #
-  # The image is upstream iroh-relay pinned to the iroh version relay/lib is
-  # built against, so it does not wait on build-server and carries the branch
-  # name rather than a server build mode.
+  # Separate from the image because `common` carries an optional git dependency on a
+  # private repository, and cargo loads that source while resolving the workspace even
+  # though the registry never compiles it. A build inside the Dockerfile has no
+  # credentials for it. Building here also keeps arm64 on a native runner.
+  build-relay:
+    name: Build Registry Binaries
+    uses: ./.github/workflows/build-relay.yml
+    secrets: inherit
+
+  # Assemble the registry image from those binaries.
+  #
+  # Carries the branch name rather than a server build mode: the registry is versioned
+  # with BVC but does not wait on build-server.
   build-relay-docker:
     name: Build Relay Image
+    needs: build-relay
+    if: needs.build-relay.result == 'success'
     uses: ./.github/workflows/build-relay-docker.yml
     with:
       version: ${{ github.ref_name }}

@@ -1,5 +1,6 @@
 mod acme;
 mod admin_user_service;
+mod audio_file_service;
 mod audio_playback_service;
 #[cfg(feature = "bedrock")]
 mod bedrock;
@@ -10,6 +11,8 @@ mod host_capability;
 mod interaction_tracker;
 mod meridian_service;
 mod metrics_service;
+mod pairing_service;
 mod position_feed;
+mod relay_enrollment;
 mod position_service;
 mod session_authorization_service;

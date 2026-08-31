@@ -1,0 +1,27 @@
+services:
+  relay:
+    build:
+      context: ../..
+      dockerfile: relay/service/Dockerfile
+    restart: unless-stopped
+    # Host networking: the registry reports the address it observed a server at, and
+    # a bridged network makes it observe the bridge rather than the internet.
+    network_mode: host
+    environment:
+      # Every secret arrives this way. A referenced but unset variable is a hard
+      # failure at startup rather than a silent empty string, so a missing one is
+      # caught here rather than at the first request.
+      BVC_RELAY_DATABASE_URL: ${BVC_RELAY_DATABASE_URL:?set the registry database DSN}
+      BVC_RELAY_DISCORD_GUILD_ID: ${BVC_RELAY_DISCORD_GUILD_ID:?set the Discord guild id}
+      BVC_RELAY_DISCORD_BOT_TOKEN: ${BVC_RELAY_DISCORD_BOT_TOKEN:?set the Discord bot token}
+      BVC_RELAY_DISCORD_CLIENT_ID: ${BVC_RELAY_DISCORD_CLIENT_ID:?set the Discord OAuth client id}
+      BVC_RELAY_DISCORD_CLIENT_SECRET: ${BVC_RELAY_DISCORD_CLIENT_SECRET:?set the Discord OAuth client secret}
+      BVC_RELAY_CLOUDFLARE_TOKEN: ${BVC_RELAY_CLOUDFLARE_TOKEN:?set a Zone.DNS:Edit token for the zone}
+      BVC_RELAY_CLOUDFLARE_ZONE_ID: ${BVC_RELAY_CLOUDFLARE_ZONE_ID:?set the Cloudflare zone id}
+      BVC_REGISTRY_ACME_EMAIL: ${BVC_REGISTRY_ACME_EMAIL:?set the ACME contact address}
+      BVC_REGISTRY_CLOUDFLARE_TOKEN: ${BVC_REGISTRY_CLOUDFLARE_TOKEN:?set a token reaching BOTH zones}
+    # No volume. The node key, the certificate and every assigned name live in the
+    # database, so this container keeps nothing of its own — replacing it loses nothing,
+    # and losing the database loses everything.
+    volumes:
+      - ./config.example.hcl:/etc/bvc-relay/config.hcl:ro

@@ -1,3 +1,4 @@
+mod advertised;
 mod block;
 mod egress;
 mod ingest;

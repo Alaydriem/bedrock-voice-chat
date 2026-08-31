@@ -1,4 +1,4 @@
-name: Build Relay Docker
+name: Build Registry Docker
 
 on:
   workflow_call:
@@ -48,11 +48,11 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: alaydriem/bedrock-voice-chat/relay
+  IMAGE_NAME: alaydriem/bedrock-voice-chat/registry
 
 jobs:
-  build-relay:
-    name: Build Multi-Arch Relay Container
+  build-registry:
+    name: Build Multi-Arch Registry Container
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -60,24 +60,26 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
-      - name: Setup private cargo deps auth
-        uses: ./.github/actions/setup-private-cargo-deps
+      - name: Download amd64 artifact
+        uses: actions/download-artifact@v5
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          name: bvc-relay-service-amd64
+          path: relay/service/binaries/amd64
 
-      # The relay protocol is tied to the iroh release, and a mismatch fails when
-      # a peer relays rather than when the image builds. This reads the version
-      # the code is actually pinned to instead of trusting the Dockerfile default.
-      - name: Resolve the iroh version relay/lib is built against
-        id: iroh
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: bvc-relay-service-arm64
+          path: relay/service/binaries/arm64
+
+      - name: Prepare binaries
         run: |
-          set -euo pipefail
-          version=$(cargo metadata --locked --format-version 1 --manifest-path relay/lib/Cargo.toml \
-            | jq -r '.packages[] | select(.name == "iroh") | .version')
-          test -n "$version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "relay image will pin iroh $version"
+          mv relay/service/binaries/amd64/bvc-relay-service-amd64 relay/service/binaries/amd64/bvc-relay-service
+          mv relay/service/binaries/arm64/bvc-relay-service-arm64 relay/service/binaries/arm64/bvc-relay-service
+          chmod +x relay/service/binaries/amd64/bvc-relay-service
+          chmod +x relay/service/binaries/arm64/bvc-relay-service
+          ls -la relay/service/binaries/amd64/
+          ls -la relay/service/binaries/arm64/
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -104,12 +106,10 @@ jobs:
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v6
         with:
-          context: ./relay/n0
-          file: ./relay/n0/Dockerfile
+          context: ./relay/service
+          file: ./relay/service/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: ${{ inputs.push }}
-          build-args: |
-            IROH_VERSION=${{ steps.iroh.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -118,14 +118,13 @@ jobs:
       - name: Output image information
         run: |
           {
-            echo "## Relay Image Published"
+            echo "## Registry Image Published"
             echo ""
             echo "| Name | Value |"
             echo "| ---- | ----- |"
             echo "| Registry | ${{ env.REGISTRY }} |"
             echo "| Image | ${{ env.IMAGE_NAME }} |"
             echo "| Version | ${{ inputs.version }} |"
-            echo "| iroh | ${{ steps.iroh.outputs.version }} |"
             echo "| Platforms | linux/amd64, linux/arm64 |"
             echo "| Pull Command | \`docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}\` |"
           } >> $GITHUB_STEP_SUMMARY

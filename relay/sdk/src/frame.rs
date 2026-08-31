@@ -107,7 +107,13 @@ impl From<SdkFrame> for VoiceFrame {
                 alternative_identity: None,
                 player_uuid: None,
                 relay_world_uuid: frame.world,
-                bridged_voice: false,
+                // A frame reaching the wire through this SDK came from a bridge, and a
+                // bridge holds the voice connection of every speaker it names. The
+                // receiving side publishes this speaker into its position cache under
+                // the canonical identity the mod's own position posts use, so an unset
+                // mark here replaces the mod's record with one asserting the speaker
+                // holds no voice connection — while their audio is arriving.
+                bridged_voice: true,
             }),
             sample_rate: frame.sample_rate,
             opus: frame.opus,

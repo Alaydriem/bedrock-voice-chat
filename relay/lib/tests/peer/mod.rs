@@ -1,6 +1,10 @@
 mod admission;
+mod advertise;
 mod endpoint;
+mod enrol;
 mod handshake;
 mod link;
 mod loopback;
+mod no_relay;
+mod observe;
 mod session;

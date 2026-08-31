@@ -45,3 +45,16 @@ fn an_oversized_field_value_is_named_rather_than_printed() {
     assert!(line.contains("blob=<200 bytes>"), "got: {line:?}");
     assert!(!line.contains(&"x".repeat(200)));
 }
+
+#[test]
+fn an_oversized_peerlink_is_printed_in_full() {
+    let peerlink = format!("bvcpeer{}", "a".repeat(200));
+    let mut fields = Fields::new();
+    fields.insert("peerlink", peerlink.clone());
+    let mut e = event("this server's peer link");
+    e.fields = fields;
+
+    let line = HumanFormatter::new(false).formatter()(&e);
+
+    assert!(line.contains(&format!("peerlink={peerlink}")), "got: {line:?}");
+}

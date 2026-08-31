@@ -60,7 +60,7 @@ impl<'r> FromRequest<'r> for WebsocketTicket {
         match cache_manager.websocket_tickets().redeem(&ticket).await {
             Some(identity) => Outcome::Success(WebsocketTicket(identity)),
             None => {
-                curia::debug!("websocket upgrade presented an unknown or spent ticket");
+                curia::warn!("websocket upgrade presented an unknown or spent ticket");
                 Outcome::Error((Status::Unauthorized, ()))
             }
         }

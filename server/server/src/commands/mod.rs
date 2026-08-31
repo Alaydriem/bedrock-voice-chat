@@ -34,7 +34,8 @@ pub enum SubCommand {
 #[derive(Debug, Parser, Clone)]
 #[clap(author, version, about, long_about = None)]
 pub struct Cli {
-    /// Path to bvc configuration file (only required for `server` and `admin bootstrap`)
+    /// Path to bvc configuration file (required for `server`, `admin bootstrap`, and the
+    /// `relay` subcommands run with `--local`)
     #[clap(
         global = true,
         short,
