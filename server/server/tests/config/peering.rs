@@ -30,8 +30,19 @@ fn peering_stays_enabled_by_declared_peers_with_no_flag() {
 }
 
 #[test]
-fn peering_is_off_with_neither() {
+fn peering_is_enabled_by_default() {
     let config = Server::default();
 
+    assert!(config.peering_enabled());
+}
+
+// The only arrangement that leaves the peer socket unbound: an operator who cleared the
+// flag and declared nobody. Anything less than both keeps it bound.
+#[test]
+fn peering_is_off_only_when_the_flag_is_cleared_and_no_peer_is_declared() {
+    let mut config = Server::default();
+    config.peering = false;
+
+    assert!(config.peers.is_empty());
     assert!(!config.peering_enabled());
 }

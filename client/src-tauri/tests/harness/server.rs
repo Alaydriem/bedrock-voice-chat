@@ -192,6 +192,12 @@ impl EmbeddedServer {
                 "port": rocket_port,
                 "quic_port": quic_port,
                 "advertised_quic_ports": advertised_quic_ports,
+                // Peering is on by default and `peer_port` defaults to a fixed 28284, so
+                // every embedded server in the suite would bind the same UDP port. The
+                // second one to try fails the whole boot with `binding the peer endpoint`,
+                // and the test that owns it dies on its boot timeout instead — a failure
+                // that names a port nowhere.
+                "peer_port": Self::free_port_udp(),
                 "assets_path": assets_path.to_string_lossy(),
                 "tls": {
                     "certificate": certs_path.join("ca.crt").to_string_lossy(),
