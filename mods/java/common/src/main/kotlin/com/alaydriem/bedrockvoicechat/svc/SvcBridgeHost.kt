@@ -36,14 +36,27 @@ class SvcBridgeHost(
     @Volatile
     private var serverApi: VoicechatServerApi? = null
 
+    // Held so a later attempt can ask again. The first one runs while the bridge may still
+    // be unpaired, and the answer it gets then is not the answer it gets after a redemption.
+    @Volatile
+    private var peerlinkSource: (() -> String?)? = null
+
+    // Admits one connect attempt at a time. It stays held for the life of the session,
+    // because `openSession` blocks in the inbound loop until the session ends, so it also
+    // answers "is there a session" — and clears on the way out, which is what lets a
+    // redemption open one after an earlier attempt gave up.
+    private val connecting = java.util.concurrent.atomic.AtomicBoolean(false)
+
     private val announcedFirstFrame = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /**
      * Builds the plugin SVC will register.
      *
-     * `serverPeerlink` is the BVC server this bridge dials. Null means the operator
-     * has not granted this bridge yet, in which case the bridge still registers —
-     * so SVC keeps working — and logs what they need to paste.
+     * `serverPeerlink` is the BVC server this bridge dials. Null means the operator has
+     * not paired this bridge yet, in which case the bridge still registers — so SVC keeps
+     * working — and logs the command that pairs it. It is asked again rather than read
+     * once, because [onPaired] answers it a second time on a server that pairs while it is
+     * running.
      */
     fun bridge(serverPeerlink: () -> String?): SvcBridge {
         val outbound = OutboundTranslator(relayWorld, speakers)
@@ -117,9 +130,43 @@ class SvcBridgeHost(
      */
     private fun onServerApi(api: VoicechatServerApi, serverPeerlink: () -> String?) {
         serverApi = api
+        peerlinkSource = serverPeerlink
         SvcCategories.register(api)
 
-        Thread({ openSession(api, serverPeerlink) }, "bvc-svc-connect").apply {
+        connect()
+    }
+
+    /**
+     * Opens the session a redeemed pairing code has just made possible.
+     *
+     * Simple Voice Chat hands over its API once, at startup, and the connect attempt that
+     * follows ends within fifteen seconds on a server that has not been granted yet. That
+     * attempt is what starts both halves of the bridge — the frame pump and the presence
+     * sweep — so without this an operator who pairs on a running server gets neither: no
+     * audio crosses, and every player on a BVC client keeps the disconnected mark Simple
+     * Voice Chat puts on anyone it holds no connection for.
+     *
+     * A no-op while a session is already open, so pairing twice does not open two.
+     */
+    fun onPaired() {
+        connect()
+    }
+
+    private fun connect() {
+        val api = serverApi ?: return
+        val serverPeerlink = peerlinkSource ?: return
+
+        if (!connecting.compareAndSet(false, true)) {
+            return
+        }
+
+        Thread({
+            try {
+                openSession(api, serverPeerlink)
+            } finally {
+                connecting.set(false)
+            }
+        }, "bvc-svc-connect").apply {
             isDaemon = true
             start()
         }
@@ -128,12 +175,10 @@ class SvcBridgeHost(
     private fun openSession(api: VoicechatServerApi, serverPeerlink: () -> String?) {
         val link = awaitPeerlink(serverPeerlink)
         if (link == null) {
-            logger.warn(
-                "Simple Voice Chat is present but this bridge is not peered. " +
-                    "Add this block inside the `server` block of the BVC server's " +
-                    "config.hcl and restart it, then set svc-bridge-peerlink in the " +
-                    "mod config to what `bvc-server relay peerlink` prints:\n{}",
-                peering.grantBlock()
+            logger.info(
+                "Simple Voice Chat is present but this bridge is not paired. " +
+                    "Run `bvc-server relay pair` on the BVC server, then " +
+                    "/bvc peer <code> at this server's console."
             )
             return
         }
@@ -292,6 +337,7 @@ class SvcBridgeHost(
         reconciler?.interrupt()
         reconciler = null
         serverApi = null
+        peerlinkSource = null
 
         val session = peer ?: return
         peer = null

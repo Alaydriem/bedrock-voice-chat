@@ -39,7 +39,10 @@ inventory::submit! {
                     permission::clear::clear_permission,
                     permission::list::list_permissions,
                     relay::peerlink::relay_peerlink,
-                    relay::worlds::relay_worlds
+                    relay::worlds::relay_worlds,
+                    relay::pair::relay_pair,
+                    relay::pair::relay_paired,
+                    relay::pair::relay_unpair
             ]
         },
     }

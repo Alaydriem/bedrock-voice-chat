@@ -16,6 +16,7 @@ struct TestAuthority {
     filter: Vec<String>,
 }
 
+#[async_trait::async_trait]
 impl PeerAuthority for TestAuthority {
     fn authorize(&self, node: &PublicKey, declared: &[String]) -> Option<PeerScope> {
         if self.node.is_some_and(|expected| expected != *node) {

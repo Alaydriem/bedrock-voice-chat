@@ -30,12 +30,11 @@ class ModConfig {
     var telemetry: Boolean = true
 
     /**
-     * The BVC server's peerlink, for bridging Simple Voice Chat to an external
-     * server.
+     * Formerly the BVC server's peerlink, copied by hand into this file.
      *
-     * Unset in embedded mode, where the mod owns both sides and wires them itself.
-     * Unset in external mode means the bridge cannot dial yet: it logs its own
-     * peerlink for the operator to grant, and waits for this value in return.
+     * Read from the server's `/api/config` now, which is unauthenticated and already
+     * reachable in external mode. Retained so an existing configuration still loads;
+     * the value is ignored.
      */
     @SerializedName(value = "svc-bridge-peerlink", alternate = ["svcBridgePeerlink"])
     var svcBridgePeerlink: String? = null

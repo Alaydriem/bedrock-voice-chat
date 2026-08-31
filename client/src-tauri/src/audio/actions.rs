@@ -61,12 +61,6 @@ impl AudioActionsManager {
         let mute_event = MuteEvent::from(&device);
         self.app_handle.emit(&mute_event.to_string(), status).ok();
 
-        info!(
-            "{} {}",
-            mute_event,
-            if status { "muted" } else { "unmuted" }
-        );
-
         status
     }
 

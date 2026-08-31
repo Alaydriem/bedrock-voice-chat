@@ -69,3 +69,25 @@ async fn config_reports_the_configured_capacity_limit() {
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["capacity"]["limit"], 12);
 }
+
+// A server that does not peer advertises nothing. The value grants no access, but it does
+// name where an attacker would spend the unauthorized-connection budget, and a server with
+// peering off has no use for it.
+//
+// The present case is not covered here: this harness always manages `None::<Arc<PeerPlane>>`,
+// so standing one up would mean binding a real UDP endpoint for an assertion that
+// `ticket_observed` already carries in `bvc-relay`'s own `peer::advertise` tests.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn config_omits_the_peer_link_when_no_peer_plane_is_bound() {
+    let env = TestServer::start().await.unwrap();
+    let resp = env
+        .noauth_client()
+        .unwrap()
+        .get(format!("{}/api/config", env.base_url))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert!(body["peer_link"].is_null(), "got: {body}");
+}

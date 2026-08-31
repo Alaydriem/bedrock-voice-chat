@@ -13,4 +13,10 @@ pub enum GrantConfigError {
 
     #[error("peer blocks {first:?} and {second:?} name the same peer")]
     DuplicateNode { first: String, second: String },
+
+    // A row this server wrote when a bridge paired. Unreadable means the column holds
+    // something no released build produces, so it is reported rather than skipped: a
+    // silently dropped grant reads as a bridge that stopped being authorized.
+    #[error("a stored peer grant is unreadable: {reason}")]
+    PairedRow { reason: String },
 }

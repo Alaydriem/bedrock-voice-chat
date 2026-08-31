@@ -16,6 +16,7 @@ name = "bvc_relay"
 path = "src/lib.rs"
 
 [dependencies]
+async-trait = { version = "^0.1" }
 common = { path = "../../common", default-features = false }
 data-encoding = { version = "^2" }
 iroh = { version = "1", default-features = false, features = ["tls-aws-lc-rs"] }
@@ -26,5 +27,6 @@ tokio-util = { version = "^0.7" }
 tracing = { version = "^0.1" }
 
 [dev-dependencies]
+async-trait = { version = "^0.1" }
 tempfile = { version = "^3" }
 

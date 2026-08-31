@@ -53,6 +53,9 @@ fn default_peer_port() -> Option<u16> {
     Some(28284)
 }
 
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub struct Server {
@@ -87,6 +90,12 @@ pub struct Server {
     #[serde(default)]
     pub peers: std::collections::HashMap<String, PeerConfig>,
 
+    // Binds the peer socket on a server that has not declared a peer yet, which is every
+    // server before its first pairing. Declared peers still enable it on their own, so a
+    // deployment that predates this field keeps binding untouched.
+    #[serde(default = "default_true")]
+    pub peering: bool,
+
     // Enrolling with the BVC registry for a hostname and a certificate. Absent means
     // this server brings its own domain, which is the pre-existing arrangement.
     #[serde(default)]
@@ -120,6 +129,7 @@ impl Default for Server {
             bedrock: BedrockConfig::default(),
             age: Age::default(),
             peers: std::collections::HashMap::new(),
+            peering: true,
             enrollment: Enrollment::default(),
             peer_port: default_peer_port(),
         }
@@ -127,6 +137,15 @@ impl Default for Server {
 }
 
 impl Server {
+    // Whether to bind the peer endpoint at all.
+    //
+    // Declared peers enable it on their own so an existing deployment needs no edit, and
+    // the flag enables it for a server whose peers will arrive by pairing rather than by
+    // configuration.
+    pub fn peering_enabled(&self) -> bool {
+        self.peering || !self.peers.is_empty()
+    }
+
     // Used when a v6 bind fails, which means the host has no IPv6 stack.
     pub const FALLBACK_LISTEN: &'static str = "0.0.0.0";
 

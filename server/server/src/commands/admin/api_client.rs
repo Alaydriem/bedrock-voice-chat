@@ -5,12 +5,12 @@ use common::ncryptflib::{ExportableEncryptionKeyData, Keypair, Response as Ncryp
 use common::request::CodeLoginRequest;
 use common::request::admin::{
     BanishUserRequest, ClearPermissionRequest, CreateUserRequest, GenerateCodeRequest,
-    SetPermissionRequest,
+    PairingRequest, SetPermissionRequest,
 };
 use common::response::LoginResponse;
 use common::response::admin::{
-    BanishedUserResponse, CreatedUserResponse, GeneratedCodeResponse, PeerLinkResponse,
-    PermissionListResponse, RelayWorldsResponse,
+    BanishedUserResponse, CreatedUserResponse, GeneratedCodeResponse, PairedPeersResponse,
+    PairingCodeResponse, PeerLinkResponse, PermissionListResponse, RelayWorldsResponse,
 };
 use common::response::JsonMessage;
 use common::response::auth::IntrospectResponse;
@@ -175,6 +175,37 @@ impl AdminApiClient {
     pub async fn relay_peerlink(&self) -> Result<PeerLinkResponse, AdminApiError> {
         self.request::<(), _>(Method::GET, "/api/admin/relay/peerlink", None)
             .await
+    }
+
+    pub async fn relay_pair(
+        &self,
+        label: &str,
+        ttl_secs: u64,
+    ) -> Result<PairingCodeResponse, AdminApiError> {
+        let request = PairingRequest {
+            label: label.to_string(),
+            ttl_secs: Some(ttl_secs),
+        };
+
+        self.request(Method::POST, "/api/admin/relay/pair", Some(&request))
+            .await
+    }
+
+    pub async fn relay_paired(&self) -> Result<PairedPeersResponse, AdminApiError> {
+        self.request::<(), _>(Method::GET, "/api/admin/relay/paired", None)
+            .await
+    }
+
+    pub async fn relay_unpair(&self, label: &str) -> Result<PairedPeersResponse, AdminApiError> {
+        // A label reaching a URL path is percent-encoded. An unencoded `#` truncates the
+        // path at the fragment and the request silently addresses a different resource.
+        let encoded = percent_encoding::utf8_percent_encode(
+            label,
+            percent_encoding::NON_ALPHANUMERIC,
+        );
+        let path = format!("/api/admin/relay/paired/{encoded}");
+
+        self.request::<(), _>(Method::DELETE, &path, None).await
     }
 
     pub async fn relay_worlds(&self) -> Result<RelayWorldsResponse, AdminApiError> {

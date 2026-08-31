@@ -27,7 +27,7 @@ use common::{
     },
 };
 use common::structs::analytics::{AnalyticsEvent, AnalyticsEventData};
-use log::{error, info, warn};
+use log::{error, info, warn, debug};
 use moka::future::Cache;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -530,7 +530,7 @@ impl PacketRouter {
                         server_version: server_version.clone(),
                         client_too_old: true,
                     };
-                    info!("Publishing connection health: {:?}", health_event);
+                    debug!("Publishing connection health: {:?}", health_event);
                     crate::network::HealthPublisher::publish(&self.app_handle, health_event);
                 }
                 // Reported as `Unauthorized` rather than a variant of its own: that state is

@@ -72,7 +72,7 @@ pub(crate) struct InputStream {
 
 impl common::traits::StreamTrait for InputStream {
     async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
-        log::info!("Setting metadata for input stream: {} = {}", key, value);
+        log::debug!("Setting metadata for input stream: {} = {}", key, value);
         match key.as_str() {
             // Toggle Mute
             "mute" => {

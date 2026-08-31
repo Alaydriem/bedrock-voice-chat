@@ -1,9 +1,12 @@
-use common::structs::relay::wire::control::{Accept, ControlFrame, Hello, Refuse, RefuseReason};
+use common::structs::relay::wire::control::{
+    Accept, ControlFrame, Enrol, Enrolled, Hello, Refuse, RefuseReason,
+};
 use common::structs::relay::wire::{Framing, WireVersion};
 use iroh::endpoint::{Connection, RecvStream, SendStream};
 
 use super::authority::PeerAuthority;
 use super::error::PeerError;
+use super::redeem_result::RedeemResult;
 
 // The control-stream exchange that opens a peer link.
 //
@@ -61,21 +64,43 @@ impl Handshake {
             .await
             .map_err(|e| PeerError::Transport(e.to_string()))?;
 
-        let ControlFrame::Hello(hello) = Self::read_frame(&mut recv).await? else {
-            return Err(PeerError::Unexpected { expected: "Hello" });
+        // Two openings reach here. `Hello` is a peer that expects to already hold a
+        // grant; `Enrol` is one redeeming a pairing code because it does not.
+        let (versions, worlds, code) = match Self::read_frame(&mut recv).await? {
+            ControlFrame::Hello(hello) => (hello.versions, hello.worlds, None),
+            ControlFrame::Enrol(enrol) => (enrol.versions, enrol.worlds, Some(enrol.code)),
+            _ => {
+                return Err(PeerError::Unexpected {
+                    expected: "Hello or Enrol",
+                });
+            }
         };
 
         // Version first: a peer that cannot be spoken to at all is refused before
         // its authorization is considered, so a version problem never reads as an
         // authorization one.
-        let Some(version) = WireVersion::negotiate(WireVersion::SUPPORTED, &hello.versions) else {
+        let Some(version) = WireVersion::negotiate(WireVersion::SUPPORTED, &versions) else {
             Self::refuse(&mut send, RefuseReason::NoCommonVersion).await?;
             return Err(PeerError::Refused(RefuseReason::NoCommonVersion));
         };
 
-        let Some(scope) = authority.authorize(&node, &hello.worlds) else {
-            Self::refuse(&mut send, RefuseReason::NotAuthorized).await?;
-            return Err(PeerError::Refused(RefuseReason::NotAuthorized));
+        let enrolling = code.is_some();
+
+        let scope = match code {
+            None => match authority.authorize(&node, &worlds) {
+                Some(scope) => scope,
+                None => {
+                    Self::refuse(&mut send, RefuseReason::NotAuthorized).await?;
+                    return Err(PeerError::Refused(RefuseReason::NotAuthorized));
+                }
+            },
+            Some(code) => match authority.redeem(&node, &code, &worlds).await {
+                RedeemResult::Granted(scope) => scope,
+                RedeemResult::Refused(reason) => {
+                    Self::refuse(&mut send, reason).await?;
+                    return Err(PeerError::Refused(reason));
+                }
+            },
         };
 
         // An empty set means the link would carry nothing. Refusing is what
@@ -90,13 +115,63 @@ impl Handshake {
             worlds: scope.worlds,
             capabilities: scope.capabilities,
         };
-        send.write_all(&Framing::encode(&ControlFrame::Accept(accept.clone()))?)
+
+        // The answer has to match the question: a dialer that sent `Enrol` is reading
+        // `Enrolled`, and one that sent `Hello` is reading `Accept`.
+        let frame = if enrolling {
+            ControlFrame::Enrolled(Enrolled {
+                version: accept.version,
+                worlds: accept.worlds.clone(),
+                capabilities: accept.capabilities.clone(),
+            })
+        } else {
+            ControlFrame::Accept(accept.clone())
+        };
+
+        send.write_all(&Framing::encode(&frame)?)
             .await
             .map_err(|e| PeerError::Transport(e.to_string()))?;
         send.finish()
             .map_err(|e| PeerError::Transport(e.to_string()))?;
 
         Ok(accept)
+    }
+
+    /// Opens a link by redeeming a pairing code, for a bridge that holds no grant yet.
+    ///
+    /// Separate from `dial` because the answer differs: this reads `Enrolled`, which tells
+    /// the caller a grant was written rather than merely found.
+    pub async fn enrol(
+        conn: &Connection,
+        worlds: Vec<String>,
+        code: String,
+    ) -> Result<Enrolled, PeerError> {
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| PeerError::Transport(e.to_string()))?;
+
+        let frame = ControlFrame::Enrol(Enrol {
+            versions: WireVersion::SUPPORTED.to_vec(),
+            worlds,
+            code,
+        });
+        send.write_all(&Framing::encode(&frame)?)
+            .await
+            .map_err(|e| PeerError::Transport(e.to_string()))?;
+        // The exchange is one frame each way, so the send side is done. Finishing it is
+        // what flushes the frame; without this the acceptor waits on a stream that has
+        // been opened and never written to.
+        send.finish()
+            .map_err(|e| PeerError::Transport(e.to_string()))?;
+
+        match Self::read_frame(&mut recv).await? {
+            ControlFrame::Enrolled(enrolled) => Ok(enrolled),
+            ControlFrame::Refuse(refuse) => Err(PeerError::Refused(refuse.reason)),
+            _ => Err(PeerError::Unexpected {
+                expected: "Enrolled or Refuse",
+            }),
+        }
     }
 
     // Sent before the error is returned, so the dialer learns why rather than

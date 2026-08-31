@@ -51,4 +51,13 @@ pub struct ApiConfigResponse {
     pub chat: ApiConfigChat,
     #[serde(default)]
     pub capacity: ApiConfigCapacity,
+
+    // The peer endpoint a Simple Voice Chat bridge dials, or `None` on a server with
+    // peering turned off.
+    //
+    // Not a credential: a bridge still redeems a pairing code before it is authorized, and
+    // possession of this grants nothing. Absent rather than empty when peering is off, so a
+    // caller cannot read a blank string as a reachable endpoint.
+    #[serde(default)]
+    pub peer_link: Option<String>,
 }

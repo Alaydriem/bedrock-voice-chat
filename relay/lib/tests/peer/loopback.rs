@@ -11,6 +11,7 @@ use tempfile::TempDir;
 
 struct AcceptsAnyone;
 
+#[async_trait::async_trait]
 impl PeerAuthority for AcceptsAnyone {
     fn authorize(&self, _node: &iroh::PublicKey, declared: &[String]) -> Option<PeerScope> {
         Some(PeerScope {

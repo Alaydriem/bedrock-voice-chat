@@ -254,7 +254,12 @@ impl ServerRuntime {
                     let name = assigned_name.clone().ok_or_else(|| {
                         anyhow!("the bvc-relay acme provider requires an assigned name")
                     })?;
-                    let client = self.relay_session(db_conn.as_ref(), &node_secret).await?;
+                    let client = self
+                        .relay_session(db_conn.as_ref(), &node_secret)
+                        .await?
+                        .ok_or_else(|| {
+                            anyhow!("the bvc-relay acme provider requires a registry")
+                        })?;
                     client.spawn_challenge_responder(
                         bvc_relay::node::NodeIdentity::from_secret_bytes(&node_secret)
                             .secret_key()
@@ -421,13 +426,17 @@ impl ServerRuntime {
         // Cross-server peering. Declared, never discovered: every peer is named in
         // `config.hcl`, and a config error here is fatal rather than a silently
         // unauthorized peer later.
-        let grants = Arc::new(crate::relay::GrantTable::from_config(
-            &self.config.server.peers,
-        )?);
+        let grants = Arc::new(
+            crate::relay::GrantTable::from_config_and_db(
+                &self.config.server.peers,
+                db_conn.as_ref(),
+            )
+            .await?,
+        );
 
         let mut peer_plane: Option<Arc<crate::relay::PeerPlane>> = None;
 
-        if grants.is_empty() {
+        if !self.config.server.peering_enabled() {
             curia::info!("peering is not configured; no peer socket bound");
         } else {
             let identity = bvc_relay::node::NodeIdentity::from_secret_bytes(&node_secret);
@@ -1051,6 +1060,14 @@ impl ServerRuntime {
         conn: &C,
         node_secret: &[u8; 32],
     ) -> Result<Option<String>, anyhow::Error> {
+        // A build with no registry cannot renew an assigned name, publish a DNS record
+        // for it, or reach the ACME provider `EnrollmentStep` switches to. A name stored
+        // by an earlier build is therefore not read back either: applying it would
+        // discard the configured ACME provider in favour of one that cannot run.
+        if crate::config::Registry::peerlink().is_none() {
+            return Ok(None);
+        }
+
         if let Some(name) = assigned_name::AssignedNameStore::read(conn).await? {
             return Ok(Some(name));
         }
@@ -1059,7 +1076,10 @@ impl ServerRuntime {
             return Ok(None);
         };
 
-        let client = self.dial_registry(node_secret).await?;
+        let Some(client) = self.dial_registry(node_secret).await? else {
+            return Ok(None);
+        };
+
         let name = client.enroll(token).await?;
         assigned_name::AssignedNameStore::write(conn, &name).await?;
 
@@ -1081,29 +1101,30 @@ impl ServerRuntime {
         &self,
         _conn: &C,
         node_secret: &[u8; 32],
-    ) -> Result<Arc<crate::services::RelayEnrollmentClient>, anyhow::Error> {
+    ) -> Result<Option<Arc<crate::services::RelayEnrollmentClient>>, anyhow::Error> {
         if let Some(client) = self
             .relay_enrollment
             .read()
             .map_err(|_| anyhow!("relay enrollment lock poisoned"))?
             .clone()
         {
-            return Ok(client);
+            return Ok(Some(client));
         }
 
-        let client = self.dial_registry(node_secret).await?;
-        Ok(client)
+        self.dial_registry(node_secret).await
     }
 
+    /// The enrollment session, or `None` for a build with no registry baked in.
+    ///
+    /// A build without `BVC_REGISTRY_PEERLINK` has no registry to reach, so every
+    /// feature that dials one is skipped rather than failed: the server runs on its
+    /// configured name with the certificate it was given.
     async fn dial_registry(
         &self,
         node_secret: &[u8; 32],
-    ) -> Result<Arc<crate::services::RelayEnrollmentClient>, anyhow::Error> {
+    ) -> Result<Option<Arc<crate::services::RelayEnrollmentClient>>, anyhow::Error> {
         let Some(peerlink) = crate::config::Registry::peerlink() else {
-            return Err(anyhow!(
-                "this build has no registry baked in. BVC_REGISTRY_PEERLINK must be set in \
-                 .env.local at build time; it cannot be supplied at runtime"
-            ));
+            return Ok(None);
         };
 
         let addr = bvc_relay::node::PeerTicket::parse(&peerlink)
@@ -1118,7 +1139,7 @@ impl ServerRuntime {
             .map_err(|_| anyhow!("relay enrollment lock poisoned"))?
             .replace(client.clone());
 
-        Ok(client)
+        Ok(Some(client))
     }
 
     async fn generate_ca<C: sea_orm::ConnectionTrait>(

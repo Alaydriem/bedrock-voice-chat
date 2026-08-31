@@ -125,3 +125,18 @@ fn an_unrecognised_dimension_falls_back_rather_than_failing() {
         Dimension::Overworld
     );
 }
+
+// A frame reaching the wire through this SDK came from a bridge, and a bridge holds the
+// voice connection of every speaker it names. `PeerPlane` publishes this speaker into the
+// position cache under the same canonical identity the mod's own position posts use, so a
+// speaker rebuilt without the mark replaces the mod's record with one asserting the player
+// holds no voice connection at all. Audio keeps flowing, and every client standing beside
+// them is told they cannot hear you — for exactly as long as they keep talking.
+#[test]
+fn a_bridged_speaker_keeps_its_voice_mark_across_the_wire() {
+    use common::traits::player_data::PlayerData;
+
+    let speaker = VoiceFrame::from(SdkFrame::from(wire(Some("W1")))).speaker;
+
+    assert!(speaker.has_bridged_voice());
+}

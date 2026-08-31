@@ -1,4 +1,5 @@
 use common::consts::version::PROTOCOL_VERSION;
+use common::curia;
 use common::response::{
     ApiConfigAge, ApiConfigCapacity, ApiConfigChat, ApiConfigRecording, ApiConfigResponse,
 };
@@ -41,11 +42,26 @@ pub async fn get_config(
     config: &State<Server>,
     voice: &State<Voice>,
     cache_manager: &State<crate::stream::quic::CacheManager>,
+    plane: &State<Option<std::sync::Arc<crate::relay::PeerPlane>>>,
 ) -> Json<ApiConfigResponse> {
     let in_use = cache_manager
         .get_connection_registry()
         .map(|registry| registry.on_voice_identities().len() as u32)
         .unwrap_or(0);
+
+    // Absent on a server with peering off, so one that cannot accept a bridge advertises
+    // nothing. The value grants no access, but it does name where an attacker would spend
+    // the unauthorized-connection budget.
+    let peer_link = match plane.inner() {
+        Some(plane) => plane
+            .cached_ticket(crate::config::Registry::peerlink(), config.peer_port)
+            .await
+            .inspect_err(|e| {
+                curia::warn!(format!("could not mint this server's peer link: {e}"));
+            })
+            .ok(),
+        None => None,
+    };
 
     let bedrock = {
         #[cfg(feature = "bedrock")]
@@ -82,5 +98,6 @@ pub async fn get_config(
             limit: voice.limits.connections,
             in_use,
         },
+        peer_link,
     })
 }

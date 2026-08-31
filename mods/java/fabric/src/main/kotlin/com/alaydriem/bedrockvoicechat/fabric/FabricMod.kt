@@ -28,7 +28,11 @@ import com.alaydriem.bedrockvoicechat.fabric.svc.FabricSvcPlugin
 import com.alaydriem.bedrockvoicechat.fabric.svc.FabricSvcWiring
 import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.svc.BridgePeering
+import com.alaydriem.bedrockvoicechat.fabric.commands.PeerCommand
 import com.alaydriem.bedrockvoicechat.svc.EmbeddedGrant
+import com.alaydriem.bedrockvoicechat.svc.PairingRequest
+import com.alaydriem.bedrockvoicechat.svc.PeeringEligibility
+import com.alaydriem.bedrockvoicechat.svc.SvcPairing
 import com.alaydriem.bedrockvoicechat.svc.LiveClients
 import com.alaydriem.bedrockvoicechat.svc.RelayWorld
 import com.alaydriem.bedrockvoicechat.svc.SvcAvailability
@@ -55,6 +59,29 @@ class FabricMod : ModInitializer {
 
     private var embeddedServer: BvcServerManager? = null
     private var relayWorld: RelayWorld? = null
+
+    // Held so `/bvc peer` and the bridge's own peerlink lookup share one answer, and one
+    // fetch of `/api/config`.
+    private var pairingEligibility: PeeringEligibility? = null
+
+    // `null` in embedded mode, where the mod grants itself and no code exists to redeem.
+    private fun svcPairingRequest(): PairingRequest? {
+        if (embeddedServer != null) {
+            return null
+        }
+
+        val nodeDir = FabricLoader.getInstance().configDir
+            .resolve("bedrock-voice-chat")
+            .resolve("svc-bridge")
+            .toFile()
+
+        return SvcPairing.forExternal(
+            pairingEligibility,
+            nodeDir,
+            worlds = { listOfNotNull(relayWorld?.id()) },
+            onPaired = { svcBridgeHost?.onPaired() },
+        )
+    }
     private var svcBridgeHost: SvcBridgeHost? = null
 
     // One instance: it caches its answer and logs on first resolve, so a second
@@ -150,7 +177,9 @@ class FabricMod : ModInitializer {
 
         FabricSvcPlugin.attach(
             host.bridge {
-                embeddedServer?.serverPeerlink() ?: config.svcBridgePeerlink
+                // Embedded asks the server it started. External asks the server over
+                // `/api/config`, which is what removes the hand-copied peerlink.
+                embeddedServer?.serverPeerlink() ?: pairingEligibility?.resolve()
             }
         )
     }
@@ -254,6 +283,7 @@ class FabricMod : ModInitializer {
             logger.info("Bedrock Voice Chat using embedded server (QUIC port: {})", quicPort)
         } else {
             httpHandler = HttpRequestHandler(config.bvcServer!!, config.accessToken!!)
+            pairingEligibility = PeeringEligibility(httpHandler!!::serverPeerLink)
             positionSender = PositionSender(httpHandler, null)
             val audioEventSender = AudioEventSender(httpHandler, null)
             audioPlayerManager = FabricAudioPlayerManager(audioEventSender, relayWorld)
@@ -267,6 +297,7 @@ class FabricMod : ModInitializer {
         JukeboxListener(audioPlayerManager!!, playerDataProvider::getWorldUuid).register()
         DiscCommand.register()
         ControlCommands.register(controlSender, playerDataProvider::resolveCanonicalName)
+        PeerCommand.register(::svcPairingRequest)
 
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             playerDataProvider.addPlayer(handler.player)

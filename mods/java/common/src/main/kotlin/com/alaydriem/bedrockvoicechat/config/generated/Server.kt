@@ -39,6 +39,9 @@ class Server {
     @SerializedName("peers")
     var peers: Map<String, PeerConfig>? = null
 
+    @SerializedName("peering")
+    var peering: Boolean? = null
+
     @SerializedName("enrollment")
     var enrollment: Enrollment? = null
 
