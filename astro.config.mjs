@@ -94,6 +94,7 @@ export default defineConfig({
             'wiki/server',
             'wiki/server/installation',
             'wiki/server/tls',
+            'wiki/server/enrollment',
             'wiki/server/docker',
             'wiki/server/bedrock-addon',
             'wiki/server/beta-apis',
@@ -147,7 +148,7 @@ export default defineConfig({
         },
         {
           label: 'Work in progress',
-          items: ['wiki/reference/peering', 'wiki/server/peer-relay'],
+          items: ['wiki/reference/peering'],
         },
       ],
     }),

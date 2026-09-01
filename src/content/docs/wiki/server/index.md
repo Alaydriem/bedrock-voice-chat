@@ -29,6 +29,7 @@ Build from the bottom up. The Addon needs the BVC server's address, and running 
 
 | Page | What it covers |
 |---|---|
+| [Assigned hostnames](/wiki/server/enrollment/) | A hostname and a certificate for a server with no domain. Work in progress; select members only. |
 | [Docker](/wiki/server/docker/) | Compose, volumes, health checks, env-driven config. |
 | [No-net Addon](/wiki/server/nonet-addon/) | The pack for Realms, Aternos, and hosts without `@minecraft/server-net`. |
 | [Privacy and telemetry](/wiki/server/privacy-and-telemetry/) | Minimum age, what is collected, how to turn it off. |

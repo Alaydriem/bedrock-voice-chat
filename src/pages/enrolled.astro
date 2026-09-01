@@ -1,0 +1,215 @@
+---
+/**
+ * THE ENROLLMENT RETURN.
+ *
+ * The registry sends an operator here after Discord identifies them. It arrives
+ * with `?claim=<id>` when a token was issued, or `?error=<reason>` when one was
+ * not, and the token itself is never in the URL — the claim is exchanged for it
+ * from script, once.
+ *
+ * That indirection is the whole reason this page exists on a different origin
+ * from the registry. A token in a redirect URL ends up in browser history, in
+ * any referrer, and in whatever logs sit between; a claim id that stops working
+ * the moment it is used does not.
+ *
+ * Four outcomes ship in the HTML and CSS reveals one, the same mechanism
+ * /discord/callback uses. The difference is that one of them has to wait for a
+ * fetch, so `idle` is what renders until the exchange answers.
+ */
+import Base from '../layouts/Base.astro';
+import Button from '../components/Button.astro';
+import { copy } from '../copy';
+import { ENROLL_REASONS, REGISTRY_ORIGIN } from '../lib/site';
+
+const t = copy.enrolled;
+---
+
+<Base title={t.meta.title} description={t.meta.description} path="/enrolled">
+  <Fragment slot="head">
+    <!-- A one-shot handoff page has nothing to rank for, and the URL it is
+         indexed under is one the registry fills in with somebody's claim. -->
+    <meta name="robots" content="noindex" />
+  </Fragment>
+
+  <main class="enroll" data-outcome="idle">
+    <section class="enroll__panel" data-for="issued">
+      <h1>{t.outcomes.issued.heading.lead} <strong>{t.outcomes.issued.heading.strong}</strong></h1>
+      <p>{t.outcomes.issued.body}</p>
+
+      <p class="enroll__label">{t.tokenLabel}</p>
+      <div class="enroll__token">
+        <code id="token" aria-live="polite">{t.redeeming}</code>
+        <button type="button" id="copy" class="enroll__copy" data-copied={t.copied}>
+          {t.copyAction}
+        </button>
+      </div>
+      <pre class="enroll__snippet"><code>{t.instructions}</code></pre>
+
+      <Button href="/wiki/server/">{t.outcomes.issued.action}</Button>
+    </section>
+
+    <section class="enroll__panel" data-for="taken">
+      <h1>{t.outcomes.taken.heading.lead} <strong>{t.outcomes.taken.heading.strong}</strong></h1>
+      <p>{t.outcomes.taken.body}</p>
+      <Button href={`${REGISTRY_ORIGIN}/oauth/start`}>{t.outcomes.taken.action}</Button>
+      {t.outcomes.taken.secondary && <Button href="/wiki/">{t.outcomes.taken.secondary}</Button>}
+    </section>
+
+    <section class="enroll__panel" data-for="refused">
+      <h1>{t.outcomes.refused.heading.lead} <strong>{t.outcomes.refused.heading.strong}</strong></h1>
+      <p>{t.outcomes.refused.body}</p>
+      <p class="enroll__reason" id="reason"></p>
+      <Button href={`${REGISTRY_ORIGIN}/oauth/start`}>{t.outcomes.refused.action}</Button>
+      {t.outcomes.refused.secondary && <Button href="/wiki/">{t.outcomes.refused.secondary}</Button>}
+    </section>
+
+    <section class="enroll__panel" data-for="idle">
+      <h1>{t.outcomes.idle.heading.lead} <strong>{t.outcomes.idle.heading.strong}</strong></h1>
+      <p>{t.outcomes.idle.body}</p>
+      <Button href={`${REGISTRY_ORIGIN}/oauth/start`}>{t.outcomes.idle.action}</Button>
+      {t.outcomes.idle.secondary && <Button href="/wiki/">{t.outcomes.idle.secondary}</Button>}
+    </section>
+
+    <p class="enroll__footnote">{t.footnote}</p>
+  </main>
+
+  <script
+    is:inline
+    define:vars={{ registry: REGISTRY_ORIGIN, reasons: ENROLL_REASONS, copied: t.copied }}
+  >
+    (function () {
+      var main = document.querySelector('.enroll');
+      var params = new URLSearchParams(location.search);
+      var claim = params.get('claim');
+      var error = params.get('error');
+
+      function show(outcome) {
+        main.dataset.outcome = outcome;
+      }
+
+      function refuse(code) {
+        var target = document.getElementById('reason');
+        // An unlisted code renders as the generic refusal. Printing the raw
+        // value would show an operator a string written for a log.
+        if (target) target.textContent = reasons[code] || reasons.internal;
+        show('refused');
+      }
+
+      if (error) {
+        refuse(error);
+        return;
+      }
+
+      if (!claim) {
+        show('idle');
+        return;
+      }
+
+      // Nothing is sent with this request: no cookie, no credential. The claim
+      // id is the whole authorisation, which is why it stops working once used.
+      fetch(registry + '/api/claim/' + encodeURIComponent(claim))
+        .then(function (response) {
+          // Unknown, expired and already-redeemed all answer 404, and a reloaded
+          // tab is the ordinary way to reach that.
+          if (response.status === 404) {
+            show('taken');
+            return null;
+          }
+          if (!response.ok) {
+            refuse('internal');
+            return null;
+          }
+          return response.json();
+        })
+        .then(function (body) {
+          if (!body || !body.token) return;
+          document.getElementById('token').textContent = body.token;
+          show('issued');
+        })
+        .catch(function () {
+          refuse('internal');
+        });
+
+      var copy = document.getElementById('copy');
+      if (copy) {
+        copy.addEventListener('click', function () {
+          var token = document.getElementById('token').textContent;
+          navigator.clipboard.writeText(token).then(function () {
+            copy.textContent = copied;
+          });
+        });
+      }
+    })();
+  </script>
+
+  <style>
+    .enroll {
+      max-width: 46rem;
+      margin: 0 auto;
+      padding: 4rem 1.5rem;
+    }
+
+    /* Every outcome ships; one is revealed. A script that never runs leaves the
+       idle panel, which is the one that reads correctly with no query at all. */
+    .enroll__panel {
+      display: none;
+    }
+
+    .enroll[data-outcome='issued'] [data-for='issued'],
+    .enroll[data-outcome='taken'] [data-for='taken'],
+    .enroll[data-outcome='refused'] [data-for='refused'],
+    .enroll[data-outcome='idle'] [data-for='idle'] {
+      display: block;
+    }
+
+    .enroll__label {
+      margin-bottom: 0.25rem;
+      font-size: 0.875rem;
+      opacity: 0.7;
+    }
+
+    .enroll__token {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .enroll__token code {
+      flex: 1;
+      /* The token is long and has no spaces. Without this it either overflows
+         the panel or forces the page to scroll sideways. */
+      overflow-wrap: anywhere;
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+      background: rgb(0 0 0 / 0.25);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .enroll__copy {
+      padding: 0.75rem 1rem;
+      border: 1px solid currentColor;
+      border-radius: 0.5rem;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .enroll__snippet {
+      margin: 1rem 0 2rem;
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      border-radius: 0.5rem;
+      background: rgb(0 0 0 / 0.25);
+    }
+
+    .enroll__reason {
+      margin: 1rem 0 2rem;
+    }
+
+    .enroll__footnote {
+      margin-top: 3rem;
+      font-size: 0.875rem;
+      opacity: 0.6;
+    }
+  </style>
+</Base>

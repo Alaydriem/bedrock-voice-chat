@@ -3,7 +3,7 @@ title: Players and permissions
 description: Whitelisting, the three permissions, and bootstrapping your first admin.
 sidebar:
   label: Players and permissions
-  order: 8
+  order: 9
 ---
 
 Bedrock Voice Chat is deny-by-default. Players appear automatically once your game server relays them.

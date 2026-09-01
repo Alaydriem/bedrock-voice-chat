@@ -14,11 +14,12 @@ Bedrock Voice Chat 1.0.0-beta.21 changes the voice protocol, replaces the peerin
 2. Stop the server.
 3. Add `addon_mode` to every entry in `server.bedrock.servers`. Use `"net"` or `"no_net"`. The server does not start without it.
 4. Delete the `server.bedrock.dns` and `relay` blocks from `config.hcl`. Both are ignored in this release, not rejected.
-5. Replace the server binary, or pull the new container image.
-6. Start the server. Migrations run at startup.
-7. Read the startup log before letting players connect.
-8. Update the Bedrock Addon to 1.0.0-beta.21.
-9. Publish the 1.0.0-beta.21 client. Older clients cannot connect.
+5. Rename `log.out` to `log.path` in `config.hcl`. The server does not start while `out` is present.
+6. Replace the server binary, or pull the new container image.
+7. Start the server. Migrations run at startup.
+8. Read the startup log before letting players connect.
+9. Update the Bedrock Addon to 1.0.0-beta.21.
+10. Publish the 1.0.0-beta.21 client. Older clients cannot connect.
 
 :::danger
 Step 1 is not optional. Step 6 runs the `drop_peer_link_permission` migration, which deletes every `peer_link` grant. Its rollback restores nothing. Which players held the grant is recorded nowhere else.
@@ -51,6 +52,8 @@ File: `config.hcl`
 | `relay` | Removed. Replaced by `server.peers` and `server.peer_relay_url`. | Delete the block. Redeclare peers. |
 | `voice.recording` | New. `enabled` defaults to `true`. | Set `enabled = false` to forbid client-side recording. |
 | `voice.limits` | New. `connections` defaults to `0`, which admits everyone. | Nothing. Set `connections` to cap concurrent voice sessions. |
+| `log.out` | Removed. Replaced by `log.path`. | Rename the key. See [Logging](#logging). |
+| `log.path` | New. Directory for the log file. Defaults to `./logs`. | Nothing, unless you want the file elsewhere. |
 
 `addon_mode` has no default. A `servers` list carrying an entry without it does not parse, and the server does not start. Every key is listed in the [configuration reference](/wiki/reference/configuration/).
 
@@ -61,6 +64,65 @@ Every other removed key is **ignored, not rejected**. A leftover `relay` or `ser
 `voice.recording.enabled` takes the `BVC_RECORDING` environment override.
 
 `voice.limits` needs no action on upgrade. The default admits everyone, so a server that does not declare the block behaves exactly as it did. `connections` and `reconnect_grace` take the `BVC_MAX_CONNECTIONS` and `BVC_RECONNECT_GRACE` overrides.
+
+## Logging
+
+The server now writes to two places at once. Neither is selectable.
+
+- **The console**, on **stderr**, human-readable and coloured.
+- **A file**, in `log.path`, one JSON object per line.
+
+### `log.out` is replaced by `log.path`
+
+`log.out` chose *where everything went*: `"stdout"` sent every line to standard output and nothing to a file, and any other value sent every line to a file and nothing to the console. Console and file are now independent and both always on, which that key cannot express.
+
+A `config.hcl` that still names `out` **fails to start** with an error naming the key. This is the one removed key in this release that is rejected rather than ignored, because silently dropping it would put the log somewhere other than where you asked.
+
+```hcl
+log {
+  level = "info"
+  path  = "./logs"
+}
+```
+
+`log.path` is a directory, created if missing. If it cannot be created or written, the server logs one line to stderr and starts anyway, console-only. It does not refuse to start.
+
+### Console output moved from stdout to stderr
+
+Standard output now carries only the output of CLI subcommands. Update any supervisor unit, container configuration, or shell pipeline that read the server log from stdout. Docker, systemd, and the Java mod capture both streams and need no change.
+
+Colour is suppressed automatically when stderr is not a terminal, so a redirected log no longer collects escape sequences. `NO_COLOR=1` forces it off and `CLICOLOR_FORCE=1` forces it on.
+
+### The file is JSON, and rotates by size
+
+Every line is one object. `instance_id` and `name` come from `server.meridian` and are `null` when that block is absent; `boot_id` is new per process start, so a restart is visible inside one file.
+
+```json
+{"ts":"2026-08-23T18:43:32.989Z","level":"info","target":"bvc_server_lib::runtime","msg":"Protocol Version: 3.0.0","instance_id":null,"name":null,"boot_id":"01a02fef-63fc-7ab3-80f0-76853ffb4bf2","file":"server/src/runtime/mod.rs","line":164}
+```
+
+Fields added at a call site appear as top-level keys, so `jq '.bind'` reads them directly.
+
+Rotation is now by **size, not by day**:
+
+| Before | Now |
+|---|---|
+| `bvc-server.log.2026-08-23` | `bvc-server.log` plus `bvc-server_<timestamp>.log` archives |
+| One file per day, kept forever | 50 MB per file, ten archives kept |
+
+Update any logrotate rule or log shipper pattern that matches the old names.
+
+### `RUST_LOG`
+
+`RUST_LOG` overrides `log.level` and the built-in per-crate defaults in one string, and governs both the server's own output and its dependencies'.
+
+```
+RUST_LOG=info,bvc_server_lib::stream=debug,hyper=off
+```
+
+A directive with no `=` sets the global level. A directive with `=` sets the level for every target whose name starts with the text on the left; the longest matching prefix wins. `off` silences a target completely. An unparseable directive is named on stderr and skipped.
+
+Only this `target=level` form is supported. The span and field syntax some Rust tools accept (`target[span{field=value}]=level`) is not.
 
 ## Scripts that call the API
 
@@ -134,7 +196,11 @@ Relink each pair of servers. Run `bvc relay peerlink` on each side and paste the
 
 Capabilities default to `carry_speakers` alone. `query_audio` and `serve_audio` are granted only where named. An explicitly empty `capabilities` list stays empty.
 
-Where two peers have no direct path, set `server.peer_relay_url`. See [peer relay](/wiki/server/peer-relay/).
+Where two peers have no direct path, set `server.peer_relay_url`.
+
+:::note
+`server.peer_relay_url` is removed after beta.21. Peers connect directly or not at all, and there is no relay to point at. See [peering](/wiki/reference/peering/).
+:::
 
 ## Java mod
 

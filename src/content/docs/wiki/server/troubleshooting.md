@@ -3,7 +3,7 @@ title: Troubleshooting
 description: Diagnosing a BVC deployment from the operator side.
 sidebar:
   label: Troubleshooting
-  order: 11
+  order: 12
 ---
 
 Work through a Bedrock Voice Chat deployment from the outside in. Most reports resolve in the first two checks.

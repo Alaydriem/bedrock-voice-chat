@@ -255,6 +255,38 @@ export const DISCORD_OUTCOMES = ['linked', 'cancelled', 'failed', 'idle'] as con
 export type DiscordOutcome = (typeof DISCORD_OUTCOMES)[number];
 
 /**
+ * The registry that assigns hostnames to entitled members. A local proving run
+ * reaches the same name through a hosts entry, so this is a constant rather
+ * than a build-time switch.
+ */
+export const REGISTRY_ORIGIN = 'https://registry.bedrockvoicechat.com';
+
+/**
+ * Outcomes of an enrollment return, in the order they ship in the HTML.
+ *
+ * `issued` is the only one that carries a token. The rest name why there is
+ * none, and `taken` is the one that is not a failure: the claim redeemed
+ * already, which is what a reloaded tab looks like.
+ */
+export const ENROLL_OUTCOMES = ['issued', 'taken', 'refused', 'idle'] as const;
+export type EnrollOutcome = (typeof ENROLL_OUTCOMES)[number];
+
+/**
+ * `error=` values the registry redirects with, mapped to what each one means
+ * for the person reading. An unlisted value falls back to the generic refusal
+ * rather than rendering a raw code.
+ */
+export const ENROLL_REASONS: Readonly<Record<string, string>> = {
+  not_entitled:
+    'Your Discord account does not hold a qualifying membership. Join through Patreon or YouTube, wait for the role to sync, then try again.',
+  already_registered:
+    'That Discord account already holds an assigned name. One name is issued per member.',
+  exchange_failed:
+    'Discord did not complete the sign-in. Start again from the beginning.',
+  internal: 'The registry could not finish. Try again in a few minutes.',
+};
+
+/**
  * The logo spectrum in mark order, violet to red. Values live in tokens.css;
  * this is the sequence, which is a fact about the mark rather than a design
  * decision made per component.

@@ -3,7 +3,7 @@ title: No-net Addon
 description: Build and install the Addon for Realms, Aternos, and hosts without @minecraft/server-net.
 sidebar:
   label: No-net Addon
-  order: 6
+  order: 7
 ---
 
 The no-net Addon lets Bedrock Voice Chat run on hosts that do not permit `@minecraft/server-net`, such as Realms and Aternos. Without that module the standard Addon cannot make HTTP requests, and cannot report positions the normal way.

@@ -3,7 +3,7 @@ title: Enabling Beta APIs
 description: Turning on the Beta APIs experiment for a Bedrock server world.
 sidebar:
   label: Enabling Beta APIs
-  order: 7
+  order: 8
 ---
 
 The Bedrock Voice Chat Addon uses beta script modules. The world it runs in must have the **Beta APIs** experiment enabled.

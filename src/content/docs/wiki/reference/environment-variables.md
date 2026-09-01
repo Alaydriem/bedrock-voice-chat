@@ -50,6 +50,19 @@ Read by a server started in-process over FFI, which is the Java mod's embedded m
 | `BVC_TLS_NAMES` | `server.tls.names`. Comma-separated. |
 | `BVC_TLS_IPS` | `server.tls.ips`. Comma-separated. |
 
+## Enrollment
+
+Where most enrollment tokens actually arrive: a container is configured by environment, not by editing a file inside it. See [assigned hostnames](/wiki/server/enrollment/).
+
+| Variable | Sets |
+|---|---|
+| `BVC_ENROLLMENT_TOKEN` | `server.enrollment.token` |
+| `BVC_ENROLLMENT_ADDRESS` | `server.enrollment.address` |
+
+Setting `BVC_ENROLLMENT_TOKEN` alongside any ACME or TLS certificate setting stops startup. The three certificate sources are mutually exclusive.
+
+`BVC_REGISTRY_PEERLINK` is **not** in this list. It is read when the binary is compiled, not when it runs, and setting it in a running server's environment does nothing.
+
 ## ACME
 
 Setting any of these creates the `acme` block if the config file does not already have one. When creating it from scratch, `BVC_ACME_EMAIL` and `BVC_ACME_PROVIDER` are both required. Startup fails naming whichever is missing.

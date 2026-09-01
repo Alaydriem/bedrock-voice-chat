@@ -1,4 +1,4 @@
-import type { Audience, DiscordOutcome } from '../lib/site';
+import type { Audience, DiscordOutcome, EnrollOutcome } from '../lib/site';
 
 /**
  * The contract every locale has to satisfy.
@@ -267,6 +267,21 @@ export interface SiteCopy {
     readonly outcomes: Readonly<Record<DiscordOutcome, OutcomeCopy>>;
     /** Precedes the identifier Discord sent back. */
     readonly codeLabel: string;
+    readonly footnote: string;
+    readonly home: string;
+  };
+
+  readonly enrolled: {
+    readonly meta: MetaCopy;
+    readonly outcomes: Readonly<Record<EnrollOutcome, OutcomeCopy>>;
+    /** Precedes the enrollment token itself. */
+    readonly tokenLabel: string;
+    /** Where the token goes, shown beneath it. */
+    readonly instructions: string;
+    readonly copyAction: string;
+    readonly copied: string;
+    /** Shown while the claim is being redeemed. */
+    readonly redeeming: string;
     readonly footnote: string;
     readonly home: string;
   };

@@ -24,4 +24,4 @@ Under **Work in progress**:
 | Page | What it covers |
 |---|---|
 | [Peering](/wiki/reference/peering/) | Cross-server voice links. |
-| [Peer relay](/wiki/server/peer-relay/) | The iroh relay peers connect through when no direct path exists. |
+| [Assigned hostnames](/wiki/server/enrollment/) | A hostname and a certificate for a server with no domain. Select members only. |

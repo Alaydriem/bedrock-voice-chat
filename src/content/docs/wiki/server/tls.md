@@ -1,6 +1,6 @@
 ---
 title: TLS certificates
-description: Automatic certificates over ACME DNS-01, or bring your own.
+description: An assigned hostname, automatic certificates over ACME DNS-01, or bring your own.
 sidebar:
   label: TLS certificates
   order: 3
@@ -12,12 +12,33 @@ Bedrock Voice Chat requires a valid TLS certificate. Client apps validate it the
 Self-signed certificates **will not work**. The app refuses the connection and there is no override.
 :::
 
-Two options. They are mutually exclusive, and the server refuses to start with both configured.
+Three options. They are mutually exclusive, and the server refuses to start with more than one configured.
 
 | | Use when |
 |---|---|
+| **An assigned hostname** | You have no domain. BVC gives you a name and keeps its certificate renewed. Work in progress, and limited to select Patreon and YouTube members. |
 | **ACME** | You have a domain and a supported DNS provider. BVC issues and renews for you. |
 | **Your own PEM files** | You already have a certificate, or your DNS provider is not supported. |
+
+## An assigned hostname
+
+:::caution[Work in progress]
+Not in a release yet, and limited to select Patreon supporters and YouTube members. See [assigned hostnames](/wiki/server/enrollment/).
+:::
+
+One field, no domain, no DNS, and no `tls` block at all:
+
+```hcl
+server {
+    enrollment {
+        token = "bvcenroll..."
+    }
+}
+```
+
+The server appends the name it is given to its own SANs and configures its own certificate. See [assigned hostnames](/wiki/server/enrollment/).
+
+The rest of this page is for the two options where you bring the name.
 
 ## ACME
 

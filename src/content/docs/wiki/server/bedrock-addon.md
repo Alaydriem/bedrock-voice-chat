@@ -3,7 +3,7 @@ title: Bedrock Dedicated Server Addon
 description: Install and configure the BVC Addon on a Bedrock Dedicated Server.
 sidebar:
   label: Bedrock Addon
-  order: 5
+  order: 6
 ---
 
 The Bedrock Addon relays player positions from your Bedrock Dedicated Server to the Bedrock Voice Chat server, which is what makes proximity voice chat work.

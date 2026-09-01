@@ -137,15 +137,22 @@ An unrecognised value stops startup and names the value.
 
 `query_audio` and `serve_audio` described a peer fetching an audio file it did not hold. Nothing does that now. Jukebox audio is decoded where it is played and reaches a peer as ordinary frames.
 
-## `server.peer_relay_url`
+## `server.enrollment`
+
+Getting a hostname and a certificate without owning a domain. See [assigned hostnames](/wiki/server/enrollment/).
 
 | Key | Default | Description |
 |---|---|---|
-| `peer_relay_url` | `https://relay.bedrockvoicechat.com` | The iroh relay peers reach this server through when no direct path exists. |
+| `token` | — | The single-use enrollment token. Spent on first boot. |
+| `address` | — | Address to publish as the assigned name's A record. |
 
-Set it to your own relay to keep peer traffic off the public one. Set it to an empty value where both servers share a host or a local network and reach each other at an address the peer link already carries.
+Setting `token` alongside `tls.acme`, `tls.certificate` or `tls.key` stops startup. The three are mutually exclusive.
 
-See [deploying a peer relay](/wiki/server/peer-relay/).
+`address` is optional and unset publishes no record. BVC clients reach the server without one; only a `net`-mode Bedrock addon on another host needs the name to resolve. A private address is published but never verified. A public one is re-checked daily.
+
+### There is no `server.registry`
+
+Where a server reaches the BVC registry is compiled into the binary. It is not a config key and not a runtime environment variable, so a released build cannot be pointed at a different registry — that takes a rebuild. Nothing an operator writes changes it.
 
 ## `server.peer_port`
 
@@ -248,8 +255,10 @@ Database TLS is validated at startup. These combinations are rejected:
 
 | Key | Default | Description |
 |---|---|---|
-| `level` | `info` | `trace`, `debug`, `info`, `warn`, `error`. |
-| `out` | `stdout` | Log destination. |
+| `level` | `info` | `trace`, `debug`, `info`, `warn`, `error`. Overridden by `RUST_LOG`. |
+| `path` | `./logs` | Directory for the rotating JSON log file. Created if missing. |
+
+The console is not configurable. The server always writes human-readable output to stderr and a JSON file to `log.path`. An unwritable `log.path` degrades to console-only rather than stopping the server.
 
 ## `voice`
 

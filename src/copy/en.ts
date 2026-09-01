@@ -415,6 +415,46 @@ export const en = {
     home: 'bedrockvoicechat.com',
   },
 
+  enrolled: {
+    meta: {
+      title: 'Enrollment · Bedrock Voice Chat',
+      description: 'Finishes an enrollment started at the Bedrock Voice Chat registry.',
+    },
+    outcomes: {
+      issued: {
+        heading: { lead: 'Your server has an', strong: 'enrollment token' },
+        body: 'Paste it into your server config and start the server. It works once, and it expires in a day.',
+        action: 'Open the setup guide',
+      },
+      taken: {
+        heading: { lead: 'This link has', strong: 'already been used' },
+        body: 'An enrollment token is handed over once. If you did not copy it, start again and you will be issued another.',
+        action: 'Enroll again',
+        secondary: 'Open the wiki',
+      },
+      refused: {
+        heading: { lead: 'No token was', strong: 'issued' },
+        body: 'The registry refused this enrollment.',
+        action: 'Enroll again',
+        secondary: 'Open the wiki',
+      },
+      idle: {
+        heading: { lead: 'Nothing to', strong: 'enroll here' },
+        body: 'This page finishes an enrollment that starts at the registry. Sign in with Discord to be issued a name.',
+        action: 'Start enrollment',
+        secondary: 'Open the wiki',
+      },
+    },
+    tokenLabel: 'Enrollment token',
+    instructions: 'server { enrollment { token = "..." } }',
+    copyAction: 'Copy',
+    copied: 'Copied',
+    redeeming: 'Redeeming...',
+    footnote:
+      'The token identifies your server to the registry once. The name you are assigned stays with your server key, and the registry keeps a record of which Discord account it was issued to.',
+    home: 'bedrockvoicechat.com',
+  },
+
   footer: {
     blurb:
       'Proximity voice chat for Minecraft Bedrock and Java. Self-hosted, encrypted, source available.',

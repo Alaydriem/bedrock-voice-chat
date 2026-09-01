@@ -3,7 +3,7 @@ title: Privacy and telemetry
 description: What BVC collects, how to turn it off, and setting a minimum age for your community.
 sidebar:
   label: Privacy and telemetry
-  order: 9
+  order: 10
 ---
 
 Bedrock Voice Chat collects a small amount of anonymous operational telemetry. You can turn it off entirely.

@@ -3,7 +3,7 @@ title: Docker and Kubernetes
 description: Compose, volumes, health checks, and running BVC entirely from environment variables.
 sidebar:
   label: Docker
-  order: 4
+  order: 5
 ---
 
 Bedrock Voice Chat server ships as a container image at `ghcr.io/alaydriem/bedrock-voice-chat/server`, built for amd64 and arm64.
