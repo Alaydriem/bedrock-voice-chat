@@ -34,6 +34,7 @@ Bedrock Voice Chat does not work with direct IP access. A fully qualified domain
 3. A TLS Certificate
 
 You can either use any valid ACME-DNS provider (Lets Encrypt), or Cloudflare DNS
+
 :::tip[Cloudflare DNS has first class support]
 Bedrock Voice Chat can automatically provision a TLS certificate for you if you use an ACME-DNS provider, or Cloudflare. Cloudflare is recommended because it is free, and easy to use and setup if you purchased your domain through Cloudflare or transfered your domain to Cloudflare.
 :::
@@ -88,7 +89,19 @@ docker run -d --restart=always \
   ghcr.io/alaydriem/bedrock-voice-chat/server:beta.21
 ```
 
-And you're done!
+3. Get your access token:
+
+```bash
+docker exec -it bvc bvc-server admin token mint --label bds --local -c /data/config.hcl
+```
+
+4. Bootstrap your first user
+
+```bash
+docker exec -it bvc bvc-server admin bootstrap -p <YourPlayerName>
+```
+
+And you're done! Login to Bedrock Voice Chat to get started!
 
 ## Then
 

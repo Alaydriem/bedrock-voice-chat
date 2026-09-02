@@ -1,4 +1,4 @@
----
+    ---
 title: Assigned hostnames
 description: Getting a hostname and a certificate for a server that has no domain.
 sidebar:

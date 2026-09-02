@@ -21,18 +21,17 @@ The Java mod can also run BVC embedded in the game server's JVM, which removes t
 Build from the bottom up. The Addon needs the BVC server's address, and running these out of order is the most common reason a fresh install appears to do nothing.
 
 1. **[Install the BVC server](/wiki/server/installation/)** — needs a reachable host and a certificate. BVC can obtain and renew the certificate itself; see [TLS](/wiki/server/tls/).
-2. **Install the Addon** — [Bedrock](/wiki/server/bedrock-addon/) or [Java](/wiki/server/java-mod/) — pointed at that address, with the same `access_token`.
+2. **Install the Addon** — [Bedrock](/wiki/server/bedrock-addon/) or [Java](/wiki/server/java-mod/) — pointed at that address.
 3. **[Whitelist your players](/wiki/server/players-and-permissions/)** — BVC is deny-by-default and nobody can sign in until you add them.
 4. Send everyone to [Downloads](/wiki/start/downloads/).
 
-## Then
+## References
 
 | Page | What it covers |
 |---|---|
-| [Assigned hostnames](/wiki/server/enrollment/) | A hostname and a certificate for a server with no domain. Work in progress; select members only. |
-| [Docker](/wiki/server/docker/) | Compose, volumes, health checks, env-driven config. |
+| [BDS Addon](/wiki/server/bedrock-addon/) | The pack for Bedrock Dedicated Servers |
 | [No-net Addon](/wiki/server/nonet-addon/) | The pack for Realms, Aternos, and hosts without `@minecraft/server-net`. |
-| [Privacy and telemetry](/wiki/server/privacy-and-telemetry/) | Minimum age, what is collected, how to turn it off. |
+| [Docker](/wiki/server/docker/) | Compose, volumes, health checks, env-driven config. |
 | [Monitoring](/wiki/server/monitoring/) | Prometheus metrics, health endpoints, logs. |
 | [Troubleshooting](/wiki/server/troubleshooting/) | Diagnosing it from the operator side. |
 

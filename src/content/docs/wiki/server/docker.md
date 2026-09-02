@@ -2,7 +2,7 @@
 title: Docker and Kubernetes
 description: Compose, volumes, health checks, and running BVC entirely from environment variables.
 sidebar:
-  label: Docker
+  label: Docker & K8
   order: 5
 ---
 
@@ -12,21 +12,19 @@ Bedrock Voice Chat server ships as a container image at `ghcr.io/alaydriem/bedro
 
 ```yaml
 services:
-  bvc:
-    image: ghcr.io/alaydriem/bedrock-voice-chat/server:<version>
+  bedrock-voice-chat:
+    image: ghcr.io/alaydriem/bedrock-voice-chat/server:<VERSION>
     restart: always
     ports:
       - "443:443/tcp"
       - "443:443/udp"
-      - "8443:8443/udp"
+      - "28280:28280/udp"
+      - "28283:28283/udp"
+    user: "100:101"
+    cap_add:
+      - NET_BIND_SERVICE
     volumes:
-      - ./data:/data
-    environment:
-      BVC_ACCESS_TOKEN: ${BVC_ACCESS_TOKEN}
-      BVC_ACME_EMAIL: you@example.com
-      BVC_ACME_PROVIDER: cloudflare
-      BVC_ACME_API_TOKEN: ${CF_API_TOKEN}
-      BVC_TLS_NAMES: example.bedrockvc.stream
+      - ./:/data
     healthcheck:
       test: ["CMD", "curl", "-fsS", "https://localhost/health/readiness"]
       interval: 30s
@@ -34,16 +32,6 @@ services:
       retries: 3
       start_period: 30s
 ```
-
-## Ports
-
-| Port | Protocol | Carries |
-|---|---|---|
-| 443 | TCP | HTTP API, login |
-| 443 | UDP | QUIC voice |
-| 8443 | UDP | Redundant QUIC, for networks that block it on 443 |
-
-Publishing TCP only produces a server that authenticates fine and never passes audio. It is the most common container misconfiguration because everything looks healthy until someone tries to talk.
 
 ## What to persist
 
