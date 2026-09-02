@@ -92,8 +92,12 @@ docker run -d --restart=always \
 3. Get your access token:
 
 ```bash
-docker exec -it bvc bvc-server admin token mint --label bds --local -c /data/config.hcl
+docker exec -it bvc bvc-server admin token mint --local -c /data/config.hcl
 ```
+
+:::caution[Save this Token!]
+You'll need it for configuring either your BDS or Java mod
+:::
 
 4. Bootstrap your first user
 
