@@ -1,3 +1,26 @@
+# [1.0.0-beta.21](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.20...v1.0.0-beta.21) (2026-09-02)
+
+
+### Bug Fixes
+
+* beta.20->beta.21 upgrade fix ([ac8c890](https://github.com/Alaydriem/bedrock-voice-chat/commit/ac8c890e172714ea11673d14f980e651c0315d73))
+* codecov ([fcdea1e](https://github.com/Alaydriem/bedrock-voice-chat/commit/fcdea1ea3cfaf99dc6489005806e65d59ab451ca))
+* iPad top bar header ([1710082](https://github.com/Alaydriem/bedrock-voice-chat/commit/171008265f3823a5fb892057275dc4a6c0c1b02f))
+* position data silently stopped reaching clients above ~14 players ([#238](https://github.com/Alaydriem/bedrock-voice-chat/issues/238)) ([f6e4c5c](https://github.com/Alaydriem/bedrock-voice-chat/commit/f6e4c5c28675629eadede0c0fbf79c7165a6b36a))
+
+
+### Features
+
+* cert + dns issuance ([#256](https://github.com/Alaydriem/bedrock-voice-chat/issues/256)) ([7c45c02](https://github.com/Alaydriem/bedrock-voice-chat/commit/7c45c02e4900e624e6247afd987c56a169ab4761))
+* codecov ([#237](https://github.com/Alaydriem/bedrock-voice-chat/issues/237)) ([c99da55](https://github.com/Alaydriem/bedrock-voice-chat/commit/c99da556229913ea59fde01cf175fe88862869f8))
+* curia logging ([#255](https://github.com/Alaydriem/bedrock-voice-chat/issues/255)) ([f555c80](https://github.com/Alaydriem/bedrock-voice-chat/commit/f555c80cb99426b902ee3c3ffe5aa5892455072f)), closes [#185](https://github.com/Alaydriem/bedrock-voice-chat/issues/185)
+* dual-stack QUIC and an IPv6-capable client ([adc862f](https://github.com/Alaydriem/bedrock-voice-chat/commit/adc862f42a2431f7b554574057ad3dd66c8572e1)), closes [#231](https://github.com/Alaydriem/bedrock-voice-chat/issues/231)
+* **iap:** drops Realms IAP gate and Upsell ([#235](https://github.com/Alaydriem/bedrock-voice-chat/issues/235)) ([25a9d96](https://github.com/Alaydriem/bedrock-voice-chat/commit/25a9d96ca33b10897ac1a3aecc9399485dcfded7)), closes [#223](https://github.com/Alaydriem/bedrock-voice-chat/issues/223)
+* quality of life + security improvements ([#217](https://github.com/Alaydriem/bedrock-voice-chat/issues/217)) ([7406437](https://github.com/Alaydriem/bedrock-voice-chat/commit/7406437fcd2cbfe42f75b76bdbfd6f78cf090d57)), closes [#175](https://github.com/Alaydriem/bedrock-voice-chat/issues/175)
+* **redesign:** new server selector design ([9736b43](https://github.com/Alaydriem/bedrock-voice-chat/commit/9736b43021adb99162a7f638d2ad07a09d18cef1))
+* **redesign:** radial redesign components (html, css, ts, svelte components) ([#233](https://github.com/Alaydriem/bedrock-voice-chat/issues/233)) ([5ff30c8](https://github.com/Alaydriem/bedrock-voice-chat/commit/5ff30c8808eea44b0bd2ba9aaa37c09617a91b7f))
+* **telemetry:** server + client telemetry for posthog ([#234](https://github.com/Alaydriem/bedrock-voice-chat/issues/234)) ([6a001fd](https://github.com/Alaydriem/bedrock-voice-chat/commit/6a001fd09a1fc534c1c02ea3019f7a81929343cc)), closes [#218](https://github.com/Alaydriem/bedrock-voice-chat/issues/218) [#219](https://github.com/Alaydriem/bedrock-voice-chat/issues/219) [#220](https://github.com/Alaydriem/bedrock-voice-chat/issues/220)
+
 # [1.0.0-beta.21](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.20...v1.0.0-beta.21) (2026-09-01)
 
 
