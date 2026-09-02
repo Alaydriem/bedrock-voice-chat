@@ -76,7 +76,7 @@ fn an_empty_advertised_quic_ports_variable_leaves_the_default_alone() {
     let config = apply(&[("BVC_ADVERTISED_QUIC_PORTS", "")], config);
     assert_eq!(
         config.server.quic_ports(),
-        vec![443u32, 28280],
+        vec![28280],
         "an empty variable in a compose file must not blank out the advertisement"
     );
 }

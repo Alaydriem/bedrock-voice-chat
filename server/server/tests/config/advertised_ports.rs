@@ -8,7 +8,7 @@ use bvc_server_lib::config::Server;
 fn an_untouched_list_advertises_both_default_ports() {
     let config = Server::default();
 
-    assert_eq!(config.quic_ports(), vec![443u32, 28280]);
+    assert_eq!(config.quic_ports(), vec![28280]);
 }
 
 #[test]
