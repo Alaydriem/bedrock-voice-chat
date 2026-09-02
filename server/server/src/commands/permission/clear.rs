@@ -11,7 +11,7 @@ use crate::commands::admin::AdminApiError;
 pub struct Config {
     #[clap(short, long)]
     pub player: String,
-    #[clap(short, long, value_enum)]
+    #[clap(short, long, value_enum, default_value_t = Game::Minecraft)]
     pub game: Game,
     #[clap(long)]
     pub permission: String,

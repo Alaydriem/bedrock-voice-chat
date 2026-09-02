@@ -1,5 +1,6 @@
 pub mod permission;
 pub mod relay;
+pub mod token;
 pub mod user;
 
 use rocket::http::Status;
@@ -42,7 +43,12 @@ inventory::submit! {
                     relay::worlds::relay_worlds,
                     relay::pair::relay_pair,
                     relay::pair::relay_paired,
-                    relay::pair::relay_unpair
+                    relay::pair::relay_unpair,
+                    token::list::list_tokens,
+                    token::mint::mint_token,
+                    token::revoke::revoke_token,
+                    token::rotate::rotate_token,
+                    token::legacy::legacy_token
             ]
         },
     }

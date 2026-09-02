@@ -234,13 +234,27 @@ impl ServerRuntime {
         let (_ca_pem, _ca_key_pem) = self.generate_ca(db_conn.as_ref()).await?;
 
         // Resolved before any component clones the config. A configured value wins and is
-        // mirrored into the database; otherwise the stored value is used, a pre-database
-        // file is imported, or a fresh token is generated.
+        // mirrored into the database; otherwise the stored value is used or a pre-database
+        // file is imported. Nothing is generated, so a deployment that configures none of
+        // them has no scalar credential and mints an identified token instead.
         let token_manager =
             access_token::AccessTokenManager::new(&self.config.server.tls.certs_path);
-        self.config.server.minecraft.access_token = token_manager
+        let legacy_token_configured = !self.config.server.minecraft.access_token.trim().is_empty();
+        let legacy_token = token_manager
             .resolve(db_conn.as_ref(), &self.config.server.minecraft.access_token)
             .await?;
+        self.config.server.minecraft.access_token = legacy_token.clone().unwrap_or_default();
+
+        // The guard reads this rather than the config clone, so a token minted or revoked
+        // by another process takes effect without a restart.
+        let access_token_service = crate::services::AccessTokenService::new_shared(
+            db_conn.clone(),
+            legacy_token,
+            legacy_token_configured,
+        );
+        access_token_service.reload().await?;
+        let access_token_cancel = tokio_util::sync::CancellationToken::new();
+        access_token_service.spawn_refresh(access_token_cancel.clone());
 
         // ACME DNS-01. Issuance must complete before Rocket starts — the HTTPS
         // listener cannot exist without a certificate.
@@ -611,6 +625,7 @@ impl ServerRuntime {
             readiness_state.clone(),
             enrollment_nonce.clone(),
             peer_plane,
+            access_token_service.clone(),
             #[cfg(feature = "bedrock")]
             transfer_target_cache.clone(),
         );
@@ -819,6 +834,8 @@ impl ServerRuntime {
         if let Some(handle) = acme_renewal_task {
             let _ = tokio::time::timeout(std::time::Duration::from_secs(2), handle).await;
         }
+
+        access_token_cancel.cancel();
 
         // Stop refreshing the Meridian record. The lease then lapses on Meridian's
         // side, which is how a departing backend is removed without an explicit

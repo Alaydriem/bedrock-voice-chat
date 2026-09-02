@@ -38,11 +38,11 @@ fn default_http_port() -> u32 {
 }
 
 fn default_quic_port() -> u32 {
-    443
+    28280
 }
 
 fn default_advertised_quic_ports() -> Vec<u32> {
-    vec![443, 28280]
+    vec![28280]
 }
 
 fn default_assets_path() -> String {

@@ -35,6 +35,9 @@ impl RocketHarness {
         // Held by the test as well as by Rocket, so a test can set the nonce the relay
         // would have pushed over the enrollment session and then read it back.
         nonce: Arc<bvc_server_lib::services::CurrentNonce>,
+        // The credential source for the `GameAccessToken` guard. Every game route fails at
+        // that guard if Rocket is not managing it.
+        access_token_service: Arc<bvc_server_lib::services::AccessTokenService>,
         #[cfg(feature = "bedrock")]
         transfer_cache: bvc_server_lib::services::bedrock::TransferTargetCache,
     ) -> Result<tokio::task::JoinHandle<()>> {
@@ -59,6 +62,11 @@ impl RocketHarness {
             routes::api::admin::permission::list::list_permissions,
             routes::api::admin::relay::peerlink::relay_peerlink,
             routes::api::admin::relay::worlds::relay_worlds,
+            routes::api::admin::token::list::list_tokens,
+            routes::api::admin::token::mint::mint_token,
+            routes::api::admin::token::revoke::revoke_token,
+            routes::api::admin::token::rotate::rotate_token,
+            routes::api::admin::token::legacy::legacy_token,
         ];
         let auth_routes = routes![
             routes::api::auth::introspect::introspect,
@@ -139,6 +147,7 @@ impl RocketHarness {
             // server is in by default, and the one the peer link route reports
             // as a 404.
             .manage(nonce)
+            .manage(access_token_service)
             .manage(None::<std::sync::Arc<bvc_server_lib::relay::PeerPlane>>)
             .attach(AppDb::init())
             .mount("/ncryptf", ncryptf_routes)

@@ -191,10 +191,9 @@ jobs:
           git push origin "${TAG}" 2>/dev/null || echo "Tag ${TAG} already pushed"
 
           gh release create "${TAG}" \
-            --title "Mods v${VERSION}" \
+            --title "v${VERSION} Mods" \
             --notes "Mod builds for Bedrock Voice Chat v${VERSION}" \
             ${{ inputs.draft == true && '--draft' || '' }} \
-            ${{ contains(needs.prepare-release.outputs.new_version, '-') && '--prerelease' || '' }} \
             2>/dev/null || echo "Release for ${TAG} already exists"
 
       - name: Summary

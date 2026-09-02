@@ -9,8 +9,9 @@ use common::request::admin::{
 };
 use common::response::LoginResponse;
 use common::response::admin::{
-    BanishedUserResponse, CreatedUserResponse, GeneratedCodeResponse, PairedPeersResponse,
-    PairingCodeResponse, PeerLinkResponse, PermissionListResponse, RelayWorldsResponse,
+    AccessTokenListResponse, BanishedUserResponse, CreatedUserResponse, GeneratedCodeResponse,
+    LegacyTokenResponse, MintedTokenResponse, PairedPeersResponse, PairingCodeResponse,
+    PeerLinkResponse, PermissionListResponse, RelayWorldsResponse,
 };
 use common::response::JsonMessage;
 use common::response::auth::IntrospectResponse;
@@ -210,6 +211,34 @@ impl AdminApiClient {
 
     pub async fn relay_worlds(&self) -> Result<RelayWorldsResponse, AdminApiError> {
         self.request::<(), _>(Method::GET, "/api/admin/relay/worlds", None)
+            .await
+    }
+
+    pub async fn list_access_tokens(&self) -> Result<AccessTokenListResponse, AdminApiError> {
+        self.request::<(), _>(Method::GET, "/api/admin/token", None)
+            .await
+    }
+
+    pub async fn mint_access_token(&self) -> Result<MintedTokenResponse, AdminApiError> {
+        self.request::<(), _>(Method::POST, "/api/admin/token", None)
+            .await
+    }
+
+    pub async fn rotate_access_token(
+        &self,
+        id: &str,
+    ) -> Result<MintedTokenResponse, AdminApiError> {
+        self.request::<(), _>(Method::POST, &format!("/api/admin/token/{id}/rotate"), None)
+            .await
+    }
+
+    pub async fn revoke_access_token(&self, id: &str) -> Result<(), AdminApiError> {
+        self.request_unit::<()>(Method::DELETE, &format!("/api/admin/token/{id}"), None)
+            .await
+    }
+
+    pub async fn legacy_access_token(&self) -> Result<LegacyTokenResponse, AdminApiError> {
+        self.request::<(), _>(Method::GET, "/api/admin/token/legacy", None)
             .await
     }
 

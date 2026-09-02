@@ -119,4 +119,14 @@ impl SecretStore {
             .with_context(|| format!("storing the {} secret", name.as_str()))?;
         Ok(())
     }
+
+    /// Removes a stored secret. Returns false when there was nothing to remove.
+    pub async fn delete<C: ConnectionTrait>(conn: &C, name: SecretName) -> Result<bool> {
+        let result = server_secret::Entity::delete_by_id(name.as_str().to_string())
+            .exec(conn)
+            .await
+            .with_context(|| format!("deleting the {} secret", name.as_str()))?;
+
+        Ok(result.rows_affected > 0)
+    }
 }

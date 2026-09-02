@@ -15,7 +15,7 @@ async fn a_configured_token_wins_and_is_mirrored_into_the_database() {
         .await
         .expect("resolve");
 
-    assert_eq!(token, "configured-token");
+    assert_eq!(token.as_deref(), Some("configured-token"));
     assert_eq!(
         SecretStore::read(&db.connection, SecretName::MinecraftAccessToken)
             .await
@@ -35,22 +35,30 @@ async fn an_existing_token_file_is_imported() {
     let token = manager.resolve(&db.connection, "").await.expect("resolve");
 
     assert_eq!(
-        token, "beta-20-token",
+        token.as_deref(),
+        Some("beta-20-token"),
         "a mod configured against this token must keep working across the upgrade"
     );
 }
 
-// A fresh install must not leave the token on disk. That file is what makes a container
-// need a persistent volume.
+// A deployment that configures nothing gets no scalar credential at all. Generating one
+// produced a secret no operator could read, which is what identified tokens replaced.
 #[tokio::test]
-async fn a_generated_token_is_never_written_to_disk() {
+async fn nothing_is_generated_when_a_deployment_configures_no_token() {
     let db = DatabaseFixture::create().await.expect("fixture");
     let dir = TempDir::new().expect("tempdir");
     let manager = AccessTokenManager::new(dir.path().to_str().unwrap());
 
     let token = manager.resolve(&db.connection, "").await.expect("resolve");
 
-    assert_eq!(token.len(), 32);
+    assert!(token.is_none());
+    assert!(
+        SecretStore::read(&db.connection, SecretName::MinecraftAccessToken)
+            .await
+            .expect("read")
+            .is_none(),
+        "nothing may be written for a deployment that asked for nothing"
+    );
     assert!(
         !dir.path().join("access_token").exists(),
         "the database is the only durable copy"
@@ -63,7 +71,10 @@ async fn a_second_boot_reuses_the_stored_token() {
     let dir = TempDir::new().expect("tempdir");
     let manager = AccessTokenManager::new(dir.path().to_str().unwrap());
 
-    let first = manager.resolve(&db.connection, "").await.expect("first");
+    let first = manager
+        .resolve(&db.connection, "configured-token")
+        .await
+        .expect("first");
     let second = manager.resolve(&db.connection, "").await.expect("second");
 
     assert_eq!(first, second);

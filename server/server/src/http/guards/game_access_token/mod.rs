@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use rocket::{
     State, async_trait,
     http::Status,
@@ -6,7 +8,7 @@ use rocket::{
 use rocket_okapi::r#gen::OpenApiGenerator;
 use rocket_okapi::request::{OpenApiFromRequest, RequestHeaderInput};
 
-use crate::config::Server;
+use crate::services::AccessTokenService;
 
 mod error;
 
@@ -14,11 +16,15 @@ pub(crate) use error::GameAccessTokenError;
 
 const BEARER_PREFIX: &str = "Bearer ";
 
-/// The game server's shared access token, carried as `Authorization: Bearer <token>`.
+/// A game server's access token, carried as `Authorization: Bearer <token>`.
+///
+/// Two forms are accepted. An identified token, `bvc_<id>_<secret>`, is looked up by id and
+/// compared against a stored hash; it can be revoked on its own. The pre-identifier scalar
+/// is compared whole, and exists so a deployment that predates identified tokens keeps
+/// working until its mods are moved.
 ///
 /// `X-MC-Access-Token` is **not** accepted. This is a forced upgrade: a server on this version
-/// requires a mod on this version. The token's value, entropy and storage are unchanged, so
-/// nothing is reconfigured — the mod is rebuilt.
+/// requires a mod on this version.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GameAccessToken(pub String);
 
@@ -47,8 +53,8 @@ impl<'r> FromRequest<'r> for GameAccessToken {
             return Outcome::Error((Status::BadRequest, GameAccessTokenError::Missing));
         };
 
-        let expected = match req.guard::<&State<Server>>().await {
-            Outcome::Success(config) => config.minecraft.access_token.clone(),
+        let service = match req.guard::<&State<Arc<AccessTokenService>>>().await {
+            Outcome::Success(service) => service,
             _ => {
                 return Outcome::Error((
                     Status::InternalServerError,
@@ -57,10 +63,10 @@ impl<'r> FromRequest<'r> for GameAccessToken {
             }
         };
 
-        // Constant-time so a network attacker cannot recover the token byte-by-byte from
-        // response-time differences. Unchanged from the header this replaces.
-        if constant_time_eq::constant_time_eq(expected.as_bytes(), presented.as_bytes()) {
+        if service.verify(&presented) {
             Outcome::Success(GameAccessToken(presented))
+        } else if service.has_no_credential() {
+            Outcome::Error((Status::Forbidden, GameAccessTokenError::NotConfigured))
         } else {
             Outcome::Error((Status::Forbidden, GameAccessTokenError::Invalid))
         }

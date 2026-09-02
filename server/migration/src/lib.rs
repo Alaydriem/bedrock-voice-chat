@@ -15,6 +15,7 @@ mod m20260817_000001_certificate_authority;
 mod m20260819_000001_drop_hytale_rows;
 mod m20260823_000001_server_secrets;
 mod m20260826_000001_peer_pairing;
+mod m20260901_000001_game_access_token;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -36,6 +37,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260819_000001_drop_hytale_rows::Migration),
             Box::new(m20260823_000001_server_secrets::Migration),
             Box::new(m20260826_000001_peer_pairing::Migration),
+            Box::new(m20260901_000001_game_access_token::Migration),
         ]
     }
 }

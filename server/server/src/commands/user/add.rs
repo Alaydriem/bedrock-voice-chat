@@ -14,7 +14,7 @@ pub struct Config {
     pub player: String,
 
     /// The game type (minecraft)
-    #[clap(short, long, value_enum)]
+    #[clap(short, long, value_enum, default_value_t = Game::Minecraft)]
     pub game: Game,
 }
 

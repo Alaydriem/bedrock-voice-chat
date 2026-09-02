@@ -144,6 +144,14 @@ impl TestServer {
         let readiness = bvc_server_lib::runtime::ReadinessState::new_shared();
         let revocations = CertificateRevocationService::new_shared();
         let nonce = bvc_server_lib::services::CurrentNonce::new_shared();
+        // Built here rather than in the harness so a test can mint through the same instance
+        // Rocket verifies against. The scalar is treated as configured because the harness
+        // sets it on the config above, which is what a `BVC_ACCESS_TOKEN` deployment does.
+        let access_token_service = bvc_server_lib::services::AccessTokenService::new_shared(
+            Arc::new(db.clone()),
+            Some(config.server.minecraft.access_token.clone()),
+            true,
+        );
         #[cfg(feature = "bedrock")]
         let transfer_cache = bvc_server_lib::services::bedrock::TransferTargetCache::new(300);
         let server_task = RocketHarness::launch(
@@ -153,6 +161,7 @@ impl TestServer {
             readiness.clone(),
             revocations.clone(),
             nonce.clone(),
+            access_token_service.clone(),
             #[cfg(feature = "bedrock")]
             transfer_cache.clone(),
         )

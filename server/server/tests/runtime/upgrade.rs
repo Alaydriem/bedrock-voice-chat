@@ -20,7 +20,9 @@ fn acme_names() -> Vec<String> {
 struct Resolved {
     ca_cert: String,
     ca_key: String,
-    token: String,
+    // `None` for a deployment that never had a scalar token. A beta.20 fixture always has
+    // one on disk, so these assertions still compare two `Some` values.
+    token: Option<String>,
     node_secret: [u8; 32],
 }
 
@@ -120,7 +122,7 @@ async fn the_access_token_survives_the_upgrade() {
     fixture.migrate().await.expect("migrate");
     let resolved = reconcile(&fixture).await;
 
-    assert_eq!(resolved.token, Beta20Fixture::ACCESS_TOKEN);
+    assert_eq!(resolved.token.as_deref(), Some(Beta20Fixture::ACCESS_TOKEN));
     assert_eq!(
         SecretStore::read(&fixture.connection, SecretName::MinecraftAccessToken)
             .await
@@ -274,6 +276,7 @@ async fn an_empty_container_after_the_upgrade_restores_every_secret() {
     assert_eq!(ca_cert, original.ca_cert, "the trust anchor is restored");
     assert_eq!(ca_key, original.ca_key);
     assert_eq!(token, original.token);
+    assert!(token.is_some(), "the imported scalar must survive the swap");
     assert_eq!(node_secret, original.node_secret);
     assert!(fresh.path().join("ca.crt").exists());
 }
