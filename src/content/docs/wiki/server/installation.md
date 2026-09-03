@@ -86,7 +86,7 @@ docker run -d --restart=always \
   -p 443:443/tcp -p 443:443/udp -p 28280:28280/udp -p 28283:28283/udp \
   -e CF_API_TOKEN="your_cloudflare_api_token"
   -v ${PWD}:/data \
-  ghcr.io/alaydriem/bedrock-voice-chat/server:beta.21
+  ghcr.io/alaydriem/bedrock-voice-chat/server:1.0.0-beta.21
 ```
 
 3. Get your access token:
