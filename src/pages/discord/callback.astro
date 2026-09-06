@@ -155,21 +155,25 @@ const lit = {
 
                 <div class="acts">
                   {id === 'idle' ? (
-                    <Button href="/#download" variant="primary">
-                      {o.action}
+                    <Button href={o.action.href} external={o.action.external} variant="primary">
+                      {o.action.label}
                     </Button>
                   ) : (
                     // The href is the fallback the click handler replaces. It
                     // cannot carry the payload: by the time anyone clicks, the
                     // URL it came from has been stripped.
                     <span data-reopen>
-                      <Button href={DISCORD_DEEP_LINK} variant="primary">
-                        {o.action}
+                      <Button href={o.action.href} variant="primary">
+                        {o.action.label}
                       </Button>
                     </span>
                   )}
 
-                  {o.secondary && <Button href="/wiki/">{o.secondary}</Button>}
+                  {o.secondary && (
+                    <Button href={o.secondary.href} external={o.secondary.external}>
+                      {o.secondary.label}
+                    </Button>
+                  )}
                 </div>
               </div>
             );
@@ -179,7 +183,7 @@ const lit = {
         <p class="foot">{t.footnote}</p>
       </section>
 
-      <a class="home" href="/">{t.home}</a>
+      <a class="home" href={t.home.href}>{t.home.label}</a>
     </div>
   </main>
 </Base>

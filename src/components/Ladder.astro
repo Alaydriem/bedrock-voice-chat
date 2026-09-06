@@ -10,6 +10,9 @@ import { enabled, LADDER_RUNGS } from '../lib/site';
  *
  * Rendered from the copy array rather than three hardcoded blocks, so adding or
  * removing a rung is a copy edit plus one row in LADDER_RUNGS.
+ *
+ * The label and its link live together in copy; LADDER_RUNGS supplies only what
+ * is structural — the accent, the TBD marker and the feature gate.
  */
 const t = copy.ladder;
 // Pair copy with its structural row first, then drop whatever is gated off, so
@@ -31,7 +34,7 @@ const rungs = LADDER_RUNGS.map((s, i) => ({ s, c: t.rungs[i] }))
             {r.meta}
             {s.pending && <span class="tbd">{copy.common.tbd}</span>}
           </span>
-          <Button href={s.href} external={s.external}>{r.cta}</Button>
+          <Button href={r.cta.href} external={r.cta.external}>{r.cta.label}</Button>
         </div>
       );
     })

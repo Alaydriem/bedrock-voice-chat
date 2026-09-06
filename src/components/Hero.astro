@@ -4,7 +4,7 @@ import AudienceSwitcher from './AudienceSwitcher.astro';
 import Button from './Button.astro';
 import Canvas from './Canvas.astro';
 import { copy } from '../copy';
-import { DEMO_SERVER, enabled, LINKS } from '../lib/site';
+import { DEMO_SERVER, enabled } from '../lib/site';
 
 /**
  * The hero. The ring and the eyebrow are constant; the headline, the sub and
@@ -17,7 +17,6 @@ import { DEMO_SERVER, enabled, LINKS } from '../lib/site';
  * It rotates on its own until someone picks; see lib/audience.ts.
  */
 const t = copy.hero;
-const href = { player: '#download', operator: LINKS.install, creator: '#creators' } as const;
 ---
 
 <section class="hero">
@@ -50,8 +49,12 @@ const href = { player: '#download', operator: LINKS.install, creator: '#creators
         {
           (['player', 'operator', 'creator'] as const).map((id) => (
             <Audience for={id}>
-              <Button href={href[id]} variant="primary">
-                {t.tracks[id].cta}
+              <Button
+                href={t.tracks[id].cta.href}
+                external={t.tracks[id].cta.external}
+                variant="primary"
+              >
+                {t.tracks[id].cta.label}
               </Button>
             </Audience>
           ))
@@ -59,8 +62,8 @@ const href = { player: '#download', operator: LINKS.install, creator: '#creators
 
         {
           enabled('demoServer') && (
-            <Button href={DEMO_SERVER.address ? `bvc://${DEMO_SERVER.address}` : '#ladder'}>
-              {t.demoCta}
+            <Button href={DEMO_SERVER.address ? `bvc://${DEMO_SERVER.address}` : t.demoCta.href}>
+              {t.demoCta.label}
               {!DEMO_SERVER.address && <span class="tbd">{copy.common.tbd}</span>}
             </Button>
           )

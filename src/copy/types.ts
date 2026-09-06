@@ -3,11 +3,18 @@ import type { Audience, DiscordOutcome, EnrollOutcome } from '../lib/site';
 /**
  * The contract every locale has to satisfy.
  *
- * Words live here; URLs, colours, anchors and platform data stay in lib/site.ts.
- * That split is what makes translation tractable: a translator touches exactly
- * one file per language and never has to understand a link target or a spectrum
- * token, and a mistranslated URL is impossible because there are no URLs to
- * mistranslate.
+ * Words AND their link targets live here. Colours, glyphs, feature gates and
+ * anything else structural stay in lib/site.ts.
+ *
+ * The link targets used to live in lib/site.ts too, on the theory that a URL
+ * cannot be mistranslated if there are no URLs to mistranslate. In practice it
+ * meant no one could answer "where does this button go" without opening three
+ * files, and two of the joins were by array index, so a copy edit could silently
+ * repoint a link. A label and its href are one fact and now sit as one object.
+ *
+ * The cost is that a new locale carries the hrefs too. Copying them unchanged is
+ * the correct default; a locale only overrides one where the destination really
+ * differs by language.
  *
  * Locales are typed against this interface, so a missing or misspelled key is a
  * build failure rather than an `undefined` rendered into the page. Adding a
@@ -15,6 +22,19 @@ import type { Audience, DiscordOutcome, EnrollOutcome } from '../lib/site';
  * to compile until it is filled in. That is deliberate: silent English fallback
  * is how half-translated sites happen.
  */
+
+/**
+ * A link: the words on it and where it goes, together.
+ *
+ * `external` decides `target="_blank" rel="noopener"`. Set it on anything off
+ * this origin. Leave it off for `/paths`, `#anchors` and custom schemes, which
+ * must stay in the current tab.
+ */
+export interface LinkCopy {
+  readonly label: string;
+  readonly href: string;
+  readonly external?: boolean;
+}
 
 /**
  * A heading split into its normal-weight and bold parts.
@@ -34,7 +54,7 @@ export interface CtaCopy {
 export interface HeroTrack {
   readonly heading: Heading;
   readonly lead: string;
-  readonly cta: string;
+  readonly cta: LinkCopy;
 }
 
 export interface AudienceOption {
@@ -79,7 +99,7 @@ export interface RungCopy {
   readonly title: string;
   readonly body: string;
   readonly meta: string;
-  readonly cta: string;
+  readonly cta: LinkCopy;
 }
 
 export interface StepCopy {
@@ -91,18 +111,39 @@ export interface StepCopy {
 export interface FaqEntry {
   readonly q: string;
   readonly a: string;
-  readonly linkLabel?: string;
+  /** Omitted where the answer is the whole answer. */
+  readonly link?: LinkCopy;
 }
 
 export interface WikiEntry {
   readonly who: string;
   readonly title: string;
   readonly blurb: string;
+  readonly href: string;
 }
 
 export interface ApiCopy {
   readonly name: string;
   readonly what: string;
+  readonly href: string;
+}
+
+/** Which build a download is. Joins to `downloads.channels`. */
+export type ReleaseChannel = 'stable' | 'beta' | 'testflight';
+
+/** One card in a download grid. */
+export interface PlatformCopy {
+  /**
+   * Joins to the glyph and accent in Downloads.astro. Never translated, and
+   * never reused between the two grids — that pairing is what survives a copy
+   * edit to `os`.
+   */
+  readonly id: string;
+  readonly os: string;
+  /** Where it comes from: a store name or a package format. */
+  readonly note: string;
+  readonly href: string;
+  readonly channel: ReleaseChannel;
 }
 
 export interface SectionHead {
@@ -127,9 +168,15 @@ export interface MetaCopy {
 export interface OutcomeCopy {
   readonly heading: Heading;
   readonly body: string;
-  readonly action: string;
+  readonly action: LinkCopy;
   /** Left out where one action is the whole answer. */
-  readonly secondary?: string;
+  readonly secondary?: LinkCopy;
+}
+
+/** One column of the site footer. */
+export interface FooterColumn {
+  readonly title: string;
+  readonly links: readonly LinkCopy[];
 }
 
 export interface SiteCopy {
@@ -144,16 +191,20 @@ export interface SiteCopy {
   readonly nav: {
     readonly menu: string;
     readonly ariaLabel: string;
-    /** Keyed by the entry ids in lib/site.ts. */
-    readonly links: Readonly<Record<string, string>>;
-    readonly discord: string;
-    readonly download: string;
+    /** Rendered in order. */
+    readonly links: readonly LinkCopy[];
+    readonly discord: LinkCopy;
+    readonly download: LinkCopy;
   };
 
   readonly hero: {
     readonly eyebrow: string;
     readonly tracks: Readonly<Record<Audience, HeroTrack>>;
-    readonly demoCta: string;
+    /**
+     * `href` is the fallback shown while there is no demo server. Once
+     * DEMO_SERVER.address is set the component swaps in a `bvc://` link.
+     */
+    readonly demoCta: LinkCopy;
     readonly ringLabel: string;
     readonly creatorAside: string;
   };
@@ -161,6 +212,11 @@ export interface SiteCopy {
   readonly switcher: {
     readonly label: string;
     readonly ariaLabel: string;
+    /**
+     * These are buttons, not links: they set the audience state the hero and
+     * the sticky rail read, and the scroll target lives with that state in
+     * AUDIENCE_META.
+     */
     readonly options: Readonly<Record<Audience, AudienceOption>>;
   };
 
@@ -209,20 +265,20 @@ export interface SiteCopy {
     readonly specs: readonly string[];
     readonly getLabel: string;
     readonly serverSubhead: string;
-    readonly channels: {
-      readonly stable: string;
-      readonly beta: string;
-      readonly testflight: string;
-    };
+    readonly channels: Readonly<Record<ReleaseChannel, string>>;
+    /** The player-facing grid. */
+    readonly client: readonly PlatformCopy[];
+    /** The addon and plugin grid under `serverSubhead`. */
+    readonly server: readonly PlatformCopy[];
   };
 
   readonly operators: SectionHead & {
     readonly steps: readonly StepCopy[];
     readonly note: string;
     readonly actions: {
-      readonly guide: string;
-      readonly bedrock: string;
-      readonly java: string;
+      readonly guide: LinkCopy;
+      readonly bedrock: LinkCopy;
+      readonly java: LinkCopy;
     };
   };
 
@@ -231,12 +287,13 @@ export interface SiteCopy {
       readonly label: string;
       readonly heading: string;
       readonly body: string;
-      readonly cta: string;
+      readonly cta: LinkCopy;
       readonly ariaLabel: string;
     };
     readonly apisLabel: string;
+    /** Order matches APIS in lib/site.ts, which supplies spec and accent. */
     readonly apis: readonly ApiCopy[];
-    readonly wikiCta: string;
+    readonly wikiCta: LinkCopy;
     readonly pendingDocs: string;
   };
 
@@ -246,8 +303,8 @@ export interface SiteCopy {
 
   readonly wiki: SectionHead & {
     readonly entries: readonly WikiEntry[];
-    readonly browse: string;
-    readonly apiReference: string;
+    readonly browse: LinkCopy;
+    readonly apiReference: LinkCopy;
   };
 
   readonly stickyCta: {
@@ -255,20 +312,25 @@ export interface SiteCopy {
       /** Used when FEATURES.demoServer is off, since the default promises a demo. */
       readonly playerNoDemo: string;
     };
-    readonly demo: string;
-    readonly download: string;
-    readonly installGuide: string;
+    readonly demo: LinkCopy;
+    readonly download: LinkCopy;
+    readonly installGuide: LinkCopy;
   };
 
   readonly discordCallback: {
     readonly meta: MetaCopy;
     /** Label at the Discord end of the link bar. */
     readonly from: string;
+    /**
+     * Every outcome but `idle` reopens the app. Their `href` is only the
+     * fallback the click handler replaces: it cannot carry the payload, because
+     * by the time anyone clicks, the URL it came from has been stripped.
+     */
     readonly outcomes: Readonly<Record<DiscordOutcome, OutcomeCopy>>;
     /** Precedes the identifier Discord sent back. */
     readonly codeLabel: string;
     readonly footnote: string;
-    readonly home: string;
+    readonly home: LinkCopy;
   };
 
   readonly enrolled: {
@@ -283,13 +345,13 @@ export interface SiteCopy {
     /** Shown while the claim is being redeemed. */
     readonly redeeming: string;
     readonly footnote: string;
-    readonly home: string;
+    readonly home: LinkCopy;
   };
 
   readonly footer: {
     readonly blurb: string;
-    readonly columns: Readonly<Record<string, string>>;
-    readonly links: Readonly<Record<string, string>>;
+    /** Rendered in order, each column in order. */
+    readonly columns: readonly FooterColumn[];
     readonly copyright: (year: number) => string;
     readonly source: string;
   };

@@ -1,7 +1,6 @@
 ---
 import Button from './Button.astro';
 import { copy } from '../copy';
-import { LINKS } from '../lib/site';
 
 /**
  * The entry point to the wiki.
@@ -34,7 +33,7 @@ const ACCENTS = [
       <ul>
         {t.entries.map((e, i) => (
           <li style={`--accent:${ACCENTS[i % ACCENTS.length]}`} data-reveal data-reveal-index={i}>
-            <a href={LINKS.wiki}>
+            <a href={e.href}>
               <span class="who">{e.who}</span>
               <span class="title">{e.title}</span>
               <span class="blurb">{e.blurb}</span>
@@ -46,8 +45,8 @@ const ACCENTS = [
   }
 
   <div class="acts">
-    <Button href={LINKS.wiki} variant="primary">{t.browse}</Button>
-    <Button href="#integrations">{t.apiReference}</Button>
+    <Button href={t.browse.href} external={t.browse.external} variant="primary">{t.browse.label}</Button>
+    <Button href={t.apiReference.href} external={t.apiReference.external}>{t.apiReference.label}</Button>
   </div>
 </div>
 

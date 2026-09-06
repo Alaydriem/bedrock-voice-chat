@@ -1,6 +1,10 @@
 /**
- * Everything about the site that is a fact rather than a design decision.
- * Change a URL or a version here and it changes everywhere.
+ * Everything about the site that is structural rather than editorial: accents,
+ * feature gates, spectrum order, and the constants the inline scripts need.
+ *
+ * Link targets are NOT here. A label and its href are one fact, so they sit
+ * together in src/copy/en.ts. The only URL-ish constants left are the two the
+ * client-side scripts build requests from, and they are not rendered as hrefs.
  */
 
 /**
@@ -14,29 +18,6 @@
  */
 export const VERSION = import.meta.env.PUBLIC_BVC_VERSION ?? '1.0.0-beta.20';
 export const MODS_VERSION = import.meta.env.PUBLIC_BVC_MODS_VERSION ?? `mods-v${VERSION}`;
-
-const REPO = 'https://github.com/Alaydriem/bedrock-voice-chat';
-
-export const LINKS = {
-  repo: REPO,
-  releases: `${REPO}/releases`,
-  releaseTag: `${REPO}/releases/tag/v${VERSION}`,
-  modsRelease: `${REPO}/releases/tag/${MODS_VERSION}`,
-  wiki: '/wiki/',
-  install: '/wiki/server/installation/',
-  discord: 'https://discord.gg/CdtchD5zxr',
-  youtube: 'https://youtube.com/@alaydriem',
-  patreon: 'https://www.patreon.com/c/Alaydriem',
-  /** Served off the apex, not from gh-pages. */
-  windowsDirect: 'https://www.bedrockvoicechat.com/downloads/latest/windows.exe',
-  googlePlay: 'https://play.google.com/store/apps/details?id=com.alaydriem.bvc.client',
-  /** One TestFlight build covers both macOS and iOS. */
-  testFlight: 'https://testflight.apple.com/join/JSG7bVqC',
-  modrinth: 'https://modrinth.com/mod/bedrock-voice-chat',
-  curseforgeBedrock: 'https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat',
-  streamDeck:
-    'https://marketplace.elgato.com/product/bedrock-voice-chat-c5a151d6-3669-487f-9548-bfe689e50203',
-} as const;
 
 /* ------------------------------------------------------------------ *
  * FEATURE GATES
@@ -90,8 +71,6 @@ export const COMMUNITY_SERVER = {
 
 export interface Rung {
   readonly accent: string;
-  readonly href: string;
-  readonly external: boolean;
   /** Appends the TBD marker to the rung's meta line. */
   readonly pending: boolean;
   /** Hidden entirely when this feature is off. Always shown when absent. */
@@ -99,121 +78,50 @@ export interface Rung {
 }
 
 export const LADDER_RUNGS: readonly Rung[] = [
-  { accent: 'var(--sp-cyan)', href: '#download', external: false, pending: true, feature: 'demoServer' },
-  { accent: 'var(--sp-green)', href: '/wiki/', external: false, pending: false },
-  { accent: 'var(--sp-orange)', href: 'https://www.patreon.com/c/Alaydriem', external: true, pending: true, feature: 'communityServer' },
-  { accent: 'var(--sp-violet)', href: '#', external: false, pending: true, feature: 'privateInstances' },
+  { accent: 'var(--sp-cyan)', pending: true, feature: 'demoServer' },
+  { accent: 'var(--sp-green)', pending: false },
+  { accent: 'var(--sp-orange)', pending: true, feature: 'communityServer' },
+  { accent: 'var(--sp-violet)', pending: true, feature: 'privateInstances' },
 ];
 
 /* ------------------------------------------------------------------ *
  * APIS
  *
  * Three surfaces, two of which already publish generated reference docs into
- * gh-pages. Each generated site is versioned by CI (`/api/<version>`,
- * `/websocket/<version>`) with an unversioned alias at the root of its
- * directory, which is what these link to.
+ * gh-pages. The name, description and link for each are in
+ * copy.integrations.apis; this supplies what is not editorial, in the same
+ * order.
  * ------------------------------------------------------------------ */
 
 export interface ApiSurface {
-  /** Joins to the matching entry in copy.integrations.apis. */
+  /** Names the row. Not rendered; the copy entry at the same index is. */
   readonly id: 'clientWs' | 'serverApi' | 'serverWs';
   readonly spec: string;
-  readonly href: string;
   readonly accent: string;
   /** Set when the docs are not deployed yet. */
   readonly pending?: boolean;
 }
 
 export const APIS: readonly ApiSurface[] = [
-  { id: 'clientWs', spec: 'AsyncAPI', href: '/websocket', accent: 'var(--sp-cyan)' },
-  { id: 'serverApi', spec: 'OpenAPI', href: '/api', accent: 'var(--sp-green)' },
+  { id: 'clientWs', spec: 'AsyncAPI', accent: 'var(--sp-cyan)' },
+  { id: 'serverApi', spec: 'OpenAPI', accent: 'var(--sp-green)' },
   // No generated docs deployed for this one yet: only docs/openapi.json and
-  // docs/websocket-api.yaml exist in the repo. Repoint once CI publishes it.
-  { id: 'serverWs', spec: 'AsyncAPI', href: '/websocket', accent: 'var(--sp-orange)', pending: true },
+  // docs/websocket-api.yaml exist in the repo.
+  { id: 'serverWs', spec: 'AsyncAPI', accent: 'var(--sp-orange)', pending: true },
 ];
 
 /* ------------------------------------------------------------------ *
  * PLATFORMS
  *
- * Every one of these ships. release.yml builds build-client (Windows),
+ * The cards themselves are copy.downloads.client and copy.downloads.server.
+ * Their glyph and accent are in Downloads.astro, keyed on the `id` of each.
+ *
+ * Every one of them ships. release.yml builds build-client (Windows),
  * build-macos-client, build-linux-client, build-android, build-ios,
- * build-mod-fabric, build-mod-paper and build-mod-bds — so nothing here is
+ * build-mod-fabric, build-mod-paper and build-mod-bds — so nothing there is
  * "coming soon". The old site still carried Coming Soon labels for macOS, iOS
  * and Linux long after they started shipping, which reads as a dead project.
  * ------------------------------------------------------------------ */
-
-export interface Platform {
-  /** A product name; not translated. */
-  readonly os: string;
-  /** Where the build comes from. Store names, so not translated. */
-  readonly note: string;
-  /** Joins to copy.downloads.channels. */
-  readonly channel: 'stable' | 'beta' | 'testflight';
-  readonly accent: string;
-  readonly href: string;
-}
-
-export const CLIENT_PLATFORMS: readonly Platform[] = [
-  {
-    os: 'Windows',
-    note: 'ASIO + WASAPI',
-    channel: 'stable',
-    accent: 'var(--sp-violet)',
-    href: LINKS.windowsDirect,
-  },
-  {
-    os: 'macOS',
-    note: 'TestFlight',
-    channel: 'testflight',
-    accent: 'var(--sp-blue)',
-    href: LINKS.testFlight,
-  },
-  {
-    os: 'Linux',
-    note: 'deb + AppImage',
-    channel: 'stable',
-    accent: 'var(--sp-cyan)',
-    href: LINKS.releaseTag,
-  },
-  {
-    os: 'Android',
-    note: 'Google Play',
-    channel: 'beta',
-    accent: 'var(--sp-green)',
-    href: LINKS.googlePlay,
-  },
-  {
-    os: 'iOS',
-    note: 'TestFlight',
-    channel: 'testflight',
-    accent: 'var(--sp-orange)',
-    href: LINKS.testFlight,
-  },
-];
-
-export const SERVER_PLATFORMS: readonly Platform[] = [
-  {
-    os: 'Bedrock Dedicated Server',
-    note: 'CurseForge',
-    channel: 'stable',
-    accent: 'var(--sp-lime)',
-    href: LINKS.curseforgeBedrock,
-  },
-  {
-    os: 'Java · Fabric',
-    note: 'Modrinth',
-    channel: 'stable',
-    accent: 'var(--sp-yellow)',
-    href: LINKS.modrinth,
-  },
-  {
-    os: 'Java · Paper',
-    note: 'Modrinth',
-    channel: 'stable',
-    accent: 'var(--sp-ember)',
-    href: LINKS.modrinth,
-  },
-];
 
 /**
  * The rotating list in "Your friend on ___ is in the conversation."

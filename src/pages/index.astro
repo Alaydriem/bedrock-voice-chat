@@ -58,7 +58,6 @@ import StickyCta from '../components/StickyCta.astro';
 import Videos from '../components/Videos.astro';
 import WikiBlock from '../components/WikiBlock.astro';
 import { copy } from '../copy';
-import { LINKS } from '../lib/site';
 
 const cap = copy.capabilities;
 
@@ -194,9 +193,15 @@ const proximityStats = copy.proximityStats.map((st, i) => ({ ...st, accent: STAT
         <h2 class="display sec-h">{copy.operators.heading.lead} <b>{copy.operators.heading.strong}</b></h2>
         <InstallSteps />
         <div class="acts">
-          <Button href={LINKS.install} variant="primary">{copy.operators.actions.guide}</Button>
-          <Button href={LINKS.curseforgeBedrock} external>{copy.operators.actions.bedrock}</Button>
-          <Button href={LINKS.modrinth} external>{copy.operators.actions.java}</Button>
+          {
+            ([copy.operators.actions.guide, copy.operators.actions.bedrock, copy.operators.actions.java]).map(
+              (a, i) => (
+                <Button href={a.href} external={a.external} variant={i === 0 ? 'primary' : 'outline'}>
+                  {a.label}
+                </Button>
+              ),
+            )
+          }
         </div>
         <p class="note">{copy.operators.note}</p>
       </div>

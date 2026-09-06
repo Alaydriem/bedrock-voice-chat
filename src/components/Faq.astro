@@ -1,6 +1,5 @@
 ---
 import { copy } from '../copy';
-import { LINKS } from '../lib/site';
 
 /**
  * The questions people actually ask, each answered in a sentence or two and
@@ -15,20 +14,6 @@ import { LINKS } from '../lib/site';
  */
 
 const t = copy.faq;
-
-/** Link targets only; the labels are in the copy module, joined by index. */
-const LINKS_FOR: readonly (string | null)[] = [
-  LINKS.install,
-  null,
-  '/wiki/',
-  null,
-  null,
-  null,
-  LINKS.modrinth,
-  null,
-  null,
-  LINKS.streamDeck,
-];
 ---
 
 <div class="faq">
@@ -39,7 +24,7 @@ const LINKS_FOR: readonly (string | null)[] = [
 
   <ul>
     {
-      t.entries.map((e, i) => (
+      t.entries.map((e) => (
         <li>
           <details>
             <summary>
@@ -52,9 +37,13 @@ const LINKS_FOR: readonly (string | null)[] = [
             </summary>
             <div class="body">
               <p>{e.a}</p>
-              {e.linkLabel && LINKS_FOR[i] && (
-                <a href={LINKS_FOR[i]!}>
-                  {e.linkLabel}
+              {e.link && (
+                <a
+                  href={e.link.href}
+                  target={e.link.external ? '_blank' : undefined}
+                  rel={e.link.external ? 'noopener' : undefined}
+                >
+                  {e.link.label}
                   <span aria-hidden="true"> →</span>
                 </a>
               )}

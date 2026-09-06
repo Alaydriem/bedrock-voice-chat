@@ -45,30 +45,31 @@ const t = copy.enrolled;
       </div>
       <pre class="enroll__snippet"><code>{t.instructions}</code></pre>
 
-      <Button href="/wiki/server/">{t.outcomes.issued.action}</Button>
+      <Button href={t.outcomes.issued.action.href} external={t.outcomes.issued.action.external}>
+        {t.outcomes.issued.action.label}
+      </Button>
     </section>
 
-    <section class="enroll__panel" data-for="taken">
-      <h1>{t.outcomes.taken.heading.lead} <strong>{t.outcomes.taken.heading.strong}</strong></h1>
-      <p>{t.outcomes.taken.body}</p>
-      <Button href={`${REGISTRY_ORIGIN}/oauth/start`}>{t.outcomes.taken.action}</Button>
-      {t.outcomes.taken.secondary && <Button href="/wiki/">{t.outcomes.taken.secondary}</Button>}
-    </section>
-
-    <section class="enroll__panel" data-for="refused">
-      <h1>{t.outcomes.refused.heading.lead} <strong>{t.outcomes.refused.heading.strong}</strong></h1>
-      <p>{t.outcomes.refused.body}</p>
-      <p class="enroll__reason" id="reason"></p>
-      <Button href={`${REGISTRY_ORIGIN}/oauth/start`}>{t.outcomes.refused.action}</Button>
-      {t.outcomes.refused.secondary && <Button href="/wiki/">{t.outcomes.refused.secondary}</Button>}
-    </section>
-
-    <section class="enroll__panel" data-for="idle">
-      <h1>{t.outcomes.idle.heading.lead} <strong>{t.outcomes.idle.heading.strong}</strong></h1>
-      <p>{t.outcomes.idle.body}</p>
-      <Button href={`${REGISTRY_ORIGIN}/oauth/start`}>{t.outcomes.idle.action}</Button>
-      {t.outcomes.idle.secondary && <Button href="/wiki/">{t.outcomes.idle.secondary}</Button>}
-    </section>
+    {
+      (['taken', 'refused', 'idle'] as const).map((id) => (
+        <section class="enroll__panel" data-for={id}>
+          <h1>{t.outcomes[id].heading.lead} <strong>{t.outcomes[id].heading.strong}</strong></h1>
+          <p>{t.outcomes[id].body}</p>
+          {id === 'refused' && <p class="enroll__reason" id="reason" />}
+          <Button href={t.outcomes[id].action.href} external={t.outcomes[id].action.external}>
+            {t.outcomes[id].action.label}
+          </Button>
+          {t.outcomes[id].secondary && (
+            <Button
+              href={t.outcomes[id].secondary!.href}
+              external={t.outcomes[id].secondary!.external}
+            >
+              {t.outcomes[id].secondary!.label}
+            </Button>
+          )}
+        </section>
+      ))
+    }
 
     <p class="enroll__footnote">{t.footnote}</p>
   </main>

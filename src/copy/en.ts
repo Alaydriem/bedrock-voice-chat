@@ -1,3 +1,4 @@
+import { VERSION } from '../lib/site';
 import type { SiteCopy } from './types';
 
 /**
@@ -11,10 +12,20 @@ import type { SiteCopy } from './types';
  *  - Headings are split into `lead` and `strong`. The `strong` half renders bold.
  *    Put the emphasis where it belongs in your language; it does not have to be
  *    the second half of the sentence.
- *  - No HTML in any string. If a sentence needs a link, the component supplies
- *    it and the label is a separate key.
+ *  - No HTML in any string. If a sentence needs a link, the `href` sits on the
+ *    same object as its label.
+ *  - Copy the `href` values across unchanged. They are here so that a label and
+ *    its destination can be read as one fact, not so that each language picks
+ *    its own targets. Override one only where the destination genuinely differs.
  *  - `tbd` marks a value that is not real yet and will be removed before launch.
+ *
+ * `VERSION` is the only interpolation. It comes from the build environment so a
+ * release does not need a commit here.
  */
+
+/** Where the source and its release artefacts live. */
+const REPO = 'https://github.com/Alaydriem/bedrock-voice-chat';
+
 export const en = {
   meta: {
     title: 'Bedrock Voice Chat · proximity voice for Minecraft Bedrock',
@@ -30,15 +41,15 @@ export const en = {
   nav: {
     menu: 'Menu',
     ariaLabel: 'Main',
-    links: {
-      how: 'How it works',
-      platforms: 'Platforms',
-      operators: 'Run a server',
-      wiki: 'Wiki',
-      integrations: 'Integrations',
-    },
-    discord: 'Discord',
-    download: 'Download',
+    links: [
+      { label: 'How it works', href: '#how' },
+      { label: 'Platforms', href: '#download' },
+      { label: 'Run a server', href: '#operators' },
+      { label: 'Wiki', href: '/wiki/' },
+      { label: 'Integrations', href: '#integrations' },
+    ],
+    discord: { label: 'Discord', href: 'https://discord.gg/CdtchD5zxr', external: true },
+    download: { label: 'Download', href: '#download' },
   },
 
   hero: {
@@ -48,20 +59,20 @@ export const en = {
       player: {
         heading: { lead: 'Walk up to someone.', strong: "You're already talking." },
         lead: "There's no call to join and no key to hold. You talk, and whoever is close enough hears you. Walk off mid-sentence and your voice fades out, the same way it would anywhere else.",
-        cta: 'Download for Windows',
+        cta: { label: 'Download for Windows', href: '#download' },
       },
       operator: {
         heading: { lead: 'Five minutes, and', strong: 'your world has voice.' },
         lead: "Add one addon to your world and run one binary next to your server. It's free, you host it yourself, and the source is public, and your world files stay exactly as they are.",
-        cta: 'Read the install guide',
+        cta: { label: 'Read the install guide', href: '/wiki/server/installation/' },
       },
       creator: {
         heading: { lead: 'Every voice lands on', strong: 'its own track.' },
         lead: 'Record a session and you get one timecoded track per player. Sort the levels out afterwards instead of hoping they were right at the time. A Discord call with Craig gives you a single mixed track and no way back.',
-        cta: 'See the creator tools',
+        cta: { label: 'See the creator tools', href: '#creators' },
       },
     },
-    demoCta: 'Try the demo server',
+    demoCta: { label: 'Try the demo server', href: '#ladder' },
     creatorAside:
       "Multitrack recording is in every build, including the free self-hosted one. There's no creator tier to buy.",
   },
@@ -166,10 +177,9 @@ export const en = {
     ],
   },
 
-
   comparison: {
-    eyebrow: 'Honestly',
-    heading: { lead: 'Why not just', strong: 'use Discord?' },
+    eyebrow: '',
+    heading: { lead: 'Why not', strong: 'use Discord?' },
     lead: "Bedrock Voice Chat is designed for Minecraft, and does things no other call app can do.",
     capabilityColumn: 'Capability',
     columns: ['BVC', 'Discord call', 'Simple Voice Chat'],
@@ -206,28 +216,28 @@ export const en = {
         title: 'The demo server',
         body: "Install the client, put in one address, and walk around with whoever's on. Nothing to configure and nothing to host. It's the quickest way to hear what this page is describing.",
         meta: 'Coming soon',
-        cta: 'Get the client',
+        cta: { label: 'Get the client', href: '#download' },
       },
       {
         label: 'Run it yourself',
         title: 'Your own server',
         body: "One addon on the world, one server binary, one config file. It's free and it's yours. No seat count, no per-player billing, and no account system to sign anyone up for.",
         meta: 'Free · self-hosted',
-        cta: 'Install guide',
+        cta: { label: 'Install guide', href: '/wiki/' },
       },
       {
         label: 'Become a Member',
         title: 'Patreon and Youtube Members Server',
         body: "Become a member and link your current world to a members server, included with your membership.",
         meta: 'Coming Soon',
-        cta: 'See tiers',
+        cta: { label: 'See tiers', href: 'https://www.patreon.com/c/Alaydriem', external: true },
       },
       {
         label: 'Your Own Hosted Instance',
         title: 'Private Servers',
         body: "Need your own dedicated server for a large group or event? This tier will give you a private instance of the server with dedicated resources and support.",
         meta: 'Coming Soon',
-        cta: 'See tiers',
+        cta: { label: 'See tiers', href: '#' },
       },
     ],
   },
@@ -241,13 +251,78 @@ export const en = {
       '41 ms typical end-to-end latency',
       'Opus codec, tuned for voice at low bitrate',
     ],
-    note: 'On Xbox, PlayStation or Switch? Install the mobile app on your phone and sign in with the same account. You show up in the world wherever your character is standing.',
+    note: 'On Xbox, PlayStation or Switch? Install the mobile app on your phone and sign in with the same account.',
     serverSubhead: 'For your server',
     channels: {
       stable: 'Full release',
       beta: 'Open beta',
       testflight: 'TestFlight',
     },
+    client: [
+      {
+        id: 'windows',
+        os: 'Windows',
+        note: 'ASIO + WASAPI',
+        channel: 'stable',
+        href: 'https://www.bedrockvoicechat.com/downloads/latest/windows.exe',
+      },
+      {
+        id: 'macos',
+        os: 'macOS',
+        note: 'TestFlight',
+        channel: 'testflight',
+        // One TestFlight build covers both macOS and iOS.
+        href: 'https://testflight.apple.com/join/JSG7bVqC',
+      },
+      {
+        id: 'linux',
+        os: 'Linux',
+        note: 'deb + AppImage',
+        channel: 'stable',
+        href: `${REPO}/releases/tag/v${VERSION}`,
+      },
+      {
+        id: 'android',
+        os: 'Android',
+        note: 'Google Play',
+        channel: 'beta',
+        href: 'https://play.google.com/store/apps/details?id=com.alaydriem.bvc.client',
+      },
+      {
+        id: 'ios',
+        os: 'iOS',
+        note: 'TestFlight',
+        channel: 'testflight',
+        href: 'https://testflight.apple.com/join/JSG7bVqC',
+      },
+    ],
+    // One card per download, not one per platform. Fabric and Paper were two
+    // cards pointing at the same Modrinth page, which reads as two downloads.
+    server: [
+      {
+        id: 'bds',
+        os: 'Bedrock Dedicated Server',
+        note: 'CurseForge',
+        channel: 'stable',
+        href: 'https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat',
+      },
+      {
+        id: 'realms',
+        os: 'Realms & Aternos',
+        note: 'CurseForge',
+        channel: 'stable',
+        // The no-net variant, for any host without @minecraft/server-net.
+        href: 'https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat-for-realms',
+      },
+      {
+        id: 'java',
+        os: 'Java · Fabric & Paper',
+        note: 'Modrinth',
+        channel: 'stable',
+        // One Modrinth page carries both the Fabric mod and the Paper plugin.
+        href: 'https://modrinth.com/mod/bedrock-voice-chat',
+      },
+    ],
   },
 
   operators: {
@@ -275,9 +350,15 @@ export const en = {
     ],
     note: "Not the person who runs your server? Send them this section. That's the whole job.",
     actions: {
-      guide: 'Read the install guide',
-      bedrock: 'Bedrock addon',
-      java: 'Java plugin',
+      guide: { label: 'Read the install guide', href: '/wiki/server/installation/' },
+      // Every CurseForge project on one page, because this one button stands
+      // for both the Bedrock addon and the Realms/no-net variant.
+      bedrock: {
+        label: 'Bedrock addon',
+        href: 'https://www.curseforge.com/members/alaydriem/projects',
+        external: true,
+      },
+      java: { label: 'Java plugin', href: 'https://modrinth.com/mod/bedrock-voice-chat', external: true },
     },
   },
 
@@ -288,26 +369,38 @@ export const en = {
       label: 'Stream Deck',
       heading: 'Mute, deafen and record without leaving the game.',
       body: 'The official plugin on the Elgato Marketplace. Mute, deafen and arm a multitrack recording from a physical key, and read the state off the key face without switching windows.',
-      cta: 'Get it on the Elgato Marketplace',
+      cta: {
+        label: 'Get it on the Elgato Marketplace',
+        href: 'https://marketplace.elgato.com/product/bedrock-voice-chat-c5a151d6-3669-487f-9548-bfe689e50203',
+        external: true,
+      },
       ariaLabel:
         'The Bedrock Voice Chat Stream Deck plugin: a Stream Deck with mute, volume and record keys bound to it',
     },
     apisLabel: 'Or build your own',
+    // CI publishes each generated site under /api/<version> and
+    // /websocket/<version>, with an unversioned alias at the directory root.
     apis: [
       {
         name: 'Client WebSocket',
         what: 'Drive the desktop client: mute, deafen, record, subscribe to state. This is what the Stream Deck plugin talks to.',
+        href: '/websocket',
       },
       {
         name: 'Server API',
         what: 'Channels, players, permissions and moderation over HTTP with mTLS.',
+        href: '/api',
       },
       {
         name: 'Server WebSocket',
         what: 'Live server-side events: joins, leaves, channel changes and position feeds.',
+        // No generated docs deployed for this one yet: only docs/openapi.json
+        // and docs/websocket-api.yaml exist in the repo. Repoint once CI
+        // publishes it; APIS marks it pending until then.
+        href: '/websocket',
       },
     ],
-    wikiCta: 'Read the wiki',
+    wikiCta: { label: 'Read the wiki', href: '/wiki/' },
     pendingDocs: 'docs path',
   },
 
@@ -318,7 +411,7 @@ export const en = {
       {
         q: 'Do I need to run a server?',
         a: "Someone does, but it doesn't have to be you. If your server already runs BVC you only need the client. If nobody runs it, the install is one addon plus one docker command and takes about five minutes.",
-        linkLabel: 'Install guide',
+        link: { label: 'Install guide', href: '/wiki/server/installation/' },
       },
       {
         q: 'Is it free?',
@@ -327,7 +420,7 @@ export const en = {
       {
         q: 'My friend plays on Xbox / PlayStation / Switch. Can they use it?',
         a: 'Yes, and this is the part no Java-only mod can do. They run the mobile app next to the console and sign in with the same account, then join their server.',
-        linkLabel: 'Console and mobile',
+        link: { label: 'Console and mobile', href: '/wiki/' },
       },
       {
         q: 'Does it work on Realms?',
@@ -344,12 +437,20 @@ export const en = {
       {
         q: 'Does it work with Java?',
         a: 'Yes, on Fabric and Paper, from Modrinth.',
-        linkLabel: 'Get the Java plugin',
+        link: {
+          label: 'Get the Java plugin',
+          href: 'https://modrinth.com/mod/bedrock-voice-chat',
+          external: true,
+        },
       },
       {
         q: 'Is Geyser / Floodgate supported?',
         a: 'Yes, on Fabric and Paper, from Modrinth. Bedrock Voice Chat runs on both Bedrock and Java servers. And everyone can talk to each other.',
-        linkLabel: 'Get the Java plugin',
+        link: {
+          label: 'Get the Java plugin',
+          href: 'https://modrinth.com/mod/bedrock-voice-chat',
+          external: true,
+        },
       },
       {
         q: 'Do my players need to create an account?',
@@ -360,23 +461,23 @@ export const en = {
 
   wiki: {
     eyebrow: 'Documentation',
-    heading: { lead: 'Everything else is', strong: 'written down.' },
-    lead: 'Setup, configuration and troubleshooting all live in the wiki.',
+    heading: { lead: 'Have questions?', strong: '' },
+    lead: 'Full documentation covering setup, configuration and troubleshooting.',
     entries: [],
-    browse: 'Browse the wiki',
-    apiReference: 'API reference',
+    browse: { label: 'Browse the wiki', href: '/wiki/' },
+    apiReference: { label: 'API reference', href: '#integrations' },
   },
 
   stickyCta: {
     messages: {
-      player: 'Hear it before you install anything.',
-      playerNoDemo: 'Free, self-hosted, and every platform is supported.',
-      operator: 'Join the demo server in a private session and hear it working without installing anything',
+      player: '',
+      playerNoDemo: 'Free, self-hosted, and every platform is supported. ',
+      operator: '',
       creator: 'Every voice on its own timecoded track.',
     },
-    demo: 'Try the demo',
-    download: 'Download',
-    installGuide: 'Install guide',
+    demo: { label: '', href: '#ladder' },
+    download: { label: 'Download', href: '#download' },
+    installGuide: { label: 'Install guide', href: '/wiki/server/installation/' },
   },
 
   discordCallback: {
@@ -389,30 +490,30 @@ export const en = {
       linked: {
         heading: { lead: 'Switch back to', strong: 'Bedrock Voice Chat' },
         body: 'Discord sent your account back. Bedrock Voice Chat finishes the link when you switch to it.',
-        action: 'Reopen Bedrock Voice Chat',
+        action: { label: 'Reopen Bedrock Voice Chat', href: 'bedrock-voice-chat://discord-callback' },
       },
       cancelled: {
         heading: { lead: 'Discord link', strong: 'cancelled' },
         body: 'You declined the request on Discord. Nothing changed on either account. Open Settings in Bedrock Voice Chat to link Discord again.',
-        action: 'Reopen Bedrock Voice Chat',
+        action: { label: 'Reopen Bedrock Voice Chat', href: 'bedrock-voice-chat://discord-callback' },
       },
       failed: {
         heading: { lead: 'Discord did not', strong: 'finish the link' },
         body: 'Discord returned an error instead of an account. Open Settings in Bedrock Voice Chat and link Discord again.',
-        action: 'Reopen Bedrock Voice Chat',
-        secondary: 'Open the wiki',
+        action: { label: 'Reopen Bedrock Voice Chat', href: 'bedrock-voice-chat://discord-callback' },
+        secondary: { label: 'Open the wiki', href: '/wiki/' },
       },
       idle: {
         heading: { lead: 'Nothing to', strong: 'link here' },
         body: 'This page finishes a Discord link that starts inside Bedrock Voice Chat. Open Settings in the app and link Discord.',
-        action: 'Get Bedrock Voice Chat',
-        secondary: 'Open the wiki',
+        action: { label: 'Get Bedrock Voice Chat', href: '/#download' },
+        secondary: { label: 'Open the wiki', href: '/wiki/' },
       },
     },
     codeLabel: 'Discord reported',
     footnote:
       'Linking your Discord account to Bedrock Voice Chat enables you to receive experimental features and participate in the community. You can unlink Discord at any time from the app settings.',
-    home: 'bedrockvoicechat.com',
+    home: { label: 'bedrockvoicechat.com', href: '/' },
   },
 
   enrolled: {
@@ -424,25 +525,37 @@ export const en = {
       issued: {
         heading: { lead: 'Your server has an', strong: 'enrollment token' },
         body: 'Paste it into your server config and start the server. It works once, and it expires in a day.',
-        action: 'Open the setup guide',
+        action: { label: 'Open the setup guide', href: '/wiki/server/' },
       },
       taken: {
         heading: { lead: 'This link has', strong: 'already been used' },
         body: 'An enrollment token is handed over once. If you did not copy it, start again and you will be issued another.',
-        action: 'Enroll again',
-        secondary: 'Open the wiki',
+        action: {
+          label: 'Enroll again',
+          href: 'https://registry.bedrockvoicechat.com/oauth/start',
+          external: true,
+        },
+        secondary: { label: 'Open the wiki', href: '/wiki/' },
       },
       refused: {
         heading: { lead: 'No token was', strong: 'issued' },
         body: 'The registry refused this enrollment.',
-        action: 'Enroll again',
-        secondary: 'Open the wiki',
+        action: {
+          label: 'Enroll again',
+          href: 'https://registry.bedrockvoicechat.com/oauth/start',
+          external: true,
+        },
+        secondary: { label: 'Open the wiki', href: '/wiki/' },
       },
       idle: {
         heading: { lead: 'Nothing to', strong: 'enroll here' },
         body: 'This page finishes an enrollment that starts at the registry. Sign in with Discord to be issued a name.',
-        action: 'Start enrollment',
-        secondary: 'Open the wiki',
+        action: {
+          label: 'Start enrollment',
+          href: 'https://registry.bedrockvoicechat.com/oauth/start',
+          external: true,
+        },
+        secondary: { label: 'Open the wiki', href: '/wiki/' },
       },
     },
     tokenLabel: 'Enrollment token',
@@ -452,33 +565,59 @@ export const en = {
     redeeming: 'Redeeming...',
     footnote:
       'The token identifies your server to the registry once. The name you are assigned stays with your server key, and the registry keeps a record of which Discord account it was issued to.',
-    home: 'bedrockvoicechat.com',
+    home: { label: 'bedrockvoicechat.com', href: '/' },
   },
 
   footer: {
     blurb:
       'Proximity voice chat for Minecraft Bedrock and Java. Self-hosted, encrypted, source available.',
-    columns: {
-      download: 'Download',
-      docs: 'Docs',
-      community: 'Community',
-    },
-    links: {
-      windows: 'Windows',
-      apple: 'macOS & iOS',
-      android: 'Android',
-      linux: 'Linux',
-      bedrockAddon: 'Bedrock addon',
-      javaPlugin: 'Java plugin',
-      wiki: 'Wiki',
-      streamDeck: 'Stream Deck plugin',
-      clientWs: 'Client WebSocket API',
-      serverApi: 'Server API',
-      discord: 'Discord',
-      youtube: 'YouTube',
-      patreon: 'Patreon',
-      github: 'GitHub',
-    },
+    columns: [
+      {
+        title: 'Download',
+        links: [
+          {
+            label: 'Windows',
+            href: 'https://www.bedrockvoicechat.com/downloads/latest/windows.exe',
+            external: true,
+          },
+          { label: 'macOS & iOS', href: 'https://testflight.apple.com/join/JSG7bVqC', external: true },
+          {
+            label: 'Android',
+            href: 'https://play.google.com/store/apps/details?id=com.alaydriem.bvc.client',
+            external: true,
+          },
+          { label: 'Linux', href: `${REPO}/releases/tag/v${VERSION}`, external: true },
+          {
+            label: 'Bedrock addon',
+            href: 'https://www.curseforge.com/members/alaydriem/projects',
+            external: true,
+          },
+          { label: 'Java plugin', href: 'https://modrinth.com/mod/bedrock-voice-chat', external: true },
+        ],
+      },
+      {
+        title: 'Docs',
+        links: [
+          { label: 'Wiki', href: '/wiki/' },
+          {
+            label: 'Stream Deck plugin',
+            href: 'https://marketplace.elgato.com/product/bedrock-voice-chat-c5a151d6-3669-487f-9548-bfe689e50203',
+            external: true,
+          },
+          { label: 'Client WebSocket API', href: '/websocket' },
+          { label: 'Server API', href: '/api' },
+        ],
+      },
+      {
+        title: 'Community',
+        links: [
+          { label: 'Discord', href: 'https://discord.gg/CdtchD5zxr', external: true },
+          { label: 'YouTube', href: 'https://youtube.com/@alaydriem', external: true },
+          { label: 'Patreon', href: 'https://www.patreon.com/c/Alaydriem', external: true },
+          { label: 'GitHub', href: REPO, external: true },
+        ],
+      },
+    ],
     copyright: (year: number) => `© ${year} Alaydriem`,
     source: 'source available on GitHub',
   },

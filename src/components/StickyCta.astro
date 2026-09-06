@@ -1,7 +1,7 @@
 ---
 import Button from './Button.astro';
 import { copy } from '../copy';
-import { DEMO_SERVER, enabled, LINKS } from '../lib/site';
+import { DEMO_SERVER, enabled } from '../lib/site';
 
 /**
  * A persistent conversion rail, revealed once the hero has scrolled away.
@@ -28,17 +28,19 @@ const t = copy.stickyCta;
   <span class="acts">
     {
       enabled('demoServer') && (
-        <Button href="#ladder" size="sm">
-          {t.demo}
+        <Button href={t.demo.href} external={t.demo.external} size="sm">
+          {t.demo.label}
           {!DEMO_SERVER.address && <span class="tbd">{copy.common.tbd}</span>}
         </Button>
       )
     }
     <span data-aud="player creator">
-      <Button href="#download" size="sm" variant="primary">{t.download}</Button>
+      <Button href={t.download.href} size="sm" variant="primary">{t.download.label}</Button>
     </span>
     <span data-aud="operator">
-      <Button href={LINKS.install} size="sm" variant="primary">{t.installGuide}</Button>
+      <Button href={t.installGuide.href} external={t.installGuide.external} size="sm" variant="primary">
+        {t.installGuide.label}
+      </Button>
     </span>
   </span>
 </div>

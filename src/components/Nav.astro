@@ -2,16 +2,9 @@
 import Button from './Button.astro';
 import Mark from './Mark.astro';
 import { copy } from '../copy';
-import { LINKS } from '../lib/site';
 
+/** Labels and targets both come from copy.nav; there is no second list. */
 const t = copy.nav;
-const links = [
-  { id: 'how', href: '#how' },
-  { id: 'platforms', href: '#download' },
-  { id: 'operators', href: '#operators' },
-  { id: 'wiki', href: LINKS.wiki },
-  { id: 'integrations', href: '#integrations' },
-] as const;
 ---
 
 <header class="nav">
@@ -23,16 +16,22 @@ const links = [
   <nav class="panel" data-nav-panel aria-label={t.ariaLabel}>
     <ul class="links">
       {
-        links.map((l) => (
+        t.links.map((l) => (
           <li>
-            <a href={l.href}>{t.links[l.id]}</a>
+            <a
+              href={l.href}
+              target={l.external ? '_blank' : undefined}
+              rel={l.external ? 'noopener' : undefined}
+            >
+              {l.label}
+            </a>
           </li>
         ))
       }
     </ul>
     <div class="cta">
-      <Button href={LINKS.discord} size="sm" external>{t.discord}</Button>
-      <Button href="#download" size="sm" variant="primary">{t.download}</Button>
+      <Button href={t.discord.href} size="sm" external={t.discord.external}>{t.discord.label}</Button>
+      <Button href={t.download.href} size="sm" variant="primary">{t.download.label}</Button>
     </div>
   </nav>
 

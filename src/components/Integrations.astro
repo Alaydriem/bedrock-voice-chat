@@ -2,7 +2,7 @@
 import Button from './Button.astro';
 import StreamDeck from './StreamDeck.astro';
 import { copy } from '../copy';
-import { APIS, LINKS } from '../lib/site';
+import { APIS } from '../lib/site';
 
 /**
  * Stream Deck leads, the three API surfaces follow.
@@ -13,16 +13,26 @@ import { APIS, LINKS } from '../lib/site';
  * going to read them anyway.
  */
 const t = copy.integrations;
-const byId = new Map(t.apis.map((a, i) => [APIS[i]!.id, a]));
+// Name, description and link come from copy; spec, accent and the pending flag
+// are structural. Paired by position, and a copy row without a match is dropped
+// rather than rendered half-drawn.
+const apis = t.apis
+  .map((c, i) => ({ c, s: APIS[i] }))
+  .filter((row): row is { c: (typeof t.apis)[number]; s: (typeof APIS)[number] } => row.s !== undefined);
 ---
 
 <div class="wrapper">
-  <a class="deck" href={LINKS.streamDeck} target="_blank" rel="noopener">
+  <a
+    class="deck"
+    href={t.deck.cta.href}
+    target={t.deck.cta.external ? '_blank' : undefined}
+    rel={t.deck.cta.external ? 'noopener' : undefined}
+  >
     <StreamDeck />
     <div class="copy">
       <h3>{t.deck.heading}</h3>
       <p>{t.deck.body}</p>
-      <span class="cta">{t.deck.cta} →</span>
+      <span class="cta">{t.deck.cta.label} →</span>
     </div>
   </a>
 
@@ -30,22 +40,22 @@ const byId = new Map(t.apis.map((a, i) => [APIS[i]!.id, a]));
     <p class="eyebrow">{t.apisLabel}</p>
     <ul>
       {
-        APIS.map((api) => (
-          <li style={`--accent:${api.accent}`}>
-            <a href={api.href} target="_blank" rel="noopener">
+        apis.map(({ c, s }) => (
+          <li style={`--accent:${s.accent}`}>
+            <a href={c.href} target="_blank" rel="noopener">
               <span class="top">
-                <span class="name">{byId.get(api.id)?.name}</span>
-                <span class="spec">{api.spec}</span>
+                <span class="name">{c.name}</span>
+                <span class="spec">{s.spec}</span>
               </span>
-              <span class="what">{byId.get(api.id)?.what}</span>
-              {api.pending && <span class="tbd">{t.pendingDocs} {copy.common.tbd}</span>}
+              <span class="what">{c.what}</span>
+              {s.pending && <span class="tbd">{t.pendingDocs} {copy.common.tbd}</span>}
             </a>
           </li>
         ))
       }
     </ul>
     <div class="acts">
-      <Button href={LINKS.wiki} size="sm">{t.wikiCta}</Button>
+      <Button href={t.wikiCta.href} external={t.wikiCta.external} size="sm">{t.wikiCta.label}</Button>
     </div>
   </div>
 </div>

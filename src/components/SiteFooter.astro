@@ -1,42 +1,10 @@
 ---
 import Mark from './Mark.astro';
 import { copy } from '../copy';
-import { LINKS, VERSION } from '../lib/site';
+import { VERSION } from '../lib/site';
 
+/** Columns, order, labels and targets are all one list in copy.footer. */
 const t = copy.footer;
-
-/** Structure and URLs here; every label comes from the copy module. */
-const COLUMNS = [
-  {
-    id: 'download',
-    links: [
-      { id: 'windows', href: LINKS.windowsDirect, external: true },
-      { id: 'apple', href: LINKS.testFlight, external: true },
-      { id: 'android', href: LINKS.googlePlay, external: true },
-      { id: 'linux', href: LINKS.releaseTag, external: true },
-      { id: 'bedrockAddon', href: LINKS.curseforgeBedrock, external: true },
-      { id: 'javaPlugin', href: LINKS.modrinth, external: true },
-    ],
-  },
-  {
-    id: 'docs',
-    links: [
-      { id: 'wiki', href: LINKS.wiki, external: false },
-      { id: 'streamDeck', href: LINKS.streamDeck, external: true },
-      { id: 'clientWs', href: '/websocket', external: false },
-      { id: 'serverApi', href: '/api', external: false },
-    ],
-  },
-  {
-    id: 'community',
-    links: [
-      { id: 'discord', href: LINKS.discord, external: true },
-      { id: 'youtube', href: LINKS.youtube, external: true },
-      { id: 'patreon', href: LINKS.patreon, external: true },
-      { id: 'github', href: LINKS.repo, external: true },
-    ],
-  },
-] as const;
 ---
 
 <footer class="foot">
@@ -50,9 +18,9 @@ const COLUMNS = [
     </div>
 
     {
-      COLUMNS.map((col) => (
-        <nav aria-label={t.columns[col.id]}>
-          <h2>{t.columns[col.id]}</h2>
+      t.columns.map((col) => (
+        <nav aria-label={col.title}>
+          <h2>{col.title}</h2>
           <ul>
             {col.links.map((l) => (
               <li>
@@ -61,7 +29,7 @@ const COLUMNS = [
                   target={l.external ? '_blank' : undefined}
                   rel={l.external ? 'noopener' : undefined}
                 >
-                  {t.links[l.id]}
+                  {l.label}
                 </a>
               </li>
             ))}
