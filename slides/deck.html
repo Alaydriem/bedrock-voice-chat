@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bedrock Voice Chat — server setup</title>
+
+<!-- The real token file. Colour lives in one place; this deck never declares
+     a hex value of its own. If it fails to load, the notice below appears. -->
+<link rel="stylesheet" href="../src/styles/tokens.css">
+
+<style>
+/* ============================================================================
+   SLIDE DECK — a fixed 1920x1080 stage scaled to fit the window.
+
+   The site's type scale is fluid (clamp) because a page has no known width.
+   A slide does: it is always 1920x1080 and the browser scales the whole stage
+   as one transform. So the fluid tokens are overridden with fixed pixels on
+   .stage, and every other token is used exactly as the site uses it.
+
+   Export at any resolution comes from the browser's device scale factor, not
+   from this file. See export.mjs.
+   ========================================================================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--void, #1c1132);
+  color: var(--tx);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ---- the window: centres the stage, nothing else ----------------------- */
+.viewport {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.stage {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  flex: none;
+  overflow: hidden;
+  background: var(--void);
+  transform: scale(var(--k, 1));
+  transform-origin: center center;
+
+  /* Fixed type scale. Overrides the site's fluid clamps on this stage only. */
+  --fs-display: 96px;
+  --fs-head: 68px;
+  --fs-lead: 30px;
+  --fs-body: 26px;
+  --fs-label: 20px;
+  --fs-code: 27px;
+
+  --pad-slide: 112px;
+}
+
+/* ---- slides ------------------------------------------------------------ */
+.slide {
+  position: absolute;
+  inset: 0;
+  padding: var(--pad-slide);
+  padding-bottom: 150px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(14px);
+  transition:
+    opacity 0.45s var(--ease),
+    transform 0.45s var(--ease),
+    visibility 0s linear 0.45s;
+}
+
+.slide.is-live {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}
+
+/* ---- type primitives — the same rules as src/styles/base.css ----------- */
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.display {
+  margin: 26px 0 0;
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--tracking-display);
+  font-weight: 300;
+  text-wrap: balance;
+}
+
+.head {
+  margin: 22px 0 0;
+  font-size: var(--fs-head);
+  line-height: 1.1;
+  letter-spacing: var(--tracking-display);
+  font-weight: 300;
+  text-wrap: balance;
+}
+
+.display b,
+.head b {
+  font-weight: 600;
+}
+
+.lead {
+  margin: 30px 0 0;
+  font-size: var(--fs-lead);
+  line-height: 1.5;
+  color: var(--dim);
+  max-width: 42ch;
+}
+
+/* Emphasis in the script is italic, not bold. Inside a lead it also lifts out
+   of the dimmed ink, which is what the italic is doing on the page. */
+em {
+  font-style: italic;
+}
+
+.lead em {
+  color: var(--tx);
+}
+
+/* A line the viewer must act on: a value to replace, a version to bump. */
+.note {
+  margin: 30px 0 0;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  color: var(--warn);
+}
+
+.note.quiet {
+  color: var(--faint);
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- layout: title ----------------------------------------------------- */
+[data-layout='title'] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 80px;
+  align-items: center;
+}
+
+.mark-lg {
+  width: 360px;
+  height: auto;
+  display: block;
+}
+
+/* ---- layout: break — a part divider ------------------------------------ */
+[data-layout='break'] {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+}
+
+[data-layout='break'] .rule {
+  width: 340px;
+  height: 1px;
+  margin-top: 46px;
+  background: linear-gradient(90deg, var(--sp-violet), var(--sp-teal));
+}
+
+/* ---- layout: text ------------------------------------------------------ */
+
+/* Content is centred in the stage, not hung from the top. A short list left
+   a dead band across the bottom third of the frame. */
+[data-layout='text'] {
+  display: grid;
+  align-content: center;
+}
+
+.rows {
+  margin: 54px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rows li {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  gap: 36px;
+  padding: 30px 0;
+  border-top: 1px solid var(--line);
+  align-items: baseline;
+}
+
+.rows li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+/* Four rows, or rows with long detail lines, need the tighter rhythm. */
+.rows.tight li {
+  padding: 22px 0;
+}
+
+.rows.tight .t {
+  font-size: 34px;
+}
+
+.rows .n {
+  font-size: 22px;
+  color: var(--brand-lift);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  text-align: center;
+  padding: 7px 0;
+}
+
+/* A row that marks a thing rather than a step gets a dot, not a number. */
+.rows .dot {
+  justify-self: center;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--brand-lift);
+  transform: translateY(-6px);
+}
+
+.rows .t {
+  display: block;
+  font-size: 38px;
+  font-weight: 520;
+  letter-spacing: -0.01em;
+}
+
+.rows .d {
+  display: block;
+  margin-top: 10px;
+  font-size: 24px;
+  line-height: 1.5;
+  color: var(--dim);
+  /* The column is 1450px wide, which is about 100 characters. Same prose
+     measure as the site, so a detail line stays scannable on video. */
+  max-width: var(--maxw-prose);
+}
+
+/* A filename or flag inside a row. In a detail line it takes the code colour;
+   in a title it stays white, because a coloured word at 34px shouts. */
+.rows .d code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--sp-mint);
+}
+
+.rows .t code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  font-weight: 400;
+}
+
+.rows .tag {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+/* ---- layout: code ------------------------------------------------------ */
+
+/* justify-items:start stops the panel filling the frame. A four-line snippet
+   in a 1700px box reads as a mistake. */
+[data-layout='code'] {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+}
+
+/* The panel is as wide as its longest line, with a floor so a two-word
+   command still looks deliberate. */
+[data-layout='code'] .panel {
+  width: fit-content;
+  min-width: min(100%, 960px);
+  max-width: 100%;
+}
+
+.panel {
+  margin: 48px 0 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--void-2);
+  overflow: hidden;
+}
+
+.panel .bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 30px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.panel .file {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.panel pre {
+  margin: 0;
+  padding: 40px 44px;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--fs-code);
+  line-height: 1.72;
+  color: var(--tx);
+  tab-size: 2;
+}
+
+/* Two steps down for blocks that would otherwise overrun the frame. */
+.panel.sm pre {
+  font-size: 23px;
+  padding: 34px 40px;
+}
+
+.panel.xs pre {
+  font-size: 20px;
+  padding: 30px 34px;
+}
+
+/* Syntax colour is the logo spectrum, marked by hand in the markup. Slide
+   code is a few lines; a highlighter would be a dependency for nothing. */
+.cm { color: var(--faint); }      /* comment */
+.cd { color: var(--brand-lift); } /* command */
+.fl { color: var(--sp-lime); }    /* flag    */
+.ky { color: var(--sp-cyan); }    /* key     */
+.st { color: var(--sp-mint); }    /* string  */
+.nu { color: var(--sp-amber); }   /* number  */
+.pn { color: var(--faint); }      /* bracket */
+
+/* ---- layout: split ----------------------------------------------------- */
+[data-layout='split'] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: 80px;
+  align-items: center;
+}
+
+[data-layout='split'] .lead {
+  max-width: 34ch;
+}
+
+[data-layout='split'] .panel {
+  margin-top: 0;
+}
+
+[data-layout='split'] .panel pre {
+  font-size: 23px;
+  padding: 34px 36px;
+}
+
+/* ---- chrome ------------------------------------------------------------ */
+.progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--line);
+  z-index: 3;
+}
+
+.progress i {
+  display: block;
+  height: 100%;
+  width: var(--p, 0%);
+  transition: width 0.45s var(--ease);
+  /* the mark's own sequence, violet to red */
+  background: linear-gradient(
+    90deg,
+    var(--sp-violet),
+    var(--sp-blue),
+    var(--sp-teal),
+    var(--sp-green),
+    var(--sp-lime),
+    var(--sp-amber),
+    var(--sp-red)
+  );
+}
+
+.chrome {
+  position: absolute;
+  left: var(--pad-slide);
+  right: var(--pad-slide);
+  bottom: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 19px;
+  letter-spacing: 0.14em;
+  color: var(--faint);
+  z-index: 3;
+}
+
+.chrome .who {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.chrome img {
+  width: 30px;
+  height: 30px;
+  display: block;
+}
+
+body.no-chrome .chrome,
+body.no-chrome .progress {
+  display: none;
+}
+
+/* ---- token load check --------------------------------------------------
+ * Some browsers refuse a linked stylesheet over file://. Without tokens the
+ * deck has no colour at all. Name the cause instead of showing a black page.
+ * ---------------------------------------------------------------------- */
+.tokens-missing {
+  position: fixed;
+  inset: auto 20px 20px 20px;
+  z-index: 9;
+  display: none;
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px dashed #ffcf4d;
+  border-radius: 6px;
+  background: #2a1d0a;
+  color: #ffcf4d;
+  font: 14px/1.5 ui-monospace, Consolas, monospace;
+}
+
+body.no-tokens .tokens-missing {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide,
+  .progress i {
+    transition-duration: 0.01ms !important;
+  }
+}
+</style>
+</head>
+
+<body>
+<div class="viewport">
+  <div class="stage" id="stage">
+
+    <div class="progress"><i id="bar"></i></div>
+
+    <!-- 01 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="title" data-name="title">
+      <div>
+        <p class="eyebrow">Beta 21+</p>
+        <h1 class="display">How to Setup<br><b>Bedrock Voice Chat</b></h1>
+        <p class="lead">A <em>free</em> Bedrock and Java addon that lets Bedrock
+          players experience proximity voice and group chats with their
+          friends.</p>
+      </div>
+      <img class="mark-lg" src="../public/assets/logo/app-logo-transparent.svg" alt="">
+    </section>
+
+    <!-- 02 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="text" data-name="components">
+      <p class="eyebrow">What makes up BVC?</p>
+      <h2 class="head">BVC is a <em>system</em> made up of three separate components</h2>
+      <ol class="rows">
+        <li>
+          <span class="n num">1</span>
+          <span>
+            <span class="t">The Voice Chat Server</span>
+            <span class="d">Which this video is covering.</span>
+          </span>
+          <span class="tag">Server</span>
+        </li>
+        <li>
+          <span class="n num">2</span>
+          <span>
+            <span class="t">The Bedrock Dedicated Server Addon</span>
+            <span class="d">Or the Realms and Aternos Addon (or Java mod/plugin)</span>
+          </span>
+          <span class="tag">World</span>
+        </li>
+        <li>
+          <span class="n num">3</span>
+          <span>
+            <span class="t">The client app</span>
+            <span class="d">PC, Mac, Linux, Android, or iPhone — and on console
+              using the mobile app.</span>
+          </span>
+          <span class="tag">Player</span>
+        </li>
+      </ol>
+    </section>
+
+    <!-- 03 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="text" data-name="what-you-need">
+      <p class="eyebrow">Getting started</p>
+      <h2 class="head">What you'll need</h2>
+      <ol class="rows">
+        <li>
+          <span class="n num">1</span>
+          <span>
+            <span class="t">A domain name</span>
+            <span class="d"><code>.stream</code> domains are under $5 USD for both the
+              initial year and the yearly renewal. I recommend Cloudflare as
+              your registrar, your DNS manager, and for free TLS.</span>
+          </span>
+          <span class="tag">Under $5 USD / yr</span>
+        </li>
+        <li>
+          <span class="n num">2</span>
+          <span>
+            <span class="t">A hosting service</span>
+            <span class="d">Such as Digital Ocean. For servers under 5 players,
+              BVC runs on a $4 droplet.</span>
+          </span>
+          <span class="tag">From $4 / mo</span>
+        </li>
+      </ol>
+    </section>
+
+    <!-- 04 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="text" data-name="where-it-runs">
+      <p class="eyebrow">Hosting</p>
+      <h2 class="head">BVC runs in a variety of different places</h2>
+      <ul class="rows tight">
+        <li>
+          <span class="dot"></span>
+          <span>
+            <span class="t">On your home network</span>
+            <span class="d">On a computer with port forwarding.</span>
+          </span>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <span>
+            <span class="t">On an existing Java server</span>
+            <span class="d">Where you have Simple Voice Chat installed.</span>
+          </span>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <span>
+            <span class="t">On several Minecraft hosts</span>
+            <span class="d">Such as Nodecraft, when running the Java BVC mod on
+              a Geyser server.</span>
+          </span>
+        </li>
+        <li>
+          <span class="dot"></span>
+          <span>
+            <span class="t">Anywhere you can run a Docker container</span>
+            <span class="d">Vultr, DigitalOcean, that raspberry pi you forgot about</span>
+          </span>
+        </li>
+      </ul>
+      <p class="note quiet">All the supported configurations are over on the Wiki at bedrockvoicechat.com/wiki.</p>
+    </section>
+
+    <!-- 05 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="break" data-name="part-1">
+      <p class="eyebrow">Part one</p>
+      <h2 class="display">Server Setup</h2>
+      <span class="rule"></span>
+    </section>
+
+    <!-- 06 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="code" data-name="config-hcl">
+      <p class="eyebrow">Step one</p>
+      <h2 class="head">Create your configuration file</h2>
+      <figure class="panel sm">
+        <figcaption class="bar"><span class="file">config.hcl</span></figcaption>
+<pre><code><span class="ky">server</span> <span class="pn">{</span>
+  <span class="ky">tls</span> <span class="pn">{</span>
+    <span class="ky">names</span> = <span class="pn">[</span><span class="st">"replace.with.your.domain.name.tld"</span><span class="pn">]</span>
+
+    <span class="ky">acme</span> <span class="pn">{</span>
+      <span class="ky">email</span>     = <span class="st">"you@example.com"</span>
+      <span class="ky">provider</span>  = <span class="st">"cloudflare"</span>
+      <span class="ky">api_token</span> = <span class="st">"your_cloudflare_api_key"</span>
+    <span class="pn">}</span>
+  <span class="pn">}</span>
+<span class="pn">}</span></code></pre>
+      </figure>
+      <p class="note">Sample values. Be sure to replace them with your real values.</p>
+    </section>
+
+    <!-- 07 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="code" data-name="docker-run">
+      <p class="eyebrow">Step two</p>
+      <h2 class="head">Simply start BVC Server using Docker</h2>
+      <figure class="panel sm">
+        <figcaption class="bar"><span class="file">terminal</span></figcaption>
+<pre><code><span class="cd">docker</span> run <span class="fl">-d</span> <span class="fl">--restart</span>=always <span class="pn">\</span>
+  <span class="fl">-p</span> <span class="nu">443</span>:<span class="nu">443</span>/tcp <span class="fl">-p</span> <span class="nu">443</span>:<span class="nu">443</span>/udp <span class="pn">\</span>
+  <span class="fl">-p</span> <span class="nu">28280</span>:<span class="nu">28280</span>/udp <span class="fl">-p</span> <span class="nu">28283</span>:<span class="nu">28283</span>/udp <span class="pn">\</span>
+  <span class="fl">-v</span> <span class="st">${PWD}</span>:<span class="st">/data</span> <span class="pn">\</span>
+  <span class="st">ghcr.io/alaydriem/bedrock-voice-chat/server:1.0.0-beta.21</span></code></pre>
+      </figure>
+      <p class="note">Be sure to replace 1.0.0-beta.21 with the latest version if you're watching this in the future.</p>
+    </section>
+
+    <!-- 08 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="code" data-name="bootstrap">
+      <p class="eyebrow">Step three</p>
+      <h2 class="head">Bootstrap your first user</h2>
+      <p class="lead">After you do this, you'll be able to grant access to your
+        friends from within the desktop or mobile app.</p>
+      <figure class="panel sm">
+        <figcaption class="bar"><span class="file">terminal</span></figcaption>
+<pre><code><span class="cd">docker</span> exec <span class="fl">-it</span> bvc bvc-server admin bootstrap <span class="fl">-p</span> <span class="st">&lt;YourPlayerName&gt;</span></code></pre>
+      </figure>
+    </section>
+
+    <!-- 09 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="break" data-name="part-2">
+      <p class="eyebrow">Part two</p>
+      <h2 class="display">Bedrock Dedicated<br>Server Addon</h2>
+      <span class="rule"></span>
+    </section>
+
+    <!-- 10 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="text" data-name="install-addon">
+      <p class="eyebrow">Installing the Addon</p>
+      <h2 class="head">Incredibly straightforward</h2>
+      <ol class="rows tight">
+        <li>
+          <span class="n num">1</span>
+          <span>
+            <span class="t">Download the file</span>
+            <span class="d">curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat</span>
+          </span>
+        </li>
+        <li>
+          <span class="n num">2</span>
+          <span>
+            <span class="t">Rename <code>.mcaddon</code> to <code>.zip</code> and extract it</span>
+          </span>
+        </li>
+        <li>
+          <span class="n num">3</span>
+          <span>
+            <span class="t">Upload both <code>.mcpack</code> files to your server</span>
+            <span class="d"><code>bedrock-voice-chat-bp.mcpack</code> to <code>development_behavior_packs</code>,
+              <code>-rp.mcpack</code> to <code>development_resource_packs</code></span>
+          </span>
+        </li>
+      </ol>
+      <p class="note quiet">Creating a brand new world from scratch? Import the .mcaddon into Minecraft, create the world with Beta APIs enabled, and export it to your host instead.</p>
+    </section>
+
+    <!-- 11 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="code" data-name="permissions">
+      <p class="eyebrow">On your Bedrock server</p>
+      <h2 class="head">Edit your permissions.json</h2>
+      <figure class="panel sm">
+        <figcaption class="bar"><span class="file">config/default/permissions.json</span></figcaption>
+<pre><code><span class="pn">{</span>
+  <span class="ky">"allowed_modules"</span>: <span class="pn">[</span>
+    <span class="st">"@minecraft/server"</span>,
+    <span class="st">"@minecraft/server-admin"</span>,
+    <span class="st">"@minecraft/server-net"</span>,
+    <span class="st">"@minecraft/server-ui"</span>
+  <span class="pn">]</span>
+<span class="pn">}</span></code></pre>
+      </figure>
+    </section>
+
+    <!-- 12 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="code" data-name="mint-token">
+      <p class="eyebrow">On BVC Server</p>
+      <h2 class="head">Mint yourself an access token</h2>
+      <p class="lead">This will print out a token you'll need for the next
+        step.</p>
+      <figure class="panel sm">
+        <figcaption class="bar"><span class="file">terminal</span></figcaption>
+<pre><code><span class="cd">docker</span> exec <span class="fl">-it</span> <span class="st">&lt;container_name&gt;</span> bvc-server admin token mint <span class="fl">--local</span> <span class="fl">-c</span> <span class="st">/data/config.hcl</span></code></pre>
+      </figure>
+    </section>
+
+    <!-- 13 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="code" data-name="variables">
+      <p class="eyebrow">On your Bedrock server</p>
+      <h2 class="head">Edit your variables.json</h2>
+      <figure class="panel sm">
+        <figcaption class="bar"><span class="file">config/default/variables.json</span></figcaption>
+<pre><code><span class="pn">{</span>
+  <span class="ky">"bvc_access_token"</span>: <span class="st">"&lt;MUST MATCH server.minecraft.access_token&gt;"</span>,
+  <span class="ky">"bvc_server"</span>: <span class="st">"https://example.bedrockvc.stream"</span>,
+  <span class="ky">"bvc_minimum_players"</span>: <span class="nu">1</span>,
+  <span class="ky">"bvc_world_name"</span>: <span class="st">"Rename To Your Server Display Name"</span>
+<span class="pn">}</span></code></pre>
+      </figure>
+      <p class="note">Be sure to replace each value with your real values.</p>
+    </section>
+
+    <!-- 14 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="split" data-name="activate-pack">
+      <div>
+        <p class="eyebrow">In your world</p>
+        <h2 class="head">Activate the Addon</h2>
+        <p class="lead">Enable Beta APIs using an NBT Editor, then activate the
+          BDS Addon in your <b>world_behavior_packs.json</b> and
+          <b>world_resource_packs.json</b>.</p>
+        <p class="note quiet">For ease of debugging, I recommend enabling content-log-console-output-enabled=true in your server.properties before you start your world.</p>
+      </div>
+      <figure class="panel xs">
+        <figcaption class="bar"><span class="file">world_behavior_packs.json</span></figcaption>
+<pre><code><span class="pn">[</span>
+  <span class="pn">{</span>
+    <span class="ky">"pack_id"</span>: <span class="st">"6fb24263-357a-407c-aebe-681f50b2de50"</span>,
+    <span class="ky">"version"</span>: <span class="pn">[</span><span class="nu">1</span>, <span class="nu">0</span>, <span class="nu">521</span><span class="pn">]</span>
+  <span class="pn">}</span>
+<span class="pn">]</span></code></pre>
+      </figure>
+    </section>
+
+    <!-- 15 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="break" data-name="part-3">
+      <p class="eyebrow">Part three</p>
+      <h2 class="display">Logging In</h2>
+      <span class="rule"></span>
+    </section>
+
+    <!-- 16 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="text" data-name="log-in">
+      <p class="eyebrow">The client app</p>
+      <h2 class="head">And with that, you're setup!</h2>
+      <ol class="rows tight">
+        <li>
+          <span class="n num">1</span>
+          <span>
+            <span class="t">Download the desktop or mobile app</span>
+            <span class="d">On console, use the mobile app.</span>
+          </span>
+        </li>
+        <li>
+          <span class="n num">2</span>
+          <span>
+            <span class="t">Enter your Bedrock Voice Chat server address</span>
+            <span class="d">At the login screen.</span>
+          </span>
+        </li>
+        <li>
+          <span class="n num">3</span>
+          <span>
+            <span class="t">Sign in with your Microsoft account</span>
+            <span class="d">The one associated to your Xbox Live Gamertag.</span>
+          </span>
+        </li>
+      </ol>
+    </section>
+
+    <!-- 17 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="break" data-name="privacy">
+      <p class="eyebrow">A note on your credentials</p>
+      <h2 class="display">Your data <em>only</em> connects<br>to <b>your server.</b></h2>
+      <span class="rule"></span>
+      <p class="lead">Your credentials are used exclusively to authenticate your
+        Xbox Live Gamertag. It is not logged, or tracked, or captured. All the
+        source code is publicly available over on GitHub.</p>
+    </section>
+
+    <!-- 18 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="title" data-name="closing">
+      <div>
+        <p class="eyebrow">Any questions?</p>
+        <h1 class="display">bedrockvoicechat.com<br><b>/wiki</b></h1>
+        <p class="lead">All of this information <em>and more</em> that you can
+          use to run, configure, and manage your BVC server.</p>
+      </div>
+      <img class="mark-lg" src="../public/assets/logo/app-logo-transparent.svg" alt="">
+    </section>
+
+    <!-- 19 ------------------------------------------------------------- -->
+    <section class="slide" data-layout="break" data-name="discord">
+      <p class="eyebrow">Our amazing community</p>
+      <h2 class="display">discord.gg/<b>MAHckcEATj</b></h2>
+      <span class="rule"></span>
+      <p class="lead">Join in on Discord and share your experiences and the
+        builds you're working on. I'd love to have you there!</p>
+    </section>
+
+    <!-- persistent chrome -->
+    <footer class="chrome">
+      <span class="who">
+        <img src="../public/assets/logo/app-logo-transparent.svg" alt="">
+        bedrockvoicechat.com
+      </span>
+      <span class="num" id="count">01 / 19</span>
+    </footer>
+
+  </div>
+</div>
+
+<p class="tokens-missing">
+  tokens.css did not load. Serve the folder instead
+  (<code>npx serve .</code> from the repo root), or ask Claude to inline the
+  tokens.
+</p>
+
+<script>
+  (() => {
+    const W = 1920;
+    const H = 1080;
+    const stage = document.getElementById('stage');
+    const bar = document.getElementById('bar');
+    const count = document.getElementById('count');
+    const slides = [...stage.querySelectorAll('.slide')];
+    const last = slides.length - 1;
+    const pad = (n) => String(n).padStart(2, '0');
+    const params = new URLSearchParams(location.search);
+
+    let at = 0;
+
+    // Scale the whole stage as one transform, so every slide is
+    // pixel-identical in the recording however large the window is.
+    const fit = () => {
+      stage.style.setProperty('--k', Math.min(innerWidth / W, innerHeight / H));
+    };
+
+    const go = (i) => {
+      at = Math.max(0, Math.min(last, i));
+      slides.forEach((s, n) => s.classList.toggle('is-live', n === at));
+      bar.style.setProperty('--p', ((at + 1) / slides.length) * 100 + '%');
+      count.textContent = pad(at + 1) + ' / ' + pad(slides.length);
+      history.replaceState(null, '', '?s=' + (at + 1));
+    };
+
+    addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key;
+
+      if (k === 'ArrowRight' || k === 'PageDown' || k === ' ' || k === 'Enter') {
+        e.preventDefault();
+        go(at + 1);
+      } else if (k === 'ArrowLeft' || k === 'PageUp' || k === 'Backspace') {
+        e.preventDefault();
+        go(at - 1);
+      } else if (k === 'Home') {
+        go(0);
+      } else if (k === 'End') {
+        go(last);
+      } else if (k === 'f' || k === 'F') {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else {
+          document.documentElement.requestFullscreen();
+        }
+      } else if (k === 'h' || k === 'H') {
+        document.body.classList.toggle('no-chrome');
+      }
+    });
+
+    // Click advances, so a clicker or a trackpad works during a take. A click
+    // on a link is left alone.
+    addEventListener('click', (e) => {
+      if (!e.target.closest('a')) go(at + 1);
+    });
+
+    addEventListener('resize', fit);
+
+    // A linked stylesheet can be refused over file://. Without tokens the deck
+    // has no colour at all, so name the cause.
+    const ground = getComputedStyle(document.documentElement).getPropertyValue('--void');
+    if (!ground.trim()) document.body.classList.add('no-tokens');
+
+    // ?chrome=0 exports a clean plate: no footer, no progress bar.
+    if (params.get('chrome') === '0') document.body.classList.add('no-chrome');
+
+    fit();
+    go((Number(params.get('s')) || 1) - 1);
+  })();
+</script>
+</body>
+</html>

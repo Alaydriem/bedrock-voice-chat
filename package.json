@@ -12,7 +12,8 @@
     "check": "astro check",
     "dev:local": "npm run gen:versions && astro dev",
     "check:links": "node scripts/check-links.mjs",
-    "check:prose": "node scripts/check-prose.mjs"
+    "check:prose": "node scripts/check-prose.mjs",
+    "slides:export": "node slides/export.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.6",
