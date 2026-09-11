@@ -120,8 +120,8 @@ sea-orm = { version = "^2.0.2", optional = true, features = [
 sea-orm-rocket = { version = "^0.6", optional = true }
 clap = { version = "^4", features = ["derive"], optional = true }
 schemars = { workspace = true, optional = true }
-bedrock-protocol = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.12", optional = true }
-bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.12", optional = true }
+bedrock-protocol = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.50.4", optional = true }
+bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.50.4", optional = true }
 
 [dev-dependencies]
 rcgen = { version = "^0.14", features = ["x509-parser"] }

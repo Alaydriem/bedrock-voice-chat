@@ -129,8 +129,8 @@ ndk-context = "0.1"
 libloading = { version = "^0.8" }
 tempfile = { version = "^3" }
 hound = { version = "^3.5" }
-bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.12" }
-bedrock-client = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.40.12" }
+bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.50.4" }
+bedrock-client = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.50.4" }
 
 [[test]]
 name = "unit"
