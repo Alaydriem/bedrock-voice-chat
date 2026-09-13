@@ -179,14 +179,12 @@ Minimum age for your community. Clients use this to decide whether to show Age S
 
 ## `server.bedrock`
 
-The relay behind Bedrock Voice Chat Connect. This is how BVC supports Aternos, Realms, and consoles.
+The server list clients see in Bedrock Voice Chat Connect, and the freshness rule applied to position events from a proxied session.
+
+Bedrock support is always on. There is no key that turns it off.
 
 | Key | Default | Description |
 |---|---|---|
-| `enabled` | `true` | Master switch. When off, `/api/config` advertises nothing for it. |
-| `transfer_port` | `28283` | Relay listen port. |
-| `transfer_target_port` | `28282` | Client proxy port sessions are handed off to. Defaults to the proxy's own listen port. Change it only alongside the proxy. |
-| `transfer_cache_ttl_secs` | `900` | How long a resolved transfer target is cached. |
 | `proxy_event_freshness_threshold_secs` | `30` | Age beyond which a proxied position event is discarded. |
 | `servers` | `[]` | Curated server list advertised to clients. |
 

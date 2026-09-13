@@ -32,5 +32,5 @@ server {
 | Scheme | Used by |
 |---|---|
 | **mTLS** | Player and admin endpoints. The client certificate is issued at login. |
-| **`Authorization: Bearer`** | Game server endpoints — position relay and Bedrock transfer. The shared secret from `server.minecraft.access_token`. |
+| **`Authorization: Bearer`** | Game server endpoints — the position relay. The shared secret from `server.minecraft.access_token`. |
 | **None** | Health, config, and the login flow itself. |

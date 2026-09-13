@@ -6,14 +6,14 @@ sidebar:
   order: 2
 ---
 
-Bedrock Voice Chat 1.0.0-beta.21 changes the voice protocol, replaces the peering system, and moves several configuration keys.
+Bedrock Voice Chat 1.0.0-beta.21 changes the voice protocol, replaces the peering system, removes the Bedrock transfer relay, and moves several configuration keys.
 
 ## Upgrade steps
 
 1. Back up the database.
 2. Stop the server.
 3. Add `addon_mode` to every entry in `server.bedrock.servers`. Use `"net"` or `"no_net"`. The server does not start without it.
-4. Delete the `server.bedrock.dns` and `relay` blocks from `config.hcl`. Both are ignored in this release, not rejected.
+4. Delete the `server.bedrock.dns` and `relay` blocks from `config.hcl`, and the `enabled`, `transfer_port`, `transfer_target_port` and `transfer_cache_ttl_secs` keys from `server.bedrock`. All are ignored in this release, not rejected.
 5. Rename `log.out` to `log.path` in `config.hcl`. The server does not start while `out` is present.
 6. Replace the server binary, or pull the new container image.
 7. Start the server. Migrations run at startup.
@@ -49,6 +49,10 @@ File: `config.hcl`
 |---|---|---|
 | `server.bedrock.servers[].addon_mode` | New. **Required** on every entry. | Add `addon_mode = "net"` or `addon_mode = "no_net"` to each entry. |
 | `server.bedrock.dns` | Removed. | Delete the block. |
+| `server.bedrock.enabled` | Removed. Bedrock support is always on. | Delete the key. |
+| `server.bedrock.transfer_port` | Removed with the transfer relay. | Delete the key. Close 28283/udp. |
+| `server.bedrock.transfer_target_port` | Removed with the transfer relay. | Delete the key. |
+| `server.bedrock.transfer_cache_ttl_secs` | Removed with the transfer relay. | Delete the key. |
 | `relay` | Removed. Replaced by `server.peers` and `server.peer_relay_url`. | Delete the block. Redeclare peers. |
 | `voice.recording` | New. `enabled` defaults to `true`. | Set `enabled = false` to forbid client-side recording. |
 | `voice.limits` | New. `connections` defaults to `0`, which admits everyone. | Nothing. Set `connections` to cap concurrent voice sessions. |
@@ -58,7 +62,7 @@ File: `config.hcl`
 `addon_mode` has no default. A `servers` list carrying an entry without it does not parse, and the server does not start. Every key is listed in the [configuration reference](/wiki/reference/configuration/).
 
 :::caution
-Every other removed key is **ignored, not rejected**. A leftover `relay` or `server.bedrock.dns` block starts the server with those settings absent and writes nothing to the log.
+Every other removed key is **ignored, not rejected**. A leftover `relay` block, `server.bedrock.dns` block, or `server.bedrock` transfer key starts the server with those settings absent and writes nothing to the log.
 :::
 
 `voice.recording.enabled` takes the `BVC_RECORDING` environment override.
@@ -126,12 +130,13 @@ Only this `target=level` form is supported. The span and field syntax some Rust 
 
 ## Scripts that call the API
 
-Two request shapes changed. A script of your own that calls either has to change with it. The Addon, the Java mods, and the client ship with the change.
+Three things changed. A script of your own that touches any of them has to change with it. The Addon, the Java mods, and the client ship with the change.
 
 | Route | Change |
 |---|---|
 | `/api/position`, `/api/control`, `/api/state`, `/api/preferences`, `/api/audio/event`, the chat WebSocket | Send `Authorization: Bearer <token>` instead of `X-MC-Access-Token: <token>`. The token value is unchanged. |
-| `POST /api/bedrock/transfer` | Drop the `xuid` field. The body is `host` and `port`. |
+| `POST /api/bedrock/transfer` | Removed with the transfer relay. The client forwards on its own, so there is nothing to register. Delete the call. |
+| `GET /api/config` | `bedrock.transfer_port` is gone. `bedrock.enabled` remains and is always `true`. |
 
 ## QUIC ports
 

@@ -98,12 +98,10 @@ See [TLS](/wiki/server/tls/).
 
 TLS combinations are validated at startup. See the [database section](/wiki/reference/configuration/#database) for which are rejected.
 
-## Bedrock relay
+## Bedrock
 
 | Variable | Sets |
 |---|---|
-| `BVC_BEDROCK_ENABLED` | `server.bedrock.enabled` |
-| `BVC_BEDROCK_TRANSFER_PORT` | `server.bedrock.transfer_port` |
 | `BVC_BEDROCK_SERVERS` | Replaces the curated list entirely. |
 
 `BVC_BEDROCK_SERVERS` takes comma-separated `Name@host[:port][@protocol][@mode]` entries:
