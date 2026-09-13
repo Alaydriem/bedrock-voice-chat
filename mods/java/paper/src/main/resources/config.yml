@@ -20,9 +20,8 @@ use-embedded-server: false
 # TLS is required. Supply a certificate and key, or an acme block to obtain one
 # over DNS-01.
 #
-# Two defaults are worth setting explicitly. server.port defaults to 443, which
-# needs root on Linux. server.bedrock defaults to enabled on port 19132, which
-# Geyser normally owns on a Java server; 19139 coexists with it.
+# server.port and server.quic_port are worth setting explicitly. Both default to
+# 443, which needs root on Linux.
 #
 # embedded-config:
 #   server:
@@ -33,9 +32,6 @@ use-embedded-server: false
 #       key: "/path/to/privkey.pem"
 #       names:
 #         - "bvc.example.com"
-#     bedrock:
-#       enabled: true
-#       transfer_port: 19139
 #   voice:
 #     spatial_audio:
 #       broadcast_range: 32.0

@@ -19,17 +19,17 @@ class PaperConfigProviderTest {
             embedded-config:
               server:
                 port: 8444
+                peering: true
                 tls:
                   certificate: "cert.pem"
                   names:
                     - "bvc.example.com"
+                  acme:
+                    email: "ops@example.com"
+                    domains:
+                      - "bvc.example.com"
                 bedrock:
-                  enabled: true
-                  transfer_port: 19139
-                  dns:
-                    enabled: true
-                    upstream:
-                      - "1.1.1.1"
+                  proxy_event_freshness_threshold_secs: 45
         """.trimIndent()
 
         val json = YamlSectionConverter.toJson(sectionOf(yaml))
@@ -37,16 +37,16 @@ class PaperConfigProviderTest {
         assertEquals("https://bvc.example.com", json.get("bvc-server").asString)
         assertEquals(3, json.get("minimum-players").asInt)
 
-        val bedrock = json.getAsJsonObject("embedded-config")
-            .getAsJsonObject("server")
-            .getAsJsonObject("bedrock")
-        assertEquals(true, bedrock.get("enabled").asBoolean)
-        assertEquals(19139, bedrock.get("transfer_port").asInt)
-        assertEquals(true, bedrock.getAsJsonObject("dns").get("enabled").asBoolean)
+        val server = json.getAsJsonObject("embedded-config").getAsJsonObject("server")
+        assertEquals(true, server.get("peering").asBoolean)
         assertEquals(
-            "1.1.1.1",
-            bedrock.getAsJsonObject("dns").getAsJsonArray("upstream").get(0).asString
+            45,
+            server.getAsJsonObject("bedrock").get("proxy_event_freshness_threshold_secs").asInt
         )
+
+        val acme = server.getAsJsonObject("tls").getAsJsonObject("acme")
+        assertEquals("ops@example.com", acme.get("email").asString)
+        assertEquals("bvc.example.com", acme.getAsJsonArray("domains").get(0).asString)
     }
 
     // The old reader parsed key by key and had no bedrock case at all, so the
@@ -58,15 +58,13 @@ class PaperConfigProviderTest {
             embedded-config:
               server:
                 bedrock:
-                  enabled: true
-                  transfer_port: 19139
+                  proxy_event_freshness_threshold_secs: 45
         """.trimIndent()
 
         val config = PaperConfigProvider.fromJson(YamlSectionConverter.toJson(sectionOf(yaml)))
 
         val bedrock = config.embeddedConfig?.server?.bedrock
-        assertEquals(true, bedrock?.enabled)
-        assertEquals(19139, bedrock?.transferPort)
+        assertEquals(45L, bedrock?.proxyEventFreshnessThresholdSecs)
     }
 
     @Test

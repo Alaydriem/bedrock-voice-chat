@@ -56,15 +56,6 @@ self-hosted game server: `server.meridian`, `server.cors`,
 Linux, binding 443 needs root or `CAP_NET_BIND_SERVICE`, and the HTTP listener's
 bind failure stops startup. Set 8444 and 8443 unless you intend 443.
 
-**Bedrock relay.** `server.bedrock.enabled` defaults to **true** with
-`transfer_port` **19132**, which Geyser normally owns on a Java server. The bind
-failure is logged and the server keeps running, but the relay will not work. Set
-`transfer_port: 19139` to coexist with Geyser, or `enabled: false` to turn the
-relay off.
-
-**DNS.** `server.bedrock.dns.enabled` defaults to false, so port 53 is not
-touched unless you ask for it.
-
 ### TLS is required
 
 Supply `server.tls.certificate` and `server.tls.key`, **or** a
