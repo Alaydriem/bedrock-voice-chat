@@ -56,15 +56,6 @@ self-hosted game server: `server.meridian`, `server.cors`,
 Linux, binding 443 needs root or `CAP_NET_BIND_SERVICE`, and the HTTP listener's
 bind failure stops startup. Set 8444 and 8443 unless you intend 443.
 
-**Bedrock relay.** `server.bedrock.enabled` defaults to **true** with
-`transfer_port` **19132**, which Geyser normally owns on a Java server. The bind
-failure is logged and the server keeps running, but the relay will not work. Set
-`transfer_port: 19139` to coexist with Geyser, or `enabled: false` to turn the
-relay off.
-
-**DNS.** `server.bedrock.dns.enabled` defaults to false, so port 53 is not
-touched unless you ask for it.
-
 ### TLS is required
 
 Supply `server.tls.certificate` and `server.tls.key`, **or** a
@@ -96,7 +87,7 @@ and names the variable.
 `BVC_TLS_NAMES`, `BVC_TLS_IPS`, `BVC_ACME_EMAIL`, `BVC_ACME_PROVIDER`,
 `BVC_ACME_API_TOKEN`, `BVC_ACME_DIRECTORY`, `BVC_ACME_DOMAINS`,
 `BVC_ACME_DNS_URL`, `BVC_ACME_DNS_USERNAME`, `BVC_ACME_DNS_PASSWORD`,
-`BVC_ACME_DNS_SUBDOMAIN`, `BVC_BEDROCK_ENABLED`, `BVC_BEDROCK_TRANSFER_PORT`,
+`BVC_ACME_DNS_SUBDOMAIN`,
 `BVC_DATABASE_SCHEME`, `BVC_DATABASE_DATABASE`, `BVC_DATABASE_HOST`,
 `BVC_DATABASE_PORT`, `BVC_DATABASE_USERNAME`, `BVC_DATABASE_PASSWORD`,
 `BVC_DATABASE_SSL_MODE`, `BVC_DATABASE_SSL_ROOT_CERT`, `BVC_DATABASE_SSL_CERT`,

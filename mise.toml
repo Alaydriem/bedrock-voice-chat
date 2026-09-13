@@ -399,7 +399,7 @@ shell = "pwsh -NoLogo -Command"
 run = "cargo build"
 
 [tasks.dev-server]
-description = "Run the server from source with the bedrock feature. Reads config.hcl in server/server."
+description = "Run the server from source. Reads config.hcl in server/server."
 dir = "server/server"
 # No kotlin-config, unlike build-server. The mirror is read only when the Java
 # mods compile, and regenerating it here builds the integration test target as
@@ -408,7 +408,7 @@ dir = "server/server"
 shell = "pwsh -NoLogo -Command"
 # The `--` is what makes pass-through work: extra arguments are appended, so
 # `mise run dev-server -c other.hcl` reaches the CLI instead of cargo.
-run = "cargo run --features bedrock -- server"
+run = "cargo run -- server"
 
 [tasks.check-common]
 description = "Type-check the shared crate"

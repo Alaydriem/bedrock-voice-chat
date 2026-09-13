@@ -35,6 +35,7 @@
     "vite": "^8.0.16"
   },
   "dependencies": {
+    "@charlesportwoodii/tauri-plugin-curia": "git+https://github.com/charlesportwoodii/tauri-plugin-curia.git#0.1.2",
     "@choochmeque/tauri-plugin-iap-api": "0.10.0-rc.1",
     "@sentry/browser": "^10.43.0",
     "@sentry/vite-plugin": "^5.3",
@@ -43,7 +44,6 @@
     "@tauri-apps/plugin-dialog": "^2.7",
     "@tauri-apps/plugin-fs": "^2.5",
     "@tauri-apps/plugin-http": "^2",
-    "@charlesportwoodii/tauri-plugin-curia": "git+https://github.com/charlesportwoodii/tauri-plugin-curia.git#0.1.2",
     "@tauri-apps/plugin-notification": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-os": "^2",

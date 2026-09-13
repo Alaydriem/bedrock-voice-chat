@@ -1,6 +1,8 @@
 package com.alaydriem.bedrockvoicechat.config
 
+import com.alaydriem.bedrockvoicechat.config.generated.BedrockConfig
 import com.alaydriem.bedrockvoicechat.config.generated.EmbeddedServerConfig
+import com.alaydriem.bedrockvoicechat.config.generated.Features
 import com.alaydriem.bedrockvoicechat.config.generated.Server
 import com.google.gson.Gson
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -18,7 +20,7 @@ class GeneratedConfigTest {
               "server": {
                 "port": 8444,
                 "tls": { "certificate": "cert.pem", "names": ["bvc.example.com"] },
-                "bedrock": { "enabled": true, "transfer_port": 19139 }
+                "bedrock": { "proxy_event_freshness_threshold_secs": 45 }
               },
               "voice": { "spatial_audio": { "broadcast_range": 32.0 } }
             }
@@ -29,7 +31,7 @@ class GeneratedConfigTest {
         assertEquals(8444L, config.server?.port)
         assertEquals("cert.pem", config.server?.tls?.certificate)
         assertEquals(listOf("bvc.example.com"), config.server?.tls?.names)
-        assertEquals(19139, config.server?.bedrock?.transferPort)
+        assertEquals(45L, config.server?.bedrock?.proxyEventFreshnessThresholdSecs)
         assertEquals(32.0f, config.voice?.spatialAudio?.broadcastRange)
     }
 
@@ -67,6 +69,15 @@ class GeneratedConfigTest {
 
         assertFalse(fields.contains("meridian"), "server.meridian must be carved out")
         assertFalse(fields.contains("cors"), "server.cors must be carved out")
+
+        val bedrockFields = BedrockConfig::class.java.declaredFields.map { it.name }
+        assertFalse(bedrockFields.contains("servers"), "server.bedrock.servers must be carved out")
+
+        val featureFields = Features::class.java.declaredFields.map { it.name }
+        assertFalse(
+            featureFields.contains("openapiDocs"),
+            "server.features.openapi_docs must be carved out"
+        )
     }
 
     // Gson discards what it does not recognise, which is exactly why the mod

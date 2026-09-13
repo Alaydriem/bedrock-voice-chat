@@ -3,8 +3,6 @@ mod acme;
 mod admin_user_service;
 mod audio_file_service;
 mod audio_playback_service;
-#[cfg(feature = "bedrock")]
-mod bedrock;
 mod certificate_revocation_service;
 mod channel_membership_service;
 mod chat_service;

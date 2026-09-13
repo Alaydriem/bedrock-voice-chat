@@ -32,8 +32,12 @@ fn hcl_servers_reach_the_api_view_with_defaults_applied() {
     assert_eq!(api.servers[1].protocol_version, Some(844));
 }
 
+// `enabled` is reported to every client as a constant. The field survives on the
+// wire only because a client that reads no value defaults it to false and hides
+// its own Bedrock pages, so a server that stopped sending it would look to an
+// older client exactly like one that had switched Bedrock support off.
 #[test]
-fn disabled_relay_withholds_ports_and_servers() {
+fn the_api_view_always_reports_enabled_and_the_configured_servers() {
     let hcl = r#"
         enabled = false
         servers = [
@@ -44,11 +48,14 @@ fn disabled_relay_withholds_ports_and_servers() {
     let config: BedrockConfig = serde_json::from_value(value).expect("deserialize bedrock config");
 
     let api = config.to_api();
-    assert!(!api.enabled);
-    assert_eq!(api.transfer_port, None);
     assert!(
-        api.servers.is_empty(),
-        "a disabled relay has nothing a client can connect to"
+        api.enabled,
+        "no configuration key can turn Bedrock support off"
+    );
+    assert_eq!(
+        api.servers.len(),
+        1,
+        "the curated list is advertised unconditionally"
     );
 }
 
@@ -113,18 +120,11 @@ fn an_entry_without_a_mode_is_rejected() {
     );
 }
 
-// Three ports live in this area and two of them are easy to conflate. Asserting
-// them together is what stops a future find-and-replace on 19132 from silently
+// Two ports live in this area and they are easy to conflate. Asserting them
+// together is what stops a future find-and-replace on 19132 from silently
 // repointing every advertised server at the local proxy.
 #[test]
-fn the_three_bedrock_ports_are_distinct_and_stable() {
-    let config = BedrockConfig::default();
-    assert_eq!(config.transfer_port, 28283, "the relay listens on 28283");
-    assert_eq!(
-        config.transfer_target_port,
-        common::consts::bedrock::BEDROCK_LISTEN_PORT,
-        "the relay must transfer to whatever port the client actually listens on"
-    );
+fn the_two_bedrock_ports_are_distinct_and_stable() {
     assert_eq!(
         common::consts::bedrock::BEDROCK_LISTEN_PORT,
         28282,
@@ -139,13 +139,17 @@ fn the_three_bedrock_ports_are_distinct_and_stable() {
     );
 }
 
-// An operator upgrading past the DNS removal still has a `dns` block in their
-// config. Ignoring it keeps the server booting; rejecting it would turn a feature
-// that quietly stopped existing into a server that will not start.
+// An operator upgrading past the DNS and transfer-relay removals still has those
+// blocks and keys in their config. Ignoring them keeps the server booting;
+// rejecting them would turn features that quietly stopped existing into a server
+// that will not start.
 #[test]
-fn an_old_config_with_a_dns_block_still_loads() {
+fn an_old_config_with_removed_keys_still_loads() {
     let hcl = r#"
         enabled = true
+        transfer_port = 28283
+        transfer_target_port = 28282
+        transfer_cache_ttl_secs = 900
         dns {
             enabled = true
             override_host = "geo.hivebedrock.network"
@@ -154,8 +158,7 @@ fn an_old_config_with_a_dns_block_still_loads() {
     "#;
     let value: serde_json::Value = hcl::from_str(hcl).expect("parse hcl");
     let config: BedrockConfig =
-        serde_json::from_value(value).expect("a leftover dns block must not break startup");
-    assert!(config.enabled);
+        serde_json::from_value(value).expect("leftover removed keys must not break startup");
     assert!(config.servers.is_empty());
 }
 

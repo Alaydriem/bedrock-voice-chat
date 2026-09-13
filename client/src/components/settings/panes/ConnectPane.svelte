@@ -93,12 +93,22 @@
         }),
     );
 
+    const rows = $derived(realmPlates.length + offeredPlates.length + ownedPlates.length);
+
     // One shell over all three sections. Capability refused outranks any list that
     // loaded: every row would be an offer that cannot be taken.
+    //
+    // A check in flight only replaces rows there are none of. The check re-runs on every
+    // window focus — including the focus raised by closing the add-server modal — so
+    // loading over a populated list made the operator's section vanish every time a reader
+    // saved a server of their own.
     const listState = $derived<ListState>(
-        capability === "disabled" ? "failed" : checking || loadingRealms ? "loading" : "ready",
+        capability === "disabled"
+            ? "failed"
+            : (checking || loadingRealms) && rows === 0
+              ? "loading"
+              : "ready",
     );
-    const rows = $derived(realmPlates.length + offeredPlates.length + ownedPlates.length);
 
     // A Realm carries its own name; a direct session is named by the entry it forwards to.
     const activeName = $derived(
@@ -223,8 +233,14 @@
                 <span>
                     <b>{I18n.t("We could not reach this server to ask whether Bedrock support is on.")}</b>
                     {I18n.t("You can connect anyway — if position is refused, this is why.")}
-                    <button class="rad-btn rad-btn--quiet" onclick={() => void bedrock.capability.refresh()}>
-                        {I18n.t("Check again")}
+                    <!-- The list is no longer replaced by a loader while a check runs, so
+                         this button is the only thing that can report one. -->
+                    <button
+                        class="rad-btn rad-btn--quiet"
+                        onclick={() => void bedrock.capability.refresh()}
+                        disabled={checking}
+                    >
+                        {checking ? I18n.t("Checking…") : I18n.t("Check again")}
                     </button>
                 </span>
             </div>
@@ -236,6 +252,7 @@
             failTitle="This server will not accept a proxy"
             failNote="Bedrock support is turned off here, so position sent from a proxy is discarded. Ask the operator to turn it on, or switch to a server that has it."
             retryLabel="Check again"
+            retrying={checking}
             onretry={() => void bedrock.capability.refresh()}
             emptyTitle="No servers yet"
             emptyNote="Add the world you would have joined in Minecraft, and BVC will sit in front of it."

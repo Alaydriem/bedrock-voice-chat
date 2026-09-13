@@ -69,13 +69,13 @@ export class BedrockProxyManager {
         this.sortedProxyServers = derived(
             [this.serverProvidedStore, this.proxyServersStore, this.proxyFavoritesStore],
             ([$provided, $user, $favorites]) => {
-                // A user entry with the same host:port wins the dedupe — it may
-                // carry a custom name or protocol override.
-                const userKeys = new Set($user.map((s) => `${s.host}:${s.port}`));
-                const merged = [
-                    ...$provided.filter((s) => !userKeys.has(`${s.host}:${s.port}`)),
-                    ...$user,
-                ];
+                // Both lists in full. An advertised entry used to be dropped when a saved
+                // entry carried the same host and port, so saving a server of your own
+                // deleted the operator's row for that world — and where the operator
+                // advertises one world, that emptied "From your server" entirely. The pane
+                // renders the two in separate sections, so a duplicate address is legible
+                // rather than confusing.
+                const merged = [...$provided, ...$user];
                 return merged.sort((a, b) => {
                     const aFav = $favorites.has(a.id) ? 0 : 1;
                     const bFav = $favorites.has(b.id) ? 0 : 1;
@@ -125,7 +125,11 @@ export class BedrockProxyManager {
             this.listenPortStore.set(snapshot.listenPort);
         }
         if (snapshot.running && snapshot.host && snapshot.port) {
-            const match = [...get(this.serverProvidedStore), ...get(this.proxyServersStore)].find(
+            // Yours first. An address can name a saved entry and an advertised one at once,
+            // and this runs only at startup over an already-running proxy, where the row it
+            // was started from is not recorded anywhere. A tie-break, not a deduction —
+            // during a session `connectToProxyServer` sets the id that was actually clicked.
+            const match = [...get(this.proxyServersStore), ...get(this.serverProvidedStore)].find(
                 (s) => s.host === snapshot.host && s.port === snapshot.port,
             );
             if (match) {

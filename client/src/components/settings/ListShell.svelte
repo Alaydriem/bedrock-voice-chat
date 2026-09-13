@@ -10,6 +10,12 @@
         failTitle: string;
         failNote: string;
         retryLabel?: string;
+        /**
+         * A retry is running. The button says so and refuses a second press — without it a
+         * retry that takes a whole network timeout looks like a button that does nothing.
+         */
+        retrying?: boolean;
+        retryingLabel?: string;
         emptyTitle: string;
         emptyNote: string;
         onretry?: () => void;
@@ -23,6 +29,8 @@
         failTitle,
         failNote,
         retryLabel = "Try again",
+        retrying = false,
+        retryingLabel = "Checking…",
         emptyTitle,
         emptyNote,
         onretry,
@@ -47,7 +55,13 @@
             <span class="rad-empty__note">{failNote}</span>
             {#if onretry}
                 <span class="rad-swatchrow" style="justify-content: center">
-                    <button class="rad-btn rad-btn--primary" onclick={onretry}>{retryLabel}</button>
+                    <button
+                        class="rad-btn rad-btn--primary"
+                        onclick={onretry}
+                        disabled={retrying}
+                    >
+                        {retrying ? retryingLabel : retryLabel}
+                    </button>
                 </span>
             {/if}
         </div>

@@ -1,6 +1,5 @@
 pub mod admin;
 pub mod audio;
-pub mod bedrock;
 pub mod code_login_request;
 pub mod link_java_identity_request;
 pub mod login;

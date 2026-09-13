@@ -1,7 +1,17 @@
 import { get } from "svelte/store";
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockInvoke } from "../../tauri";
+import { AppStore } from "../../../js/app/services/AppStore";
 import { BedrockCapabilityManager } from "../../../js/app/managers/bedrock/BedrockCapabilityManager";
+
+/**
+ * The advertised list is cached per BVC server so it survives a restart and a failed check.
+ * The store is shared across this file, so a test about the empty case has to say so.
+ */
+async function clearCachedServers(): Promise<void> {
+    const store = await AppStore.load();
+    await store.delete("bedrock_server_provided");
+}
 
 function configWith(servers: unknown[]) {
     return {
@@ -13,7 +23,6 @@ function configWith(servers: unknown[]) {
             quic_ports: [1],
             bedrock: {
                 enabled: true,
-                transfer_port: 19132,
                 servers,
             },
         },
@@ -78,7 +87,11 @@ describe("Bedrock capability manager", () => {
         capability.destroy();
     });
 
-    it("reports unknown and empties the list when the config cannot be read", async () => {
+    // With nothing cached for this server there is nothing to fall back to, so the list is
+    // empty — but the status is `unknown` rather than `disabled`, which is the distinction
+    // the pane needs to offer a re-check instead of refusing every row.
+    it("reports unknown and shows nothing when the config cannot be read", async () => {
+        await clearCachedServers();
         mockInvoke({
             api_get_config: () => {
                 throw new Error("no api client");

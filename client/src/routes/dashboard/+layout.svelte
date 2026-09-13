@@ -17,6 +17,8 @@
   import { UPDATE_STATUS_KEY } from "../../js/app/shell/UpdateStatusContext";
   import { AUDIO_SETTINGS_KEY } from "../../js/app/shell/AudioSettingsContext";
   import { AudioSettingsManager } from "../../js/app/managers/settings/AudioSettingsManager";
+  import { BEDROCK_MANAGER_KEY } from "../../js/app/shell/BedrockManagerContext";
+  import { BedrockManagerHolder } from "../../js/app/shell/BedrockManagerHolder";
   import JukeboxChip from "../../components/dashboard/JukeboxChip.svelte";
   import { BootTimeline } from "../../js/app/shell/BootTimeline";
   import type { SelfSnapshot } from "$radial/core/controllers/SelfState";
@@ -86,6 +88,16 @@
    */
   const audioSettings = new AudioSettingsManager();
   setContext(AUDIO_SETTINGS_KEY, audioSettings);
+
+  /**
+   * One per session, and nothing is built until the Connect pane asks for it.
+   *
+   * Held here rather than on the settings screen because the connection log lives on the
+   * manager: a screen-owned manager was destroyed every time settings closed, so the log
+   * came back empty while the proxy was still running.
+   */
+  const bedrockHolder = new BedrockManagerHolder();
+  setContext(BEDROCK_MANAGER_KEY, bedrockHolder);
 
   /**
    * One per session, because it holds whether this session pushed the entries beneath the
@@ -474,6 +486,7 @@
     presence?.cleanup();
     diagnostics.stop();
     audioSettings.cleanup();
+    bedrockHolder.destroy();
   });
 
   function signOut(): void {

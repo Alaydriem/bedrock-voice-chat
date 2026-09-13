@@ -29,10 +29,6 @@ path = "tests/http/main.rs"
 default = []
 ffi = []
 bundled-sqlite = []
-bedrock = [
-    "common/bedrock-server",
-    "dep:hickory-proto",
-]
 
 [dependencies]
 common = { path = "../../common", features = ["quic", "server", "openapi"] }
@@ -106,7 +102,6 @@ schemars = { workspace = true }
 okapi = { version = "^0.7" }
 rocket_okapi = { version = "0.9", features = ["swagger", "mtls"] }
 inventory = { version = "^0.3" }
-hickory-proto = { workspace = true, optional = true }
 x509-parser = { workspace = true }
 sha2 = { version = "^0.10" }
 metrics = { version = "^0.24" }
