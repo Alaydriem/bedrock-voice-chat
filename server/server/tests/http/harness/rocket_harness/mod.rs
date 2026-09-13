@@ -38,8 +38,6 @@ impl RocketHarness {
         // The credential source for the `GameAccessToken` guard. Every game route fails at
         // that guard if Rocket is not managing it.
         access_token_service: Arc<bvc_server_lib::services::AccessTokenService>,
-        #[cfg(feature = "bedrock")]
-        transfer_cache: bvc_server_lib::services::bedrock::TransferTargetCache,
     ) -> Result<tokio::task::JoinHandle<()>> {
         // Production puts the demultiplexer on the public port and Rocket on loopback.
         // The harness dials Rocket directly, so `server.port` is where it must bind.
@@ -124,9 +122,6 @@ impl RocketHarness {
             routes::api::channel::rename::channel_rename,
         ];
 
-        #[cfg(feature = "bedrock")]
-        let bedrock_routes = routes![routes::api::bedrock::transfer::register_transfer_target];
-
         let mut rocket = rocket::custom(figment)
             .manage(bvc_server_lib::services::HealthService::new_shared(
                 readiness,
@@ -165,11 +160,6 @@ impl RocketHarness {
                     routes::api::health::readiness::readiness,
                 ],
             );
-
-        #[cfg(feature = "bedrock")]
-        {
-            rocket = rocket.manage(transfer_cache).mount("/api", bedrock_routes);
-        }
 
         let handle = tokio::spawn(async move {
             let ignite = match rocket.ignite().await {

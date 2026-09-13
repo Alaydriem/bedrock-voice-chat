@@ -12,6 +12,3 @@ pub mod server_config;
 pub mod state;
 pub mod telemetry;
 pub mod websocket;
-
-#[cfg(feature = "bedrock")]
-pub mod bedrock;

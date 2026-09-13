@@ -388,10 +388,6 @@ impl ServerRuntime {
         if self.config.server.tls.acme.is_some() {
             features_enabled.push("acme".to_string());
         }
-        if self.config.server.bedrock.enabled {
-            features_enabled.push("bedrock".to_string());
-        }
-
         // Gauges are pushed into the service by ConnectionRegistry on change. The
         // heartbeat task below owns the only other periodic work; the channel reaper
         // runs as an arm of the main event loop (structured cancellation — no detached
@@ -591,11 +587,6 @@ impl ServerRuntime {
             EjectScheduler::new_shared(bedrock_event_service.clone(), webhook_receiver.clone());
         audio_playback_service.set_eject_scheduler(eject_scheduler);
 
-        #[cfg(feature = "bedrock")]
-        let transfer_target_cache = crate::services::bedrock::TransferTargetCache::new(
-            self.config.server.bedrock.transfer_cache_ttl_secs,
-        );
-
         // The API listener moves to loopback and the TLS demultiplexer takes the public
         // port, so one hostname and one certificate serve the API, the browser feeds and
         // the WebSocket voice transport. Resolved once here rather than per launch: an
@@ -626,40 +617,17 @@ impl ServerRuntime {
             enrollment_nonce.clone(),
             peer_plane,
             access_token_service.clone(),
-            #[cfg(feature = "bedrock")]
-            transfer_target_cache.clone(),
         );
 
         self.state = RuntimeState::Running;
 
-        #[cfg(feature = "bedrock")]
-        let mut transfer_relay = None;
-
-        #[cfg(feature = "bedrock")]
-        if self.config.server.bedrock.enabled {
-            use common::traits::StreamTrait;
-
-            let mut relay = crate::services::bedrock::TransferRelayService::new(
-                self.config.server.bedrock.transfer_port,
-                transfer_target_cache.clone(),
-            );
-            if let Err(e) = relay.start().await {
-                curia::error!("Failed to start bedrock transfer relay: {}", e);
-            }
-            transfer_relay = Some(relay);
-
-            for entry in &self.config.server.bedrock.servers {
-                curia::info!(
-                    "Advertising Bedrock server {} at {}:{} (addon transport: {:?})",
-                    entry.name,
-                    entry.host,
-                    entry.port,
-                    entry.addon_mode,
-                );
-            }
-        } else {
+        for entry in &self.config.server.bedrock.servers {
             curia::info!(
-                "Bedrock services disabled (server.bedrock.enabled = false); DNS and transfer relay not started"
+                "Advertising Bedrock server {} at {}:{} (addon transport: {:?})",
+                entry.name,
+                entry.host,
+                entry.port,
+                entry.addon_mode,
             );
         }
 
@@ -867,16 +835,6 @@ impl ServerRuntime {
 
         // Always stop QUIC regardless of which branch exited
         self.state = RuntimeState::ShuttingDown;
-
-        #[cfg(feature = "bedrock")]
-        {
-            use common::traits::StreamTrait;
-            if let Some(ref mut relay) = transfer_relay {
-                if let Err(e) = relay.stop().await {
-                    curia::error!("Failed to stop bedrock transfer relay: {}", e);
-                }
-            }
-        }
 
         if let Err(e) = quic_manager.stop().await {
             curia::error!("Error stopping QUIC server: {}", e);

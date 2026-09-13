@@ -8,7 +8,6 @@ pub mod session_name;
 pub mod proxy;
 pub mod state;
 pub mod target;
-pub mod transfer_keep_alive;
 
 /// Raised whenever a target is listed or connected without Xbox Live authentication.
 ///
@@ -40,4 +39,3 @@ pub use proxy::{
 };
 pub use state::BedrockState;
 pub use target::{BedrockTargetService, ResolvedAddress, ResolvedTarget, SavedProxyEntry};
-pub use transfer_keep_alive::TransferKeepAlive;

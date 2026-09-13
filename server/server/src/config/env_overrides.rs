@@ -57,16 +57,6 @@ impl EnvOverrides {
         }
     }
 
-    fn get_u16(&self, key: &str) -> Result<Option<u16>, anyhow::Error> {
-        match self.get(key) {
-            None => Ok(None),
-            Some(raw) => raw
-                .parse::<u16>()
-                .map(Some)
-                .map_err(|_| anyhow!("{key} must be an integer port, got {raw:?}")),
-        }
-    }
-
     fn get_bool(&self, key: &str) -> Result<Option<bool>, anyhow::Error> {
         match self.get(key) {
             None => Ok(None),
@@ -285,12 +275,6 @@ impl EnvOverrides {
     }
 
     fn apply_bedrock(&self, config: &mut ApplicationConfig) -> Result<(), anyhow::Error> {
-        if let Some(enabled) = self.get_bool("BVC_BEDROCK_ENABLED")? {
-            config.server.bedrock.enabled = enabled;
-        }
-        if let Some(port) = self.get_u16("BVC_BEDROCK_TRANSFER_PORT")? {
-            config.server.bedrock.transfer_port = port;
-        }
         // Comma-separated `Name@host[:port][@protocol]` entries. A set variable
         // replaces the config list wholesale, matching env > config precedence.
         if let Some(entries) = self.get_list("BVC_BEDROCK_SERVERS") {

@@ -42,8 +42,6 @@ pub struct TestServer {
     pub admin_id: i32,
     pub cert_service: Arc<CertificateService>,
     pub revocations: Arc<CertificateRevocationService>,
-    #[cfg(feature = "bedrock")]
-    pub transfer_cache: bvc_server_lib::services::bedrock::TransferTargetCache,
     pub db: DatabaseConnection,
     pub readiness: Arc<bvc_server_lib::runtime::ReadinessState>,
     pub nonce: Arc<bvc_server_lib::services::CurrentNonce>,
@@ -152,8 +150,6 @@ impl TestServer {
             Some(config.server.minecraft.access_token.clone()),
             true,
         );
-        #[cfg(feature = "bedrock")]
-        let transfer_cache = bvc_server_lib::services::bedrock::TransferTargetCache::new(300);
         let server_task = RocketHarness::launch(
             config,
             cert_service.clone(),
@@ -162,8 +158,6 @@ impl TestServer {
             revocations.clone(),
             nonce.clone(),
             access_token_service.clone(),
-            #[cfg(feature = "bedrock")]
-            transfer_cache.clone(),
         )
         .await?;
 
@@ -181,8 +175,6 @@ impl TestServer {
             admin_id,
             cert_service,
             revocations,
-            #[cfg(feature = "bedrock")]
-            transfer_cache,
             db,
             readiness,
             nonce,

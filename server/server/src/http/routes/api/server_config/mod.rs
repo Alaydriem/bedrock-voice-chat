@@ -3,10 +3,6 @@ use common::curia;
 use common::response::{
     ApiConfigAge, ApiConfigCapacity, ApiConfigChat, ApiConfigRecording, ApiConfigResponse,
 };
-// Only the build without the feature substitutes a default; with it, the value comes from
-// the configuration instead.
-#[cfg(not(feature = "bedrock"))]
-use common::response::ApiConfigBedrock;
 use rocket::{State, serde::json::Json};
 use rocket_okapi::openapi;
 
@@ -63,16 +59,7 @@ pub async fn get_config(
         None => None,
     };
 
-    let bedrock = {
-        #[cfg(feature = "bedrock")]
-        {
-            config.bedrock.to_api()
-        }
-        #[cfg(not(feature = "bedrock"))]
-        {
-            ApiConfigBedrock::default()
-        }
-    };
+    let bedrock = config.bedrock.to_api();
 
     Json(ApiConfigResponse {
         status: String::from("Ok"),

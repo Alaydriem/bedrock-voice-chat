@@ -1,11 +1,12 @@
 <script lang="ts">
   import { I18n } from "$lib/i18n";
-    import { onDestroy, onMount } from "svelte";
+    import { getContext, onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import ServerGlyph from "$radial/components/ServerGlyph.svelte";
     import { SettingsCatalogue } from "../../js/app/settings/SettingsCatalogue";
-    import { BedrockCapabilityManager } from "../../js/app/managers/bedrock/BedrockCapabilityManager";
-    import { BedrockManager } from "../../js/app/managers/bedrock/BedrockManager";
+    import type { BedrockManager } from "../../js/app/managers/bedrock/BedrockManager";
+    import { BEDROCK_MANAGER_KEY } from "../../js/app/shell/BedrockManagerContext";
+    import { BedrockManagerHolder } from "../../js/app/shell/BedrockManagerHolder";
     import { UpdateStatus } from "../../js/app/settings/UpdateStatus";
     import PlatformDetector from "../../js/app/utils/PlatformDetector";
     import SettingsNav from "./SettingsNav.svelte";
@@ -74,16 +75,18 @@
      */
     const mobile = new PlatformDetector().mobile();
 
-    /** One manager across both Bedrock panes; built on first use. */
-    let bedrock: BedrockManager | null = null;
+    /**
+     * One manager across both Bedrock panes, built on first use.
+     *
+     * The dashboard publishes the holder so the manager — and the connection log on it —
+     * outlives settings being closed and reopened. The standalone route has no dashboard
+     * behind it and gets its own, which this screen then owns and destroys.
+     */
+    const shared = getContext<BedrockManagerHolder | undefined>(BEDROCK_MANAGER_KEY);
+    const ownsHolder = shared === undefined;
+    const holder = shared ?? new BedrockManagerHolder();
     function bedrockManager(): BedrockManager {
-        if (!bedrock) {
-            bedrock = new BedrockManager(new BedrockCapabilityManager());
-            // Loads both managers from the store and restores the Microsoft session.
-            // Guards itself against running twice.
-            void bedrock.initialize();
-        }
-        return bedrock;
+        return holder.get();
     }
     /**
      * What this viewer is allowed to do, which decides whether the admin pane exists.
@@ -115,7 +118,9 @@
     onDestroy(() => {
         unbadge?.();
         unpermissions?.();
-        bedrock?.destroy();
+        // Only a holder this screen built. A shared one belongs to the dashboard, and
+        // destroying it here is what emptied the connection log on every close.
+        if (ownsHolder) holder.destroy();
     });
 
     // A pane change can happen without a remount, so the body is scrolled back itself.

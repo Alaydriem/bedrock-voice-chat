@@ -53,8 +53,6 @@ pub struct RocketManager {
     /// Stops the shared position pass when the HTTP server does, so a restart does not
     /// leave a second ticker rebuilding the index alongside the first.
     feed_cancel: tokio_util::sync::CancellationToken,
-    #[cfg(feature = "bedrock")]
-    transfer_target_cache: crate::services::bedrock::TransferTargetCache,
 }
 
 impl RocketManager {
@@ -76,8 +74,6 @@ impl RocketManager {
         nonce: Arc<crate::services::CurrentNonce>,
         peer_plane: Option<Arc<crate::relay::PeerPlane>>,
         access_token_service: Arc<crate::services::AccessTokenService>,
-        #[cfg(feature = "bedrock")]
-        transfer_target_cache: crate::services::bedrock::TransferTargetCache,
     ) -> Self {
         Self {
             config,
@@ -100,8 +96,6 @@ impl RocketManager {
             access_token_service,
             shutdown_handle: Arc::new(Mutex::new(None)),
             feed_cancel: tokio_util::sync::CancellationToken::new(),
-            #[cfg(feature = "bedrock")]
-            transfer_target_cache,
         }
     }
 
@@ -169,7 +163,7 @@ impl RocketManager {
                     .clone()
                     .spawn(self.cache_manager.clone(), self.feed_cancel.clone());
 
-                let mut rocket = rocket::custom(figment)
+                let rocket = rocket::custom(figment)
                     .manage(position_feed)
                     .manage(crate::services::HealthService::new_shared(
                         self.readiness.clone(),
@@ -195,11 +189,6 @@ impl RocketManager {
                     .manage(self.nonce.clone())
                     .manage(self.peer_plane.clone())
                     .manage(self.access_token_service.clone());
-
-                #[cfg(feature = "bedrock")]
-                {
-                    rocket = rocket.manage(self.transfer_target_cache.clone());
-                }
 
                 // Cross-server peering routes: the code-mint/offer, code-redeem, and
                 // peer-link endpoints two servers sharing a realm use directly.

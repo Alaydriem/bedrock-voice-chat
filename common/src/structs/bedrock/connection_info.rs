@@ -34,11 +34,4 @@ pub struct BedrockConnectionInfo {
     // - Direct: `"<target_host>:<target_port>"`
     // - Realm:  the realm display name picked in the UI
     pub remote_label: String,
-
-    // Transfer relay of the connected BVC server, preformatted as `host:port`.
-    // The host is the server the client is connected to; the port is the
-    // server's bedrock transfer port from `/api/config`. Present only when that
-    // server runs the relay. Distinct from `port` (the local proxy listen port).
-    #[serde(default)]
-    pub server_transfer_relay: Option<String>,
 }

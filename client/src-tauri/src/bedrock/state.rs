@@ -6,13 +6,10 @@ use tokio::sync::watch;
 
 use crate::bedrock::BedrockPlayerStateCache;
 use crate::bedrock::BedrockProxyManager;
-use crate::bedrock::TransferKeepAlive;
-use crate::structs::app_state::AppState;
 
 pub struct BedrockState {
     pub proxy: Option<BedrockProxyManager>,
     pub realms: Option<BedrockProxyManager>,
-    pub keepalive: Option<TransferKeepAlive>,
     pub auth_manager: Option<Arc<AuthManager>>,
     pub realms_api: Option<RealmsApi>,
     pub xbl_token: Option<String>,
@@ -44,7 +41,6 @@ impl BedrockState {
         Self {
             proxy: None,
             realms: None,
-            keepalive: None,
             auth_manager: None,
             realms_api: None,
             xbl_token: None,
@@ -110,40 +106,4 @@ impl BedrockState {
         self.reauth_required = false;
     }
 
-    pub async fn start_keepalive(
-        &mut self,
-        app_state: &AppState,
-        listen_port: u16,
-        network_interface: &str,
-    ) -> Result<(), String> {
-        let xuid = self
-            .xuid
-            .as_ref()
-            .ok_or_else(|| "XUID required for transfer keepalive".to_string())?
-            .clone();
-
-        let api = app_state
-            .get_api_client()
-            .map_err(|e| format!("BVC server connection required: {}", e))?;
-
-        let server_url = api.endpoint().to_string();
-        let client = api.get_reqwest_client();
-
-        let mut keepalive = TransferKeepAlive::new(
-            server_url,
-            network_interface.to_string(),
-            listen_port,
-            client,
-        );
-        keepalive.start().await.map_err(|e| e.to_string())?;
-        self.keepalive = Some(keepalive);
-        Ok(())
-    }
-
-    pub async fn stop_keepalive(&mut self) {
-        if let Some(ref mut keepalive) = self.keepalive {
-            let _ = keepalive.stop().await;
-        }
-        self.keepalive = None;
-    }
 }

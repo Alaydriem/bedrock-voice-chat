@@ -202,10 +202,6 @@ impl BedrockConnector {
             );
             proxy.start().await?;
 
-            let server_transfer_relay = self
-                .start_keepalive(&mut state, effective_listen_port, &network_interface)
-                .await;
-
             state.proxy = Some(proxy);
             state.proxy_target_host = Some(request.target_host.clone());
             state.proxy_target_port = Some(request.target_port);
@@ -223,7 +219,6 @@ impl BedrockConnector {
                 port: effective_listen_port,
                 backend: BedrockBackendKind::Direct,
                 remote_label: format!("{}:{}", request.target_host, request.target_port),
-                server_transfer_relay,
             }
         };
 
@@ -301,10 +296,6 @@ impl BedrockConnector {
             );
             realms.start().await?;
 
-            let server_transfer_relay = self
-                .start_keepalive(&mut state, BEDROCK_LISTEN_PORT, &network_interface)
-                .await;
-
             state.realms = Some(realms);
             state.active_realm_id = Some(request.realm_id);
             state.active_realm_name = Some(request.realm_name.clone());
@@ -320,7 +311,6 @@ impl BedrockConnector {
                 port: BEDROCK_LISTEN_PORT,
                 backend: BedrockBackendKind::Realm,
                 remote_label: request.realm_name.clone(),
-                server_transfer_relay,
             }
         };
 
@@ -332,20 +322,25 @@ impl BedrockConnector {
 
     /// Stops the proxy session, reporting the world it was connected to.
     pub async fn stop_proxy(&self) -> Result<Option<ActiveConnection>, anyhow::Error> {
-        let stopped = {
+        // The manager is taken out of the state and stopped with the guard
+        // released. Stopping drains live sessions, and `bedrock_get_status`
+        // wants this same lock once a second — holding it across the drain
+        // freezes the status poll for as long as teardown runs, so the UI
+        // cannot observe the stop it is waiting for.
+        let (mut proxy, stopped) = {
             let state = self.app_handle.state::<Mutex<BedrockState>>();
             let mut state = state.lock().await;
-            state.stop_keepalive().await;
-            if let Some(ref mut proxy) = state.proxy {
-                proxy.stop().await?;
-            }
-            state.proxy = None;
+            let proxy = state.proxy.take();
             state.proxy_target_host = None;
             state.proxy_target_port = None;
             state.proxy_listen_port = None;
             state.proxy_started_at = None;
-            state.active_connection.take()
+            (proxy, state.active_connection.take())
         };
+
+        if let Some(ref mut proxy) = proxy {
+            proxy.stop().await?;
+        }
 
         self.broadcast_state().await;
         Ok(stopped)
@@ -353,18 +348,20 @@ impl BedrockConnector {
 
     /// Stops the realms session, reporting the world it was connected to.
     pub async fn stop_realm(&self) -> Result<Option<ActiveConnection>, anyhow::Error> {
-        let stopped = {
+        // Taken out and stopped with the guard released, for the reason given
+        // in `stop_proxy`.
+        let (mut realms, stopped) = {
             let state = self.app_handle.state::<Mutex<BedrockState>>();
             let mut state = state.lock().await;
-            state.stop_keepalive().await;
-            if let Some(ref mut realms) = state.realms {
-                realms.stop().await?;
-            }
-            state.realms = None;
+            let realms = state.realms.take();
             state.active_realm_id = None;
             state.active_realm_name = None;
-            state.active_connection.take()
+            (realms, state.active_connection.take())
         };
+
+        if let Some(ref mut realms) = realms {
+            realms.stop().await?;
+        }
 
         self.broadcast_state().await;
         Ok(stopped)
@@ -472,33 +469,6 @@ impl BedrockConnector {
                 .inner()
                 .clone(),
         )
-    }
-
-    // Starts the transfer keepalive and resolves the hints the connection card shows. A
-    // keepalive that fails to start is logged rather than fatal: the session itself is up, and
-    // the keepalive only smooths reconnects.
-    async fn start_keepalive(
-        &self,
-        state: &mut BedrockState,
-        listen_port: u16,
-        network_interface: &str,
-    ) -> Option<String> {
-        let app_state = self.app_handle.state::<Mutex<AppState>>();
-        let server_api = {
-            let app = app_state.lock().await;
-            if let Err(e) = state
-                .start_keepalive(&app, listen_port, network_interface)
-                .await
-            {
-                log::warn!("Transfer keepalive failed to start: {}", e);
-            }
-            app.api_client.clone()
-        };
-
-        match server_api {
-            Some(api) => api.resolve_bedrock_connection_hints().await,
-            None => None,
-        }
     }
 
     fn emit_connection_info(&self, info: BedrockConnectionInfo) {

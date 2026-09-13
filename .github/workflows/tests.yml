@@ -625,7 +625,7 @@ jobs:
         # run time instead.
         run: |
           eval "$(cargo llvm-cov show-env --export-prefix)"
-          cargo build -p bedrock-voice-chat-server --features bedrock
+          cargo build -p bedrock-voice-chat-server
 
       - name: Stage cdylib
         shell: bash

@@ -4,6 +4,7 @@
     import Icon from "$radial/components/Icon.svelte";
     import StatusChip from "$radial/components/StatusChip.svelte";
     import type { BedrockManager } from "../../js/app/managers/bedrock/BedrockManager";
+    import { BedrockLogsManager } from "../../js/app/managers/bedrock/logs/BedrockLogsManager";
     import type { BedrockLogEntry } from "../../js/bindings/BedrockLogEntry";
 
     interface Props {
@@ -19,14 +20,10 @@
     let showDebug = $state(false);
 
     // The sink captures at debug so the buffer holds everything; the view
-    // decides what is worth showing.
+    // decides what is worth showing. The buffer trims each class against its own budget by
+    // the same predicate, so the two cannot disagree about what "debug" means.
     let visible = $derived(
-        showDebug
-            ? lines
-            : lines.filter((entry) => {
-                  const value = entry.level.toLowerCase();
-                  return !value.startsWith("debug") && !value.startsWith("trace");
-              }),
+        showDebug ? lines : lines.filter((entry) => !BedrockLogsManager.isVerbose(entry)),
     );
 
     let body = $state<HTMLElement | null>(null);
@@ -65,8 +62,11 @@
         });
     }
 
+    // What is on screen, not what the buffer holds. Copying the debug lines a reader had
+    // hidden handed them hundreds of lines from a log that showed a dozen; the toggle beside
+    // this button is how they ask for the rest.
     async function copy(): Promise<void> {
-        const text = lines
+        const text = visible
             .map((entry) => `${stamp(entry)} ${entry.level} ${entry.target} ${entry.message}`)
             .join("\n");
         await navigator.clipboard?.writeText(text).catch(() => {});
@@ -82,8 +82,11 @@
         <Icon name="terminal" /> Connection log
         {#if live}
             <StatusChip severity="ok">{I18n.t("Live")}</StatusChip>
-        {:else if lines.length}
-            <StatusChip severity="muted">{lines.length}</StatusChip>
+        {:else if visible.length}
+            <!-- What the collapsed log would show, not what the buffer holds. The buffer
+                 keeps debug and trace for the toggle below, and counting those put a
+                 three-figure chip over a log that reads as empty. -->
+            <StatusChip severity="muted">{visible.length}</StatusChip>
         {/if}
         <span class="rad-disclosure__caret"><Icon name="chev" /></span>
     </button>

@@ -26,6 +26,76 @@ pub struct ProxyWorld {
 }
 
 impl ProxyWorld {
+    /// How long the downstream connect and upstream accept get before the
+    /// harness gives up.
+    ///
+    /// This bound only catches a *silent* hang. A connect that fails outright
+    /// panics the moment it does, so the common case -- the proxy bound an
+    /// address family the harness cannot reach -- is reported in seconds no
+    /// matter what this is set to.
+    ///
+    /// So it is set generously rather than tightly. At 45s it failed a test
+    /// that had passed moments earlier on a less loaded machine, which trades
+    /// one flaky failure mode for another. It stays under nextest's 180s so
+    /// the message below is what the log shows, instead of an opaque
+    /// termination.
+    const ATTACH_TIMEOUT: Duration = Duration::from_secs(120);
+
+    /// Drive the downstream connect and the upstream accept together,
+    /// failing fast and loudly on either.
+    ///
+    /// The proxy only dials the upstream once a downstream client has
+    /// connected, so neither side can be awaited to completion before the
+    /// other is started. Both failure modes used to present identically as a
+    /// test that simply never finished.
+    async fn connect_and_accept(
+        proxy_addr: std::net::SocketAddr,
+        name: &str,
+        version: ProtocolVersion,
+        upstream: &mut FakeBedrockUpstream,
+    ) -> (bedrock_client::ClientConnection, String) {
+        let connect =
+            BedrockClient::connect_nethernet(proxy_addr, AuthInfo::offline(name), version);
+        let accept = upstream.accept_player();
+        tokio::pin!(connect);
+        tokio::pin!(accept);
+
+        let mut downstream = None;
+        let mut accepted = None;
+
+        let both = async {
+            while downstream.is_none() || accepted.is_none() {
+                tokio::select! {
+                    result = &mut connect, if downstream.is_none() => match result {
+                        Ok(conn) => downstream = Some(conn),
+                        Err(e) => panic!(
+                            "downstream connect to {proxy_addr} failed: {e}\n\
+                             The proxy serves NetherNet signaling over TCP at that \
+                             address. A connection refusal usually means it bound a \
+                             different address family than the one dialed here."
+                        ),
+                    },
+                    who = &mut accept, if accepted.is_none() => accepted = Some(who),
+                }
+            }
+        };
+
+        if tokio::time::timeout(Self::ATTACH_TIMEOUT, both).await.is_err() {
+            panic!(
+                "timed out attaching {name} after {:?}: downstream connected = {}, \
+                 upstream accepted = {}. Whichever is false is the side that hung.",
+                Self::ATTACH_TIMEOUT,
+                downstream.is_some(),
+                accepted.is_some()
+            );
+        }
+
+        (
+            downstream.expect("downstream set before the loop exits"),
+            accepted.expect("accepted set before the loop exits"),
+        )
+    }
+
     pub async fn boot(version: ProtocolVersion, names: &[&str]) -> Self {
         Self::boot_with_mode(version, names, AddonMode::NoNet).await
     }
@@ -71,10 +141,24 @@ impl ProxyWorld {
             // connect and the upstream accept concurrently so neither blocks the other.
             let proxy_addr: std::net::SocketAddr =
                 format!("127.0.0.1:{listen}").parse().expect("proxy addr");
-            let connect = BedrockClient::connect(proxy_addr, AuthInfo::offline(name), version);
-            let accept = upstream.accept_player();
-            let (downstream_res, accepted) = tokio::join!(connect, accept);
-            let downstream = downstream_res.expect("downstream connects to proxy");
+            // NetherNet, matching the frontend the proxy now serves. A
+            // RakNet dial cannot reach it: a NetherNet frontend binds no
+            // RakNet listener, so a RakNet dial here fails to connect.
+            // `proxy_addr` is the HTTP signaling endpoint.
+            //
+            // These two steps are interdependent, so they run concurrently --
+            // but a plain `join!` waits for *both*, and the upstream accept
+            // never happens if the downstream connect fails. That turned a
+            // one-line connection error into a 180s nextest timeout with
+            // nothing in the log to explain it. `select!` reports the connect
+            // error the moment it happens instead.
+            let (downstream, accepted) = Self::connect_and_accept(
+                proxy_addr,
+                name,
+                version,
+                &mut upstream,
+            )
+            .await;
             assert_eq!(
                 accepted, name,
                 "upstream connection identity must match actor"

@@ -129,8 +129,6 @@ export type { StreamConfig } from './StreamConfig';
 export type { StreamEvent } from './StreamEvent';
 export type { StreamType } from './StreamType';
 export type { TrackKind } from './TrackKind';
-export type { TransferTargetRequest } from './TransferTargetRequest';
-export type { TransferTargetResponse } from './TransferTargetResponse';
 export type { TransportKind } from './TransportKind';
 export type { UploaderIdentity } from './UploaderIdentity';
 export type { VoiceMode } from './VoiceMode';

@@ -303,32 +303,19 @@ fn meridian_vars_override_existing_block_fields() {
     assert_eq!(meridian.url, "https://old:9443");
 }
 
+// The two removed variables are no longer read, and an operator whose
+// environment still sets them must keep booting rather than meet a parse error
+// for a value nothing consumes.
 #[test]
-fn bedrock_enabled_parses_bool_or_errors() {
-    let config = apply(&[("BVC_BEDROCK_ENABLED", "false")], ApplicationConfig::default());
-    assert!(!config.server.bedrock.enabled);
-
-    let config = apply(&[("BVC_BEDROCK_ENABLED", "TRUE")], ApplicationConfig::default());
-    assert!(config.server.bedrock.enabled);
-
-    let err = EnvOverrides::from_vars(vars(&[("BVC_BEDROCK_ENABLED", "yes")]))
-        .apply(ApplicationConfig::default())
-        .unwrap_err();
-    assert!(format!("{err}").contains("BVC_BEDROCK_ENABLED"));
-}
-
-#[test]
-fn bedrock_transfer_port_parses_u16_or_errors() {
+fn the_removed_bedrock_variables_are_ignored_rather_than_rejected() {
     let config = apply(
-        &[("BVC_BEDROCK_TRANSFER_PORT", "19140")],
+        &[
+            ("BVC_BEDROCK_ENABLED", "not-a-bool"),
+            ("BVC_BEDROCK_TRANSFER_PORT", "70000"),
+        ],
         ApplicationConfig::default(),
     );
-    assert_eq!(config.server.bedrock.transfer_port, 19140);
-
-    let err = EnvOverrides::from_vars(vars(&[("BVC_BEDROCK_TRANSFER_PORT", "70000")]))
-        .apply(ApplicationConfig::default())
-        .unwrap_err();
-    assert!(format!("{err}").contains("BVC_BEDROCK_TRANSFER_PORT"));
+    assert!(config.server.bedrock.servers.is_empty());
 }
 
 #[test]

@@ -1,10 +1,5 @@
 //! Server services
 
-#[cfg(feature = "bedrock")]
-pub mod bedrock;
-#[cfg(feature = "bedrock")]
-pub use bedrock::{TransferRelayService, TransferTargetCache};
-
 pub mod access_token_service;
 pub mod acme;
 pub mod admin_user_service;

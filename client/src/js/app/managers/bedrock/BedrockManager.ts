@@ -363,8 +363,9 @@ export class BedrockManager {
         this.authManager.destroy();
         this.logsManager.destroy();
         this.connectionManager.destroy();
-        // The capability manager itself is owned by SettingsSidebarManager;
-        // only the subscription is ours to release.
+        // The capability manager itself is owned by whoever constructed it and passed it
+        // in — `BedrockManagerHolder` in every path the app takes. Only the subscription
+        // is ours to release.
         if (this.capabilityUnsubscribe) {
             this.capabilityUnsubscribe();
             this.capabilityUnsubscribe = null;

@@ -124,7 +124,7 @@ msgstr ""
 #: src/components/dashboard/ServerRail.svelte:46
 #: src/components/server/ServerListScreen.svelte:52
 #: src/components/server/ServerListScreen.svelte:78
-#: src/components/settings/panes/ConnectPane.svelte:245
+#: src/components/settings/panes/ConnectPane.svelte:262
 msgid "Add a server"
 msgstr ""
 
@@ -271,7 +271,7 @@ msgid "Available now"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:363
-#: src/components/settings/SettingsScreen.svelte:165
+#: src/components/settings/SettingsScreen.svelte:170
 msgid "Back"
 msgstr ""
 
@@ -351,7 +351,7 @@ msgstr ""
 msgid "BVC Addon Required"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:213
+#: src/components/settings/panes/ConnectPane.svelte:223
 msgid "BVC JOINS THE WORLD AS YOU"
 msgstr ""
 
@@ -441,7 +441,7 @@ msgid "Chat is disabled on this server"
 msgstr ""
 
 #: src/components/settings/panes/AboutPane.svelte:132
-#: src/components/settings/panes/ConnectPane.svelte:227
+#: src/components/settings/panes/ConnectPane.svelte:243
 msgid "Check again"
 msgstr ""
 
@@ -461,8 +461,12 @@ msgstr ""
 msgid "Checking audio permission..."
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:204
+#: src/components/settings/panes/ConnectPane.svelte:214
 msgid "Checking your Microsoft sign-in."
+msgstr ""
+
+#: src/components/settings/panes/ConnectPane.svelte:243
+msgid "Checking…"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:155
@@ -484,7 +488,7 @@ msgstr ""
 msgid "Chosen by the system"
 msgstr ""
 
-#: src/components/settings/BedrockLog.svelte:117
+#: src/components/settings/BedrockLog.svelte:120
 msgid "Clear"
 msgstr ""
 
@@ -514,8 +518,8 @@ msgstr ""
 msgid "Close groups"
 msgstr ""
 
-#: src/components/settings/SettingsScreen.svelte:140
-#: src/components/settings/SettingsScreen.svelte:158
+#: src/components/settings/SettingsScreen.svelte:145
+#: src/components/settings/SettingsScreen.svelte:163
 msgid "Close settings"
 msgstr ""
 
@@ -574,7 +578,7 @@ msgstr ""
 msgid "connected"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:299
+#: src/components/settings/panes/ConnectPane.svelte:316
 #: src/components/settings/panes/WebSocketPane.svelte:202
 msgid "Connected"
 msgstr ""
@@ -625,7 +629,7 @@ msgstr ""
 msgid "Copied."
 msgstr ""
 
-#: src/components/settings/BedrockLog.svelte:111
+#: src/components/settings/BedrockLog.svelte:114
 msgid "Copy"
 msgstr ""
 
@@ -903,7 +907,7 @@ msgstr ""
 msgid "FORMAT UNSUPPORTED"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:267
+#: src/components/settings/panes/ConnectPane.svelte:284
 msgid "From your server"
 msgstr ""
 
@@ -1002,7 +1006,7 @@ msgid "Identity"
 msgstr ""
 
 #: src/components/dashboard/DashboardScreen.svelte:335
-#: src/routes/dashboard/+layout.svelte:625
+#: src/routes/dashboard/+layout.svelte:638
 msgid "In earshot"
 msgstr ""
 
@@ -1116,7 +1120,7 @@ msgid "last seen {n} min ago"
 msgstr ""
 
 #: src/components/dashboard/GroupRow.svelte:193
-#: src/routes/dashboard/+layout.svelte:618
+#: src/routes/dashboard/+layout.svelte:631
 msgid "Leave"
 msgstr ""
 
@@ -1447,7 +1451,7 @@ msgstr ""
 msgid "Nothing in range"
 msgstr ""
 
-#: src/components/settings/SettingsScreen.svelte:182
+#: src/components/settings/SettingsScreen.svelte:187
 msgid "Nothing is connected"
 msgstr ""
 
@@ -1467,7 +1471,7 @@ msgstr ""
 msgid "Nothing matches that"
 msgstr ""
 
-#: src/components/settings/BedrockLog.svelte:103
+#: src/components/settings/BedrockLog.svelte:106
 msgid "Nothing yet. Connect, and this fills in."
 msgstr ""
 
@@ -1552,7 +1556,7 @@ msgstr ""
 msgid "Open a bug report on GitHub"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:302
+#: src/components/settings/panes/ConnectPane.svelte:319
 msgid "Open Minecraft, then join it from the Friends tab."
 msgstr ""
 
@@ -1771,7 +1775,7 @@ msgstr ""
 msgid "Realm"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:253
+#: src/components/settings/panes/ConnectPane.svelte:270
 msgid "Realms"
 msgstr ""
 
@@ -1929,7 +1933,7 @@ msgstr ""
 msgid "Run the BVC server"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:300
+#: src/components/settings/panes/ConnectPane.svelte:317
 msgid "Running for {clock}"
 msgstr ""
 
@@ -2063,7 +2067,7 @@ msgid "Set it up once."
 msgstr ""
 
 #: src/components/dashboard/ServerRail.svelte:52
-#: src/components/settings/SettingsScreen.svelte:146
+#: src/components/settings/SettingsScreen.svelte:151
 msgid "Settings"
 msgstr ""
 
@@ -2080,7 +2084,7 @@ msgstr ""
 msgid "Share the address and talk"
 msgstr ""
 
-#: src/components/settings/BedrockLog.svelte:115
+#: src/components/settings/BedrockLog.svelte:118
 msgid "Show debug"
 msgstr ""
 
@@ -2093,7 +2097,7 @@ msgid "Show status"
 msgstr ""
 
 #: src/components/login/CodeScreen.svelte:81
-#: src/components/settings/panes/ConnectPane.svelte:216
+#: src/components/settings/panes/ConnectPane.svelte:226
 msgid "Sign in"
 msgstr ""
 
@@ -2111,7 +2115,7 @@ msgid "Sign in with a code"
 msgstr ""
 
 #: src/components/login/SignInScreen.svelte:107
-#: src/components/settings/panes/ConnectPane.svelte:212
+#: src/components/settings/panes/ConnectPane.svelte:222
 #: src/components/settings/XboxSignIn.svelte:45
 msgid "Sign in with Microsoft"
 msgstr ""
@@ -2603,7 +2607,7 @@ msgstr ""
 msgid "Watching for your sign-in."
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:224
+#: src/components/settings/panes/ConnectPane.svelte:234
 msgid "We could not reach this server to ask whether Bedrock support is on."
 msgstr ""
 
@@ -2696,7 +2700,7 @@ msgstr ""
 msgid "You are deafened. You cannot hear anyone."
 msgstr ""
 
-#: src/components/settings/SettingsScreen.svelte:182
+#: src/components/settings/SettingsScreen.svelte:187
 msgid "You are in settings on its own."
 msgstr ""
 
@@ -2704,7 +2708,7 @@ msgstr ""
 msgid "You are muted. Nobody can hear you."
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:225
+#: src/components/settings/panes/ConnectPane.svelte:235
 msgid "You can connect anyway — if position is refused, this is why."
 msgstr ""
 
@@ -2831,7 +2835,7 @@ msgstr ""
 msgid "YOUR WORLD STAYS WHERE IT IS"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:280
+#: src/components/settings/panes/ConnectPane.svelte:297
 msgid "Yours"
 msgstr ""
 

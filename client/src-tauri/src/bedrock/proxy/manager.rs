@@ -6,7 +6,8 @@ use std::time::Duration;
 use bytes::BytesMut;
 use common::bedrock_protocol::{
     AdvertisedVersion, AuthInfo, AuthManager, Bytes, DisconnectPacket, Proxy, ProxyConfig,
-    RealmConfig, Session,
+    RealmConfig, Session, SpliceFailure,
+    config::FrontendProtocol,
     protocol::batch::BatchCodec,
     protocol::codec::PacketEncode,
     protocol::packets::generated::misc::text::TextPacket,
@@ -29,6 +30,20 @@ use crate::bedrock::proxy::presence::PendingQueryState;
 use crate::bedrock::proxy::session::{BedrockSessionEventDispatcher, DispatchOutcome};
 
 const RELAY_DRAIN_DELAY: Duration = Duration::from_millis(500);
+
+// How long graceful teardown gets before `stop` stops waiting and aborts. Long
+// enough for a session to flush its Disconnect and for RELAY_DRAIN_DELAY, short
+// enough that a wedged session does not read to the user as a dead button.
+const STOP_GRACE: Duration = Duration::from_secs(5);
+
+// Per-child budget inside the accept loop's own teardown, so one wedged session
+// cannot hold up the others or the proxy drop that releases the sockets.
+const CHILD_DRAIN_GRACE: Duration = Duration::from_millis(1500);
+
+// What the library gets to release its own sockets and tasks. It abandons
+// whatever has not finished by then, so this bounds the teardown rather than
+// trusting it.
+const PROXY_SHUTDOWN_GRACE: Duration = Duration::from_secs(2);
 
 const CLIENT_DISCONNECT_DRAIN: Duration = Duration::from_millis(150);
 
@@ -154,7 +169,21 @@ impl StreamTrait for BedrockProxyManager {
         let _ = self.shutdown.store(true, Ordering::Relaxed);
 
         if let Some(handle) = self.listener_handle.take() {
-            let _ = handle.await;
+            // Graceful teardown is given a budget, not an open-ended wait. It
+            // drains live sessions so each one flushes its Disconnect, and a
+            // session that never finishes would otherwise hang `stop` forever
+            // — with the caller's state lock held and the UI polling status
+            // against it. The abort handles collected in `start` exist for
+            // exactly this and were never used.
+            if tokio::time::timeout(STOP_GRACE, handle).await.is_err() {
+                warn!(
+                    "Bedrock teardown did not finish within {:?}; aborting the listener",
+                    STOP_GRACE
+                );
+                for job in &self.jobs {
+                    job.abort();
+                }
+            }
         }
 
         self.jobs = vec![];
@@ -225,13 +254,6 @@ impl BedrockProxyManager {
                 }
             };
 
-            // Resolve the direct backend hostname before binding: a Direct
-            // backend's address doubles as the proxy's `backend_probe_addr`,
-            // which the listener needs at construction so
-            // `AdvertisedVersion::Auto` can sniff and mirror the upstream
-            // version. Realm backends have no probe address — the Realms API
-            // resolves the live world address inside dial_realm — so this
-            // stays `None` for them.
             let direct_target_addr: Option<SocketAddr> = match &backend {
                 Backend::Direct {
                     target_host,
@@ -263,7 +285,8 @@ impl BedrockProxyManager {
             };
 
             let config = ProxyConfig {
-                bind: bind_addr,
+                frontend: FrontendProtocol::Nethernet,
+                listen: bind_addr,
                 realm: proxy_config_realm,
                 motd,
                 sub_motd,
@@ -277,14 +300,10 @@ impl BedrockProxyManager {
                 ..Default::default()
             };
 
-            let mut proxy = match Proxy::new(config).await {
+            let mut proxy = match Proxy::new(config.clone()).await {
                 Ok(p) => p,
                 Err(e) => {
                     error!("Bedrock proxy bind failed: {}", e);
-                    // A bind failure is the one startup error the user is most
-                    // likely to cause and least able to see: the port is already
-                    // taken, the session never starts, and without this the UI is
-                    // indistinguishable from having done nothing at all.
                     error_channel.emit(
                         common::structs::bedrock::BedrockConnectError::Transport {
                             message: format!(
@@ -295,12 +314,16 @@ impl BedrockProxyManager {
                     return;
                 }
             };
-            info!("Bedrock proxy listening on {}", proxy.local_addr());
+            let signaling_addr = match proxy.http_addr() {
+                Some(addr) => addr,
+                None => {
+                    error!("Bedrock proxy bound no signaling endpoint");
+                    return;
+                }
+            };
+            info!("Bedrock proxy listening on {}", signaling_addr);
 
-            // Fire backend-specific lifecycle event after the listener has
-            // actually bound. The Direct vs Realm split mirrors the
-            // user-facing distinction in the BVC UI.
-            let listening_addr = proxy.local_addr().to_string();
+            let listening_addr = signaling_addr.to_string();
             match &backend {
                 Backend::Direct {
                     target_host,
@@ -324,17 +347,10 @@ impl BedrockProxyManager {
                 }
             }
 
-            // WarmPool only makes sense for Direct backends. Upstream's
-            // `dial_realm` requires a client GameVersion (extracted from the
-            // downstream Login JWT) — at preconnect time no client has connected
-            // yet, so the Realm warm dial is guaranteed to fail (warm.rs:67-73).
-            // Calling it just generates a misleading "WarmPool: dial failed"
-            // error on every Realm connect. Realm sessions take the lazy path
-            // via `conn.connect_to_realm(...)` which has the GameVersion.
             let warm_pool: Option<Arc<WarmPool>> = match (&backend, direct_target_addr) {
                 (Backend::Direct { .. }, Some(addr)) => {
                     info!("Bedrock WarmPool dialing direct backend at {}", addr);
-                    Some(Arc::new(WarmPool::start(WarmTarget::Direct(addr), None)))
+                    Some(Arc::new(WarmPool::new(WarmTarget::Direct(addr), None)))
                 }
                 (Backend::Realm { .. }, _) => None,
                 (Backend::Direct { .. }, None) => {
@@ -347,9 +363,6 @@ impl BedrockProxyManager {
             let mut child_handles: Vec<JoinHandle<()>> = vec![];
             let (child_cancel_tx, _) = watch::channel(false);
 
-            // On a net world the addon posts every player's position over HTTP,
-            // so this feed would write the same cache key from a second source —
-            // one whose entry carries no world uuid, making that field flap.
             if addon_mode.relays_only() {
                 info!(
                     "Bedrock: position heartbeat disabled; the addon feeds this world over HTTP"
@@ -428,6 +441,15 @@ impl BedrockProxyManager {
 
                         let child_cache = Arc::clone(&player_state_cache);
                         let child_warm: Option<Arc<WarmPool>> = warm_pool.clone();
+                        // Start the upstream dial now, so it runs while this
+                        // player's Xbox auth resolves. The pool no longer
+                        // dials at startup: a backend drops a session that
+                        // connects and never logs in, so a connection warmed
+                        // before anyone joined was reliably dead by the time
+                        // it was used.
+                        if let Some(pool) = &child_warm {
+                            pool.prepare();
+                        }
                         let child_backend = Arc::clone(&backend);
                         let child_player_name = player_name.clone();
                         let child_emitter = Arc::clone(&event_emitter);
@@ -443,7 +465,7 @@ impl BedrockProxyManager {
                         let child_process_events = process_events;
                         let mut child_cancel_rx = child_cancel_tx.subscribe();
 
-                        let h = tokio::spawn(async move {
+                        let mut h = tokio::spawn(async move {
                             let auth_for_dial = match child_backend.as_ref() {
                                 Backend::Realm { auth, .. } => auth.clone(),
                                 Backend::Direct { auth_manager, .. } => {
@@ -480,7 +502,35 @@ impl BedrockProxyManager {
                             };
                             let session_result = if let Some(warm) = warm {
                                 info!("Bedrock: splicing {} onto warm backend", child_player_name);
-                                conn.splice_onto_warm(warm, auth_for_dial, None::<fn(&str, &str)>).await
+                                match conn
+                                    .splice_onto_warm(warm, auth_for_dial.clone(), None::<fn(&str, &str)>)
+                                    .await
+                                {
+                                    Ok(session) => Ok(session),
+                                    // The pooled backend had gone stale. Nothing
+                                    // has reached the player, so dial again
+                                    // rather than dropping them.
+                                    Err(SpliceFailure::StaleBackend { error, connection }) => {
+                                        warn!(
+                                            "Bedrock: warm backend was already closed ({error});                                              dialing fresh for {child_player_name}"
+                                        );
+                                        match child_backend.as_ref() {
+                                            Backend::Direct { .. } => {
+                                                let addr = direct_target_addr
+                                                    .expect("direct backend must have resolved addr");
+                                                connection
+                                                    .connect_to(addr, auth_for_dial, None::<fn(&str, &str)>)
+                                                    .await
+                                            }
+                                            Backend::Realm { .. } => {
+                                                connection
+                                                    .connect_to_realm(auth_for_dial, None::<fn(&str, &str)>)
+                                                    .await
+                                            }
+                                        }
+                                    }
+                                    Err(failure) => Err(failure.into()),
+                                }
                             } else {
                                 info!("Bedrock: no warm slot for {}, lazy dial", child_player_name);
                                 match child_backend.as_ref() {
@@ -625,7 +675,65 @@ impl BedrockProxyManager {
 
                             info!("Bedrock session ended for {}", child_player_name);
                         });
-                        child_handles.push(h);
+
+                        // A world is bound to one player, so this session is the
+                        // only one. Wait for it rather than looping straight back
+                        // to `accept`: the proxy is rebuilt on every disconnect,
+                        // and rebinding under a live session would pull the
+                        // socket out from under it.
+                        //
+                        // A stop request has to win this race too, or stopping
+                        // while someone is playing would block until they left.
+                        let stop_requested = tokio::select! {
+                            _ = &mut shutdown_rx => true,
+                            _ = &mut h => false,
+                        };
+
+                        if stop_requested {
+                            info!("Bedrock listener received shutdown signal during a session");
+                            child_handles.push(h);
+                            break;
+                        }
+
+                        // Awaited, not dropped. `shutdown` returns only once the
+                        // library has released the discovery and signaling
+                        // sockets; dropping merely schedules that, and the
+                        // rebind below would then bind a port the old socket
+                        // still holds. Both set SO_REUSEADDR, so that bind
+                        // succeeds and the two split the datagrams between them
+                        // rather than failing where it could be noticed.
+                        proxy.shutdown(PROXY_SHUTDOWN_GRACE).await;
+                        drop(proxy);
+
+                        match Proxy::new(config.clone()).await {
+                            Ok(p) => {
+                                proxy = p;
+                                info!(
+                                    "Bedrock proxy rebound on {} after the session ended",
+                                    signaling_addr
+                                );
+                            }
+                            Err(e) => {
+                                error!("Bedrock proxy could not rebind after a session: {}", e);
+                                error_channel.emit(
+                                    common::structs::bedrock::BedrockConnectError::Transport {
+                                        message: format!(
+                                            "Could not listen on port {listen_port} again: {e}."
+                                        ),
+                                    },
+                                );
+
+                                // The shared teardown below drops the proxy, and
+                                // there is no longer one to drop. Stop the
+                                // children here instead of falling through to it.
+                                let _ = child_cancel_tx.send(true);
+                                for handle in child_handles {
+                                    let _ = handle.await;
+                                }
+                                info!("Bedrock accept loop stopped: the proxy could not rebind");
+                                return;
+                            }
+                        }
                     }
                 }
             }
@@ -639,12 +747,21 @@ impl BedrockProxyManager {
             // injected Disconnect with nowhere to go.
             let _ = child_cancel_tx.send(true);
 
+            // Each child gets a budget rather than an open-ended await. A
+            // session that does not observe its cancel would otherwise hold
+            // the proxy — and every socket it owns — open indefinitely, and
+            // `stop` waits on this task.
             for h in child_handles {
-                let _ = h.await;
+                let abort = h.abort_handle();
+                if tokio::time::timeout(CHILD_DRAIN_GRACE, h).await.is_err() {
+                    warn!("Bedrock session did not finish draining; aborting it");
+                    abort.abort();
+                }
             }
 
             tokio::time::sleep(RELAY_DRAIN_DELAY).await;
 
+            proxy.shutdown(PROXY_SHUTDOWN_GRACE).await;
             drop(proxy);
 
             info!("Bedrock accept loop drained, listener released");
