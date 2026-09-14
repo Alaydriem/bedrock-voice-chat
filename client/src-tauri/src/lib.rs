@@ -433,7 +433,7 @@ pub fn run() {
 
             let mut sinks = vec![crate::logging::LogSinkType::Console(
                 tauri_plugin_curia::ConsoleSink::new(
-                    curia::Level::Debug,
+                    curia::Level::Info,
                     crate::logging::HumanFormatter::new().formatter(),
                 ),
             )];
@@ -445,7 +445,7 @@ pub fn run() {
                 tauri_plugin_curia::FileSink::with_rotation(
                     dir,
                     "bedrock-voice-chat".to_string(),
-                    curia::Level::Debug,
+                    curia::Level::Info,
                     crate::logging::JsonFormatter::new(log_context.clone()).formatter(),
                     crate::logging::LOG_MAX_FILE_SIZE,
                     tauri_plugin_curia::RotationStrategy::KeepSome(
