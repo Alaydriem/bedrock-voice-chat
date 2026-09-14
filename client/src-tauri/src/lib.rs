@@ -433,7 +433,7 @@ pub fn run() {
 
             let mut sinks = vec![crate::logging::LogSinkType::Console(
                 tauri_plugin_curia::ConsoleSink::new(
-                    curia::Level::Info,
+                    curia::Level::Debug,
                     crate::logging::HumanFormatter::new().formatter(),
                 ),
             )];
@@ -508,7 +508,10 @@ pub fn run() {
                     "trace" => Some(curia::Level::Trace),
                     _ => None,
                 })
-                .unwrap_or(curia::Level::Info);
+                // TEMPORARY (nethernet debugging): LOG_LEVEL cannot be set on this
+                // device (the OEM build ignores `wrap.<pkg>`), so default to Debug
+                // rather than Info. Revert to Info before shipping.
+                .unwrap_or(curia::Level::Debug);
 
             let bridge = curia::TracingBridge::to_global()
                 .with_max_level(max_level)
