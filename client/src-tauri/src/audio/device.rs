@@ -45,7 +45,6 @@ impl AudioDeviceEnumerator {
             platforms.push(HostId::Alsa);
         }
 
-
         for platform in platforms {
             match cpal::host_from_id(platform) {
                 Ok(host) => hosts.push(host),
@@ -151,9 +150,7 @@ impl AudioDeviceEnumerator {
     /// Re-queries CPAL for the current supported configs of a device.
     /// Returns updated stream_configs, or None if device not found or has no valid configs.
     /// This is used to detect when Windows sound settings have changed (e.g., sample rate).
-    pub fn refresh_device_config(
-        device: &AudioDevice,
-    ) -> Option<Vec<crate::audio::StreamConfig>> {
+    pub fn refresh_device_config(device: &AudioDevice) -> Option<Vec<crate::audio::StreamConfig>> {
         // Initialize only this device's host. Requiring every platform host to
         // initialize (get_cpal_hosts) lets an unrelated failure — e.g. a broken
         // ASIO driver — block a WASAPI refresh and force a stale stored config.

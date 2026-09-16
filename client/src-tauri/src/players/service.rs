@@ -136,7 +136,9 @@ impl PlayerSettingsService {
     /// and a stamp is worth almost nothing individually — the debounce in `spawn_debounce`
     /// coalesces a crowd into one write.
     pub fn touch(&self, key: &PlayerKey) {
-        self.mutate(key, |settings| settings.last_seen = Some(Self::now_millis()));
+        self.mutate(key, |settings| {
+            settings.last_seen = Some(Self::now_millis())
+        });
         self.stamps.fetch_add(1, Ordering::Relaxed);
         self.dirty.store(true, Ordering::Relaxed);
     }
@@ -269,7 +271,10 @@ impl PlayerSettingsService {
 
     fn mutate(&self, key: &PlayerKey, change: impl FnOnce(&mut PlayerGainSettings)) {
         let Ok(mut settings) = self.settings.write() else {
-            warn!("Player settings lock is poisoned; dropping a change for {}", key.encode());
+            warn!(
+                "Player settings lock is poisoned; dropping a change for {}",
+                key.encode()
+            );
             return;
         };
         let entry = settings

@@ -137,8 +137,7 @@ fn formatting_codes_are_stripped_from_text_and_author() {
 
 #[test]
 fn a_lone_trailing_escape_does_not_survive() {
-    let line =
-        ChatCodec::decode(&authored(TextPacketType::Chat, "hello§")).expect("must decode");
+    let line = ChatCodec::decode(&authored(TextPacketType::Chat, "hello§")).expect("must decode");
     assert_eq!(line.text, "hello");
 }
 
@@ -157,11 +156,7 @@ fn the_bvce_eject_ride_is_rejected() {
 #[test]
 fn the_bvcs_state_ride_is_rejected() {
     assert!(
-        ChatCodec::decode(&authored(
-            TextPacketType::Chat,
-            "!bvcs:1:q:m=1;d=0;r=0;g=-"
-        ))
-        .is_none()
+        ChatCodec::decode(&authored(TextPacketType::Chat, "!bvcs:1:q:m=1;d=0;r=0;g=-")).is_none()
     );
 }
 

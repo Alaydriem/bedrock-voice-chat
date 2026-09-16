@@ -32,7 +32,6 @@ pub struct ClientProc {
     reader: Option<JoinHandle<()>>,
 }
 
-
 impl ClientProc {
     /// Where this client's redb settings file lives.
     ///
@@ -92,7 +91,14 @@ impl ClientProc {
     /// piped. A background thread immediately starts draining framed `OutMsg`
     /// from stdout into shared state.
     pub fn spawn(gamertag: &str, login_code: &str, server_url: &str, channel: &str) -> ClientProc {
-        Self::spawn_inner(gamertag, login_code, server_url, channel, None, Transport::Quic)
+        Self::spawn_inner(
+            gamertag,
+            login_code,
+            server_url,
+            channel,
+            None,
+            Transport::Quic,
+        )
     }
 
     /// Spawns a client that runs its voice session over the WebSocket transport.
@@ -189,7 +195,10 @@ impl ClientProc {
         if matches!(transport, Transport::WebSocket) {
             cmd.env("BVC_E2E_FORCE_WEBSOCKET", "1");
         }
-        cmd.env("BVC_PLAYER_SETTINGS_PATH", Self::player_settings_path(gamertag));
+        cmd.env(
+            "BVC_PLAYER_SETTINGS_PATH",
+            Self::player_settings_path(gamertag),
+        );
         let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -262,7 +271,11 @@ impl ClientProc {
                                 Some((frames_sent, frames_from_quic, frames_into_jitter_buffer));
                         }
                         Ok(OutMsg::UiEvent { event, payload }) => {
-                            reader_state.lock().unwrap().ui_events.push((event, payload));
+                            reader_state
+                                .lock()
+                                .unwrap()
+                                .ui_events
+                                .push((event, payload));
                         }
                         Ok(OutMsg::GainStoreUpdated { store_json }) => {
                             if let Ok(v) = serde_json::from_str(&store_json) {
@@ -324,7 +337,11 @@ impl ClientProc {
     /// card-render event (`OutMsg::GainStoreUpdated`) satisfies `pred`, or
     /// `timeout` elapses. Never satisfied if the event never fires — this is
     /// the render-trigger assertion, not a store poll.
-    pub fn await_gain_store<F>(&self, pred: F, timeout: Duration) -> Result<serde_json::Value, String>
+    pub fn await_gain_store<F>(
+        &self,
+        pred: F,
+        timeout: Duration,
+    ) -> Result<serde_json::Value, String>
     where
         F: Fn(&serde_json::Value) -> bool,
     {
@@ -683,7 +700,8 @@ impl ClientProc {
             let reading = self.diagnostic_downlink_loss().flatten();
             last = Some(self.diagnostic_downlink_loss().flatten());
             if pred(reading) {
-                return reading.ok_or_else(|| "predicate matched an unmeasured reading".to_string());
+                return reading
+                    .ok_or_else(|| "predicate matched an unmeasured reading".to_string());
             }
             std::thread::sleep(Duration::from_millis(250));
         }
@@ -694,7 +712,11 @@ impl ClientProc {
 
     /// Polls diagnostics until `pred` holds or the deadline passes. The service derives a stall
     /// across consecutive samples, so a scenario has to sample repeatedly rather than once.
-    pub fn await_diagnostics<F>(&self, pred: F, timeout: Duration) -> Result<(bool, bool, u64), String>
+    pub fn await_diagnostics<F>(
+        &self,
+        pred: F,
+        timeout: Duration,
+    ) -> Result<(bool, bool, u64), String>
     where
         F: Fn(&(bool, bool, u64)) -> bool,
     {
@@ -707,7 +729,9 @@ impl ClientProc {
             }
             std::thread::sleep(Duration::from_millis(250));
         }
-        Err(format!("diagnostics predicate never held; last reading {last:?}"))
+        Err(format!(
+            "diagnostics predicate never held; last reading {last:?}"
+        ))
     }
 
     /// Drain captured samples accumulated over `dur`. Sleeps the full window so

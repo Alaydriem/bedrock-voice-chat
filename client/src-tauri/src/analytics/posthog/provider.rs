@@ -29,7 +29,9 @@ impl Provider {
             host,
             api_key,
             app_version: env!("CARGO_PKG_VERSION").to_string(),
-            app_build: option_env!("APP_BUILD_NUMBER").unwrap_or("local").to_string(),
+            app_build: option_env!("APP_BUILD_NUMBER")
+                .unwrap_or("local")
+                .to_string(),
             os: std::env::consts::OS.to_string(),
             is_debug: cfg!(debug_assertions),
             is_first_run,

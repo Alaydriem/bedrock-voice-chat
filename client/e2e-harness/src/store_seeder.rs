@@ -26,8 +26,14 @@ impl StoreSeeder {
 
     pub fn seed(store: &Arc<tauri_plugin_store::Store<tauri::Wry>>) {
         store.set("current_player", serde_json::json!("E2ePlayer"));
-        store.set("input_audio_device", Self::fake_device("input_audio_device"));
-        store.set("output_audio_device", Self::fake_device("output_audio_device"));
+        store.set(
+            "input_audio_device",
+            Self::fake_device("input_audio_device"),
+        );
+        store.set(
+            "output_audio_device",
+            Self::fake_device("output_audio_device"),
+        );
         store.set(
             "install_id",
             serde_json::json!("00000000-0000-0000-0000-000000000000"),

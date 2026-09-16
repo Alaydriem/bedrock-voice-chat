@@ -165,7 +165,11 @@ async fn proxy_ctl_group_create_reaches_server() {
         // The connect snapshot seeds /api/state; no group yet.
         let initial = w
             .server
-            .await_state("Alice", |s| s["current_group"].is_null(), Duration::from_secs(10))
+            .await_state(
+                "Alice",
+                |s| s["current_group"].is_null(),
+                Duration::from_secs(10),
+            )
             .await;
         assert!(initial.is_some(), "[{v}] Alice starts with no group");
 
@@ -218,7 +222,9 @@ async fn proxy_ctl_volume_and_hear_apply_locally() {
         assert!(
             w.proc("Alice")
                 .await_gain_store(
-                    |s| s["minecraft:Bob"]["gain"].as_f64().is_some_and(|g| (g - 0.4).abs() < 1e-6),
+                    |s| s["minecraft:Bob"]["gain"]
+                        .as_f64()
+                        .is_some_and(|g| (g - 0.4).abs() < 1e-6),
                     Duration::from_secs(10),
                 )
                 .is_ok(),

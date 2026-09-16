@@ -96,7 +96,11 @@ fn survives_a_decision_that_carries_no_proximity_stamp() {
         .expect("reopens")
         .load_all()
         .expect("reads");
-    assert_eq!(rows.len(), 1, "a row with no last_seen must survive a reopen");
+    assert_eq!(
+        rows.len(),
+        1,
+        "a row with no last_seen must survive a reopen"
+    );
     assert!(rows[0].settings.muted);
     assert!(rows[0].settings.last_seen.is_none());
 }
@@ -118,7 +122,11 @@ fn moves_an_unreadable_file_aside_and_keeps_it() {
         .filter_map(|e| e.ok())
         .filter(|e| e.file_name().to_string_lossy().contains("corrupt"))
         .collect();
-    assert_eq!(kept.len(), 1, "the unreadable file must be kept, not deleted");
+    assert_eq!(
+        kept.len(),
+        1,
+        "the unreadable file must be kept, not deleted"
+    );
 }
 
 // On Windows redb reads its header with a `seek_read` loop that treats the `Ok(0)` at
@@ -183,10 +191,12 @@ fn refuses_to_destroy_a_file_it_merely_cannot_open() {
     std::fs::write(&blocker, b"x").expect("writes blocker");
 
     let outcome = RedbBackend::open(&blocker.join("x.redb"));
-    assert!(outcome.is_err(), "an unopenable path is an error, not a reset");
+    assert!(
+        outcome.is_err(),
+        "an unopenable path is an error, not a reset"
+    );
     assert!(
         blocker.is_file(),
         "the blocking file must be left exactly as it was"
     );
 }
-

@@ -28,7 +28,10 @@ fn two_gamertags_get_two_namespaces() {
 // its own tree rather than a fresh one.
 #[test]
 fn one_gamertag_is_stable_within_a_process() {
-    assert_eq!(E2eAppData::namespace("Alice"), E2eAppData::namespace("Alice"));
+    assert_eq!(
+        E2eAppData::namespace("Alice"),
+        E2eAppData::namespace("Alice")
+    );
 }
 
 // Reclamation resolves `<base>/BASE_IDENTIFIER/<process tag>`, so a namespace not

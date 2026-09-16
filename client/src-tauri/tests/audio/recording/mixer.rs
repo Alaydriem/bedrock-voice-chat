@@ -48,7 +48,11 @@ fn a_gap_between_sources_is_silence_and_not_a_shortened_track() {
 #[test]
 fn a_sum_past_full_scale_is_clamped_rather_than_wrapped() {
     let loud = TrackMixer::mix(&[vec![frame(0, &[0.8])], vec![frame(0, &[0.8])]], 1_000, 1);
-    let quiet = TrackMixer::mix(&[vec![frame(0, &[-0.8])], vec![frame(0, &[-0.8])]], 1_000, 1);
+    let quiet = TrackMixer::mix(
+        &[vec![frame(0, &[-0.8])], vec![frame(0, &[-0.8])]],
+        1_000,
+        1,
+    );
 
     assert_eq!(loud, vec![1.0]);
     assert_eq!(quiet, vec![-1.0]);

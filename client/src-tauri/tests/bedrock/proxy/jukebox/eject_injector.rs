@@ -1,6 +1,6 @@
 use bvc_client_lib::bedrock::JukeboxEjectInjector;
-use common::structs::packet::{BedrockEvent, BedrockEventDirection, BedrockEventPacket};
 use common::structs::game::Coordinate;
+use common::structs::packet::{BedrockEvent, BedrockEventDirection, BedrockEventPacket};
 
 fn make_announcement(event_id: &str, world_uuid: &str) -> BedrockEventPacket {
     BedrockEventPacket::with_direction(

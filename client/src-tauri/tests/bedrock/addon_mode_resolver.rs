@@ -15,12 +15,8 @@ fn advertised(host: &str, port: u16, transport: AddonMode) -> ApiConfigBedrockSe
 #[test]
 fn an_explicit_request_value_wins_over_the_advertised_list() {
     let list = vec![advertised("play.example.com", 19132, AddonMode::Net)];
-    let resolved = AddonModeResolver::proxy(
-        Some(AddonMode::NoNet),
-        &list,
-        "play.example.com",
-        19132,
-    );
+    let resolved =
+        AddonModeResolver::proxy(Some(AddonMode::NoNet), &list, "play.example.com", 19132);
     assert_eq!(resolved, AddonMode::NoNet);
 }
 

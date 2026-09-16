@@ -6,8 +6,8 @@ use common::curia;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::HttpConfig;
-use crate::storage::CertificateMaterial;
 use crate::runtime::TlsProvider;
+use crate::storage::CertificateMaterial;
 
 // The operator-facing surface, over TLS and nothing else.
 //
@@ -94,9 +94,7 @@ impl HttpServer {
 
         let bind = config.bind_address().map_err(|e| anyhow::anyhow!(e))?;
         let listener = Self::listener(bind, config.port)?;
-        let addr = listener
-            .local_addr()
-            .context("reading the bound address")?;
+        let addr = listener.local_addr().context("reading the bound address")?;
         curia::info!("registry HTTP listening", { "bind": addr.to_string(), "hostname": config.hostname.clone() });
 
         let shutdown = handle.clone();

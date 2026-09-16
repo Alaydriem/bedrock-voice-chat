@@ -29,7 +29,6 @@ use std::io::{Seek, Write};
 use std::num::{NonZeroU16, NonZeroU32};
 use std::path::Path;
 
-
 /// MP4/M4A renderer with Opus audio
 ///
 /// Creates MP4 files with:
@@ -222,7 +221,8 @@ impl Mp4Renderer {
                 // First pass: calculate where timecode data will end up
                 let original_content = &bytes[8..]; // Skip size and 'moov' fourcc
                 let audio_tref = TrefInjector::create_tref_to_timecode(2);
-                let modified_content = TrefInjector::inject_tref_into_audio_trak(original_content, &audio_tref);
+                let modified_content =
+                    TrefInjector::inject_tref_into_audio_trak(original_content, &audio_tref);
 
                 // Create user data box using new struct-based API
                 let udta = UserDataBox::from_stream_info(&info, Some(duration_ms));

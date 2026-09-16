@@ -49,7 +49,11 @@ fn two_names_get_two_glyphs() {
 #[test]
 fn the_glyph_follows_the_name_and_not_the_id() {
     let saved = target("saved:one", "Hearthhold", ConnectTargetKind::Proxy);
-    let discovered = target("server:hearthhold.net:19132", "Hearthhold", ConnectTargetKind::Proxy);
+    let discovered = target(
+        "server:hearthhold.net:19132",
+        "Hearthhold",
+        ConnectTargetKind::Proxy,
+    );
 
     assert_eq!(saved.glyph, discovered.glyph);
 }

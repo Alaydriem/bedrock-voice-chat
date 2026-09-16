@@ -105,5 +105,4 @@ impl BedrockState {
         self.xuid = None;
         self.reauth_required = false;
     }
-
 }

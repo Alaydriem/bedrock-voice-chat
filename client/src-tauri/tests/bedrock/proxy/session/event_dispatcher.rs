@@ -1,19 +1,19 @@
 use std::sync::Arc;
 
 use bvc_client_lib::NetworkPacket;
+use bvc_client_lib::bedrock::BedrockPlayerStateCache;
 use bvc_client_lib::bedrock::proxy::session::{BedrockSessionEventDispatcher, BedrockSessionState};
 use bvc_client_lib::bedrock::{BedrockEventEmitter, JukeboxBeaconCache};
-use bvc_client_lib::bedrock::BedrockPlayerStateCache;
 use bvc_client_lib::control::{ControlActionSender, ControlStateBus};
-use common::bedrock_protocol::Event;
-use common::structs::bedrock::AddonMode;
 use common::bedrock_protocol::Direction;
+use common::bedrock_protocol::Event;
 use common::bedrock_protocol::ProtocolVersion;
 use common::bedrock_protocol::protocol::event::EventPacket;
 use common::bedrock_protocol::protocol::packets::generated::misc::text::TextPacket;
 use common::bedrock_protocol::protocol::types::generated::{
     AuthorAndMessage, TextPacketBody, TextPacketType,
 };
+use common::structs::bedrock::AddonMode;
 
 fn chat_event(message: &str, direction: Direction) -> Event {
     let packet = TextPacket {

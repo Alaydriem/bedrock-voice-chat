@@ -18,7 +18,10 @@ impl CtlCodec {
             ClientActionType::SetDeafened(on) => format!("{CTL_PREFIX}deafen:{}", *on as u8),
             ClientActionType::SetRecording(on) => format!("{CTL_PREFIX}record:{}", *on as u8),
             ClientActionType::SetVolume { target, volume } => {
-                format!("{CTL_PREFIX}vol:{target}:{}", (volume * 100.0).round() as u32)
+                format!(
+                    "{CTL_PREFIX}vol:{target}:{}",
+                    (volume * 100.0).round() as u32
+                )
             }
             ClientActionType::SetHeard { target, muted } => {
                 format!("{CTL_PREFIX}hear:{target}:{}", if *muted { 0 } else { 1 })

@@ -50,7 +50,6 @@ impl FullDispatch {
             player_auth_input_seen: false,
         }
     }
-
 }
 
 impl ModeDispatch for FullDispatch {

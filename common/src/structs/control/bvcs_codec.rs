@@ -70,7 +70,7 @@ impl BvcsCodec {
 
         match kind {
             "q" => Some(BvcsMessage::QueryState {
-                muted: fields.iter().find(|(k, _)| *k == "m")? .1 == "1",
+                muted: fields.iter().find(|(k, _)| *k == "m")?.1 == "1",
                 deafened: fields.iter().find(|(k, _)| *k == "d")?.1 == "1",
                 recording: fields.iter().find(|(k, _)| *k == "r")?.1 == "1",
                 group: fields

@@ -143,14 +143,22 @@ fn projects_only_the_current_servers_rows_for_the_mixer() {
     let dir = tempfile::tempdir().expect("temp dir");
     let service = open(&dir.path().join("h.redb"));
 
-    service.set_muted(&key("minecraft:Alaydriem"), true).expect("sets");
+    service
+        .set_muted(&key("minecraft:Alaydriem"), true)
+        .expect("sets");
     service
         .set_muted(&PlayerKey::new(OTHER, "minecraft:Petra"), true)
         .expect("sets");
 
     let projected = service.store_for(SERVER);
     assert_eq!(projected.0.len(), 1);
-    assert!(projected.0.get("minecraft:Alaydriem").expect("present").muted);
+    assert!(
+        projected
+            .0
+            .get("minecraft:Alaydriem")
+            .expect("present")
+            .muted
+    );
     assert!(projected.0.get("minecraft:Petra").is_none());
 }
 
@@ -195,7 +203,10 @@ mod pruning {
         let dir = tempfile::tempdir().expect("temp dir");
         let path = dir.path().join("p1.redb");
         let now = now_millis();
-        seeded(&path, &[row("minecraft:Stranger", 1.0, false, at(now, 40.0))]);
+        seeded(
+            &path,
+            &[row("minecraft:Stranger", 1.0, false, at(now, 40.0))],
+        );
 
         assert!(open(&path).rows(SERVER).is_empty());
     }
@@ -205,7 +216,10 @@ mod pruning {
         let dir = tempfile::tempdir().expect("temp dir");
         let path = dir.path().join("p2.redb");
         let now = now_millis();
-        seeded(&path, &[row("minecraft:Neighbour", 1.0, false, at(now, 1.0))]);
+        seeded(
+            &path,
+            &[row("minecraft:Neighbour", 1.0, false, at(now, 1.0))],
+        );
 
         assert_eq!(open(&path).rows(SERVER).len(), 1);
     }

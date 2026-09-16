@@ -128,7 +128,11 @@ async fn no_pinned_port_still_binds() {
         .expect("bind without a pinned port");
 
     assert!(
-        endpoint.endpoint().bound_sockets().iter().any(|s| s.port() != 0),
+        endpoint
+            .endpoint()
+            .bound_sockets()
+            .iter()
+            .any(|s| s.port() != 0),
         "an unpinned endpoint reported no bound port"
     );
 }

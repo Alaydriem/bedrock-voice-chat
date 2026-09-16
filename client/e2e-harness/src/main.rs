@@ -263,10 +263,9 @@ fn main() {
             // `audio-activity` is absent above: they arrive at meter rate and would flood the
             // bridge.
             const FORWARDED_PUSH_FRAMES: &[&str] = &["health", "metrics"];
-            if let Some(broadcaster) =
-                tauri::Manager::try_state::<bvc_client_lib::websocket::WebSocketBroadcaster>(
-                    &handle,
-                )
+            if let Some(broadcaster) = tauri::Manager::try_state::<
+                bvc_client_lib::websocket::WebSocketBroadcaster,
+            >(&handle)
             {
                 let mut frames = broadcaster.events.subscribe();
                 tauri::async_runtime::spawn(async move {
@@ -362,17 +361,14 @@ fn main() {
                             break;
                         }
                         Ok(InMsg::RequestDiagnostics) => {
-                            let service = stdin_handle
-                                .try_state::<std::sync::Arc<
+                            let service =
+                                stdin_handle.try_state::<std::sync::Arc<
                                     bvc_client_lib::diagnostics::LinkDiagnosticsService,
                                 >>();
                             let snapshot = service.and_then(|s| s.snapshot());
                             StdoutBridge::emit(&OutMsg::Diagnostics {
                                 connected: snapshot.is_some(),
-                                stalled: snapshot
-                                    .as_ref()
-                                    .map(|s| s.link.stalled)
-                                    .unwrap_or(false),
+                                stalled: snapshot.as_ref().map(|s| s.link.stalled).unwrap_or(false),
                                 uptime_secs: snapshot
                                     .as_ref()
                                     .map(|s| s.link.uptime_secs)
@@ -391,9 +387,7 @@ fn main() {
                                     .map(|t| t.as_str().to_string()),
                                 peers: snapshot
                                     .as_ref()
-                                    .map(|s| {
-                                        s.peers.iter().map(|p| p.name.clone()).collect()
-                                    })
+                                    .map(|s| s.peers.iter().map(|p| p.name.clone()).collect())
                                     .unwrap_or_default(),
                                 downlink_loss_pct: snapshot
                                     .as_ref()

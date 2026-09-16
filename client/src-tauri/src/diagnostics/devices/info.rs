@@ -4,7 +4,6 @@ use super::DeviceSnapshot;
 use crate::audio::AudioDeviceType;
 use crate::structs::StoredAudioDevice;
 
-
 // Cached device and mute state.
 //
 // Reading a device goes through the app state, which is also held by the command path and whose
@@ -25,10 +24,7 @@ impl DeviceInfo {
     }
 
     pub fn snapshot(&self) -> DeviceSnapshot {
-        self.cached
-            .lock()
-            .map(|g| g.clone())
-            .unwrap_or_default()
+        self.cached.lock().map(|g| g.clone()).unwrap_or_default()
     }
 
     // Devices are read from the persisted store rather than through `AppState::get_audio_device`.
@@ -84,10 +80,7 @@ impl DeviceInfo {
         let store = tauri_plugin_store::StoreExt::store(app_handle, "store.json").ok()?;
         let stored = StoredAudioDevice::peek(io, &store)?;
 
-        Some((
-            stored.display_name().to_string(),
-            stored.best_sample_rate(),
-        ))
+        Some((stored.display_name().to_string(), stored.best_sample_rate()))
     }
 
     // Read live rather than cached. Mute toggles constantly and from several places — a keybind,
@@ -136,13 +129,12 @@ impl DeviceInfo {
             std::sync::Arc<crate::players::PlayerSettingsService>,
         >(app_handle)?;
 
-        let server = tauri::Manager::try_state::<tauri::async_runtime::Mutex<crate::AppState>>(
-            app_handle,
-        )?
-        .try_lock()
-        .ok()?
-        .current_server
-        .clone()?;
+        let server =
+            tauri::Manager::try_state::<tauri::async_runtime::Mutex<crate::AppState>>(app_handle)?
+                .try_lock()
+                .ok()?
+                .current_server
+                .clone()?;
 
         Some(players.muted_count(&server))
     }

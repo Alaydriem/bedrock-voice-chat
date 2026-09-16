@@ -10,9 +10,11 @@ use tauri::{State, async_runtime::Mutex};
 // provider knows it, so it is asked; everywhere else the caller already has a path.
 #[tauri::command(async)]
 pub(crate) async fn resolve_display_name(path: String) -> Result<Option<String>, String> {
-    Ok(tokio::task::spawn_blocking(move || ContentUriName::resolve(&path))
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?)
+    Ok(
+        tokio::task::spawn_blocking(move || ContentUriName::resolve(&path))
+            .await
+            .map_err(|e| format!("Task join error: {}", e))?,
+    )
 }
 
 #[tauri::command(async)]

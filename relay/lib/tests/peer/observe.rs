@@ -25,13 +25,10 @@ async fn a_node_is_told_the_address_it_was_seen_at() {
     )
     .await
     .expect("bind registry");
-    let client = PeerEndpoint::bind_with_alpns(
-        &client_identity,
-        None,
-        vec![AddressObserver::ALPN.to_vec()],
-    )
-    .await
-    .expect("bind client");
+    let client =
+        PeerEndpoint::bind_with_alpns(&client_identity, None, vec![AddressObserver::ALPN.to_vec()])
+            .await
+            .expect("bind client");
 
     let listening = registry.endpoint().clone();
     let responder = tokio::spawn(async move {

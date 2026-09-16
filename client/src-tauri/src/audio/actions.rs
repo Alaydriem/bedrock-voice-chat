@@ -173,10 +173,7 @@ impl AudioActionsManager {
     /// Adopt a server's recording policy, which the gate in `RecordingManager` reads
     /// on every attempt to arm.
     pub async fn set_recording_allowed(&self, allowed: bool) {
-        if let Some(manager) = self
-            .app_handle
-            .try_state::<Arc<Mutex<RecordingManager>>>()
-        {
+        if let Some(manager) = self.app_handle.try_state::<Arc<Mutex<RecordingManager>>>() {
             manager.lock().await.set_allowed(allowed);
         }
     }
@@ -321,7 +318,10 @@ impl AudioActionsManager {
     /// self-state one. Without it a change made in the settings pane would never leave the
     /// desktop, and the panel would keep drawing the previous value until the 30s resync.
     fn signal_jukebox_change(&self) {
-        if let Some(bus) = self.app_handle.try_state::<crate::control::ControlStateBus>() {
+        if let Some(bus) = self
+            .app_handle
+            .try_state::<crate::control::ControlStateBus>()
+        {
             bus.preferences();
         }
     }
@@ -385,10 +385,7 @@ impl AudioActionsManager {
     /// recording manager registered must report "not recording" rather than panic in the
     /// loop that keeps every self-state surface honest.
     async fn is_recording(&self) -> bool {
-        match self
-            .app_handle
-            .try_state::<Arc<Mutex<RecordingManager>>>()
-        {
+        match self.app_handle.try_state::<Arc<Mutex<RecordingManager>>>() {
             Some(manager) => manager.lock().await.is_recording(),
             None => false,
         }
@@ -397,10 +394,7 @@ impl AudioActionsManager {
     /// Whether the connected server permits recording, or true where no recording
     /// manager is registered — the same permissive absence as an unasked server.
     async fn recording_allowed(&self) -> bool {
-        match self
-            .app_handle
-            .try_state::<Arc<Mutex<RecordingManager>>>()
-        {
+        match self.app_handle.try_state::<Arc<Mutex<RecordingManager>>>() {
             Some(manager) => manager.lock().await.is_allowed(),
             None => true,
         }
@@ -491,7 +485,10 @@ impl AudioActionsManager {
 
         // Every mute/deafen/record surface funnels through here; nudge the
         // control-plane reporter so the server cache mirrors the change.
-        if let Some(bus) = self.app_handle.try_state::<crate::control::ControlStateBus>() {
+        if let Some(bus) = self
+            .app_handle
+            .try_state::<crate::control::ControlStateBus>()
+        {
             bus.self_state();
         }
     }

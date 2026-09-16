@@ -8,8 +8,8 @@ use tauri::Manager;
 use tauri::async_runtime::Mutex;
 
 use crate::audio::AudioActionsManager;
-use crate::audio::AudioStreamManager;
 use crate::audio::AudioDeviceType;
+use crate::audio::AudioStreamManager;
 use crate::players::PlayerSettingsCoordinator;
 
 /// Executes delivered `ClientAction`s against the real desktop managers. Self-state

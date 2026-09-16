@@ -405,7 +405,10 @@ impl EmbeddedServer {
         use tokio_tungstenite::tungstenite::http::HeaderValue;
 
         let ticket = self.websocket_ticket(gamertag);
-        let url = format!("wss://127.0.0.1:{}/api/websocket/positions", self.rocket_port);
+        let url = format!(
+            "wss://127.0.0.1:{}/api/websocket/positions",
+            self.rocket_port
+        );
 
         let mut request = url.into_client_request().expect("build ws request");
         // The credential travels as a subprotocol rather than a header or a query parameter,
@@ -420,14 +423,10 @@ impl EmbeddedServer {
         let connector = tokio_tungstenite::Connector::Rustls(Arc::new(
             crate::harness::insecure_tls::trust_anything(),
         ));
-        let (mut socket, _) = tokio_tungstenite::connect_async_tls_with_config(
-            request,
-            None,
-            false,
-            Some(connector),
-        )
-        .await
-        .expect("connect position feed");
+        let (mut socket, _) =
+            tokio_tungstenite::connect_async_tls_with_config(request, None, false, Some(connector))
+                .await
+                .expect("connect position feed");
 
         let mut out = Vec::new();
         let deadline = Instant::now() + timeout;
@@ -695,7 +694,9 @@ impl EmbeddedServer {
             "get preferences failed: {}",
             resp.status()
         );
-        resp.json::<Vec<serde_json::Value>>().await.unwrap_or_default()
+        resp.json::<Vec<serde_json::Value>>()
+            .await
+            .unwrap_or_default()
     }
 
     /// Poll `/api/preferences` until the owner's preference for `target` passes

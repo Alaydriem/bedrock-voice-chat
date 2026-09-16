@@ -123,4 +123,3 @@ async fn the_speakers_position_crosses_with_the_frame() {
         "the world the frame is scoped to must survive the crossing"
     );
 }
-

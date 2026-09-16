@@ -119,7 +119,10 @@ impl CloudflareDns {
                 if let Some(id) = record["id"].as_str() {
                     let _ = self
                         .http
-                        .delete(format!("{}/zones/{}/dns_records/{}", self.api_base, zone, id))
+                        .delete(format!(
+                            "{}/zones/{}/dns_records/{}",
+                            self.api_base, zone, id
+                        ))
                         .bearer_auth(&self.api_token)
                         .send()
                         .await;

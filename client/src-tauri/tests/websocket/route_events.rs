@@ -71,7 +71,11 @@ fn the_external_listener_accepts_events_with_the_user_key() {
 #[test]
 fn the_internal_token_is_not_accepted_on_the_external_listener() {
     assert_eq!(
-        WebSocketRoute::resolve("/events?key=process-token", ListenerKind::External, "userkey"),
+        WebSocketRoute::resolve(
+            "/events?key=process-token",
+            ListenerKind::External,
+            "userkey"
+        ),
         Err(RejectReason::InvalidKey)
     );
 }

@@ -138,12 +138,12 @@ impl RegistryService {
             .one(self.conn.as_ref())
             .await?;
 
-        Ok(row.and_then(
-            |row| match RegistrationState::from_str(&row.state) {
+        Ok(
+            row.and_then(|row| match RegistrationState::from_str(&row.state) {
                 Some(RegistrationState::Active) => Some(row.name),
                 _ => None,
-            },
-        ))
+            }),
+        )
     }
 
     // The address this node last declared, if any. `None` for a node that has never

@@ -12,7 +12,7 @@ plugins {
 //   ./gradlew devBuild -Prelease  (for release builds, default is debug)
 //
 // This task:
-//   1. Builds the Rust native library (cargo build --lib --features bedrock)
+//   1. Builds the Rust native library (cargo build --lib)
 //   2. Copies native library to resources (copyNativeWindows)
 //   3. Builds all mod JARs (fabric, paper)
 //   4. Copies JARs to specified destinations (if provided)
@@ -29,7 +29,7 @@ tasks.register<Exec>("buildRustLibrary") {
     workingDir = rustServerDir
 
     val isRelease = project.hasProperty("release")
-    val args = mutableListOf("cargo", "build", "--lib", "--features", "bedrock")
+    val args = mutableListOf("cargo", "build", "--lib")
     if (isRelease) {
         args.add("--release")
     }

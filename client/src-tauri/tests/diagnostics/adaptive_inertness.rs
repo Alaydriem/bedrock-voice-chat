@@ -1,5 +1,5 @@
-use common::structs::metrics::TransportKind;
 use bvc_client_lib::{AdaptationEngine, MetricsCollector};
+use common::structs::metrics::TransportKind;
 
 // The capacity a jitter buffer is actually built with: `buffer_size_ms` is hardcoded to 120
 // where packets are routed, and the buffer divides by the 20 ms frame duration.

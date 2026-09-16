@@ -140,7 +140,7 @@
 
         <p class="rad-hint">
             {I18n.t(
-                "Leave this off when the server runs the BVC addon — it delivers positions, chat and jukebox events itself. Turn it on for Realms, Aternos, and anywhere the addon cannot reach this server.",
+                "Turn on for Realms, Aternos, or other servers where the no-net addon is installed.",
             )}
         </p>
 

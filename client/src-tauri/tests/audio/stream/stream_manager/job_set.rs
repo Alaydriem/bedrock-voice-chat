@@ -40,7 +40,11 @@ async fn a_set_settles_when_its_jobs_end_not_when_the_window_does() {
     let finished_on_its_own = jobs.settle(GRACE).await;
 
     assert!(finished_on_its_own);
-    assert_eq!(done.load(Ordering::SeqCst), 3, "not every job was waited for");
+    assert_eq!(
+        done.load(Ordering::SeqCst),
+        3,
+        "not every job was waited for"
+    );
     assert!(
         started.elapsed() < GRACE,
         "settle took the whole window ({:?}) for work that ended early",
@@ -68,7 +72,11 @@ async fn a_job_that_will_not_finish_is_aborted_at_the_window() {
         elapsed < GRACE * 4,
         "settle waited far past its window ({elapsed:?})"
     );
-    assert_eq!(reached_end.load(Ordering::SeqCst), 0, "the job was not killed");
+    assert_eq!(
+        reached_end.load(Ordering::SeqCst),
+        0,
+        "the job was not killed"
+    );
 }
 
 #[tokio::test]

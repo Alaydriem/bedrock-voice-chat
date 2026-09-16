@@ -4,7 +4,10 @@ const PEM: &str = "-----BEGIN CERTIFICATE-----\nMIIB...\n-----END CERTIFICATE---
 
 #[test]
 fn the_same_ca_yields_the_same_id() {
-    assert_eq!(ServerId::from_ca_pem(PEM.as_bytes()), ServerId::from_ca_pem(PEM.as_bytes()));
+    assert_eq!(
+        ServerId::from_ca_pem(PEM.as_bytes()),
+        ServerId::from_ca_pem(PEM.as_bytes())
+    );
 }
 
 #[test]

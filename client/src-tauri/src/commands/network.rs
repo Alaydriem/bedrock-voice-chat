@@ -2,8 +2,8 @@ use crate::analytics::AnalyticsService;
 use crate::{NetworkStreamManager, structs::app_state::AppState};
 use common::consts::version::PROTOCOL_VERSION;
 use common::net::{CandidatePlan, NetTimeouts, ReachabilityPlanner};
-use common::response::api::config::ProtocolCompatibility;
 use common::response::LoginResponse;
+use common::response::api::config::ProtocolCompatibility;
 use common::structs::reachability::ServerReachability;
 use log::{error, info, warn};
 use std::sync::Arc;
@@ -71,7 +71,10 @@ pub(crate) async fn change_network_stream(
                 config.chat.enabled,
             )),
             Err(e) => {
-                warn!("Config fetch failed for {}; using stored port: {}", server, e);
+                warn!(
+                    "Config fetch failed for {}; using stored port: {}",
+                    server, e
+                );
                 None
             }
         },
@@ -296,10 +299,9 @@ pub(crate) async fn probe_server(
     voice_websocket: bool,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<ServerReachability, String> {
-    let request =
-        ReachabilityPlanner::plan(&server, &quic_ports, quic_port, None, voice_websocket)
-            .await
-            .map_err(|e| e.to_string())?;
+    let request = ReachabilityPlanner::plan(&server, &quic_ports, quic_port, None, voice_websocket)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let reachability = {
         let state = state.lock().await;
@@ -327,10 +329,9 @@ pub(crate) async fn probe_voice_path(
     voice_websocket: bool,
     state: State<'_, Mutex<AppState>>,
 ) -> Result<ServerReachability, String> {
-    let request =
-        ReachabilityPlanner::plan(&server, &quic_ports, quic_port, None, voice_websocket)
-            .await
-            .map_err(|e| e.to_string())?;
+    let request = ReachabilityPlanner::plan(&server, &quic_ports, quic_port, None, voice_websocket)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let reachability = {
         let state = state.lock().await;

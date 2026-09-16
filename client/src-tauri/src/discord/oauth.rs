@@ -49,7 +49,10 @@ impl DiscordOAuth {
     // hosted trampoline page, which bounces to `bedrock-voice-chat://discord-callback`;
     // the deep-link plugin then routes it to DiscordLinkService::complete_link.
     // Identical on desktop and mobile.
-    pub fn open_external(app: &tauri::AppHandle, authorize_url: &str) -> Result<(), DiscordLinkError> {
+    pub fn open_external(
+        app: &tauri::AppHandle,
+        authorize_url: &str,
+    ) -> Result<(), DiscordLinkError> {
         use tauri_plugin_opener::OpenerExt;
         app.opener()
             .open_url(authorize_url.to_string(), None::<String>)

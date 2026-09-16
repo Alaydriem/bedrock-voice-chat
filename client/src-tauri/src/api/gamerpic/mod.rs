@@ -1,10 +1,10 @@
 use crate::api::Api;
 
+use crate::api::circuit_breaker::SendError;
 use common::reqwest::{
     StatusCode,
     header::{HeaderMap, HeaderValue},
 };
-use crate::api::circuit_breaker::SendError;
 use common::response::GamerpicResponse;
 use log::error;
 use std::error::Error;
@@ -36,9 +36,7 @@ impl Api {
                     Err(format!("Request failed with status: {}", status))
                 }
             },
-            Err(SendError::Open) => {
-                Err("Server temporarily unreachable; backing off".to_string())
-            }
+            Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
                 error!("Failed to get gamerpic: {}", e);
                 let mut source = e.source();

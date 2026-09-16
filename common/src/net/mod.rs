@@ -8,11 +8,9 @@ mod timeouts;
 pub use candidate::{CandidatePlan, ConnectCandidate};
 pub use position_cadence::PositionCadence;
 pub use preference_cell::FamilyPreferenceCell;
+pub use probe::{HttpsProbe, NegotiationProbe, ProbeInitialPacket, ReachabilityProbe, RouteProbe};
 pub use reachability_planner::ReachabilityPlanner;
 pub use timeouts::NetTimeouts;
-pub use probe::{
-    HttpsProbe, NegotiationProbe, ProbeInitialPacket, ReachabilityProbe, RouteProbe,
-};
 
 #[cfg(feature = "quic")]
 pub use probe::{HandshakeProbe, ProbeCertVerifier, ProbeTlsProvider};

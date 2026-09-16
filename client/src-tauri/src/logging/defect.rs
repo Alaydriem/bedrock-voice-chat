@@ -1,5 +1,5 @@
-use tauri_plugin_curia::curia::Fields;
 use serde::Serialize;
+use tauri_plugin_curia::curia::Fields;
 
 // Only a record carrying one of these becomes a Sentry Issue. Adding a variant
 // is a review of this whole file, which is the point: error level alone must not

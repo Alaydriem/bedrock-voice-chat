@@ -83,10 +83,9 @@ impl Harness {
         let ticket = endpoint.ticket().await.expect("ticket");
         let addr = PeerTicket::parse(&ticket).expect("parses");
 
-        let client_identity = NodeIdentity::load_or_create(
-            client_dir.path().to_str().expect("path"),
-        )
-        .expect("identity");
+        let client_identity =
+            NodeIdentity::load_or_create(client_dir.path().to_str().expect("path"))
+                .expect("identity");
         let client = PeerEndpoint::bind_with_alpns(
             &client_identity,
             None,
@@ -402,10 +401,7 @@ async fn a_declared_address_is_both_recorded_and_published() {
         Some("8.8.8.8".to_string()),
         "the address must be recorded, not only published"
     );
-    assert_eq!(
-        harness.recording.created_names(),
-        vec![name.clone()]
-    );
+    assert_eq!(harness.recording.created_names(), vec![name.clone()]);
 }
 
 // A node that has not enrolled cannot put an address record into the relay's zone.

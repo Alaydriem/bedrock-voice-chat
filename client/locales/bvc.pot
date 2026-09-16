@@ -1124,10 +1124,6 @@ msgstr ""
 msgid "Leave"
 msgstr ""
 
-#: src/components/settings/ProxyServerEditor.svelte:142
-msgid "Leave this off when the server runs the BVC addon — it delivers positions, chat and jukebox events itself. Turn it on for Realms, Aternos, and anywhere the addon cannot reach this server."
-msgstr ""
-
 #: src/components/settings/panes/LibraryPane.svelte:195
 #: src/components/settings/panes/RecordingsPane.svelte:225
 msgid "Length"
@@ -2420,6 +2416,10 @@ msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:213
 msgid "Try signing out then back in"
+msgstr ""
+
+#: src/components/settings/ProxyServerEditor.svelte:142
+msgid "Turn on for Realms, Aternos, or other servers where the no-net addon is installed."
 msgstr ""
 
 #: src/components/settings/panes/PlayersPane.svelte:190

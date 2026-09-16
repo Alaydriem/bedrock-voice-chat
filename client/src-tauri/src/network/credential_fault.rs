@@ -18,20 +18,13 @@ impl CredentialFault {
     /// statements about the negotiation, not about this player's identity.
     const CODES: [u64; 8] = [
         // bad_certificate
-        0x12A,
-        // unsupported_certificate
-        0x12B,
-        // certificate_revoked
-        0x12C,
-        // certificate_expired
-        0x12D,
-        // certificate_unknown
-        0x12E,
-        // unknown_ca
-        0x130,
-        // access_denied
-        0x131,
-        // certificate_required
+        0x12A, // unsupported_certificate
+        0x12B, // certificate_revoked
+        0x12C, // certificate_expired
+        0x12D, // certificate_unknown
+        0x12E, // unknown_ca
+        0x130, // access_denied
+        0x131, // certificate_required
         0x174,
     ];
 

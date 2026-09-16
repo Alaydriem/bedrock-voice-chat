@@ -84,4 +84,3 @@ fn serverbound_chat_is_not_relayed() {
 
     assert!(rx.try_recv().is_err());
 }
-

@@ -229,8 +229,12 @@ impl ReachabilityProbe {
             }
 
             if let Some(sender) = &first_path {
-                let interim =
-                    ServerReachability::new(request.host.clone(), quic.clone(), https.clone(), ws.clone());
+                let interim = ServerReachability::new(
+                    request.host.clone(),
+                    quic.clone(),
+                    https.clone(),
+                    ws.clone(),
+                );
                 if Self::carries_voice(interim.verdict()) {
                     announced = true;
                     let _ = sender.send(interim).await;

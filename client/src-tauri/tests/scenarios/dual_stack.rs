@@ -26,7 +26,8 @@ async fn a_dual_stack_listener_answers_on_both_families() {
     let rocket_port = EmbeddedServer::free_port_tcp();
     let quic_port = EmbeddedServer::free_port_udp();
 
-    let config_json = EmbeddedServer::config_json_dual_stack(rocket_port, quic_port, data_dir.path());
+    let config_json =
+        EmbeddedServer::config_json_dual_stack(rocket_port, quic_port, data_dir.path());
     let certs_path = data_dir.path().join("certificates");
 
     let lib = EmbeddedServer::load_library();
@@ -61,7 +62,8 @@ async fn an_ipv4_client_holds_a_session_against_a_dual_stack_listener() {
     let rocket_port = EmbeddedServer::free_port_tcp();
     let quic_port = EmbeddedServer::free_port_udp();
 
-    let config_json = EmbeddedServer::config_json_dual_stack(rocket_port, quic_port, data_dir.path());
+    let config_json =
+        EmbeddedServer::config_json_dual_stack(rocket_port, quic_port, data_dir.path());
     let certs_path = data_dir.path().join("certificates");
 
     let lib = EmbeddedServer::load_library();
@@ -95,7 +97,8 @@ async fn a_dual_family_host_holds_a_session_against_a_dual_stack_listener() {
     let rocket_port = EmbeddedServer::free_port_tcp();
     let quic_port = EmbeddedServer::free_port_udp();
 
-    let config_json = EmbeddedServer::config_json_dual_stack(rocket_port, quic_port, data_dir.path());
+    let config_json =
+        EmbeddedServer::config_json_dual_stack(rocket_port, quic_port, data_dir.path());
     let certs_path = data_dir.path().join("certificates");
 
     let lib = EmbeddedServer::load_library();

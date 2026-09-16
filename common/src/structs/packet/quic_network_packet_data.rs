@@ -7,14 +7,14 @@ use super::chat_message_packet::ChatMessagePacket;
 use super::chat_rejected_packet::ChatRejectedPacket;
 use super::chat_send_packet::ChatSendPacket;
 use super::client_action_packet::ClientActionPacket;
-use super::player_preference_packet::PlayerPreferencePacket;
-use super::query_state_packet::QueryStatePacket;
 use super::collection_packet::CollectionPacket;
 use super::debug_packet::DebugPacket;
 use super::health_check_packet::HealthCheckPacket;
 use super::player_data_packet::PlayerDataPacket;
 use super::player_position_packet::PlayerPositionPacket;
+use super::player_preference_packet::PlayerPreferencePacket;
 use super::player_presence_event::PlayerPresenceEvent;
+use super::query_state_packet::QueryStatePacket;
 use super::server_error_packet::ServerErrorPacket;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

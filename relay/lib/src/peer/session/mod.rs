@@ -158,7 +158,9 @@ impl PeerSession {
             self.endpoint.endpoint().connect(addr, PeerEndpoint::ALPN),
         )
         .await
-        .map_err(|_| PeerError::Transport(format!("dial timed out after {:?}", Self::DIAL_TIMEOUT)))?
+        .map_err(|_| {
+            PeerError::Transport(format!("dial timed out after {:?}", Self::DIAL_TIMEOUT))
+        })?
         .map_err(|e| PeerError::Transport(e.to_string()))?;
 
         let accepted = Handshake::dial(&conn, self.worlds.clone()).await?;

@@ -1,6 +1,6 @@
 use std::io::ErrorKind;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
@@ -79,9 +79,8 @@ impl RedbBackend {
         // below. Two things would break this silently: `panic = "abort"` (not set in this
         // crate or the workspace root), and a future redb version panicking from inside a
         // `Drop` during the unwind, which aborts regardless.
-        let created = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            Database::create(path)
-        }));
+        let created =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| Database::create(path)));
 
         let created = match created {
             Ok(result) => result,
@@ -92,9 +91,7 @@ impl RedbBackend {
 
         match created {
             Ok(db) => Ok(Self::wrap(db)),
-            Err(cause) if Self::is_unreadable(&cause) => {
-                Self::start_over(path, &cause.to_string())
-            }
+            Err(cause) if Self::is_unreadable(&cause) => Self::start_over(path, &cause.to_string()),
             Err(cause) => Err(anyhow::Error::new(cause).context(format!(
                 "could not open the player settings store at {}",
                 path.display()

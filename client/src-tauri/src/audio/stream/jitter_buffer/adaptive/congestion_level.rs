@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CongestionLevel {
     // Minimal buffering needed

@@ -11,7 +11,9 @@ pub const NCRYPTF_EK_ENDPOINT: &'static str = "ncryptf/ek";
 pub struct NcryptfClient;
 
 impl NcryptfClient {
-    pub(crate) async fn get_ek(server: String) -> Result<ExportableEncryptionKeyData, anyhow::Error> {
+    pub(crate) async fn get_ek(
+        server: String,
+    ) -> Result<ExportableEncryptionKeyData, anyhow::Error> {
         let endpoint = super::ServerEndpoint::join(&server, NCRYPTF_EK_ENDPOINT);
 
         let client = Self::get_reqwest_client();

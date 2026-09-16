@@ -68,7 +68,10 @@ pub(crate) async fn player_settings_touch(
     cn: String,
     coordinator: Coordinator<'_>,
 ) -> Result<PlayerGainSettings, String> {
-    coordinator.touch(&app, &cn).await.map_err(|e| e.to_string())
+    coordinator
+        .touch(&app, &cn)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Seeds the mixer with the persisted projection once the server is known.
@@ -79,5 +82,8 @@ pub(crate) async fn player_settings_publish(
     app: AppHandle,
     coordinator: Coordinator<'_>,
 ) -> Result<(), String> {
-    coordinator.publish(&app, None).await.map_err(|e| e.to_string())
+    coordinator
+        .publish(&app, None)
+        .await
+        .map_err(|e| e.to_string())
 }

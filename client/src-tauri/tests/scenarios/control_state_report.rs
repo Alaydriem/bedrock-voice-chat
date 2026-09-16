@@ -100,7 +100,11 @@ async fn volume_action_fires_card_render_event_with_canonical_entry() {
     server.post_control_setvolume("Alice", "Bob", 0.9).await;
     alice
         .await_gain_store(
-            |s| s["minecraft:Bob"]["gain"].as_f64().is_some_and(|g| (g - 0.9).abs() < 1e-6),
+            |s| {
+                s["minecraft:Bob"]["gain"]
+                    .as_f64()
+                    .is_some_and(|g| (g - 0.9).abs() < 1e-6)
+            },
             Duration::from_secs(10),
         )
         .expect("SetVolume must fire the card-render event with Bob's gain persisted");
@@ -110,7 +114,11 @@ async fn volume_action_fires_card_render_event_with_canonical_entry() {
     server.post_control_setvolume("Alice", "bob", 0.5).await;
     let store = alice
         .await_gain_store(
-            |s| s["minecraft:Bob"]["gain"].as_f64().is_some_and(|g| (g - 0.5).abs() < 1e-6),
+            |s| {
+                s["minecraft:Bob"]["gain"]
+                    .as_f64()
+                    .is_some_and(|g| (g - 0.5).abs() < 1e-6)
+            },
             Duration::from_secs(10),
         )
         .expect("a case-variant SetVolume must update the canonical entry");
@@ -164,17 +172,27 @@ async fn a_jukebox_volume_reaches_the_reserved_target_and_never_the_gain_store()
     server.post_control_setvolume("Alice", "Bob", 0.9).await;
     alice
         .await_gain_store(
-            |s| s["minecraft:Bob"]["gain"].as_f64().is_some_and(|g| (g - 0.9).abs() < 1e-6),
+            |s| {
+                s["minecraft:Bob"]["gain"]
+                    .as_f64()
+                    .is_some_and(|g| (g - 0.9).abs() < 1e-6)
+            },
             Duration::from_secs(10),
         )
-        .expect("the gain-store observable must be live for the absence check below to mean anything");
+        .expect(
+            "the gain-store observable must be live for the absence check below to mean anything",
+        );
 
     server.post_control_setvolume("Alice", jukebox, 1.5).await;
 
     server.post_control_setvolume("Alice", "Bob", 0.4).await;
     let store = alice
         .await_gain_store(
-            |s| s["minecraft:Bob"]["gain"].as_f64().is_some_and(|g| (g - 0.4).abs() < 1e-6),
+            |s| {
+                s["minecraft:Bob"]["gain"]
+                    .as_f64()
+                    .is_some_and(|g| (g - 0.4).abs() < 1e-6)
+            },
             Duration::from_secs(10),
         )
         .expect("the barrier change must land");

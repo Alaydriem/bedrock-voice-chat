@@ -56,10 +56,9 @@ impl Connector {
         handle: &tauri::AppHandle,
         config: &ConnectConfig,
     ) -> Result<Option<String>, String> {
-        let login =
-            crate::auth::AuthClient::code_login(config.server.clone(), config.code.clone())
-                .await
-                .map_err(|_| "code login failed".to_string())?;
+        let login = crate::auth::AuthClient::code_login(config.server.clone(), config.code.clone())
+            .await
+            .map_err(|_| "code login failed".to_string())?;
 
         let app_state = handle.state::<Mutex<AppState>>();
         {

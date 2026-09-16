@@ -1,5 +1,5 @@
-use common::structs::AnalyticsEventData;
 use common::net::ConnectCandidate;
+use common::structs::AnalyticsEventData;
 
 mod attempt_result;
 

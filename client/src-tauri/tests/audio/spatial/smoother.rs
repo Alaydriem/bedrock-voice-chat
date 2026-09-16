@@ -38,7 +38,11 @@ fn the_target_is_reached_within_the_settle_count() {
     }
 
     assert!((last.left - goal.left).abs() < 1e-4, "left {}", last.left);
-    assert!((last.right - goal.right).abs() < 1e-4, "right {}", last.right);
+    assert!(
+        (last.right - goal.right).abs() < 1e-4,
+        "right {}",
+        last.right
+    );
     assert!(
         (last.volume - goal.volume).abs() < 1e-4,
         "volume {}",

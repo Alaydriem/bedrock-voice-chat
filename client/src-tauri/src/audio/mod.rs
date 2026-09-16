@@ -4,13 +4,13 @@ pub(crate) mod actions;
 pub mod backend;
 pub mod cue;
 pub(crate) mod device;
+mod device_cpal;
 pub mod encode;
 pub mod recording;
+mod resampling;
 pub mod spatial;
 pub(crate) mod speaker_test;
 pub mod tone;
-mod device_cpal;
-mod resampling;
 
 pub mod stream;
 
@@ -30,18 +30,18 @@ pub use cue::{Cue, CuePolicy, CueSink};
 pub use stream::capture_watchdog::{CaptureVerdict, CaptureWatchdog};
 // Re-exported for the same reason as the watchdog above: how many times a failing stream is
 // rebuilt, and when to give up, is a decision rule worth testing without an audio device.
-pub use stream::rebuild_breaker::{RebuildBreaker, RebuildVerdict};
 pub use stream::capture_availability::CaptureAvailability;
+pub use stream::rebuild_breaker::{RebuildBreaker, RebuildVerdict};
 // Same reason: what makes a level worth a webview message, and how a measured RMS becomes a
 // step, are both decision rules worth testing without an audio device or a webview.
-pub use stream::level_bus::{LevelBus, LevelEmitPolicy, LoudnessTracker};
-pub use stream::stream_manager::device_lease::DeviceLease;
-pub use stream::stream_manager::job_set::JobSet;
 pub use backend::AudioBackend;
 pub(crate) use recording::RecordingManager;
 pub use speaker_test::Chime;
 pub(crate) use speaker_test::SpeakerTest;
 pub(crate) use stream::AudioStreamManager;
+pub use stream::level_bus::{LevelBus, LevelEmitPolicy, LoudnessTracker};
+pub use stream::stream_manager::device_lease::DeviceLease;
+pub use stream::stream_manager::job_set::JobSet;
 
 #[derive(Debug, Clone)]
 pub(crate) struct AudioPacket {

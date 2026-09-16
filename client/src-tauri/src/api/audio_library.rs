@@ -74,9 +74,7 @@ impl Api {
                     .map_err(|e| format!("Failed to parse audio file list: {}", e))
             }
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
-            Err(SendError::Open) => {
-                Err("Server temporarily unreachable; backing off".to_string())
-            }
+            Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
                 error!("Failed to list audio files: {}", e);
                 Err(format!("Connection failed: {}", e))
@@ -124,9 +122,7 @@ impl Api {
                     .map_err(|e| format!("Failed to parse upload response: {}", e))
             }
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
-            Err(SendError::Open) => {
-                Err("Server temporarily unreachable; backing off".to_string())
-            }
+            Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
                 error!("Failed to upload audio file: {}", e);
                 Err(format!("Connection failed: {}", e))
@@ -153,9 +149,7 @@ impl Api {
         match self.send(client.delete(url).headers(headers)).await {
             Ok(response) if response.status() == StatusCode::OK => Ok(true),
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
-            Err(SendError::Open) => {
-                Err("Server temporarily unreachable; backing off".to_string())
-            }
+            Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
                 error!("Failed to delete audio file: {}", e);
                 Err(format!("Connection failed: {}", e))
@@ -236,9 +230,7 @@ impl Api {
                     .map_err(|e| format!("Failed to parse server state: {}", e))
             }
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
-            Err(SendError::Open) => {
-                Err("Server temporarily unreachable; backing off".to_string())
-            }
+            Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
                 error!("Failed to get server state: {}", e);
                 Err(format!("Connection failed: {}", e))
@@ -272,9 +264,7 @@ impl Api {
                     .map_err(|e| format!("Failed to parse stream token: {}", e))
             }
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
-            Err(SendError::Open) => {
-                Err("Server temporarily unreachable; backing off".to_string())
-            }
+            Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
                 error!("Failed to get audio stream token: {}", e);
                 Err(format!("Connection failed: {}", e))

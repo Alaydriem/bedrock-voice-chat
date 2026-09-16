@@ -673,7 +673,10 @@ impl AudioStreamManager {
         // changes through this key; nudge the control-plane reporter so the
         // server's preference cache mirrors the persisted store.
         if key == "player_gain_store" {
-            if let Some(bus) = self.app_handle.try_state::<crate::control::ControlStateBus>() {
+            if let Some(bus) = self
+                .app_handle
+                .try_state::<crate::control::ControlStateBus>()
+            {
                 bus.preferences();
             }
         }

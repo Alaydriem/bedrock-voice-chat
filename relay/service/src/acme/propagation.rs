@@ -24,7 +24,11 @@ impl PropagationCheck {
     const DEFAULT_TIMEOUT: Duration = Duration::from_secs(300);
 
     pub fn new() -> Self {
-        Self::new_with(Self::DEFAULT_DOH, Self::DEFAULT_INTERVAL, Self::DEFAULT_TIMEOUT)
+        Self::new_with(
+            Self::DEFAULT_DOH,
+            Self::DEFAULT_INTERVAL,
+            Self::DEFAULT_TIMEOUT,
+        )
     }
 
     pub fn new_with(doh_url: &str, interval: Duration, timeout: Duration) -> Self {

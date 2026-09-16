@@ -119,11 +119,7 @@ impl ServerLibrary {
                 ) -> *mut c_char,
             >(&lib, b"bvc_provision_login_code")?;
             let provision_websocket_ticket = Self::sym::<
-                unsafe extern "C" fn(
-                    RuntimeHandlePtr,
-                    *const c_char,
-                    *const c_char,
-                ) -> *mut c_char,
+                unsafe extern "C" fn(RuntimeHandlePtr, *const c_char, *const c_char) -> *mut c_char,
             >(&lib, b"bvc_provision_websocket_ticket")?;
             let free_string =
                 Self::sym::<unsafe extern "C" fn(*mut c_char)>(&lib, b"bvc_free_string")?;

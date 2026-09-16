@@ -55,12 +55,7 @@ async fn surrounding_quotes_are_not_part_of_the_value() {
     // The quoted form is what a resolver returns, so the unquoted value must match it
     // and the quoted one must not.
     assert!(check.wait_for(FQDN, VALUE).await.is_ok());
-    assert!(
-        check
-            .wait_for(FQDN, &format!("\"{VALUE}\""))
-            .await
-            .is_err()
-    );
+    assert!(check.wait_for(FQDN, &format!("\"{VALUE}\"")).await.is_err());
 }
 
 // A record that never appears has to give up rather than block the start forever. A

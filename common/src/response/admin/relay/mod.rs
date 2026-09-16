@@ -1,6 +1,6 @@
 pub mod paired_peer;
-pub mod pairing;
 pub mod paired_peers;
+pub mod pairing;
 pub mod peerlink;
 pub mod world;
 pub mod worlds;

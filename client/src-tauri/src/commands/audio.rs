@@ -1,5 +1,5 @@
-use crate::audio::{AudioDevice, AudioDeviceType};
 use crate::audio::{AudioActionsManager, RecordingManager};
+use crate::audio::{AudioDevice, AudioDeviceType};
 use crate::events::event::notification::{EVENT_NOTIFICATION, Notification};
 use crate::{AudioStreamManager, structs::app_state::AppState};
 use common::structs::audio::StreamEvent;
@@ -532,9 +532,7 @@ pub(crate) async fn start_input_meter(
 /// `spawn_blocking` because the rodio stream is not `Send` and dropping it cuts playback,
 /// so it has to live and die on one thread rather than be held across an await.
 #[tauri::command]
-pub(crate) async fn test_output_device(
-    state: State<'_, Mutex<AppState>>,
-) -> Result<(), String> {
+pub(crate) async fn test_output_device(state: State<'_, Mutex<AppState>>) -> Result<(), String> {
     let device = {
         let mut state = state.lock().await;
         state.get_audio_device(AudioDeviceType::OutputDevice)?

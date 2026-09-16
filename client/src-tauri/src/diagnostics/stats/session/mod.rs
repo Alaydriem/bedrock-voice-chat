@@ -85,6 +85,9 @@ impl LinkSession {
     }
 
     fn with<T>(&self, f: impl FnOnce(&SessionInfo) -> T) -> Option<T> {
-        self.info.lock().ok().and_then(|guard| guard.as_ref().map(f))
+        self.info
+            .lock()
+            .ok()
+            .and_then(|guard| guard.as_ref().map(f))
     }
 }

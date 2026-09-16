@@ -70,5 +70,4 @@ impl SampleRing {
     pub fn rtt_max(&self) -> Option<u32> {
         self.samples.iter().filter_map(|s| s.rtt_ms).max()
     }
-
 }

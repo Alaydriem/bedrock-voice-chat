@@ -129,10 +129,7 @@ impl GroupService {
             .and_then(|value| value.as_str().map(String::from))
             .ok_or_else(|| anyhow!("not signed in"))?;
 
-        Ok(ControlActionsManager::canonical(
-            &bare,
-            &self.game().await,
-        ))
+        Ok(ControlActionsManager::canonical(&bare, &self.game().await))
     }
 
     async fn game(&self) -> Game {

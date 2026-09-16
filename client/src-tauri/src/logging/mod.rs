@@ -4,8 +4,8 @@ mod fields;
 mod format;
 mod sink;
 mod smoke;
-mod throttle;
 pub mod telemetry;
+mod throttle;
 
 pub use self::context::{CorrelationKeys, LogContext};
 pub use self::defect::Defect;

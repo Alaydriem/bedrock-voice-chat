@@ -1,5 +1,5 @@
-mod router;
 pub mod recorded_player;
+mod router;
 mod speaker_state;
 mod speaker_state_cache;
 
@@ -26,9 +26,7 @@ use common::{
     Coordinate, Game, GenericPlayer, Orientation, PlayerEnum,
     structs::{
         SpatialAudioConfig,
-        audio::{
-            GainProjection, JukeboxLevel, PlayerGainSettings, PlayerGainStore, StreamEvent,
-        },
+        audio::{GainProjection, JukeboxLevel, PlayerGainSettings, PlayerGainStore, StreamEvent},
     },
 };
 use log::{error, info, warn};
@@ -42,8 +40,8 @@ use std::{
     time::Duration,
 };
 
-use tokio::task::JoinHandle;
 use tauri_plugin_curia::curia;
+use tokio::task::JoinHandle;
 
 /// Global mute state for output stream
 pub(crate) static MUTE_OUTPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -375,28 +373,31 @@ impl OutputStream {
             Some(device) => match device.get_stream_config() {
                 Ok(stored_config) => {
                     // Validate stored config against live device - detect Windows sound settings changes
-                    let config = match crate::audio::device::AudioDeviceEnumerator::refresh_device_config(&device) {
-                        Some(fresh_configs) if !fresh_configs.is_empty() => {
-                            let fresh_config: rodio::cpal::SupportedStreamConfig =
-                                fresh_configs[0].clone().into();
-                            if fresh_config.sample_rate() != stored_config.sample_rate() {
-                                warn!(
-                                    "Output device {} sample rate changed: stored {}Hz, actual {}Hz. Using actual.",
-                                    device.display_name,
-                                    stored_config.sample_rate(),
-                                    fresh_config.sample_rate()
-                                );
+                    let config =
+                        match crate::audio::device::AudioDeviceEnumerator::refresh_device_config(
+                            &device,
+                        ) {
+                            Some(fresh_configs) if !fresh_configs.is_empty() => {
+                                let fresh_config: rodio::cpal::SupportedStreamConfig =
+                                    fresh_configs[0].clone().into();
+                                if fresh_config.sample_rate() != stored_config.sample_rate() {
+                                    warn!(
+                                        "Output device {} sample rate changed: stored {}Hz, actual {}Hz. Using actual.",
+                                        device.display_name,
+                                        stored_config.sample_rate(),
+                                        fresh_config.sample_rate()
+                                    );
+                                }
+                                fresh_config
                             }
-                            fresh_config
-                        }
-                        _ => {
-                            warn!(
-                                "Could not refresh output device config for {}, using stored config",
-                                device.display_name
-                            );
-                            stored_config
-                        }
-                    };
+                            _ => {
+                                warn!(
+                                    "Could not refresh output device config for {}, using stored config",
+                                    device.display_name
+                                );
+                                stored_config
+                            }
+                        };
                     Some(config)
                 }
                 Err(e) => {

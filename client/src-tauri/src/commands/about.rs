@@ -20,7 +20,9 @@ pub(crate) fn get_app_info() -> AppInfo {
         protocol_version: common::consts::version::PROTOCOL_VERSION.to_string(),
         build_commit: env!("BUILD_COMMIT").to_string(),
         build_variant: get_variant(),
-        build_number: option_env!("APP_BUILD_NUMBER").unwrap_or("local").to_string(),
+        build_number: option_env!("APP_BUILD_NUMBER")
+            .unwrap_or("local")
+            .to_string(),
     }
 }
 
@@ -85,7 +87,10 @@ pub(crate) async fn refresh_platform_id(
     // Without this the session keeps the segments the retired id was in until the
     // hourly poll, which is what a failure here falls back to.
     if let Err(e) = feature_flags.refresh().await {
-        warn!("Feature flags did not re-evaluate under the new platform ID: {}", e);
+        warn!(
+            "Feature flags did not re-evaluate under the new platform ID: {}",
+            e
+        );
     }
 
     Ok(next)

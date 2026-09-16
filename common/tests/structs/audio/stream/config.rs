@@ -11,10 +11,7 @@ fn config(sample_rate: u32, sample_format: &str) -> StreamConfig {
 }
 
 fn formats(configs: &[StreamConfig]) -> Vec<&str> {
-    configs
-        .iter()
-        .map(|c| c.sample_format.as_str())
-        .collect()
+    configs.iter().map(|c| c.sample_format.as_str()).collect()
 }
 
 fn rates(configs: &[StreamConfig]) -> Vec<u32> {
@@ -36,20 +33,14 @@ fn the_highest_rate_leads() {
 /// format the hardware shares with the pipeline would be selected in its place.
 #[test]
 fn f64_ranks_below_every_other_format_at_a_higher_rate() {
-    let ordered = StreamConfig::preference_order(vec![
-        config(96000, "f64"),
-        config(48000, "f32"),
-    ]);
+    let ordered = StreamConfig::preference_order(vec![config(96000, "f64"), config(48000, "f32")]);
 
     assert_eq!(formats(&ordered), vec!["f32", "f64"]);
 }
 
 #[test]
 fn f64_ranks_below_every_other_format_at_the_same_rate() {
-    let ordered = StreamConfig::preference_order(vec![
-        config(48000, "f64"),
-        config(48000, "i16"),
-    ]);
+    let ordered = StreamConfig::preference_order(vec![config(48000, "f64"), config(48000, "i16")]);
 
     assert_eq!(formats(&ordered), vec!["i16", "f64"]);
 }
@@ -58,10 +49,7 @@ fn f64_ranks_below_every_other_format_at_the_same_rate() {
 /// "does not have any supported stream configs" error.
 #[test]
 fn f64_survives_when_it_is_the_only_format_offered() {
-    let ordered = StreamConfig::preference_order(vec![
-        config(44100, "f64"),
-        config(48000, "f64"),
-    ]);
+    let ordered = StreamConfig::preference_order(vec![config(44100, "f64"), config(48000, "f64")]);
 
     assert_eq!(rates(&ordered), vec![48000, 44100]);
 }

@@ -13,9 +13,6 @@ pub struct CertificateMaterial {
 
 impl CertificateMaterial {
     pub fn new(chain_pem: String, key_pem: String) -> Self {
-        Self {
-            chain_pem,
-            key_pem,
-        }
+        Self { chain_pem, key_pem }
     }
 }

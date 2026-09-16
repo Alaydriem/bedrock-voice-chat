@@ -33,7 +33,11 @@ async fn the_exchange_yields_the_discord_user_id() {
             "/oauth2/token",
             json!({ "access_token": "at-1", "token_type": "Bearer" }),
         ),
-        MockRoute::new("GET", "/users/@me", json!({ "id": "member-9", "username": "someone" })),
+        MockRoute::new(
+            "GET",
+            "/users/@me",
+            json!({ "id": "member-9", "username": "someone" }),
+        ),
     ])
     .await;
 
@@ -56,7 +60,10 @@ async fn the_exchange_sends_the_code_grant_with_the_registered_redirect() {
     ])
     .await;
 
-    client(&mock.base).identify("the-code").await.expect("identifies");
+    client(&mock.base)
+        .identify("the-code")
+        .await
+        .expect("identifies");
 
     let exchange = mock
         .requests()
@@ -97,7 +104,11 @@ async fn a_refused_exchange_is_an_error_not_a_panic() {
 async fn a_user_payload_without_an_id_is_an_error() {
     let mock = MockApi::start(vec![
         MockRoute::new("POST", "/oauth2/token", json!({ "access_token": "at-1" })),
-        MockRoute::new("GET", "/users/@me", json!({ "message": "401: Unauthorized" })),
+        MockRoute::new(
+            "GET",
+            "/users/@me",
+            json!({ "message": "401: Unauthorized" }),
+        ),
     ])
     .await;
 

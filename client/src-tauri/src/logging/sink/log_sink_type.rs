@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use tauri_plugin_curia::curia::{Level, LogEvent, Sink};
 use tauri::Wry;
+use tauri_plugin_curia::curia::{Level, LogEvent, Sink};
 use tauri_plugin_curia::{ConsoleSink, FileSink, WebviewSink};
 
 use super::SentrySink;

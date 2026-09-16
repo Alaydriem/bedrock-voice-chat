@@ -78,7 +78,10 @@ async fn a_rotating_source_address_exhausts_the_path_budget_and_stops_the_return
     // Real audio, paced out by the bin, is what keeps the client transmitting across
     // the whole rotation window. Without it the connection goes quiet and the
     // server's silence would prove nothing.
-    client.feed_tone(&Signal::chirp(48_000, AUDIO_SECONDS, 200.0, 2_000.0), 48_000);
+    client.feed_tone(
+        &Signal::chirp(48_000, AUDIO_SECONDS, 200.0, 2_000.0),
+        48_000,
+    );
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // The connection is healthy on one path: the client is sending and the server is
@@ -167,7 +170,10 @@ async fn a_stable_source_address_keeps_the_return_flow_alive() {
         .await_connected(Duration::from_secs(20))
         .expect("client connects through the relay");
 
-    client.feed_tone(&Signal::chirp(48_000, AUDIO_SECONDS, 200.0, 2_000.0), 48_000);
+    client.feed_tone(
+        &Signal::chirp(48_000, AUDIO_SECONDS, 200.0, 2_000.0),
+        48_000,
+    );
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let downstream_before = relay.downstream_datagrams();

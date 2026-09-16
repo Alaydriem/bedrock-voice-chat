@@ -25,8 +25,16 @@ fn a_heartbeat_teaches_the_cache_both_halves() {
 #[test]
 fn a_later_heartbeat_replaces_the_position() {
     let cache = SpeakerStateCache::new();
-    cache.resolve("7", Some("minecraft:Bob".to_string()), Some(speaker_at(5.0)));
-    cache.resolve("7", Some("minecraft:Bob".to_string()), Some(speaker_at(9.0)));
+    cache.resolve(
+        "7",
+        Some("minecraft:Bob".to_string()),
+        Some(speaker_at(5.0)),
+    );
+    cache.resolve(
+        "7",
+        Some("minecraft:Bob".to_string()),
+        Some(speaker_at(9.0)),
+    );
 
     let recalled = cache.resolve("7", None, None).expect("state retained");
     assert_eq!(recalled.speaker.expect("position retained").position.x, 9.0);

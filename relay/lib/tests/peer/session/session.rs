@@ -62,11 +62,7 @@ fn frame(marker: u8) -> VoiceFrame {
 async fn acceptor(dir: &TempDir, burst: usize) -> (String, Arc<PeerEndpoint>) {
     let identity =
         NodeIdentity::load_or_create(dir.path().to_str().expect("path")).expect("identity");
-    let endpoint = Arc::new(
-        PeerEndpoint::bind(&identity)
-            .await
-            .expect("bind acceptor"),
-    );
+    let endpoint = Arc::new(PeerEndpoint::bind(&identity).await.expect("bind acceptor"));
     let ticket = endpoint.ticket().await.expect("mint");
 
     let listening = Arc::clone(&endpoint);
@@ -109,11 +105,7 @@ async fn recording_acceptor(
 ) -> (String, Arc<PeerEndpoint>, Arc<Mutex<Vec<VoiceFrame>>>) {
     let identity =
         NodeIdentity::load_or_create(dir.path().to_str().expect("path")).expect("identity");
-    let endpoint = Arc::new(
-        PeerEndpoint::bind(&identity)
-            .await
-            .expect("bind acceptor"),
-    );
+    let endpoint = Arc::new(PeerEndpoint::bind(&identity).await.expect("bind acceptor"));
     let ticket = endpoint.ticket().await.expect("mint");
     let received: Arc<Mutex<Vec<VoiceFrame>>> = Arc::new(Mutex::new(Vec::new()));
 

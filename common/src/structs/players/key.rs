@@ -16,9 +16,7 @@ const SEPARATOR: char = '\u{1f}';
 /// The server is part of the key because a decision is about a person *here*. The same
 /// gamertag on two servers is two rows, and muting them on one must not silence them on the
 /// other.
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TS,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub struct PlayerKey {
     pub server: String,

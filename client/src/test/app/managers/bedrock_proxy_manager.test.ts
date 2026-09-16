@@ -93,4 +93,35 @@ describe("Bedrock proxy manager server list", () => {
 
         expect(get(proxy.activeProxyId)).toBe("server:play.example.com:19132");
     });
+
+    /**
+     * `updateProxyServer` copied name, host, port and protocolVersion out of the patch but
+     * not addonMode, so the "Proxy all events" checkbox could never be changed on a server
+     * that already existed: the edit appeared to save and the entry silently kept the mode
+     * it was created with.
+     *
+     * The consequence was invisible and total. A world left on `net` resolves to
+     * `RelayOnlyDispatch`, which has no PlaySound arm at all, so the jukebox bus and the
+     * `bvc:ctl:` control plane were both dropped without a log line.
+     */
+    it("saves a change to the addon mode on an existing entry", async () => {
+        const proxy = manager();
+        const mine = await proxy.addProxyServer("BDS Local", "10.0.0.1", 19135, undefined, "net");
+
+        await proxy.updateProxyServer(mine.id, { addonMode: "no_net" });
+
+        const saved = get(proxy.sortedProxyServers).find((entry) => entry.id === mine.id);
+        expect(saved?.addonMode, "ticking Proxy all events must persist").toBe("no_net");
+    });
+
+    it("leaves the addon mode alone when the patch does not mention it", async () => {
+        const proxy = manager();
+        const mine = await proxy.addProxyServer("Aternos", "a.aternos.me", 19132, undefined, "no_net");
+
+        await proxy.updateProxyServer(mine.id, { name: "Renamed" });
+
+        const saved = get(proxy.sortedProxyServers).find((entry) => entry.id === mine.id);
+        expect(saved?.name).toBe("Renamed");
+        expect(saved?.addonMode, "an unrelated edit must not reset the mode").toBe("no_net");
+    });
 });

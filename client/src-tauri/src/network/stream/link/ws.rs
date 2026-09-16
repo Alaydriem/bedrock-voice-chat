@@ -146,11 +146,7 @@ impl WsLink {
     /// server presents a publicly-signed certificate, a self-hosted one presents a
     /// CA-signed certificate, and both must work without an operator choosing.
     fn tls_config(ca_cert: &str, cert: &str, key: &str) -> Result<ClientConfig, VoiceLinkError> {
-        let mut roots = RootCertStore::from_iter(
-            webpki_roots::TLS_SERVER_ROOTS
-                .iter()
-                .cloned(),
-        );
+        let mut roots = RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
         for certificate in Self::parse_certificates(ca_cert)? {
             roots
                 .add(certificate)

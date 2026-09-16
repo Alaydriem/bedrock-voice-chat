@@ -127,8 +127,8 @@ impl BedrockTargetService {
         Self::require_auth(app_handle).await?;
 
         let api = {
-            let state = app_handle
-                .state::<tauri::async_runtime::Mutex<crate::bedrock::BedrockState>>();
+            let state =
+                app_handle.state::<tauri::async_runtime::Mutex<crate::bedrock::BedrockState>>();
             let state = state.lock().await;
             state.realms_api.clone()
         };
@@ -154,8 +154,7 @@ impl BedrockTargetService {
     }
 
     async fn require_auth(app_handle: &AppHandle) -> Result<(), anyhow::Error> {
-        let state =
-            app_handle.state::<tauri::async_runtime::Mutex<crate::bedrock::BedrockState>>();
+        let state = app_handle.state::<tauri::async_runtime::Mutex<crate::bedrock::BedrockState>>();
         let state = state.lock().await;
         if state.auth_manager.is_none() {
             anyhow::bail!(crate::bedrock::XBOX_AUTH_REQUIRED);

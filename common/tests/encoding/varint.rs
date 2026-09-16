@@ -34,7 +34,10 @@ fn unsigned_values_are_not_zigzag_mapped() {
     // 300 encodes as 300, not as 600. An unsigned value that went through zigzag would double and
     // cost an extra byte at every boundary.
     assert_eq!(Varint::encode(300u32), vec![172, 2]);
-    assert_eq!(Varint::encode(1u64 << 40), vec![128, 128, 128, 128, 128, 32]);
+    assert_eq!(
+        Varint::encode(1u64 << 40),
+        vec![128, 128, 128, 128, 128, 32]
+    );
 }
 
 #[test]

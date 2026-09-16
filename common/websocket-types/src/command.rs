@@ -7,7 +7,9 @@ use super::DeviceType;
 #[serde(tag = "action", rename_all = "lowercase")]
 pub enum Command {
     Ping,
-    Mute { device: DeviceType },
+    Mute {
+        device: DeviceType,
+    },
     Record,
     /// Toggle whether jukebox music plays.
     ///
@@ -19,17 +21,23 @@ pub enum Command {
     /// A level rather than a toggle, unlike `Jukebox`: a dial sends an absolute value and knows
     /// what it is asking for. A level above the ceiling is clamped rather than refused, so a
     /// controller with a wider dial still lands at the loudest the client will play.
-    JukeboxVolume { level: u8 },
+    JukeboxVolume {
+        level: u8,
+    },
     State,
     /// Push-to-talk, held. `down` is the press; the mic closes on the release.
     ///
     /// A controller holding this open is responsible for sending the release. A dropped
     /// connection does not close the mic, so a button that latches leaves it open.
-    Ptt { down: bool },
+    Ptt {
+        down: bool,
+    },
     /// The worlds this client can be asked to connect to.
     Targets,
     /// Connect to one of them. `id` comes from a prior `targets` response.
-    Connect { id: String },
+    Connect {
+        id: String,
+    },
     /// Stop whichever session is live.
     ///
     /// Names no target. Idempotent, so a controller that lost track of the client can send
@@ -38,11 +46,15 @@ pub enum Command {
     /// Create a group with this name and join it.
     ///
     /// A name that already exists is created anyway: the caller named a create.
-    CreateGroup { name: String },
+    CreateGroup {
+        name: String,
+    },
     /// Join the existing group with this name.
     ///
     /// Refused when the name matches no group, and when it matches more than one.
-    JoinGroup { name: String },
+    JoinGroup {
+        name: String,
+    },
     /// Leave whichever group this client is in.
     ///
     /// Names nothing, and is idempotent, so a controller that lost track can send it without

@@ -290,6 +290,9 @@ mod policy {
         );
         // And not zero: a client that hears nothing for a minute expires the speaking flag and
         // stops the meter over somebody who never stopped talking.
-        assert!(sent >= 60, "a steady voice must still be refreshed, sent {sent}");
+        assert!(
+            sent >= 60,
+            "a steady voice must still be refreshed, sent {sent}"
+        );
     }
 }

@@ -2,7 +2,10 @@ use bvc_client_lib::audio::recording::WalKey;
 
 #[test]
 fn sanitize_drops_the_colon_that_ntfs_reads_as_a_stream_separator() {
-    assert_eq!(WalKey::sanitize("minecraft:Alaydriem"), "minecraftAlaydriem");
+    assert_eq!(
+        WalKey::sanitize("minecraft:Alaydriem"),
+        "minecraftAlaydriem"
+    );
 }
 
 #[test]

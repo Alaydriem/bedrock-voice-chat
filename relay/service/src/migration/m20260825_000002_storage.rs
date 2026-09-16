@@ -28,7 +28,12 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(NodeKey::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(NodeKey::Name).string().not_null().primary_key())
+                    .col(
+                        ColumnDef::new(NodeKey::Name)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(NodeKey::Value).string().not_null())
                     .col(ColumnDef::new(NodeKey::CreatedAt).big_integer().not_null())
                     .to_owned(),
@@ -48,7 +53,11 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Certificate::ChainPem).text().not_null())
                     .col(ColumnDef::new(Certificate::KeyPem).text().not_null())
-                    .col(ColumnDef::new(Certificate::IssuedAt).big_integer().not_null())
+                    .col(
+                        ColumnDef::new(Certificate::IssuedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
                     .to_owned(),
             )
             .await

@@ -35,7 +35,11 @@ fn session(
             .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
             .take(20)
             .collect();
-        fs::write(path.join("wal").join(format!("{sanitized}-9f2c-0.log")), b"x").expect("segment");
+        fs::write(
+            path.join("wal").join(format!("{sanitized}-9f2c-0.log")),
+            b"x",
+        )
+        .expect("segment");
     }
 
     (dir, path)

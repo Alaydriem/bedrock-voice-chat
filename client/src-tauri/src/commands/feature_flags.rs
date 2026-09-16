@@ -1,5 +1,5 @@
-use crate::feature_flags::flags::app::AgeSignalsEnabled;
 use crate::feature_flags::FeatureFlagService;
+use crate::feature_flags::flags::app::AgeSignalsEnabled;
 use std::sync::Arc;
 use tauri::State;
 

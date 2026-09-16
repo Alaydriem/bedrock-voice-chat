@@ -50,10 +50,7 @@ fn https() -> Vec<EndpointReachability> {
     )]
 }
 
-fn report(
-    quic: Vec<EndpointReachability>,
-    ws: Vec<EndpointReachability>,
-) -> ServerReachability {
+fn report(quic: Vec<EndpointReachability>, ws: Vec<EndpointReachability>) -> ServerReachability {
     ServerReachability::new("choice.test".to_string(), quic, https(), ws)
 }
 
@@ -63,7 +60,10 @@ fn margin() -> Duration {
 
 #[test]
 fn quic_is_chosen_when_it_is_the_only_transport_that_answered() {
-    assert_eq!(report(quic(16_000), Vec::new()).voice_choice(margin()), VoiceChoice::Quic);
+    assert_eq!(
+        report(quic(16_000), Vec::new()).voice_choice(margin()),
+        VoiceChoice::Quic
+    );
 }
 
 #[test]

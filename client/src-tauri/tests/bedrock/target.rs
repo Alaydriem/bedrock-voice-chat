@@ -57,7 +57,12 @@ fn mints_a_namespaced_id_for_every_source() {
 #[test]
 fn a_saved_entry_displaces_an_advertised_one_at_the_same_address() {
     let service = BedrockTargetService::new(
-        vec![saved("V1StGXR8", "My name for it", "play.example.com", 19132)],
+        vec![saved(
+            "V1StGXR8",
+            "My name for it",
+            "play.example.com",
+            19132,
+        )],
         vec![advertised("Operator name", "play.example.com", 19132)],
         vec![],
     );
@@ -94,9 +99,14 @@ fn the_wire_form_carries_no_address() {
 fn resolves_a_realm_id_to_its_numeric_id() {
     let service = BedrockTargetService::new(vec![], vec![], vec![realm(1234567, "My Realm")]);
 
-    let resolved = service.resolve("realm:1234567").expect("realm should resolve");
+    let resolved = service
+        .resolve("realm:1234567")
+        .expect("realm should resolve");
 
-    assert_eq!(resolved.address, ResolvedAddress::Realm { realm_id: 1234567 });
+    assert_eq!(
+        resolved.address,
+        ResolvedAddress::Realm { realm_id: 1234567 }
+    );
 }
 
 #[test]

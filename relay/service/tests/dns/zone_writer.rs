@@ -161,5 +161,8 @@ async fn a_name_outside_the_zone_has_no_label() {
     assert_eq!(writer.label_of(".bedrockvc.stream"), None);
     // A deeper name is not a label: `evil.tidy-allay-lagoon.bedrockvc.stream` would
     // otherwise strip to something that is not the registration it claims to be.
-    assert_eq!(writer.label_of("evil.tidy-allay-lagoon.bedrockvc.stream"), None);
+    assert_eq!(
+        writer.label_of("evil.tidy-allay-lagoon.bedrockvc.stream"),
+        None
+    );
 }

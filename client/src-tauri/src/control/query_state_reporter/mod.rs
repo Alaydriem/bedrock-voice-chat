@@ -15,9 +15,9 @@ use super::connection_identity::ConnectionIdentity;
 use super::state_signal::ControlStateSignal;
 use crate::NetworkPacket;
 use crate::audio::AudioActionsManager;
-use crate::players::PlayerSettingsCoordinator;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::QueryStateInjector;
+use crate::players::PlayerSettingsCoordinator;
 
 // Coalesce bursts of state changes into at most one report wave per window
 // (~5 waves/second), so slider drags and rapid toggles don't flood the server.
@@ -236,15 +236,13 @@ impl QueryStateReporter {
     }
 
     fn send_quic(&self, packet_type: PacketType, data: QuicNetworkPacketData) {
-        let producer = self
-            .app_handle
-            .state::<Arc<flume::Sender<NetworkPacket>>>();
+        let producer = self.app_handle.state::<Arc<flume::Sender<NetworkPacket>>>();
         let packet = NetworkPacket {
             data: QuicNetworkPacket {
                 packet_type,
                 // Carries no sender: the server stamps one from the certificate at ingress.
                 data,
-                            // Not a server fan-out, so this envelope carries no sequence.
+                // Not a server fan-out, so this envelope carries no sequence.
                 ..Default::default()
             },
         };

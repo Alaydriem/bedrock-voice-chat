@@ -61,7 +61,11 @@ async fn a_node_that_answers_passes_and_clears_earlier_failures() {
         .await
         .expect("first failure");
 
-    let outcome = f.checker.evaluate(&f.node, true, None).await.expect("passes");
+    let outcome = f
+        .checker
+        .evaluate(&f.node, true, None)
+        .await
+        .expect("passes");
 
     assert_eq!(outcome, ValidationOutcome::Passed);
 
@@ -80,17 +84,31 @@ async fn a_registration_is_suspended_only_after_the_threshold() {
     let f = fixture().await;
 
     for expected in 1..ValidationChecker::FAILURE_THRESHOLD {
-        let outcome = f.checker.evaluate(&f.node, false, None).await.expect("fails");
+        let outcome = f
+            .checker
+            .evaluate(&f.node, false, None)
+            .await
+            .expect("fails");
         assert_eq!(
             outcome,
             ValidationOutcome::Failed {
                 consecutive: expected
             }
         );
-        assert!(f.registry.name_for(&f.node).await.expect("lookup").is_some());
+        assert!(
+            f.registry
+                .name_for(&f.node)
+                .await
+                .expect("lookup")
+                .is_some()
+        );
     }
 
-    let outcome = f.checker.evaluate(&f.node, false, None).await.expect("fails");
+    let outcome = f
+        .checker
+        .evaluate(&f.node, false, None)
+        .await
+        .expect("fails");
 
     assert_eq!(outcome, ValidationOutcome::Suspended);
     assert_eq!(f.registry.name_for(&f.node).await.expect("lookup"), None);
@@ -140,7 +158,10 @@ async fn suspension_withdraws_the_published_records() {
     assert_eq!(f.recording.live_ids().len(), 1);
 
     for _ in 0..ValidationChecker::FAILURE_THRESHOLD {
-        f.checker.evaluate(&f.node, false, None).await.expect("fails");
+        f.checker
+            .evaluate(&f.node, false, None)
+            .await
+            .expect("fails");
     }
 
     assert!(
@@ -156,5 +177,10 @@ async fn suspension_withdraws_the_published_records() {
 async fn evaluating_an_unknown_node_is_an_error() {
     let f = fixture().await;
 
-    assert!(f.checker.evaluate("node-unknown", true, None).await.is_err());
+    assert!(
+        f.checker
+            .evaluate("node-unknown", true, None)
+            .await
+            .is_err()
+    );
 }

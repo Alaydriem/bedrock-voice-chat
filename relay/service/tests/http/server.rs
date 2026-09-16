@@ -178,7 +178,6 @@ impl Running {
     fn url(&self, name: &str) -> String {
         format!("https://{name}:{}/healthz", self.addr.port())
     }
-
 }
 
 // The whole TLS path under a real socket: bind, handshake, route, respond. Nothing
@@ -236,7 +235,10 @@ async fn a_renewed_certificate_is_served_without_a_restart() {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
-    assert!(served_the_renewal, "the renewed certificate was never served");
+    assert!(
+        served_the_renewal,
+        "the renewed certificate was never served"
+    );
 
     running.cancel.cancel();
 }

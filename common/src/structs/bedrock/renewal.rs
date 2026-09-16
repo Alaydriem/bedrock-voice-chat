@@ -9,7 +9,9 @@ pub enum BedrockRenewal {
     Renewed,
     /// The credential could not be reached, or the provider faulted. Whatever tokens are
     /// already held may still work, so the caller carries on.
-    Unavailable { message: String },
+    Unavailable {
+        message: String,
+    },
     /// The credential was rejected. Only the player can fix this.
     ReauthRequired,
 }

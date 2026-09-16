@@ -1,8 +1,8 @@
+use crate::network::stream::HealthPublisher;
+use crate::network::stream::link::DatagramLink;
 use bytes::Bytes;
 use common::consts::version::PROTOCOL_VERSION;
 use common::response::{ApiConfigCheckResponse, ApiConfigResponse};
-use crate::network::stream::HealthPublisher;
-use crate::network::stream::link::DatagramLink;
 use common::structs::network::ConnectionHealth;
 use common::structs::packet::{
     HealthCheckPacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
@@ -186,7 +186,7 @@ impl ConnectionHealthManager {
         let health_packet = QuicNetworkPacket {
             packet_type: PacketType::HealthCheck,
             data: QuicNetworkPacketData::HealthCheck(HealthCheckPacket),
-                    // Not a server fan-out, so this envelope carries no sequence.
+            // Not a server fan-out, so this envelope carries no sequence.
             ..Default::default()
         };
 

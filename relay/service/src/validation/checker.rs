@@ -3,10 +3,10 @@ use std::sync::Arc;
 use common::curia;
 use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, EntityTrait};
 
+use super::error::ValidationError;
 use crate::dns::ZoneWriter;
 use crate::entity::registration;
 use crate::registry::{RegistryError, RegistryService};
-use super::error::ValidationError;
 
 use super::outcome::ValidationOutcome;
 
