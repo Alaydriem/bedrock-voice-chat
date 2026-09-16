@@ -1,8 +1,8 @@
+use common::structs::packet::SpeakerPosition;
 use common::structs::packet::{
     AudioFramePacket, HealthCheckPacket, MAX_DATAGRAM_SIZE, PacketSender, PacketType,
     QuicNetworkPacket, QuicNetworkPacketData,
 };
-use common::structs::packet::SpeakerPosition;
 use common::{Coordinate, Game, PlayerIdentity};
 use serde::{Deserialize, Serialize};
 

@@ -171,7 +171,8 @@ impl QuicLinkStats {
         if sequence > previous {
             let missing = sequence - previous - 1;
             if missing > 0 {
-                self.sequence_lost.fetch_add(missing as u64, Ordering::Relaxed);
+                self.sequence_lost
+                    .fetch_add(missing as u64, Ordering::Relaxed);
             }
             self.highest_sequence.store(sequence, Ordering::Relaxed);
             return;

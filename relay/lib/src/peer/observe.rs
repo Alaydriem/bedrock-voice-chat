@@ -73,10 +73,7 @@ impl AddressObserver {
     // connection: iroh exposes it on `Incoming`, before the handshake completes, and
     // it is gone by the time there is a `Connection` to read it from. The caller
     // captures it and hands it over.
-    pub async fn reply_to(
-        conn: &Connection,
-        observed: IncomingAddr,
-    ) -> Result<(), PeerError> {
+    pub async fn reply_to(conn: &Connection, observed: IncomingAddr) -> Result<(), PeerError> {
         let observed = match observed {
             IncomingAddr::Ip(addr) => Some(addr),
             _ => None,

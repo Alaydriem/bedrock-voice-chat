@@ -6,7 +6,7 @@ pub use policy::LevelEmitPolicy;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 
 use common::structs::audio::{LevelSnapshot, ParticipantLevel};
 

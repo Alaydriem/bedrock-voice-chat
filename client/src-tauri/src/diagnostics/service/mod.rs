@@ -106,14 +106,7 @@ impl LinkDiagnosticsService {
         levels: Arc<crate::audio::LevelBus>,
     ) -> Arc<Self> {
         Arc::new(Self::new(
-            quic_stats,
-            transport,
-            input,
-            session,
-            config,
-            peers,
-            devices,
-            levels,
+            quic_stats, transport, input, session, config, peers, devices, levels,
         ))
     }
 
@@ -280,11 +273,7 @@ impl LinkDiagnosticsService {
         let quic = self.quic_stats.borrow().clone();
         let now = Instant::now();
 
-        let previous = self
-            .last
-            .lock()
-            .map(|g| g.clone())
-            .unwrap_or_default();
+        let previous = self.last.lock().map(|g| g.clone()).unwrap_or_default();
 
         let current = self.readings_at(now);
 
@@ -307,9 +296,7 @@ impl LinkDiagnosticsService {
         // Absent rather than zero on the tick that has nothing to diff against. Reported as a
         // measurement it would accuse the capture device of being dead every time a client
         // connects, one tick before the first real reading contradicts it.
-        let capture_rate = previous
-            .at
-            .map(|_| Self::rate(captured_delta, elapsed));
+        let capture_rate = previous.at.map(|_| Self::rate(captured_delta, elapsed));
         let recv_rate = Self::rate(received_delta, elapsed);
         let meter_rate = Self::rate(meter_delta, elapsed);
         let uplink_loss_pct = Self::ratio_pct(quic_lost_delta, quic_sent_delta);
@@ -376,10 +363,7 @@ impl LinkDiagnosticsService {
         }
 
         let buffer_ms = peers.iter().map(|p| p.buffer_ms).max().unwrap_or(0);
-        let buffer_drops: u64 = peers
-            .iter()
-            .map(|p| p.overflow_drops + p.ooo_drops)
-            .sum();
+        let buffer_drops: u64 = peers.iter().map(|p| p.overflow_drops + p.ooo_drops).sum();
 
         // Concealment is not loss and must not be classified as though it were: a quiet speaker
         // conceals heavily and there is nothing wrong with the link. Downlink loss, where measured,
@@ -401,10 +385,7 @@ impl LinkDiagnosticsService {
             mic: MicDiagnostics {
                 device: devices.input_name,
                 sample_rate: devices.input_sample_rate,
-                noise_gate: NoiseGateStatus::of(
-                    DeviceInfo::noise_gate_enabled(),
-                    signal_delta > 0,
-                ),
+                noise_gate: NoiseGateStatus::of(DeviceInfo::noise_gate_enabled(), signal_delta > 0),
                 muted: input_muted,
                 capture_frames_per_sec: capture_rate,
                 datagrams_per_sec: send_rate,
@@ -572,11 +553,7 @@ impl LinkDiagnosticsService {
             return;
         };
 
-        let window = self
-            .window
-            .lock()
-            .map(|w| w.clone())
-            .unwrap_or_default();
+        let window = self.window.lock().map(|w| w.clone()).unwrap_or_default();
 
         let reportable = self
             .ring

@@ -18,7 +18,10 @@ fn encodes_to_exactly_the_bytes_already_on_disk() {
         PlayerKey::new("bvc.alaydriem.com", "minecraft:Alaydriem").encode(),
         "bvc.alaydriem.com\u{1f}minecraft:Alaydriem"
     );
-    assert_eq!(PlayerKey::server_prefix("bvc.alaydriem.com"), "bvc.alaydriem.com\u{1f}");
+    assert_eq!(
+        PlayerKey::server_prefix("bvc.alaydriem.com"),
+        "bvc.alaydriem.com\u{1f}"
+    );
 }
 
 // A gamertag can contain spaces and a host can contain dots and colons. Neither can

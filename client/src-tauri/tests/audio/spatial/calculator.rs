@@ -115,7 +115,11 @@ fn beyond_falloff_is_silent() {
         Game::Minecraft,
     );
 
-    assert!(volume < 0.001, "Expected silence beyond falloff, got {}", volume);
+    assert!(
+        volume < 0.001,
+        "Expected silence beyond falloff, got {}",
+        volume
+    );
 }
 
 #[test]

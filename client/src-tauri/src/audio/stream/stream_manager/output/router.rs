@@ -6,6 +6,7 @@ use crate::audio::stream::stream_manager::output::{RecordedPlayer, SpeakerStateC
 use crate::bedrock::JukeboxBeaconCache;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxEjectInjector;
+use common::structs::analytics::{AnalyticsEvent, AnalyticsEventData};
 #[cfg(feature = "bedrock-protocol")]
 use common::structs::packet::AudioFrameMetadata;
 #[cfg(feature = "bedrock-protocol")]
@@ -18,16 +19,13 @@ use common::{
         audio::{GainProjection, PlayerGainSettings},
         network::ConnectionHealth,
         packet::{
-            AudioFramePacket, ChannelEventPacket, ConnectionEventType, PacketSender, PacketType,
-            ChatMessagePacket, ChatRejectedPacket, PlayerDataPacket, PlayerPresenceEvent,
-            QuicNetworkPacket,
-            ServerErrorPacket,
-            ServerErrorType,
+            AudioFramePacket, ChannelEventPacket, ChatMessagePacket, ChatRejectedPacket,
+            ConnectionEventType, PacketSender, PacketType, PlayerDataPacket, PlayerPresenceEvent,
+            QuicNetworkPacket, ServerErrorPacket, ServerErrorType,
         },
     },
 };
-use common::structs::analytics::{AnalyticsEvent, AnalyticsEventData};
-use log::{error, info, warn, debug};
+use log::{debug, error, info, warn};
 use moka::future::Cache;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -291,7 +289,11 @@ impl PacketRouter {
             Some(PacketSender::Player {
                 identity,
                 device: Some(device),
-            }) => (device.to_string(), Some(identity.to_string()), Some(*device)),
+            }) => (
+                device.to_string(),
+                Some(identity.to_string()),
+                Some(*device),
+            ),
             Some(PacketSender::Device(device)) => (device.to_string(), None, Some(*device)),
             Some(PacketSender::Player {
                 identity,

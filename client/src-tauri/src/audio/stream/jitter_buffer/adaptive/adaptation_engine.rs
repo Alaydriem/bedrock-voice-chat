@@ -11,7 +11,10 @@ pub struct AdaptationEngine {
 }
 
 impl AdaptationEngine {
-    pub fn new(initial_capacity: usize, transport: common::structs::metrics::TransportKind) -> Self {
+    pub fn new(
+        initial_capacity: usize,
+        transport: common::structs::metrics::TransportKind,
+    ) -> Self {
         Self {
             state: AdaptiveBufferState::new(initial_capacity, transport),
             network_quality: NetworkQuality::Good,

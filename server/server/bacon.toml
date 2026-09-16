@@ -14,7 +14,6 @@ watch = ["../entity/src", "../migration/src", "../../common/src"]
 [jobs.run-bedrock]
 command = [
     "cargo", "run",
-    "--features", "bedrock",
     "--",
     "server",
 ]
@@ -29,19 +28,19 @@ on_change_strategy = "kill_then_restart"
 scroll_anchor = "auto"
 
 [jobs.check]
-command = ["cargo", "check", "--features", "bedrock"]
+command = ["cargo", "check"]
 need_stdout = false
 
 [jobs.check-all]
-command = ["cargo", "check", "--all-targets", "--features", "bedrock"]
+command = ["cargo", "check", "--all-targets"]
 need_stdout = false
 
 [jobs.clippy]
-command = ["cargo", "clippy", "--features", "bedrock"]
+command = ["cargo", "clippy"]
 need_stdout = false
 
 [jobs.test]
-command = ["cargo", "test", "--features", "bedrock"]
+command = ["cargo", "test"]
 need_stdout = true
 
 [keybindings]

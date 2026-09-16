@@ -8,7 +8,10 @@ fn russian() -> LanguagePack {
         "Sign In Again".to_string(),
         PackEntry::One("Войти снова".into()),
     );
-    m.insert("audio\u{4}Output".to_string(), PackEntry::One("Выход".into()));
+    m.insert(
+        "audio\u{4}Output".to_string(),
+        PackEntry::One("Выход".into()),
+    );
     m.insert(
         "{count} player nearby".to_string(),
         PackEntry::Many(vec!["игрок".into(), "игрока".into(), "игроков".into()]),

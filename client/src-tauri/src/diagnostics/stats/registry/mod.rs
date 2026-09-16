@@ -11,7 +11,6 @@ use moka::sync::Cache;
 
 use crate::diagnostics::PlayerReceiveStats;
 
-
 // The per-speaker counter registry.
 //
 // Counters are created where a jitter buffer is created and registered here, because the buffer

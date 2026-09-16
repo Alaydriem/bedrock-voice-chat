@@ -172,7 +172,11 @@ fn the_acme_directory_defaults_to_production() {
     let config = RelayConfig::from_hcl(WITH_HTTP).expect("parses");
 
     assert_eq!(
-        config.http.cloudflare().expect("a cloudflare block").directory,
+        config
+            .http
+            .cloudflare()
+            .expect("a cloudflare block")
+            .directory,
         "https://acme-v02.api.letsencrypt.org/directory"
     );
 }

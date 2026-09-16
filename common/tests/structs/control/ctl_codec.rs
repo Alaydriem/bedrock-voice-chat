@@ -29,7 +29,11 @@ fn encodes_and_decodes_each_action_round_trip() {
     ];
     for a in cases {
         let encoded = CtlCodec::encode(&a);
-        assert_eq!(decode_action(&encoded), a, "round-trip failed for {encoded}");
+        assert_eq!(
+            decode_action(&encoded),
+            a,
+            "round-trip failed for {encoded}"
+        );
     }
 }
 

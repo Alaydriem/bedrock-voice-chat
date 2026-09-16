@@ -1,9 +1,9 @@
 use super::resampler::AudioResampler;
 
 use super::AudioFrame;
-use super::{DeviceLease, JobSet};
 use super::input_core::InputProcessCore;
 use super::source::{AudioInputSource, CaptureConfig};
+use super::{DeviceLease, JobSet};
 use crate::NetworkPacket;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::RecoverySender;
@@ -26,9 +26,9 @@ use std::{
     },
     time::Duration,
 };
+use tauri_plugin_curia::curia;
 use tauri_plugin_store::StoreExt;
 use tokio::task::JoinHandle;
-use tauri_plugin_curia::curia;
 
 /// Indicator for if the Input Stream should be muted
 pub(crate) static MUTE_INPUT_STREAM: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
@@ -456,11 +456,12 @@ impl InputStream {
 
         // Force 48 kHz if the source was not 48 kHz; the listener resamples to
         // match, so the Opus encoder and outgoing packets always run at 48 kHz.
-        let effective_sample_rate = if source_sample_rate != crate::audio::AudioResampling::OPUS_SAMPLE_RATE {
-            crate::audio::AudioResampling::OPUS_SAMPLE_RATE
-        } else {
-            source_sample_rate
-        };
+        let effective_sample_rate =
+            if source_sample_rate != crate::audio::AudioResampling::OPUS_SAMPLE_RATE {
+                crate::audio::AudioResampling::OPUS_SAMPLE_RATE
+            } else {
+                source_sample_rate
+            };
 
         let device_config = rodio::cpal::StreamConfig {
             channels: match source_channels {
@@ -588,7 +589,7 @@ impl InputStream {
                                 None,
                                 None,
                             )),
-                                                    // Not a server fan-out, so this envelope carries no sequence.
+                            // Not a server fan-out, so this envelope carries no sequence.
                             ..Default::default()
                         },
                     };

@@ -4,15 +4,24 @@ const KEY: &str = "s3cret-key";
 
 #[test]
 fn root_path_routes_to_the_command_protocol() {
-    assert_eq!(WebSocketRoute::resolve("/", ListenerKind::External, KEY), Ok(WebSocketRoute::Command));
-    assert_eq!(WebSocketRoute::resolve("", ListenerKind::External, KEY), Ok(WebSocketRoute::Command));
+    assert_eq!(
+        WebSocketRoute::resolve("/", ListenerKind::External, KEY),
+        Ok(WebSocketRoute::Command)
+    );
+    assert_eq!(
+        WebSocketRoute::resolve("", ListenerKind::External, KEY),
+        Ok(WebSocketRoute::Command)
+    );
 }
 
 #[test]
 fn the_command_path_does_not_require_a_query_key() {
     // Authentication on the command protocol is per message and must stay that way, or every
     // existing integration breaks at the handshake.
-    assert_eq!(WebSocketRoute::resolve("/", ListenerKind::External, KEY), Ok(WebSocketRoute::Command));
+    assert_eq!(
+        WebSocketRoute::resolve("/", ListenerKind::External, KEY),
+        Ok(WebSocketRoute::Command)
+    );
 }
 
 #[test]
@@ -70,7 +79,11 @@ fn a_percent_encoded_key_still_matches() {
 #[test]
 fn other_query_parameters_do_not_hide_the_key() {
     assert_eq!(
-        WebSocketRoute::resolve("/metrics?foo=1&key=s3cret-key&bar=2", ListenerKind::External, KEY),
+        WebSocketRoute::resolve(
+            "/metrics?foo=1&key=s3cret-key&bar=2",
+            ListenerKind::External,
+            KEY
+        ),
         Ok(WebSocketRoute::Metrics)
     );
 }
@@ -96,7 +109,11 @@ fn a_wrong_first_key_is_not_rescued_by_a_later_correct_one() {
     // First occurrence wins. Accepting a later duplicate would let a caller smuggle a valid key
     // past anything that inspected only the first.
     assert_eq!(
-        WebSocketRoute::resolve("/metrics?key=wrong&key=s3cret-key", ListenerKind::External, KEY),
+        WebSocketRoute::resolve(
+            "/metrics?key=wrong&key=s3cret-key",
+            ListenerKind::External,
+            KEY
+        ),
         Err(RejectReason::InvalidKey)
     );
 }
@@ -107,7 +124,14 @@ fn an_unrecognised_path_reaches_the_command_protocol() {
     // absolute-form request target upgraded fine. Rejecting those would break third-party clients
     // silently at the handshake, and the command protocol authenticates per message regardless of
     // the path it arrived on.
-    for uri in ["/ws", "/bvc", "//", "///", "http://127.0.0.1:9595/", "/metrics/extra"] {
+    for uri in [
+        "/ws",
+        "/bvc",
+        "//",
+        "///",
+        "http://127.0.0.1:9595/",
+        "/metrics/extra",
+    ] {
         assert_eq!(
             WebSocketRoute::resolve(uri, ListenerKind::External, KEY),
             Ok(WebSocketRoute::Command),

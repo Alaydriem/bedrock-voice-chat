@@ -15,7 +15,11 @@ fn russian() -> &'static str {
 fn packs() -> TempDir {
     let directory = TempDir::new().expect("temp dir should be creatable");
     write(directory.path(), "ru.json", russian());
-    write(directory.path(), "de.json", r#"{"v":1,"locale":"de","plural":["one","other"],"m":{}}"#);
+    write(
+        directory.path(),
+        "de.json",
+        r#"{"v":1,"locale":"de","plural":["one","other"],"m":{}}"#,
+    );
     write(directory.path(), "notes.txt", "not a pack");
     directory
 }
@@ -25,7 +29,10 @@ fn only_json_files_are_offered_as_locales() {
     let directory = packs();
     let service = LocalizationService::new(directory.path().to_path_buf());
 
-    assert_eq!(service.available(), vec!["de".to_string(), "ru".to_string()]);
+    assert_eq!(
+        service.available(),
+        vec!["de".to_string(), "ru".to_string()]
+    );
 }
 
 #[test]
@@ -56,7 +63,10 @@ fn a_shipped_pack_loads_with_its_messages() {
     let directory = packs();
     let service = LocalizationService::new(directory.path().to_path_buf());
 
-    let pack = service.load("ru").expect("load should succeed").expect("ru is shipped");
+    let pack = service
+        .load("ru")
+        .expect("load should succeed")
+        .expect("ru is shipped");
 
     assert_eq!(pack.locale, "ru");
     assert_eq!(pack.lookup("Sign In Again"), Some("Войти снова"));
@@ -67,9 +77,15 @@ fn plural_forms_survive_the_trip_from_the_compiler() {
     let directory = packs();
     let service = LocalizationService::new(directory.path().to_path_buf());
 
-    let pack = service.load("ru").expect("load should succeed").expect("ru is shipped");
+    let pack = service
+        .load("ru")
+        .expect("load should succeed")
+        .expect("ru is shipped");
 
-    assert_eq!(pack.lookup_plural("{count} player nearby", "few"), Some("игрока"));
+    assert_eq!(
+        pack.lookup_plural("{count} player nearby", "few"),
+        Some("игрока")
+    );
 }
 
 #[test]

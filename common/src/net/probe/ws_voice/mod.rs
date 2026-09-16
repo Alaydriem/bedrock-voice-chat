@@ -151,8 +151,9 @@ impl WsVoiceProbe {
 
     // The host as the reachability request carries it, which brackets an IPv6 literal.
     // rustls parses the address itself and rejects the bracketed form.
-    fn server_name(host: &str) -> Result<ServerName<'static>, rustls::pki_types::InvalidDnsNameError>
-    {
+    fn server_name(
+        host: &str,
+    ) -> Result<ServerName<'static>, rustls::pki_types::InvalidDnsNameError> {
         let unbracketed = host.trim_start_matches('[').trim_end_matches(']');
         ServerName::try_from(unbracketed.to_string())
     }

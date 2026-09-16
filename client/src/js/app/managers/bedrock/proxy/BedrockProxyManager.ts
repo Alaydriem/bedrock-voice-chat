@@ -247,6 +247,9 @@ export class BedrockProxyManager {
                           ...('protocolVersion' in patch
                               ? { protocolVersion: patch.protocolVersion }
                               : {}),
+                          ...(patch.addonMode !== undefined
+                              ? { addonMode: patch.addonMode }
+                              : {}),
                       }
                     : s,
             ),

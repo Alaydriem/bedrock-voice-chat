@@ -48,10 +48,7 @@ fn ws_answered(rtt_micros: u32) -> Vec<EndpointReachability> {
 
 // A report from a server that never advertised the fallback transport, so its
 // WebSocket leg was never measured.
-fn report(
-    quic: Vec<EndpointReachability>,
-    https: Vec<EndpointReachability>,
-) -> ServerReachability {
+fn report(quic: Vec<EndpointReachability>, https: Vec<EndpointReachability>) -> ServerReachability {
     ServerReachability::new("example.test".to_string(), quic, https, Vec::new())
 }
 
@@ -234,7 +231,11 @@ fn best_quic_never_reports_a_websocket_endpoint() {
 #[test]
 fn a_voice_path_that_answered_is_ready() {
     let report = report(
-        vec![EndpointReachability::new(v4(1, 443), answered(41_000), None)],
+        vec![EndpointReachability::new(
+            v4(1, 443),
+            answered(41_000),
+            None,
+        )],
         https_answered(),
     );
 
@@ -271,7 +272,11 @@ fn an_answering_websocket_leg_while_quic_is_silent_is_the_fallback_verdict() {
 #[test]
 fn a_quic_answer_outranks_an_answering_fallback() {
     let report = report_with_ws(
-        vec![EndpointReachability::new(v4(1, 443), answered(41_000), None)],
+        vec![EndpointReachability::new(
+            v4(1, 443),
+            answered(41_000),
+            None,
+        )],
         https_answered(),
         ws_answered(20_000),
     );

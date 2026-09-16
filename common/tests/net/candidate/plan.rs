@@ -107,7 +107,10 @@ fn ipv4_candidates_are_v4_mapped_when_the_socket_is_ipv6() {
     assert!(plan.requires_v6_socket());
 
     let dialed: Vec<SocketAddr> = plan.candidates().iter().map(|c| c.dial()).collect();
-    let mapped = SocketAddr::new(IpAddr::V6(Ipv4Addr::new(203, 0, 113, 1).to_ipv6_mapped()), 443);
+    let mapped = SocketAddr::new(
+        IpAddr::V6(Ipv4Addr::new(203, 0, 113, 1).to_ipv6_mapped()),
+        443,
+    );
 
     assert!(dialed.contains(&mapped));
     assert!(!dialed.contains(&SocketAddr::new(v4(1), 443)));
@@ -175,7 +178,11 @@ fn a_plan_with_no_addresses_is_empty() {
 fn a_port_that_did_not_answer_sorts_below_one_that_did() {
     let addr = v4(1);
     let measured = report(vec![
-        EndpointReachability::new(SocketAddr::new(addr, 28280), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(
+            SocketAddr::new(addr, 28280),
+            ReachabilityOutcome::Silent,
+            None,
+        ),
         EndpointReachability::new(SocketAddr::new(addr, 443), answered(16_000), None),
     ]);
 
@@ -227,7 +234,11 @@ fn the_operator_order_survives_when_no_port_was_measured() {
 fn a_port_that_did_not_answer_is_reordered_and_never_removed() {
     let addr = v4(1);
     let measured = report(vec![
-        EndpointReachability::new(SocketAddr::new(addr, 28280), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(
+            SocketAddr::new(addr, 28280),
+            ReachabilityOutcome::Silent,
+            None,
+        ),
         EndpointReachability::new(SocketAddr::new(addr, 443), answered(16_000), None),
     ]);
 
@@ -243,9 +254,21 @@ fn a_port_one_address_answered_outranks_a_port_none_answered() {
     let first = v4(1);
     let second = v4(2);
     let measured = report(vec![
-        EndpointReachability::new(SocketAddr::new(first, 443), ReachabilityOutcome::Silent, None),
-        EndpointReachability::new(SocketAddr::new(second, 443), ReachabilityOutcome::Silent, None),
-        EndpointReachability::new(SocketAddr::new(first, 8443), ReachabilityOutcome::Silent, None),
+        EndpointReachability::new(
+            SocketAddr::new(first, 443),
+            ReachabilityOutcome::Silent,
+            None,
+        ),
+        EndpointReachability::new(
+            SocketAddr::new(second, 443),
+            ReachabilityOutcome::Silent,
+            None,
+        ),
+        EndpointReachability::new(
+            SocketAddr::new(first, 8443),
+            ReachabilityOutcome::Silent,
+            None,
+        ),
         EndpointReachability::new(SocketAddr::new(second, 8443), answered(9_000), None),
     ]);
 

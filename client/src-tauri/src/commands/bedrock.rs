@@ -89,16 +89,20 @@ pub(crate) async fn bedrock_xbox_login(
     }
 
     let app = app_handle.clone();
-    let auth_future = RealmsApi::authenticate(XBOX_CLIENT_ID, RealmsEnvironment::Retail, move |code, url| {
-        log::info!("Xbox device code: {} at {}", code, url);
-        let _ = app.emit(
-            "bedrock-device-code",
-            serde_json::json!({
-                "code": code,
-                "url": url,
-            }),
-        );
-    });
+    let auth_future = RealmsApi::authenticate(
+        XBOX_CLIENT_ID,
+        RealmsEnvironment::Retail,
+        move |code, url| {
+            log::info!("Xbox device code: {} at {}", code, url);
+            let _ = app.emit(
+                "bedrock-device-code",
+                serde_json::json!({
+                    "code": code,
+                    "url": url,
+                }),
+            );
+        },
+    );
 
     let result = tokio::select! {
         auth_result = auth_future => {
@@ -121,8 +125,7 @@ pub(crate) async fn bedrock_xbox_login(
 
     let mut state = state.lock().await;
     state.login_cancel_tx = None;
-    let auth_manager =
-        auth.build_auth_manager(refresh_token.as_deref(), &xuid, Some(&app_handle));
+    let auth_manager = auth.build_auth_manager(refresh_token.as_deref(), &xuid, Some(&app_handle));
     state.apply_auth(
         auth_manager,
         api,
@@ -159,18 +162,15 @@ pub(crate) async fn bedrock_restore_auth(
     // Only a credential the provider actually rejected is worth deleting. `authenticate_refresh`
     // reaches the token endpoint over the network, so an unreachable host arrives here too, and
     // discarding on that trades a device-code prompt for a dropped connection.
-    let result = RealmsApi::authenticate_refresh(
-        XBOX_CLIENT_ID,
-        &refresh_token,
-        RealmsEnvironment::Retail,
-    )
-    .await
-    .map_err(|e| {
-        if matches!(BedrockRenewal::from(&e), BedrockRenewal::ReauthRequired) {
-            keyring.clear();
-        }
-        e.to_string()
-    })?;
+    let result =
+        RealmsApi::authenticate_refresh(XBOX_CLIENT_ID, &refresh_token, RealmsEnvironment::Retail)
+            .await
+            .map_err(|e| {
+                if matches!(BedrockRenewal::from(&e), BedrockRenewal::ReauthRequired) {
+                    keyring.clear();
+                }
+                e.to_string()
+            })?;
 
     let (api, xbl_token, user_hash, access_token, new_refresh_token) = result;
     let auth = BedrockAuthService::new();
@@ -370,10 +370,7 @@ pub(crate) async fn bedrock_send_chat(
     }
 
     let state = state.lock().await;
-    let running = state
-        .proxy
-        .as_ref()
-        .is_some_and(|p| !p.is_stopped())
+    let running = state.proxy.as_ref().is_some_and(|p| !p.is_stopped())
         || state.realms.as_ref().is_some_and(|r| !r.is_stopped());
 
     if !running {

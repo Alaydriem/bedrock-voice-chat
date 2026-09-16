@@ -1,5 +1,5 @@
-use common::structs::keybinds::VoiceMode as KeybindVoiceMode;
 use common::structs::audio::LevelSnapshot;
+use common::structs::keybinds::VoiceMode as KeybindVoiceMode;
 use common::structs::network::ConnectionHealth;
 use common::structs::push::KeepalivePush;
 use common::structs::websocket::InternalEndpoint;
@@ -31,7 +31,6 @@ pub use binder::ListenerBinder;
 pub use broadcaster::WebSocketBroadcaster;
 pub use config::WebSocketConfig;
 pub use listener_kind::ListenerKind;
-
 
 pub struct WebSocketManager {
     // The whole join handle rather than an abort handle: the accept task owns the listener,

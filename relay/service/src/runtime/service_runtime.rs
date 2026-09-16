@@ -63,10 +63,7 @@ impl ServiceRuntime {
             self.config.zone.clone(),
         ));
 
-        let budget = WeeklyBudget::new_shared(
-            conn.clone(),
-            self.config.weekly_certificate_ceiling,
-        );
+        let budget = WeeklyBudget::new_shared(conn.clone(), self.config.weekly_certificate_ceiling);
 
         let enroll = RegistryEndpoint::bind(
             &identity,

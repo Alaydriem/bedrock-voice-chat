@@ -4,7 +4,6 @@ mod update;
 
 pub use update::ActivityUpdate;
 
-
 pub struct ActivityDetector {
     rms_threshold: f32,
     activity_tx: Option<flume::Sender<ActivityUpdate>>,

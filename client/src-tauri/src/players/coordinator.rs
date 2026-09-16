@@ -85,7 +85,12 @@ impl PlayerSettingsCoordinator {
         Ok(self.service.store_for(&Self::current_server(app).await?))
     }
 
-    pub async fn set_gain(&self, app: &AppHandle, cn: &str, gain: f32) -> Result<(), anyhow::Error> {
+    pub async fn set_gain(
+        &self,
+        app: &AppHandle,
+        cn: &str,
+        gain: f32,
+    ) -> Result<(), anyhow::Error> {
         // Out-of-range gain is an ear-safety hazard regardless of which surface asked for it.
         self.service.set_gain(
             &Self::key(app, cn).await?,
@@ -100,8 +105,7 @@ impl PlayerSettingsCoordinator {
         cn: &str,
         muted: bool,
     ) -> Result<(), anyhow::Error> {
-        self.service
-            .set_muted(&Self::key(app, cn).await?, muted)?;
+        self.service.set_muted(&Self::key(app, cn).await?, muted)?;
         self.publish(app, Some(cn)).await
     }
 
@@ -151,7 +155,11 @@ impl PlayerSettingsCoordinator {
     ///
     /// Also the startup seed: the mixer begins with an empty projection, so until this runs
     /// once every persisted mute is inert.
-    pub async fn publish(&self, app: &AppHandle, target: Option<&str>) -> Result<(), anyhow::Error> {
+    pub async fn publish(
+        &self,
+        app: &AppHandle,
+        target: Option<&str>,
+    ) -> Result<(), anyhow::Error> {
         let server = Self::current_server(app).await?;
         let serialized = serde_json::to_string(&self.service.store_for(&server))?;
 

@@ -2,11 +2,11 @@ use common::structs::metrics::TransportKind;
 use std::sync::Arc;
 use std::time::Duration;
 
-use bvc_client_lib::diagnostics::{
-    DeviceInfo, InputPipelineStats, LinkDiagnosticsService, LinkSession, PeerRegistry, QuicLinkStats,
-    SessionConfig, TransportStats,
-};
 use bvc_client_lib::audio::LevelBus;
+use bvc_client_lib::diagnostics::{
+    DeviceInfo, InputPipelineStats, LinkDiagnosticsService, LinkSession, PeerRegistry,
+    QuicLinkStats, SessionConfig, TransportStats,
+};
 use common::structs::audio::NoiseGateStatus;
 use common::structs::reachability::AddressFamily;
 use tokio::sync::watch;
@@ -56,8 +56,13 @@ impl Harness {
     }
 
     fn connect(&self) {
-        self.session
-            .set(Some(AddressFamily::Ipv4), 443, TransportKind::Quic, "bvc.example.com".to_string(), "ca");
+        self.session.set(
+            Some(AddressFamily::Ipv4),
+            443,
+            TransportKind::Quic,
+            "bvc.example.com".to_string(),
+            "ca",
+        );
     }
 
     // Advances one interval, the way the real ticker does. `snapshot()` is read-only, so tests

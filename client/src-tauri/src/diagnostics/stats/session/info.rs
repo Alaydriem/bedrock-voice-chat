@@ -3,7 +3,6 @@ use std::time::Instant;
 use common::structs::metrics::TransportKind;
 use common::structs::reachability::AddressFamily;
 
-
 #[derive(Debug, Clone)]
 pub(super) struct SessionInfo {
     pub(super) connected_at: Instant,

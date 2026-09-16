@@ -14,7 +14,9 @@ fn lookahead_for(channels: opus2::Channels) -> i32 {
         .set_bitrate(opus2::Bitrate::Bits(64_000))
         .expect("the bitrate the mixed stream encodes at");
 
-    encoder.get_lookahead().expect("libopus reports a lookahead")
+    encoder
+        .get_lookahead()
+        .expect("libopus reports a lookahead")
 }
 
 #[test]

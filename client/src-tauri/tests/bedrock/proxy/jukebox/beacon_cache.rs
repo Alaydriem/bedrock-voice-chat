@@ -1,6 +1,6 @@
 use bvc_client_lib::bedrock::JukeboxBeaconCache;
-use common::structs::game::BlockCoordinate;
 use common::game_data::Dimension;
+use common::structs::game::BlockCoordinate;
 
 #[test]
 fn observe_then_resolve_returns_event_id_once() {

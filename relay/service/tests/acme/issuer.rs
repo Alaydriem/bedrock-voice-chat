@@ -43,7 +43,10 @@ async fn an_absent_certificate_needs_issuance() {
 async fn a_certificate_outside_the_renewal_window_is_used_as_is() {
     let store = store().await;
     let fixture = CertificateFixture::issue(HOSTNAME, Duration::days(89));
-    store.write(HOSTNAME, &fixture.material).await.expect("stores");
+    store
+        .write(HOSTNAME, &fixture.material)
+        .await
+        .expect("stores");
 
     assert_eq!(
         issuer(store).current().await.expect("reads"),
@@ -57,7 +60,10 @@ async fn a_certificate_outside_the_renewal_window_is_used_as_is() {
 async fn a_certificate_inside_the_renewal_window_needs_issuance() {
     let store = store().await;
     let fixture = CertificateFixture::issue(HOSTNAME, Duration::days(10));
-    store.write(HOSTNAME, &fixture.material).await.expect("stores");
+    store
+        .write(HOSTNAME, &fixture.material)
+        .await
+        .expect("stores");
 
     assert_eq!(issuer(store).current().await.expect("reads"), None);
 }
@@ -139,7 +145,10 @@ async fn a_renewal_replaces_the_stored_certificate() {
     let first = CertificateFixture::issue(HOSTNAME, Duration::days(40));
     let second = CertificateFixture::issue(HOSTNAME, Duration::days(90));
 
-    store.write(HOSTNAME, &first.material).await.expect("stores");
+    store
+        .write(HOSTNAME, &first.material)
+        .await
+        .expect("stores");
     store
         .write(HOSTNAME, &second.material)
         .await

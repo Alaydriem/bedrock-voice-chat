@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 pub use credential_fault::CredentialFault;
 pub(crate) use stream::ConnectFailure;
-pub(crate) use stream::NetworkStreamManager;
 pub use stream::HealthPublisher;
+pub(crate) use stream::NetworkStreamManager;
 pub use transport_verdict::TransportVerdict;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

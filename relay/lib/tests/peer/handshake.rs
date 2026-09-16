@@ -62,7 +62,10 @@ fn loopback_addr(endpoint: &PeerEndpoint) -> EndpointAddr {
 }
 
 // Runs one full handshake and returns what the dialer was told it holds.
-async fn handshake_between(filter: Vec<String>, declared: Vec<String>) -> Result<Accept, PeerError> {
+async fn handshake_between(
+    filter: Vec<String>,
+    declared: Vec<String>,
+) -> Result<Accept, PeerError> {
     let acceptor_dir = TempDir::new().expect("tempdir");
     let dialer_dir = TempDir::new().expect("tempdir");
     let acceptor = endpoint(&acceptor_dir).await;
@@ -176,12 +179,9 @@ async fn an_unauthorized_peer_is_refused_with_the_reason() {
 // gets whatever that peer says it hosts.
 #[tokio::test]
 async fn an_unfiltered_authority_returns_the_declared_worlds() {
-    let accepted = handshake_between(
-        Vec::new(),
-        vec!["alpha".to_string(), "beta".to_string()],
-    )
-    .await
-    .expect("accepted");
+    let accepted = handshake_between(Vec::new(), vec!["alpha".to_string(), "beta".to_string()])
+        .await
+        .expect("accepted");
 
     assert_eq!(
         accepted.worlds,

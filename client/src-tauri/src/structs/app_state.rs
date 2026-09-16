@@ -74,7 +74,12 @@ impl AppState {
     /// Initialize the API client with credentials
     /// Sets both the default api_client (for backwards compatibility) and adds to server_pool
     pub async fn initialize_api_client(&mut self, endpoint: String, ca_cert: String, pem: String) {
-        let api = Api::new(endpoint.clone(), ca_cert, pem, self.family_preference.clone());
+        let api = Api::new(
+            endpoint.clone(),
+            ca_cert,
+            pem,
+            self.family_preference.clone(),
+        );
 
         self.api_client = Some(api.clone());
         self.current_server = Some(endpoint.clone());
@@ -90,7 +95,12 @@ impl AppState {
     /// saved server must leave it alone, or whichever check finishes last becomes the
     /// server a later action lands on.
     pub async fn pool_api_client(&self, endpoint: String, ca_cert: String, pem: String) {
-        let api = Api::new(endpoint.clone(), ca_cert, pem, self.family_preference.clone());
+        let api = Api::new(
+            endpoint.clone(),
+            ca_cert,
+            pem,
+            self.family_preference.clone(),
+        );
         let mut pool = self.server_pool.write().await;
         pool.insert(endpoint, api);
     }

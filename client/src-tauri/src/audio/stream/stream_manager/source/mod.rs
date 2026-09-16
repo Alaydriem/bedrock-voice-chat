@@ -53,44 +53,47 @@ impl AudioInputSource {
                 })?;
                 let stored_config = device.get_stream_config()?;
 
-                let config = match crate::audio::device::AudioDeviceEnumerator::refresh_device_config(&device) {
-                    Some(fresh_configs) if !fresh_configs.is_empty() => {
-                        let fresh_config: rodio::cpal::SupportedStreamConfig =
-                            fresh_configs[0].clone().into();
-                        if fresh_config.sample_rate() != stored_config.sample_rate() {
-                            warn!(
-                                "Device {} sample rate changed: stored {}Hz, actual {}Hz. Using actual.",
-                                device.display_name,
-                                stored_config.sample_rate(),
-                                fresh_config.sample_rate()
-                            );
+                let config =
+                    match crate::audio::device::AudioDeviceEnumerator::refresh_device_config(
+                        &device,
+                    ) {
+                        Some(fresh_configs) if !fresh_configs.is_empty() => {
+                            let fresh_config: rodio::cpal::SupportedStreamConfig =
+                                fresh_configs[0].clone().into();
+                            if fresh_config.sample_rate() != stored_config.sample_rate() {
+                                warn!(
+                                    "Device {} sample rate changed: stored {}Hz, actual {}Hz. Using actual.",
+                                    device.display_name,
+                                    stored_config.sample_rate(),
+                                    fresh_config.sample_rate()
+                                );
+                            }
+                            fresh_config
                         }
-                        fresh_config
-                    }
-                    // The stored snapshot is the last resort: a live default
-                    // config reflects what the endpoint accepts right now,
-                    // while the snapshot can predate a Windows format change.
-                    _ => match device
-                        .clone()
-                        .to_cpal_device()
-                        .and_then(|d| d.default_input_config().ok())
-                    {
-                        Some(live_config) => {
-                            warn!(
-                                "Could not refresh device config for {}, using live default config",
-                                device.display_name
-                            );
-                            live_config
-                        }
-                        None => {
-                            warn!(
-                                "Could not refresh device config for {}, using stored config",
-                                device.display_name
-                            );
-                            stored_config
-                        }
-                    },
-                };
+                        // The stored snapshot is the last resort: a live default
+                        // config reflects what the endpoint accepts right now,
+                        // while the snapshot can predate a Windows format change.
+                        _ => match device
+                            .clone()
+                            .to_cpal_device()
+                            .and_then(|d| d.default_input_config().ok())
+                        {
+                            Some(live_config) => {
+                                warn!(
+                                    "Could not refresh device config for {}, using live default config",
+                                    device.display_name
+                                );
+                                live_config
+                            }
+                            None => {
+                                warn!(
+                                    "Could not refresh device config for {}, using stored config",
+                                    device.display_name
+                                );
+                                stored_config
+                            }
+                        },
+                    };
 
                 // Mobile audio backends (CoreAudio on iOS, AAudio on Android)
                 // should use the default buffer size, otherwise the input stream
@@ -210,9 +213,7 @@ impl AudioInputSource {
         // damaged audio is a far smaller fault than a microphone that never works again.
 
         let build_stream = |cfg: &rodio::cpal::StreamConfig,
-                            process: std::sync::Arc<
-            std::sync::Mutex<dyn FnMut(&[f32]) + Send>,
-        >,
+                            process: std::sync::Arc<std::sync::Mutex<dyn FnMut(&[f32]) + Send>>,
                             err_fn: Box<dyn FnMut(rodio::cpal::StreamError) + Send>|
          -> Result<rodio::cpal::Stream, rodio::cpal::BuildStreamError> {
             match sample_format {

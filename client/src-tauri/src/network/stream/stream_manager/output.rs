@@ -1,6 +1,6 @@
 use crate::NetworkPacket;
-use bytes::Bytes;
 use crate::network::stream::link::DatagramLink;
+use bytes::Bytes;
 use common::structs::packet::{DebugPacket, QuicNetworkPacket};
 use log::{error, info};
 use std::sync::{

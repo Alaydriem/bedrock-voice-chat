@@ -65,7 +65,10 @@ impl ClaimService {
     // Expiry is checked here rather than swept, so a claim stops working on time
     // whether or not anything else has run.
     pub async fn redeem(&self, id: &str) -> Result<Option<String>, RegistryError> {
-        let Some(row) = claim::Entity::find_by_id(id).one(self.conn.as_ref()).await? else {
+        let Some(row) = claim::Entity::find_by_id(id)
+            .one(self.conn.as_ref())
+            .await?
+        else {
             return Ok(None);
         };
 

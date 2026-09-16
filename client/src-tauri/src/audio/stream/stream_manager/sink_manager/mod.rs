@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
 use flume::Receiver;
@@ -26,7 +26,6 @@ mod player_sinks;
 
 use mono_to_stereo::MonoToStereo;
 use player_sinks::PlayerSinks;
-
 
 pub struct SinkManager {
     consumer: Option<Receiver<EncodedAudioFramePacket>>,
@@ -386,10 +385,9 @@ impl SinkManager {
                         } else {
                             1.0
                         };
-                        let volume =
-                            spatial_data.volume
-                                * PerceptualGain::amplitude(gain_settings.gain)
-                                * mute_mult;
+                        let volume = spatial_data.volume
+                            * PerceptualGain::amplitude(gain_settings.gain)
+                            * mute_mult;
 
                         let intensity = f32::from_bits(panning_intensity.load(Ordering::Relaxed));
                         let gains = SpatialGains::from_pan(
@@ -402,11 +400,7 @@ impl SinkManager {
 
                     if bundle.spatial_handle.is_none() {
                         let stats = Arc::new(PlayerReceiveStats::new(display_name.clone()));
-                        peer_registry.register(
-                            sink_key.clone(),
-                            PeerRoute::Spatial,
-                            stats.clone(),
-                        );
+                        peer_registry.register(sink_key.clone(), PeerRoute::Spatial, stats.clone());
                         match JitterBuffer::create_with_handle_and_activity(
                             packet.clone(),
                             format!("spatial_{}", sink_key),
@@ -459,11 +453,7 @@ impl SinkManager {
 
                     if bundle.normal_handle.is_none() {
                         let stats = Arc::new(PlayerReceiveStats::new(display_name.clone()));
-                        peer_registry.register(
-                            sink_key.clone(),
-                            PeerRoute::Normal,
-                            stats.clone(),
-                        );
+                        peer_registry.register(sink_key.clone(), PeerRoute::Normal, stats.clone());
                         match JitterBuffer::create_with_handle_and_activity(
                             packet.clone(),
                             format!("normal_{}", sink_key),

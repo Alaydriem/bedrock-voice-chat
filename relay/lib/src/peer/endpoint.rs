@@ -145,11 +145,7 @@ impl PeerEndpoint {
         PeerTicket::mint(&self.with_advertised(self.addr(), advertised))
     }
 
-    fn with_advertised(
-        &self,
-        addr: EndpointAddr,
-        advertised: Option<SocketAddr>,
-    ) -> EndpointAddr {
+    fn with_advertised(&self, addr: EndpointAddr, advertised: Option<SocketAddr>) -> EndpointAddr {
         let mut addr = self.with_loopback(addr);
 
         if let Some(socket) = advertised {

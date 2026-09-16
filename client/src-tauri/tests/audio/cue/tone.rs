@@ -71,7 +71,10 @@ fn stays_well_below_the_speaker_test_level() {
             .fold(0.0f32, |peak, sample| peak.max(sample.abs()));
 
         assert!(peak > 0.15, "{cue:?} peaked at {peak}, too quiet to notice");
-        assert!(peak < 0.30, "{cue:?} peaked at {peak}, louder than intended");
+        assert!(
+            peak < 0.30,
+            "{cue:?} peaked at {peak}, louder than intended"
+        );
     }
 }
 

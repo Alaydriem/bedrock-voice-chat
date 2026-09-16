@@ -85,7 +85,11 @@ impl MigrationTrait for Migration {
                             .unique_key(),
                     )
                     .col(ColumnDef::new(Registration::State).string().not_null())
-                    .col(ColumnDef::new(Registration::DeclaredAddress).string().null())
+                    .col(
+                        ColumnDef::new(Registration::DeclaredAddress)
+                            .string()
+                            .null(),
+                    )
                     .col(
                         ColumnDef::new(Registration::AddressVerifiedAt)
                             .big_integer()

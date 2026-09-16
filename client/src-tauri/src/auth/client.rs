@@ -67,17 +67,18 @@ impl AuthClient {
                         let r = common::ncryptflib::Response::from(kp.get_secret_key()).unwrap();
 
                         match r.decrypt(bbody, None, None) {
-                            Ok(json) => match serde_json::from_str::<JsonMessage<LoginResponse>>(&json)
-                            {
-                                Ok(response) => match response.data {
-                                    Some(data) => Ok(data),
-                                    None => Err(anyhow!("Login response contained no data")),
-                                },
-                                Err(e) => {
-                                    log::error!("Response Error: {:?}", e.to_string());
-                                    Err(anyhow!("Login response could not be parsed"))
+                            Ok(json) => {
+                                match serde_json::from_str::<JsonMessage<LoginResponse>>(&json) {
+                                    Ok(response) => match response.data {
+                                        Some(data) => Ok(data),
+                                        None => Err(anyhow!("Login response contained no data")),
+                                    },
+                                    Err(e) => {
+                                        log::error!("Response Error: {:?}", e.to_string());
+                                        Err(anyhow!("Login response could not be parsed"))
+                                    }
                                 }
-                            },
+                            }
                             Err(e) => {
                                 log::error!("Ncryptf Error: {}", e.to_string());
                                 return Err(anyhow!("Login response could not be decrypted"));
@@ -112,7 +113,6 @@ impl AuthClient {
             }
         }
     }
-
 
     pub(crate) async fn code_login(server: String, code: String) -> Result<LoginResponse, bool> {
         let payload = CodeLoginRequest { code };
@@ -159,17 +159,18 @@ impl AuthClient {
                         let r = common::ncryptflib::Response::from(kp.get_secret_key()).unwrap();
 
                         match r.decrypt(bbody, None, None) {
-                            Ok(json) => match serde_json::from_str::<JsonMessage<LoginResponse>>(&json)
-                            {
-                                Ok(response) => match response.data {
-                                    Some(data) => Ok(data),
-                                    None => Err(false),
-                                },
-                                Err(e) => {
-                                    log::error!("Response Error: {:?}", e.to_string());
-                                    Err(false)
+                            Ok(json) => {
+                                match serde_json::from_str::<JsonMessage<LoginResponse>>(&json) {
+                                    Ok(response) => match response.data {
+                                        Some(data) => Ok(data),
+                                        None => Err(false),
+                                    },
+                                    Err(e) => {
+                                        log::error!("Response Error: {:?}", e.to_string());
+                                        Err(false)
+                                    }
                                 }
-                            },
+                            }
                             Err(e) => {
                                 log::error!("Ncryptf Error: {}", e.to_string());
                                 Err(false)

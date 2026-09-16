@@ -32,7 +32,14 @@ impl DiscordLinkService {
         flags: Arc<FeatureFlagService>,
         app: tauri::AppHandle,
     ) -> Self {
-        Self { client_id, guild_id, redirect_uri, http, flags, app }
+        Self {
+            client_id,
+            guild_id,
+            redirect_uri,
+            http,
+            flags,
+            app,
+        }
     }
 
     pub fn new_shared(
@@ -43,7 +50,14 @@ impl DiscordLinkService {
         flags: Arc<FeatureFlagService>,
         app: tauri::AppHandle,
     ) -> Arc<Self> {
-        Arc::new(Self::new(client_id, guild_id, redirect_uri, http, flags, app))
+        Arc::new(Self::new(
+            client_id,
+            guild_id,
+            redirect_uri,
+            http,
+            flags,
+            app,
+        ))
     }
 
     pub fn is_configured(&self) -> bool {
@@ -90,7 +104,11 @@ impl DiscordLinkService {
         let roles = store
             .get(KEY_ROLES)
             .and_then(|v| v.as_array().cloned())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default();
         let last_sync = store.get(KEY_LAST_SYNC).and_then(|v| v.as_i64());
         (roles, last_sync)
@@ -113,7 +131,9 @@ impl DiscordLinkService {
             }
         }
         store.set(KEY_LINKED, serde_json::json!(last_sync.is_some()));
-        store.save().map_err(|e| DiscordLinkError::Http(e.to_string()))
+        store
+            .save()
+            .map_err(|e| DiscordLinkError::Http(e.to_string()))
     }
 
     pub fn load_persisted(&self) {
@@ -141,7 +161,9 @@ impl DiscordLinkService {
             .store("store.json")
             .map_err(|e| DiscordLinkError::Http(e.to_string()))?;
         store.set("discord_oauth_state", serde_json::json!(state.clone()));
-        store.save().map_err(|e| DiscordLinkError::Http(e.to_string()))?;
+        store
+            .save()
+            .map_err(|e| DiscordLinkError::Http(e.to_string()))?;
         let authorize_url =
             DiscordOAuth::authorize_url(&self.client_id, &self.redirect_uri, &state);
         DiscordOAuth::open_external(&self.app, &authorize_url)
@@ -171,7 +193,11 @@ impl DiscordLinkService {
         let roles = DiscordRoleClient::fetch_role_ids(&self.http, &token, &self.guild_id).await?;
         let now = Self::now_secs();
         self.write_persisted(&roles, Some(now))?;
-        if let Err(e) = self.flags.update_discord_roles(roles.clone(), Some(now)).await {
+        if let Err(e) = self
+            .flags
+            .update_discord_roles(roles.clone(), Some(now))
+            .await
+        {
             warn!("Discord: flag refresh after link failed: {e}");
         }
         self.emit_flags_updated();
@@ -184,6 +210,11 @@ impl DiscordLinkService {
             warn!("Discord: flag refresh after unlink failed: {e}");
         }
         self.emit_flags_updated();
-        Ok(Self::build_status(&[], None, Self::now_secs(), self.is_configured()))
+        Ok(Self::build_status(
+            &[],
+            None,
+            Self::now_secs(),
+            self.is_configured(),
+        ))
     }
 }

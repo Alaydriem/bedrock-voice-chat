@@ -5,8 +5,8 @@ use bvc_relay::peer::{AddressObserver, AdmissionControl, PeerEndpoint};
 use common::curia;
 use common::structs::relay::enroll::{EnrollFrame, EnrollRefuseReason, EnrollVersion};
 use common::structs::relay::wire::Framing;
-use iroh::endpoint::{Connection, RecvStream, SendStream};
 use iroh::PublicKey;
+use iroh::endpoint::{Connection, RecvStream, SendStream};
 
 use crate::budget::WeeklyBudget;
 use crate::dns::ZoneWriter;
@@ -54,10 +54,7 @@ impl RegistryEndpoint {
         let endpoint = PeerEndpoint::bind_with_alpns(
             identity,
             port,
-            vec![
-                Self::ALPN.to_vec(),
-                AddressObserver::ALPN.to_vec(),
-            ],
+            vec![Self::ALPN.to_vec(), AddressObserver::ALPN.to_vec()],
         )
         .await
         .map_err(|e| EnrollError::Bind(e.to_string()))?;
@@ -210,8 +207,7 @@ impl RegistryEndpoint {
                         // the authority would have rejected — burning the order and
                         // delaying the operator further.
                         let is_renewal = self.budget.has_issued(&name).await.unwrap_or(false);
-                        if !is_renewal
-                            && !self.budget.admits_new_issuance().await.unwrap_or(false)
+                        if !is_renewal && !self.budget.admits_new_issuance().await.unwrap_or(false)
                         {
                             curia::warn!("refusing a first issuance: the weekly certificate budget is spent", { "name": name.clone() });
                             return Self::refuse(send, EnrollRefuseReason::Internal).await;

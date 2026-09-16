@@ -80,7 +80,10 @@ impl ProxyWorld {
             }
         };
 
-        if tokio::time::timeout(Self::ATTACH_TIMEOUT, both).await.is_err() {
+        if tokio::time::timeout(Self::ATTACH_TIMEOUT, both)
+            .await
+            .is_err()
+        {
             panic!(
                 "timed out attaching {name} after {:?}: downstream connected = {}, \
                  upstream accepted = {}. Whichever is false is the side that hung.",
@@ -152,13 +155,8 @@ impl ProxyWorld {
             // one-line connection error into a 180s nextest timeout with
             // nothing in the log to explain it. `select!` reports the connect
             // error the moment it happens instead.
-            let (downstream, accepted) = Self::connect_and_accept(
-                proxy_addr,
-                name,
-                version,
-                &mut upstream,
-            )
-            .await;
+            let (downstream, accepted) =
+                Self::connect_and_accept(proxy_addr, name, version, &mut upstream).await;
             assert_eq!(
                 accepted, name,
                 "upstream connection identity must match actor"

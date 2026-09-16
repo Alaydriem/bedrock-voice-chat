@@ -290,6 +290,10 @@ impl DiagnosticsReport {
         if value.chars().count() <= max {
             return value.to_string();
         }
-        value.chars().take(max.saturating_sub(1)).collect::<String>() + "…"
+        value
+            .chars()
+            .take(max.saturating_sub(1))
+            .collect::<String>()
+            + "…"
     }
 }

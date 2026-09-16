@@ -21,13 +21,17 @@ fn zone(id: &str) -> serde_json::Value {
 async fn the_zone_walk_falls_through_to_the_apex() {
     let mock = MockApi::start(vec![
         MockRoute::new("GET", "/zones", empty()).when_query_contains("name=registry."),
-        MockRoute::new("GET", "/zones", zone("zone-apex")).when_query_contains(&format!("name={APEX}")),
+        MockRoute::new("GET", "/zones", zone("zone-apex"))
+            .when_query_contains(&format!("name={APEX}")),
     ])
     .await;
 
     let dns = CloudflareDns::new_with_base("token", &mock.base);
 
-    assert_eq!(dns.zone_for(HOSTNAME).await.expect("finds a zone"), "zone-apex");
+    assert_eq!(
+        dns.zone_for(HOSTNAME).await.expect("finds a zone"),
+        "zone-apex"
+    );
     assert_eq!(
         mock.requests().len(),
         2,
@@ -57,7 +61,11 @@ async fn a_hostname_in_no_reachable_zone_is_refused_by_name() {
 async fn publishing_writes_a_txt_under_the_challenge_label() {
     let mock = MockApi::start(vec![
         MockRoute::new("GET", "/zones", zone("zone-apex")),
-        MockRoute::new("POST", "/zones/zone-apex/dns_records", json!({ "success": true })),
+        MockRoute::new(
+            "POST",
+            "/zones/zone-apex/dns_records",
+            json!({ "success": true }),
+        ),
     ])
     .await;
 
@@ -72,7 +80,10 @@ async fn publishing_writes_a_txt_under_the_challenge_label() {
         .find(|r| r.method == "POST")
         .expect("a record was created");
 
-    assert!(post.body.contains("_acme-challenge.registry.bedrockvoicechat.com"));
+    assert!(
+        post.body
+            .contains("_acme-challenge.registry.bedrockvoicechat.com")
+    );
     assert!(post.body.contains("\"type\":\"TXT\""));
     assert!(post.body.contains("challenge-value"));
 }
@@ -112,9 +123,21 @@ async fn cleanup_deletes_every_record_for_the_name() {
             "/zones/zone-apex/dns_records",
             json!({ "success": true, "result": [{ "id": "a" }, { "id": "b" }, { "id": "c" }] }),
         ),
-        MockRoute::new("DELETE", "/zones/zone-apex/dns_records/a", json!({ "success": true })),
-        MockRoute::new("DELETE", "/zones/zone-apex/dns_records/b", json!({ "success": true })),
-        MockRoute::new("DELETE", "/zones/zone-apex/dns_records/c", json!({ "success": true })),
+        MockRoute::new(
+            "DELETE",
+            "/zones/zone-apex/dns_records/a",
+            json!({ "success": true }),
+        ),
+        MockRoute::new(
+            "DELETE",
+            "/zones/zone-apex/dns_records/b",
+            json!({ "success": true }),
+        ),
+        MockRoute::new(
+            "DELETE",
+            "/zones/zone-apex/dns_records/c",
+            json!({ "success": true }),
+        ),
     ])
     .await;
 

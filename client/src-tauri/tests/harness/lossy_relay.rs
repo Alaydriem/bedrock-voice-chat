@@ -36,7 +36,10 @@ impl LossyUdpRelay {
     /// Binds `listen_port` facing clients, forwards to `server_quic_port`, and once armed discards one
     /// downstream datagram in every `drop_one_in` **per client**.
     pub async fn start(listen_port: u16, server_quic_port: u16, drop_one_in: u64) -> Self {
-        assert!(drop_one_in >= 2, "drop_one_in must leave some traffic through");
+        assert!(
+            drop_one_in >= 2,
+            "drop_one_in must leave some traffic through"
+        );
 
         let client_sock = Arc::new(
             UdpSocket::bind((Ipv4Addr::LOCALHOST, listen_port))

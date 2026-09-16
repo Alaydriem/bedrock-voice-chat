@@ -32,11 +32,9 @@ impl BvcIdentity {
 
     // What the operator pastes into the far side's `config.hcl`.
     pub fn peerlink(&self) -> Result<String, SdkError> {
-        self.identity
-            .peerlink()
-            .map_err(|e| SdkError::PeerLink {
-                reason: e.to_string(),
-            })
+        self.identity.peerlink().map_err(|e| SdkError::PeerLink {
+            reason: e.to_string(),
+        })
     }
 
     pub fn node_id(&self) -> String {

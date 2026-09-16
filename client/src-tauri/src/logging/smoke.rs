@@ -1,5 +1,5 @@
-use tauri_plugin_curia::curia;
 use crate::logging::Defect;
+use tauri_plugin_curia::curia;
 
 // Fires one representative emission per invariant the logging pipeline is meant
 // to hold, so a live Sentry run can be checked against a known list rather than

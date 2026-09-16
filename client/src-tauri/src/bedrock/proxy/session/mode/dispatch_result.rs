@@ -1,4 +1,3 @@
-
 // What a child dispatcher decided: whether the session continues, and whether
 // the session state moved. The caller needs both — it owns the cache write a
 // state change implies, and only it can end the session.

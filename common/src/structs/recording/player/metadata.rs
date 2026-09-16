@@ -10,11 +10,7 @@ pub struct PlayerMetadata {
 }
 
 impl PlayerMetadata {
-    pub fn with_identity(
-        self,
-        name: String,
-        device: Option<u64>,
-    ) -> super::RecordingPlayerData {
+    pub fn with_identity(self, name: String, device: Option<u64>) -> super::RecordingPlayerData {
         super::RecordingPlayerData {
             name,
             device,

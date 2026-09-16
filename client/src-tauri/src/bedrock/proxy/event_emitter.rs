@@ -4,8 +4,7 @@ use common::PlayerEnum;
 use common::structs::control::ClientAction;
 use common::structs::packet::{
     BedrockEvent, BedrockEventDirection, BedrockEventPacket, ClientActionPacket, PacketDirection,
-    PacketType, PlayerPositionPacket,
-    QuicNetworkPacket, QuicNetworkPacketData,
+    PacketType, PlayerPositionPacket, QuicNetworkPacket, QuicNetworkPacketData,
 };
 use log::{trace, warn};
 
@@ -31,7 +30,7 @@ impl BedrockEventEmitter {
             data: QuicNetworkPacket {
                 packet_type: PacketType::BedrockEvent,
                 data: QuicNetworkPacketData::BedrockEvent(bedrock_packet),
-                            // Not a server fan-out, so this envelope carries no sequence.
+                // Not a server fan-out, so this envelope carries no sequence.
                 ..Default::default()
             },
         };
@@ -53,7 +52,7 @@ impl BedrockEventEmitter {
             data: QuicNetworkPacket {
                 packet_type: PacketType::ClientAction,
                 data: QuicNetworkPacketData::ClientAction(ca_packet),
-                            // Not a server fan-out, so this envelope carries no sequence.
+                // Not a server fan-out, so this envelope carries no sequence.
                 ..Default::default()
             },
         };
@@ -74,7 +73,7 @@ impl BedrockEventEmitter {
             data: QuicNetworkPacket {
                 packet_type: PacketType::PlayerPosition,
                 data: QuicNetworkPacketData::PlayerPosition(PlayerPositionPacket { player }),
-                            // Not a server fan-out, so this envelope carries no sequence.
+                // Not a server fan-out, so this envelope carries no sequence.
                 ..Default::default()
             },
         };
@@ -95,5 +94,4 @@ impl BedrockEventEmitter {
             }
         }
     }
-
 }

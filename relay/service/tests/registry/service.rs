@@ -50,7 +50,10 @@ async fn redeeming_a_token_assigns_a_name() {
     let name = service.redeem(&token, "node-a").await.expect("redeems");
 
     assert!(!name.is_empty());
-    assert_eq!(service.name_for("node-a").await.expect("lookup"), Some(name));
+    assert_eq!(
+        service.name_for("node-a").await.expect("lookup"),
+        Some(name)
+    );
 }
 
 // Single use. A leaked config file after first boot grants nothing.
@@ -138,7 +141,12 @@ async fn declaring_an_address_records_it_against_the_registration() {
 async fn an_unregistered_node_cannot_declare_an_address() {
     let service = service(vec!["role-a".to_string()]).await;
 
-    assert!(service.declare_address("node-a", "203.0.113.10").await.is_err());
+    assert!(
+        service
+            .declare_address("node-a", "203.0.113.10")
+            .await
+            .is_err()
+    );
 }
 
 // A suspended registration cannot re-publish its address. Suspension withdraws the
@@ -150,5 +158,10 @@ async fn a_suspended_registration_cannot_declare_an_address() {
     service.redeem(&token, "node-a").await.expect("redeems");
     service.suspend("node-a").await.expect("suspends");
 
-    assert!(service.declare_address("node-a", "203.0.113.10").await.is_err());
+    assert!(
+        service
+            .declare_address("node-a", "203.0.113.10")
+            .await
+            .is_err()
+    );
 }

@@ -364,9 +364,7 @@ impl BedrockProxyManager {
             let (child_cancel_tx, _) = watch::channel(false);
 
             if addon_mode.relays_only() {
-                info!(
-                    "Bedrock: position heartbeat disabled; the addon feeds this world over HTTP"
-                );
+                info!("Bedrock: position heartbeat disabled; the addon feeds this world over HTTP");
             } else {
                 let emitter = Arc::clone(&event_emitter);
                 let heartbeat_cache = Arc::clone(&player_state_cache);
@@ -898,21 +896,18 @@ impl BedrockProxyManager {
         let player_xuid = session.player.xuid.clone();
         let chat_sender_name = session.player.name.clone();
 
-        let batch = match Self::build_chat_batch(
-            version,
-            send.text.clone(),
-            chat_sender_name,
-            player_xuid,
-        ) {
-            Ok(b) => b,
-            Err(e) => {
-                warn!(
-                    "Bedrock: failed to encode chat for {}: {:?}",
-                    player_name, e
-                );
-                return;
-            }
-        };
+        let batch =
+            match Self::build_chat_batch(version, send.text.clone(), chat_sender_name, player_xuid)
+            {
+                Ok(b) => b,
+                Err(e) => {
+                    warn!(
+                        "Bedrock: failed to encode chat for {}: {:?}",
+                        player_name, e
+                    );
+                    return;
+                }
+            };
 
         match writer.send_to_server(batch) {
             Ok(()) => debug!("Bedrock: injected chat for {}", player_name),

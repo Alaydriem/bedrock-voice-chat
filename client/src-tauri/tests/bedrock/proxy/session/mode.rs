@@ -34,7 +34,10 @@ fn both_modes_end_the_session_on_disconnect() {
         let chat = Arc::new(BedrockChatChannel::new());
         let mut d = dispatcher(mode, Arc::clone(&chat));
         let mut state = BedrockSessionState::new("Alice".to_string(), None);
-        let outcome = d.dispatch(&EventFixture::disconnect(ProtocolVersion::LATEST), &mut state);
+        let outcome = d.dispatch(
+            &EventFixture::disconnect(ProtocolVersion::LATEST),
+            &mut state,
+        );
         assert!(
             matches!(outcome, DispatchOutcome::SessionEnded { .. }),
             "{mode:?} must end the session on disconnect"
@@ -48,7 +51,10 @@ fn relay_only_still_derives_the_world_id() {
     let chat = Arc::new(BedrockChatChannel::new());
     let mut d = dispatcher(AddonMode::Net, chat);
     let mut state = BedrockSessionState::new("Alice".to_string(), None);
-    d.dispatch(&EventFixture::start_game(ProtocolVersion::LATEST), &mut state);
+    d.dispatch(
+        &EventFixture::start_game(ProtocolVersion::LATEST),
+        &mut state,
+    );
     assert!(
         state.world_uuid().is_some(),
         "relay-only must still apply StartGame"

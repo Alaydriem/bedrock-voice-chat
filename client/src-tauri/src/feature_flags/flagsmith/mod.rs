@@ -162,7 +162,11 @@ impl FlagsmithProvider {
             .post(&url)
             .header("X-Environment-Key", api_key)
             .header("Content-Type", "application/json")
-            .json(&Self::build_identity_body(install_id, build_number, discord_roles))
+            .json(&Self::build_identity_body(
+                install_id,
+                build_number,
+                discord_roles,
+            ))
             .send()
             .await?;
 
@@ -400,7 +404,9 @@ mod tests {
             0,
             Duration::from_secs(3600),
             reqwest::Client::new(),
-            std::sync::Arc::new(std::sync::RwLock::new(crate::discord::DiscordTraitState::new())),
+            std::sync::Arc::new(std::sync::RwLock::new(
+                crate::discord::DiscordTraitState::new(),
+            )),
             None,
             watch::channel(0u64).0,
         )

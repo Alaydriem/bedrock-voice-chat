@@ -13,8 +13,7 @@ fn ranged(falloff: f32, intensity: f32) -> (SpatialAudioConfig, f32) {
 
 #[test]
 fn the_live_session_wins_when_it_has_values() {
-    let chosen =
-        SpatialSettingsResolver::choose(Some(ranged(64.0, 0.5)), Some(ranged(96.0, 0.9)));
+    let chosen = SpatialSettingsResolver::choose(Some(ranged(64.0, 0.5)), Some(ranged(96.0, 0.9)));
 
     assert_eq!(chosen.config().falloff_distance, 64.0);
     assert_eq!(chosen.provenance(), SettingsProvenance::LiveSession);
@@ -51,8 +50,7 @@ fn the_panning_intensity_travels_with_the_config_it_came_from() {
 
 #[test]
 fn a_last_known_value_is_not_mixed_into_a_live_one() {
-    let chosen =
-        SpatialSettingsResolver::choose(Some(ranged(64.0, 0.5)), Some(ranged(96.0, 0.9)));
+    let chosen = SpatialSettingsResolver::choose(Some(ranged(64.0, 0.5)), Some(ranged(96.0, 0.9)));
 
     assert_eq!(chosen.panning_intensity(), 0.5);
 }

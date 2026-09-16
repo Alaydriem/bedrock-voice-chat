@@ -6,7 +6,6 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 use tauri_plugin_curia::curia;
 
-
 use crate::logging::{Defect, LogContext, Vocabulary};
 
 use super::QueuedEvent;
@@ -108,8 +107,10 @@ impl SentryWorker {
         }
 
         #[allow(unused_mut)]
-        let mut attributes: std::collections::BTreeMap<String, sentry::protocol::LogAttribute> =
-            Default::default();
+        let mut attributes: std::collections::BTreeMap<
+            String,
+            sentry::protocol::LogAttribute,
+        > = Default::default();
 
         for (key, value) in &routed.attributes {
             attributes.insert(key.clone(), Self::attribute(value));

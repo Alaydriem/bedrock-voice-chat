@@ -36,7 +36,11 @@ impl DiscordRoleClient {
     pub fn roles_from_member(body: &serde_json::Value) -> Vec<String> {
         body.get("roles")
             .and_then(|r| r.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default()
     }
 }

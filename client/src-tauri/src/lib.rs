@@ -4,7 +4,7 @@ pub use crate::structs::app_state::AppState;
 pub(crate) use audio::AudioPacket;
 pub(crate) use audio::AudioStreamManager;
 pub(crate) use audio::recording::RecordingManager;
-use common::consts::variant::{Variant};
+use common::consts::variant::Variant;
 pub(crate) use flume::{Receiver, Sender};
 use log::{debug, error, info, warn};
 pub use network::NetworkPacket;

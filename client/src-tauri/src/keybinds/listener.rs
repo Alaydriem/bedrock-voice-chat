@@ -1,10 +1,10 @@
+use super::PttHold;
 use crate::audio::AudioActionsManager;
 use crate::audio::AudioDeviceType;
 use common::structs::keybinds::{
     KeybindAction, KeybindConfig, PttEvent, VoiceMode, VoiceModeEvent,
 };
 use log::info;
-use super::PttHold;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, async_runtime::Mutex};
 

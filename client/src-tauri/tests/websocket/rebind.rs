@@ -41,14 +41,18 @@ async fn a_free_port_is_the_one_it_binds() {
 async fn a_taken_port_moves_to_the_next_free_one() {
     let (port, held) = occupy(1).await;
 
-    let listener = ListenerBinder::bind(HOST, port).await.expect("binds elsewhere");
+    let listener = ListenerBinder::bind(HOST, port)
+        .await
+        .expect("binds elsewhere");
     let bound = listener.local_addr().unwrap().port();
     assert_ne!(bound, port);
     assert!(bound > port && bound <= port + 16);
 
     // A port it reports is a port it serves on. Reporting one it cannot accept on would send
     // every plugin to an address that refuses them.
-    tokio::net::TcpStream::connect((HOST, bound)).await.expect("the reported port accepts");
+    tokio::net::TcpStream::connect((HOST, bound))
+        .await
+        .expect("the reported port accepts");
     drop(held);
 }
 
@@ -56,7 +60,9 @@ async fn a_taken_port_moves_to_the_next_free_one() {
 async fn the_search_walks_past_a_run_of_taken_ports() {
     let (port, held) = occupy(4).await;
 
-    let listener = ListenerBinder::bind(HOST, port).await.expect("binds past the run");
+    let listener = ListenerBinder::bind(HOST, port)
+        .await
+        .expect("binds past the run");
     assert!(listener.local_addr().unwrap().port() >= port + 4);
     drop(held);
 }
@@ -68,7 +74,10 @@ async fn an_exhausted_range_is_an_error_rather_than_a_distant_port() {
     let (port, held) = occupy(1).await;
 
     let outcome = ListenerBinder::bind_within(HOST, port, 0).await;
-    assert!(outcome.is_err(), "a span of zero must not look past the preferred port");
+    assert!(
+        outcome.is_err(),
+        "a span of zero must not look past the preferred port"
+    );
     drop(held);
 }
 

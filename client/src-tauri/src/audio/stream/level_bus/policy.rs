@@ -103,9 +103,10 @@ impl LevelEmitPolicy {
                 .peers
                 .get(name)
                 .is_none_or(|was| was.speaking != level.speaking)
-        }) || previous.peers.iter().any(|(name, level)| {
-            level.speaking && !next.peers.contains_key(name)
-        })
+        }) || previous
+            .peers
+            .iter()
+            .any(|(name, level)| level.speaking && !next.peers.contains_key(name))
     }
 }
 

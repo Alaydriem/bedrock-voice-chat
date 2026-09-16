@@ -21,12 +21,10 @@ use crate::analytics::AnalyticsService;
 use websocket_types::{ActiveConnection, ConnectTargetId, ConnectTargetKind, ConnectTargetSource};
 
 use crate::bedrock::{
-    AddonModeResolver, AdvertisedVersionResolver, BedrockAuthService,
-    BedrockChatChannel,
-    SessionName,
-    BedrockConnectErrorChannel,
-    BedrockEventEmitter, BedrockProxyManager, BedrockState, BedrockTargetService, ChatInjector,
-    JukeboxBeaconCache, JukeboxEjectInjector, ProtocolGatingService, ProxyDeps,
+    AddonModeResolver, AdvertisedVersionResolver, BedrockAuthService, BedrockChatChannel,
+    BedrockConnectErrorChannel, BedrockEventEmitter, BedrockProxyManager, BedrockState,
+    BedrockTargetService, ChatInjector, JukeboxBeaconCache, JukeboxEjectInjector,
+    ProtocolGatingService, ProxyDeps, SessionName,
 };
 use crate::control::ControlActionSender;
 use crate::feature_flags::FeatureFlagService;
@@ -459,7 +457,10 @@ impl BedrockConnector {
                     .clone(),
             )),
             Arc::clone(self.app_handle.state::<Arc<JukeboxEjectInjector>>().inner()),
-            self.app_handle.state::<ControlActionSender>().inner().clone(),
+            self.app_handle
+                .state::<ControlActionSender>()
+                .inner()
+                .clone(),
             self.app_handle
                 .state::<Arc<crate::bedrock::QueryStateInjector>>()
                 .inner()

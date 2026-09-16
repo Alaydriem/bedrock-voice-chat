@@ -19,10 +19,10 @@ use std::sync::Arc;
 use crate::audio::AudioDevice;
 
 pub(crate) use audio_sink::AudioSinkType;
-pub(crate) use device_lease::DeviceLease;
-pub(crate) use job_set::JobSet;
 pub(crate) use common::traits::StreamTrait;
+pub(crate) use device_lease::DeviceLease;
 pub(crate) use input::InputStream;
+pub(crate) use job_set::JobSet;
 pub(crate) use output::OutputStream;
 pub(crate) use sink::AudioOutputSink;
 pub(crate) use source::AudioInputSource;

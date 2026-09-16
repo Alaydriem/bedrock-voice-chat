@@ -5,8 +5,8 @@ mod health_publisher;
 pub(crate) mod link;
 mod stream_manager;
 
-pub use health_publisher::HealthPublisher;
 pub(crate) use connect_failure::ConnectFailure;
+pub use health_publisher::HealthPublisher;
 
 use connect_outcome::{AttemptResult, ConnectOutcome};
 use link::DatagramLink;
@@ -15,11 +15,11 @@ use crate::AudioPacket;
 use crate::NetworkPacket;
 use crate::diagnostics::{LinkSession, QuicLinkStats, QuicStatsSubscriber, TransportStats};
 use common::net::CandidatePlan;
-use common::structs::reachability::VoiceChoice;
 use common::net::ConnectCandidate;
 use common::s2n_quic::Client;
 use common::s2n_quic::Connection;
 use common::s2n_quic::client::Connect;
+use common::structs::reachability::VoiceChoice;
 use std::error::Error;
 use std::sync::Arc;
 use stream_manager::StreamTrait;
@@ -135,15 +135,10 @@ impl NetworkStreamManager {
             // The bind error is rendered to a String before the retry: it is a
             // `Box<dyn Error>`, which is not Send, and holding one across the next
             // await would make every caller's future non-Send.
-            let first = Self::build_client(
-                "[::]:0",
-                &ca_cert,
-                &cert,
-                &key,
-                self.quic_stats_tx.clone(),
-            )
-            .await
-            .map_err(|e| e.to_string());
+            let first =
+                Self::build_client("[::]:0", &ca_cert, &cert, &key, self.quic_stats_tx.clone())
+                    .await
+                    .map_err(|e| e.to_string());
 
             match first {
                 Ok(client) => (client, plan),
@@ -223,7 +218,10 @@ impl NetworkStreamManager {
         {
             connection_identity.set(Some(identity));
         }
-        if let Some(bus) = self.app_handle.try_state::<crate::control::ControlStateBus>() {
+        if let Some(bus) = self
+            .app_handle
+            .try_state::<crate::control::ControlStateBus>()
+        {
             bus.self_state();
             bus.preferences();
         }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use tauri_plugin_curia::curia::LogEvent;
 use tauri_plugin_curia::LineFormatter;
+use tauri_plugin_curia::curia::LogEvent;
 
 // stderr is read by eye; the JSON file is read by jq. A field that does not fit
 // on a line is named rather than printed, so third-party span fields like a

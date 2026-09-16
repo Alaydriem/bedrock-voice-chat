@@ -1,8 +1,6 @@
 use crate::AudioStreamManager;
 use crate::analytics::AnalyticsService;
-use crate::audio::recording::{
-    DirectorySize, ExportRun, ManifestStore, SessionSink, TrackIndex,
-};
+use crate::audio::recording::{DirectorySize, ExportRun, ManifestStore, SessionSink, TrackIndex};
 use crate::audio::spatial::SpatialSettingsResolver;
 use common::structs::AudioFormat;
 use common::structs::recording::{ExportOutcome, RecordingTrack, SessionManifest};
@@ -137,7 +135,6 @@ pub async fn rename_recording_session(
     ManifestStore::rename(&recordings_dir, &session_id, &name)
 }
 
-
 #[tauri::command]
 #[tracing::instrument(skip(app_handle, tracks, asm), fields(session_id = %session_id, format = ?format, track_count = tracks.len()))]
 pub async fn export_recording(
@@ -192,10 +189,8 @@ pub async fn export_recording(
             let asm = asm.lock().await;
             SpatialSettingsResolver::live(&asm).await
         };
-        let settings = SpatialSettingsResolver::choose(
-            live,
-            SpatialSettingsResolver::last_known(&app_handle),
-        );
+        let settings =
+            SpatialSettingsResolver::choose(live, SpatialSettingsResolver::last_known(&app_handle));
 
         info!(
             "Spatial export using {} settings, falloff {}",
@@ -221,7 +216,11 @@ pub async fn export_recording(
     for failure in &outcome.failed {
         error!("Error rendering {}: {}", failure.track, failure.reason);
     }
-    info!("Rendered {} of {} tracks", outcome.written.len(), tracks.len());
+    info!(
+        "Rendered {} of {} tracks",
+        outcome.written.len(),
+        tracks.len()
+    );
 
     let render_time_ms = render_start.elapsed().as_millis() as u64;
     let analytics = app_handle.state::<Arc<AnalyticsService>>();

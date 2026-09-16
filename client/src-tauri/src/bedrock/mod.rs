@@ -4,8 +4,8 @@ pub mod auth;
 pub mod connector;
 pub mod gating;
 pub mod protocol_version_catalog;
-pub mod session_name;
 pub mod proxy;
+pub mod session_name;
 pub mod state;
 pub mod target;
 
@@ -27,9 +27,8 @@ pub use addon_mode_resolver::AddonModeResolver;
 pub use advertised_version_resolver::AdvertisedVersionResolver;
 pub use auth::{BedrockAuthService, BedrockKeyringService};
 pub use connector::{BedrockConnector, ProxyConnectRequest, RealmConnectRequest};
-pub use protocol_version_catalog::ProtocolVersionCatalog;
-pub use session_name::SessionName;
 pub use gating::ProtocolGatingService;
+pub use protocol_version_catalog::ProtocolVersionCatalog;
 pub(crate) use proxy::ProxyDeps;
 pub use proxy::{
     BedrockChatChannel, BedrockConnectErrorChannel, BedrockEventEmitter, BedrockPlayerStateCache,
@@ -37,5 +36,6 @@ pub use proxy::{
     JukeboxEjectInjector, MinecraftTranslation, PendingEject, PendingQueryState,
     QueryStateInjector,
 };
+pub use session_name::SessionName;
 pub use state::BedrockState;
 pub use target::{BedrockTargetService, ResolvedAddress, ResolvedTarget, SavedProxyEntry};

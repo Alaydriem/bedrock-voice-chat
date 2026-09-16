@@ -143,7 +143,6 @@ impl FakeBedrockUpstream {
             .expect("send PlaySound ctl");
     }
 
-
     /// Extract any chat message from a serverbound sub-packet, if it is a TEXT
     /// packet. Non-TEXT sub-packets return None.
     fn chat_message_from_sub(version: ProtocolVersion, sub: Bytes) -> Option<String> {
@@ -163,12 +162,7 @@ impl FakeBedrockUpstream {
     /// Await a serverbound `!bvcs:` state-ride chat from `name`'s proxy session
     /// that passes `pred`, draining that connection's serverbound stream until
     /// one arrives or `timeout` elapses.
-    pub async fn await_bvcs<F>(
-        &mut self,
-        name: &str,
-        pred: F,
-        timeout: Duration,
-    ) -> Option<String>
+    pub async fn await_bvcs<F>(&mut self, name: &str, pred: F, timeout: Duration) -> Option<String>
     where
         F: Fn(&str) -> bool,
     {

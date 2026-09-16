@@ -12,7 +12,6 @@ mod dispatch_result;
 
 pub use dispatch_result::DispatchResult;
 
-
 pub trait ModeDispatch {
     fn dispatch(
         &mut self,

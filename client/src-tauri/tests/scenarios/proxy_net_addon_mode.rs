@@ -30,7 +30,10 @@ async fn net_mode_sends_no_in_band_rides_upstream() {
     // Nothing at all, not merely no `!bvc` prefixes: chat egress is suppressed
     // in this mode too, so a relay-only session has no reason to author any
     // serverbound chat whatsoever.
-    let text = w.upstream.drain_serverbound_chat("Alice", CAPTURE_WINDOW).await;
+    let text = w
+        .upstream
+        .drain_serverbound_chat("Alice", CAPTURE_WINDOW)
+        .await;
     assert!(
         text.is_empty(),
         "[{v}] a relay-only session must send nothing serverbound as chat, got: {text:?}"

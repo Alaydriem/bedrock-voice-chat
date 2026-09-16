@@ -16,7 +16,11 @@ fn the_probe_is_a_long_header_initial_with_the_fixed_bit_set() {
     let packet = ProbeInitialPacket::new();
     let first = packet.datagram()[0];
 
-    assert_eq!(first & 0x80, 0x80, "header form bit must mark a long header");
+    assert_eq!(
+        first & 0x80,
+        0x80,
+        "header form bit must mark a long header"
+    );
     assert_eq!(first & 0x40, 0x40, "fixed bit must be set");
     assert_eq!(first & 0x30, 0x00, "long packet type must be Initial");
 }
@@ -43,7 +47,10 @@ fn the_declared_length_matches_the_bytes_that_follow_it() {
     let length_offset = 24;
     assert_eq!(datagram[5], 8, "dcid length");
     assert_eq!(datagram[14], 8, "scid length");
-    assert_eq!(datagram[23], 0, "token length varint must be a single zero byte");
+    assert_eq!(
+        datagram[23], 0,
+        "token length varint must be a single zero byte"
+    );
 
     let varint = u16::from_be_bytes([datagram[length_offset], datagram[length_offset + 1]]);
     assert_eq!(varint & 0xc000, 0x4000, "must be a two-byte varint");

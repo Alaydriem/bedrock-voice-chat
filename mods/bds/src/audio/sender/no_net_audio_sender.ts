@@ -19,7 +19,7 @@ export class NoNetAudioSender implements AudioSender {
       `${JukeboxBusProtocol.PLAY}${state.audioId}:${state.dimensionId}`,
       {
         location: { x: c.x, y: c.y, z: c.z },
-        volume: 0,
+        volume: 0.1,
       },
     );
   }
@@ -35,7 +35,7 @@ export class NoNetAudioSender implements AudioSender {
     const c = state.coordinates;
     fulfiller.playSound(`${JukeboxBusProtocol.EJECT}${state.dimensionId}`, {
       location: { x: c.x, y: c.y, z: c.z },
-      volume: 0,
+      volume: 0.1,
     });
   }
 

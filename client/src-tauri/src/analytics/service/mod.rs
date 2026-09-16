@@ -13,7 +13,6 @@ mod context;
 
 use context::AnalyticsContext;
 
-
 pub struct AnalyticsService {
     providers: Vec<AnalyticsProviderType>,
     queue: parking_lot::Mutex<Vec<QueuedEvent>>,

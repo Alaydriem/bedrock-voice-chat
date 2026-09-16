@@ -1,5 +1,5 @@
-use common::structs::push::{HealthPush, MetricsPush};
 use common::structs::network::ConnectionHealth;
+use common::structs::push::{HealthPush, MetricsPush};
 
 // The discriminant is the contract. A consumer reads both frame kinds off one socket, and
 // `ResponseData` on the command protocol is `#[serde(untagged)]` — so without a distinct `type`

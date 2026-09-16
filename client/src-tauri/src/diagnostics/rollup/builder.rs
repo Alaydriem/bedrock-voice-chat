@@ -4,7 +4,6 @@ use common::structs::reachability::{AddressFamily, AddressFamilyPreference};
 use super::RollupWindow;
 use crate::diagnostics::SampleRing;
 
-
 // Builds the off-device summary of this client's link to its server.
 //
 // There is deliberately no peer dimension. The path is client to server to peer, so a listener

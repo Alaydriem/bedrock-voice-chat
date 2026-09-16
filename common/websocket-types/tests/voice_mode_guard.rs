@@ -16,7 +16,10 @@ fn refuses_an_input_mute_in_push_to_talk() {
     ));
 
     let reason = VoiceModeGuard::refusal(VoiceMode::PushToTalk, &mute).expect("refused");
-    assert!(reason.contains("ptt"), "the refusal names the way in: {reason}");
+    assert!(
+        reason.contains("ptt"),
+        "the refusal names the way in: {reason}"
+    );
 }
 
 #[test]

@@ -78,7 +78,10 @@ async fn a_lossy_downlink_is_reported_as_downlink_loss() {
         .await_connected(Duration::from_secs(20))
         .expect("Bob connects through the relay before any loss is induced");
 
-    alice.feed_tone(&Signal::chirp(48_000, AUDIO_SECONDS, 200.0, 2_000.0), 48_000);
+    alice.feed_tone(
+        &Signal::chirp(48_000, AUDIO_SECONDS, 200.0, 2_000.0),
+        48_000,
+    );
 
     // Bob must actually be hearing Alice before loss is induced, or the sparse-traffic failure mode
     // would masquerade as a broken derivation.
@@ -204,7 +207,11 @@ async fn a_clean_downlink_reports_no_loss() {
         );
     }
 
-    assert_eq!(relay.dropped(), 0, "the relay must not have discarded anything");
+    assert_eq!(
+        relay.dropped(),
+        0,
+        "the relay must not have discarded anything"
+    );
     assert!(relay.forwarded() > 0, "traffic must have crossed the relay");
 
     client.shutdown();

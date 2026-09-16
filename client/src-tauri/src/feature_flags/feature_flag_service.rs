@@ -165,8 +165,14 @@ impl FeatureFlagService {
                 }
             }
         };
-        if tokio::time::timeout(Self::READY_TIMEOUT, wait).await.is_err() {
-            warn!("feature flags not ready after {:?}; using defaults", Self::READY_TIMEOUT);
+        if tokio::time::timeout(Self::READY_TIMEOUT, wait)
+            .await
+            .is_err()
+        {
+            warn!(
+                "feature flags not ready after {:?}; using defaults",
+                Self::READY_TIMEOUT
+            );
         }
     }
 
@@ -220,10 +226,7 @@ impl FeatureFlagService {
             Some(client) => {
                 let mut context = EvaluationContext::default();
                 context.targeting_key = Some(self.platform_id.get());
-                client
-                    .get_bool_value(flag, Some(&context), None)
-                    .await
-                    .ok()
+                client.get_bool_value(flag, Some(&context), None).await.ok()
             }
             None => None,
         };

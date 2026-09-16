@@ -96,10 +96,7 @@ fn magnitude_at(samples: &[f32], rate: u32, frequency: f32) -> f32 {
         s1 = s0;
     }
 
-    (s1 * s1 + s2 * s2 - coefficient * s1 * s2)
-        .max(0.0)
-        .sqrt()
-        / samples.len() as f32
+    (s1 * s1 + s2 * s2 - coefficient * s1 * s2).max(0.0).sqrt() / samples.len() as f32
 }
 
 /// Both notes have to sound. The second is what makes the chime recognisable as deliberate

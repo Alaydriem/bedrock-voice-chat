@@ -52,7 +52,9 @@ impl LanguagePack {
         match self.m.get(msgid)? {
             PackEntry::One(text) => Some(text.as_str()),
             PackEntry::Many(forms) => {
-                let index = self.plural_index(category).min(forms.len().saturating_sub(1));
+                let index = self
+                    .plural_index(category)
+                    .min(forms.len().saturating_sub(1));
                 forms.get(index).map(String::as_str)
             }
         }

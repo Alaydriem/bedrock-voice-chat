@@ -10,7 +10,12 @@ use crate::stdout_bridge::StdoutBridge;
 pub struct ChannelDriver;
 
 impl ChannelDriver {
-    pub fn run(handle: &tauri::AppHandle, channel_id: String, event: ChannelEvents, op: &'static str) {
+    pub fn run(
+        handle: &tauri::AppHandle,
+        channel_id: String,
+        event: ChannelEvents,
+        op: &'static str,
+    ) {
         let handle = handle.clone();
         tauri::async_runtime::spawn(async move {
             match Connector::channel_event(&handle, channel_id, event).await {

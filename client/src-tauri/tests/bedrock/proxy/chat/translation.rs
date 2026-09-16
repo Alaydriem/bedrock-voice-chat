@@ -69,7 +69,10 @@ fn a_player_kill_with_a_weapon_names_the_weapon() {
         &p(&["AlayCamera", "Alaydriem", "Netherite Sword"]),
     )
     .expect("player kills must render");
-    assert_eq!(out, "AlayCamera was slain by Alaydriem using Netherite Sword");
+    assert_eq!(
+        out,
+        "AlayCamera was slain by Alaydriem using Netherite Sword"
+    );
 }
 
 // Everything else — achievements, command feedback, UI text — is dropped rather than relayed.

@@ -77,10 +77,7 @@ fn channels_of_one_device_are_not_collapsed_into_each_other() {
 
     assert_eq!(
         names(&deduplicated),
-        vec![
-            "Focusrite USB ASIO Input 1",
-            "Focusrite USB ASIO Input 2"
-        ]
+        vec!["Focusrite USB ASIO Input 1", "Focusrite USB ASIO Input 2"]
     );
 }
 
