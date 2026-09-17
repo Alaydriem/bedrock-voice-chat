@@ -2987,8 +2987,11 @@ None of this applies to a Bedrock Dedicated Server or a Java server. The Addon r
 | 1.26.20 | `v975` |
 | 1.26.30 | `v1001` |
 | 1.26.40 | `v2168` |
+| 1.26.45 | `v2169` |
+| 1.26.50 | `v2192` |
+| 1.26.50 | `v2193` |
 
-**1.26.40 is the newest supported release.**
+**1.26.50 is the newest supported release.**
 
 ## Not supported
 
@@ -3003,14 +3006,6 @@ no-net Addon and Bedrock Voice Chat Connect will not work against a server runni
 | 1.20.61 | `v649` |
 | 1.21.50 | `v766` |
 | 1.21.90 | `v786` |
-
-## Preview builds
-
-A codec exists, but no public Bedrock release speaks these yet.
-
-| Minecraft Bedrock | Protocol |
-|---|---|
-| 1.26.50 | `v2169` |
 
 <!-- generated:version-table end -->
 
