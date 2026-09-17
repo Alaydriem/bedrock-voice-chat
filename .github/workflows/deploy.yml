@@ -95,15 +95,22 @@ jobs:
             "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
             .gh-pages-live
           cd .gh-pages-live
+          # Enumerate the COMMITTED tree, not the working directory. A
+          # `for entry in * .[!.]*` glob also matches the clone's own .git, which
+          # is not a published path and can never appear in dist/, so the guard
+          # failed every single run from 2026-08-17 on and nothing was ever
+          # published. Assign first so a git failure aborts under `set -e`
+          # instead of feeding the loop an empty list and passing silently.
+          entries="$(git ls-tree --name-only HEAD)"
           status=0
-          for entry in * .[!.]*; do
-            [ -e "$entry" ] || continue
+          while IFS= read -r entry; do
+            [ -n "$entry" ] || continue
             case " $KNOWN " in *" $entry "*) continue ;; esac
             # Anything this build emits is ours to overwrite.
             [ -e "../dist/$entry" ] && continue
             echo "::error::/$entry on gh-pages is owned by nothing this workflow knows about"
             status=1
-          done
+          done <<< "$entries"
           exit $status
 
       - name: Publish to gh-pages
