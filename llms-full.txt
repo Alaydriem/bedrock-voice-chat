@@ -1,0 +1,4472 @@
+# Bedrock Voice Chat — complete documentation
+
+Proximity voice chat for Minecraft Bedrock and Java. Self-hosted: each server is
+run by the community that owns it.
+
+Individual pages: https://www.bedrockvoicechat.com/llms.txt
+
+---
+
+# Downloads
+
+> Every BVC download — client apps, the server, Addons, and companion tools.
+
+Source: https://www.bedrockvoicechat.com/wiki/start/downloads
+
+## Client Application
+
+The BVC client application is how you interact with Bedrock Voice Chat. It connects your microphone, and speakers to Minecraft Bedrock and Java edition.
+
+| Platform | Where |
+|---|---|
+| **Windows** | [Microsoft Store](https://apps.microsoft.com/detail/9npxjk015fvt?hl=en-US&gl=US), or from [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases). |
+| **Linux** | `.deb` and AppImage on [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases). |
+| **macOS** | [TestFlight](https://testflight.apple.com/join/JSG7bVqC). One build covers macOS and iOS. |
+| **iOS / iPadOS** | [TestFlight](https://testflight.apple.com/join/JSG7bVqC). |
+| **Android** | [Google Play Beta](https://play.google.com/store/apps/details?id=com.alaydriem.bvc.client). |
+
+:::tip
+Console players on Xbox, PlayStation, and Switch run the mobile app on their personal device in order to interact with Bedrock Voice Chat. Your mobile device is your microphone, and speaker. See [console and mobile](/wiki/platforms/console-and-mobile/).
+
+At the moment, there is no Console installable application that can be installed on your console directly.
+
+If you'd like this feature, please consider supporting Bedrock Voice Chat by joining on Patreon, or becoming a YouTube Member
+:::
+
+## Server
+
+| What | Where |
+|---|---|
+| BVC server | [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) |
+| Container image | `ghcr.io/alaydriem/bedrock-voice-chat/server` |
+
+See [Installing the BVC server](/wiki/server/installation/).
+
+## Server Addons
+
+| Type | Where |
+|---|---|
+| Bedrock Addon | For Bedrock Dedicated Servers[GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) (the `mods-` tag) or [CurseForge](https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat) |
+| Realms / no-net Addon | For Realms, Aternos, or other Minecraft hosts that don't permit `@minecraft/server-net` to be activated. [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) (the `mods-` tag) or [CurseForge](https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat-for-realms) |
+| Fabric and PaperMC | [Modrinth](https://modrinth.com/mod/bedrock-voice-chat) |
+
+:::tip
+See [where BVC works](/wiki/platforms/) for more information
+:::
+
+## Companion apps
+
+| App | Where |
+|---|---|
+| Stream Deck plugin | [Elgato Marketplace](https://marketplace.elgato.com/product/bedrock-voice-chat-c5a151d6-3669-487f-9548-bfe689e50203) |
+
+---
+
+# FAQ
+
+> Short answers to the questions that come up most.
+
+Source: https://www.bedrockvoicechat.com/wiki/start/faq
+
+## Does it work on Realms?
+
+Yes, Realms is fully supported via Bedrock Voice Chat Connect. See [Realms](/wiki/platforms/realms/).
+
+## Does it work on Aternos?
+
+Yes, Aternos is fully supported via Bedrock Voice Chat Connect. See [Aternos](/wiki/platforms/aternos/).
+
+## Does it work on a LAN or single-player world?
+
+No. Single Player worlds are not supported. Use a Minecraft Bedrock Realm, Aternos Server, or Bedrock Dedicated Server instead.
+
+## Can I use it on Xbox, PlayStation, or Switch?
+
+Yes, with the mobile app running next to the console. There is no on-console client. [Console and mobile](/wiki/platforms/console-and-mobile/).
+
+## Does it work with Geyser?
+
+Yes. Install the Java mod. Floodgate is auto-detected. [Geyser and Floodgate](/wiki/server/java-mod/integrations/geyser-and-floodgate/).
+
+## Does it work with Simple Voice Chat?
+
+Bedrock Voice Chat provides an interface for both Bedrock and Java players to chat with each other _without_ needing to integrate with Simple Voice Chat. SVC and BVC are two unrelated systems that do not depend on each other.
+
+Install the [Java mod](/wiki/server/java-mod/) and your Java and Bedrock players hear each other through the BVC apps.
+
+## Is there a public server I can join?
+
+No. There is no official server and no directory of them. Any operator can install BVC, and there is no central place to point you at.
+
+If you already play somewhere you like, ask the owner to install it. The [guide](/wiki/server/) is here.
+
+## What is my login URL?
+
+The address of the **BVC server**, not your Minecraft server, Aternos address, or Realm. Your operator sets it up and gives it to you. [Signing in](/wiki/player/signing-in/).
+
+:::danger
+Bedrock Voice Chat **will not work** if you put your Aternos Server URL, IP Address, or Bedrock Dedicated Server address in the login field. You **MUST** use the **Bedrock Voice Chat Server** address.
+:::
+
+## Do I need the BVC server if I use the Java mod?
+
+Not always. The Java mod can run BVC embedded in your game server. Good for small always-on servers, poor on low-end hosts. [Java mod](/wiki/server/java-mod/).
+
+## Can I record?
+
+Yes, on desktop, with each player on their own track. Not on mobile. Your server operator can turn recording off. [Recording](/wiki/creator/recording/).
+
+## Can I read in-game chat in the app?
+
+Yes. The app mirrors server chat and sends what you type back into the game. [Chat](/wiki/player/chat/).
+
+## Is it free?
+
+Yes. [Supporting the project](/wiki/start/supporting-bvc/) funds development and gets you early access to builds, which matters most around Minecraft updates.
+
+## I updated Minecraft but Bedrock Voice Chat stopped working
+
+New versions of Minecraft often have protocol updates. Mojang does not document the Bedrock packet protocol and changes it every release. The work cannot start until the update ships. [Version support](/wiki/platforms/version-support/).
+
+This issue only affects Realms and Aternos server. To have day one support, run Bedrock Voice Chat alongside Bedrock Dedicated Server
+
+---
+
+# Reporting an issue
+
+> Where to report a bug or ask a question, and what to include.
+
+Source: https://www.bedrockvoicechat.com/wiki/start/report-an-issue
+
+For support related questions, join **[Discord](https://discord.gg/CdtchD5zxr)**
+
+
+:::tip[Check the troubleshooting page first]
+Most reports resolve there in under a minute.
+
+[Players](/wiki/player/troubleshooting/) · [Operators](/wiki/server/troubleshooting/)
+:::
+
+## What to include
+
+**If you are a player:**
+
+- Your platform. Windows, macOS, Linux, Android, iOS, or console plus which phone
+- The error code, if the app showed one
+- The server you are on, and whether anyone else there has it working
+- What you already tried
+
+**If you run a server:**
+
+- Output of `curl https://<your-server>/api/config`
+- Whether **UDP** is open, not just TCP. This is the most common cause
+- Whether `curl -H "Authorization: Bearer <token>" https://<your-server>/api/position` returns data
+- How you are deployed. Docker, bare metal, or embedded in the Java mod
+
+**For a crash:** what you were doing, whether it reproduces, and the log if you have it.
+
+## Where things go
+
+| | Where |
+|---|---|
+| Anything at all | [Discord](https://discord.gg/CdtchD5zxr) |
+| Confirmed bugs | [GitHub Issues](https://github.com/Alaydriem/bedrock-voice-chat/issues), usually opened during triage |
+| Feature requests | Discord or GitHub Issues |
+| Longer technical discussion | [GitHub Discussions](https://github.com/Alaydriem/bedrock-voice-chat/discussions) |
+
+Search before posting.
+
+## Security issues
+
+:::danger[Do not open a public issue for a security problem]
+Use GitHub's [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability) under the Security tab.
+:::
+
+There is no bug bounty. Legitimate reports are credited in `SECURITY.md`.
+
+## Helping others
+
+Answer a question on Discord when you know the answer. See [supporting BVC](/wiki/start/supporting-bvc/).
+
+---
+
+# Supporting BVC
+
+> How to support development, financially or otherwise.
+
+Source: https://www.bedrockvoicechat.com/wiki/start/supporting-bvc
+
+Bedrock Voice Chat is a free addon for Minecraft. However, software development is not free. If you wish to support Bedrock Voice Chat, there are several ways to do this that help cover development costs, app store fees, test devices, server hosting, and more.
+
+## Financially
+
+**[Patreon](https://www.patreon.com/c/Alaydriem)** funds ongoing development, app store maintenance, and new features.
+
+**[YouTube](https://youtube.com/@alaydriem)** and **[Twitch](https://twitch.tv/alaydriem)** memberships get exclusive updates, early feature previews, and a view of development as it happens.
+
+Supporters get **early access to builds and packs**. On Realms and Aternos, supporters typically have a working build before general release. See [version support](/wiki/platforms/version-support/) for the gap.
+
+## For free
+
+**Watch and comment on [YouTube](https://youtube.com/@alaydriem).** All major BVC announcements go there first.
+
+**Watch, follow, and subscribe the [Twitch](https://www.twitch.tv/alaydriem) streams.** Twice weekly on a regular schedule.
+
+**Tell people about BVC, and send feedback.** Bug reports and feature requests on GitHub or Discord shape what gets built.
+
+**Answer questions.** On [Discord](https://discord.gg/CdtchD5zxr) and [GitHub](https://github.com/Alaydriem/bedrock-voice-chat/discussions).
+
+## Where it goes
+
+Server costs, client improvements, platform releases, and the reverse-engineering work that keeps Realms and Aternos working across Minecraft updates.
+
+---
+
+# For players
+
+> Install BVC, sign in, and use proximity voice chat on a server that already has it.
+
+Source: https://www.bedrockvoicechat.com/wiki/player
+
+This page is for players who are on a server that already has BVC installed and configured that you want to join and play on.
+
+## Getting Started
+
+1. [Install the app](/wiki/start/downloads/) for your device.
+2. [Sign in](/wiki/player/signing-in/) with the Xbox account you play on, using the server URL your operator gave you.
+3. Put headphones on and play.
+
+:::caution
+BVC is deny-by-default. If sign-in refuses you, you have not been whitelisted by your server operator. Ask your operator to add you.
+:::
+
+If nothing works at all, the server may not have BVC set up. Point your operator at [Running a server](/wiki/server/).
+
+## Using it
+
+| Page | What it covers |
+|---|---|
+| [Using voice chat](/wiki/player/using-voice-chat/) | Proximity ranges, mute and deafen, per-player volume. |
+| [Groups](/wiki/player/groups/) | Talk to your party regardless of distance. |
+| [Chat](/wiki/player/chat/) | Read and send in-game chat from the app. |
+| [In-game commands](/wiki/player/in-game-commands/) | Control BVC from inside Minecraft with `/bvc:*`. |
+| [Using the jukebox](/wiki/player/using-the-jukebox/) | Play audio clips out of a block, positioned in the world. |
+| [Audio library](/wiki/player/audio-library/) | Upload and manage the clips discs play. |
+| [Settings](/wiki/player/settings/) | Devices, noise gate, keybinds, push-to-talk. |
+| [Parents and age settings](/wiki/player/parents-and-age/) | Age Signals and Declared Age Ranges. |
+| [Troubleshooting](/wiki/player/troubleshooting/) | "I cannot hear anyone." |
+
+---
+
+# Audio library
+
+> Upload and manage the audio clips that BVC discs play.
+
+Source: https://www.bedrockvoicechat.com/wiki/player/audio-library
+
+The audio library holds clips stored on the BVC server. Anyone can bind a stored clip to a disc and play it through a [jukebox](/wiki/player/using-the-jukebox/).
+
+Open **Settings → Audio library**.
+
+<div class="shot"><span>Audio Library settings page with several uploaded clips</span></div>
+
+## Permissions
+
+| To | You need |
+|---|---|
+| Play a clip | Nothing. Anyone can make a disc. |
+| Upload | `audio_upload` |
+| Delete | `audio_delete` |
+
+Operators set these server-wide and can override them per player. If the upload button does nothing, ask your operator for the permission. See [players and permissions](/wiki/server/players-and-permissions/).
+
+## Upload a clip
+
+Upload a clip and the server gives it an ID. That ID is what `/bvc:disc <audio_id>` takes.
+
+Clips live on the server. Everyone on the server shares one library, and a clip you upload is a clip everyone can play.
+
+## For operators
+
+Clip storage path and the concurrency cap are the `audio` block in [config.hcl](/wiki/reference/configuration/#audio). Permission defaults are the `permissions` block.
+
+On a public server, set `audio_upload = false` as the default and grant it per player. An open default lets anyone fill the disk.
+
+---
+
+# Chat
+
+> Read and send in-game chat from the BVC app, without leaving what you are doing.
+
+Source: https://www.bedrockvoicechat.com/wiki/player/chat
+
+Bedrock Voice Chat mirrors your server's in-game chat into the app, letting you read and reply without leaving what you are doing. What you type goes back into the game as an ordinary chat message.
+
+## Send a message
+
+1. Open the chat dock on the dashboard.
+2. Type.
+3. Press enter.
+
+Your message appears in game as `<yourname> your message`.
+
+<div class="shot"><span>BVC Chat Window</span></div>
+
+## Where your message goes
+
+If you are standing in a world, Bedrock Voice Chat sends your message there and does not ask.
+
+You get a picker when you are signed in, not in game, and the server carries more than one world you have been in. Each world in the list shows two labels:
+
+| Label | Meaning |
+|---|---|
+| **Active** | People are in it right now |
+| **Available** | Its chat relay is up |
+
+<div class="shot"><span>The chat target picker listing worlds with their Active and Available labels</span></div>
+
+:::caution
+A world can be **Active** without being **Available**. The game server is running, but its chat link to Bedrock Voice Chat is down, and your message **will not send** there.
+:::
+
+## If a message does not send
+
+**You moved.** You changed worlds while the app still held the old one. Send it again.
+
+**It failed.** No session, a dead link, or a full queue. Send it again once the dock shows chat as available.
+
+## History
+
+Chat history starts when you connect and ends when you close the app. Nothing is stored on the server or on your device.
+
+## If chat is not available
+
+The composer says why.
+
+- **Not connected.** Sign in to a server first.
+- **The server has no BVC Addon or mod.** Server mode needs one. Proxy and Realms sessions do not.
+- **The chat relay is down.** The mod reconnects on its own.
+- **Chat is disabled on this server.** The server owner turned chat off. The dock stays on your dashboard, greyed out, and you cannot type in it. Nothing you do in the app turns it back on.
+
+## For server operators
+
+Nothing to enable on the BVC server. Chat works wherever position relay does.
+
+To turn chat off, set `chat = false` in the `server.features` block of `config.hcl`, or set `BVC_CHAT=false`. Restart the server to apply it. See [config.hcl](/wiki/reference/configuration/).
+
+**Fabric and PaperMC** — set `enforce-secure-profile=false` in `server.properties`. Chat sync does not work with it enabled. Everything else is automatic in both external and embedded mode. The app shows your primary world's name.
+
+**Bedrock Dedicated Server** — add `bvc_world_name` to `config/default/variables.json`. BDS scripting cannot read your level name.
+
+```json
+{
+    "bvc_world_name": "My SMP"
+}
+```
+
+Without it, the world is listed as "Minecraft world". See the [Bedrock Addon](/wiki/server/bedrock-addon/).
+
+## Privacy
+
+The BVC server relays messages and never stores them. It records which worlds each player has been seen in, to populate the picker. That is a player, a world, and a timestamp.
+
+Anyone in the world reads what you send.
+
+---
+
+# Groups
+
+> Talk to your party at full volume regardless of distance.
+
+Source: https://www.bedrockvoicechat.com/wiki/player/groups
+
+Everyone in a group hears everyone else at full volume, wherever they are in the world.
+
+<div class="shot"><span>Group panel in the left sub-sidebar, showing members</span></div>
+
+## Create a group
+
+Select **New Group +** in the left sub-sidebar, or run `/bvc:groupcreate` in game.
+
+You own any group you create. Leaving does not hand ownership to anyone else, and you can rejoin.
+
+There is no limit on how many groups exist.
+
+## Join a group
+
+In the app, you can join a group by viewing the name of it in the sidebar and clicking on it; by joining from the `/bvc:panel` window in Bedrock, or by using the `/bvc:groupjoin <code>` command.
+
+:::caution
+Groups are not _private_. Any member can join any group at any time.
+:::
+
+## Leave or close a group
+
+You can leave a group at any time. If the group creator or owner closes the group, the group will be disbanded.
+
+## Groups and proximity
+
+While in a group, you will hear all players in the group at normal volume. You will also hear nearby players within proximity at their proximity-adjusted volume.
+
+---
+
+# In-game commands
+
+> Control BVC from inside Minecraft without alt-tabbing.
+
+Source: https://www.bedrockvoicechat.com/wiki/player/in-game-commands
+
+Both the Bedrock and Java addons let you drive BVC from the chat bar, and may be used for scripted events
+
+The syntax differs between editions:
+
+- **[Bedrock](/wiki/player/in-game-commands/bedrock/)** — flat, namespaced with a colon: `/bvc:mute true`
+- **[Java](/wiki/player/in-game-commands/java/)** — nested under one root: `/bvc mute true`
+
+## Common to both
+
+Every command works for any player. None require cheats or operator status.
+
+The BVC app must be running and signed in. These commands drive the app.
+
+| Capability | Bedrock | Java |
+|---|---|---|
+| Mute yourself | `/bvc:mute <on>` | `/bvc mute <on>` |
+| Deafen yourself | `/bvc:deafen <on>` | `/bvc deafen <on>` |
+| Toggle recording | `/bvc:record <on>` | `/bvc record <on>` |
+| Set a player's volume | `/bvc:volume <player> <0-150>` | `/bvc volume <player> <0-150>` |
+| Hear a player or not | `/bvc:hear <player> <on>` | `/bvc hear <player> <on>` |
+| Mute jukebox music | `/bvc:jukeboxmute <on>` | `/bvc jukebox mute <on>` |
+| Set jukebox volume | `/bvc:jukeboxvolume <0-150>` | `/bvc jukebox volume <0-150>` |
+| Create a group | `/bvc:groupcreate` | `/bvc group create` |
+| Join a group | `/bvc:groupjoin <code>` | `/bvc group join <code>` |
+| Leave a group | `/bvc:groupleave` | `/bvc group leave` |
+| Get an audio disc | `/bvc:disc <audio_id>` | `/bvc disc <audio_id>` |
+| Open a control panel | `/bvc:panel` | — |
+
+:::note
+The control panel is Bedrock only. It uses Bedrock's server-side form API, which Java has no counterpart to. Java players use the app window.
+:::
+
+Volume, hear, and the jukebox controls are local to you. Turning someone down does not change what anyone else hears, and does not stop them hearing you.
+
+Recording is desktop only. The command exists everywhere and does nothing on a device that cannot record, or on a server that has [turned recording off](/wiki/creator/recording/).
+
+---
+
+# Bedrock commands
+
+> The /bvc: commands and the in-game control panel on Bedrock.
+
+Source: https://www.bedrockvoicechat.com/wiki/player/in-game-commands/bedrock
+
+Bedrock commands are flat and namespaced with a colon. Type `/bvc:` and the game autocompletes the list.
+
+Requires a server running the [Bedrock Addon](/wiki/server/bedrock-addon/), and the BVC app running and signed in.
+
+## The panel
+
+```
+/bvc:panel
+```
+
+Opens a form with the same controls as the app: mute, deafen, record, jukebox music, and per-player volume.
+
+<div class="shot"><span>The /bvc:panel control panel open in-game</span></div>
+
+## Your own audio
+
+| Command | Does |
+|---|---|
+| `/bvc:mute <on\|off>` | Mute or unmute your microphone. |
+| `/bvc:deafen <on\|off>` | Deafen or undeafen. Mutes everyone. |
+| `/bvc:record <on\|off>` | Start or stop recording. Desktop only. |
+
+## Other players
+
+| Command | Does |
+|---|---|
+| `/bvc:volume <player> <0-150>` | Set your local volume for one player. |
+| `/bvc:hear <player> <on\|off>` | Choose whether you hear them at all. |
+
+Both are local to you.
+
+100 leaves a player untouched. Above that boosts a quiet one, to 150 at most. The app's per-player slider covers the same range.
+
+## Jukebox music
+
+| Command | Does |
+|---|---|
+| `/bvc:jukeboxmute <on\|off>` | Mute or unmute jukebox music. |
+| `/bvc:jukeboxvolume <0-150>` | Set how loud jukebox music plays. |
+
+One setting for every jukebox at once, and only for you. Voices are unaffected.
+
+The panel has the same two controls on its **Jukebox music** row. See [using the jukebox](/wiki/player/using-the-jukebox/).
+
+## Groups
+
+| Command | Does |
+|---|---|
+| `/bvc:groupcreate` | Create a group and print its share code. |
+| `/bvc:groupjoin <code>` | Join a group with its code. |
+| `/bvc:groupleave` | Leave the group you are in. |
+
+Read the share code out, or paste it in chat. See [Groups](/wiki/player/groups/).
+
+## Audio discs
+
+```
+/bvc:disc <audio_id>
+```
+
+Gives you a disc bound to a clip from the [audio library](/wiki/player/audio-library/). See [using the jukebox](/wiki/player/using-the-jukebox/).
+
+---
+
+# Java commands
+
+> The /bvc commands on Fabric and PaperMC servers.
+
+Source: https://www.bedrockvoicechat.com/wiki/player/in-game-commands/java
+
+Java commands nest under a single `/bvc` root. Type `/bvc ` and tab-complete the rest.
+
+Requires a server running the [Java mod](/wiki/server/java-mod/) on Fabric or PaperMC, and the BVC app running and signed in. The commands are identical on both loaders.
+
+## Your own audio
+
+| Command | Does |
+|---|---|
+| `/bvc mute <on\|off>` | Mute or unmute your microphone. |
+| `/bvc deafen <on\|off>` | Deafen or undeafen. Mutes everyone. |
+| `/bvc record <on\|off>` | Start or stop recording. Desktop only. |
+
+## Other players
+
+| Command | Does |
+|---|---|
+| `/bvc volume <player> <0-150>` | Set your local volume for one player. |
+| `/bvc hear <player> <on\|off>` | Choose whether you hear them at all. |
+
+Both are local to you. Turning someone down does not change what anyone else hears, and does not stop them hearing you.
+
+100 leaves a player untouched. Above that boosts a quiet one, to 150 at most. The app's per-player slider covers the same range.
+
+## Jukebox music
+
+| Command | Does |
+|---|---|
+| `/bvc jukebox mute <on\|off>` | Mute or unmute jukebox music. |
+| `/bvc jukebox volume <0-150>` | Set how loud jukebox music plays. |
+
+One setting for every jukebox at once, and only for you. Voices are unaffected.
+
+These are the same two controls as **Settings → Audio** in the app. See [using the jukebox](/wiki/player/using-the-jukebox/).
+
+## Groups
+
+| Command | Does |
+|---|---|
+| `/bvc group create` | Create a group and print its share code. |
+| `/bvc group join <code>` | Join a group with its code. |
+| `/bvc group leave` | Leave the group you are in. |
+
+See [Groups](/wiki/player/groups/).
+
+## Audio discs
+
+```
+/bvc disc <audio_id>
+```
+
+Gives you a disc bound to a clip from the [audio library](/wiki/player/audio-library/). See [using the jukebox](/wiki/player/using-the-jukebox/).
+
+A player has to run it. From the console, use the give form:
+
+```
+/bvc give <player> <audio_id>
+```
+
+---
+
+# Parents and age settings
+
+> Age Signals on Android and Declared Age Ranges on iOS — what they do and how to change them.
+
+Source: https://www.bedrockvoicechat.com/wiki/player/parents-and-age
+
+BVC implements Age Signals on Android and Declared Age Ranges on iOS. Parents decide whether their child uses voice chat on the servers they play on.
+
+## What BVC is
+
+A proximity voice chat app for Minecraft Bedrock and Java. Players talk to each other across platforms.
+
+:::caution[Who runs the server your child connects to]
+Bedrock Voice Chat is software, not a service. Each server is set up and run by the
+Minecraft community that owns it: a friend, a school group, a Discord community, whoever
+runs the Minecraft server your child plays on.
+
+Their operator controls the whitelist, the minimum age, and who else is on it. We do not
+run those servers, cannot see who is on them, and cannot moderate them. Contact the
+operator if something goes wrong on a server.
+:::
+
+## What information is collected
+
+**Your child's gamertag and profile picture URL are sent to the server they connect to.**
+Other players see who is speaking, and the app shows names and avatars in the player list.
+
+That information goes to **the server operator's server**, not to us. Their own practices
+govern what they do with it.
+
+Diagnostic logs, error logs, and some event tracking go to analytics providers, used only
+to improve the app. None of it identifies you or your child. The operator can
+[turn it off](/wiki/server/privacy-and-telemetry/).
+
+Your child's age is never stored or transmitted. BVC asks Apple or Google whether the
+signed-in user clears the server's minimum, and receives yes or no.
+
+Full policy: [PRIVACY_STATEMENT.md](https://github.com/Alaydriem/bedrock-voice-chat/blob/master/PRIVACY_STATEMENT.md).
+
+## Who your child can talk to
+
+Whoever is on the server. Operators set the minimum age for their own community and BVC
+honours it. Who is actually on a server is that community's business, often a group of
+friends from school, sometimes a wider online community.
+
+The operator is a community member, not a company, and standards vary. Some servers
+are moderated carefully and some are not. Find out who your child plays with, and agree
+together on what is fine to share online.
+
+## Block someone
+
+Mute individual players in the app. A muted player cannot be heard, even in proximity range.
+
+Contact the server operator about someone behaving badly. It usually breaches the community's own rules, and their moderators can act.
+
+## When the age warning appears
+
+Both of these have to be true:
+
+1. The server operator has set a minimum age.
+2. Your device and Google or Apple account are in a region where Age Signals or Declared Age Ranges are required.
+
+If either is false, no warning appears.
+
+## Controls outside those regions
+
+BVC is whitelist-based. Your child cannot join voice chat on a server unless that server's operator has added them.
+
+To prevent use entirely, use device-level parental controls and app installation restrictions.
+
+### Restricting to specific servers
+
+Not currently possible. Open a GitHub issue or raise it on Discord.
+
+## Change the setting
+
+BVC has no override. It asks your platform whether the signed-in user is above the server's minimum age. The answer comes from Google or Apple, and changes in their parental controls.
+
+Restart BVC after changing it. The app re-checks on start.
+
+### Android
+
+Age Signals come from the Google account on the device and any supervision through Family Link.
+
+1. Open the child's profile in **Family Link**.
+2. Check the birth date. A wrong birth date is the usual cause of an unexpected block.
+3. Grant the consent Google prompts for when a supervised account uses an app with communication features.
+
+If the account is unsupervised and the birth date is correct, the block is the server's minimum age. Ask the operator what they set.
+
+Google's docs: [Family Link Help](https://support.google.com/families).
+
+### iOS
+
+Declared Age Ranges come from the Apple Account's date of birth and Family Sharing.
+
+1. Open the child's account under **Settings → Family**.
+2. Check the date of birth.
+3. Open **Screen Time → Content & Privacy Restrictions** and allow access to the declared age range when prompted.
+
+If the account is not in a Family Sharing group and the date of birth is right, the block is the server's setting.
+
+Apple's docs: [Family Sharing](https://support.apple.com/en-us/HT201060).
+
+## For operators
+
+Set it in `config.hcl`:
+
+```hcl
+server {
+    age {
+        minimum = 13
+    }
+}
+```
+
+`0` disables the check. Anything else is clamped to 13–18. Unset defaults to 13. See [privacy and telemetry](/wiki/server/privacy-and-telemetry/).
+
+---
+
+# Settings
+
+> Audio devices, noise gate, keybinds, and the rest of the settings panes.
+
+Source: https://www.bedrockvoicechat.com/wiki/player/settings
+
+Bedrock Voice Chat has a variety of different settings that enable you to customize and tailor your experience.
+
+## Audio
+
+<div class="shot"><span>Audio settings page showing input and output device selection</span></div>
+
+### Devices
+
+BVC defaults to using your platforms default communication device and speaker, with dropdowns so that you can use a specific input and output device.
+
+Windows supports both the standard Windows audio drivers and ASIO devices.
+
+### Test your devices
+
+- **Test my microphone.** Speak for a few seconds. The mark fills as BVC hears you. If it stays flat, select a different input device.
+- **Test playback.** Plays a chime through the output device BVC uses.
+
+### Voice mode
+
+BVC has two voice modes: **Open mic** transmits whenever the noise gate opens. **Push to talk** transmits only while your key is held. Bind the key under Keybinds.
+
+### Mute cues
+
+BVC plays a short tone when you mute or deafen, and another when you turn either off. On by default.
+
+### Spatial panning
+
+How hard voices are pushed left and right by where the speaker stands. At 0% everyone is centred. Distance still governs volume.
+
+### Jukeboxes
+
+One volume and one mute for every jukebox in the world. Voices are unaffected. See [using the jukebox](/wiki/player/using-the-jukebox/).
+
+### Noise gate
+
+BVC has a built-in noise gate that behaves like OBS's. The defaults handle fans, keyboards, and mouse clicks.
+
+Skip it if you already run a VST chain or system-level noise suppression. Two gates fighting each other sound worse than either alone.
+
+| Control | What it does |
+|---|---|
+| Open Threshold | Level your voice has to exceed for the gate to open. |
+| Close Threshold | Level it has to fall below for the gate to close. Set below the open threshold. |
+| Attack Rate | How fast the gate opens once you cross the threshold. |
+| Hold Time | How long it stays open after you drop below. Stops it chopping between words. |
+| Release Rate | How fast it closes after the hold expires. |
+
+## Keybinds
+
+Global shortcuts that work while Minecraft has focus.
+
+| Action | Notes |
+|---|---|
+| Toggle Mute | |
+| Toggle Deafen | |
+| Toggle Recording | Desktop only. |
+| Push to Talk | Transmits only while held. |
+
+## Players
+
+Everyone you have heard, with a volume and a mute for each. Changes stick after they walk away, and only you hear the difference.
+
+Search when the list gets long. **Reset everybody** returns every player to full volume and unmutes them all.
+
+## Recordings
+
+Review past sessions, rename them, and export players to separate files as BWAV or MP4/Opus. See [Recording](/wiki/creator/recording/).
+
+<div class="shot"><span>Recordings settings page listing recent sessions</span></div>
+
+## Language
+
+Under About. Pick a language, or **Match my system**. Untranslated text stays in English.
+
+## The rest
+
+| Pane | What it does |
+|---|---|
+| Account | Your signed-in identity and connected servers. |
+| Audio library | Upload and manage audio clips. Needs the `audio_upload` permission. See [audio library](/wiki/player/audio-library/). |
+| WebSocket server | Local control API, used by the [Stream Deck plugin](/wiki/creator/stream-deck/). |
+| About | Version, build information, language, and diagnostics. |
+
+Under **Minecraft Bedrock**:
+
+| Pane | What it does |
+|---|---|
+| Voice Chat Connect | Connect to a Realm, or through Aternos and other no-net hosts. See [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/). |
+
+Realms and no-net hosts share one pane. Pick the world from the list.
+
+Recordings and Keybinds are desktop only.
+
+---
+
+# Signing in
+
+> Connect the BVC app to a server with your Xbox account.
+
+Source: https://www.bedrockvoicechat.com/wiki/player/signing-in
+
+Because Bedrock Voice Chat can perform actions on your behalf and represent you on your server, you must first sign-in to Bedrock Voice Chat using your Microsoft/Xbox Live credentials.
+
+:::tip
+Bedrock Voice Chat only stores your gamertag and profile picture on servers that you connect to. No other data is collected, and no data is centrally collected.
+:::
+
+## Join the Minecraft server first
+
+Make sure before you sign into Bedrock Voice Chat, you login to your Minecraft instance _first_. Bedrock Voice Chat works on your servers allow-list, and builds its permissions list from your Minecraft server.
+
+:::caution
+If you are a Realms or Aternos player using the no-net addon, you server operator **MUST** manually whitelist you on Bedrock Voice Chat Server **FIRST** before you can login.
+:::
+
+## Your login URL
+
+The login URL is the address of the **BVC server**. Not your Minecraft server, not your Aternos address, not your Realm, not the IP you type into Minecraft.
+
+It includes `https://` and the full hostname:
+
+```
+https://example.bedrockvc.stream
+```
+
+Your operator gives you this address.
+
+<div class="shot"><span>BVC login window with the server URL field filled in</span></div>
+
+## Sign in
+
+1. Enter the URL.
+2. Sign in on the Microsoft page that opens. Use the account tied to the gamertag you play as on that server.
+3. Wait while BVC validates the session and connects.
+
+You land on the dashboard. Headphones on, go play.
+
+<div class="shot"><span>BVC dashboard immediately after a successful sign-in</span></div>
+
+---
+
+# Troubleshooting
+
+> What to check when BVC is not working.
+
+Source: https://www.bedrockvoicechat.com/wiki/player/troubleshooting
+
+## I cannot sign in
+
+**`AUTH02`, or "not whitelisted".** Your operator has to add you. BVC is deny-by-default.
+
+**The URL is refused.** You are probably using the Minecraft server address. The login URL is the **BVC server**. See [signing in](/wiki/player/signing-in/).
+
+**It hangs.** The BVC server may be down. Ask your operator to run `curl https://<their-server>/api/config`.
+
+## I signed in but hear nobody
+
+Work down this list in order.
+
+1. **Is anyone else using it?** Everyone needs the app running and signed in.
+2. **Are you in range?** Default is 24 blocks for full volume, fading to nothing at 48. Stand next to someone.
+3. **Are you deafened?** Check the deafen button at the bottom left, and the per-player mutes on the tiles.
+4. **Is your output device right?** Open Settings → Audio and select **Test playback**. If you hear no chime, pick a different output.
+5. **Did you connect the way your server needs?** On Realms and Aternos you must go through Bedrock Voice Chat Connect. Connecting to the server address directly skips BVC.
+
+## Nobody can hear me
+
+**Muted?** Bottom left.
+
+**Push-to-talk bound and not held?** With a PTT key set, that is the only time you transmit. Open Settings → Keybinds.
+
+**Right input device?** Open Settings → Audio and select **Test my microphone**. Speak for a few seconds. If the mark stays flat, pick a different input.
+
+**Noise gate too aggressive?** If you are quiet or far from the mic, the gate may never open. Lower the open threshold, or turn the gate off to test. See [Settings](/wiki/player/settings/).
+
+## Audio cuts in and out
+
+Usually the noise gate closing between words. Raise the hold time.
+
+If it is not the gate, it is the network. QUIC needs UDP, and some networks throttle or block it. Your operator can publish a second QUIC port.
+
+## The record button does nothing
+
+**Are you on a phone?** Recording is desktop only.
+
+**Has your server turned it off?** Operators can forbid recording. The app then refuses to arm from the button, `/bvc:record`, and the Stream Deck. Ask your operator. See [recording](/wiki/creator/recording/).
+
+## I cannot export an old recording
+
+Export needs the recording format version to match your app, and a BVC update can change it. Older sessions stay on disk and stay listed. Export is refused.
+
+Export what you want to keep before you update. See [recording](/wiki/creator/recording/#format-version).
+
+## It worked yesterday
+
+**Did Minecraft update?** On Realms or Aternos an update breaks voice until a matching BVC build ships. See [version support](/wiki/platforms/version-support/).
+
+**Did you update BVC?** `VER01` means your app is behind the server. `VER02` means the server is behind your app. The versions are in Settings → About.
+
+## Error codes
+
+Quote the code when you ask for help.
+
+| Code | Means | Fix |
+|---|---|---|
+| `AUTH02` | The server has not granted you access | Join the Minecraft server in game once, or ask the operator to add you |
+| `AUTH01` | The server could not verify your identity | Sign in again |
+| `AUTH03` | This device could not save your sign-in to its secure storage | Try again. If it keeps happening, restart the device |
+| `AUTH04` | This device has no unlocked keyring to save your sign-in in | See [secure storage](#secure-storage) |
+| `CONN01` | No answer from the server | Ask your operator |
+| `QUIC01` | HTTP got through, voice did not | Something blocks UDP on the voice port. Check your network, then ask your operator |
+| `DNS01` | The address did not resolve | Check for a typo |
+| `CERT01` | The server's certificate does not match the one this device was issued | Sign in again. Your saved sign-in for that server was removed. If it recurs, ask your operator to fix their certificate |
+| `CERT02` | The voice connection presented a certificate this device cannot verify | Ask your operator. Only they can fix it, and your sign-in is kept |
+| `VER01` | Your app is older than the server | Update the app |
+| `VER02` | The server is older than your app | Ask your operator to update |
+| `AUDI01` `AUDI02` `AUDI03` | An input or output device is missing or unusable | Open Settings → Audio |
+| `PERM1` | Microphone permission is not granted | Grant microphone access in your system settings, then return to the dashboard |
+| `PERM2` | Notification permission is not granted | Grant notifications in your system settings, then return to the dashboard. Mobile needs it for background audio |
+| `SERV01` | The background audio service could not start | Mobile only. Check that your system is not restricting the app in the background |
+| `AGE01` | An adult needs to finish setting up this account | See [parents and age settings](/wiki/player/parents-and-age/) |
+
+`AUTH02` is not a fault. The server has not registered you yet.
+
+## Secure storage
+
+Bedrock Voice Chat keeps your per-server sign-in in your operating system's credential store. `AUTH03` and `AUTH04` both mean the sign-in worked and the storing did not, so the app cannot complete it.
+
+`AUTH03` is a rejected write, and is usually temporary. Try again, then restart the device.
+
+`AUTH04` means there is no unlocked keyring to write to. This is a Linux setup step.
+
+1. Open **Passwords and Keys** (`seahorse`).
+2. Create a password keyring named **Login**.
+3. Set it as the default.
+
+If your desktop signs you in automatically, no keyring is unlocked at login. Turn automatic sign-in off and sign in with your password once; that creates and unlocks the keyring.
+
+## Still stuck
+
+Before asking, collect the server address you are using, your platform, the error code, whether anyone else on the server has it working, and what you already ruled out.
+
+[Discord](https://discord.gg/CdtchD5zxr) or a [GitHub issue](https://github.com/Alaydriem/bedrock-voice-chat/issues).
+
+---
+
+# Using the jukebox
+
+> Play audio clips in-world through the BVC audio player block.
+
+Source: https://www.bedrockvoicechat.com/wiki/player/using-the-jukebox
+
+The Jukebox feature of Bedrock Voice Chat enables you to play custom audio files in your world and experience it with proximity. Use it to create custom scripted scenarios such as `Decked-Out` experiences using Redstone and hoppers.
+
+To use the jukebox, you'll need three things:
+
+1. A clip in the server's [audio library](/wiki/player/audio-library/).
+2. A BVC disc bound to that clip.
+3. A BVC audio player block to put the disc in.
+
+## Get a disc
+
+```
+/bvc:disc <audio_id>
+```
+
+`audio_id` is the clip's ID from the audio library. You get a music disc named `BVC: <audio_id>`.
+
+<div class="shot"><span>Inventory showing a BVC disc, with its <code>BVC: &lt;audio_id&gt;</code> name visible</span></div>
+
+## Craft the audio player
+
+### Bedrock
+On Bedrock edition, the BVC Audio Player must first be crafted.
+
+<div class="shot"><span>Crafting recipe for the BVC audio player block</span></div>
+
+### Java
+
+On Java edition, the native Jukebox is used.
+
+## Play a clip
+
+1. Place the block.
+2. Put the disc in.
+
+Everyone in range hears it through BVC with the same distance falloff as voice. See [using voice chat](/wiki/player/using-voice-chat/) for the ranges.
+
+Take the disc out to stop it. Playback survives a server restart. A powered player block picks its clip back up.
+
+## Volume
+
+Open **Settings → Audio** to set one volume for every jukebox at once, or mute them all. Voices are unaffected.
+
+Without leaving the game, use the commands:
+
+| Bedrock | Java |
+|---|---|
+| `/bvc:jukeboxmute <on>` | `/bvc jukebox mute <on>` |
+| `/bvc:jukeboxvolume <0-150>` | `/bvc jukebox volume <0-150>` |
+
+On Bedrock, `/bvc:panel` has both on its **Jukebox music** row.
+
+:::caution
+Everyone needs the BVC app. The audio travels through BVC, not through Minecraft. A player without the app connected hears nothing.
+
+Clips come from the server's library. A disc cannot point at a URL or a local file. Adding clips needs the `audio_upload` permission. See [audio library](/wiki/player/audio-library/).
+:::
+
+`max_concurrent_per_uuid` caps how many clips one player can have going at once. Default is 5.
+
+## For operators
+
+The audio player block and the disc command come from the Addon or Java mod.
+
+Clip storage and the concurrency cap are the `audio` block. See the [configuration reference](/wiki/reference/configuration/#audio).
+
+`audio_upload` and `audio_delete` govern the library that discs draw from. Both are covered in [audio library](/wiki/player/audio-library/) and granted with [`bvc permission`](/wiki/server/players-and-permissions/).
+
+---
+
+# Using voice chat
+
+> Proximity ranges, muting, deafening, and per-player volume.
+
+Source: https://www.bedrockvoicechat.com/wiki/player/using-voice-chat
+
+Bedrock Voice Chat lets you hear people nearby you in the world, and in groups you create or join.
+
+<div class="shot"><span>BVC dashboard showing the player list with proximity and group members</span></div>
+
+## Proximity
+
+BVC places each player's voice in 3D space using your position and facing against theirs. Someone to your left sounds like they are on your left.
+
+With default settings:
+
+| Distance | What you hear |
+|---|---|
+| 0–24 blocks | Full volume |
+| 24–48 blocks | Fading, down to 40 dB quieter at the edge |
+| Beyond 48 blocks | Nothing |
+
+Stereo panning fades in between 8 and 24 blocks. Someone standing on top of you sounds centred.
+
+Operators can change all of these. See the `voice.spatial_audio` block in the [configuration reference](/wiki/reference/configuration/#voicespatial_audio).
+
+## Groups
+
+In a group you hear everyone at full volume with no spatial positioning, wherever they are. Groups are not exclusive. You still hear nearby players and they still hear you. See [Groups](/wiki/player/groups/).
+
+## Mute and deafen yourself
+
+Both controls are at the bottom left of the secondary sidebar.
+
+**Mute** stops your microphone reaching the server. **Deafen** mutes everything incoming.
+
+Both can be bound to a key, along with push-to-talk. See [Settings](/wiki/player/settings/).
+
+<div class="shot"><span>The Mute and Deafen buttons within the app.</span></div>
+
+## Adjust another player
+
+BVC enables you to adjust the volume of any player you come in range with. You can mute them entirely, or adjust their volume up or down for comfort.
+
+<div class="shot"><span>Adjusting player volume</span></div>
+
+:::tip
+When adjusting player volume, be sure to do it while they are within 24 blocks of you, as this is their baseline level.
+:::
+
+:::caution
+Muting someone affects only what **you** hear. They can still hear you.
+:::
+
+Adjustments stay after the player walks away or logs off. To find someone no longer on screen, or to undo a mute, open **Settings → Players**. It lists everyone you have heard and has a reset for all of them.
+
+---
+
+# Running a server
+
+> What you need to add BVC to your Minecraft server, and the order to do it in.
+
+Source: https://www.bedrockvoicechat.com/wiki/server
+
+Adding Bedrock Voice Chat to your server means running one extra service and installing one Addon. The order you do them in matters more than either.
+
+## What is Bedrock Voice Chat Server?
+
+The BVC server is a standalone Rust executable, run in a Docker container. It is not a Minecraft plugin and does not run inside your game server. Most commercial Minecraft hosts will not let you run it alongside one. Plan on a VPS, a dedicated box, or a cluster.
+
+On Bedrock the server side is an Addon. On Java it is a Fabric or Paper mod. Either way it reports player positions to the BVC server over HTTP.
+
+The Java mod can also run BVC embedded in the game server's JVM, which removes the separate service. That suits small always-on servers. It does not suit low-end hosts or anything that suspends when idle.
+
+## Installation Order
+
+Build from the bottom up. The Addon needs the BVC server's address, and running these out of order is the most common reason a fresh install appears to do nothing.
+
+1. **[Install the BVC server](/wiki/server/installation/)** — needs a reachable host and a certificate. BVC can obtain and renew the certificate itself; see [TLS](/wiki/server/tls/).
+2. **Install the Addon** — [Bedrock](/wiki/server/bedrock-addon/) or [Java](/wiki/server/java-mod/) — pointed at that address.
+3. **[Whitelist your players](/wiki/server/players-and-permissions/)** — BVC is deny-by-default and nobody can sign in until you add them.
+4. Send everyone to [Downloads](/wiki/start/downloads/).
+
+## References
+
+| Page | What it covers |
+|---|---|
+| [BDS Addon](/wiki/server/bedrock-addon/) | The pack for Bedrock Dedicated Servers |
+| [No-net Addon](/wiki/server/nonet-addon/) | The pack for Realms, Aternos, and hosts without `@minecraft/server-net`. |
+| [Docker](/wiki/server/docker/) | Compose, volumes, health checks, env-driven config. |
+| [Monitoring](/wiki/server/monitoring/) | Prometheus metrics, health endpoints, logs. |
+| [Troubleshooting](/wiki/server/troubleshooting/) | Diagnosing it from the operator side. |
+
+Realms, Aternos, and consoles take extra setup on top of this. Start at [Where BVC works](/wiki/platforms/).
+
+---
+
+# Bedrock Dedicated Server Addon
+
+> Install and configure the BVC Addon on a Bedrock Dedicated Server.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/bedrock-addon
+
+The Bedrock Addon relays player positions from your Bedrock Dedicated Server to the Bedrock Voice Chat server, which is what makes proximity voice chat work.
+
+:::caution
+The Addon is **mandatory**. Without it, Bedrock Voice Chat does not know where anyone is and nothing works.
+:::
+
+For Bedrock Dedicated Server. Realms, Aternos, and other hosts that cannot enable `@minecraft/server-net` use the [no-net Addon](/wiki/server/nonet-addon/).
+
+Install the [BVC server](/wiki/server/installation/) first. You need its URL and access token here.
+
+## Install
+
+1. Download the latest `.mcaddon` from [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) or [CurseForge](https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat).
+
+2. Extract it and copy the `behavior_packs` and `resource_packs` directories into your server's matching directories.
+
+   Never put the Addon in `worlds/`. A shared or exported world takes your BVC server URL and access token with it.
+
+3. Create or edit `config/default/variables.json`:
+
+   ```json
+   {
+       "bvc_access_token": "<MUST MATCH server.minecraft.access_token>",
+       "bvc_server": "https://example.bedrockvc.stream",
+       "bvc_minimum_players": 1,
+       "bvc_world_name": "My SMP"
+   }
+   ```
+
+   | Key | Description |
+   |---|---|
+   | `bvc_access_token` | Must match `server.minecraft.access_token` in `config.hcl`. |
+   | `bvc_server` | Public URL of your BVC server. No trailing slash. Include the port if it is not 443. |
+   | `bvc_minimum_players` | Players who must be online before positions are relayed. Defaults to 1. |
+   | `bvc_world_name` | Display name for this world in the app's [chat](/wiki/player/chat/) picker. Defaults to "Minecraft world". |
+
+   Set `bvc_world_name`. BDS scripting cannot read your level name. This is the only label the app has.
+
+4. Grant the modules the Addon uses in `config/default/permissions.json`:
+
+   ```json
+   {
+       "allowed_modules": [
+           "@minecraft/server",
+           "@minecraft/server-admin",
+           "@minecraft/server-net",
+           "@minecraft/server-ui"
+       ]
+   }
+   ```
+
+5. Enable **Beta APIs** for your world.
+
+6. Add the packs to your world's behavior and resource pack lists, using the UUID for the variant you installed:
+
+   | Variant | Behavior pack UUID |
+   |---|---|
+   | Full | `6fb24263-357a-407c-aebe-681f50b2de50` |
+   | No-net | `508a43ed-b95e-40cf-98eb-d78f2d72caa4` |
+
+   Take the version from the `manifest.json` inside the pack you downloaded. It changes every release.
+
+7. Start or restart BDS.
+
+## Verify
+
+Set `content-log-console-output-enabled=true` in `server.properties`. On world load you should see:
+
+```
+[BVC] Connecting to: <your server>
+```
+
+No line means the Addon is not running, or `bvc_server` is unset.
+
+Then check the server is receiving positions:
+
+```bash
+curl -H "Authorization: Bearer <your token>" https://example.bedrockvc.stream/api/position
+```
+
+An empty response means BDS is not relaying. A populated one means the whole chain works.
+
+## What the Addon adds
+
+Beyond position relay, it provides the [in-game commands](/wiki/player/in-game-commands/), the [jukebox](/wiki/player/using-the-jukebox/) block, and the [chat](/wiki/player/chat/) relay that lets players read and send in-game chat from the app.
+
+## Troubleshooting
+
+**No `[BVC] Connecting to:` line.** Beta APIs are off, the pack is not in the world's list, or `permissions.json` is missing a module.
+
+**Connecting, but nobody hears anyone.** Whitelist your players — BVC is deny-by-default. See [players and permissions](/wiki/server/players-and-permissions/).
+
+**Nothing relays when you test alone.** `bvc_minimum_players` defaults to 1. If you raised it, drop it back to 1 to test.
+
+**`/api/config` does not respond.** The problem is the BVC server, not the Addon. Back to [installation](/wiki/server/installation/).
+
+---
+
+# Enabling Beta APIs
+
+> Turning on the Beta APIs experiment for a Bedrock server world.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/beta-apis
+
+The Bedrock Voice Chat Addon uses beta script modules. The world it runs in must have the **Beta APIs** experiment enabled.
+
+:::danger
+Without Beta APIs the Addon loads and does nothing. There is no error, no console line, and no positions. This is the most common reason a working install reports nothing.
+:::
+
+This is the single most common reason a correct-looking Bedrock install produces silence.
+
+:::caution[There is no server.properties setting for this]
+Experiments are stored per-world in `level.dat`, not in server configuration. You cannot enable them by editing a config file on the server, and a fresh world created by BDS on first boot does not have them.
+:::
+
+## The reliable way: build the world in the client
+
+Enable the experiment where there is a UI for it, then move the world to the server.
+
+1. In the Minecraft Bedrock **client**, create a new world.
+2. Under **Settings → Experiments**, turn on **Beta APIs**.
+3. Add the BVC Addon to the world's behavior and resource packs while you are here.
+4. Create the world, then leave it immediately.
+5. **Settings → Export World**, and save the `.mcworld`.
+6. Put it on your server:
+   - **BDS** — rename to `.zip`, extract into `worlds/<your world name>/`, and set `level-name` in `server.properties` to match.
+   - **A host with a panel** — upload the `.mcworld` or `.zip` through their world upload.
+
+The [no-net Addon](/wiki/server/nonet-addon/) guide walks the same sequence. Realms and Aternos need it too.
+
+## Existing worlds
+
+You cannot turn the experiment on for a world that is already running by changing anything on the server. The flag lives in that world's `level.dat`.
+
+Three options, in order of how much they can go wrong:
+
+**Open it in the client.** Copy the world off the server, open it in the Bedrock client, enable Beta APIs under Experiments, exit, and copy it back. Straightforward, and it uses the supported UI.
+
+**Use your host's panel.** Aternos and some other hosts expose experiment toggles directly. If yours does, use it.
+
+**Edit `level.dat` with an NBT editor.** The experiment flags live in an `experiments` compound. The one you want corresponds to the Beta APIs toggle, and the world also has to be marked as having used experiments at all.
+
+:::caution
+The exact NBT key names have changed across Bedrock versions. Do not trust a key name from any guide. Create a throwaway world in the client with Beta APIs enabled, open both `level.dat` files side by side, and copy whatever differs.
+:::
+
+Back up the world first. A malformed `level.dat` will not load.
+
+## What enabling it costs
+
+**Achievements are permanently disabled** for that world. This is Mojang's behaviour for any experiment, not something BVC controls.
+
+**The world is permanently marked as having used experiments.** Turning the experiment back off later does not clear the marking.
+
+**Experimental features can change between Minecraft versions.** This is part of why BVC's Bedrock support tracks releases instead of leading them.
+
+## Checking it worked
+
+Set this in `server.properties`:
+
+```properties
+content-log-console-output-enabled=true
+```
+
+On world load you should see:
+
+```
+[BVC] Connecting to: <your server>
+```
+
+No line means the Addon is not running. In order of likelihood:
+
+1. Beta APIs are not actually enabled on **the world the server is loading** — check `level-name` matches the world you edited.
+2. The Addon is not in the world's pack list.
+3. `config/default/permissions.json` is missing a module — see [Bedrock Addon](/wiki/server/bedrock-addon/).
+4. `bvc_server` is unset in `variables.json`.
+
+## Java servers
+
+Not applicable. Experiments are a Bedrock concept, and the Fabric and Paper mods have no equivalent requirement. See [Java mod](/wiki/server/java-mod/).
+
+---
+
+# Docker and Kubernetes
+
+> Compose, volumes, health checks, and running BVC entirely from environment variables.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/docker
+
+Bedrock Voice Chat server ships as a container image at `ghcr.io/alaydriem/bedrock-voice-chat/server`, built for amd64 and arm64.
+
+## Compose
+
+```yaml
+services:
+  bedrock-voice-chat:
+    image: ghcr.io/alaydriem/bedrock-voice-chat/server:<VERSION>
+    restart: always
+    ports:
+      - "443:443/tcp"
+      - "443:443/udp"
+      - "28280:28280/udp"
+      - "28283:28283/udp"
+    user: "100:101"
+    cap_add:
+      - NET_BIND_SERVICE
+    volumes:
+      - ./:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "https://localhost/health/readiness"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+```
+
+## What to persist
+
+Mount `/data` and keep it. It holds:
+
+- `config.hcl`
+- The SQLite database, if you are not using MySQL or Postgres
+
+The database holds the mTLS certificate authority. Losing it invalidates every client certificate already issued and forces everyone to sign in again.
+
+`certificates/` does not have to survive a restart. The server writes the CA there at startup from the database, and repopulates an empty directory. Point `server.tls.certs_path` at a temporary directory where a persistent volume is inconvenient.
+
+:::caution
+Serving certificates are separate. A certificate and key given through `server.tls.certificate` and `server.tls.key` are read from the path you mount them at, and are not stored in the database.
+:::
+
+## Running without a config file
+
+Every setting has a `BVC_*` override, which makes the file optional. With no `config.hcl` the server starts from defaults plus the environment and logs that it did.
+
+That is usually the right approach for Kubernetes: no ConfigMap for the file, secrets as secrets, everything else as env. See [environment variables](/wiki/reference/environment-variables/).
+
+An unset or empty variable never overrides anything. `FOO=` in a compose file will not blank out a configured value. A malformed one is a hard startup error.
+
+## Health checks
+
+| Endpoint | Use |
+|---|---|
+| `/health/liveness` | Process is up. Restart on failure. |
+| `/health/readiness` | Ready for traffic. Gate the load balancer on it. |
+| `/api/ping` | Cheap reachability probe. |
+
+Kubernetes:
+
+```yaml
+livenessProbe:
+  httpGet: { path: /health/liveness, port: 443, scheme: HTTPS }
+  initialDelaySeconds: 30
+readinessProbe:
+  httpGet: { path: /health/readiness, port: 443, scheme: HTTPS }
+  periodSeconds: 10
+```
+
+## Graceful shutdown
+
+The server handles SIGTERM. `docker stop` and pod eviction close connections cleanly.
+
+## Scaling
+
+BVC is CPU-bound and stateful per connection. Scale a single instance up with more cores before reaching for more replicas.
+
+Do not put several instances behind an ordinary load balancer. QUIC connections are long-lived and must stay pinned to the instance that established them. Round-robin breaks voice. Sharing one address across instances needs routing by connection ID, which our managed hosting handles.
+
+---
+
+# Assigned hostnames
+
+> Getting a hostname and a certificate for a server that has no domain.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/enrollment
+
+:::caution[Work in progress — limited availability]
+Assigned hostnames are under active development and are **not in a release yet**. The configuration shape may still change.
+
+Availability is limited to **select Patreon supporters and YouTube members**. Holding a membership does not by itself qualify — eligibility is granted per tier, and the qualifying tiers may change while this is in development.
+:::
+
+A Bedrock Voice Chat server needs a hostname and a valid certificate. Buying a domain, pointing DNS at your host and configuring an ACME provider is the ordinary way to get both, and it is the step most people give up on.
+
+Enrollment is the other way. Bedrock Voice Chat gives you a name under `bedrockvc.stream` and keeps a certificate for it renewed. You never own a domain, never touch DNS, and never configure ACME.
+
+You get one name, it is chosen for you, and it stays with your server for as long as your membership does.
+
+## What you need
+
+A qualifying Patreon or YouTube membership, held on the Discord account you sign in with. Each syncs into a Discord role, and the role is what the check reads — a membership that has not synced yet does not qualify.
+
+## Enrol
+
+1. Sign in with Discord, from the enrollment link shared with eligible members. You are handed an enrollment token.
+
+2. Put it in `config.hcl`:
+
+   ```hcl
+   server {
+       enrollment {
+           token = "bvcenroll..."
+       }
+   }
+   ```
+
+3. Start the server. It logs the name you were given:
+
+   ```
+   this server is reachable at its assigned name  url=https://cobblestone-thicket-savanna.bedrockvc.stream
+   ```
+
+That is the whole configuration. Do not write a `tls` block — the server appends the assigned name to its own SANs and configures its own certificate. Writing one is an error, not an override; see [conflicts](#conflicts).
+
+The token is spent on first boot. Afterwards the server proves who it is with a key it generated itself, so the token can stay in the file or be deleted, whichever you prefer.
+
+:::caution[The name follows the key, not the config file]
+Your server generates a key on first start and that key is what owns the name. Losing it means enrolling again and being given a **different** name. Back up the server's data directory, and keep it on a volume that survives a container being replaced.
+:::
+
+## Publishing an address
+
+You have to declare the address. Without it the assigned name has no DNS record, and a name that resolves to nothing is a name nobody can connect to — your certificate is valid and every client still fails in DNS.
+
+The server warns at startup when it has a name and no address.
+
+```hcl
+server {
+    enrollment {
+        token   = "bvcenroll..."
+        address = "203.0.113.10"
+    }
+}
+```
+
+Declared rather than detected. Behind NAT, behind CGNAT, or on a LAN, no address observed from the outside would be the right one, and a guess is correct for a port-forwarded deployment and silently wrong for every other.
+
+A private address (`192.168.x.x`, `10.x.x.x`) is published and resolves only on the network that declared it. A public address is re-checked daily against the server that answers there.
+
+## Conflicts
+
+An assigned name and a certificate you configure yourself are mutually exclusive. The server refuses to start with both, naming which pair collided:
+
+```
+server.enrollment.token and tls.acme are mutually exclusive; remove one
+```
+
+Pick one of the three:
+
+| | When |
+|---|---|
+| `server.enrollment` | You have no domain. |
+| `tls.acme` | You have a domain and a supported DNS provider. See [TLS certificates](/wiki/server/tls/). |
+| `tls.certificate` / `tls.key` | You already hold a certificate. |
+
+## When it fails
+
+| Symptom | Cause |
+|---|---|
+| `not entitled` | The Discord account you signed in with holds no qualifying role. Check that your Patreon or YouTube membership has synced. |
+| `already registered` | That Discord account already has a name. One is issued per member. |
+| `unknown token` or `already redeemed` | The token was used, mistyped, or older than a day. Sign in again for another. |
+| A different name after a rebuild | The server's key was lost. Restore the data directory, or accept the new name. |
+| The name does not resolve | No `address` was declared, so no A record was published. Set it and restart. |
+
+---
+
+# Installing Bedrock Voice Chat Server
+
+> Stand up the standalone BVC server with Docker, a config file, and automatic TLS.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/installation
+
+Bedrock Voice Chat Server is the heart of Bedrock Voice Chat, and is the core component that allows Bedrock and Java players to chat with each other on every platform. Before you install the addon and connct to Bedrock Voice Chat, you'll need to first setup the server.
+
+## Requirements
+
+Before you can run Bedrock Voice Chat Server, there's a few dependencies you'll need to acquire.
+
+1. A linux server, windows computer, or app platform that allows you to run Docker containers
+:::tip[These providers work well, and the links support development]
+A single core, 512M server can support ~ 5 concurrent players. If you experience hiccups, consider adding more cores, or changing to a dedicated affinity rather than shared.
+- [DigitalOcean](https://m.do.co/c/15e066af535c) — $200 credit after $25 spend.
+- [Hetzner](https://hetzner.cloud/?ref=StImwLqshuwn) — $25 signup credit.
+:::
+
+2. A domain name
+:::tip[Recommended Providers]
+A few recommended providers are listed here.
+- [Namecheap](https://https://www.namecheap.com/)
+- [Cloudflare](https://www.cloudflare.com/products/registrar/)
+- [TailScale ts.net](https://tailscale.com/)
+:::
+
+:::caution[A domain name is REQUIRED for Bedrock Voice Chat to work]
+Bedrock Voice Chat does not work with direct IP access. A fully qualified domain name is required.
+:::
+
+3. A TLS Certificate
+
+You can either use any valid ACME-DNS provider (Lets Encrypt), or Cloudflare DNS
+
+:::tip[Cloudflare DNS has first class support]
+Bedrock Voice Chat can automatically provision a TLS certificate for you if you use an ACME-DNS provider, or Cloudflare. Cloudflare is recommended because it is free, and easy to use and setup if you purchased your domain through Cloudflare or transfered your domain to Cloudflare.
+:::
+
+## Firewall Configuration
+
+Your Bedrock Voice Chat server needs the following firewall ports opened to work
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 443 | tcp | Enables API, Websockets, and fallback voice traffic |
+| 443 | udp | Primary voice traffic ingress |
+| 28280 | udp | Fallback voice traffic ingress, if 443/udp is blocked |
+| 28284 | udp | Iroh endpoint for SVC Peering. Only open if needed |
+
+## Running Bedrock Voice Chat with Docker
+
+Once you have your server setup and domain provisioned, setup with BVC can be done in seconds with Docker.
+
+:::note
+You can also install and BVC using the natively provided server binaries over on Github, however Docker remains the preferred and recommended way to run BVC Server.
+:::
+
+1. Create your configuration file. A minimum example configuration is as shown
+
+```hcl
+server {
+    tls {
+        names = ["replace.with.your.domain.name.tld"]
+
+        acme {
+            email    = "you@example.com"
+            provider = "cloudflare"
+            api_token = "${env.CF_API_TOKEN}"
+        }
+    }
+}
+```
+
+:::tip[Bedrock Voice Chat is highly configurable!]
+Review the full [configuration reference](/wiki/reference/configuration/) to see all the ways you can tune and tailor your
+:::
+
+2. Start your server with Docker
+
+```bash
+docker run -d --restart=always \
+  -p 443:443/tcp -p 443:443/udp -p 28280:28280/udp -p 28283:28283/udp \
+  -e CF_API_TOKEN="your_cloudflare_api_token"
+  -v ${PWD}:/data \
+  ghcr.io/alaydriem/bedrock-voice-chat/server:1.0.0-beta.21
+```
+
+3. Get your access token:
+
+```bash
+docker exec -it bvc bvc-server admin token mint --local -c /data/config.hcl
+```
+
+:::caution[Save this Token!]
+You'll need it for configuring either your BDS or Java mod
+:::
+
+4. Bootstrap your first user
+
+```bash
+docker exec -it bvc bvc-server admin bootstrap -p <YourPlayerName>
+```
+
+And you're done! Login to Bedrock Voice Chat to get started!
+
+## Then
+
+1. Install the Addon: [Bedrock](/wiki/server/bedrock-addon/) or [Java](/wiki/server/java-mod/).
+2. Bedrock Voice Chat requires that you either [whitelist your players](/wiki/server/players-and-permissions/) or have them log into your Bedrock Dedicated Server at least once before using the app.
+3. Point players at [Downloads](/wiki/start/downloads/).
+
+Realms, Aternos, and consoles need extra setup. See [Where BVC works](/wiki/platforms/).
+
+## Running BVC in the Java mods
+
+If you're running a Geyser server with PaperMC or Fabric, Bedrock Voice Chat can also be installed there directly. See the [Java installation guide](wiki/server/java-mod/) for more details.
+
+---
+
+# Java mod
+
+> BVC on Fabric and PaperMC, in external or embedded mode.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/java-mod
+
+Bedrock Voice Chat runs on Minecraft Java servers through a mod published on [Modrinth](https://modrinth.com/mod/bedrock-voice-chat) for both Fabric and PaperMC. Geyser servers are supported. See [Geyser and Floodgate](/wiki/server/java-mod/integrations/geyser-and-floodgate/).
+
+## Pick your loader
+
+- **[Fabric](/wiki/server/java-mod/fabric/)** — `mods/` directory, JSON config.
+- **[PaperMC](/wiki/server/java-mod/papermc/)** — `plugins/` directory, YAML config.
+
+The settings are identical. Only the file format and location differ.
+
+## Integrations
+
+The mod detects other plugins and mods at startup. See [Integrations](/wiki/server/java-mod/integrations/) for [Geyser and Floodgate](/wiki/server/java-mod/integrations/geyser-and-floodgate/) and [Simple Voice Chat](/wiki/server/java-mod/integrations/simple-voice-chat/).
+
+## Pick your mode
+
+**External** points at a standalone BVC server. Use it for production, for more than about 15 players, or when one BVC server serves several game servers.
+
+**Embedded** runs BVC inside the game server's JVM. No separate service. Suits small servers and local development.
+
+Embedded needs an always-on host with adequate RAM. Low-end hosts, and anything that suspends when idle, produce audio quality and performance problems that are hard to attribute. Move BVC to its own machine if you hit them.
+
+## Shared settings
+
+| Key | Default | Description |
+|---|---|---|
+| `bvc-server` | — | URL of the BVC server. Required in external mode. |
+| `access-token` | — | Must match `server.minecraft.access_token` on the BVC server. Required in external mode. |
+| `minimum-players` | `1` | Players online before positions are relayed. |
+| `use-embedded-server` | `false` | Run BVC inside this JVM. |
+| `embedded-config` | — | Required when `use-embedded-server` is true. |
+
+Keys accept both `hyphen-case` and `camelCase`.
+
+## Embedded configuration
+
+:::caution[This changed]
+`embedded-config` used to take a short list of flat keys of its own. Those keys are gone.
+The mod refuses to start in embedded mode if it finds them. See [Migration](#migration).
+:::
+
+`embedded-config` takes the **same keys as the BVC server's own `config.hcl`**, in the same nesting, under the same names. Anything you leave out takes the server's default.
+
+The Kotlin classes are generated from the server's Rust configuration types. A key the server accepts is a key the mod accepts. Use the [configuration reference](/wiki/reference/configuration/) as the key list for this block.
+
+Four sections are unavailable: `server.meridian`, `server.cors`, `server.features.openapi_docs`, and `server.bedrock.servers`.
+
+Peering works in embedded mode. Declare peers under [`server.peers`](/wiki/reference/configuration/#serverpeers) like any other key.
+
+### Defaults to set explicitly
+
+Three defaults come from the standalone server and are wrong for most Java hosts.
+
+| Key | Default | Set it to |
+|---|---|---|
+| `server.port` | `443` | `8444`. Binding 443 needs root on Linux, and a failed HTTP bind stops startup. |
+| `server.quic_port` | `443` | `8443`. |
+| `voice.spatial_audio.broadcast_range` | `48.0` | Whatever range you want, in blocks. |
+
+Set `server.bedrock.enabled: false` to turn the relay off instead.
+
+`server.bedrock.transfer_port` defaults to `28283` and does not collide with Geyser. Leave it alone.
+
+### TLS
+
+Set `server.tls.certificate` and `server.tls.key`, **or** a `server.tls.acme` block. The mod refuses to start with neither. The server refuses both at once.
+
+Embedded mode supports ACME DNS-01:
+
+```yaml
+embedded-config:
+  server:
+    tls:
+      names:
+        - "bvc.example.com"
+      acme:
+        email: "ops@example.com"
+        provider: "cloudflare"
+        api_token: "..."
+```
+
+Providers: `cloudflare` and `acme-dns`. See [TLS](/wiki/server/tls/).
+
+### Environment overrides
+
+`BVC_*` variables apply to an embedded server and outrank the config file. Precedence is **environment > config file > default**. A malformed value stops startup and names the variable.
+
+See [environment variables](/wiki/reference/environment-variables/). `BVC_SERVER`, `BVC_BEDROCK_SERVERS`, and the `BVC_MERIDIAN_*` set do not apply here.
+
+## Migration
+
+The flat keys no longer work. The mod refuses to start in embedded mode and logs each one it found alongside its replacement path.
+
+| Old key | New path |
+|---|---|
+| `http-port` | `server.port` |
+| `quic-port` | `server.quic_port` |
+| `broadcast-range` | `voice.spatial_audio.broadcast_range` |
+| `tls-certificate` | `server.tls.certificate` |
+| `tls-key` | `server.tls.key` |
+| `tls-names` | `server.tls.names` |
+| `tls-ips` | `server.tls.ips` |
+| `log-level` | `log.level` |
+| `assets-path` | `server.assets_path` |
+| `allow-audio-upload` | `permissions.defaults.audio_upload` |
+| `allow-audio-delete` | `permissions.defaults.audio_delete` |
+
+Expect one behaviour change. **`broadcast-range` never worked.** The mod sent it at a path no server field matched. It was discarded, and every embedded server ran at 48 whatever you set. Under `voice.spatial_audio.broadcast_range` it now applies, and a config that set 32 will sound different.
+
+Per-format before and after examples are on the [Fabric](/wiki/server/java-mod/fabric/) and [PaperMC](/wiki/server/java-mod/papermc/) pages.
+
+## Chat sync
+
+Set `enforce-secure-profile=false` in `server.properties`. Chat sync does not work with it enabled.
+
+Everything else is automatic in both modes. See [chat](/wiki/player/chat/).
+
+## Certificates in embedded mode
+
+Two systems. One is yours.
+
+| | Purpose | Managed by |
+|---|---|---|
+| HTTPS TLS | Clients trusting the server | You. `server.tls.certificate` and `server.tls.key` from a public CA, or `server.tls.acme` |
+| QUIC mTLS CA | Server authenticating clients | The mod, automatically |
+
+The mTLS CA is generated into the mod's data directory: `config/bedrock-voice-chat/` on Fabric, `plugins/BedrockVoiceChat/` on Paper. Leave it alone and back it up. Deleting it invalidates every client certificate already issued.
+
+## Support
+
+Issues with the mod go to [GitHub](https://github.com/Alaydriem/bedrock-voice-chat/issues).
+
+---
+
+# Fabric
+
+> Install and configure the BVC mod on a Fabric server.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/java-mod/fabric
+
+The Bedrock Voice Chat Fabric mod runs on your Java server in external or embedded mode, configured through a JSON file.
+
+## Install
+
+1. Put [fabric-api](https://modrinth.com/mod/fabric-api) in your server's `mods` folder.
+2. Put `bedrock-voice-chat.jar` in `mods` as well.
+3. Create `config/bedrock-voice-chat.json`.
+4. Start the server.
+
+## External mode
+
+Points at a standalone [BVC server](/wiki/server/installation/). Use this unless you have a reason not to.
+
+```json
+{
+  "bvc-server": "https://example.bedrockvc.stream",
+  "access-token": "<MUST MATCH server.minecraft.access_token>",
+  "minimum-players": 1,
+  "use-embedded-server": false
+}
+```
+
+`access-token` has to match `server.minecraft.access_token` in the BVC server's `config.hcl`. A mismatch is rejected on every position update, which looks like the mod silently not working.
+
+## Embedded mode
+
+Runs BVC inside the game server's JVM.
+
+`embedded-config` takes the same keys as the BVC server's own `config.hcl`, nested the same way. Anything you leave out takes the server's default.
+
+```json
+{
+  "bvc-server": "https://example.bedrockvc.stream",
+  "access-token": "<GENERATE A SECURE TOKEN>",
+  "minimum-players": 1,
+  "use-embedded-server": true,
+  "embedded-config": {
+    "server": {
+      "port": 8444,
+      "quic_port": 8443,
+      "tls": {
+        "certificate": "/etc/letsencrypt/live/example.bedrockvc.stream/fullchain.pem",
+        "key": "/etc/letsencrypt/live/example.bedrockvc.stream/privkey.pem",
+        "names": ["example.bedrockvc.stream"],
+        "ips": ["203.0.113.1"]
+      },
+      "bedrock": {
+        "enabled": true
+      }
+    },
+    "voice": {
+      "spatial_audio": { "broadcast_range": 32.0 }
+    },
+    "log": { "level": "info" },
+    "permissions": {
+      "defaults": { "audio_upload": false, "audio_delete": false }
+    }
+  }
+}
+```
+
+Set `server.port` and `server.quic_port` explicitly. Both default to 443. Binding 443 needs root on Linux.
+
+`bvc-server` is still what players type into the app. Set it to the public address even though nothing separate runs there.
+
+On Windows, use forward slashes or doubled backslashes in paths: `C:/certs/fullchain.pem` or `C:\\certs\\fullchain.pem`.
+
+The mTLS CA lands in `config/bedrock-voice-chat/`. Back it up.
+
+## Migrating from the old flat keys
+
+If your `embedded-config` still has `http-port`, `quic-port`, `tls-certificate` and the rest, the mod will refuse to start and log each key with its replacement. Before:
+
+```json
+{
+  "use-embedded-server": true,
+  "embedded-config": {
+    "http-port": 8444,
+    "quic-port": 8443,
+    "broadcast-range": 32.0,
+    "tls-certificate": "/etc/bvc/fullchain.pem",
+    "tls-key": "/etc/bvc/privkey.pem",
+    "tls-names": ["bvc.example.com"],
+    "log-level": "info"
+  }
+}
+```
+
+After:
+
+```json
+{
+  "use-embedded-server": true,
+  "embedded-config": {
+    "server": {
+      "port": 8444,
+      "quic_port": 8443,
+      "tls": {
+        "certificate": "/etc/bvc/fullchain.pem",
+        "key": "/etc/bvc/privkey.pem",
+        "names": ["bvc.example.com"]
+      }
+    },
+    "voice": { "spatial_audio": { "broadcast_range": 32.0 } },
+    "log": { "level": "info" }
+  }
+}
+```
+
+The full mapping table is on the [Java mod overview](/wiki/server/java-mod/#migration).
+
+## Chat sync
+
+Set this in `server.properties`:
+
+```properties
+enforce-secure-profile=false
+```
+
+Chat sync does not work with it enabled. Restart the server after changing it.
+
+Everything else is automatic in both external and embedded mode. See [chat](/wiki/player/chat/).
+
+## Then
+
+[Whitelist your players](/wiki/server/players-and-permissions/). BVC is deny-by-default. Then send them to [Downloads](/wiki/start/downloads/).
+
+Full key reference is on the [Java mod overview](/wiki/server/java-mod/).
+
+---
+
+# Integrations
+
+> Other mods and plugins the BVC Java mod works with.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/java-mod/integrations
+
+The Bedrock Voice Chat Java mod detects other mods and plugins on the server at startup and adapts to them. None of them are required, and none need configuring on the BVC side beyond what each page lists.
+
+| Integration | What it gives you | Configuration |
+|---|---|---|
+| [Geyser and Floodgate](/wiki/server/java-mod/integrations/geyser-and-floodgate/) | Bedrock players on a Java server, matched to their Xbox gamertag | None |
+| [Simple Voice Chat](/wiki/server/java-mod/integrations/simple-voice-chat/) | Java players on Simple Voice Chat hear BVC players, and the reverse | One peer link each way |
+
+Detection happens once at startup. Adding one of these later means restarting the game server.
+
+---
+
+# Geyser and Floodgate
+
+> BVC on Geyser and Floodgate cross-platform servers.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/java-mod/integrations/geyser-and-floodgate
+
+Bedrock Voice Chat supports Geyser servers, letting your Bedrock and Java players hear each other in the same world. Install the [Java mod](/wiki/server/java-mod/) on Fabric or PaperMC and configure it as you would on any Java server.
+
+:::note
+Nothing here is Geyser-specific. Geyser presents Bedrock players to a Java server, and the Java mod reports positions the same way for all of them.
+:::
+
+## Floodgate
+
+When [Floodgate](https://geysermc.org/wiki/floodgate/) is on the classpath, Bedrock Voice Chat detects it at runtime. There is nothing to configure.
+
+Bedrock players authenticated through Floodgate are matched to their raw Xbox gamertag. Floodgate's prefix character is stripped automatically. They sign into the BVC app with the same gamertag they use in game.
+
+:::caution
+Without Floodgate, the mod falls back to the Java-side username and logs:
+
+```
+Floodgate API not found on classpath — prefix-strip path disabled
+```
+
+Your Bedrock players then need to know their Java username to sign in, which is **not** what they expect. Install Floodgate.
+:::
+
+## Setup
+
+1. Install the [Java mod](/wiki/server/java-mod/) — [Fabric](/wiki/server/java-mod/fabric/) or [PaperMC](/wiki/server/java-mod/papermc/).
+2. Have Floodgate installed alongside Geyser, which is the standard cross-play setup anyway.
+3. Nothing else.
+
+## Which mode
+
+Both external and embedded work. Use external on a Geyser server. Cross-play servers tend to have more players, and embedded mode competes with the game server for CPU. See [Java mod](/wiki/server/java-mod/) for the tradeoff.
+
+## Players
+
+Everyone needs the BVC app, Java and Bedrock alike. Bedrock players on console use the mobile app on their personal device. See [console and mobile](/wiki/platforms/console-and-mobile/).
+
+---
+
+# Simple Voice Chat
+
+> Bridge Simple Voice Chat and Bedrock Voice Chat on one Minecraft server.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/java-mod/integrations/simple-voice-chat
+
+Bedrock Voice Chat bridges [Simple Voice Chat](https://modrinth.com/plugin/simple-voice-chat), letting Java players on Simple Voice Chat and players on the BVC app hear each other in the same world.
+
+## Requirements
+
+| Component | Where |
+|---|---|
+| Bedrock Voice Chat Java mod | Fabric or PaperMC. See [Java mod](/wiki/server/java-mod/) |
+| Simple Voice Chat | [The server-side plugin or mod](https://modrinth.com/plugin/simple-voice-chat) |
+| A BVC server | Embedded in the game server, or external |
+
+## Setup with an embedded server
+
+Bedrock Voice Chat will automatically configure Simple Voice Chat when the embedded server is enabled. Simply:
+
+1. Install both BVC and SVC plugin / mod to your PaperMC or Fabric Server
+2. Enable BVC's embedded server [see configuration per your platform for details](/wiki/server/java-mod/)
+
+## Setup with an external server
+
+If you're using an external Bedrock Voice Chat server, you'll need to run one setup step on your BVC server
+
+1. Install both BVC and SVC plugin / mod to your PaperMC or Fabric Server
+2. Configure BVC in your Java mod to use an external server
+3. Start the game server. You'll see output that looks similar to the following
+
+   ```
+   peers "svc-bridge" {
+     peerlink = "bvcpeer..."
+   }
+   ```
+
+4. Add that block to the BVC server's `config.hcl` under the servers section, and restart the BVC server.
+
+   ```hcl
+   server {
+      tls {}
+      bedrock {}
+
+      peers "svc-bridge" {
+         peerlink = "bvcpeer..."
+      }
+   }
+   ```
+5. When BVC starts, you'll see a log message that looks as follows. This is Bedrock Voice Chat's peer link code.
+
+   ```
+   INFO bvc_server_lib::runtime: this server's peer link peerlink=bvcpeer....
+   ```
+   :::tip[Manual Peerlink]
+      You can also fetch the peer link code via the CLI
+
+      ```
+      bvc-server relay peerlink
+      ```
+   :::
+
+6. Set it in the mod config and restart the game server:
+
+   ```
+   svc-bridge-peerlink: "bvcpeer...the-link-you-saw-in-bvc-server-startup-logs"
+   ```
+
+## Settings
+
+| Key | Default | Description |
+|---|---|---|
+| `svc-bridge-peerlink` | — | The BVC server's peer link. Required in external mode. Ignored in embedded mode. |
+
+---
+
+# PaperMC
+
+> Install and configure the BVC plugin on a PaperMC server.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/java-mod/papermc
+
+The Bedrock Voice Chat PaperMC plugin runs on your Java server in external or embedded mode, configured through a YAML file.
+
+## Install
+
+1. Put the plugin JAR in your server's `plugins` directory.
+2. Start the server once. The plugin writes a commented `plugins/BedrockVoiceChat/config.yml`.
+3. Edit that file.
+4. Restart the server.
+
+## External mode
+
+Points at a standalone [BVC server](/wiki/server/installation/). Use this unless you have a reason not to.
+
+```yaml
+bvc-server: "https://example.bedrockvc.stream"
+access-token: "<MUST MATCH server.minecraft.access_token>"
+minimum-players: 1
+use-embedded-server: false
+```
+
+`access-token` has to match `server.minecraft.access_token` in the BVC server's `config.hcl`. A mismatch is rejected on every position update, which looks like the plugin silently not working.
+
+## Embedded mode
+
+Runs BVC inside the game server's JVM.
+
+`embedded-config` takes the same keys as the BVC server's own `config.hcl`, nested the same way. Anything you leave out takes the server's default.
+
+```yaml
+bvc-server: "https://example.bedrockvc.stream"
+access-token: "<GENERATE A SECURE TOKEN>"
+minimum-players: 1
+use-embedded-server: true
+
+embedded-config:
+  server:
+    port: 8444
+    quic_port: 8443
+    tls:
+      certificate: "/etc/letsencrypt/live/example.bedrockvc.stream/fullchain.pem"
+      key: "/etc/letsencrypt/live/example.bedrockvc.stream/privkey.pem"
+      names:
+        - example.bedrockvc.stream
+      ips:
+        - 203.0.113.1
+    bedrock:
+      enabled: true
+  voice:
+    spatial_audio:
+      broadcast_range: 32.0
+  log:
+    level: info
+  permissions:
+    defaults:
+      audio_upload: false
+      audio_delete: false
+```
+
+The block is `embedded-config` on both Paper and Fabric. Earlier Paper releases called it `embedded:`. That name no longer works.
+
+Set `server.port` and `server.quic_port` explicitly. Both default to 443. Binding 443 needs root on Linux.
+
+`bvc-server` is still what players type into the app. Set it to the public address even though nothing separate runs there.
+
+The mTLS CA lands in `plugins/BedrockVoiceChat/`. Back it up.
+
+## Migrating from the old flat keys
+
+If your embedded block still has `http-port`, `quic-port`, `tls-certificate` and the rest, the plugin will refuse to start and log each key with its replacement. Before:
+
+```yaml
+use-embedded-server: true
+embedded:
+  http-port: 8444
+  quic-port: 8443
+  broadcast-range: 32.0
+  tls-certificate: "/etc/bvc/fullchain.pem"
+  tls-key: "/etc/bvc/privkey.pem"
+  tls-names:
+    - bvc.example.com
+  log-level: info
+```
+
+After:
+
+```yaml
+use-embedded-server: true
+embedded-config:
+  server:
+    port: 8444
+    quic_port: 8443
+    tls:
+      certificate: "/etc/bvc/fullchain.pem"
+      key: "/etc/bvc/privkey.pem"
+      names:
+        - bvc.example.com
+  voice:
+    spatial_audio:
+      broadcast_range: 32.0
+  log:
+    level: info
+```
+
+The full mapping table is on the [Java mod overview](/wiki/server/java-mod/#migration).
+
+## Chat sync
+
+Set this in `server.properties`:
+
+```properties
+enforce-secure-profile=false
+```
+
+Chat sync does not work with it enabled. Restart the server after changing it.
+
+Everything else is automatic in both external and embedded mode. See [chat](/wiki/player/chat/).
+
+## Then
+
+[Whitelist your players](/wiki/server/players-and-permissions/). BVC is deny-by-default. Then send them to [Downloads](/wiki/start/downloads/).
+
+Full key reference is on the [Java mod overview](/wiki/server/java-mod/).
+
+---
+
+# Monitoring
+
+> Prometheus metrics, health endpoints, and logging.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/monitoring
+
+Bedrock Voice Chat server exposes health endpoints, Prometheus metrics, and structured logs so you can monitor a deployment.
+
+## Health endpoints
+
+| Endpoint | Answers |
+|---|---|
+| `/health/liveness` | Is the process up? Restart on failure. |
+| `/health/readiness` | Can it take traffic? Gate the load balancer on this. |
+| `/api/ping` | Cheap reachability probe. |
+
+None require authentication. They work as container health checks without credentials. See [Docker](/wiki/server/docker/) for probe configuration.
+
+## Metrics
+
+`/metrics` serves Prometheus format. It is always on, independent of the `telemetry` feature flag. That flag controls what BVC sends to us, not what you can scrape.
+
+```yaml
+scrape_configs:
+  - job_name: bvc
+    scheme: https
+    static_configs:
+      - targets: ['example.bedrockvc.stream:443']
+```
+
+## Logging
+
+```hcl
+log {
+    level = "info"
+    path  = "./logs"
+}
+```
+
+`level` is `trace`, `debug`, `info`, `warn`, or `error`. Default `info`.
+
+Use `debug` when connections establish and then fail. It logs the QUIC path and handshake detail. It is loud. Do not leave it on.
+
+The server writes to both destinations at all times:
+
+- **stderr**, human-readable and coloured. Colour turns off automatically when stderr is not a terminal.
+- **`log.path`**, one JSON object per line, rotating at 50 MB with ten archives kept.
+
+Ship the JSON file, not the console. Every line carries `ts`, `level`, `target`, `msg`, `instance_id`, `name`, and `boot_id`, plus any fields the call site added as top-level keys.
+
+```bash
+jq -r 'select(.level=="warn" or .level=="error") | "\(.ts) \(.target) \(.msg)"' logs/bvc-server.log
+```
+
+`boot_id` changes on every process start, which is how you separate one run from the next inside a single file.
+
+`RUST_LOG` overrides `level` and the per-crate defaults together, for the server's own output and its dependencies':
+
+```bash
+RUST_LOG=info,bvc_server_lib::stream=debug,hyper=off
+```
+
+## What to watch
+
+**Voice failing while HTTP works.** This is the characteristic BVC failure. The two use different transports on the same port. A player signs in fine and hears nothing. Alert on QUIC connection counts. An HTTP-only check reports green through the entire outage.
+
+**UDP reachability.** Most broken deployments have UDP/443 closed. Use an external probe. Do not trust the firewall config.
+
+**Certificate expiry**, if you supply your own certificates. ACME renews itself. Manual PEM files do not.
+
+**Disk**, if `audio_upload` is broadly granted. The audio library has no per-player quota. Client-side recordings are separate and also unbounded.
+
+## Confirming a deployment from outside
+
+```bash
+curl https://example.bedrockvc.stream/api/config
+```
+
+JSON means HTTP, TLS, and the port are fine. It does not prove voice works. QUIC over UDP is a separate path and the most common thing to be broken. Test with a real client.
+
+---
+
+# No-net Addon
+
+> Build and install the Addon for Realms, Aternos, and hosts without @minecraft/server-net.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/nonet-addon
+
+The no-net Addon lets Bedrock Voice Chat run on hosts that do not permit `@minecraft/server-net`, such as Realms and Aternos. Without that module the standard Addon cannot make HTTP requests, and cannot report positions the normal way.
+
+The no-net Addon works differently. Your BVC client becomes the Bedrock server your game connects to, proxies packets through to the real host, and reads positions off the wire.
+
+The steps below are the same for every such host. Host-specific steps are in [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/).
+
+## Before you start
+
+Install and configure the [BVC server](/wiki/server/installation/) first.
+
+:::caution
+Bedrock Voice Chat Server is _not_ an optional component. The no-net path still needs this.
+:::
+
+Install the [client app](/wiki/start/downloads/). Part of this happens there.
+
+## Read the limitations first
+
+Bedrock's Addon system constrains this approach:
+
+- The Addon is **locked to a protocol version**. One built for a given Bedrock version will not work against another.
+- Support **lags every Minecraft release**. Mojang does not document the packet protocol and changes it each update. The work cannot start until the update ships. There is no day-one support.
+- A host that auto-updates Minecraft **will break voice** on update day.
+
+Running your own Bedrock Dedicated Server avoids all of it. See [version support](/wiki/platforms/version-support/).
+
+## Build the world
+
+1. Download the `no-net.mcaddon` package from GitHub Releases under the `mods-` tag, or from CurseForge. It must be the `no-net` variant. The full Addon does not work here.
+
+2. Double-click it to install into your local Minecraft Bedrock client.
+
+3. Create a new world. Under **Behavior Packs**, enable the Bedrock Voice Chat Realms + No-Net pack.
+
+   <div class="shot"><span>Behavior Packs list with the Realms + No-Net pack enabled</span></div>
+
+4. Under **Experiments**, enable **Beta APIs**.
+
+   <div class="shot"><span>Experiments toggle showing Beta APIs enabled</span></div>
+
+5. Create the world, then exit it immediately.
+
+6. Open the world's settings and export it.
+
+   <div class="shot"><span>World settings with the Export World option at the bottom</span></div>
+
+Save it somewhere you can find.
+
+## Chat
+
+[Chat](/wiki/player/chat/) needs no configuration on a no-net host. The proxy session reads chat off the wire the same way it reads positions. The app can read and send in-game chat as soon as you connect.
+
+The `bvc_world_name` variable on the [full Addon](/wiki/server/bedrock-addon/) does not apply here.
+
+## Then
+
+Upload the world to your host, then point the client at it with Bedrock Voice Chat Connect. The upload step differs per host:
+
+- **[Realms](/wiki/platforms/realms/)** — upload the world to the Realm.
+- **[Aternos and other no-net hosts](/wiki/platforms/aternos/)** — rename to `.zip`, then upload.
+
+## Match the versions
+
+Your host's Minecraft version must match the one the Addon supports. These Addons are not backwards compatible. A mismatch fails outright.
+
+Check [version support](/wiki/platforms/version-support/) before picking a server version.
+
+## Console players
+
+Nothing extra. The app hosts the session on your network, and it appears in Minecraft under **Worlds**. See [console and mobile](/wiki/platforms/console-and-mobile/).
+
+---
+
+# Players and permissions
+
+> Whitelisting, the three permissions, and bootstrapping your first admin.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/players-and-permissions
+
+Bedrock Voice Chat is deny-by-default. Players appear automatically once your game server relays them.
+
+:::caution
+No player can sign in until you whitelist them. A player who has never been added is refused with `AUTH02`.
+:::
+
+Everything here uses the server executable, which doubles as a CLI. Full reference: [CLI](/wiki/reference/cli/).
+
+## Bootstrapping the first admin
+
+A fresh deployment has no admin. The commands that create one talk to the database directly, not over the API. Run them on the server host, where `config.hcl` is.
+
+```bash
+# On the server host
+bvc admin generate-code -p Alice -g minecraft -d 3600
+# -> Code: ABCD1234
+
+# Anywhere with network access
+bvc login --code ABCD1234
+
+# Back on the server host
+bvc admin bootstrap -p Alice -g minecraft
+```
+
+`admin generate-code` creates the player record if it does not exist, which is what makes it usable before anyone exists. `admin bootstrap` grants admin to a player who already exists.
+
+Confirm:
+
+```bash
+bvc whoami
+```
+
+It prints the active identity, server URL, certificate expiry, and effective permissions. `admin` should be in the list.
+
+## Adding players
+
+Once you have an admin identity, the rest goes over HTTPS with mTLS and can be run from anywhere.
+
+```bash
+bvc user add -p Bob -g minecraft
+bvc user generate-code -p Bob -g minecraft
+```
+
+Give Bob the code. He redeems it with `bvc login`, or just signs in through the app.
+
+`user add` returns 409 if the player already exists. `user generate-code` returns 404 if they do not. Run `user add` first.
+
+Codes default to one hour and cap at 24.
+
+## Removing players
+
+```bash
+bvc user banish -p Bob -g minecraft
+bvc user banish -p Bob -g minecraft --banish false
+```
+
+Banishing revokes the player's certificate and closes their voice session. They are removed while connected.
+
+Banishing is reversible and keeps the record. There is no hard delete from the CLI.
+
+Unbanishing does not restore the revoked certificate. The player signs in and is issued a new one.
+
+## Permissions
+
+| Permission | Grants |
+|---|---|
+| `audio_upload` | Upload clips to the [audio library](/wiki/player/audio-library/). |
+| `audio_delete` | Delete clips. |
+| `admin` | User and permission management. |
+
+Peering is not a player permission. A peer is declared in [`server.peers`](/wiki/reference/configuration/#serverpeers). See [peering](/wiki/reference/peering/).
+
+### Server-wide defaults
+
+```hcl
+permissions {
+    defaults = {
+        audio_upload = true
+        audio_delete = false
+        admin        = false
+    }
+}
+```
+
+### Per-player overrides
+
+```bash
+bvc permission allow -p Bob -g minecraft --permission audio_upload
+bvc permission deny  -p Bob -g minecraft --permission audio_upload
+bvc permission clear -p Bob -g minecraft --permission audio_upload
+bvc permission list  -p Bob -g minecraft
+```
+
+`allow` and `deny` are explicit overrides. `clear` removes the override, and the config default applies again. `clear` is not `deny`.
+
+Empty output from `list` means the player has no overrides and is governed entirely by the defaults.
+
+## A reasonable starting policy
+
+On a public server, default `audio_upload` to false and grant it to people you trust. Storage is your disk and there is no per-player quota.
+
+On a friends-and-family server the defaults are fine as they are.
+
+---
+
+# Privacy and telemetry
+
+> What BVC collects, how to turn it off, and setting a minimum age for your community.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/privacy-and-telemetry
+
+Bedrock Voice Chat collects a small amount of anonymous operational telemetry. You can turn it off entirely.
+
+## Telemetry
+
+Bedrock Voice Chat collects anonymous operational metrics: connection counts, session lifecycle events, and error rates.
+
+It does not collect gamertags, message content, audio, or position data.
+
+**It is enabled by default.** To turn it off:
+
+```hcl
+server {
+    features {
+        telemetry = false
+    }
+}
+```
+
+Or set `BVC_TELEMETRY=false`.
+
+Turning it off costs you nothing functionally. It costs the project visibility into crashes and regressions across real deployments. Your server, your call.
+
+## Your own metrics
+
+`/metrics` always serves Prometheus-format metrics regardless of the `telemetry` flag, and the health endpoints are always available. Those are local to your deployment and go nowhere.
+
+See [monitoring](/wiki/server/monitoring/).
+
+## Minimum age
+
+Set a minimum age for your community and the client apps will present Age Signals (Android) or Declared Age Ranges (iOS) prompts to players in regions where those are required.
+
+```hcl
+server {
+    age {
+        minimum = 13
+    }
+}
+```
+
+| Value | Effect |
+|---|---|
+| `0` | Enforcement off. |
+| `13`–`18` | Enforced at that age. |
+| Anything else | Clamped into 13–18. |
+| Unset | Defaults to 13. |
+
+The prompt only appears when both are true: you have set a minimum, and the player's device and account are in a region where the platform requires it. Setting a minimum does nothing visible to players elsewhere.
+
+BVC only asks the platform whether the signed-in user clears your minimum. It does not receive, store, or transmit anyone's age.
+
+Parent-facing explanation: [parents and age settings](/wiki/player/parents-and-age/). Worth linking from your own rules page if you run a server with younger players.
+
+## Player-to-player controls
+
+Players can mute each other locally. Muting is one-directional. It stops you hearing them, not them hearing you.
+
+There is no server-side moderation tooling for voice. You can banish a player entirely with `bvc user banish`, and that is the extent of it. Anything more nuanced is a matter for your own community rules and moderators.
+
+Groups are not private from their members. Everyone in a group hears everything, and any member can be recording locally.
+
+## Full privacy policy
+
+[PRIVACY_STATEMENT.md](https://github.com/Alaydriem/bedrock-voice-chat/blob/master/PRIVACY_STATEMENT.md)
+
+---
+
+# TLS certificates
+
+> An assigned hostname, automatic certificates over ACME DNS-01, or bring your own.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/tls
+
+Bedrock Voice Chat requires a valid TLS certificate. Client apps validate it the way a browser does.
+
+:::danger
+Self-signed certificates **will not work**. The app refuses the connection and there is no override.
+:::
+
+Three options. They are mutually exclusive, and the server refuses to start with more than one configured.
+
+| | Use when |
+|---|---|
+| **An assigned hostname** | You have no domain. BVC gives you a name and keeps its certificate renewed. Work in progress, and limited to select Patreon and YouTube members. |
+| **ACME** | You have a domain and a supported DNS provider. BVC issues and renews for you. |
+| **Your own PEM files** | You already have a certificate, or your DNS provider is not supported. |
+
+The server appends the name it is given to its own SANs and configures its own certificate. See [assigned hostnames](/wiki/server/enrollment/).
+
+The rest of this page is for the two options where you bring the name.
+
+## ACME
+
+BVC proves domain control with a DNS record, not an HTTP request. **Port 80 never has to be open**, and the host does not need to answer HTTP at all. Renewal is automatic.
+
+Two providers are supported.
+
+### Cloudflare
+
+```hcl
+server {
+    tls {
+        names = ["example.bedrockvc.stream"]
+
+        acme {
+            email     = "you@example.com"
+            provider  = "cloudflare"
+            api_token = "${env.CF_API_TOKEN}"
+        }
+    }
+}
+```
+
+:::caution[Use a scoped token, not your global key]
+Create an API token under Cloudflare's **API Tokens** page, scoped to the single zone, with **DNS edit** permission. A global API key would give BVC control of your entire Cloudflare account.
+:::
+
+### acme-dns
+
+Use this when your DNS provider has no supported API, or when you would rather not hand BVC credentials to your real zone at all.
+
+You delegate one `_acme-challenge` record to an acme-dns server with a CNAME. BVC only ever writes there, never to your zone.
+
+```hcl
+server {
+    tls {
+        names = ["example.bedrockvc.stream"]
+
+        acme {
+            email      = "you@example.com"
+            provider   = "acme-dns"
+            server_url = "https://auth.acme-dns.io"
+            username   = "${env.ACME_DNS_USERNAME}"
+            password   = "${env.ACME_DNS_PASSWORD}"
+            subdomain  = "${env.ACME_DNS_SUBDOMAIN}"
+        }
+    }
+}
+```
+
+Register with the acme-dns server first. It returns the username, password, subdomain, and the CNAME to add.
+
+## Bring your own certificate
+
+```hcl
+server {
+    tls {
+        names       = ["example.bedrockvc.stream"]
+        certificate = "/etc/bvc/fullchain.pem"
+        key         = "/etc/bvc/privkey.pem"
+    }
+}
+```
+
+:::caution[Fullchain, not the leaf]
+A leaf-only certificate validates on a machine that already has the intermediate cached and fails on a fresh phone. It works when you test it and breaks for your users, which is a miserable bug to chase.
+:::
+
+With BYOC you are responsible for rotation.
+
+---
+
+# Troubleshooting
+
+> Diagnosing a BVC deployment from the operator side.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/troubleshooting
+
+Work through a Bedrock Voice Chat deployment from the outside in. Most reports resolve in the first two checks.
+
+## 1. Is the server reachable?
+
+```bash
+curl https://example.bedrockvc.stream/api/config
+```
+
+JSON back means the process is up, TLS is valid, and TCP/443 is open.
+
+Anything else and the problem is here, not in the Addon or the client.
+
+| Symptom | Cause |
+|---|---|
+| Connection refused | Not running, or the port is not published. |
+| Timeout | Firewall or port forwarding. |
+| Certificate error | See [TLS](/wiki/server/tls/). Self-signed will not work. |
+| 404 | Something else is answering on that address. |
+
+## 2. Is UDP open?
+
+This is the one that gets missed. HTTP and voice use the same port number over **different protocols**. TCP/443 can be open while UDP/443 is closed. Sign-in works, nobody hears anything, and every HTTP check reports green.
+
+Verify UDP/443 is published and reachable, separately from TCP. In Docker that means `-p 443:443/udp` as well as `/tcp`.
+
+If clients are on networks that block QUIC, publish the redundant port on 8443/UDP too.
+
+## 3. Is the Addon relaying?
+
+```bash
+curl -H "Authorization: Bearer <your token>" https://example.bedrockvc.stream/api/position
+```
+
+Populated means the whole chain works. Empty means the game server is not sending.
+
+For BDS, set `content-log-console-output-enabled=true` and look for `[BVC] Connecting to:` on world load. No line means the Addon is not running. Check Beta APIs, the world's pack list, and `permissions.json`.
+
+The most common cause of an empty response is an `access_token` mismatch between `config.hcl` and the Addon. It is rejected silently on every update.
+
+## 4. Are the players whitelisted?
+
+```bash
+bvc whoami
+bvc permission list -p <player> -g minecraft
+```
+
+BVC is deny-by-default. See [players and permissions](/wiki/server/players-and-permissions/).
+
+## Specific symptoms
+
+**Sign-in works, no audio at all.** Almost always UDP. Go back to step 2.
+
+**Audio works for some players, not others.** Their network is blocking QUIC. Publish 8443/UDP.
+
+**Everything worked, then stopped after a Minecraft update.** Only affects Realms and Aternos. See [version support](/wiki/platforms/version-support/).
+
+**Console players cannot connect.** The console and the device running BVC must share a network. The session is listed under Worlds, not Servers. See [console and mobile](/wiki/platforms/console-and-mobile/).
+
+**Everyone was signed out at once.** The mTLS CA in `certs_path` was deleted or replaced. Every issued client certificate is now invalid and everyone must sign in again. Restore from backup if you have one.
+
+**Audio degrades as players join.** BVC is CPU-bound. Add cores. Embedded mode on a shared host is a common cause. Move BVC to its own machine.
+
+**A player connects fine, then goes silent after a few minutes, repeatedly.** Usually mobile data or another carrier-grade NAT. The carrier drops the idle UDP mapping. The connection returns on a new source port, which the server counts as a new network path. QUIC allows a small fixed number per connection and never reclaims them. The connection survives the first few rebindings, then stops carrying audio without closing.
+
+The server sends a 10-second keepalive, under the shortest carrier timeouts measured so far. No operator action should be needed. If you still see this, collect the player's network type and open an issue. The keepalive interval is not configurable.
+
+## Turning up the detail
+
+```hcl
+log {
+    level = "debug"
+}
+```
+
+Logs QUIC path and handshake detail, which explains connections that establish and then fail. Loud. Turn it back down afterwards.
+
+## Reporting it
+
+Include the output of `/api/config`, whether UDP/443 is open, whether `/api/position` returns data, your deployment shape (Docker, bare metal, embedded), and what you already ruled out.
+
+[Discord](https://discord.gg/CdtchD5zxr) or a [GitHub issue](https://github.com/Alaydriem/bedrock-voice-chat/issues).
+
+---
+
+# Where BVC works
+
+> Compatibility across Bedrock Dedicated Server, Java, Realms, Aternos, Geyser, consoles, and LAN.
+
+Source: https://www.bedrockvoicechat.com/wiki/platforms
+
+Bedrock Voice Chat runs on any Minecraft server you can install an Addon or mod onto. Below is every supported setup, and what each one needs.
+
+:::caution
+Worlds hosted by the Minecraft game client are **not** supported. That covers LAN worlds, locally hosted worlds, and single-player worlds. See [LAN and local worlds](/wiki/platforms/lan-and-local-worlds/).
+:::
+
+## Compatibility
+
+| Setup | Works? | What it takes |
+|---|---|---|
+| **Bedrock Dedicated Server** | Yes | The [Addon](/wiki/server/bedrock-addon/). This is the path everything else is measured against. |
+| **Java — Fabric or Paper** | Yes | The [Java mod](/wiki/server/java-mod/), external or embedded. |
+| **Geyser / Floodgate** | Yes | The Java mod. Floodgate is auto-detected; nothing BVC-specific to configure. [Details](/wiki/server/java-mod/integrations/geyser-and-floodgate/). |
+| **Realms** | Yes | The [no-net Addon](/wiki/server/nonet-addon/) plus Bedrock Voice Chat Connect in the app. [Details](/wiki/platforms/realms/). |
+| **Aternos and other no-net hosts** | Yes | The no-net Addon plus Bedrock Voice Chat Connect. [Details](/wiki/platforms/aternos/). |
+| **Consoles** | Yes | The mobile app on the same network. The session appears under Worlds. [Details](/wiki/platforms/console-and-mobile/). |
+| **LAN worlds** | No | Nothing to install an Addon into. [Why](/wiki/platforms/lan-and-local-worlds/). |
+| **Locally hosted / single-player worlds** | No | Same reason. [Why](/wiki/platforms/lan-and-local-worlds/). |
+
+---
+
+See [version support](/wiki/platforms/version-support/) for what is currently supported and why.
+
+---
+
+# Aternos and no-net hosts
+
+> Run BVC on Aternos and other hosts that cannot enable @minecraft/server-net.
+
+Source: https://www.bedrockvoicechat.com/wiki/platforms/aternos
+
+Bedrock Voice Chat supports Aternos and similar free hosts through the no-net Addon and Bedrock Voice Chat Connect, letting you run proximity voice chat on a host that does not permit `@minecraft/server-net`. Supported as of 1.0.0-beta.15.
+
+Your client becomes the Bedrock server your game connects to, proxies through to the real host, and reads positions off the wire.
+
+:::caution
+Support lags every Minecraft release. A host that auto-updates **will break** voice on update day. Check [version support](/wiki/platforms/version-support/) before committing your community to Aternos.
+:::
+
+## Before you start
+
+1. Install and configure the [BVC server](/wiki/server/installation/). Not optional.
+2. Install the [client app](/wiki/start/downloads/).
+3. Build the no-net world following the [no-net Addon](/wiki/server/nonet-addon/) guide.
+
+## Upload the world
+
+1. Find the `.mcworld` you exported and change the extension to `.zip`.
+2. Upload it to Aternos.
+
+   <div class="shot"><span>Aternos world upload page</span></div>
+
+3. Set the Aternos server version to match the Addon's supported Minecraft version. These Addons are not backwards compatible — a mismatch fails outright.
+
+   <div class="shot"><span>Aternos server version selector</span></div>
+
+Check [version support](/wiki/platforms/version-support/) for what to pick.
+
+## Connect
+
+1. Sign into the BVC client against the server from step 1.
+2. Settings cog, bottom left. Then **Voice Chat Connect** in the sidebar. First visit asks you to sign in again.
+3. Add a server with the button at the top: your Aternos domain and port.
+
+   <div class="shot"><span>Bedrock Voice Chat Connect add-server dialog with an Aternos address</span></div>
+
+4. Connect. You get connection details back.
+
+   <div class="shot"><span>Bedrock Voice Chat Connect showing connection information for a connected server</span></div>
+
+## Open Minecraft
+
+The app hosts the session on your network. It appears in Minecraft under **Worlds**.
+
+1. Open Minecraft on the same network as the device running BVC.
+2. Go to **Worlds**.
+3. Pick the entry named after your server. The second line shows your gamertag and **Bedrock Voice Chat**.
+
+Desktop, mobile and console all connect this way. Consoles need no extra setup. See [console and mobile](/wiki/platforms/console-and-mobile/).
+
+:::caution
+Bedrock Voice Chat only works when you join the world through the Worlds tab. Connecting to your Aternos server directly prevents Bedrock Voice Chat from working.
+:::
+
+:::note
+On Desktop and Mobile devices, if the LAN server does not appear, you can connect to `127.0.0.1:28282` instead from the `Servers` tab.
+:::
+
+---
+
+# Console and mobile
+
+> Using BVC on Xbox, PlayStation, Switch, and mobile devices.
+
+Source: https://www.bedrockvoicechat.com/wiki/platforms/console-and-mobile
+
+Bedrock Voice Chat supports Xbox, PlayStation, and Switch players through the mobile app. Your phone or tablet is your microphone and speaker, running alongside the console.
+
+Your position comes from the game server. The console does nothing special, and the app knows where you are without being installed on it.
+
+:::note
+There is no on-console Bedrock Voice Chat client. Consoles do not allow installable applications of this kind.
+
+If you would like this feature, consider supporting Bedrock Voice Chat on Patreon, or by becoming a YouTube Member.
+:::
+
+## Get the app
+
+- **Android** — [Google Play](https://play.google.com/store/apps/details?id=com.alaydriem.bvc.client), open beta
+- **iOS / iPadOS** — [TestFlight](https://testflight.apple.com/join/JSG7bVqC)
+
+Sign in with the same Xbox account you play on.
+
+## On a Bedrock Dedicated Server
+
+Nothing console-specific. Join the server as usual, sign into the app, done.
+
+## On Realms or Aternos
+
+These go through Bedrock Voice Chat Connect. The app hosts the session on your network, and it appears in Minecraft under **Worlds**.
+
+### Operator
+
+Nothing to configure. The relay defaults handle it.
+
+### Player
+
+1. Put the console and the phone running BVC on the same network.
+2. Open BVC. Open Settings, then **Voice Chat Connect**.
+3. Pick your Realm or server. Wait for the connection details.
+4. Open Minecraft on the console. Go to **Worlds**.
+5. Pick the entry named after your world. The second line shows your gamertag and **Bedrock Voice Chat**.
+
+<div class="shot"><span>Minecraft's Worlds tab showing a BVC session, world name on the first line and gamertag on the second</span></div>
+
+If two people on the network run BVC in the same world, both entries appear. The gamertag on the second line tells them apart.
+
+:::caution
+Do **not** enter your Realm or Aternos address directly. That bypasses Bedrock Voice Chat entirely. Minecraft works and nobody hears anyone.
+:::
+
+## Playing on mobile
+
+A phone or tablet playing Minecraft can enter a custom server address. Follow the desktop instructions on the [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/) pages.
+
+## Recording
+
+:::note
+Recording is not available on mobile. Phones and tablets lack the disk throughput for multi-track capture. Record on a desktop instead. See [Recording](/wiki/creator/recording/).
+:::
+
+---
+
+# LAN and local worlds
+
+> Why BVC does not work on LAN, locally hosted, or single-player worlds.
+
+Source: https://www.bedrockvoicechat.com/wiki/platforms/lan-and-local-worlds
+
+**BVC does not work on LAN worlds, locally hosted worlds, or single-player worlds.** That covers any world where one player hosts from their own device and others join — sometimes described as a world where "the host must be online for friends to join".
+
+:::note[Two different things called LAN]
+A **LAN world** is a world hosted by a game client. BVC does not support it.
+
+Minecraft's **Worlds** tab also lists sessions found on your network. Bedrock Voice Chat Connect sessions appear there. Those work. See [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/).
+:::
+
+## Why
+
+Bedrock Voice Chat needs a server-side Addon to report where players are. Proximity chat is impossible without position data, and the Addon is the only thing that produces it.
+
+A world hosted from the Minecraft game client cannot load server-side Addons. There is nowhere to install one, on any platform.
+
+### Bedrock Voice Chat Connect
+
+Realms and Aternos work through Bedrock Voice Chat Connect, which intercepts Bedrock's network protocol. It does not help here.
+
+A Realm and an Aternos instance are real servers you can **upload a world to, Addon included**. Bedrock Voice Chat Connect carries the position data that Addon produces. A LAN world has no upload path, leaving no Addon and nothing to carry.
+
+## The alternative
+
+Run Bedrock Dedicated Server. It is a download and a run command, and you can run it on the same machine you were hosting the LAN world from.
+
+You need:
+
+1. A **Bedrock Dedicated Server** or a **Java server** — see [Running a server](/wiki/server/).
+2. The **BVC server**, on a reachable host.
+3. The **BVC app** on each player's device.
+
+Running BDS locally also removes every caveat that applies to Realms and Aternos: no protocol lag, no version-locked Addon, no breakage on Minecraft update day.
+
+## Will this be supported?
+
+We would like to solve it. There is no approach today that does not require code running on the world host, and the game client does not allow that.
+
+If it matters to you, [supporting the project](/wiki/start/supporting-bvc/) is what funds time spent on problems like this.
+
+---
+
+# Realms
+
+> Run BVC on a Minecraft Realm using the no-net Addon and Bedrock Voice Chat Connect.
+
+Source: https://www.bedrockvoicechat.com/wiki/platforms/realms
+
+Bedrock Voice Chat supports Minecraft Realms through the no-net Addon and Bedrock Voice Chat Connect, letting you run proximity voice chat on a Realm you do not control. Supported as of 1.0.0-beta.15 through the no-net addon.
+
+:::caution
+Realms auto-update. A Minecraft update **will break** voice on your Realm until a matching Bedrock Voice Chat build ships. Check [version support](/wiki/platforms/version-support/) before committing your community to a Realm.
+:::
+
+## Before you start
+
+1. Install and configure the [BVC server](/wiki/server/installation/). Not optional — the no-net path still needs one.
+2. Install the [client app](/wiki/start/downloads/).
+3. Build the no-net world following the [no-net Addon](/wiki/server/nonet-addon/) guide.
+4. Ensure your realms players are manually whitelisted on BVC Server.
+
+## Upload to the Realm
+
+Create your world on the Realm from the world you built, then exit the Realm once it has saved.
+
+## Connect
+
+:::note
+Realms use Nethernet, which has a connect cooldown. If you disconnect from Bedrock Voice Chat Connect, expect to wait around five minutes before reconnecting while the Realm is idle.
+:::
+
+1. Sign into the BVC client against the server from step 1.
+2. Settings cog, bottom left. Then **Voice Chat Connect** in the sidebar. First visit asks you to sign in again.
+3. Select your Realm.
+
+<div class="shot"><span>Voice Chat Connect page with a Realm selected</span></div>
+
+## Open Minecraft
+
+The app hosts the session on your network. It appears in Minecraft under **Worlds**.
+
+1. Open Minecraft on the same network as the device running BVC.
+2. Go to **Worlds**.
+3. Pick the entry named after your Realm. The second line shows your gamertag and **Bedrock Voice Chat**.
+
+Desktop, mobile and console all connect this way. Consoles need no extra setup. See [console and mobile](/wiki/platforms/console-and-mobile/).
+
+:::caution
+Bedrock Voice Chat only works when you join the world through the Worlds tab. Connecting to your Realm directly prevents Bedrock Voice Chat from working.
+:::
+
+:::note
+On Desktop and Mobile devices, if the LAN server does not appear, you can connect to `127.0.0.1:28282` instead from the `Servers` tab.
+:::
+
+---
+
+# Bedrock version support
+
+> Which Minecraft Bedrock versions BVC can speak, and why support lags each release.
+
+Source: https://www.bedrockvoicechat.com/wiki/platforms/version-support
+
+Bedrock Voice Chat Connect speaks Bedrock's own network protocol. Bedrock Voice Chat therefore has to understand the exact protocol version your server runs. Below is every version it supports.
+
+This matters for Realms, Aternos, and any other host using the no-net Addon.
+
+:::note
+None of this applies to a Bedrock Dedicated Server or a Java server. The Addon reports positions over HTTP, and the Bedrock protocol version is irrelevant there.
+:::
+
+<!-- generated:version-table start -->
+
+## Supported Bedrock versions
+
+| Minecraft Bedrock | Protocol |
+|---|---|
+| 1.26.0 | `v924` |
+| 1.26.12 | `v944` |
+| 1.26.20 | `v975` |
+| 1.26.30 | `v1001` |
+| 1.26.40 | `v2168` |
+
+**1.26.40 is the newest supported release.**
+
+## Not supported
+
+These protocols are recognised but this build has no codec for them. The
+no-net Addon and Bedrock Voice Chat Connect will not work against a server running one.
+
+| Minecraft Bedrock | Protocol |
+|---|---|
+| 1.16.201 | `v422` |
+| 1.16.220 | `v431` |
+| 1.19.30 | `v554` |
+| 1.20.61 | `v649` |
+| 1.21.50 | `v766` |
+| 1.21.90 | `v786` |
+
+## Preview builds
+
+A codec exists, but no public Bedrock release speaks these yet.
+
+| Minecraft Bedrock | Protocol |
+|---|---|
+| 1.26.50 | `v2169` |
+
+<!-- generated:version-table end -->
+
+## Why Bedrock Voice Chat Connect Support Lags Minecraft Releases
+
+Mojang does not publish the Bedrock packet protocol specification on a consistent schedule. Nearly every Berock release changes it, and each change needs to be reverse-engineered from the protocol and re-generated before Bedrock Voice Chat can speak the new version, followed by an update to the apps through their respective stores.
+
+Two things follow from that:
+
+- The no-net Addon is locked to a protocol. An Addon built for one Bedrock version will not work against another. Match your server version to the Addon you installed.
+- If your host auto-updates Minecraft, expect voice to stop working on update day until a matching Bedrock Voice Chat build ships.
+
+:::tip
+Running your own Bedrock Dedicated Server avoids both. BDS lets you choose when to update, and the position relay does not depend on the packet protocol.
+
+Patreon supporters and YouTube members get early access to builds and packs, which usually means working against a new Bedrock version before general release. See [supporting BVC](/wiki/start/supporting-bvc/).
+:::
+
+## Advertised version
+
+When connecting through Bedrock Voice Chat Connect you can pin the protocol BVC advertises, per server, in the client's server list. Auto mirrors whatever the real backend reports and is correct in almost every case. Leave it there unless you have a reason not to.
+
+<div class="shot"><span>Bedrock Voice Chat Connect server entry with the advertised-version dropdown open</span></div>
+
+---
+
+<small>Generated from the protocol matrix emitted by <code>bedrock-protocol-rs</code>. </small>
+
+---
+
+# Streaming & recording
+
+> Multi-track recording, Stream Deck control, and the local WebSocket API.
+
+Source: https://www.bedrockvoicechat.com/wiki/creator
+
+Bedrock Voice Chat gives creators multi-track recording, Stream Deck control, and a local API for your own tooling. Every player records to their own track, letting you fix one person's audio in post without touching anyone else's.
+
+| Page | What it covers |
+|---|---|
+| [Recording](/wiki/creator/recording/) | Capture a session and export per-player tracks as BWAV or MP4/Opus. |
+| [Stream Deck](/wiki/creator/stream-deck/) | Mute, deafen, and record from an Elgato Stream Deck. |
+| [WebSocket API](/wiki/creator/websocket-api/) | Drive the same controls from your own tooling. |
+
+:::note
+Recording is desktop only. Mobile devices lack the disk throughput for multi-track capture.
+:::
+
+---
+
+# Recording
+
+> Capture a session and export per-player tracks as BWAV or MP4/Opus.
+
+Source: https://www.bedrockvoicechat.com/wiki/creator/recording
+
+The recording feature of Bedrock Voice Chat captures a session with each player on their own track, letting you mix and edit every voice separately in post.
+
+:::note
+Recording is available on Windows, macOS, and Linux only. Mobile devices lack the disk throughput for multi-track capture.
+:::
+
+## Start a recording
+
+Press **REC** at the bottom of the sub-sidebar. The indicator turns red.
+
+<div class="shot"><span>The REC button active, showing the red recording indicator</span></div>
+
+Sessions capture position and group data alongside audio. Export can place each voice where it stood.
+
+Start and stop also work from [in-game](/wiki/player/in-game-commands/) with `/bvc:record <on|off>`, and from a [Stream Deck](/wiki/creator/stream-deck/).
+
+## Server policy
+
+An operator can forbid recording for everyone connected to their server:
+
+```hcl
+voice {
+    recording {
+        enabled = false
+    }
+}
+```
+
+Recording is permitted by default. A server that predates this setting reads as permitted.
+
+:::caution
+This is a client policy, **not** a server boundary. Recordings are written on the player's own machine and never reach the server.
+
+Turning it off stops the REC button, `/bvc:record`, and the WebSocket `record` action in the stock client. It does **not** stop a modified client or a screen recorder.
+:::
+
+See [configuration](/wiki/reference/configuration/#voicerecording).
+
+## Manage recordings
+
+Open **Settings → Recordings**.
+
+<div class="shot"><span>Recordings page listing sessions with their participants</span></div>
+
+Review sessions, see participants, rename, delete, and export.
+
+Sessions are listed by timestamp until you name one. Clearing a name restores the timestamp.
+
+Export writes every track as a separate file. Expand the track dropdown to pick a subset.
+
+| Track | Contents |
+|---|---|
+| Your own | Your microphone. |
+| Player | One other player's voice. |
+| Jukebox | Music played through a jukebox. |
+
+Each player track is named for the player. Somebody signed in on two devices records as two tracks.
+
+BVC opens the output folder when an export finishes:
+
+```
+%localappdata%/com.alaydriem.bvc.client/recordings/<session_uuid>/renders
+```
+
+## Spatial export
+
+**Mix in the spatial positions** places each voice where it was standing and writes every track in stereo. On by default.
+
+Turn it off to write each track flat and centred, straight from the recording with nothing re-encoded. Do that when you intend to place the voices yourself.
+
+A spatial render needs two values the recording does not carry: the server's spatial audio settings and your panning intensity. BVC takes them from the live session, falling back to the last known values, then to defaults. The export log names which it used.
+
+A render that falls back to defaults against a server that changed its `broadcast_range` produces a different curve. Nothing in the audio shows it. Check the log line when an export sounds wrong.
+
+See [`voice.spatial_audio`](/wiki/reference/configuration/#voicespatial_audio).
+
+<div class="shot"><span>Recording detail with the spatial positions toggle on</span></div>
+
+## Format version
+
+A session records the format version it was written with. Export requires an exact match with the version your app is running.
+
+:::caution
+**A BVC update can make older sessions unexportable.** They stay on disk and stay listed. Export is refused, and downgrading the app is the only way back.
+
+Export what you want before you update. The format version changed in this release. Every session recorded before it is affected.
+:::
+
+## Export formats
+
+| Format | Notes |
+|---|---|
+| **BWAV** (`.wav`) | Broadcast WAV with timecode. Raw PCM. Large, lossless, accepted by every editor. |
+| **MP4 / Opus** | Opus in an MP4 container, with timecode. Much smaller. |
+
+Both carry timecode. Tracks line up on an editor timeline without manual syncing.
+
+## Disk
+
+BWAV is raw PCM. Roughly 5–15 MB per player per 30 seconds. A two-hour session with six participants renders 7–21 GB.
+
+To manage it:
+
+- Export to MP4/Opus unless your editor needs PCM.
+- Break long sessions into shorter recordings.
+- Delete old renders. Nothing cleans them up automatically.
+
+## Consent
+
+:::danger
+Anyone in a group can record everyone in that group, and nobody is notified. Proximity audio is the same.
+
+Tell people you are recording. Whether that is a courtesy or a legal requirement depends on where you and they are. Bedrock Voice Chat enforces neither.
+:::
+
+---
+
+# Stream Deck
+
+> Control mute, deafen, recording, jukebox music, world connection, and live stats from an Elgato Stream Deck.
+
+Source: https://www.bedrockvoicechat.com/wiki/creator/stream-deck
+
+The Bedrock Voice Chat Stream Deck plugin lets you drive the app from an Elgato Stream Deck, with six actions: **Microphone**, **Deafen**, **Record**, **Jukebox**, **Connect**, and **Stats**.
+
+Download it from the [Elgato Marketplace](https://marketplace.elgato.com/product/bedrock-voice-chat-c5a151d6-3669-487f-9548-bfe689e50203). Releases and issues are in [its own repository](https://github.com/Alaydriem/bedrock-voice-chat-streamdeck).
+
+## Enable the WebSocket server
+
+Bedrock Voice Chat does not listen by default. Open **Settings → WebSocket server**.
+
+<div class="shot"><span>WebSocket settings page with the server enabled, showing port and key</span></div>
+
+Note the port and the authentication key.
+
+## Configure the plugin
+
+Install the plugin, then enter the same port and authentication key. Set the host if BVC is not on the same machine as the Stream Deck.
+
+<div class="shot"><span>Stream Deck plugin settings with port, host, and key filled in</span></div>
+
+## The actions
+
+| Action | Controls | Needs setup |
+|---|---|---|
+| Microphone | Your microphone | — |
+| Deafen | All incoming audio | — |
+| Record | Session recording | — |
+| Jukebox | Jukebox music | — |
+| Connect | The world BVC is connected to | Pick the world |
+| Stats | Nothing. Draws one live number | Pick the stat |
+
+Each has on, off, and disconnected art. Disconnected means the plugin cannot reach BVC. Check that the app is running and the WebSocket server is on.
+
+Set up the last two from the key's own settings in the Stream Deck app.
+
+## Microphone and push-to-talk
+
+The Microphone key follows the voice mode. In open mic it toggles mute. In push to talk it opens the microphone on press and closes it on release.
+
+Deafen and Jukebox work in both modes.
+
+## Jukebox
+
+Toggles all jukebox music for you alone. It changes nothing for anyone else in range, and does not touch voices.
+
+The key mutes and unmutes. Set the level in the app, or in game with `/bvc:jukeboxvolume` and `/bvc jukebox volume`. See [using the jukebox](/wiki/player/using-the-jukebox/).
+
+## Connect
+
+Pick a Realm or proxy in the key's settings. Pressing the key connects to it. Pressing it while connected disconnects.
+
+The list comes from BVC. Have the app running and reachable before you open the settings.
+
+## Stats
+
+One number per key. Add a second Stats key for a second number.
+
+Choose from the list in the key's settings. It is built from what BVC is reporting right now. Press refresh if it is empty.
+
+A number goes to `—` when it is more than three seconds old, and when the plugin loses its connection.
+
+Stats arrive on the WebSocket server's `/metrics` route. Enabling the server covers both.
+
+## Beyond the plugin
+
+BVC also accepts jukebox volume as a level, and group create, join and leave. The plugin has no keys for those. The [WebSocket API](/wiki/creator/websocket-api/) is the authority on what BVC accepts.
+
+## Recording availability
+
+Recording is desktop only. The record action does nothing against a mobile client, or against a server that has [turned recording off](/wiki/creator/recording/).
+
+## Running across machines
+
+With BVC on your gaming PC and the Stream Deck on a streaming PC, set the host to the gaming PC's LAN address and open the port.
+
+The authentication key is the only thing protecting the socket. Do not expose it beyond your LAN.
+
+## Building your own
+
+The same API is available to anything that speaks WebSocket. See [WebSocket API](/wiki/creator/websocket-api/).
+
+---
+
+# WebSocket API
+
+> Drive mute, deafen, recording, jukebox music, and groups from your own tooling.
+
+Source: https://www.bedrockvoicechat.com/wiki/creator/websocket-api
+
+Bedrock Voice Chat runs a local WebSocket server that lets your own tooling toggle mute, deafen and recording, set jukebox music levels, manage groups, hold push-to-talk, and start or stop a Bedrock Voice Chat Connect session. The [Stream Deck plugin](/wiki/creator/stream-deck/) uses it.
+
+## Reference
+
+**[bedrockvoicechat.com/websocket](https://www.bedrockvoicechat.com/websocket)**
+
+## Turn it on
+
+Open **Settings → WebSocket server**. Off by default.
+
+Note the port and the authentication key. Every message carries the key. Messages without a valid one are rejected.
+
+<div class="shot"><span>WebSocket settings page with the server enabled, showing port and key</span></div>
+
+## Routes
+
+Two endpoints on the same port.
+
+| Path | Direction | Authentication |
+|---|---|---|
+| Any path except `/metrics` | Request and response | Per message, as `key` |
+| `/metrics` | Push only | At the upgrade, as `?key=` |
+
+Only the exact path `/metrics` is routed to the diagnostics stream. Everything else reaches the command protocol, including `/` and `/ws`. An integration that connects on an arbitrary path keeps working.
+
+## Message shape
+
+JSON, one object per message, with an `action` field:
+
+```json
+{ "action": "mute", "device": "input", "key": "<your key>" }
+```
+
+Thirteen actions: `ping`, `mute`, `record`, `jukebox`, `jukeboxvolume`, `state`, `ptt`, `targets`, `connect`, `disconnect`, `creategroup`, `joingroup`, `leavegroup`.
+
+**Deafen is not its own action.** It is `mute` with `device: "output"`. `input` is your microphone, `output` is everything incoming.
+
+## State
+
+`mute`, `record`, `jukebox`, `jukeboxvolume`, `ptt`, `connect`, `disconnect`, and the three group actions push the new state to every connected client, not only the sender. A Stream Deck and your own tool stay in sync without polling.
+
+Send `state` on connect for the current picture. It reports `muted`, `deafened`, `recording`, `voice_mode`, `ptt_active`, `jukebox_muted`, `jukebox_gain`, and `connection`.
+
+## Voice mode
+
+`state` carries `voice_mode`, either `openMic` or `pushToTalk`. **Read it before you draw a microphone button.**
+
+| Mode | Input mute | `ptt` |
+|---|---|---|
+| `openMic` | Works | Refused |
+| `pushToTalk` | Refused | Controls the microphone |
+
+Both refusals return an error naming the reason. An input mute in `pushToTalk` is told to send `ptt` instead.
+
+Output mute always works.
+
+### Push-to-talk
+
+`ptt` takes `down`: `true` on the press, `false` on the release.
+
+Send the release. A dropped connection does not close the microphone, and a button that latches leaves it open.
+
+## Jukebox music
+
+One setting covers every jukebox the client is playing. Voices are unaffected.
+
+| Action | Takes | Does |
+|---|---|---|
+| `jukebox` | nothing | Toggles mute. |
+| `jukeboxvolume` | `level`, 0–150 | Sets the level. |
+
+`jukebox` is a toggle. A button cannot read the current state before it is pressed.
+
+Both reply with `muted` and `gain`. **`level` goes in as a percent. `gain` comes back as a fraction.** Send 150, read back 1.5.
+
+Mute and level are independent. A level set while muted returns on unmute.
+
+## Groups
+
+| Action | Takes | Does |
+|---|---|---|
+| `creategroup` | `name` | Creates a group and joins it. |
+| `joingroup` | `name` | Joins an existing group. |
+| `leavegroup` | nothing | Leaves the current group. |
+
+All three reply with `in_group`, plus `id` and `name` when in one.
+
+Creating and joining are moves. The client leaves its current group first.
+
+`joingroup` is refused when the name matches no group, and when it matches more than one. Matching ignores case.
+
+## Connect to a world
+
+`targets` lists the worlds this client can join: saved servers, servers the BVC server advertises, and your Realms. Each entry has an opaque `id`, a `name`, and a `kind` of `proxy` or `realm`.
+
+`connect` takes an `id` from that list. **Quote the id back, never the list position.** Listing and connecting are two calls, and an entry added between them shifts the positions.
+
+`disconnect` stops the live session. It names no target. Idempotent, and safe to send when nothing is connected.
+
+Both reply with `connected`, plus `id` and `name` when there was a session. `state.connection` carries the same on every push.
+
+## Metrics stream
+
+A push-only diagnostics feed. There is no request. Connect and read.
+
+```
+ws://127.0.0.1:<port>/metrics?key=<your key>
+```
+
+The key goes on the query string. There is no inbound message to carry it. A missing or wrong key is refused at the upgrade.
+
+A client with no key configured accepts the connection without one.
+
+Each push carries microphone, playback, link quality, session and transport diagnostics, with round-trip time and loss thresholds. The payload shape is on the [reference](https://www.bedrockvoicechat.com/websocket).
+
+The command protocol is unaffected. It still authenticates per message.
+
+## Security
+
+:::danger
+The key is the only thing protecting the socket. Anyone who can reach the port and has the key can mute you, start a recording, or read your diagnostics stream.
+
+Keep it on your LAN. Do **not** port-forward it.
+:::
+
+## Recording availability
+
+`record` does nothing on a client that cannot record. Recording is desktop only.
+
+It also does nothing when the connected server sets `voice.recording.enabled = false`. The client refuses to arm and returns the unchanged state. See [recording](/wiki/creator/recording/).
+
+---
+
+# Reference
+
+> Configuration, environment variables, CLI, and the HTTP API.
+
+Source: https://www.bedrockvoicechat.com/wiki/reference
+
+Lookup material for the Bedrock Voice Chat server: every configuration key, environment override, CLI command, and HTTP endpoint.
+
+:::tip
+Setting up for the first time? Use [Installing the BVC server](/wiki/server/installation/) instead. It covers the same ground in the order you need it.
+:::
+
+| Page | What it covers |
+|---|---|
+| [config.hcl](/wiki/reference/configuration/) | Every configuration block and key, with defaults. |
+| [Environment variables](/wiki/reference/environment-variables/) | Every `BVC_*` override. Precedence is environment > file > default. |
+| [CLI](/wiki/reference/cli/) | The server executable's command line: identities, users, permissions, bootstrapping. |
+| [HTTP API](/wiki/reference/http-api/) | Endpoint index. Enable `openapi_docs` to browse the live spec at `/docs`. |
+
+Under **Work in progress**:
+
+| Page | What it covers |
+|---|---|
+| [Peering](/wiki/reference/peering/) | Cross-server voice links. |
+| [Assigned hostnames](/wiki/server/enrollment/) | A hostname and a certificate for a server with no domain. Select members only. |
+
+---
+
+# CLI
+
+> The server executable's command line — identities, users, permissions, bootstrapping.
+
+Source: https://www.bedrockvoicechat.com/wiki/reference/cli
+
+The Bedrock Voice Chat server executable is also a CLI, letting you manage identities, users, and permissions either locally or against a remote server.
+
+Available since beta.11.
+
+## Global flags
+
+| Flag | Env | Default | Notes |
+|---|---|---|---|
+| `-c, --config-file <path>` | — | `config.hcl` | Used by `server` and `admin *` only. |
+| `--server-url <url>` | `BVC_SERVER` | `https://127.0.0.1:3000` | Target for `login`. Other commands read it from the stored identity. |
+| `--identity <gamertag:game>` | `BVC_IDENTITY` | — | Which stored identity to act as, when more than one exists. |
+
+## Identity
+
+| Command | Auth | Transport | Does |
+|---|---|---|---|
+| `login` | none | `POST /api/auth/code` | Redeem a one-time code for an mTLS certificate bundle and store it. |
+| `logout` | mTLS | local | Delete the active stored identity. |
+| `whoami` | mTLS | `GET /api/auth/introspect` | Print identity, server URL, certificate expiry, and effective permissions. |
+
+`login` takes one flag: `--code <code>`, prompted on stdin if omitted.
+
+The code is the whole credential. It identifies the player it was issued for, and the server returns the gamertag and the game.
+
+## Server
+
+| Command | Does |
+|---|---|
+| `server` | Start the BVC server, HTTP and QUIC. Reads `--config-file`. |
+
+## Bootstrap
+
+These talk to the database directly. Run them on the server host with `config.hcl` available. A fresh deployment has no admin, and there is nobody to authenticate as.
+
+| Command | Flags | Does |
+|---|---|---|
+| `admin bootstrap` | `-p, --player <name>`; `-g, --game <minecraft>` | Grant `admin` to an existing player. |
+| `admin generate-code` | `-p, --player <name>`; `-g, --game <minecraft>`; `-d, --duration <secs>`; `--ephemeral <true\|false>` | Generate a one-time login code, creating the player record if needed. |
+
+`-d` defaults to 3600.
+
+`--ephemeral` defaults to `true`, meaning the code is consumed when it is redeemed. Pass `--ephemeral false` to mint a code that stays valid until it expires and can be redeemed more than once.
+
+`admin generate-code` creates the player if missing. `admin bootstrap` requires the player to exist.
+
+## Users
+
+Over HTTPS with mTLS. Requires an active admin identity. `whoami` should list `admin`.
+
+| Command | Endpoint | Does |
+|---|---|---|
+| `user add` | `POST /api/admin/user` | Create a player with certificate and keypair. 409 if they exist. |
+| `user banish` | `PATCH /api/admin/user/banish` | Toggle the banished flag. |
+| `user generate-code` | `POST /api/admin/user/code` | Generate a login code for an existing player. 404 if they do not exist. |
+
+Flags: `-p, --player <name>`, `-g, --game <minecraft>`. `user banish` also takes `-b, --banish <true|false>` (default `true`). `user generate-code` also takes `-d, --duration <secs>` (default 3600) and `--ephemeral <true|false>` (default `true`).
+
+## Permissions
+
+Requires an active admin identity. Valid strings: `audio_upload`, `audio_delete`, `admin`.
+
+| Command | Endpoint | Does |
+|---|---|---|
+| `permission allow` | `PUT /api/admin/permission` | Record an explicit allow. |
+| `permission deny` | `PUT /api/admin/permission` | Record an explicit deny. |
+| `permission clear` | `DELETE /api/admin/permission` | Remove the override. The config default applies again. |
+| `permission list` | `GET /api/admin/permission/{game}` | List explicit overrides. |
+
+Flags: `-p, --player <name>`, `-g, --game <minecraft>`, and `--permission <name>` for all but `list`.
+
+`clear` is not `deny`. It removes the override.
+
+Empty output from `list` means no overrides. The defaults govern that player entirely.
+
+## Peering
+
+Over HTTPS with mTLS. Requires an active admin identity.
+
+| Command | Endpoint | Does |
+|---|---|---|
+| `relay peerlink` | `GET /api/admin/relay/peerlink` | Print this server's peer link, its node id, and a `peers` block to paste into the other server's `config.hcl`. |
+| `relay worlds` | `GET /api/admin/relay/worlds` | List relay worlds with player counts. |
+
+`relay peerlink` takes `-l, --label <label>`, the block label rendered in the printed example. Default `bvc-server`. Use what the far side will call this server.
+
+`relay peerlink` exits non-zero on a server with no `peers` block in `config.hcl`. The peer endpoint binds only when one exists.
+
+`relay worlds` prints nothing until a player joins a relay world.
+
+See [peering](/wiki/reference/peering/).
+
+## Bootstrapping a fresh deployment
+
+```bash
+# Server host, config.hcl available
+bvc admin generate-code -p Alice -g minecraft -d 3600
+# -> Code: ABCD1234
+
+# Anywhere with network access
+bvc login --code ABCD1234
+
+# Server host
+bvc admin bootstrap -p Alice -g minecraft
+
+# Alice now has admin
+bvc whoami
+bvc user add -p Bob -g minecraft
+bvc user generate-code -p Bob -g minecraft
+```
+
+See [players and permissions](/wiki/server/players-and-permissions/).
+
+---
+
+# Configuration reference
+
+> Every block and key in config.hcl, with defaults.
+
+Source: https://www.bedrockvoicechat.com/wiki/reference/configuration
+
+Every block and key Bedrock Voice Chat server accepts in `config.hcl`, with defaults. Almost nothing here is required. For a working starting point see [Installing the BVC server](/wiki/server/installation/).
+
+Every key also has an environment override; see [environment variables](/wiki/reference/environment-variables/). Precedence is **environment > config file > default**.
+
+`config.hcl` is read once at startup. Restart the server after editing it.
+
+## Environment interpolation
+
+`${env.VAR}` is evaluated anywhere in the file:
+
+```hcl
+minecraft {
+    access_token = "${env.BVC_ACCESS_TOKEN}"
+}
+```
+
+An unset referenced variable is a hard startup error. The server stops instead of booting unsecured.
+
+## `server`
+
+| Key | Default | Description |
+|---|---|---|
+| `listen` | `::` | Bind address. The IPv6 wildcard also serves IPv4 peers. |
+| `port` | `443` | HTTP/REST and login. The public port. The API listener binds a loopback port behind the TLS demultiplexer. |
+| `quic_port` | `443` | UDP/QUIC voice transport. |
+| `advertised_quic_ports` | `[443, 28280]` | Public UDP ports clients should try, in preference order. The list replaces `quic_port` as the published set; it does not extend it. Set it explicitly when a proxy fronts the server on a different port, or when `quic_port` is moved — the default does not follow the bind port. An explicitly empty list publishes `quic_port` alone. |
+| `assets_path` | `./assets` | Static asset directory served by the API. |
+
+The default `::` gives QUIC a dual-stack socket on every platform. On Linux this follows `net.ipv6.bindv6only`, which defaults to `0`.
+
+## `server.tls`
+
+| Key | Default | Description |
+|---|---|---|
+| `certificate` | — | Path to a fullchain PEM. Required unless `acme` is set. |
+| `key` | — | Path to the private key PEM. Required unless `acme` is set. |
+| `names` | `["localhost"]` | SAN hostnames clients use to reach the server. |
+| `ips` | `["127.0.0.1"]` | SAN IPs clients use to reach the server. |
+| `certs_path` | `./certificates` | Directory holding the mTLS CA (`ca.crt`) used to authenticate clients. Managed for you. |
+| `acme` | — | Automatic certificates. Mutually exclusive with `certificate`/`key`. |
+
+## `server.tls.acme`
+
+Obtains and renews a certificate over ACME DNS-01. Port 80 never needs to be open. The server refuses to start with this set alongside `certificate`/`key`.
+
+| Key | Default | Description |
+|---|---|---|
+| `email` | — | ACME account contact. **Required.** |
+| `provider` | — | `cloudflare` or `acme-dns`. **Required.** |
+| `api_token` | — | Cloudflare only. Zone-scoped token with DNS edit permission. |
+| `server_url` | — | acme-dns only. |
+| `username` | — | acme-dns only. |
+| `password` | — | acme-dns only. |
+| `subdomain` | — | acme-dns only. |
+| `directory` | `https://acme-v02.api.letsencrypt.org/directory` | ACME directory URL. Point at the staging directory while testing to avoid rate limits. |
+| `domains` | DNS entries of `tls.names` | Explicit certificate domains. IP entries in `tls.names` are skipped — they cannot appear on an ACME certificate. |
+
+Provider-specific fields are validated at startup. A missing one is named in the error.
+
+## `server.minecraft`
+
+| Key | Default | Description |
+|---|---|---|
+| `access_token` | — | Shared secret the Addon sends as `Authorization: Bearer`. **Required.** |
+| `client_id` | `a17f9693-f01f-4d1d-ad12-1f179478375d` | Microsoft OAuth2 client ID. **Do not change** — this is the public BVC client every released app authenticates against. |
+
+## `server.features`
+
+| Key | Default | Description |
+|---|---|---|
+| `chat` | `true` | Relay in-game chat between the game and the app. See [Chat](/wiki/player/chat/). |
+| `openapi_docs` | `false` | Serve `/openapi.json` and the API browser at `/docs`. |
+| `telemetry` | `true` | Anonymous usage metrics. See [privacy and telemetry](/wiki/server/privacy-and-telemetry/). |
+
+With `chat = false` the server relays nothing in either direction. Lines reported by the Addon are dropped, and messages sent from the app are refused. The Addon's chat socket still connects and then stays idle. No Addon or mod configuration changes.
+
+The app reads this at connect. The chat dock stays on the dashboard, greyed out, and reports `Chat is disabled on this server`.
+
+One-time code login (`POST /api/auth/code`, used by `bvc login`) is always enabled. Earlier releases gated it behind a `code_login` flag. That key no longer exists and is ignored if present.
+
+## `server.peers`
+
+Declared peers, one labeled block each. Peering is declared, never discovered. A node absent from this list is refused at connect.
+
+Work in progress. The shape changes between releases. See [peering](/wiki/reference/peering/).
+
+```hcl
+server {
+    peers "partner-smp" {
+        peerlink     = "<base32 peer link>"
+        worlds       = ["overworld"]
+        capabilities = ["carry_speakers"]
+    }
+}
+```
+
+| Key | Default | Description |
+|---|---|---|
+| `peerlink` | — | The link the far side printed. Carries the peer's public key and the paths to reach it. **Required.** |
+| `worlds` | `[]` | Narrowing filter. Empty accepts what the peer declares. |
+| `capabilities` | `["carry_speakers"]` | What the peer may do on the link. |
+
+Get `peerlink` from the other server with `bvc relay peerlink`. It prints a block ready to paste. See the [CLI reference](/wiki/reference/cli/).
+
+The block label names the peer in log lines.
+
+### `worlds`
+
+A peer declares which worlds it hosts during the handshake. `worlds` narrows what this server accepts from that declaration.
+
+| Value | Effect |
+|---|---|
+| `[]` | Accept every world the peer declares. |
+| `["a", "b"]` | Accept only the intersection of that list and the peer's declaration. |
+
+It never grants a world the peer did not declare.
+
+### `capabilities`
+
+| Value | Effect |
+|---|---|
+| `carry_speakers` | Carry voice across the link. |
+| `query_audio` | Reserved. Granting it changes no behaviour. |
+| `serve_audio` | Reserved. Granting it changes no behaviour. |
+
+Omitting the key grants `carry_speakers`. An explicitly empty list stays empty and grants nothing.
+
+An unrecognised value stops startup and names the value.
+
+`query_audio` and `serve_audio` described a peer fetching an audio file it did not hold. Nothing does that now. Jukebox audio is decoded where it is played and reaches a peer as ordinary frames.
+
+## `server.enrollment`
+
+Getting a hostname and a certificate without owning a domain. See [assigned hostnames](/wiki/server/enrollment/).
+
+| Key | Default | Description |
+|---|---|---|
+| `token` | — | The single-use enrollment token. Spent on first boot. |
+| `address` | — | Address to publish as the assigned name's A record. |
+
+Setting `token` alongside `tls.acme`, `tls.certificate` or `tls.key` stops startup. The three are mutually exclusive.
+
+`address` is optional and unset publishes no record. BVC clients reach the server without one; only a `net`-mode Bedrock addon on another host needs the name to resolve. A private address is published but never verified. A public one is re-checked daily.
+
+### There is no `server.registry`
+
+Where a server reaches the BVC registry is compiled into the binary. It is not a config key and not a runtime environment variable, so a released build cannot be pointed at a different registry — that takes a rebuild. Nothing an operator writes changes it.
+
+## `server.peer_port`
+
+| Key | Default | Description |
+|---|---|---|
+| `peer_port` | `28284` | UDP port the peer endpoint binds. `0` requests an ephemeral port. |
+
+The peer link carries this port. An ephemeral port changes on every restart, which invalidates a link the far side has already been given, so the port is fixed by default. Open or forward it wherever peers reach this server directly.
+
+## `server.cors`
+
+| Key | Default | Description |
+|---|---|---|
+| `allowed_origins` | `[]` | Permitted origins. Empty allows all, which is harmless for the native mTLS client. |
+| `allow_credentials` | `true` | Send `Access-Control-Allow-Credentials`. |
+
+## `server.age`
+
+Minimum age for your community. Clients use this to decide whether to show Age Signals (Android) or Declared Age Ranges (iOS) prompts.
+
+| Key | Default | Description |
+|---|---|---|
+| `minimum` | `13` | Minimum age. `0` disables enforcement. Any other value is clamped to 13–18. |
+
+## `server.bedrock`
+
+The server list clients see in Bedrock Voice Chat Connect, and the freshness rule applied to position events from a proxied session.
+
+Bedrock support is always on. There is no key that turns it off.
+
+| Key | Default | Description |
+|---|---|---|
+| `proxy_event_freshness_threshold_secs` | `30` | Age beyond which a proxied position event is discarded. |
+| `servers` | `[]` | Curated server list advertised to clients. |
+
+### `server.bedrock.servers`
+
+```hcl
+bedrock {
+    servers = [
+        {
+            name             = "My SMP"
+            host             = "play.example.com"
+            port             = 19132
+            protocol_version = 1001
+            addon_mode       = "net"
+        }
+    ]
+}
+```
+
+| Key | Default | Description |
+|---|---|---|
+| `name` | — | Display name in the client. |
+| `host` | — | Hostname of the real backend. |
+| `port` | `19132` | Backend port. |
+| `protocol_version` | — | Protocol the client proxy advertises. Omit for Auto, which mirrors the real backend. See [version support](/wiki/platforms/version-support/). |
+| `addon_mode` | — | `net` or `no_net`. **Required.** Who delivers events for this world. |
+
+`addon_mode` states who delivers position, state and chat events for that world.
+
+| Value | Delivery |
+|---|---|
+| `net` | The world's own BVC Addon posts to the BVC server over HTTP. The client proxy relays only. |
+| `no_net` | There is no HTTP channel. The client proxy carries events in-band. |
+
+The operator declares it. Addon liveness is keyed on the addon's own world uuid, and nothing maps that back to a configured entry.
+
+`addon_mode` says nothing about how a client reaches the BVC server. That is decided separately.
+
+`addon_mode` has no default. Every entry carries one, and a `servers` list missing it does not parse.
+
+Use `no_net` for Realms and Aternos worlds running the no-net Addon. Use `net` for a world running the standard Addon or the Java mod.
+
+## `database`
+
+| Key | Default | Description |
+|---|---|---|
+| `scheme` | `sqlite3` | `sqlite`, `sqlite3`, `mysql`, `postgres`, or `postgresql`. |
+| `database` | `./bvc.sqlite3` | SQLite path, or database name. |
+| `host` | `127.0.0.1` | MySQL and Postgres only. |
+| `port` | `3306` / `5432` | Defaults per scheme. |
+| `username` | — | MySQL and Postgres only. |
+| `password` | — | MySQL and Postgres only. |
+| `ssl_mode` | — | `disable`, `prefer`, `require`, `verify-ca`, `verify-full`. |
+| `ssl_root_cert` | — | CA certificate verifying the database server. |
+| `ssl_cert` | — | Client certificate for database mTLS. |
+| `ssl_key` | — | Key for `ssl_cert`. |
+
+Database TLS is validated at startup. These combinations are rejected:
+
+- Any `ssl_*` path without `ssl_mode`. sqlx would default to opportunistic TLS and fall back to plaintext.
+- `ssl_root_cert` with a mode weaker than `verify-ca`. The pinned CA would never be checked.
+- `ssl_cert` without `ssl_key`, or either naming a file that does not exist.
+- Any `ssl_*` option on a SQLite scheme.
+
+## `log`
+
+| Key | Default | Description |
+|---|---|---|
+| `level` | `info` | `trace`, `debug`, `info`, `warn`, `error`. Overridden by `RUST_LOG`. |
+| `path` | `./logs` | Directory for the rotating JSON log file. Created if missing. |
+
+The console is not configurable. The server always writes human-readable output to stderr and a JSON file to `log.path`. An unwritable `log.path` degrades to console-only rather than stopping the server.
+
+## `voice`
+
+| Key | Default | Description |
+|---|---|---|
+| `datagram_send_capacity` | `1024` | Outbound QUIC datagram queue per connection. |
+| `datagram_recv_capacity` | `1024` | Inbound QUIC datagram queue per connection. |
+
+### `voice.recording`
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Whether clients connected to this server may record. |
+
+This is a client policy, not a server boundary. Recordings are written on the player's own machine and never reach the server. When false, the stock client refuses to arm from the REC button, `/bvc:record`, and the WebSocket API. It does not stop a modified client.
+
+Advertised on `/api/config`. A client that cannot reach the config treats recording as permitted, the same as an older server.
+
+See [recording](/wiki/creator/recording/).
+
+### `voice.limits`
+
+| Key | Default | Description |
+|---|---|---|
+| `connections` | `0` | Maximum concurrent voice sessions. `0` admits everyone. |
+| `reconnect_grace` | `60` | Seconds a disconnected player keeps their slot. |
+
+Counted per player, not per connection. A player who reconnects is never refused by the limit, even while their previous connection is still closing, and one player signed in on two devices holds one slot.
+
+A player refused by the limit sees a notice naming it, and their client keeps retrying. They connect as soon as a slot frees. Registration is unaffected: new players still join the roster and can sign in once there is room.
+
+`reconnect_grace` holds a departed player's slot so a client that closed cleanly — an app quit, or Android stopping it in the background — is not displaced by someone who arrived meanwhile. A held slot yields to a genuinely new player, oldest first, when nothing else is free.
+
+Advertised on `/api/config` as `capacity.limit` and `capacity.in_use`. A client that cannot reach the config treats the server as unlimited, the same as an older server.
+
+Relayed peer players do not consume slots on this server; they are counted where their own session lives. The HTTP API is unaffected, so a full server can still be administered.
+
+### `voice.spatial_audio`
+
+All distances in blocks.
+
+| Key | Default | Description |
+|---|---|---|
+| `broadcast_range` | `48.0` | Maximum distance at which audio is relayed at all. |
+| `close_threshold` | `24.0` | Full volume at or below this distance. |
+| `falloff_distance` | `48.0` | Distance at which audio reaches full attenuation. |
+| `steepen_start` | `38.0` | Distance where the falloff curve steepens toward silence. |
+| `deafen_distance` | `3.0` | Below this, stereo panning is suppressed entirely. |
+| `panning_start` | `8.0` | Distance at which stereo panning begins to fade in. |
+| `max_attenuation_db` | `40.0` | Attenuation applied at `falloff_distance`. |
+
+Panning ramps from `panning_start` to `close_threshold`. Raising `close_threshold` widens the band over which voices spread across the stereo field.
+
+## `audio`
+
+| Key | Default | Description |
+|---|---|---|
+| `file_path` | `./assets/audio` | Where uploaded audio clips are stored. |
+| `max_concurrent_per_uuid` | `5` | Maximum simultaneous clips per player. |
+
+## `permissions`
+
+```hcl
+permissions {
+    defaults = {
+        audio_upload = true
+        audio_delete = false
+        admin        = false
+    }
+}
+```
+
+Server-wide defaults for the three permissions. Set per-player overrides with the `permission` CLI subcommands. See the [CLI reference](/wiki/reference/cli/).
+
+| Permission | Grants |
+|---|---|
+| `audio_upload` | Upload clips to the audio library. |
+| `audio_delete` | Delete clips from the library. |
+| `admin` | User and permission management. |
+
+Peering is not a player permission. A peer is declared in [`server.peers`](/wiki/reference/configuration/#serverpeers).
+
+---
+
+# Environment variables
+
+> Every BVC_* override, and how precedence works.
+
+Source: https://www.bedrockvoicechat.com/wiki/reference/environment-variables
+
+Every Bedrock Voice Chat configuration value has a `BVC_*` environment override, letting you run a server without a config file at all. Precedence is **environment > config file > default**.
+
+An unset or empty variable never overrides anything. `FOO=` in a compose file will not blank out a configured value. A malformed value is a hard startup error.
+
+`config.hcl` is therefore optional. With no file, the server starts from defaults plus the environment and logs that it did. This is the usual arrangement under Kubernetes. See [Docker](/wiki/server/docker/).
+
+## Server
+
+| Variable | Sets |
+|---|---|
+| `BVC_SERVER` | `server.listen` and `server.port`, from a `host:port` value. URL forms (`https://…`) are ignored here — those are the CLI's `--server-url`. |
+| `BVC_QUIC_PORT` | `server.quic_port` |
+| `BVC_ADVERTISED_QUIC_PORTS` | `server.advertised_quic_ports`. Comma-separated. |
+| `BVC_ACCESS_TOKEN` | `server.minecraft.access_token` |
+| `BVC_TELEMETRY` | `server.features.telemetry`. `true` or `false`. |
+| `BVC_CHAT` | `server.features.chat`. `true` or `false`. |
+
+## Voice
+
+| Variable | Sets |
+|---|---|
+| `BVC_RECORDING` | `voice.recording.enabled`. `true` or `false`. |
+| `BVC_MAX_CONNECTIONS` | `voice.limits.connections`. Maximum concurrent voice sessions. `0` admits everyone. |
+| `BVC_RECONNECT_GRACE` | `voice.limits.reconnect_grace`. Seconds a disconnected player keeps their slot. |
+
+## Runtime
+
+Read by a server started in-process over FFI, which is the Java mod's embedded mode. A standalone server ignores them.
+
+| Variable | Sets |
+|---|---|
+| `BVC_RUNTIME_WORKER_THREADS` | Tokio worker thread count. Defaults to the host's core count. |
+| `BVC_RUNTIME_MAX_BLOCKING_THREADS` | Ceiling on the blocking pool. |
+
+## TLS
+
+| Variable | Sets |
+|---|---|
+| `BVC_TLS_CERTIFICATE` | `server.tls.certificate` |
+| `BVC_TLS_KEY` | `server.tls.key` |
+| `BVC_TLS_CERTS_PATH` | `server.tls.certs_path` |
+| `BVC_TLS_NAMES` | `server.tls.names`. Comma-separated. |
+| `BVC_TLS_IPS` | `server.tls.ips`. Comma-separated. |
+
+## Enrollment
+
+Where most enrollment tokens actually arrive: a container is configured by environment, not by editing a file inside it. See [assigned hostnames](/wiki/server/enrollment/).
+
+| Variable | Sets |
+|---|---|
+| `BVC_ENROLLMENT_TOKEN` | `server.enrollment.token` |
+| `BVC_ENROLLMENT_ADDRESS` | `server.enrollment.address` |
+
+Setting `BVC_ENROLLMENT_TOKEN` alongside any ACME or TLS certificate setting stops startup. The three certificate sources are mutually exclusive.
+
+`BVC_REGISTRY_PEERLINK` is **not** in this list. It is read when the binary is compiled, not when it runs, and setting it in a running server's environment does nothing.
+
+## ACME
+
+Setting any of these creates the `acme` block if the config file does not already have one. When creating it from scratch, `BVC_ACME_EMAIL` and `BVC_ACME_PROVIDER` are both required. Startup fails naming whichever is missing.
+
+| Variable | Sets |
+|---|---|
+| `BVC_ACME_EMAIL` | Account contact |
+| `BVC_ACME_PROVIDER` | `cloudflare` or `acme-dns` |
+| `BVC_ACME_API_TOKEN` | Cloudflare token |
+| `BVC_ACME_DIRECTORY` | ACME directory URL |
+| `BVC_ACME_DOMAINS` | Certificate domains. Comma-separated. |
+| `BVC_ACME_DNS_URL` | acme-dns server URL |
+| `BVC_ACME_DNS_USERNAME` | acme-dns username |
+| `BVC_ACME_DNS_PASSWORD` | acme-dns password |
+| `BVC_ACME_DNS_SUBDOMAIN` | acme-dns delegated subdomain |
+
+See [TLS](/wiki/server/tls/).
+
+## Database
+
+| Variable | Sets |
+|---|---|
+| `BVC_DATABASE_SCHEME` | `database.scheme` |
+| `BVC_DATABASE_DATABASE` | `database.database` |
+| `BVC_DATABASE_HOST` | `database.host` |
+| `BVC_DATABASE_PORT` | `database.port` |
+| `BVC_DATABASE_USERNAME` | `database.username` |
+| `BVC_DATABASE_PASSWORD` | `database.password` |
+| `BVC_DATABASE_SSL_MODE` | `database.ssl_mode` |
+| `BVC_DATABASE_SSL_ROOT_CERT` | `database.ssl_root_cert` |
+| `BVC_DATABASE_SSL_CERT` | `database.ssl_cert` |
+| `BVC_DATABASE_SSL_KEY` | `database.ssl_key` |
+
+TLS combinations are validated at startup. See the [database section](/wiki/reference/configuration/#database) for which are rejected.
+
+## Bedrock
+
+| Variable | Sets |
+|---|---|
+| `BVC_BEDROCK_SERVERS` | Replaces the curated list entirely. |
+
+`BVC_BEDROCK_SERVERS` takes comma-separated `Name@host[:port][@protocol][@mode]` entries:
+
+```
+BVC_BEDROCK_SERVERS="My SMP@play.example.com:19132@1001@net,Other@mc.example.net@no_net"
+```
+
+`mode` is `net` or `no_net`. See [`server.bedrock.servers`](/wiki/reference/configuration/#serverbedrockservers).
+
+The two trailing tokens are classified by shape. Either may be omitted, and their order does not matter. An unrecognised token stops startup and names the token.
+
+Hostnames only. An IPv6 literal's colons parse as a port separator.
+
+## Meridian
+
+`BVC_MERIDIAN_*` configures registration with Meridian, the proxy behind our
+managed hosting. Not applicable to a self-hosted server.
+
+## CLI variables
+
+These are read by the CLI, not the server:
+
+| Variable | Used by |
+|---|---|
+| `BVC_SERVER` | `--server-url` for `login`. Doubles as the listen override above, distinguished by whether the value is a URL. |
+| `BVC_IDENTITY` | `--identity`, as `<gamertag>:<game>` |
+| `BVC_IDENTITY_DIR` | Directory holding stored CLI identities. |
+
+See [CLI](/wiki/reference/cli/).
+
+## Interpolation instead
+
+`${env.VAR}` works anywhere inside `config.hcl`, which is often clearer than an override:
+
+```hcl
+minecraft {
+    access_token = "${env.BVC_ACCESS_TOKEN}"
+}
+```
+
+A referenced variable that is unset is a hard startup error, never an empty string.
+
+---
+
+# HTTP API
+
+> Where the BVC server's API reference lives, and how it is organised.
+
+Source: https://www.bedrockvoicechat.com/wiki/reference/http-api
+
+Bedrock Voice Chat server exposes an HTTP API for authentication, configuration, position relay, and administration.
+
+## Reference
+
+**[bedrockvoicechat.com/api](https://www.bedrockvoicechat.com/api)**
+
+## Serving the spec from your own server
+
+Your server can serve the spec for its own build:
+
+```hcl
+server {
+    features {
+        openapi_docs = true
+    }
+}
+```
+
+- `/openapi.json` — the spec
+- `/docs` — browsable UI
+
+## Authentication
+
+| Scheme | Used by |
+|---|---|
+| **mTLS** | Player and admin endpoints. The client certificate is issued at login. |
+| **`Authorization: Bearer`** | Game server endpoints — the position relay. The shared secret from `server.minecraft.access_token`. |
+| **None** | Health, config, and the login flow itself. |
+
+---
+
+# Peering
+
+> Linking two BVC servers so voice carries across both. Work in progress.
+
+Source: https://www.bedrockvoicechat.com/wiki/reference/peering
+
+:::caution[Work in progress]
+Peering is under active development. The configuration shape, the CLI, and the wire protocol all change between releases. Peering protocol is subject to change until the spec is finalized
+
+Peering links two Bedrock Voice Chat servers together, letting players whose worlds overlap hear each other across both.
+
+Not for production communities.
+
+## Model
+
+Peering is declared. There is no discovery, no broker, and no announce cycle. Each operator writes the other's peer link into their own `config.hcl`. A node absent from that list is refused at connect.
+
+The declaration is the authorization. There is no peering permission.
+
+## Link two servers
+
+Run on server A:
+
+```bash
+bvc relay peerlink --label server-b
+```
+
+It prints the peer link, the node id, and a block to paste. Put that block in server B's `config.hcl`. Then run the same command on server B and paste its block into server A's.
+
+Restart both.
+
+```hcl
+server {
+    peers "server-b" {
+        peerlink = "<the value server B printed>"
+    }
+}
+```
+
+## Configuration
+
+| Key | Default | Description |
+|---|---|---|
+| `peerlink` | — | The link the far side printed. **Required.** |
+| `worlds` | `[]` | Narrowing filter over the worlds the peer declares. |
+| `capabilities` | `["carry_speakers"]` | What the peer may do on the link. |
+
+Full descriptions in the [configuration reference](/wiki/reference/configuration/#serverpeers).
+
+## Reaching a peer
+
+A peer link carries the paths to reach its server. Two servers on one host, or two hosts on one local network, need nothing else.
+
+Across the internet the two servers connect **directly**. Nothing forwards the traffic on their behalf, and no voice or position data passes through Bedrock Voice Chat infrastructure.
+
+That means a reachable path has to exist. Where both ends sit behind NAT, forward [`server.peer_port`](/wiki/reference/configuration/#serverpeer_port) (UDP `28284` by default) on at least one of them. Where neither can be reached — carrier-grade NAT on both sides is the usual case — the pair does not connect, and no configuration changes that.
+
+## Diagnostics
+
+| Command | Does |
+|---|---|
+| `bvc relay peerlink` | Print this server's peer link and node id. |
+| `bvc relay worlds` | List the relay worlds this server hosts, with player counts. |
+
+`bvc relay worlds` lists nothing until a player joins a relay world.
+
+Both read the admin API over mTLS and need an active admin identity. See the [CLI reference](/wiki/reference/cli/).
+
+## Before you turn it on
+
+Peering means players on another operator's server hear yours, and yours hear theirs. Their moderation becomes your problem, and yours becomes theirs.
+
+Declare a peer deliberately.
+
+---
+
+# Upgrading
+
+> Moving an existing Bedrock Voice Chat deployment to a newer release.
+
+Source: https://www.bedrockvoicechat.com/wiki/upgrading
+
+Bedrock Voice Chat releases the server, the client, and the Minecraft mods together under one version. An upgrade moves all three.
+
+## Version pairing
+
+Run the same release everywhere. Voice carries its own protocol version, separate from the release version. The client compares the major and minor of its protocol against the server's and refuses the session when they differ. Patch releases do not change the wire format.
+
+| Release | Voice protocol |
+|---|---|
+| 1.0.0-beta.21 | 3.0.0 |
+| 1.0.0-beta.20 | 2.1.0 |
+
+On the server list, a client behind the server shows **Update needed**. A client ahead of the server shows **Server is older**. Both states block the connection.
+
+## Procedure
+
+1. Back up the database.
+2. Stop the server.
+3. Apply the configuration changes listed on the release page.
+4. Replace the binary, or pull the new container image.
+5. Start the server. Database migrations run at startup.
+6. Read the startup log before letting players connect.
+7. Update the Addon and any Java mod to the same release.
+
+:::caution
+Apply configuration changes **before** the first start on the new version. The server ignores keys it does not recognise, and a removed block leaves no trace in the log.
+:::
+
+## Release guides
+
+- [Upgrading to 1.0.0-beta.21](/wiki/upgrading/beta-21/)
+
+---
+
+# Upgrading to 1.0.0-beta.21
+
+> Voice protocol 3.0.0, the peering rewrite, and every configuration key that changed since 1.0.0-beta.20.
+
+Source: https://www.bedrockvoicechat.com/wiki/upgrading/beta-21
+
+Bedrock Voice Chat 1.0.0-beta.21 changes the voice protocol, replaces the peering system, removes the Bedrock transfer relay, and moves several configuration keys.
+
+## Upgrade steps
+
+1. Back up the database.
+2. Stop the server.
+3. Add `addon_mode` to every entry in `server.bedrock.servers`. Use `"net"` or `"no_net"`. The server does not start without it.
+4. Delete the `server.bedrock.dns` and `relay` blocks from `config.hcl`, and the `enabled`, `transfer_port`, `transfer_target_port` and `transfer_cache_ttl_secs` keys from `server.bedrock`. All are ignored in this release, not rejected.
+5. Rename `log.out` to `log.path` in `config.hcl`. The server does not start while `out` is present.
+6. Replace the server binary, or pull the new container image.
+7. Start the server. Migrations run at startup.
+8. Read the startup log before letting players connect.
+9. Update the Bedrock Addon to 1.0.0-beta.21.
+10. Publish the 1.0.0-beta.21 client. Older clients cannot connect.
+
+:::danger
+Step 1 is not optional. Step 6 runs the `drop_peer_link_permission` migration, which deletes every `peer_link` grant. Its rollback restores nothing. Which players held the grant is recorded nowhere else.
+:::
+
+Three deployments carry extra steps.
+
+| Also running | Extra step |
+|---|---|
+| Java mod in embedded mode | Rewrite `embedded-config` as nested blocks before step 5. See [Java mod](#java-mod). |
+| Peering | Relink every pair with `bvc relay peerlink` after step 6. A 1.0.0-beta.20 peer link does not carry over. See [peering](#peering). |
+| Hytale Java mod | Remove it. It is no longer built. |
+
+No other existing key in `config.hcl` has to change.
+
+## Voice protocol 3.0.0
+
+The voice protocol moves from `2.1.0` to `3.0.0`. Clients on 1.0.0-beta.20 and earlier cannot open a session against a 1.0.0-beta.21 server, and a 1.0.0-beta.21 client cannot open one against an older server. Only the major and minor are compared.
+
+No configuration controls this. Ship the server and the client together.
+
+## Configuration changes
+
+File: `config.hcl`
+
+| Key | Change | Action |
+|---|---|---|
+| `server.bedrock.servers[].addon_mode` | New. **Required** on every entry. | Add `addon_mode = "net"` or `addon_mode = "no_net"` to each entry. |
+| `server.bedrock.dns` | Removed. | Delete the block. |
+| `server.bedrock.enabled` | Removed. Bedrock support is always on. | Delete the key. |
+| `server.bedrock.transfer_port` | Removed with the transfer relay. | Delete the key. Close 28283/udp. |
+| `server.bedrock.transfer_target_port` | Removed with the transfer relay. | Delete the key. |
+| `server.bedrock.transfer_cache_ttl_secs` | Removed with the transfer relay. | Delete the key. |
+| `relay` | Removed. Replaced by `server.peers` and `server.peer_relay_url`. | Delete the block. Redeclare peers. |
+| `voice.recording` | New. `enabled` defaults to `true`. | Set `enabled = false` to forbid client-side recording. |
+| `voice.limits` | New. `connections` defaults to `0`, which admits everyone. | Nothing. Set `connections` to cap concurrent voice sessions. |
+| `log.out` | Removed. Replaced by `log.path`. | Rename the key. See [Logging](#logging). |
+| `log.path` | New. Directory for the log file. Defaults to `./logs`. | Nothing, unless you want the file elsewhere. |
+
+`addon_mode` has no default. A `servers` list carrying an entry without it does not parse, and the server does not start. Every key is listed in the [configuration reference](/wiki/reference/configuration/).
+
+:::caution
+Every other removed key is **ignored, not rejected**. A leftover `relay` block, `server.bedrock.dns` block, or `server.bedrock` transfer key starts the server with those settings absent and writes nothing to the log.
+:::
+
+`voice.recording.enabled` takes the `BVC_RECORDING` environment override.
+
+`voice.limits` needs no action on upgrade. The default admits everyone, so a server that does not declare the block behaves exactly as it did. `connections` and `reconnect_grace` take the `BVC_MAX_CONNECTIONS` and `BVC_RECONNECT_GRACE` overrides.
+
+## Logging
+
+The server now writes to two places at once. Neither is selectable.
+
+- **The console**, on **stderr**, human-readable and coloured.
+- **A file**, in `log.path`, one JSON object per line.
+
+### `log.out` is replaced by `log.path`
+
+`log.out` chose *where everything went*: `"stdout"` sent every line to standard output and nothing to a file, and any other value sent every line to a file and nothing to the console. Console and file are now independent and both always on, which that key cannot express.
+
+A `config.hcl` that still names `out` **fails to start** with an error naming the key. This is the one removed key in this release that is rejected rather than ignored, because silently dropping it would put the log somewhere other than where you asked.
+
+```hcl
+log {
+  level = "info"
+  path  = "./logs"
+}
+```
+
+`log.path` is a directory, created if missing. If it cannot be created or written, the server logs one line to stderr and starts anyway, console-only. It does not refuse to start.
+
+### Console output moved from stdout to stderr
+
+Standard output now carries only the output of CLI subcommands. Update any supervisor unit, container configuration, or shell pipeline that read the server log from stdout. Docker, systemd, and the Java mod capture both streams and need no change.
+
+Colour is suppressed automatically when stderr is not a terminal, so a redirected log no longer collects escape sequences. `NO_COLOR=1` forces it off and `CLICOLOR_FORCE=1` forces it on.
+
+### The file is JSON, and rotates by size
+
+Every line is one object. `instance_id` and `name` come from `server.meridian` and are `null` when that block is absent; `boot_id` is new per process start, so a restart is visible inside one file.
+
+```json
+{"ts":"2026-08-23T18:43:32.989Z","level":"info","target":"bvc_server_lib::runtime","msg":"Protocol Version: 3.0.0","instance_id":null,"name":null,"boot_id":"01a02fef-63fc-7ab3-80f0-76853ffb4bf2","file":"server/src/runtime/mod.rs","line":164}
+```
+
+Fields added at a call site appear as top-level keys, so `jq '.bind'` reads them directly.
+
+Rotation is now by **size, not by day**:
+
+| Before | Now |
+|---|---|
+| `bvc-server.log.2026-08-23` | `bvc-server.log` plus `bvc-server_<timestamp>.log` archives |
+| One file per day, kept forever | 50 MB per file, ten archives kept |
+
+Update any logrotate rule or log shipper pattern that matches the old names.
+
+### `RUST_LOG`
+
+`RUST_LOG` overrides `log.level` and the built-in per-crate defaults in one string, and governs both the server's own output and its dependencies'.
+
+```
+RUST_LOG=info,bvc_server_lib::stream=debug,hyper=off
+```
+
+A directive with no `=` sets the global level. A directive with `=` sets the level for every target whose name starts with the text on the left; the longest matching prefix wins. `off` silences a target completely. An unparseable directive is named on stderr and skipped.
+
+Only this `target=level` form is supported. The span and field syntax some Rust tools accept (`target[span{field=value}]=level`) is not.
+
+## Scripts that call the API
+
+Three things changed. A script of your own that touches any of them has to change with it. The Addon, the Java mods, and the client ship with the change.
+
+| Route | Change |
+|---|---|
+| `/api/position`, `/api/control`, `/api/state`, `/api/preferences`, `/api/audio/event`, the chat WebSocket | Send `Authorization: Bearer <token>` instead of `X-MC-Access-Token: <token>`. The token value is unchanged. |
+| `POST /api/bedrock/transfer` | Removed with the transfer relay. The client forwards on its own, so there is nothing to register. Delete the call. |
+| `GET /api/config` | `bedrock.transfer_port` is gone. `bedrock.enabled` remains and is always `true`. |
+
+## QUIC ports
+
+`server.advertised_quic_ports` publishes the UDP ports a client tries, in preference order. A non-empty list **replaces** `server.quic_port` as the set clients attempt. It does not add to it. An empty list leaves `quic_port` as the only published port.
+
+File: `config.hcl`
+
+```hcl
+server {
+    quic_port             = 443
+    advertised_quic_ports = [443, 8443]
+}
+```
+
+Use this where a proxy fronts the server on a port other than the bind port. The server binds one socket regardless of how many ports are published.
+
+The environment override is `BVC_ADVERTISED_QUIC_PORTS`.
+
+## WebSocket voice transport
+
+Voice now also runs over WebSocket on the HTTPS port. It shares `server.port` (443 by default) and needs no firewall change. The server advertises it on `/api/config` unconditionally, and there is no key that turns it off.
+
+A client tries the published QUIC ports first and falls back to WebSocket when none answer.
+
+### Forcing WebSocket-only voice
+
+Make QUIC unreachable. There is no dedicated switch.
+
+File: `config.hcl`
+
+```hcl
+server {
+    quic_port             = 0
+    advertised_quic_ports = [1]
+}
+```
+
+`quic_port = 0` binds the QUIC listener to a port the operating system assigns. `advertised_quic_ports = [1]` publishes a port nothing listens on. Every QUIC attempt fails and voice runs over WebSocket on 443.
+
+:::note
+This costs every client the full QUIC probe before it falls back. Sessions start slower.
+:::
+
+## Peering
+
+:::caution
+Peering is currently experimental, and is subject to change. Do not build anything on the peering protocol until a more formal definition is announced.
+:::
+
+Peering is rewritten. A 1.0.0-beta.20 peer link does not carry over.
+
+| 1.0.0-beta.20 | 1.0.0-beta.21 |
+|---|---|
+| `relay` config block | `server.peers` blocks and `server.peer_relay_url` |
+| `POST /api/relay/offer` | Removed |
+| `POST /api/relay/peer_link` | `GET /api/admin/relay/peerlink`, or `bvc relay peerlink` |
+| `POST /api/relay/peer_redeem` | Removed |
+| `peer_link` player permission | Removed. The declaration in `config.hcl` is the authorization |
+| `server::{host}:{port}` certificates | Refused at connect |
+
+Relink each pair of servers. Run `bvc relay peerlink` on each side and paste the printed `peers` block into the other's `config.hcl`. See [peering](/wiki/reference/peering/).
+
+Capabilities default to `carry_speakers` alone. `query_audio` and `serve_audio` are granted only where named. An explicitly empty `capabilities` list stays empty.
+
+Where two peers have no direct path, set `server.peer_relay_url`.
+
+:::note
+`server.peer_relay_url` is removed after beta.21. Peers connect directly or not at all, and there is no relay to point at. See [peering](/wiki/reference/peering/).
+:::
+
+## Java mod
+
+`embedded-config` now mirrors the BVC server's own configuration. The flat keys are gone.
+
+:::caution
+The embedded server **refuses to start** while any old key remains. It logs each one with its replacement and stops. The mod does not rewrite the file.
+:::
+
+File: `plugins/BedrockVoiceChat/config.yml` (Paper), `config/bedrock-voice-chat.json` (Fabric)
+
+| Old key | New key |
+|---|---|
+| `http-port` | `server.port` |
+| `quic-port` | `server.quic_port` |
+| `tls-certificate` | `server.tls.certificate` |
+| `tls-key` | `server.tls.key` |
+| `tls-names` | `server.tls.names` |
+| `tls-ips` | `server.tls.ips` |
+| `assets-path` | `server.assets_path` |
+| `broadcast-range` | `voice.spatial_audio.broadcast_range` |
+| `log-level` | `log.level` |
+| `allow-audio-upload` | `permissions.defaults.audio_upload` |
+| `allow-audio-delete` | `permissions.defaults.audio_delete` |
+
+The camelCase spellings (`httpPort`, `tlsCertificate`, and the rest) map the same way.
+
+Rewritten as nested blocks:
+
+```yaml
+use-embedded-server: true
+embedded-config:
+  server:
+    port: 8444
+    quic_port: 8443
+    tls:
+      certificate: "/path/to/fullchain.pem"
+      key: "/path/to/privkey.pem"
+      names:
+        - "bvc.example.com"
+  voice:
+    spatial_audio:
+      broadcast_range: 32.0
+  log:
+    level: "info"
+```
+
+Anything left out takes the server's default. See the [Java mod](/wiki/server/java-mod/) pages.
+
+## Bedrock Addon
+
+Each entry in `server.bedrock.servers` carries an `addon_mode` of `net` or `no_net`, declaring who delivers position, state, and chat events for that world.
+
+The compact environment form gains a trailing token:
+
+```
+Name@host[:port][@protocol][@net|@no_net]
+```
+
+The two trailing tokens are read by shape. Either may be omitted, and their order does not matter.
+
+## Hytale
+
+The Hytale Java mod is removed, along with its build and release pipeline.
+
+---

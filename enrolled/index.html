@@ -1,0 +1,74 @@
+<!DOCTYPE html><html lang="en" data-audience="player" class="astro-hkbrpulz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Enrollment · Bedrock Voice Chat</title><meta name="description" content="Finishes an enrollment started at the Bedrock Voice Chat registry."><link rel="canonical" href="https://www.bedrockvoicechat.com/enrolled"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon-96x96.png" sizes="96x96" type="image/png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#1c1132"><meta property="og:type" content="website"><meta property="og:title" content="Enrollment · Bedrock Voice Chat"><meta property="og:description" content="Finishes an enrollment started at the Bedrock Voice Chat registry."><meta property="og:url" content="https://www.bedrockvoicechat.com/enrolled"><meta property="og:image" content="https://www.bedrockvoicechat.com/assets/images/og-image.jpeg"><meta name="twitter:card" content="summary_large_image"><script>(function(){try{
+var v=new URLSearchParams(location.search).get('you')||localStorage.getItem('bvc:audience');
+if(["player","operator","creator"].indexOf(v)>-1)document.documentElement.dataset.audience=v;
+}catch(e){}})();</script><!-- Per-page head. A page whose state has to be settled before first paint
+         puts its own inline bootstrap here rather than at the top of the body,
+         where the parser has already built enough of the document to paint. --><meta name="robots" content="noindex"><link rel="stylesheet" href="/_astro/Button.InnZjB11.css"><style>.enroll:where(.astro-d325grov){max-width:46rem;margin:0 auto;padding:4rem 1.5rem}.enroll__panel:where(.astro-d325grov){display:none}.enroll:where(.astro-d325grov)[data-outcome=issued] :where(.astro-d325grov)[data-for=issued],.enroll:where(.astro-d325grov)[data-outcome=taken] :where(.astro-d325grov)[data-for=taken],.enroll:where(.astro-d325grov)[data-outcome=refused] :where(.astro-d325grov)[data-for=refused],.enroll:where(.astro-d325grov)[data-outcome=idle] :where(.astro-d325grov)[data-for=idle]{display:block}.enroll__label:where(.astro-d325grov){opacity:.7;margin-bottom:.25rem;font-size:.875rem}.enroll__token:where(.astro-d325grov){align-items:center;gap:.5rem;display:flex}.enroll__token:where(.astro-d325grov) code:where(.astro-d325grov){overflow-wrap:anywhere;background:#00000040;border-radius:.5rem;flex:1;padding:.75rem 1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.enroll__copy:where(.astro-d325grov){color:inherit;cursor:pointer;background:0 0;border:1px solid;border-radius:.5rem;padding:.75rem 1rem}.enroll__snippet:where(.astro-d325grov){background:#00000040;border-radius:.5rem;margin:1rem 0 2rem;padding:.75rem 1rem;overflow-x:auto}.enroll__reason:where(.astro-d325grov){margin:1rem 0 2rem}.enroll__footnote:where(.astro-d325grov){opacity:.6;margin-top:3rem;font-size:.875rem}
+</style><script type="module" src="/_astro/page.LAbJoB63.js"></script></head><body class="astro-hkbrpulz"><a class="skip vis-hidden astro-hkbrpulz" href="#main">Skip to content</a><main class="enroll astro-d325grov" data-outcome="idle"><section class="enroll__panel astro-d325grov" data-for="issued"><h1 class="astro-d325grov">Your server has an <strong class="astro-d325grov">enrollment token</strong></h1><p class="astro-d325grov">Paste it into your server config and start the server. It works once, and it expires in a day.</p><p class="enroll__label astro-d325grov">Enrollment token</p><div class="enroll__token astro-d325grov"><code id="token" aria-live="polite" class="astro-d325grov">Redeeming...</code><button type="button" id="copy" class="enroll__copy astro-d325grov" data-copied="Copied">Copy</button></div><pre class="enroll__snippet astro-d325grov"><code class="astro-d325grov">server { enrollment { token = &quot;...&quot; } }</code></pre><a href="/wiki/server/" class="btn outline md astro-d325grov astro-ekguhzzh">Open the setup guide</a></section><section class="enroll__panel astro-d325grov" data-for="taken"><h1 class="astro-d325grov">This link has <strong class="astro-d325grov">already been used</strong></h1><p class="astro-d325grov">An enrollment token is handed over once. If you did not copy it, start again and you will be issued another.</p><a href="https://registry.bedrockvoicechat.com/oauth/start" rel="noopener" target="_blank" class="btn outline md astro-d325grov astro-ekguhzzh">Enroll again</a><a href="/wiki/" class="btn outline md astro-d325grov astro-ekguhzzh">Open the wiki</a></section><section class="enroll__panel astro-d325grov" data-for="refused"><h1 class="astro-d325grov">No token was <strong class="astro-d325grov">issued</strong></h1><p class="astro-d325grov">The registry refused this enrollment.</p><p class="enroll__reason astro-d325grov" id="reason"></p><a href="https://registry.bedrockvoicechat.com/oauth/start" rel="noopener" target="_blank" class="btn outline md astro-d325grov astro-ekguhzzh">Enroll again</a><a href="/wiki/" class="btn outline md astro-d325grov astro-ekguhzzh">Open the wiki</a></section><section class="enroll__panel astro-d325grov" data-for="idle"><h1 class="astro-d325grov">Nothing to <strong class="astro-d325grov">enroll here</strong></h1><p class="astro-d325grov">This page finishes an enrollment that starts at the registry. Sign in with Discord to be issued a name.</p><a href="https://registry.bedrockvoicechat.com/oauth/start" rel="noopener" target="_blank" class="btn outline md astro-d325grov astro-ekguhzzh">Start enrollment</a><a href="/wiki/" class="btn outline md astro-d325grov astro-ekguhzzh">Open the wiki</a></section><p class="enroll__footnote astro-d325grov">The token identifies your server to the registry once. The name you are assigned stays with your server key, and the registry keeps a record of which Discord account it was issued to.</p></main><script>(function(){const registry = "https://registry.bedrockvoicechat.com";
+const reasons = {"not_entitled":"Your Discord account does not hold a qualifying membership. Join through Patreon or YouTube, wait for the role to sync, then try again.","already_registered":"That Discord account already holds an assigned name. One name is issued per member.","exchange_failed":"Discord did not complete the sign-in. Start again from the beginning.","internal":"The registry could not finish. Try again in a few minutes."};
+const copied = "Copied";
+
+    (function () {
+      var main = document.querySelector('.enroll');
+      var params = new URLSearchParams(location.search);
+      var claim = params.get('claim');
+      var error = params.get('error');
+
+      function show(outcome) {
+        main.dataset.outcome = outcome;
+      }
+
+      function refuse(code) {
+        var target = document.getElementById('reason');
+        // An unlisted code renders as the generic refusal. Printing the raw
+        // value would show an operator a string written for a log.
+        if (target) target.textContent = reasons[code] || reasons.internal;
+        show('refused');
+      }
+
+      if (error) {
+        refuse(error);
+        return;
+      }
+
+      if (!claim) {
+        show('idle');
+        return;
+      }
+
+      // Nothing is sent with this request: no cookie, no credential. The claim
+      // id is the whole authorisation, which is why it stops working once used.
+      fetch(registry + '/api/claim/' + encodeURIComponent(claim))
+        .then(function (response) {
+          // Unknown, expired and already-redeemed all answer 404, and a reloaded
+          // tab is the ordinary way to reach that.
+          if (response.status === 404) {
+            show('taken');
+            return null;
+          }
+          if (!response.ok) {
+            refuse('internal');
+            return null;
+          }
+          return response.json();
+        })
+        .then(function (body) {
+          if (!body || !body.token) return;
+          document.getElementById('token').textContent = body.token;
+          show('issued');
+        })
+        .catch(function () {
+          refuse('internal');
+        });
+
+      var copy = document.getElementById('copy');
+      if (copy) {
+        copy.addEventListener('click', function () {
+          var token = document.getElementById('token').textContent;
+          navigator.clipboard.writeText(token).then(function () {
+            copy.textContent = copied;
+          });
+        });
+      }
+    })();
+  })();</script><script type="module" src="/_astro/Base.astro_astro_type_script_index_0_lang.B6lXcH83.js"></script></body></html>

@@ -1,22 +1,70 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Linking Discord…</title>
-</head>
-<body>
-  <p>Returning to Bedrock Voice Chat…</p>
-  <p>If the app doesn't reopen automatically, switch back to it — your Discord link will complete.</p>
-  <script>
-    // Discord implicit-grant returns the token in the URL fragment. Move it into
-    // the app's custom scheme so the deep-link plugin routes it to the client.
-    (function () {
-      var params = location.hash ? location.hash.slice(1) : location.search.slice(1);
-      if (params) {
-        location.replace("bedrock-voice-chat://discord-callback?" + params);
-      }
-    })();
-  </script>
-</body>
-</html>
+<!DOCTYPE html><html lang="en" data-audience="player" class="astro-hkbrpulz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Discord link · Bedrock Voice Chat</title><meta name="description" content="Finishes a Discord account link started in Bedrock Voice Chat."><link rel="canonical" href="https://www.bedrockvoicechat.com/discord/callback"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon-96x96.png" sizes="96x96" type="image/png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#1c1132"><meta property="og:type" content="website"><meta property="og:title" content="Discord link · Bedrock Voice Chat"><meta property="og:description" content="Finishes a Discord account link started in Bedrock Voice Chat."><meta property="og:url" content="https://www.bedrockvoicechat.com/discord/callback"><meta property="og:image" content="https://www.bedrockvoicechat.com/assets/images/og-image.jpeg"><meta name="twitter:card" content="summary_large_image"><script>(function(){try{
+var v=new URLSearchParams(location.search).get('you')||localStorage.getItem('bvc:audience');
+if(["player","operator","creator"].indexOf(v)>-1)document.documentElement.dataset.audience=v;
+}catch(e){}})();</script><!-- Per-page head. A page whose state has to be settled before first paint
+         puts its own inline bootstrap here rather than at the top of the body,
+         where the parser has already built enough of the document to paint. --><meta name="robots" content="noindex"><script>(function(){const deepLink = "bedrock-voice-chat://discord-callback";
+const lit = {"linked":17,"failed":9,"cancelled":2,"idle":0};
+
+      (function () {
+        var raw = (location.hash || location.search).slice(1);
+        var params = new URLSearchParams(raw);
+        var code = params.get('error');
+
+        var outcome = params.get('access_token')
+          ? 'linked'
+          : code === 'access_denied'
+            ? 'cancelled'
+            : code
+              ? 'failed'
+              : 'idle';
+
+        // Set before the body parses. Settling it later shows the direct-visit
+        // copy first and swaps, which reads as the page correcting itself.
+        document.documentElement.dataset.link = outcome;
+
+        var target = raw ? deepLink + '?' + raw : '';
+
+        document.addEventListener('DOMContentLoaded', function () {
+          var blocks = document.querySelectorAll('[data-blk]');
+          for (var i = 0; i < blocks.length; i++) {
+            if (i < lit[outcome]) blocks[i].dataset.lit = '';
+            else if (i === lit[outcome] && lit[outcome] > 0) blocks[i].dataset.broke = '';
+          }
+
+          // The mark is a level meter everywhere else on the site. A link that
+          // did not complete collapses it onto the mid row and holds it there.
+          var mark = document.querySelector('[data-cv="mark"]');
+          if (mark) {
+            mark.dataset.gain = outcome === 'linked' ? '1' : outcome === 'idle' ? '0.5' : '0.1';
+            mark.dataset.still = outcome === 'linked' ? '0' : '1';
+          }
+
+          // The only thing out of the URL that is ever written into the page.
+          // The access token is never printed, and the pattern keeps whatever
+          // Discord put in `error` from arriving as anything but an identifier.
+          var slot = document.querySelector('[data-code]');
+          if (slot && code && /^[a-z0-9_.-]{1,64}$/i.test(code)) {
+            slot.textContent = code;
+            slot.closest('[data-code-row]').dataset.filled = '';
+          }
+
+          if (!target) return;
+
+          document.querySelectorAll('[data-reopen] a').forEach(function (el) {
+            el.addEventListener('click', function (event) {
+              event.preventDefault();
+              location.replace(target);
+            });
+          });
+
+          // Drop the grant out of the address bar before handing it over. An
+          // implicit-grant token outlives the link it came from: it sits in
+          // history, in a shared screen and in a screenshot of this page.
+          history.replaceState(null, '', location.pathname);
+
+          location.replace(target);
+        });
+      })();
+    })();</script><link rel="stylesheet" href="/_astro/Button.InnZjB11.css"><style>.stage:where(.astro-spbl5cpc){--state:var(--brand);min-height:100svh;padding:var(--pad-page);isolation:isolate;flex-direction:column;justify-content:center;display:flex;position:relative}:root[data-link=linked] .stage:where(.astro-spbl5cpc){--state:var(--ok)}:root[data-link=cancelled] .stage:where(.astro-spbl5cpc){--state:var(--warn)}:root[data-link=failed] .stage:where(.astro-spbl5cpc){--state:var(--fault)}.stage:where(.astro-spbl5cpc):before{content:"";z-index:-1;pointer-events:none;background:radial-gradient(78% 62% at 50% 44%, color-mix(in srgb, var(--state) 19%, transparent), transparent 70%);position:absolute;inset:0}.col:where(.astro-spbl5cpc){width:100%;min-width:0;max-width:620px;margin-inline:auto}.plate:where(.astro-spbl5cpc){background:var(--void-2);border:1px solid var(--line);border-radius:var(--r-lg);padding:clamp(26px,5.5vw,42px)}.bar:where(.astro-spbl5cpc){align-items:center;gap:16px;padding-bottom:clamp(26px,4.5vw,36px);display:flex}.from:where(.astro-spbl5cpc){font-family:var(--font-mono);font-size:var(--fs-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--faint);white-space:nowrap}.track:where(.astro-spbl5cpc){--blk:clamp(9px, 3.2vw, 16px);flex:auto;justify-content:space-between;gap:3px;min-width:0;display:flex}.blk:where(.astro-spbl5cpc){flex:0 1 var(--blk);height:var(--blk);background:var(--line);transition:background .3s var(--ease);transition-delay:calc(var(--i) * 26ms);border-radius:1px}.blk:where(.astro-spbl5cpc)[data-lit]{background:var(--stop)}.blk:where(.astro-spbl5cpc)[data-broke]{background:var(--state);box-shadow:0 0 0 3px color-mix(in srgb, var(--state) 22%, transparent)}@media (width<=640px){.bar:where(.astro-spbl5cpc){flex-wrap:wrap;gap:14px}.from:where(.astro-spbl5cpc){flex:auto}.track:where(.astro-spbl5cpc){flex-basis:100%;order:3}}:where(.astro-spbl5cpc)[data-state]{display:none}:root[data-link=linked] :where(.astro-spbl5cpc)[data-state=linked],:root[data-link=cancelled] :where(.astro-spbl5cpc)[data-state=cancelled],:root[data-link=failed] :where(.astro-spbl5cpc)[data-state=failed],:root[data-link=idle] :where(.astro-spbl5cpc)[data-state=idle],:root:not([data-link]) :where(.astro-spbl5cpc)[data-state=idle]{display:block}:where(.astro-spbl5cpc)[data-state] .display{margin-top:0}.code:where(.astro-spbl5cpc){font-family:var(--font-mono);font-size:var(--fs-small);color:var(--faint);align-items:baseline;gap:10px;margin:20px 0 0;display:none}.code:where(.astro-spbl5cpc)[data-filled]{display:flex}.code:where(.astro-spbl5cpc) code:where(.astro-spbl5cpc){color:var(--fault);background:color-mix(in srgb, var(--fault) 14%, transparent);border:1px solid color-mix(in srgb, var(--fault) 38%, transparent);border-radius:var(--r-sm);overflow-wrap:anywhere;padding:2px 9px}.acts:where(.astro-spbl5cpc){flex-wrap:wrap;gap:11px;margin-top:30px;display:flex}.foot:where(.astro-spbl5cpc){border-top:1px solid var(--line);font-size:var(--fs-small);line-height:var(--lh-body);color:var(--faint);max-width:54ch;margin:clamp(28px,4.5vw,36px) 0 0;padding-top:20px}.home:where(.astro-spbl5cpc){text-align:center;font-family:var(--font-mono);font-size:var(--fs-micro);letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin-top:22px;text-decoration:none;display:block}.home:where(.astro-spbl5cpc):hover{color:var(--tx)}
+</style><script type="module" src="/_astro/page.LAbJoB63.js"></script></head><body class="astro-hkbrpulz"><a class="skip vis-hidden astro-hkbrpulz" href="#main">Skip to content</a><main class="stage astro-spbl5cpc" id="main"><div class="col astro-spbl5cpc"><section class="plate astro-spbl5cpc"><header class="bar astro-spbl5cpc"><span class="from astro-spbl5cpc">Discord</span><span class="track astro-spbl5cpc" aria-hidden="true"><span class="blk astro-spbl5cpc" data-blk style="--i:0;--stop:var(--sp-violet)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:1;--stop:var(--sp-indigo)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:2;--stop:var(--sp-blue)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:3;--stop:var(--sp-azure)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:4;--stop:var(--sp-cyan)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:5;--stop:var(--sp-teal)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:6;--stop:var(--sp-aqua)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:7;--stop:var(--sp-mint)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:8;--stop:var(--sp-green)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:9;--stop:var(--sp-grass)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:10;--stop:var(--sp-lime)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:11;--stop:var(--sp-yellow)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:12;--stop:var(--sp-amber)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:13;--stop:var(--sp-orange)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:14;--stop:var(--sp-ember)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:15;--stop:var(--sp-red)"></span><span class="blk astro-spbl5cpc" data-blk style="--i:16;--stop:var(--sp-crimson)"></span></span><canvas data-cv="mark" data-still="0" data-gain="1" data-mortar="1" class="astro-spbl5cpc" style="width:92px;height:52px" role="img" aria-label="Bedrock Voice Chat"></canvas></header><div data-state="linked" class="astro-spbl5cpc"><h1 class="display astro-spbl5cpc">Switch back to<br class="astro-spbl5cpc"><b class="astro-spbl5cpc">Bedrock Voice Chat</b></h1><p class="lead astro-spbl5cpc">Discord sent your account back. Bedrock Voice Chat finishes the link when you switch to it.</p><div class="acts astro-spbl5cpc"><span data-reopen class="astro-spbl5cpc"><a href="bedrock-voice-chat://discord-callback" class="btn primary md astro-spbl5cpc astro-ekguhzzh">Reopen Bedrock Voice Chat</a></span></div></div><div data-state="cancelled" class="astro-spbl5cpc"><h1 class="display astro-spbl5cpc">Discord link<br class="astro-spbl5cpc"><b class="astro-spbl5cpc">cancelled</b></h1><p class="lead astro-spbl5cpc">You declined the request on Discord. Nothing changed on either account. Open Settings in Bedrock Voice Chat to link Discord again.</p><div class="acts astro-spbl5cpc"><span data-reopen class="astro-spbl5cpc"><a href="bedrock-voice-chat://discord-callback" class="btn primary md astro-spbl5cpc astro-ekguhzzh">Reopen Bedrock Voice Chat</a></span></div></div><div data-state="failed" class="astro-spbl5cpc"><h1 class="display astro-spbl5cpc">Discord did not<br class="astro-spbl5cpc"><b class="astro-spbl5cpc">finish the link</b></h1><p class="lead astro-spbl5cpc">Discord returned an error instead of an account. Open Settings in Bedrock Voice Chat and link Discord again.</p><p class="code astro-spbl5cpc" data-code-row><span class="astro-spbl5cpc">Discord reported</span><code data-code class="astro-spbl5cpc"></code></p><div class="acts astro-spbl5cpc"><span data-reopen class="astro-spbl5cpc"><a href="bedrock-voice-chat://discord-callback" class="btn primary md astro-spbl5cpc astro-ekguhzzh">Reopen Bedrock Voice Chat</a></span><a href="/wiki/" class="btn outline md astro-spbl5cpc astro-ekguhzzh">Open the wiki</a></div></div><div data-state="idle" class="astro-spbl5cpc"><h1 class="display astro-spbl5cpc">Nothing to<br class="astro-spbl5cpc"><b class="astro-spbl5cpc">link here</b></h1><p class="lead astro-spbl5cpc">This page finishes a Discord link that starts inside Bedrock Voice Chat. Open Settings in the app and link Discord.</p><div class="acts astro-spbl5cpc"><a href="/#download" class="btn primary md astro-spbl5cpc astro-ekguhzzh">Get Bedrock Voice Chat</a><a href="/wiki/" class="btn outline md astro-spbl5cpc astro-ekguhzzh">Open the wiki</a></div></div><p class="foot astro-spbl5cpc">Linking your Discord account to Bedrock Voice Chat enables you to receive experimental features and participate in the community. You can unlink Discord at any time from the app settings.</p></section><a class="home astro-spbl5cpc" href="/">bedrockvoicechat.com</a></div></main><script type="module" src="/_astro/Base.astro_astro_type_script_index_0_lang.B6lXcH83.js"></script></body></html>
