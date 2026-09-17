@@ -166,7 +166,7 @@ export const en = {
     items: [
       {
         title: 'What Bedrock Voice Chat is',
-        blurb: 'See the original announcement video showcasing what Bedrock Voice Chat is',
+        blurb: 'See the latest announcement video showcasing what Bedrock Voice Chat is',
         kind: 'Announcement',
       },
       {
