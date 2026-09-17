@@ -1,0 +1,3388 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Bedrock Voice Chat Server API",
+    "description": "Bedrock Voice Chat Server HTTP API",
+    "contact": {
+      "name": "Repository",
+      "url": "https://github.com/alaydriem/bedrock-voice-chat"
+    },
+    "version": "1.0.0-beta.21"
+  },
+  "paths": {
+    "/api/websocket/ticket": {
+      "post": {
+        "tags": [
+          "WebSocket"
+        ],
+        "description": "Exchanges the caller's mTLS identity for a single-use WebSocket ticket.\n\nA browser cannot present a client certificate or set headers when opening a socket, so identity is established here -- over the same mTLS every other route uses -- and spent once at upgrade time.",
+        "operationId": "ticket_ticket",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebsocketTicketResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/position": {
+      "get": {
+        "tags": [
+          "Positions"
+        ],
+        "description": "Return the positions the server currently holds.\n\nUseful for confirming the game server is actually relaying: an empty response means it is not.",
+        "operationId": "position",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlayerEnum"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Positions"
+        ],
+        "description": "Report player positions from the game server.\n\nCalled by the Addon or Java mod on every position update, authenticated with the shared access token. This is what makes proximity audio possible.",
+        "operationId": "update_position",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameDataCollection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/ping": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "description": "Cheap reachability probe.",
+        "operationId": "ping_pong",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/health/enrollment-nonce": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "description": "Echoes the challenge the relay registry most recently sent over the enrollment session.\n\nUnauthenticated by necessity: the relay fetches this from the address the operator declared, before it holds any credential for this server, and the value is a single-use random string that reveals nothing. Answering it is what binds the published address record to this server's node key.\n\n404 when no challenge has arrived. An empty 200 would read to the relay as a server answering with the wrong value rather than one that has not been asked.",
+        "operationId": "enrollment_nonce_enrollment_nonce",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/health/liveness": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "description": "Liveness probe. Reports that the process is running.\n\nUnauthenticated, for use as a container restart check.",
+        "operationId": "liveness_liveness",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/health/readiness": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "description": "Readiness probe. Reports that the server can accept traffic.\n\nUnauthenticated. Gate a load balancer on this rather than on liveness.",
+        "operationId": "readiness_readiness",
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/audio/event": {
+      "post": {
+        "tags": [
+          "Audio"
+        ],
+        "description": "Start playback of an audio clip as a positioned in-world event.",
+        "operationId": "event_audio_event_play",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AudioPlayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioEventResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/audio/event/{event_id}": {
+      "delete": {
+        "tags": [
+          "Audio"
+        ],
+        "description": "Stop a playing audio event.",
+        "operationId": "event_audio_event_stop",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/audio/file": {
+      "get": {
+        "tags": [
+          "Audio"
+        ],
+        "description": "List clips in the server's audio library.\n\nPaginated, sortable, and searchable.",
+        "operationId": "file_audio_file_list",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0,
+              "nullable": true
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0,
+              "nullable": true
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_for_AudioFileResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/audio/file/{file_id}": {
+      "delete": {
+        "tags": [
+          "Audio"
+        ],
+        "description": "Delete a clip from the audio library. Requires the `audio_delete` permission.",
+        "operationId": "file_audio_file_delete",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/audio/file/{file_id}/token": {
+      "post": {
+        "tags": [
+          "Audio"
+        ],
+        "description": "Mint a short-lived playback token for a clip.\n\nThe token is what `/api/audio/stream` accepts, so a clip can be fetched without presenting a client certificate on the stream request itself.",
+        "operationId": "file_audio_file_token",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioStreamTokenResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/user": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "The server roster: every registered player, paginated and searchable.\n\nRegistration is what admits a login, so this is the whitelist as an operator reads it. `connected` is live state; everything else is the player row.",
+        "operationId": "user_list_list_users",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0,
+              "nullable": true
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0,
+              "nullable": true
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "game",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Game",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_for_AdminUserRow"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "Create a player record with a certificate and keypair.\n\nReturns 409 if the player already exists.",
+        "operationId": "user_create_create_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedUserResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/user/banish": {
+      "patch": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "Toggle a player's banished flag.\n\nReversible, and retains the player record.",
+        "operationId": "user_banish_banish_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BanishUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BanishedUserResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/user/code": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "Generate a one-time login code for an existing player.\n\nReturns 404 if the player does not exist. Codes default to one hour and cap at 24.",
+        "operationId": "user_generate_code_generate_code",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedCodeResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/permission": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "Record an explicit allow or deny permission override for a player.\n\nOverrides take precedence over the server-wide defaults in the `permissions` config block. Use DELETE to remove one.",
+        "operationId": "permission_set_set_permission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPermissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "Remove a permission override, falling back to the server-wide default.\n\nNot the same as denying: the permission returns to whatever `permissions.defaults` specifies.",
+        "operationId": "permission_clear_clear_permission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearPermissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/permission/{game}/{gamertag}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "List a player's explicit permission overrides.\n\nAn empty result means the player has no overrides and is governed entirely by the server-wide defaults.",
+        "operationId": "permission_list_list_permissions",
+        "parameters": [
+          {
+            "name": "game",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Game"
+            }
+          },
+          {
+            "name": "gamertag",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionListResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/relay/peerlink": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "This server's peer link, for the far side's `peer` block.\n\nServed from the running endpoint rather than derived from `node.key`, because a link carries the addresses a peer dials and those belong to the live socket.\n\nThe registry is asked what address it saw this server at, because a host behind NAT observes only its LAN address and there is no relay to fall back on: an address missing from the link is a path that does not exist. That observation is best-effort — a link without it still reaches a same-host or LAN peer.",
+        "operationId": "relay_peerlink_relay_peerlink",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeerLinkResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/relay/worlds": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "List the relay worlds this server currently has players in.\n\nA relay world id is chosen by the game-side mod and never persisted here, so this reflects live presence: a world with nobody in it is absent, not zero.",
+        "operationId": "relay_worlds_relay_worlds",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelayWorldsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/relay/pair": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "Mint a single-use pairing code for a voice bridge.\n\nThe plaintext is returned to the caller and stored nowhere. It is not logged here or anywhere else: a code in a log file is a credential in a log file.",
+        "operationId": "relay_pair_relay_pair",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairingCodeResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/relay/paired": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "List the bridges that have redeemed a pairing code.\n\nPeers declared in `config.hcl` are absent: they are already visible in the file an operator wrote, and listing them here would suggest they could be revoked from here.",
+        "operationId": "relay_pair_relay_paired",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairedPeersResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/relay/paired/{label}": {
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "Revoke every grant carrying this label.\n\nThe running grant table is updated as well as the row, so the peer's next connection is refused rather than its existing authorization surviving until a restart.",
+        "operationId": "relay_pair_relay_unpair",
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairedPeersResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/token": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "List every issued game access token. Secrets are never returned.",
+        "operationId": "token_list_list_tokens",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenListResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "Issue a game access token. The secret is returned once and is not recoverable.",
+        "operationId": "token_mint_mint_token",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MintedTokenResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/token/{id}": {
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "Retire a game access token. The reserved id `legacy` removes the pre-identifier scalar.",
+        "operationId": "token_revoke_revoke_token",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/token/{id}/rotate": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "Issue a replacement and retire `id` in one transaction.",
+        "operationId": "token_rotate_rotate_token",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MintedTokenResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/admin/token/legacy": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "The pre-identifier scalar, if this deployment still has one.",
+        "operationId": "token_legacy_legacy_token",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyTokenResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AdminGuard": []
+          }
+        ]
+      }
+    },
+    "/api/chat/worlds": {
+      "get": {
+        "tags": [
+          "Chat"
+        ],
+        "description": "Worlds this player has been seen in, newest first.\n\n`active` and `available` are independent, and the composer has to tell them apart: a world can be hosting players with its chat channel down, which reads very differently from a world nobody is in.",
+        "operationId": "worlds",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatWorld"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/auth/minecraft": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "description": "Authenticates the Player via Xbox Live to grab their gamertag and other identifying information",
+        "operationId": "minecraft_authenticate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonMessage_LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/code": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "description": "Redeem a one-time login code for an mTLS certificate bundle.\n\nThe non-interactive sign-in path, used by `bvc login`. Always enabled.",
+        "operationId": "code_code_authenticate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonMessage_LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/introspect": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "description": "Return the calling identity and its effective permissions.\n\nBacks `bvc whoami`. Reports the identity, certificate expiry, and the permissions in force after overrides are applied to the defaults.\n\nBehind `PlayerGuard` like every other player route, so a banished or revoked caller is refused here too. An earlier iteration left this open so a locked-out player could read why; the decision is that they cannot.",
+        "operationId": "introspect_introspect",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntrospectResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/auth/link-java": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "description": "Link a Java account to an existing Xbox identity.\n\nLets one player be recognised as the same person across both editions.",
+        "operationId": "link_java_link_java_identity",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkJavaIdentityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkJavaIdentityResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/auth/state": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "description": "Return the state of an in-progress sign-in flow.",
+        "operationId": "state_auth_state",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthStateResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/channel/": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "List channels on the server.",
+        "operationId": "channel_list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Channel"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Create a channel and return its id.\n\nSurfaced in the client as a group.",
+        "operationId": "create_channel_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/channel/{id}": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Update a channel's membership.",
+        "operationId": "event_channel_event",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelEvent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Delete a channel, removing every member.",
+        "operationId": "delete_channel_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Rename a channel.",
+        "operationId": "rename_channel_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/clients/live": {
+      "get": {
+        "tags": [
+          "Clients"
+        ],
+        "description": "The identities with a live voice connection to this server.\n\nAsked for by a mod that also delivers audio — the Simple Voice Chat bridge — so it can leave those players out of its own injection. A Java player running both SVC and the BVC desktop client would otherwise hear every remote speaker twice.\n\nEmpty is a real answer, not a failure: a server whose players have not opened a voice client suppresses nobody.",
+        "operationId": "live_clients",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "description": "Return the configuration a client needs before connecting.\n\nUnauthenticated, and the usual way to confirm a server is reachable and its TLS is valid.",
+        "operationId": "get_config",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/host-capability": {
+      "post": {
+        "tags": [
+          "Telemetry"
+        ],
+        "description": "Report whether this Minecraft host could fetch and write a native library.\n\nAnswers one question: what share of hosts could run the skinny mod jar, which resolves its native library at runtime instead of carrying every platform. Both jars report it, so the two populations are comparable.\n\nThe body carries no hostname, address, path, or player data — only the jar variant, the platform, the mod version and the two outcomes. Anything outside the known vocabulary is refused rather than forwarded, because this arrives from a third-party jar and would otherwise put unbounded strings into the metrics pipeline.",
+        "operationId": "host_capability",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/gamerpic/{game}/{gamertag}": {
+      "get": {
+        "tags": [
+          "Gamerpic"
+        ],
+        "description": "Return a player's gamerpic.",
+        "operationId": "get_gamerpic",
+        "parameters": [
+          {
+            "name": "game",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Game"
+            }
+          },
+          {
+            "name": "gamertag",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GamerpicResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/control": {
+      "post": {
+        "tags": [
+          "Control"
+        ],
+        "description": "Submit a client action on behalf of an in-game player.\n\nSelf and preference actions are delivered ClientBound to the actor's own connection; group actions mutate the channel collection. The actor is the body `id`, which the mod attributes from the in-game player, and the access token gates the route so players cannot call it directly.\n\nReturns the new nanoid for CreateGroup.",
+        "operationId": "control",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientAction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/state": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "description": "Return a player's cached self-state.\n\nUsed by the Addon to seed the in-game control panel.",
+        "operationId": "get_state",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "game",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Game",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryState",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/preferences": {
+      "get": {
+        "tags": [
+          "Control"
+        ],
+        "description": "Return the owner's per-player preferences for a set of targets.\n\nScoped to the comma-separated `targets` the panel is showing, never the whole preference store.",
+        "operationId": "get_preferences",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "game",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Game",
+              "nullable": true
+            }
+          },
+          {
+            "name": "targets",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlayerPreference"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "WebsocketTicketResponse": {
+        "type": "object",
+        "required": [
+          "expires_in",
+          "ticket"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "string"
+          },
+          "expires_in": {
+            "description": "Seconds until expiry, so the caller can decide whether to reuse a held ticket or fetch a fresh one before reconnecting.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
+      },
+      "GameDataCollection": {
+        "type": "object",
+        "required": [
+          "players"
+        ],
+        "properties": {
+          "game": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerEnum"
+            }
+          }
+        }
+      },
+      "Game": {
+        "type": "string",
+        "enum": [
+          "minecraft"
+        ]
+      },
+      "PlayerEnum": {
+        "description": "Type-safe enum for storing heterogeneous player types Dispatches to game-specific implementations\n\nUses externally tagged serialization (works with postcard). For JSON compatibility with legacy clients, use GameDataCollection's custom deserialization which handles the game field at the collection level.",
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "Reserved"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "Minecraft"
+            ],
+            "properties": {
+              "Minecraft": {
+                "$ref": "#/components/schemas/MinecraftPlayer"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Generic"
+            ],
+            "properties": {
+              "Generic": {
+                "$ref": "#/components/schemas/GenericPlayer"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "MinecraftPlayer": {
+        "type": "object",
+        "required": [
+          "coordinates",
+          "deafen",
+          "dimension",
+          "name",
+          "orientation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/Orientation"
+          },
+          "dimension": {
+            "$ref": "#/components/schemas/Dimension"
+          },
+          "deafen": {
+            "type": "boolean"
+          },
+          "spectator": {
+            "default": false,
+            "type": "boolean"
+          },
+          "world_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "alternative_identity": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "player_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "relay_world_uuid": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "bridged_voice": {
+            "default": false,
+            "type": "boolean"
+          }
+        }
+      },
+      "Coordinate": {
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "z"
+        ],
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          },
+          "z": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "Orientation": {
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "Dimension": {
+        "description": "Minecraft-specific structs Minecraft world dimensions",
+        "type": "string",
+        "enum": [
+          "overworld",
+          "the_end",
+          "nether",
+          "death"
+        ]
+      },
+      "GenericPlayer": {
+        "description": "Generic player implementation for games that don't need special spatial logic Uses simple coordinate-based distance calculation without game-specific concepts like dimensions, realms, zones, etc.",
+        "type": "object",
+        "required": [
+          "coordinates",
+          "game",
+          "name",
+          "orientation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/Orientation"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          }
+        }
+      },
+      "ReadinessResponse": {
+        "description": "Per-component readiness snapshot returned by /health/readiness. Each component is \"ok\" or \"down\".",
+        "type": "object",
+        "required": [
+          "certificate",
+          "database",
+          "quic"
+        ],
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "quic": {
+            "type": "string"
+          },
+          "certificate": {
+            "type": "string"
+          }
+        }
+      },
+      "AudioEventResponse": {
+        "type": "object",
+        "required": [
+          "duration_ms",
+          "event_id"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "AudioPlayRequest": {
+        "type": "object",
+        "required": [
+          "audio_file_id",
+          "game"
+        ],
+        "properties": {
+          "audio_file_id": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/GameAudioContext"
+          }
+        }
+      },
+      "GameAudioContext": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "coordinates",
+              "dimension",
+              "game",
+              "world_uuid"
+            ],
+            "properties": {
+              "game": {
+                "type": "string",
+                "enum": [
+                  "minecraft"
+                ]
+              },
+              "coordinates": {
+                "$ref": "#/components/schemas/Coordinate"
+              },
+              "dimension": {
+                "$ref": "#/components/schemas/Dimension"
+              },
+              "world_uuid": {
+                "type": "string"
+              },
+              "relay_world_uuid": {
+                "default": null,
+                "type": "string",
+                "nullable": true
+              }
+            }
+          }
+        ]
+      },
+      "PaginatedResponse_for_AudioFileResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioFileResponse"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "page": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "AudioFileResponse": {
+        "type": "object",
+        "required": [
+          "created_at",
+          "duration_ms",
+          "file_size_bytes",
+          "game",
+          "id",
+          "original_filename",
+          "uploader"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "uploader": {
+            "$ref": "#/components/schemas/UploaderIdentity"
+          },
+          "original_filename": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "file_size_bytes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "game": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "UploaderIdentity": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "game",
+              "gamertag"
+            ],
+            "properties": {
+              "game": {
+                "type": "string",
+                "enum": [
+                  "minecraft"
+                ]
+              },
+              "gamertag": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "AudioStreamTokenResponse": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "CreatedUserResponse": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          }
+        }
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          }
+        }
+      },
+      "PaginatedResponse_for_AdminUserRow": {
+        "type": "object",
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserRow"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "page": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "AdminUserRow": {
+        "type": "object",
+        "required": [
+          "banished",
+          "connected",
+          "created_at",
+          "game",
+          "gamertag",
+          "permissions"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "banished": {
+            "type": "boolean"
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            }
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "Permission": {
+        "type": "string",
+        "enum": [
+          "audio_upload",
+          "audio_delete",
+          "admin"
+        ]
+      },
+      "BanishedUserResponse": {
+        "type": "object",
+        "required": [
+          "banished",
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "banished": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BanishUserRequest": {
+        "type": "object",
+        "required": [
+          "banish",
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "banish": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GeneratedCodeResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "expires_in_seconds"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
+      },
+      "GenerateCodeRequest": {
+        "type": "object",
+        "required": [
+          "duration",
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "duration": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "ephemeral": {
+            "default": true,
+            "type": "boolean"
+          }
+        }
+      },
+      "SetPermissionRequest": {
+        "type": "object",
+        "required": [
+          "effect",
+          "game",
+          "gamertag",
+          "permission"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "permission": {
+            "type": "string"
+          },
+          "effect": {
+            "$ref": "#/components/schemas/PermissionEffect"
+          }
+        }
+      },
+      "PermissionEffect": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "deny"
+        ]
+      },
+      "ClearPermissionRequest": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag",
+          "permission"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "permission": {
+            "type": "string"
+          }
+        }
+      },
+      "PermissionListResponse": {
+        "type": "object",
+        "required": [
+          "entries",
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionEntry"
+            }
+          }
+        }
+      },
+      "PermissionEntry": {
+        "type": "object",
+        "required": [
+          "effect",
+          "permission"
+        ],
+        "properties": {
+          "permission": {
+            "type": "string"
+          },
+          "effect": {
+            "$ref": "#/components/schemas/PermissionEffect"
+          }
+        }
+      },
+      "PeerLinkResponse": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "peerlink"
+        ],
+        "properties": {
+          "peerlink": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RelayWorldsResponse": {
+        "type": "object",
+        "required": [
+          "worlds"
+        ],
+        "properties": {
+          "worlds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RelayWorld"
+            }
+          }
+        }
+      },
+      "RelayWorld": {
+        "type": "object",
+        "required": [
+          "players",
+          "world"
+        ],
+        "properties": {
+          "world": {
+            "type": "string"
+          },
+          "players": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          }
+        }
+      },
+      "PairingCodeResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "expires_in_secs",
+          "label"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "expires_in_secs": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
+      },
+      "PairingRequest": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "ttl_secs": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0,
+            "nullable": true
+          }
+        }
+      },
+      "PairedPeersResponse": {
+        "type": "object",
+        "required": [
+          "peers"
+        ],
+        "properties": {
+          "peers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PairedPeer"
+            }
+          }
+        }
+      },
+      "PairedPeer": {
+        "type": "object",
+        "required": [
+          "label",
+          "node_id",
+          "paired_at"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "paired_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AccessTokenListResponse": {
+        "type": "object",
+        "required": [
+          "tokens"
+        ],
+        "properties": {
+          "tokens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessTokenRow"
+            }
+          }
+        }
+      },
+      "AccessTokenRow": {
+        "type": "object",
+        "required": [
+          "created_at",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "revoked_at": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      },
+      "MintedTokenResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "token"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          },
+          "revoked": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "LegacyTokenResponse": {
+        "type": "object",
+        "required": [
+          "configured"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "nullable": true
+          },
+          "configured": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChatWorld": {
+        "description": "A world this player has been seen in, and whether chat works there right now.",
+        "type": "object",
+        "required": [
+          "active",
+          "available",
+          "last_seen",
+          "mode",
+          "world_name",
+          "world_uuid"
+        ],
+        "properties": {
+          "world_uuid": {
+            "description": "Never rendered. A random UUID on the mod path and a derived hash on the proxy path, polymorphic in length, and meaningless to a person either way.",
+            "type": "string"
+          },
+          "world_name": {
+            "description": "The only user-facing label.",
+            "type": "string"
+          },
+          "last_seen": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "active": {
+            "description": "The world is being hosted: position ingress is recent.",
+            "type": "boolean"
+          },
+          "available": {
+            "description": "A mod chat channel is registered for it right now. A world can be active and unavailable — positions flowing while the chat socket is down.",
+            "type": "boolean"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ChatMode"
+          }
+        }
+      },
+      "ChatMode": {
+        "description": "Which chat implementation is live for a world.\n\nDistinct from availability: this says whether a mod or the local proxy is the source of chat, not whether chat works right now. A world can be `Server` mode with its chat channel down, and the composer has to tell those apart.",
+        "type": "string",
+        "enum": [
+          "Server",
+          "Local"
+        ]
+      },
+      "JsonMessage_LoginResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
+          },
+          "data": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LoginResponse"
+              }
+            ],
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/JsonError"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "required": [
+          "certificate",
+          "certificate_ca",
+          "certificate_key",
+          "gamerpic",
+          "gamertag",
+          "keypair",
+          "quic_connect_string",
+          "signature"
+        ],
+        "properties": {
+          "gamerpic": {
+            "type": "string"
+          },
+          "gamertag": {
+            "type": "string"
+          },
+          "keypair": {
+            "$ref": "#/components/schemas/Keypair"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/Keypair"
+          },
+          "certificate": {
+            "type": "string"
+          },
+          "certificate_key": {
+            "type": "string"
+          },
+          "certificate_ca": {
+            "type": "string"
+          },
+          "quic_connect_string": {
+            "type": "string"
+          },
+          "minecraft_username": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          },
+          "server_permissions": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServerPermissions"
+              }
+            ],
+            "nullable": true
+          },
+          "game": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "Keypair": {
+        "type": "object",
+        "required": [
+          "pk",
+          "sk"
+        ],
+        "properties": {
+          "pk": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0.0
+            }
+          },
+          "sk": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "ServerPermissions": {
+        "type": "object",
+        "required": [
+          "allowed"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            }
+          }
+        }
+      },
+      "JsonError": {
+        "description": "Error container for JSON responses",
+        "type": "object",
+        "required": [
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "description": "Error map of key-value pairs",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "code",
+          "redirect_uri"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "redirect_uri": {
+            "type": "string"
+          }
+        }
+      },
+      "CodeLoginRequest": {
+        "description": "A sign-in code, and nothing else.\n\nThe code is the credential and the identifier both: its row carries the player it was issued for, so the server resolves the gamertag and the game without being told either. A gamertag alongside it would carry no secret — gamertags are public — and could only disagree with what the code already says.",
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "IntrospectResponse": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag",
+          "permissions"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "cert_not_after": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            }
+          }
+        }
+      },
+      "LinkJavaIdentityResponse": {
+        "type": "object",
+        "properties": {
+          "minecraft_username": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "LinkJavaIdentityRequest": {
+        "type": "object",
+        "required": [
+          "client_id",
+          "code",
+          "gamertag",
+          "redirect_uri"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "redirect_uri": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "gamertag": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthStateResponse": {
+        "type": "object",
+        "required": [
+          "server_permissions"
+        ],
+        "properties": {
+          "server_permissions": {
+            "$ref": "#/components/schemas/ServerPermissions"
+          },
+          "certificate": {
+            "type": "string",
+            "nullable": true
+          },
+          "certificate_key": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvent": {
+        "type": "object",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ChannelEvents"
+          },
+          "game": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvents": {
+        "type": "string",
+        "enum": [
+          "Join",
+          "Leave",
+          "Create",
+          "Delete",
+          "Rename"
+        ]
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "creator",
+          "id",
+          "name",
+          "players"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerIdentity"
+            }
+          },
+          "creator": {
+            "$ref": "#/components/schemas/PlayerIdentity"
+          }
+        }
+      },
+      "PlayerIdentity": {
+        "type": "string"
+      },
+      "ApiConfigResponse": {
+        "type": "object",
+        "required": [
+          "client_id",
+          "protocol_version",
+          "quic_port",
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "protocol_version": {
+            "type": "string"
+          },
+          "quic_port": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "quic_ports": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "voice_websocket": {
+            "default": false,
+            "type": "boolean"
+          },
+          "spatial_audio": {
+            "default": {
+              "broadcast_range": 48.0,
+              "close_threshold": 24.0,
+              "deafen_distance": 3.0,
+              "falloff_distance": 48.0,
+              "max_attenuation_db": 40.0,
+              "panning_start": 8.0,
+              "steepen_start": 38.0
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpatialAudioConfig"
+              }
+            ]
+          },
+          "bedrock": {
+            "default": {
+              "enabled": false,
+              "servers": []
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigBedrock"
+              }
+            ]
+          },
+          "age": {
+            "default": {
+              "minimum": null
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigAge"
+              }
+            ]
+          },
+          "recording": {
+            "default": {
+              "enabled": true
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigRecording"
+              }
+            ]
+          },
+          "chat": {
+            "default": {
+              "enabled": true
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigChat"
+              }
+            ]
+          },
+          "capacity": {
+            "default": {
+              "in_use": 0,
+              "limit": 0
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigCapacity"
+              }
+            ]
+          },
+          "peer_link": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SpatialAudioConfig": {
+        "type": "object",
+        "properties": {
+          "broadcast_range": {
+            "default": 48.0,
+            "type": "number",
+            "format": "float"
+          },
+          "close_threshold": {
+            "default": 24.0,
+            "type": "number",
+            "format": "float"
+          },
+          "falloff_distance": {
+            "default": 48.0,
+            "type": "number",
+            "format": "float"
+          },
+          "steepen_start": {
+            "default": 38.0,
+            "type": "number",
+            "format": "float"
+          },
+          "deafen_distance": {
+            "default": 3.0,
+            "type": "number",
+            "format": "float"
+          },
+          "panning_start": {
+            "default": 8.0,
+            "type": "number",
+            "format": "float"
+          },
+          "max_attenuation_db": {
+            "default": 40.0,
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "ApiConfigBedrock": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "type": "boolean"
+          },
+          "servers": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiConfigBedrockServer"
+            }
+          }
+        }
+      },
+      "ApiConfigBedrockServer": {
+        "type": "object",
+        "required": [
+          "addon_mode",
+          "host",
+          "name",
+          "port"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
+          },
+          "protocol_version": {
+            "default": null,
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0,
+            "nullable": true
+          },
+          "addon_mode": {
+            "$ref": "#/components/schemas/AddonMode"
+          }
+        }
+      },
+      "AddonMode": {
+        "type": "string",
+        "enum": [
+          "net",
+          "no_net"
+        ]
+      },
+      "ApiConfigAge": {
+        "type": "object",
+        "properties": {
+          "minimum": {
+            "default": null,
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0,
+            "nullable": true
+          }
+        }
+      },
+      "ApiConfigRecording": {
+        "description": "Whether the server permits clients to record voice sessions.\n\nA server that predates this field sends nothing and reads as permitted, so an older deployment never appears to have turned recording off.",
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiConfigChat": {
+        "description": "Whether the server relays in-game chat.\n\nA server that predates this field sends nothing and reads as enabled, so an older deployment never appears to have turned chat off.",
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiConfigCapacity": {
+        "description": "How many concurrent voice sessions this server admits, and how many it holds now.\n\nA server that predates this field sends nothing and reads as unlimited, so an older deployment never appears to be full.\n\n`in_use` is advisory. It can change between this probe and a connection attempt, and the server's own admission check remains the authority.",
+        "type": "object",
+        "required": [
+          "in_use",
+          "limit"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "in_use": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "GamerpicResponse": {
+        "type": "object",
+        "required": [
+          "game",
+          "gamertag"
+        ],
+        "properties": {
+          "gamertag": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/Game"
+          },
+          "gamerpic": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ClientAction": {
+        "type": "object",
+        "required": [
+          "action",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "game": {
+            "description": "The game the actor is playing, mirroring `GameDataCollection.game` on the position request.\n\nOptional because the BDS and Java encoders build this JSON by hand and do not consume this crate: a mod that predates the field must still be understood rather than rejected. `actor_key` is where the absence is resolved.",
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          },
+          "action": {
+            "$ref": "#/components/schemas/ClientActionType"
+          }
+        }
+      },
+      "ClientActionType": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "CreateGroup",
+              "LeaveGroup"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetMuted"
+            ],
+            "properties": {
+              "SetMuted": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetDeafened"
+            ],
+            "properties": {
+              "SetDeafened": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetRecording"
+            ],
+            "properties": {
+              "SetRecording": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetVolume"
+            ],
+            "properties": {
+              "SetVolume": {
+                "type": "object",
+                "required": [
+                  "target",
+                  "volume"
+                ],
+                "properties": {
+                  "target": {
+                    "type": "string"
+                  },
+                  "volume": {
+                    "type": "number",
+                    "format": "float"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SetHeard"
+            ],
+            "properties": {
+              "SetHeard": {
+                "type": "object",
+                "required": [
+                  "muted",
+                  "target"
+                ],
+                "properties": {
+                  "target": {
+                    "type": "string"
+                  },
+                  "muted": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "JoinGroup"
+            ],
+            "properties": {
+              "JoinGroup": {
+                "type": "object",
+                "required": [
+                  "channel"
+                ],
+                "properties": {
+                  "channel": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "QueryState": {
+        "type": "object",
+        "required": [
+          "deafened",
+          "id",
+          "muted",
+          "recording"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "muted": {
+            "type": "boolean"
+          },
+          "deafened": {
+            "type": "boolean"
+          },
+          "recording": {
+            "type": "boolean"
+          },
+          "current_group": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PlayerPreference": {
+        "type": "object",
+        "required": [
+          "muted",
+          "owner",
+          "target",
+          "volume"
+        ],
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "volume": {
+            "type": "number",
+            "format": "float"
+          },
+          "muted": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "PlayerGuard": {
+        "description": "Player mTLS client certificate.",
+        "type": "http",
+        "scheme": "mutual"
+      },
+      "GameAccessToken": {
+        "description": "Game server access token, as `Authorization: Bearer <token>`.",
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "AdminGuard": {
+        "description": "Operator mTLS client certificate. Caller must additionally hold the `admin` permission.",
+        "type": "http",
+        "scheme": "mutual"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "WebSocket",
+      "description": "Ticket exchange and streaming feeds for client UI surfaces. A browser cannot present a client certificate when opening a socket, so identity is established over mTLS here and spent once at upgrade time."
+    },
+    {
+      "name": "Positions",
+      "description": "Player position updates from game mods. Used by the Minecraft server plugin to push player coordinates for spatial audio calculations."
+    },
+    {
+      "name": "Health",
+      "description": "Health and readiness probes. Liveness and readiness are unauthenticated for use with Kubernetes."
+    },
+    {
+      "name": "Audio",
+      "description": "Audio file library and spatial playback events. Upload Ogg/Opus files, trigger positional audio playback in-game, and manage the audio library."
+    },
+    {
+      "name": "Admin",
+      "description": "Operator-only administrative endpoints. Caller must present a valid mTLS certificate AND hold the `admin` permission."
+    },
+    {
+      "name": "Chat",
+      "description": "In-game chat relay. Lists the worlds a player has been seen in and which of them currently have a chat channel."
+    },
+    {
+      "name": "Identity",
+      "description": "Player identity management. Retrieve current session state, permissions, and certificate renewal. Link external accounts such as Minecraft Java."
+    },
+    {
+      "name": "Authentication",
+      "description": "OAuth2 authentication via Microsoft (Minecraft). Returns mTLS certificates and ncryptf keys for subsequent API calls. Interacting with these endpoints REQUIRES ncryptf. non-ncryptf request/response bodies are provided here as sample references."
+    },
+    {
+      "name": "Channels",
+      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
+    },
+    {
+      "name": "Clients",
+      "description": "Which players currently hold a voice connection, for a mod that delivers audio of its own alongside this server's."
+    },
+    {
+      "name": "Server",
+      "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
+    },
+    {
+      "name": "Telemetry",
+      "description": "Facts a Java mod observes about its own host, which the mod has no channel of its own to report."
+    },
+    {
+      "name": "Gamerpic",
+      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
+    },
+    {
+      "name": "Control",
+      "description": "In-game audio control plane. The mod submits ClientActions on behalf of the authenticated in-game player (Authorization: Bearer)."
+    }
+  ]
+}
