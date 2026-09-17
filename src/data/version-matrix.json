@@ -1,6 +1,6 @@
 {
-  "latest": 2169,
-  "released_latest": 2168,
+  "latest": 2211,
+  "released_latest": 2193,
   "versions": [
     {
       "protocol": 422,
@@ -76,7 +76,55 @@
     },
     {
       "protocol": 2169,
+      "client_version": "1.26.45",
+      "has_codec": true,
+      "released": true
+    },
+    {
+      "protocol": 2177,
+      "client_version": null,
+      "has_codec": true,
+      "released": false
+    },
+    {
+      "protocol": 2181,
+      "client_version": null,
+      "has_codec": true,
+      "released": false
+    },
+    {
+      "protocol": 2187,
+      "client_version": null,
+      "has_codec": true,
+      "released": false
+    },
+    {
+      "protocol": 2192,
       "client_version": "1.26.50",
+      "has_codec": true,
+      "released": true
+    },
+    {
+      "protocol": 2193,
+      "client_version": "1.26.50",
+      "has_codec": true,
+      "released": true
+    },
+    {
+      "protocol": 2207,
+      "client_version": null,
+      "has_codec": true,
+      "released": false
+    },
+    {
+      "protocol": 2208,
+      "client_version": null,
+      "has_codec": true,
+      "released": false
+    },
+    {
+      "protocol": 2211,
+      "client_version": null,
       "has_codec": true,
       "released": false
     }
