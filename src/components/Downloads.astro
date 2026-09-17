@@ -81,11 +81,8 @@ const ART: Record<string, { glyph: string; accent: string }> = {
   {
     platforms.map((p, i) => (
       <li>
-        <a
+        <div
           class="card"
-          href={p.href}
-          target="_blank"
-          rel="noopener"
           style={`--accent:${ART[p.id]?.accent ?? 'var(--brand)'}`}
           data-reveal
           data-reveal-index={i}
@@ -96,12 +93,27 @@ const ART: Record<string, { glyph: string; accent: string }> = {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" set:html={ART[p.id]?.glyph ?? ''} />
           </span>
 
-          <span class="os">{p.os}</span>
+          {/*
+            The card is not itself an anchor: an anchor cannot nest, and the
+            secondary link has to live inside the card. Instead the primary link
+            is the platform name and `.main::after` stretches it over the whole
+            card, so the card stays clickable end to end. `.alt` then raises
+            itself above that overlay and keeps its own hit area.
+          */}
+          <a class="os main" href={p.href} target="_blank" rel="noopener">
+            {p.os}
+          </a>
           <span class="channel">{t.channels[p.channel]}</span>
+
+          {p.secondary && (
+            <a class="alt" href={p.secondary.href} target="_blank" rel="noopener">
+              {p.secondary.label}
+            </a>
+          )}
 
           <span class="foot">
             <span class="note num">{p.note}</span>
-            <span class="get">
+            <span class="get" aria-hidden="true">
               {t.getLabel}
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M12 4.5v13" />
@@ -109,7 +121,7 @@ const ART: Record<string, { glyph: string; accent: string }> = {
               </svg>
             </span>
           </span>
-        </a>
+        </div>
       </li>
     ))
   }
@@ -144,7 +156,10 @@ const ART: Record<string, { glyph: string; accent: string }> = {
       transform 0.2s var(--ease);
   }
 
-  .card:hover {
+  /* focus-within, not just hover: the card is no longer the focusable element,
+     so keyboard focus on the link inside has to light the card the same way. */
+  .card:hover,
+  .card:focus-within {
     border-color: var(--accent);
     background: color-mix(in srgb, var(--accent) 9%, var(--void-2));
     transform: translateY(-3px);
@@ -183,6 +198,30 @@ const ART: Record<string, { glyph: string; accent: string }> = {
     line-height: 1.25;
   }
 
+  .main {
+    align-self: flex-start;
+    text-decoration: none;
+  }
+
+  /* The card-sized hit area for the primary link. `.alt` outranks it on z-index,
+     so the direct download keeps its own click target inside the same card. */
+  .main::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  /* The outline belongs on the card, not on the platform name. */
+  .main:focus-visible {
+    outline: none;
+  }
+
+  .card:has(.main:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   /* --accent-readable, not --accent: the raw violet is 2.73:1 on this ground and
      fails WCAG AA at label size. This was the Windows card. */
   .channel {
@@ -206,6 +245,31 @@ const ART: Record<string, { glyph: string; accent: string }> = {
   .note {
     font-size: 13px;
     color: var(--faint);
+  }
+
+  /* Deliberately quiet. The store listing is the route we want taken; this is
+     the way out for anyone who cannot or will not use it.
+     z-index lifts it clear of `.main::after`, or the card overlay would swallow
+     every click meant for this link. */
+  .alt {
+    position: relative;
+    z-index: 1;
+    align-self: flex-start;
+    /* No margin: it sits on the card's own 9px gap, like the rows around it. */
+    padding: 2px 1px;
+    font-size: 12.5px;
+    color: var(--faint);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition:
+      color 0.2s var(--ease),
+      border-color 0.2s var(--ease);
+  }
+
+  .alt:hover,
+  .alt:focus-visible {
+    color: var(--tx);
+    border-bottom-color: var(--line-2);
   }
 
   /* The explicit affordance. Without it the card read as a table row. */

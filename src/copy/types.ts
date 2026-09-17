@@ -144,6 +144,13 @@ export interface PlatformCopy {
   readonly note: string;
   readonly href: string;
   readonly channel: ReleaseChannel;
+  /**
+   * A second route to the same build, rendered as a small link under the card.
+   * The card itself is one big anchor, so this cannot nest inside it.
+   *
+   * Left out where the store listing is the only way in.
+   */
+  readonly secondary?: LinkCopy;
 }
 
 export interface SectionHead {

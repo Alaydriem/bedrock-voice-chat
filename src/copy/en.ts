@@ -262,9 +262,14 @@ export const en = {
       {
         id: 'windows',
         os: 'Windows',
-        note: 'ASIO + WASAPI',
+        note: 'Microsoft Store',
         channel: 'stable',
-        href: 'https://www.bedrockvoicechat.com/downloads/latest/windows.exe',
+        href: 'https://apps.microsoft.com/detail/9NPXJK015FVT',
+        secondary: {
+          label: 'Direct download',
+          href: 'https://www.bedrockvoicechat.com/downloads/latest/windows.exe',
+          external: true,
+        },
       },
       {
         id: 'macos',
@@ -577,7 +582,7 @@ export const en = {
         links: [
           {
             label: 'Windows',
-            href: 'https://www.bedrockvoicechat.com/downloads/latest/windows.exe',
+            href: 'https://apps.microsoft.com/detail/9NPXJK015FVT',
             external: true,
           },
           { label: 'macOS & iOS', href: 'https://testflight.apple.com/join/JSG7bVqC', external: true },

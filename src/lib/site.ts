@@ -16,7 +16,7 @@
  * built rather than hand-committed, that job should set PUBLIC_BVC_VERSION and
  * trigger a rebuild instead of editing published output.
  */
-export const VERSION = import.meta.env.PUBLIC_BVC_VERSION ?? '1.0.0-beta.20';
+export const VERSION = import.meta.env.PUBLIC_BVC_VERSION ?? '1.0.0-beta.21';
 export const MODS_VERSION = import.meta.env.PUBLIC_BVC_MODS_VERSION ?? `mods-v${VERSION}`;
 
 /* ------------------------------------------------------------------ *
