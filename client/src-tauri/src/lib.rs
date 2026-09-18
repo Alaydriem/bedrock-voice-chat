@@ -26,6 +26,7 @@ pub mod android;
 pub use analytics::InstallMarker;
 pub use analytics::PlatformId;
 mod api;
+pub use api::EndpointBreaker;
 pub use api::FetchCache;
 pub mod app_builder;
 pub mod audio;
@@ -781,7 +782,9 @@ pub fn run() {
                         }
                     },
                     None => {
-                        warn!("No cold-start deep links found");
+                        // The ordinary launch. A link only cold-starts the app when the
+                        // user followed one, so its absence is the common case.
+                        debug!("No cold-start deep links found");
                     }
                 }
                 Err(e) => {

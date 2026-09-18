@@ -48,14 +48,22 @@ impl PlayerSettingsCoordinator {
     /// every caller here is reachable from the webview. A command that returns an error is
     /// recoverable; a panic in a command handler is not.
     async fn current_server(app: &AppHandle) -> Result<String, anyhow::Error> {
+        Self::selected_server(app)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("no server is currently selected"))
+    }
+
+    /// The selection itself, with its absence left as a value rather than an error.
+    ///
+    /// Having no server selected is an ordinary state — it is what every launch starts
+    /// in — so a caller that can simply do nothing about it needs to tell that apart from
+    /// a fault. `current_server` is the same answer for callers that cannot.
+    async fn selected_server(app: &AppHandle) -> Result<Option<String>, anyhow::Error> {
         let state = app
             .try_state::<Mutex<AppState>>()
             .ok_or_else(|| anyhow::anyhow!("application state is not available"))?;
         let state = state.lock().await;
-        state
-            .current_server
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("no server is currently selected"))
+        Ok(state.current_server.clone())
     }
 
     async fn key(app: &AppHandle, cn: &str) -> Result<PlayerKey, anyhow::Error> {
@@ -146,6 +154,18 @@ impl PlayerSettingsCoordinator {
         else {
             return;
         };
+        // Every caller is an audio-device or stream event, which a user produces freely
+        // before picking a server. With nothing selected there is no projection to seed,
+        // and that is the expected state rather than a failed re-seed.
+        match Self::selected_server(app).await {
+            Ok(None) => return,
+            Ok(Some(_)) => {}
+            Err(cause) => {
+                warn!("PlayerSettingsCoordinator: could not re-seed the mixer: {cause}");
+                return;
+            }
+        }
+
         if let Err(cause) = coordinator.publish(app, None).await {
             warn!("PlayerSettingsCoordinator: could not re-seed the mixer: {cause}");
         }

@@ -15,6 +15,7 @@
     import { flushSync, onMount } from "svelte";
     import { warn } from "@charlesportwoodii/tauri-plugin-curia";
     import { SentryManager } from "../js/sentry";
+    import Analytics from "../js/app/analytics";
     import { ReactivityProbe } from "../js/app/services/ReactivityProbe.svelte";
     import { ReactivityWatchdog } from "../js/app/services/ReactivityWatchdog";
 
@@ -28,6 +29,20 @@
         // last one to run. This marks the whole tree being up, not the layout alone.
         BootTimeline.shared().mark("svelte tree mounted");
         SentryManager.initialize();
+
+        // A webview reload is not a launch: the Rust side keeps running, so AppStarted does
+        // not fire and every timing after this point is measured from a process that has
+        // been up for a while. Rooted here because a reload restores whichever route was
+        // open, not the first one.
+        //
+        // Read from the navigation entry rather than from a flag this app sets, because the
+        // reload that matters most is the one nothing in the app asked for.
+        const navigation = performance.getEntriesByType?.("navigation")?.[0] as
+            | PerformanceNavigationTiming
+            | undefined;
+        if (navigation?.type === "reload") {
+            Analytics.track("Reload", { route: window.location.pathname });
+        }
 
         // A long suspension on Android can wedge Svelte's scheduler: taps land, handlers
         // run, nothing paints. The watchdog probes on every return to visibility and

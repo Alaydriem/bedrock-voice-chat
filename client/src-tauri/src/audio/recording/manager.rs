@@ -1,11 +1,13 @@
 use super::{RawRecordingData, Recorder, RecordingConsumer, RecordingProducer};
+use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use common::traits::StreamTrait;
 use log::info;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
-use tauri::Emitter;
+use std::time::Instant;
+use tauri::{Emitter, Manager};
 
 /// Central recording manager following NetworkStreamManager patterns
 pub struct RecordingManager {
@@ -16,6 +18,10 @@ pub struct RecordingManager {
     // Whether the connected server permits recording. Permissive until a connection
     // says otherwise, so a client that has not connected yet behaves as it always did.
     allowed: bool,
+
+    // When the live session was armed. Taken on stop, so a second recording is timed from
+    // its own start rather than from the first one.
+    started_at: Option<Instant>,
 
     // Recording channels (owned by manager)
     recording_producer: Arc<RecordingProducer>,
@@ -33,6 +39,7 @@ impl RecordingManager {
             recording_state: Arc::new(AtomicBool::new(false)),
             app_handle,
             allowed: true,
+            started_at: None,
             recording_producer: Arc::new(recording_producer),
             recording_consumer: Arc::new(recording_consumer),
         }
@@ -89,9 +96,15 @@ impl RecordingManager {
         self.recorder = Some(recorder);
         // Set flag AFTER recorder starts - streams can now send data
         self.recording_state.store(true, Ordering::SeqCst);
+        self.started_at = Some(Instant::now());
 
         // Emit event to notify UI components
         self.app_handle.emit("recording:started", &session_id).ok();
+
+        self.track(
+            AnalyticsEvent::RecordingStarted,
+            AnalyticsEventData::new().insert("session_id", session_id),
+        );
 
         Ok(())
     }
@@ -105,6 +118,13 @@ impl RecordingManager {
         // Set flag FIRST so streams stop sending new data immediately
         self.recording_state.store(false, Ordering::SeqCst);
 
+        // Read before the recorder is dropped, which is the only thing that knows the id.
+        let session_id = self.current_session_id();
+        let duration_ms = self
+            .started_at
+            .take()
+            .map(|started| started.elapsed().as_millis() as u64);
+
         if let Some(recorder) = &mut self.recorder {
             recorder.stop().await?;
         }
@@ -114,7 +134,32 @@ impl RecordingManager {
         // Emit event to notify UI components
         self.app_handle.emit("recording:stopped", ()).ok();
 
+        // Measured to the stop rather than to the rendered file: what this answers is how long
+        // somebody left it running, which separates an abandoned arm from a real session.
+        let mut data = AnalyticsEventData::new();
+        if let Some(session_id) = session_id {
+            data = data.insert("session_id", session_id);
+        }
+        if let Some(duration_ms) = duration_ms {
+            data = data.insert("duration_ms", duration_ms);
+        }
+        self.track(AnalyticsEvent::RecordingStopped, data);
+
         Ok(())
+    }
+
+    /// Reports a recording event, when analytics are running.
+    ///
+    /// Placed on the manager rather than on the Tauri commands because every surface that
+    /// arms a recording — the record button, the global hotkey, the Stream Deck socket and
+    /// the in-game panel — reaches the manager, and only two of them reach a command.
+    fn track(&self, event: AnalyticsEvent, data: AnalyticsEventData) {
+        if let Some(analytics) = self
+            .app_handle
+            .try_state::<Arc<crate::analytics::AnalyticsService>>()
+        {
+            analytics.track(event, Some(data));
+        }
     }
 
     /// Check if recording is currently active

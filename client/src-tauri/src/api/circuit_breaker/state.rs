@@ -6,6 +6,9 @@ pub(super) struct BreakerState {
     pub(super) open_until: Option<Instant>,
     pub(super) open_streak: u32,
     pub(super) half_open: bool,
+    /// Whether the current outage has already been reported. Cleared by a
+    /// reachable response, so the next outage reports again.
+    pub(super) reported: bool,
 }
 
 impl BreakerState {
@@ -15,6 +18,7 @@ impl BreakerState {
             open_until: None,
             open_streak: 0,
             half_open: false,
+            reported: false,
         }
     }
 }

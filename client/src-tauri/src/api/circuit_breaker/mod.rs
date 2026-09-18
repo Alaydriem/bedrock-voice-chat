@@ -1,6 +1,8 @@
+mod failure_report;
 mod send_error;
 mod state;
 
+pub use failure_report::FailureReport;
 pub(crate) use send_error::SendError;
 
 use std::collections::HashMap;
@@ -19,7 +21,7 @@ const MAX_BACKOFF_SHIFT: u32 = 5;
 static REGISTRY: Lazy<Mutex<HashMap<String, Arc<EndpointBreaker>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
-pub(crate) struct EndpointBreaker {
+pub struct EndpointBreaker {
     state: Mutex<BreakerState>,
 }
 
@@ -27,7 +29,7 @@ impl EndpointBreaker {
     /// Return the shared breaker for an endpoint. Breakers live in a process-global
     /// registry keyed by endpoint so they survive the frequent re-creation of the
     /// `Api`/`Client` structs (each `api_initialize_client` builds fresh ones).
-    pub(crate) fn for_endpoint(endpoint: &str) -> Arc<EndpointBreaker> {
+    pub fn for_endpoint(endpoint: &str) -> Arc<EndpointBreaker> {
         let mut registry = REGISTRY.lock().unwrap();
         registry
             .entry(endpoint.to_string())
@@ -45,7 +47,7 @@ impl EndpointBreaker {
     /// has not elapsed this returns false, so the caller short-circuits without
     /// touching the network or logging another transport error. Once the cooldown
     /// elapses a single half-open probe is admitted.
-    pub(crate) fn allow(&self) -> bool {
+    pub fn allow(&self) -> bool {
         let mut state = self.state.lock().unwrap();
         match state.open_until {
             Some(until) if Instant::now() < until => false,
@@ -72,37 +74,49 @@ impl EndpointBreaker {
 
     /// Record a reachable server response (any HTTP status). The server answered,
     /// so the circuit closes.
-    pub(crate) fn on_success(&self) {
+    pub fn on_success(&self) {
         let mut state = self.state.lock().unwrap();
         state.consecutive_failures = 0;
         state.open_until = None;
         state.open_streak = 0;
         state.half_open = false;
+        state.reported = false;
     }
 
     /// Record a transport-level failure (connection refused, TLS handshake failure,
     /// timeout). Opens the breaker once the failure threshold is crossed, or
-    /// immediately when a half-open probe fails. Returns true on the transition
-    /// into the open state so the caller can log a single backoff notice.
-    pub(crate) fn on_transport_failure(&self) -> bool {
+    /// immediately when a half-open probe fails.
+    pub fn on_transport_failure(&self) -> FailureReport {
         let mut state = self.state.lock().unwrap();
+
+        let first = !state.reported;
+        state.reported = true;
 
         if state.half_open {
             state.half_open = false;
             state.open_streak = state.open_streak.saturating_add(1);
             state.open_until = Some(Instant::now() + Self::cooldown(state.open_streak));
-            return true;
+            return FailureReport {
+                first,
+                opened: true,
+            };
         }
 
         state.consecutive_failures = state.consecutive_failures.saturating_add(1);
         if state.consecutive_failures < FAILURE_THRESHOLD {
-            return false;
+            return FailureReport {
+                first,
+                opened: false,
+            };
         }
 
         state.open_streak = state.open_streak.saturating_add(1);
         state.open_until = Some(Instant::now() + Self::cooldown(state.open_streak));
         state.consecutive_failures = 0;
-        true
+        FailureReport {
+            first,
+            opened: true,
+        }
     }
 
     fn cooldown(open_streak: u32) -> Duration {

@@ -5,7 +5,7 @@ pub(crate) mod commands;
 use common::request::LinkJavaIdentityRequest;
 use common::response::ApiConfigResponse;
 use common::response::LinkJavaIdentityResponse;
-use log::{error, warn};
+use log::{debug, error, warn};
 mod channel;
 mod circuit_breaker;
 mod client;
@@ -15,7 +15,7 @@ mod gamerpic;
 
 pub use fetch_cache::FetchCache;
 
-pub(crate) use circuit_breaker::EndpointBreaker;
+pub use circuit_breaker::EndpointBreaker;
 pub(crate) use credential_verdict::CredentialVerdict;
 
 use common::reqwest::{
@@ -97,7 +97,10 @@ impl Api {
                     return Ok(response);
                 }
                 Err(e) if attempt < MAX_SEND_ATTEMPTS && e.is_connect() && retry.is_some() => {
-                    warn!(
+                    // A retry that succeeds is a non-event, and one that does not is
+                    // reported by the final failure below. Neither is worth a record of
+                    // its own; as a breadcrumb it still rides along on any real report.
+                    debug!(
                         "Attempt {}/{} to {} failed; retrying: {}",
                         attempt,
                         MAX_SEND_ATTEMPTS,
@@ -109,18 +112,31 @@ impl Api {
                     attempt += 1;
                 }
                 Err(e) => {
-                    error!(
+                    let report = breaker.on_transport_failure();
+                    let message = format!(
                         "Request to {} failed after {} attempt(s): {}",
                         self.endpoint,
                         attempt,
                         Self::error_chain(&e)
                     );
-                    if breaker.on_transport_failure() {
-                        warn!(
+
+                    // Only the failure that opens an outage is an error. A client
+                    // pointed at a host it cannot reach keeps failing for as long as it
+                    // runs — once per cooldown, forever — and every one of those after
+                    // the first says nothing the first did not.
+                    if report.first {
+                        error!("{}", message);
+                    } else {
+                        debug!("{}", message);
+                    }
+
+                    if report.opened {
+                        debug!(
                             "Repeated connection failures to {}; backing off further requests",
                             self.endpoint
                         );
                     }
+
                     return Err(circuit_breaker::SendError::Transport(e));
                 }
             }

@@ -41,6 +41,11 @@ pub(crate) async fn change_network_stream(
     network_stream: State<'_, Mutex<NetworkStreamManager>>,
     analytics: State<'_, Arc<AnalyticsService>>,
 ) -> Result<(), String> {
+    // Read before the disconnect below clears it. A player who moves between servers without
+    // leaving the app is the only thing this separates from a first connect, and after the
+    // clear there is nothing left to compare against.
+    let previous_server = analytics.connected_server();
+
     // Short state lock — release before network I/O
     {
         let mut state = state.lock().await;
@@ -204,6 +209,17 @@ pub(crate) async fn change_network_stream(
             info!("Now streaming {}", server);
             analytics.set_connected_server(Some(server.clone()));
             analytics.set_player(&gamertag);
+
+            if let Some(previous) = previous_server.filter(|previous| previous != &server) {
+                analytics.track(
+                    common::structs::AnalyticsEvent::ServerChanged,
+                    Some(
+                        common::structs::AnalyticsEventData::new()
+                            .insert("from", previous)
+                            .insert("to", server.clone()),
+                    ),
+                );
+            }
         }
         Err((certificate, detail)) => {
             error!("QUIC connection failed to {}: {}", server, detail);

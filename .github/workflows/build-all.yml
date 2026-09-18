@@ -83,6 +83,9 @@ jobs:
               - 'common/**'
               - '.github/workflows/build-linux-client.yml'
               - '.github/workflows/build-all.yml'
+            # relay/sdk builds the cdylib the mod jars pin in native-manifest.json,
+            # and relay/lib is what it links. A change to either alters the library
+            # the manifest describes, so both have to reach the mod builds.
             fabric-mod:
               - 'mods/java/common/**'
               - 'mods/java/fabric/**'
@@ -90,7 +93,10 @@ jobs:
               - 'mods/java/build.gradle.kts'
               - 'mods/java/gradle.properties'
               - 'mods/java/settings.gradle.kts'
+              - 'relay/sdk/**'
+              - 'relay/lib/**'
               - '.github/workflows/build-mod-fabric.yml'
+              - '.github/workflows/build-relay-sdk-natives.yml'
               - '.github/workflows/build-all.yml'
             paper-mod:
               - 'mods/java/common/**'
@@ -99,7 +105,10 @@ jobs:
               - 'mods/java/build.gradle.kts'
               - 'mods/java/gradle.properties'
               - 'mods/java/settings.gradle.kts'
+              - 'relay/sdk/**'
+              - 'relay/lib/**'
               - '.github/workflows/build-mod-paper.yml'
+              - '.github/workflows/build-relay-sdk-natives.yml'
               - '.github/workflows/build-all.yml'
             bds-pack:
               - 'mods/bds/**'
@@ -254,11 +263,26 @@ jobs:
       build_number: ${{ needs.changes.outputs.build_number }}
     secrets: inherit
 
+  # The relay SDK cdylibs, at the same tier as build-server: the mod builds hash
+  # them into native-manifest.json, and a manifest generated without them describes
+  # a library the jar is still required to load.
+  #
+  # Gated identically to the two mod jobs, so a run that builds a mod always has
+  # these and a run that does not never pays for them.
+  build-relay-sdk-natives:
+    name: Build Relay SDK Natives
+    needs: changes
+    if: needs.changes.outputs.fabric-mod == 'true' || needs.changes.outputs.paper-mod == 'true'
+    uses: ./.github/workflows/build-relay-sdk-natives.yml
+    with:
+      build_mode: ${{ needs.changes.outputs.build_mode }}
+    secrets: inherit
+
   # Build Fabric Mod
   build-fabric-mod:
     name: Build Fabric Mod
-    needs: [changes, build-server]
-    if: needs.build-server.result == 'success' && needs.changes.outputs.fabric-mod == 'true'
+    needs: [changes, build-server, build-relay-sdk-natives]
+    if: needs.build-server.result == 'success' && needs.build-relay-sdk-natives.result == 'success' && needs.changes.outputs.fabric-mod == 'true'
     uses: ./.github/workflows/build-mod-fabric.yml
     with:
       version: ${{ needs.changes.outputs.version }}
@@ -268,8 +292,8 @@ jobs:
   # Build Paper Plugin
   build-paper-mod:
     name: Build Paper Plugin
-    needs: [changes, build-server]
-    if: needs.build-server.result == 'success' && needs.changes.outputs.paper-mod == 'true'
+    needs: [changes, build-server, build-relay-sdk-natives]
+    if: needs.build-server.result == 'success' && needs.build-relay-sdk-natives.result == 'success' && needs.changes.outputs.paper-mod == 'true'
     uses: ./.github/workflows/build-mod-paper.yml
     with:
       version: ${{ needs.changes.outputs.version }}
