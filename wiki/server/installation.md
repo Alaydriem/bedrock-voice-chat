@@ -12,7 +12,7 @@ Before you can run Bedrock Voice Chat Server, there's a few dependencies you'll 
 1. A linux server, windows computer, or app platform that allows you to run Docker containers
 :::tip[These providers work well, and the links support development]
 A single core, 512M server can support ~ 5 concurrent players. If you experience hiccups, consider adding more cores, or changing to a dedicated affinity rather than shared.
-- [DigitalOcean](https://m.do.co/c/15e066af535c) — $200 credit after $25 spend.
+- [DigitalOcean](https://m.do.co/c/15e066af535c) — Eligible referral credit after $25 spend
 - [Hetzner](https://hetzner.cloud/?ref=StImwLqshuwn) — $25 signup credit.
 :::
 
