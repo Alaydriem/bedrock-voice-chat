@@ -12,7 +12,9 @@ use base64::{Engine as _, engine::general_purpose};
 use reqwest::Url;
 use reqwest::header::HeaderMap;
 
+use crate::auth::IdentityBudget;
 use crate::auth::provider::{AuthError, AuthResult};
+use crate::net::NetTimeouts;
 use dtos::{
     AccessTokenResponse, MinecraftLoginResponse, MinecraftProfileResponse, ProfileResponse,
     XboxAuthResponse,
@@ -43,9 +45,15 @@ impl MinecraftAuthProvider {
         code: String,
         redirect_uri: Url,
     ) -> Result<AuthResult, AuthError> {
-        let client = reqwest::Client::builder()
-            .build()
-            .map_err(|e| AuthError::Network(e.to_string()))?;
+        IdentityBudget::enforce(self.run_authentication(code, redirect_uri)).await
+    }
+
+    async fn run_authentication(
+        &self,
+        code: String,
+        redirect_uri: Url,
+    ) -> Result<AuthResult, AuthError> {
+        let client = Self::upstream_client()?;
 
         // Step 1: Exchange code for Microsoft access token
         let token = self
@@ -81,9 +89,26 @@ impl MinecraftAuthProvider {
         code: String,
         redirect_uri: Url,
     ) -> Result<String, AuthError> {
-        let client = reqwest::Client::builder()
+        IdentityBudget::enforce(self.run_java_profile_authentication(code, redirect_uri)).await
+    }
+
+    // One client for the whole exchange. The connect is bounded separately from the request
+    // because every leg reaches a different host: a provider that is not answering at all
+    // must fail on the connect rather than spend a full request budget proving it.
+    fn upstream_client() -> Result<reqwest::Client, AuthError> {
+        reqwest::Client::builder()
+            .timeout(NetTimeouts::IDENTITY_UPSTREAM)
+            .connect_timeout(NetTimeouts::CONNECT)
             .build()
-            .map_err(|e| AuthError::Network(e.to_string()))?;
+            .map_err(|e| AuthError::Network(e.to_string()))
+    }
+
+    async fn run_java_profile_authentication(
+        &self,
+        code: String,
+        redirect_uri: Url,
+    ) -> Result<String, AuthError> {
+        let client = Self::upstream_client()?;
 
         let token = self
             .exchange_code_for_token(&client, &code, &redirect_uri)

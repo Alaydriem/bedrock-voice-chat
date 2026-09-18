@@ -1659,14 +1659,14 @@ msgstr ""
 msgid "Plays a chime through the device you listen on, not through whatever the browser would pick."
 msgstr ""
 
-#: src/js/app/login.ts:309
+#: src/js/app/login.ts:308
 msgid "Please enter a server URL"
 msgstr ""
 
-#: src/js/app/login.ts:319
-#: src/js/app/login.ts:322
-#: src/js/app/login.ts:441
-#: src/js/app/login.ts:643
+#: src/js/app/login.ts:318
+#: src/js/app/login.ts:321
+#: src/js/app/login.ts:413
+#: src/js/app/login.ts:615
 msgid "Please enter a valid server URL"
 msgstr ""
 
@@ -2032,7 +2032,7 @@ msgstr ""
 msgid "Server Update Required"
 msgstr ""
 
-#: src/js/app/login.ts:316
+#: src/js/app/login.ts:315
 msgid "Server URL must use HTTPS"
 msgstr ""
 

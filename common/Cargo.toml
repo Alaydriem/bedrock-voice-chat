@@ -125,6 +125,9 @@ bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag
 
 [dev-dependencies]
 rcgen = { version = "^0.14", features = ["x509-parser"] }
+# `test-util` is not part of tokio's `full`, and without it `start_paused` does nothing:
+# a test of a 25 second budget then waits 25 real seconds.
+tokio = { version = "^1.38", features = ["test-util"] }
 
 [target."cfg(any(target_os = \"windows\"))".dependencies]
 cpal = { version = "^0.17", optional = true, features = ["asio"] }

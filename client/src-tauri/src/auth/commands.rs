@@ -20,7 +20,14 @@ pub(crate) async fn server_login(
     code: String,
     redirect: String,
 ) -> Result<LoginResponse, String> {
-    let login_result = AuthClient::server_login(server.clone(), code, redirect).await;
+    // Read and released before the network I/O below, which is what the existing re-lock
+    // after it exists for.
+    let preference = {
+        let state = app_state.lock().await;
+        state.family_preference().get()
+    };
+
+    let login_result = AuthClient::server_login(server.clone(), code, redirect, preference).await;
 
     if let Ok(ref response) = login_result {
         let mut state = app_state.lock().await;
@@ -43,6 +50,26 @@ pub(crate) async fn server_login(
     }
 
     login_result.map_err(|e| e.to_string())
+}
+
+/// The availability check the sign-in screen gates on.
+///
+/// Goes out over the login path's own client, so the check and the sign-in that follows it
+/// agree on TLS, address family and connect budget.
+#[tauri::command(async)]
+#[tracing::instrument(skip(app_state))]
+pub(crate) async fn check_server(
+    app_state: State<'_, Mutex<AppState>>,
+    server: String,
+) -> Result<common::response::ApiConfigResponse, String> {
+    let preference = {
+        let state = app_state.lock().await;
+        state.family_preference().get()
+    };
+
+    AuthClient::fetch_public_config(server, preference)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
@@ -68,7 +95,12 @@ pub(crate) async fn code_login(
     server: String,
     code: String,
 ) -> Result<LoginResponse, String> {
-    let login_result = AuthClient::code_login(server.clone(), code)
+    let preference = {
+        let state = app_state.lock().await;
+        state.family_preference().get()
+    };
+
+    let login_result = AuthClient::code_login(server.clone(), code, preference)
         .await
         .map_err(|_| "Code login failed".to_string())?;
 

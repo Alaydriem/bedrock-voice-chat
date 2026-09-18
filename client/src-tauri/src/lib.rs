@@ -32,7 +32,10 @@ pub mod app_builder;
 pub mod audio;
 mod auth;
 // Re-exported for the integration test crate (a separate crate root that can only reach
-// `pub` items) to cover how a server URL and an API path are joined.
+// `pub` items) to cover how a server URL and an API path are joined, and how the login
+// path's HTTP client is configured.
+pub use auth::LoginClientConfig;
+pub use auth::LoginFailure;
 pub use auth::ServerEndpoint;
 #[cfg(feature = "bedrock-protocol")]
 pub mod bedrock;
@@ -231,6 +234,7 @@ pub fn run() {
             crate::commands::about::get_platform_id,
             crate::commands::about::refresh_platform_id,
             // Authentication
+            crate::auth::commands::check_server,
             crate::auth::commands::server_login,
             crate::auth::commands::logout,
             crate::auth::commands::code_login,
