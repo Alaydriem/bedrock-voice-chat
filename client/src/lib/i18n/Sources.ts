@@ -76,4 +76,14 @@ export default class Sources {
    * `DiscordCallbackHandler: processing callback` in front of a translator.
    */
   static readonly LOG_CALL = /\b(?:warn|info|debug|error|trace|log)\s*\(\s*$/;
+
+  /**
+   * The phase a `BootProgress` call names. It selects the `[data-step]` row painted by
+   * `src/app.html`, so it is a DOM key rather than copy — translating it leaves the lookup
+   * finding nothing, and the label the reader sees is the one in the markup.
+   *
+   * Only the opening argument. The `note` that follows is what turns a light into a
+   * diagnosis, and it is counted.
+   */
+  static readonly STEP_CALL = /\b(?:step|skipFrom)\s*\(\s*$/;
 }

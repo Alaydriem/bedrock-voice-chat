@@ -72,8 +72,11 @@ export default class CoverageReport {
     for (const match of unmarked.matchAll(CoverageReport.#SCRIPT_COPY)) {
       if (CoverageReport.#SVG_PATH.test(match[0])) continue;
       if (Sources.isProperNoun(match[0].slice(1, -1))) continue;
+      const before = unmarked.slice(0, match.index);
       // A literal opening a log call goes to a file, not to a reader.
-      if (Sources.LOG_CALL.test(unmarked.slice(0, match.index))) continue;
+      if (Sources.LOG_CALL.test(before)) continue;
+      // A literal opening a progress call names a phase, and is matched against markup.
+      if (Sources.STEP_CALL.test(before)) continue;
       count += 1;
     }
 

@@ -208,6 +208,10 @@ msgstr ""
 msgid "Almost there…"
 msgstr ""
 
+#: src/js/app/dashboard.ts:397
+msgid "already granted"
+msgstr ""
+
 #: src/js/app/dashboard.ts:721
 msgid "An error occurred during logout. Please try again."
 msgstr ""
@@ -306,6 +310,10 @@ msgstr ""
 msgid "Background Audio Couldn't Start"
 msgstr ""
 
+#: src/js/app/dashboard.ts:351
+msgid "background service"
+msgstr ""
+
 #: src/components/settings/panes/ManagePlayersPane.svelte:485
 msgid "Ban"
 msgstr ""
@@ -398,6 +406,10 @@ msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:29
 msgid "Capturing"
+msgstr ""
+
+#: src/js/app/dashboard.ts:902
+msgid "certificate rejected"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:112
@@ -531,6 +543,7 @@ msgstr ""
 msgid "Close this card"
 msgstr ""
 
+#: src/components/dashboard/ChatDock.svelte:144
 #: src/components/dashboard/ChatTargetPicker.svelte:41
 msgid "Close world picker"
 msgstr ""
@@ -568,6 +581,10 @@ msgstr ""
 #: src/components/login/SignInScreen.svelte:67
 #: src/components/settings/PlateGrid.svelte:99
 msgid "Connect"
+msgstr ""
+
+#: src/js/app/dashboard.ts:914
+msgid "connect failed"
 msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:56
@@ -776,6 +793,10 @@ msgstr ""
 
 #: src/components/settings/panes/AboutPane.svelte:165
 msgid "Display language"
+msgstr ""
+
+#: src/js/app/dashboard.ts:896
+msgid "DNS lookup failed"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:159
@@ -1041,6 +1062,10 @@ msgstr ""
 msgid "Incompatible Audio Input Device"
 msgstr ""
 
+#: src/js/app/dashboard.ts:835
+msgid "incompatible device"
+msgstr ""
+
 #: src/components/setup/MicrophoneScreen.svelte:43
 msgid "Input"
 msgstr ""
@@ -1205,6 +1230,10 @@ msgstr ""
 msgid "Microphone access was refused"
 msgstr ""
 
+#: src/js/app/dashboard.ts:326
+msgid "microphone denied"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:41
 msgid "Microphone Permission Required"
 msgstr ""
@@ -1300,6 +1329,10 @@ msgstr ""
 msgid "NO DEVICE"
 msgstr ""
 
+#: src/js/app/dashboard.ts:841
+msgid "no input device"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:101
 msgid "No Input Device Found"
 msgstr ""
@@ -1320,6 +1353,10 @@ msgstr ""
 msgid "No network address yet. Connect to Wi-Fi and reopen this pane."
 msgstr ""
 
+#: src/js/app/dashboard.ts:847
+msgid "no output device"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:116
 msgid "No Output Device Found"
 msgstr ""
@@ -1332,6 +1369,10 @@ msgstr ""
 msgid "No players yet"
 msgstr ""
 
+#: src/js/app/dashboard.ts:238
+msgid "no response"
+msgstr ""
+
 #: src/components/login/NoServerScreen.svelte:17
 #: src/components/login/NoServerScreen.svelte:29
 msgid "No server yet"
@@ -1339,6 +1380,10 @@ msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:117
 msgid "No speakers or headphones were detected on your system. Connect an audio output device, verify it appears in your system sound settings, then try again."
+msgstr ""
+
+#: src/js/app/dashboard.ts:910
+msgid "no voice transport"
 msgstr ""
 
 #: src/components/login/GateScreen.svelte:94
@@ -1490,6 +1535,10 @@ msgstr ""
 
 #: src/components/setup/MicrophoneScreen.svelte:90
 msgid "Notifications and devices come next"
+msgstr ""
+
+#: src/js/app/dashboard.ts:334
+msgid "notifications denied"
 msgstr ""
 
 #: src/components/dashboard/ChatDock.svelte:78
@@ -2010,6 +2059,10 @@ msgstr ""
 #: src/components/login/SignInScreen.svelte:75
 #: src/components/login/SignInScreen.svelte:85
 msgid "Server address"
+msgstr ""
+
+#: src/js/app/dashboard.ts:906
+msgid "server certificate"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:281
