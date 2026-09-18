@@ -70,21 +70,6 @@ val bvcRoot = rootProject.projectDir.parentFile.parentFile
 val rustBuildMode = if (rootProject.hasProperty("release")) "release" else "debug"
 val rustTargetDir = File(bvcRoot, "server/target/$rustBuildMode")
 
-// The relay SDK cdylib, built from the ROOT workspace rather than the server one.
-// Staged beside bvc_server_lib because that is the directory generateNativeManifest
-// hashes and the skinny jar excludes. Staging it under a JNA prefix instead makes it
-// invisible to both, and it ships in every jar.
-tasks.register<Copy>("copySdkNativeWindows") {
-    group = "native"
-    description = "Copy the Windows x64 relay SDK cdylib to resources"
-
-    dependsOn(":relay-sdk:buildSdkLibrary")
-    from(File(bvcRoot, "target/$rustBuildMode")) {
-        include("bvc_relay_sdk.dll")
-    }
-    into(layout.projectDirectory.dir("src/main/resources/native/windows-x64"))
-}
-
 // Task to copy Windows x64 native library
 tasks.register<Copy>("copyNativeWindows") {
     group = "native"
@@ -111,11 +96,19 @@ val bundleNatives = rootProject.hasProperty("bundled")
 val nativeResourceDir = layout.projectDirectory.dir("src/main/resources/native").asFile
 val generatedManifestDir = layout.buildDirectory.dir("generated/nativeManifest")
 
+// Mirrors NativeManifest.DEV_RELEASE, which this script cannot reference.
+val devRelease = "dev"
+
 // The release the manifest pins. CI passes the real tag; a local build gets "dev",
 // whose manifest resolves nothing and fails by name rather than by fetching from
 // a release that has nothing to do with this build.
-val nativeRelease = (project.findProperty("nativeRelease") as String?) ?: "dev"
+val nativeRelease = (project.findProperty("nativeRelease") as String?) ?: devRelease
 val nativeRepo = (project.findProperty("nativeRepo") as String?) ?: "alaydriem/bedrock-voice-chat"
+
+// Every library a mod loads at runtime. NativeLibraryProvider.resolve reads
+// manifest.entry before it looks for a bundled copy, so a library missing here is
+// unloadable even from a jar that contains it.
+val requiredLibraries = setOf("bvc_server_lib", "bvc_relay_sdk")
 
 // One generator for local builds and for CI, so the digests a jar pins are always
 // of the files that build actually saw. Two implementations of this could disagree,
@@ -130,13 +123,6 @@ tasks.register("generateNativeManifest") {
     if (bundleNatives) {
         dependsOn("copyNativeLibraries")
     }
-
-    // Declared unconditionally, because this one is invoked directly rather than
-    // through the aggregate. A build that runs both in one graph without this is
-    // refused by Gradle for an undeclared dependency, and a build that runs them in
-    // separate invocations quietly gets the ordering right, so the failure only
-    // appears on one of the two loaders.
-    mustRunAfter("copySdkNativeWindows")
 
     inputs.dir(nativeResourceDir).optional(true)
     inputs.property("release", nativeRelease)
@@ -164,6 +150,33 @@ tasks.register("generateNativeManifest") {
                         "sha256" to digest
                     )
                 }
+            }
+        }
+
+        // Checked per platform rather than against a fixed platform count, so a
+        // hotfix jar staged by hand for fewer platforms is still validated. A
+        // "dev" build is exempt: it pins no release and fails by name at load.
+        if (nativeRelease != devRelease) {
+            val platforms = libraries.values.flatMap { it.keys }.toSortedSet()
+
+            if (platforms.isEmpty()) {
+                throw GradleException(
+                    "No native libraries are staged in $nativeResourceDir, so the manifest for " +
+                        "$nativeRelease would describe nothing this jar could load."
+                )
+            }
+
+            val missing = platforms.flatMap { platform ->
+                requiredLibraries
+                    .filter { library -> libraries[library]?.containsKey(platform) != true }
+                    .map { library -> "$platform/$library" }
+            }
+
+            if (missing.isNotEmpty()) {
+                throw GradleException(
+                    "The manifest for $nativeRelease is missing ${missing.joinToString(", ")}. " +
+                        "Every platform staged must carry every library in $requiredLibraries."
+                )
             }
         }
 
@@ -275,7 +288,6 @@ tasks.register("copyNativeLibraries") {
     description = "Copy all available native libraries to resources"
     dependsOn(
         "copyNativeWindows",
-        "copySdkNativeWindows",
         "copyNativeLinuxX64",
         "copyNativeLinuxArm64",
         "copyNativeDarwinArm64"

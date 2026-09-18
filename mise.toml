@@ -610,9 +610,8 @@ run = "mise x java@temurin-25 -- yarn dev-server --paper"
 [tasks.dev-fabric]
 description = "Build the Fabric mod with the SVC bridge, deploy it and start a local Fabric server. Requires FABRIC_SERVER_PATH in mods/.env."
 dir = "mods"
-# Same svc-native requirement as Paper: the Fabric path runs the same
-# buildRustLibrary and copySdkNativeWindows Gradle tasks, which read the release
-# triple paths a local debug build has never produced.
+# Same svc-native requirement as Paper: svc-native is the only thing that stages
+# the relay SDK cdylib, and the manifest is generated from what it stages.
 depends = ["mods-deps", "svc-native"]
 shell = "pwsh -NoLogo -Command"
 run = "mise x java@temurin-25 -- yarn dev-server --fabric"

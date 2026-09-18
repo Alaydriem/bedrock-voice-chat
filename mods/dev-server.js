@@ -145,7 +145,7 @@ function main() {
   if (platform === 'paper') {
     const paperRoot = requireEnv(env, 'PAPER_SERVER_PATH');
     if (!skipBuild) {
-      runGradle(javaDir, ['buildRustLibrary', ':common:copyNativeWindows', ':common:copySdkNativeWindows', ':paper:shadowJar'], release);
+      runGradle(javaDir, ['buildRustLibrary', ':common:copyNativeWindows', ':paper:shadowJar'], release);
       const jar = path.join(javaDir, 'paper', 'build', 'libs', `${base}-paper-${ver}.jar`);
       deployJar(jar, path.join(paperRoot, 'plugins'), `${base}-paper-`);
     }
@@ -157,7 +157,7 @@ function main() {
   if (platform === 'fabric') {
     const fabricRoot = requireEnv(env, 'FABRIC_SERVER_PATH');
     if (!skipBuild) {
-      runGradle(javaDir, ['buildRustLibrary', ':common:copyNativeWindows', ':common:copySdkNativeWindows'], release);
+      runGradle(javaDir, ['buildRustLibrary', ':common:copyNativeWindows'], release);
       runGradle(path.join(javaDir, 'fabric'), ['build'], release);
       const jar = path.join(javaDir, 'fabric', 'build', 'libs', `${base}-${ver}.jar`);
       deployJar(jar, path.join(fabricRoot, 'mods'), `${base}-`);

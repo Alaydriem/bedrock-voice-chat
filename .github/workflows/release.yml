@@ -301,11 +301,27 @@ jobs:
       build_number: ${{ needs.prepare-release.outputs.build_number }}
     secrets: inherit
 
+  # Job 7b: Relay SDK cdylibs, at the same tier as build-server.
+  #
+  # The mod builds hash these into native-manifest.json. Built here rather than
+  # beside publish-relay-sdk, which sits downstream of approve-publish and therefore
+  # of the mod jars: a library produced there cannot reach a manifest generated
+  # before it.
+  build-relay-sdk-natives:
+    name: Build Relay SDK Natives
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true'
+    uses: ./.github/workflows/build-relay-sdk-natives.yml
+    with:
+      build_mode: release
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
+    secrets: inherit
+
   # Job 8: Build Fabric Mod
   build-mod-fabric:
     name: Build Fabric Mod
-    needs: [prepare-release, prepare-mods-release]
-    if: needs.prepare-mods-release.outputs.new_release_published == 'true'
+    needs: [prepare-release, prepare-mods-release, build-relay-sdk-natives]
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && needs.build-relay-sdk-natives.result == 'success'
     uses: ./.github/workflows/build-mod-fabric.yml
     with:
       version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
@@ -316,8 +332,8 @@ jobs:
   # Job 9: Build Paper Plugin
   build-mod-paper:
     name: Build Paper Plugin
-    needs: [prepare-release, prepare-mods-release]
-    if: needs.prepare-mods-release.outputs.new_release_published == 'true'
+    needs: [prepare-release, prepare-mods-release, build-relay-sdk-natives]
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && needs.build-relay-sdk-natives.result == 'success'
     uses: ./.github/workflows/build-mod-paper.yml
     with:
       version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
@@ -1066,10 +1082,13 @@ jobs:
   # Versioned with BVC because the jar carries the peer wire: a bridge resolving
   # it needs to know which server protocol it speaks, and that is what a BVC
   # version names.
+  # Packages the cdylibs build-relay-sdk-natives produced earlier in this run. It
+  # stays behind approve-publish because it writes to GitHub Packages; only the
+  # building moved forward.
   publish-relay-sdk:
     name: Publish Relay SDK
-    needs: [prepare-release, approve-publish]
-    if: needs.approve-publish.result == 'success'
+    needs: [prepare-release, approve-publish, build-relay-sdk-natives]
+    if: needs.approve-publish.result == 'success' && needs.build-relay-sdk-natives.result == 'success'
     uses: ./.github/workflows/build-relay-sdk.yml
     with:
       version: ${{ needs.prepare-release.outputs.new_version }}

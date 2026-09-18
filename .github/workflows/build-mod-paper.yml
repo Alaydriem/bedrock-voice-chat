@@ -54,9 +54,11 @@ jobs:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
+      # None of these tolerate a failure. generateNativeManifest hashes whatever is
+      # in this tree, so a download that quietly does nothing produces a manifest
+      # describing a library the jar is still required to load.
       - name: Download Windows x64 native library
         uses: actions/download-artifact@v5
-        continue-on-error: true
         with:
           name: bvc-native-lib-x86_64-pc-windows-msvc
           path: mods/java/common/src/main/resources/native/windows-x64/
@@ -65,7 +67,6 @@ jobs:
 
       - name: Download Linux x64 native library
         uses: actions/download-artifact@v5
-        continue-on-error: true
         with:
           name: bvc-native-lib-x86_64-unknown-linux-gnu
           path: mods/java/common/src/main/resources/native/linux-x64/
@@ -74,7 +75,6 @@ jobs:
 
       - name: Download Linux ARM64 native library
         uses: actions/download-artifact@v5
-        continue-on-error: true
         with:
           name: bvc-native-lib-aarch64-unknown-linux-gnu
           path: mods/java/common/src/main/resources/native/linux-arm64/
@@ -83,15 +83,25 @@ jobs:
 
       - name: Download Darwin ARM64 native library
         uses: actions/download-artifact@v5
-        continue-on-error: true
         with:
           name: bvc-native-lib-aarch64-apple-darwin
           path: mods/java/common/src/main/resources/native/darwin-arm64/
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ inputs.artifact_run_id || github.run_id }}
 
+      # Each artifact unpacks as <platform>/<lib>, so the destination is the native
+      # root rather than one platform directory.
+      - name: Download the relay SDK natives
+        uses: actions/download-artifact@v5
+        with:
+          pattern: relay-sdk-modnative-*
+          path: mods/java/common/src/main/resources/native/
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
+
       - name: List native libraries
-        run: find mods/java/common/src/main/resources/native -type f -ls 2>/dev/null || echo "No native libraries found"
+        run: find mods/java/common/src/main/resources/native -type f -ls
 
       - name: Set up JDK 25
         uses: actions/setup-java@v5
@@ -179,6 +189,39 @@ jobs:
           fi
           ls -lh "$JAR_FILE"
           cp "$JAR_FILE" ../../../../../bedrock-voice-chat-paper-${{ steps.mod-version.outputs.version }}-bundled.jar
+
+      # The Gradle guard proves every staged platform carries every library; this
+      # proves a release carries all four platforms. It also catches a copyNative*
+      # task overwriting a staged library, which leaves the manifest internally
+      # consistent and still wrong.
+      - name: Verify the generated manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - mods/java/common/build/generated/nativeManifest/native-manifest.json <<'PY'
+          import json, sys
+
+          EXPECTED_LIBRARIES = ("bvc_relay_sdk", "bvc_server_lib")
+          EXPECTED_PLATFORMS = ("darwin-arm64", "linux-arm64", "linux-x64", "windows-x64")
+
+          manifest = json.load(open(sys.argv[1]))
+          libraries = manifest["libraries"]
+
+          missing = [
+              f"{library}/{platform}"
+              for library in EXPECTED_LIBRARIES
+              for platform in EXPECTED_PLATFORMS
+              if platform not in libraries.get(library, {})
+          ]
+          if missing:
+              sys.exit("manifest is missing: " + ", ".join(missing))
+
+          print(f"manifest pins {manifest['release']}")
+          for library in EXPECTED_LIBRARIES:
+              for platform in EXPECTED_PLATFORMS:
+                  entry = libraries[library][platform]
+                  print(f"  {library:15} {platform:13} {entry['asset']}")
+          PY
 
       - name: Stage the native manifest and release assets
         shell: bash
