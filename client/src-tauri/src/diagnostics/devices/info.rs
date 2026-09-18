@@ -1,4 +1,7 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+
+use tauri::Wry;
+use tauri_plugin_store::Store;
 
 use super::DeviceSnapshot;
 use crate::audio::AudioDeviceType;
@@ -31,13 +34,24 @@ impl DeviceInfo {
     // That accessor performs a microphone permission check and lazily initializes the device, so
     // calling it here would panic in any context where the permissions plugin is not registered —
     // and a diagnostic tick must never be able to bring down a worker.
+    //
+    // The store handle comes from the app state, which already holds the one opened at setup, and
+    // the lock is released before the entries are read: deserializing two device records is not
+    // work the command path should wait behind.
     pub fn refresh(&self, app_handle: &tauri::AppHandle) {
-        let family_preference =
-            tauri::Manager::try_state::<tauri::async_runtime::Mutex<crate::AppState>>(app_handle)
-                .and_then(|state| state.try_lock().ok().map(|s| s.family_preference().get()));
+        let state =
+            tauri::Manager::try_state::<tauri::async_runtime::Mutex<crate::AppState>>(app_handle);
+        let guard = state.as_ref().and_then(|state| state.try_lock().ok());
+        let store = guard.as_ref().map(|state| state.get_store());
+        let family_preference = guard.as_ref().map(|state| state.family_preference().get());
+        drop(guard);
 
-        let input = Self::device_from_store(app_handle, AudioDeviceType::InputDevice);
-        let output = Self::device_from_store(app_handle, AudioDeviceType::OutputDevice);
+        let input = store
+            .as_ref()
+            .and_then(|store| Self::device_from_store(store, AudioDeviceType::InputDevice));
+        let output = store
+            .as_ref()
+            .and_then(|store| Self::device_from_store(store, AudioDeviceType::OutputDevice));
         let muted_peer_count = Self::muted_peer_count(app_handle);
 
         if let Ok(mut cached) = self.cached.lock() {
@@ -73,12 +87,17 @@ impl DeviceInfo {
     // Goes through `StoredAudioDevice` rather than reading the JSON by hand so this and the startup
     // path cannot disagree about the stored shape — notably that stream configs sit under `config`,
     // not `stream_configs`.
+    //
+    // Takes an already opened handle. `StoreExt::store` re-resolves the store path on every call,
+    // and on Android resolving a path is a JNI round trip dispatched to the activity —
+    // `wry::prelude::dispatch` panics on `no available activity`. This runs on a timer that outlives
+    // the activity, so any call that resolves a path here is a crash waiting for the first tick
+    // after the activity is destroyed.
     fn device_from_store(
-        app_handle: &tauri::AppHandle,
+        store: &Arc<Store<Wry>>,
         io: AudioDeviceType,
     ) -> Option<(String, Option<u32>)> {
-        let store = tauri_plugin_store::StoreExt::store(app_handle, "store.json").ok()?;
-        let stored = StoredAudioDevice::peek(io, &store)?;
+        let stored = StoredAudioDevice::peek(io, store)?;
 
         Some((stored.display_name().to_string(), stored.best_sample_rate()))
     }

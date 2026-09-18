@@ -33,6 +33,18 @@ pub(crate) enum DatagramLink {
 }
 
 impl DatagramLink {
+    /// Which transport this link runs on.
+    ///
+    /// The only place the distinction leaves this enum. Reporting reads it from the link
+    /// itself rather than from the branch that built it, so a new arm cannot be added
+    /// without the transport it carries being named.
+    pub(crate) fn transport_kind(&self) -> common::structs::metrics::TransportKind {
+        match self {
+            Self::Quic(_) => common::structs::metrics::TransportKind::Quic,
+            Self::WebSocket(_) => common::structs::metrics::TransportKind::WebSocket,
+        }
+    }
+
     pub(crate) async fn recv(&self) -> Result<Bytes, RecvFailure> {
         match self {
             Self::Quic(connection) => {

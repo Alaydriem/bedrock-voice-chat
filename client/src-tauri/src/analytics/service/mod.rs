@@ -51,6 +51,11 @@ impl AnalyticsService {
         }
     }
 
+    /// The server currently tagged on every event, if any.
+    pub fn connected_server(&self) -> Option<String> {
+        self.context.read().connected_server.clone()
+    }
+
     pub fn clear_connected_server(&self) {
         self.set_connected_server(None);
     }

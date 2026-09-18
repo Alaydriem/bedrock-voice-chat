@@ -6,9 +6,9 @@ pub(crate) mod link;
 mod stream_manager;
 
 pub(crate) use connect_failure::ConnectFailure;
+pub use connect_outcome::{AttemptResult, ConnectOutcome, FallbackReason};
 pub use health_publisher::HealthPublisher;
 
-use connect_outcome::{AttemptResult, ConnectOutcome};
 use link::DatagramLink;
 
 use crate::AudioPacket;
@@ -240,6 +240,11 @@ impl NetworkStreamManager {
     /// A measurement is not a session, which is what the second attempt is for. It runs
     /// against the probe's own verdict deliberately: a verdict that was wrong must cost
     /// time and never connectivity.
+    ///
+    /// The outcome is reported here rather than inside either dial, because this is the only
+    /// place that knows which transport ended up carrying the session. Reported from inside
+    /// the QUIC walk, a player rescued by the WebSocket was recorded as a failed connect, and
+    /// a player who never walked at all was not recorded at all.
     #[allow(clippy::too_many_arguments)]
     async fn connect_chosen(
         &self,
@@ -252,6 +257,48 @@ impl NetworkStreamManager {
         key: &str,
         choice: VoiceChoice,
         voice_websocket: bool,
+    ) -> Result<DatagramLink, ConnectFailure> {
+        let mut outcome = ConnectOutcome::new();
+        let result = self
+            .dial_chosen(
+                client,
+                plan,
+                server_fqdn,
+                server_url,
+                ca_cert,
+                cert,
+                key,
+                choice,
+                voice_websocket,
+                &mut outcome,
+            )
+            .await;
+
+        if let Ok(link) = &result {
+            outcome.carried(link.transport_kind());
+        }
+        self.report_connect_outcome(&outcome, server_url);
+
+        result
+    }
+
+    /// The dial itself, with the walk and the fallbacks recorded into `outcome`.
+    ///
+    /// Split from `connect_chosen` so that every return path — including the two that dial
+    /// nothing — passes through one report rather than each arm remembering to emit.
+    #[allow(clippy::too_many_arguments)]
+    async fn dial_chosen(
+        &self,
+        client: &Client,
+        plan: &CandidatePlan,
+        server_fqdn: &str,
+        server_url: &str,
+        ca_cert: &str,
+        cert: &str,
+        key: &str,
+        choice: VoiceChoice,
+        voice_websocket: bool,
+        outcome: &mut ConnectOutcome,
     ) -> Result<DatagramLink, ConnectFailure> {
         match choice {
             VoiceChoice::None => {
@@ -272,12 +319,13 @@ impl NetworkStreamManager {
                 if voice_websocket && self.transport_verdict.is_demoted(server_fqdn) =>
             {
                 log::info!("QUIC is demoted for {server_fqdn}; connecting over WebSocket");
+                outcome.fell_back(FallbackReason::Demoted);
                 self.connect_websocket(server_url, ca_cert, cert, key).await
             }
 
             VoiceChoice::Quic => {
                 match self
-                    .connect_quic(client, plan, server_fqdn, server_url, ca_cert)
+                    .connect_quic(client, plan, server_fqdn, server_url, ca_cert, outcome)
                     .await
                 {
                     Ok(link) => Ok(link),
@@ -292,6 +340,7 @@ impl NetworkStreamManager {
                             failure.detail()
                         );
                         self.transport_verdict.demote(server_fqdn);
+                        outcome.fell_back(FallbackReason::QuicFailed);
                         self.connect_websocket(server_url, ca_cert, cert, key).await
                     }
                     Err(failure) => Err(failure),
@@ -307,7 +356,8 @@ impl NetworkStreamManager {
                             "the fallback path did not carry a session ({}); walking the QUIC plan",
                             failure.detail()
                         );
-                        self.connect_quic(client, plan, server_fqdn, server_url, ca_cert)
+                        outcome.fell_back(FallbackReason::WebSocketFailed);
+                        self.connect_quic(client, plan, server_fqdn, server_url, ca_cert, outcome)
                             .await
                     }
                 }
@@ -317,8 +367,10 @@ impl NetworkStreamManager {
 
     /// Walks the QUIC plan, in candidate order, until one carries a session.
     ///
-    /// The outcome is reported whether or not it succeeds: a walk that reached the server
-    /// on its third candidate is as diagnostic as one that reached nothing.
+    /// Every candidate is recorded into `outcome`, whether or not one carries: a walk that
+    /// reached the server on its third candidate is as diagnostic as one that reached nothing.
+    /// The caller owns the outcome and reports it, because a failed walk here is not a failed
+    /// connect — the WebSocket may still carry this session.
     async fn connect_quic(
         &self,
         client: &Client,
@@ -326,12 +378,10 @@ impl NetworkStreamManager {
         server_fqdn: &str,
         server_url: &str,
         ca_cert: &str,
+        outcome: &mut ConnectOutcome,
     ) -> Result<DatagramLink, ConnectFailure> {
-        let mut outcome = ConnectOutcome::new();
-        let attempt = Self::connect_first_available(client, plan, server_fqdn, &mut outcome).await;
-        self.report_connect_outcome(&outcome, server_url);
-
-        let (connection, winner) = attempt?;
+        let (connection, winner) =
+            Self::connect_first_available(client, plan, server_fqdn, outcome).await?;
         self.adopt_quic(connection, winner, server_url, ca_cert)
             .map_err(|detail| ConnectFailure::Unreachable { detail })
     }
@@ -496,9 +546,10 @@ impl NetworkStreamManager {
     // The winning candidate is returned alongside the connection rather than recorded from
     // inside the walk, which keeps this a pure function of its inputs and leaves exactly one
     // place that decides what the current session is.
-    // Emitted whether the walk succeeded or not. A network that blocks UDP outright and one
-    // that reaches the server on an alternate port both end the walk; only the per-candidate
-    // record separates them, and neither is visible from the error code alone.
+    // Emitted once per connect, whatever carried it and whether anything did. A network that
+    // blocks UDP outright, one that reaches the server on an alternate port, and one that
+    // ends up on the WebSocket are three different outcomes; only the transport beside the
+    // per-candidate record separates them, and none is visible from the error code alone.
     fn report_connect_outcome(&self, outcome: &ConnectOutcome, server_url: &str) {
         use tauri::Manager;
 
