@@ -181,7 +181,7 @@
     <div class="rad-section">
         <div class="rad-section__note">
             {I18n.t(
-                "Export your sessions to disk to import into your DAW or video editor. Players are exported to their own timecode encoded audio track.",
+                "Export your sessions to disk to import into your DAW or video editor.",
             )}
         </div>
 
@@ -213,7 +213,7 @@
             failNote={failure || "The recordings folder could not be read."}
             onretry={() => void load()}
             emptyTitle="Nothing recorded yet"
-            emptyNote="Arm recording from the controls on the dashboard. Each player lands on their own timecoded track."
+            emptyNote="Arm recording from the controls on the dashboard."
         >
             <div class="rad-card">
                 <div class="rad-table-wrap">

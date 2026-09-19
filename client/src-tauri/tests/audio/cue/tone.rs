@@ -3,7 +3,14 @@ use bvc_client_lib::audio::Cue;
 /// Rates a real endpoint reports, including the unusual ones.
 const RATES: [u32; 5] = [22_050, 44_100, 48_000, 96_000, 192_000];
 
-const ALL: [Cue; 4] = [Cue::Mute, Cue::Unmute, Cue::Deafen, Cue::Undeafen];
+const ALL: [Cue; 6] = [
+    Cue::Mute,
+    Cue::Unmute,
+    Cue::Deafen,
+    Cue::Undeafen,
+    Cue::GroupJoin,
+    Cue::GroupLeave,
+];
 
 /// Sign changes in a slice. A pitch measure that does not care about amplitude, which
 /// matters because the window used below sits deep in the decay.
@@ -39,11 +46,11 @@ fn turning_something_off_falls_and_turning_it_on_rises() {
             let last = zero_crossings(closing(&samples, rate, cue.duration_seconds()));
 
             match cue {
-                Cue::Mute | Cue::Deafen => assert!(
+                Cue::Mute | Cue::Deafen | Cue::GroupLeave => assert!(
                     first > last,
                     "{cue:?} at {rate} Hz did not fall: opened at {first} crossings, closed at {last}"
                 ),
-                Cue::Unmute | Cue::Undeafen => assert!(
+                Cue::Unmute | Cue::Undeafen | Cue::GroupJoin => assert!(
                     first < last,
                     "{cue:?} at {rate} Hz did not rise: opened at {first} crossings, closed at {last}"
                 ),
@@ -58,6 +65,27 @@ fn turning_something_off_falls_and_turning_it_on_rises() {
 fn deafen_is_longer_than_mute() {
     assert!(Cue::Deafen.duration_seconds() > Cue::Mute.duration_seconds());
     assert!(Cue::Undeafen.duration_seconds() > Cue::Unmute.duration_seconds());
+}
+
+/// Where you are and what your microphone is doing are different questions, and the two
+/// answers are heard within a second of each other every time somebody joins a group muted.
+/// Note count is what separates mute from deafen; register is what separates both from the
+/// group pair, and only a rendered tone can show it.
+#[test]
+fn the_group_pair_sits_above_the_mute_and_deafen_pairs() {
+    let highest_elsewhere = [Cue::Mute, Cue::Unmute, Cue::Deafen, Cue::Undeafen]
+        .into_iter()
+        .map(|cue| zero_crossings(opening(&cue.samples(48_000, 1), 48_000)))
+        .max()
+        .unwrap_or(0);
+
+    for cue in [Cue::GroupJoin, Cue::GroupLeave] {
+        let opening = zero_crossings(opening(&cue.samples(48_000, 1), 48_000));
+        assert!(
+            opening > highest_elsewhere,
+            "{cue:?} opened at {opening} crossings, no higher than the {highest_elsewhere} of the mute and deafen cues"
+        );
+    }
 }
 
 /// These fire dozens of times a session, unlike the speaker test which fires once during

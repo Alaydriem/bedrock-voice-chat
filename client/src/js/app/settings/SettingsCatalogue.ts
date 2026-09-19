@@ -25,19 +25,18 @@ export class SettingsCatalogue {
         const bedrock = I18n.t("Minecraft Bedrock");
 
         return [
-            { id: "account", title: I18n.t("Account"), group: "", wide: false, desktopOnly: false },
-            { id: "audio", title: I18n.t("Audio settings"), group: "", wide: false, desktopOnly: false },
-            { id: "players", title: I18n.t("Player audio levels"), group: "", wide: true, desktopOnly: false },
-            { id: "recordings", title: I18n.t("Recordings"), group: "", wide: false, desktopOnly: true },
-            { id: "library", title: I18n.t("Audio library"), group: "", wide: true, desktopOnly: false },
-            { id: "keybinds", title: I18n.t("Keybinds"), group: "", wide: false, desktopOnly: true },
-            { id: "ws", title: I18n.t("WebSocket server"), group: "", wide: false, desktopOnly: false },
-            { id: "about", title: I18n.t("About"), group: "", wide: false, desktopOnly: false },
+            { id: "account", title: I18n.t("Account"), group: "", desktopOnly: false },
+            { id: "audio", title: I18n.t("Audio settings"), group: "", desktopOnly: false },
+            { id: "players", title: I18n.t("Player audio levels"), group: "", desktopOnly: false },
+            { id: "recordings", title: I18n.t("Recordings"), group: "", desktopOnly: true },
+            { id: "library", title: I18n.t("Audio library"), group: "", desktopOnly: false },
+            { id: "keybinds", title: I18n.t("Keybinds"), group: "", desktopOnly: true },
+            { id: "ws", title: I18n.t("WebSocket server"), group: "", desktopOnly: false },
+            { id: "about", title: I18n.t("About"), group: "", desktopOnly: false },
             {
                 id: "manage-players",
                 title: I18n.t("Manage Players"),
                 group: I18n.t("Server"),
-                wide: true,
                 desktopOnly: false,
                 requires: "admin",
             },
@@ -45,7 +44,6 @@ export class SettingsCatalogue {
                 id: "connect",
                 title: I18n.t("Voice Chat Connect"),
                 group: bedrock,
-                wide: true,
                 desktopOnly: false,
             },
         ];

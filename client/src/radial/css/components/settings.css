@@ -15,17 +15,6 @@
   overflow-y: auto;
 }
 
-/* A measure. Settings rows past about 760px start needing eye travel between a label
-   on the left and its control on the right. */
-.rad-settings-measure {
-  max-width: 760px;
-}
-
-/* Panes whose content is plates or a wide table rather than label-and-control rows. */
-.rad-settings-measure.is-wide {
-  max-width: 1000px;
-}
-
 /* ---- ranges with a readout ----
  * The value sits on the label line, right-aligned over its track.
  */

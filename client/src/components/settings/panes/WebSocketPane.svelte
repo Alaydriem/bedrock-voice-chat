@@ -78,13 +78,13 @@
 
 <div class="rad-section">
     <div class="rad-section__note">
-        {I18n.t("The WebSocket server lets you drive BVC from other software, such as a Stream Deck. It answers only this device unless you allow external connections.")}
+        {I18n.t("The websocket server allows remote control of BVC from other devices on your network, such as a Stream Deck, or custom plugin.")}
     </div>
 
     <div class="rad-card">
         <SettingRow
             label={I18n.t("Allow external connections")}
-            note={I18n.t("Off by default: the server answers only this device. Turn it on to drive BVC from another device on your network, which exposes the port to everything that can reach you.")}
+            note={I18n.t("Turn on to drive BVC from another device on your network.")}
         >
             {#snippet control()}
                 <Toggle
@@ -97,12 +97,6 @@
 
         <SettingRow
             label={I18n.t("Port")}
-            note={movedPort
-                ? I18n.tf(
-                      "Port {port} was in use, so the server is answering on {bound} instead. It returns to {port} once that port is free.",
-                      { port, bound: String(boundPort) },
-                  )
-                : I18n.t("Changing it restarts the server and drops anything connected.")}
         >
             {#snippet control()}
                 <span class="rad-input" style="width: 104px">

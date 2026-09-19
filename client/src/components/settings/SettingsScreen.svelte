@@ -180,41 +180,39 @@
         </div>
 
         <div class="rad-settings-body" bind:this={body}>
-            <div class="rad-settings-measure" class:is-wide={current.wide}>
-                {#if standalone}
-                    <div class="rad-callout" style="margin-bottom: 14px">
-                        <span>
-                            {I18n.t("You are in settings on its own.")} <b>{I18n.t("Nothing is connected")}</b> — go back to
-                            the dashboard when you are done here.
-                        </span>
-                    </div>
-                {/if}
+            {#if standalone}
+                <div class="rad-callout" style="margin-bottom: 14px">
+                    <span>
+                        {I18n.t("You are in settings on its own.")} <b>{I18n.t("Nothing is connected")}</b> — go back to
+                        the dashboard when you are done here.
+                    </span>
+                </div>
+            {/if}
 
-                <!-- Keyed so a pane's subscriptions and polls are torn down on leaving. -->
-                {#key current.id}
-                    {#if current.id === "account"}
-                        <AccountPane {onsignout} />
-                    {:else if current.id === "audio"}
-                        <AudioPane {mobile} />
-                    {:else if current.id === "players"}
-                        <PlayersPane />
-                    {:else if current.id === "manage-players"}
-                        <ManagePlayersPane />
-                    {:else if current.id === "recordings"}
-                        <RecordingsPane />
-                    {:else if current.id === "library"}
-                        <LibraryPane />
-                    {:else if current.id === "keybinds"}
-                        <KeybindsPane />
-                    {:else if current.id === "ws"}
-                        <WebSocketPane />
-                    {:else if current.id === "connect"}
-                        <ConnectPane bedrock={bedrockManager()} {mobile} />
-                    {:else if current.id === "about"}
-                        <AboutPane {updates} />
-                    {/if}
-                {/key}
-            </div>
+            <!-- Keyed so a pane's subscriptions and polls are torn down on leaving. -->
+            {#key current.id}
+                {#if current.id === "account"}
+                    <AccountPane {onsignout} />
+                {:else if current.id === "audio"}
+                    <AudioPane {mobile} />
+                {:else if current.id === "players"}
+                    <PlayersPane />
+                {:else if current.id === "manage-players"}
+                    <ManagePlayersPane />
+                {:else if current.id === "recordings"}
+                    <RecordingsPane />
+                {:else if current.id === "library"}
+                    <LibraryPane />
+                {:else if current.id === "keybinds"}
+                    <KeybindsPane />
+                {:else if current.id === "ws"}
+                    <WebSocketPane />
+                {:else if current.id === "connect"}
+                    <ConnectPane bedrock={bedrockManager()} {mobile} />
+                {:else if current.id === "about"}
+                    <AboutPane {updates} />
+                {/if}
+            {/key}
         </div>
     </div>
 </div>

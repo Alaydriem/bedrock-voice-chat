@@ -94,8 +94,8 @@ impl BedrockSessionState {
         }
     }
 
-    pub fn apply_change_dimension(&mut self, p: &ChangeDimensionPacket) {
-        self.dimension = Self::dimension_from_i32(p.dimension_id.value);
+    pub fn apply_change_dimension(&mut self, dimension: i32) {
+        self.dimension = Self::dimension_from_i32(dimension);
         debug!("Bedrock state: ChangeDimension -> {:?}", self.dimension);
     }
 

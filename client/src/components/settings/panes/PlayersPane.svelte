@@ -187,7 +187,7 @@
 
 <div class="rad-section">
     <div class="rad-section__note">
-        {I18n.t("Turn someone down, or mute them, and it stays that way after they walk off. Only you hear the difference.")}
+        {I18n.t("Adjust the volume for individual players on this server.")}
     </div>
 
     <div class="rad-swatchrow" style="margin-bottom: 4px">

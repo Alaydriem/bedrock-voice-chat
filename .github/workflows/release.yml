@@ -34,6 +34,7 @@ jobs:
       new_version: ${{ steps.semantic.outputs.new_release_version }}
       new_tag: ${{ steps.semantic.outputs.new_release_git_tag }}
       build_number: ${{ steps.build-number.outputs.build_number }}
+      bedrock_tag: ${{ steps.bedrock-tag.outputs.bedrock_tag }}
     steps:
       - name: Generate GitHub App token
         id: generate-token
@@ -92,6 +93,20 @@ jobs:
             @semantic-release/git
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+
+      # update-site-version checks out gh-pages-src, which carries no Cargo.toml,
+      # so the pinned tag has to reach it as a job output.
+      - name: Read the pinned bedrock-protocol tag
+        id: bedrock-tag
+        run: |
+          set -euo pipefail
+          TAG=$(sed -n 's|^bedrock-protocol = .*[^a-z]tag = "\([^"]*\)".*|\1|p' common/Cargo.toml | head -1)
+          if [ -z "$TAG" ]; then
+            echo "::error::no bedrock-protocol git tag found in common/Cargo.toml"
+            exit 1
+          fi
+          echo "bedrock_tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "bedrock-protocol-rs pinned at $TAG"
 
       - name: Get build number
         id: build-number
@@ -989,7 +1004,7 @@ jobs:
       - name: Documentation deployed
         run: echo "OpenAPI docs deployed to https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/api/${{ needs.prepare-release.outputs.new_version }}"
 
-  # Post-approval: Update version on GitHub Pages landing page (beta only for now)
+  # Post-approval: Update version on GitHub Pages landing page
   # The site is built from the gh-pages-src branch, so the version is a build
   # input rather than a string to patch into published output. Committing it here
   # is what triggers that branch's deploy workflow — repository_dispatch and
@@ -998,18 +1013,26 @@ jobs:
   update-site-version:
     name: Update Site Version
     needs: [prepare-release, approve-publish, deploy-openapi-docs]
-    if: always() && needs.approve-publish.result == 'success' && contains(needs.prepare-release.outputs.new_version, '-beta')
+    if: always() && needs.approve-publish.result == 'success'
     runs-on: ubuntu-latest
     concurrency:
       group: gh-pages-src-push
       cancel-in-progress: false
     steps:
+      # Scoped to bedrock-protocol-rs as well, because this job reads the
+      # version matrix from that repository's releases and it is private.
+      # Naming any repository drops the implicit access to this one, so
+      # bedrock-voice-chat has to be listed too or the push below fails.
       - name: Generate GitHub App token
         id: generate-token
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: alaydriem
+          repositories: |
+            bedrock-voice-chat
+            bedrock-protocol-rs
 
       - name: Checkout gh-pages-src branch
         uses: actions/checkout@v5
@@ -1017,20 +1040,51 @@ jobs:
           ref: gh-pages-src
           token: ${{ steps.generate-token.outputs.token }}
 
+      # Matches whatever fallback literal is there rather than a beta-shaped one,
+      # so the first stable release does not write '1.0.0' and leave every later
+      # release with no pattern to match. The grep is the check: a sed that hits
+      # nothing exits 0, and the old `grep PUBLIC_BVC_VERSION` passed on the line
+      # merely existing, so a silent no-op looked like a successful patch.
       - name: Set the version
         run: |
           set -euo pipefail
           VERSION="${{ needs.prepare-release.outputs.new_version }}"
           FILE=src/lib/site.ts
           test -f "$FILE"
-          sed -i "s|?? '1\.0\.0-beta\.[0-9]*'|?? '${VERSION}'|" "$FILE"
+          sed -i "s|PUBLIC_BVC_VERSION ?? '[^']*'|PUBLIC_BVC_VERSION ?? '${VERSION}'|" "$FILE"
+          if ! grep -q "PUBLIC_BVC_VERSION ?? '${VERSION}'" "$FILE"; then
+            echo "::error::${FILE} still does not carry ${VERSION} after patching"
+            exit 1
+          fi
           grep -n "PUBLIC_BVC_VERSION" "$FILE"
+
+      # bedrock-protocol-rs emits this on every tagged release. The site's
+      # gen:versions prebuild step rewrites the Bedrock version support table
+      # from it, so refreshing the JSON is the whole update. A missing asset
+      # fails the job on purpose: keeping the old file would publish a table
+      # describing a protocol set this release does not ship.
+      - name: Refresh the protocol version matrix
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          TAG: ${{ needs.prepare-release.outputs.bedrock_tag }}
+        run: |
+          set -euo pipefail
+          test -n "$TAG"
+          # bedrock-protocol-rs is private, so the asset has no anonymous
+          # download URL. --clobber because the file is already in the checkout.
+          gh release download "$TAG" \
+            --repo alaydriem/bedrock-protocol-rs \
+            --pattern version-matrix.json \
+            --output src/data/version-matrix.json \
+            --clobber
+          jq -e '.released_latest and (.versions | length > 0)' src/data/version-matrix.json > /dev/null
+          echo "Matrix from bedrock-protocol-rs ${TAG}: $(jq -r '.versions | length' src/data/version-matrix.json) versions, released_latest $(jq -r '.released_latest' src/data/version-matrix.json)"
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add src/lib/site.ts
+          git add src/lib/site.ts src/data/version-matrix.json
           git diff --staged --quiet || git commit -m "chore: site version ${{ needs.prepare-release.outputs.new_version }}"
           git push
 

@@ -618,6 +618,29 @@ impl ClientProc {
         }
     }
 
+    /// Blocks until this client has passed `expected` frames into the jitter buffer, or
+    /// `timeout` passes, then returns the final counters.
+    ///
+    /// A separate wait from `await_transport_frames` because the two counters sit either
+    /// side of the router: a frame is counted off the transport before the router decides
+    /// whether it can attribute it to a speaker, and dropped frames never reach the second
+    /// counter at all. Waiting on the first and reading the second cannot tell a frame
+    /// still in flight from one the router discarded.
+    pub fn await_jitter_buffer_frames(&self, expected: u64, timeout: Duration) -> (u64, u64, u64) {
+        let deadline = Instant::now() + timeout;
+
+        loop {
+            let stats = self.stats();
+            if stats.2 >= expected {
+                return stats;
+            }
+            if Instant::now() >= deadline {
+                return stats;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
     /// Request a link-diagnostics reading from the bin and block until it arrives (or the 5 s
     /// deadline passes). Returns `(connected, stalled, uptime_secs)`.
     ///

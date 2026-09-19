@@ -1,5 +1,6 @@
 use crate::audio::cue::Cue;
 use common::structs::audio::AudioDeviceType;
+use common::structs::channel::ChannelEvents;
 
 /// Which cue a mute change earns, if any.
 ///
@@ -21,5 +22,26 @@ impl CuePolicy {
             (AudioDeviceType::OutputDevice, true) => Cue::Deafen,
             (AudioDeviceType::OutputDevice, false) => Cue::Undeafen,
         })
+    }
+
+    /// Which cue a channel event earns, if any.
+    ///
+    /// Every client hears every channel event, including the ones for groups it is not in,
+    /// because the groups pane is built from them. Only the local player's own move is
+    /// announced; `is_self` is the whole of that decision and the caller supplies it.
+    ///
+    /// Create, delete and rename are not membership changes. A delete in particular names
+    /// the player who deleted the group rather than each member who lost a seat, so a cue
+    /// on it would announce somebody else's action to everyone who happened to be there.
+    pub fn for_channel_event(event: &ChannelEvents, is_self: bool) -> Option<Cue> {
+        if !is_self {
+            return None;
+        }
+
+        match event {
+            ChannelEvents::Join => Some(Cue::GroupJoin),
+            ChannelEvents::Leave => Some(Cue::GroupLeave),
+            ChannelEvents::Create | ChannelEvents::Delete | ChannelEvents::Rename => None,
+        }
     }
 }
