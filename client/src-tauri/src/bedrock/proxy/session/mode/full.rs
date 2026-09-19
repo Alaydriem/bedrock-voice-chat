@@ -73,7 +73,8 @@ impl ModeDispatch for FullDispatch {
                 true
             }
             EventPacket::ChangeDimension(p) => {
-                ChangeDimensionHandler.handle(p, state, emitter);
+                let dimension = &p.dimension_id().value;
+                ChangeDimensionHandler.handle(dimension, state, emitter);
                 true
             }
             EventPacket::SetPlayerGameType(p) => {

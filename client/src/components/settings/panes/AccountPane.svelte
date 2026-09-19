@@ -86,7 +86,7 @@
 
     <div class="rad-card">
         <div class="rad-card__head">{I18n.t("Linked Accounts")}</div>
-        
+
         <div class="rad-account">
             <span class="rad-account__badge" style="background: #5c8a3c">JA</span>
             <span class="rad-account__text">
@@ -137,7 +137,6 @@
     <div class="rad-card">
         <SettingRow
             label={I18n.t("Sign out of this server")}
-            note={I18n.t("Your other servers stay signed in.")}
         >
             {#snippet control()}
                 <button class="rad-btn rad-btn--danger" onclick={onsignout}>{I18n.t("Sign out")}</button>

@@ -28,7 +28,7 @@ export class AudioSettingsManager {
     private jukeboxMutedStore: Writable<boolean>;
     public readonly jukeboxMuted: Readable<boolean>;
     private muteCuesStore: Writable<boolean>;
-    /** Whether mute and deafen announce themselves with a tone. */
+    /** Whether mute, deafen and group membership announce themselves with a tone. */
     public readonly muteCues: Readable<boolean>;
     private voiceModeErrorStore: Writable<string>;
     /** Why the last mode change did not take, or empty. */

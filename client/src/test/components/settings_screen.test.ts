@@ -33,7 +33,6 @@ function mount(props: Record<string, unknown> = {}) {
     return {
         frame,
         shell: () => frame.querySelector<HTMLElement>(".rad-settings"),
-        measure: () => frame.querySelector<HTMLElement>(".rad-settings-measure"),
         navItems: () => [...frame.querySelectorAll<HTMLElement>(".rad-panel__body .rad-nav-item")],
         groupHeads: () => [...frame.querySelectorAll<HTMLElement>(".rad-nav-group")],
         title: () => frame.querySelector<HTMLElement>(".rad-dash-top__server")?.textContent?.trim(),
@@ -79,12 +78,6 @@ describe("SettingsScreen", () => {
             expect(on?.textContent?.trim()).toBe("Audio settings");
         });
         expect(view.title()).toBe("Audio settings");
-    });
-
-    // Plates and a seven-column table both need more than the 760px row measure.
-    it("widens the measure only for the panes that need it", async () => {
-        expect(mount({ pane: "connect" }).measure()?.classList.contains("is-wide")).toBe(true);
-        expect(mount({ pane: "account" }).measure()?.classList.contains("is-wide")).toBe(false);
     });
 
     it("navigates to a pane rather than swapping it in place", async () => {

@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use common::bedrock_protocol::protocol::packets::generated::misc::change_dimension::ChangeDimensionPacket;
-
 use crate::bedrock::BedrockEventEmitter;
 use crate::bedrock::proxy::session::BedrockPacketHandler;
 use crate::bedrock::proxy::session::BedrockSessionState;
@@ -9,14 +7,14 @@ use crate::bedrock::proxy::session::BedrockSessionState;
 pub struct ChangeDimensionHandler;
 
 impl BedrockPacketHandler for ChangeDimensionHandler {
-    type Packet = ChangeDimensionPacket;
+    type Packet = i32;
 
     fn handle(
         self,
-        packet: &ChangeDimensionPacket,
+        dimension: &i32,
         state: &mut BedrockSessionState,
         _emitter: Option<&Arc<BedrockEventEmitter>>,
     ) {
-        state.apply_change_dimension(packet);
+        state.apply_change_dimension(*dimension);
     }
 }

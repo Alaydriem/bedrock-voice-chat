@@ -1,5 +1,6 @@
 use bvc_client_lib::audio::{Cue, CuePolicy};
 use common::structs::audio::AudioDeviceType;
+use common::structs::channel::ChannelEvents;
 
 /// Mute is driven from a dozen surfaces, several of which set a value rather than flip one:
 /// the 1 Hz self-state poll, an idempotent Stream Deck `set_mute`, the in-game panel
@@ -37,4 +38,44 @@ fn the_output_device_gets_the_deafen_pair() {
         CuePolicy::for_change(&AudioDeviceType::OutputDevice, true, false),
         Some(Cue::Undeafen)
     );
+}
+
+/// Group membership changes for everybody else reach this client too — the roster in the
+/// groups pane is built from them. A tone on each would turn a busy server into a chime
+/// machine, so only the local player's own move is announced.
+#[test]
+fn another_players_membership_change_is_silent() {
+    assert_eq!(CuePolicy::for_channel_event(&ChannelEvents::Join, false), None);
+    assert_eq!(
+        CuePolicy::for_channel_event(&ChannelEvents::Leave, false),
+        None
+    );
+}
+
+#[test]
+fn the_local_player_gets_the_group_pair() {
+    assert_eq!(
+        CuePolicy::for_channel_event(&ChannelEvents::Join, true),
+        Some(Cue::GroupJoin)
+    );
+    assert_eq!(
+        CuePolicy::for_channel_event(&ChannelEvents::Leave, true),
+        Some(Cue::GroupLeave)
+    );
+}
+
+/// Creating a group does not join it, renaming one does not move anybody, and a delete
+/// names the player who deleted it rather than each member losing their seat. None of the
+/// three is a membership change, and a tone on any of them announces something that did
+/// not happen to the person hearing it.
+#[test]
+fn events_that_are_not_membership_changes_are_silent() {
+    for event in [
+        ChannelEvents::Create,
+        ChannelEvents::Delete,
+        ChannelEvents::Rename,
+    ] {
+        assert_eq!(CuePolicy::for_channel_event(&event, true), None);
+        assert_eq!(CuePolicy::for_channel_event(&event, false), None);
+    }
 }

@@ -1,23 +1,62 @@
 use anyhow::anyhow;
 use base64::{Engine as _, engine::general_purpose};
 use common::request::{CodeLoginRequest, LoginRequest};
+use common::response::ApiConfigResponse;
 use common::response::{JsonMessage, LoginResponse};
 use tauri_plugin_http::reqwest::{
     StatusCode,
     header::{HeaderMap, HeaderValue},
 };
 
+use crate::auth::LoginFailure;
 use crate::auth::NcryptfClient;
+use common::structs::reachability::AddressFamilyPreference;
 
 pub struct AuthClient;
 
 impl AuthClient {
     const CODE_AUTH_ENDPOINT: &'static str = "api/auth/code";
 
+    /// The unauthenticated `/api/config` the sign-in screen reads to learn the server's
+    /// OAuth client id.
+    ///
+    /// Uses the login client so the screen's verdict is measured over the same transport as
+    /// the sign-in it precedes.
+    pub(crate) async fn fetch_public_config(
+        server: String,
+        preference: AddressFamilyPreference,
+    ) -> Result<ApiConfigResponse, anyhow::Error> {
+        let endpoint =
+            super::ServerEndpoint::join(&server, super::ncryptf_client::CONFIG_ENDPOINT);
+        let client = NcryptfClient::get_reqwest_client(preference);
+
+        let response = match client.get(&endpoint).send().await {
+            Ok(response) => response,
+            Err(e) => {
+                let message = LoginFailure::describe(&endpoint, &e);
+                log::error!("{}", message);
+                return Err(anyhow!(message));
+            }
+        };
+
+        match response.status() {
+            StatusCode::OK => response.json::<ApiConfigResponse>().await.map_err(|e| {
+                anyhow!(
+                    "{} answered with a configuration this build cannot read: {}",
+                    endpoint,
+                    e
+                )
+            }),
+            StatusCode::FORBIDDEN => Err(anyhow!("403 Forbidden: the server refused this client")),
+            status => Err(anyhow!("{} returned HTTP {}", endpoint, status)),
+        }
+    }
+
     pub(crate) async fn server_login(
         server: String,
         code: String,
         redirect: String,
+        preference: AddressFamilyPreference,
     ) -> Result<LoginResponse, anyhow::Error> {
         let payload = LoginRequest {
             code: code.clone(),
@@ -25,10 +64,10 @@ impl AuthClient {
         };
 
         // We're going to setup an ncryptf client
-        let ek = match NcryptfClient::get_ek(server.clone()).await {
+        let ek = match NcryptfClient::get_ek(server.clone(), preference).await {
             Ok(ek) => ek,
             Err(e) => {
-                log::error!("{:?}", e);
+                log::error!("{}", LoginFailure::describe(&server, &*e));
                 return Err(anyhow!("Unable to reach the server for key exchange"));
             }
         };
@@ -51,7 +90,7 @@ impl AuthClient {
         );
 
         let endpoint = super::ServerEndpoint::join(&server, super::ncryptf_client::AUTH_ENDPOINT);
-        let client = NcryptfClient::get_reqwest_client();
+        let client = NcryptfClient::get_reqwest_client(preference);
 
         match client
             .post(endpoint.clone())
@@ -108,19 +147,24 @@ impl AuthClient {
                 status => Err(anyhow!("Login failed: server returned HTTP {}", status)),
             },
             Err(e) => {
-                log::error!("Unknown Error: {}", e.to_string());
-                Err(anyhow!("Login request failed: {}", e))
+                let message = LoginFailure::describe(&endpoint, &e);
+                log::error!("{}", message);
+                Err(anyhow!(message))
             }
         }
     }
 
-    pub(crate) async fn code_login(server: String, code: String) -> Result<LoginResponse, bool> {
+    pub(crate) async fn code_login(
+        server: String,
+        code: String,
+        preference: AddressFamilyPreference,
+    ) -> Result<LoginResponse, bool> {
         let payload = CodeLoginRequest { code };
 
-        let ek = match NcryptfClient::get_ek(server.clone()).await {
+        let ek = match NcryptfClient::get_ek(server.clone(), preference).await {
             Ok(ek) => ek,
             Err(e) => {
-                log::error!("{:?}", e);
+                log::error!("{}", LoginFailure::describe(&server, &*e));
                 return Err(false);
             }
         };
@@ -143,7 +187,7 @@ impl AuthClient {
         );
 
         let endpoint = super::ServerEndpoint::join(&server, Self::CODE_AUTH_ENDPOINT);
-        let client = NcryptfClient::get_reqwest_client();
+        let client = NcryptfClient::get_reqwest_client(preference);
 
         match client
             .post(endpoint.clone())
@@ -188,7 +232,7 @@ impl AuthClient {
                 }
             },
             Err(e) => {
-                log::error!("Code login error: {}", e.to_string());
+                log::error!("{}", LoginFailure::describe(&endpoint, &e));
                 Err(false)
             }
         }
@@ -205,7 +249,13 @@ mod tests {
         let code = "test_code".to_string();
         let redirect = "http://localhost:3000/redirect".to_string();
 
-        let result = AuthClient::server_login(server, code, redirect).await;
+        let result = AuthClient::server_login(
+            server,
+            code,
+            redirect,
+            AddressFamilyPreference::PreferIpv4,
+        )
+        .await;
 
         assert!(result.is_err(), "Expected login to fail for test data");
     }

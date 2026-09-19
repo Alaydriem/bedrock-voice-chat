@@ -12,8 +12,10 @@
 //! println!("Welcome, {}!", result.gamertag);
 //! ```
 
+mod identity_budget;
 mod minecraft;
 mod provider;
 
+pub use identity_budget::IdentityBudget;
 pub use minecraft::MinecraftAuthProvider;
 pub use provider::{AuthError, AuthResult};

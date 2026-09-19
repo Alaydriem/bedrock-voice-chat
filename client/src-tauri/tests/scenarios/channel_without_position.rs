@@ -15,7 +15,7 @@ use crate::harness::server::EmbeddedServer;
 ///
 /// The client never populates `AudioFramePacket.sender` itself — it always sends
 /// `None` and the server fills it in from `player_cache` during
-/// `update_coordinates`. So a player who has sent no position leaves the sender
+/// `attach_speaker`. So a player who has sent no position leaves the sender
 /// `None` for the whole route. Routing used to read the sender's and recipient's
 /// *game* out of that `PlayerEnum` in order to build the `game:gamertag` channel key,
 /// which meant no position ⇒ no channel key ⇒ proximity-only ⇒ silence, in both
@@ -30,6 +30,15 @@ use crate::harness::server::EmbeddedServer;
 /// was invisible to the suite. Transport fidelity (`bob_from_quic == alice_sent`)
 /// plus heard experience (rms and per-note Goertzel energy for C4/E4/G4), matching
 /// `same_channel`.
+///
+/// Those two alone leave a gap wide enough to hide the failure they exist to catch.
+/// `frames_from_quic` is counted at the transport read, before the router; the router
+/// then discards any frame it cannot attribute to a speaker, and a speaker is named on
+/// the wire only once per `PositionCadence::INTERVAL` while frames are 20 ms apart. A
+/// listener that keeps one frame in eight passes both checks: the counters match because
+/// the loss is downstream of the one being compared, and a steady three-note probe still
+/// clears an rms and tone-energy floor chosen to tolerate concealment. So
+/// `bob_received == bob_from_quic` is asserted too — the whole route, not its first leg.
 ///
 /// Requires both artifacts to be pre-built:
 /// * server cdylib: `cargo build -p bedrock-voice-chat-server` in `server/`
@@ -82,8 +91,9 @@ async fn channel_members_hear_each_other_before_joining_the_game() {
     let alice = feed_handle.join().expect("feed thread panicked");
 
     let (alice_sent, _, _) = alice.stats();
-    let (_, bob_from_quic, bob_received) =
-        bob.await_transport_frames(alice_sent, Duration::from_secs(5));
+    let (_, bob_from_quic, _) = bob.await_transport_frames(alice_sent, Duration::from_secs(5));
+    let (_, _, bob_received) =
+        bob.await_jitter_buffer_frames(bob_from_quic, Duration::from_secs(5));
 
     alice.shutdown();
     bob.shutdown();
@@ -125,6 +135,16 @@ async fn channel_members_hear_each_other_before_joining_the_game() {
          the authenticated certificate identity for the channel key; check whether \
          route_audio_frame logs IN_CHANNEL for this pair, or whether it silently \
          dropped to the proximity branch",
+    );
+
+    assert_eq!(
+        bob_received, bob_from_quic,
+        "FAIL — Bob took {bob_from_quic} AudioFrame datagrams off the transport but only \
+         {bob_received} reached the jitter buffer. The router discards a frame it cannot \
+         attribute to a speaker, and between attach heartbeats a frame carries a device id \
+         instead of a name; SpeakerStateCache answers for those from an entry it writes \
+         only when a frame carries a position. With no position there is no entry, so every \
+         frame between heartbeats is dropped and the group is heard in fragments",
     );
 
     assert!(

@@ -101,6 +101,22 @@ fn a_named_frame_without_a_position_recovers_the_cached_one() {
     );
 }
 
+// The name rides the attach heartbeat; the frames until the next one carry a device id and
+// nothing else, and are discarded when this key answers with nothing. A speaker with no
+// position is named by every heartbeat and by no other frame, so a heartbeat that brought no
+// position has to leave the name behind or seven frames in eight are lost — which is a group
+// heard in fragments by everyone who has not yet reported a position.
+#[test]
+fn a_name_without_a_position_survives_for_the_frames_between_heartbeats() {
+    let cache = SpeakerStateCache::new();
+    cache.resolve("4", Some("minecraft:Carol".to_string()), None);
+
+    let between = cache
+        .resolve("4", None, None)
+        .expect("the heartbeat's name is retained");
+    assert_eq!(between.name, "minecraft:Carol");
+}
+
 // A speaker named before any position has arrived is still attributable, so presence and
 // gain work while spatial panning waits for the first heartbeat that carries one.
 #[test]

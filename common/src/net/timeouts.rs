@@ -61,4 +61,35 @@ impl NetTimeouts {
     /// two answers would contradict each other on exactly the slow networks this transport
     /// exists for.
     pub const VOICE_WEBSOCKET: Duration = Self::HTTPS;
+
+    /// One TCP and TLS connect, on any path that reaches a BVC server or an identity
+    /// provider.
+    ///
+    /// Separate from the request budgets because they are sized for upstream work. A host
+    /// that is not there has nothing to do with that work, and giving it a request budget is
+    /// what makes "the server is down" take half a minute to say.
+    pub const CONNECT: Duration = Duration::from_secs(5);
+
+    /// One request to one identity provider host.
+    ///
+    /// The Xbox Live exchange visits five of them in series, each a fresh DNS lookup, TCP
+    /// handshake and TLS handshake against a different name. This bounds one leg; `IDENTITY`
+    /// bounds their sum.
+    pub const IDENTITY_UPSTREAM: Duration = Duration::from_secs(10);
+
+    /// The whole identity provider exchange the server runs on a player's behalf.
+    ///
+    /// Bounded as a whole rather than leg by leg, because five legs each bounded by
+    /// `IDENTITY_UPSTREAM` permit five times it — longer than any client waits. Past this the
+    /// answer cannot arrive in time to be useful, and holding the request open only keeps a
+    /// database connection and a socket out of circulation.
+    pub const IDENTITY: Duration = Duration::from_secs(25);
+
+    /// What the client waits for a login request.
+    ///
+    /// Strictly greater than `IDENTITY`, so the server's own answer — a refused code, an
+    /// unadmitted account, an unreachable provider — arrives before the client stops waiting.
+    /// A client that stops first reports that a request failed and nothing about why, which
+    /// is indistinguishable from the server being absent.
+    pub const LOGIN: Duration = Duration::from_secs(30);
 }

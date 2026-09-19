@@ -130,9 +130,6 @@ const TITLES: Record<string, string> = {
   about: "About",
 };
 
-/** Panes whose content is plates or a wide table rather than label-and-control rows. */
-const WIDE = new Set(["proxy", "realms", "library", "players"]);
-
 let pane = "account";
 let mobileLevel: "list" | "detail" = "list";
 
@@ -188,7 +185,6 @@ function goToPane(next: string): void {
   for (const b of document.querySelectorAll<HTMLElement>("[data-pane-to]")) {
     b.setAttribute("aria-pressed", String(b.dataset.paneTo === pane));
   }
-  need("[data-measure]").classList.toggle("is-wide", WIDE.has(pane));
   renderNav();
   setMobileLevel("detail");
   // A pane change is a new page as far as the reader is concerned.

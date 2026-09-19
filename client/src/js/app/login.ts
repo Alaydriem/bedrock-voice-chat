@@ -1,5 +1,4 @@
 import { I18n } from "$lib/i18n";
-import { fetch } from '@tauri-apps/plugin-http';
 import { info, error, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import { Store } from '@tauri-apps/plugin-store';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -9,6 +8,7 @@ import { writable, derived, get, type Writable, type Readable } from 'svelte/sto
 import { stopForegroundService, isServiceRunning } from 'tauri-plugin-audio-permissions';
 import MinecraftAuthUrl from './auth/MinecraftAuthUrl';
 import FinishWatchdog from './login/FinishWatchdog';
+import { ServerCheck } from './login/ServerCheck';
 import BVCApp from './BVCApp.ts';
 import HelpLinks from './HelpLinks';
 import Analytics from './analytics';
@@ -79,7 +79,6 @@ export default class Login extends BVCApp {
   static readonly LOGIN_ERROR_KEY = "login_error";
 
 
-  readonly CONFIG_ENDPOINT = "/api/config";
   readonly AUTH_ENDPOINT = "/api/auth";
   readonly NCRYPTF_EK_ENDPOINT = "/ncryptf/ek";
 
@@ -359,33 +358,6 @@ export default class Login extends BVCApp {
     });
   }
 
-  /**
-   * GET fetch with a hard timeout.
-   *
-   * We use a manually-cleared AbortController instead of AbortSignal.timeout()
-   * on purpose. The Tauri http plugin registers an `abort` listener on the
-   * signal but never removes it after the request completes, and its abort
-   * handler calls `plugin:http|fetch_cancel` against the request's resource id.
-   * With AbortSignal.timeout(ms) the abort event fires unconditionally once the
-   * timer elapses - even when the request already succeeded - so fetch_cancel
-   * runs against a resource id that has already been consumed/dropped. That
-   * surfaces as an uncaught "The resource id <n> is invalid." promise rejection
-   * (the very errors flooding Sentry). Clearing the timer on completion means
-   * abort() only ever fires while the request is genuinely in flight.
-   */
-  private async fetchWithTimeout(url: string, timeoutMs = 5000): Promise<Response> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      return await fetch(url, {
-        signal: controller.signal,
-        method: 'GET',
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
   public reportError(message: string): void {
     this.formErrorStore.set(message);
     this.serverInputInvalidStore.set(true);
@@ -645,22 +617,14 @@ export default class Login extends BVCApp {
     }
 
     const sanitizedUrl = this.sanitizeServerUrl(rawValue);
-    info(sanitizedUrl + this.CONFIG_ENDPOINT);
+    info(`Checking ${sanitizedUrl}`);
 
     try {
-      const response = await this.fetchWithTimeout(sanitizedUrl + this.CONFIG_ENDPOINT);
+      const configData = await ServerCheck.config(sanitizedUrl);
 
-      if (response.status === 403) {
-        warn("Server returned 403 Forbidden");
-        return { status: 'error', sanitized: sanitizedUrl };
-      }
-
-      if (response.status !== 200) {
-        throw new Error(`Bedrock Voice Chat Server ${sanitizedUrl} is not reachable.`);
-      }
-
-      info(`Successfully connected to Bedrock Voice Chat Server ${sanitizedUrl}`);
-      const configData = await response.json();
+      // What this proves and no more. The sign-in that follows spends up to half a minute
+      // in an exchange with Microsoft that this request never touches.
+      info(`${sanitizedUrl} answered its configuration request`);
 
       const clientId = configData.client_id;
       const secretState = self.crypto.randomUUID();

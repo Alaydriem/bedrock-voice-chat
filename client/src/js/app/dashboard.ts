@@ -235,7 +235,7 @@ export default class Dashboard extends BVCApp {
         progress.step("Server", "running");
 
         if (currentServer && !(await this.answers(currentServer))) {
-            progress.step("Server", "bad", "no response");
+            progress.step("Server", "bad", I18n.t("no response"));
             progress.skipFrom("Voice path");
             return this.redirect("/error?code=CONN01");
         }
@@ -323,7 +323,7 @@ export default class Dashboard extends BVCApp {
 
                 if (!audioPermission.granted) {
                     warn(I18n.t("Audio permission denied"));
-                    progress.step("Permissions", "bad", "microphone denied");
+                    progress.step("Permissions", "bad", I18n.t("microphone denied"));
                     return this.redirect("/error?code=PERM1");
                 }
 
@@ -331,7 +331,7 @@ export default class Dashboard extends BVCApp {
 
                 if (!notificationGranted.granted) {
                     warn(I18n.t("Notification permission denied - notifications may not be visible"));
-                    progress.step("Permissions", "bad", "notifications denied");
+                    progress.step("Permissions", "bad", I18n.t("notifications denied"));
                     return this.redirect("/error?code=PERM2");
                 }
 
@@ -348,7 +348,7 @@ export default class Dashboard extends BVCApp {
 
                     if (!serviceResult.started) {
                         warn(I18n.t("Foreground service could not be started."));
-                        progress.step("Permissions", "bad", "background service");
+                        progress.step("Permissions", "bad", I18n.t("background service"));
                         return this.redirect("/error?code=SERV01");
                     }
                 }
@@ -394,7 +394,7 @@ export default class Dashboard extends BVCApp {
             } else {
                 // Nothing was asked of the operating system: both streams were already
                 // running, which is what a warm re-entry looks like.
-                progress.step("Permissions", "skipped", "already granted");
+                progress.step("Permissions", "skipped", I18n.t("already granted"));
             }
         }
 
@@ -832,19 +832,19 @@ export default class Dashboard extends BVCApp {
                             defect: "AudioDeviceLost",
                             error: String(e),
                         });
-                        BootProgress.shared().step("Audio", "bad", "incompatible device");
+                        BootProgress.shared().step("Audio", "bad", I18n.t("incompatible device"));
                         this.redirect("/error?code=AUDI01");
                         return;
                     }
                     if (errStr.includes("NO_INPUT_DEVICE")) {
                         error(`No input device available: ${e}`);
-                        BootProgress.shared().step("Audio", "bad", "no input device");
+                        BootProgress.shared().step("Audio", "bad", I18n.t("no input device"));
                         this.redirect("/error?code=AUDI02");
                         return;
                     }
                     if (errStr.includes("NO_OUTPUT_DEVICE")) {
                         error(`No output device available: ${e}`);
-                        BootProgress.shared().step("Audio", "bad", "no output device");
+                        BootProgress.shared().step("Audio", "bad", I18n.t("no output device"));
                         this.redirect("/error?code=AUDI03");
                         return;
                     }
@@ -893,25 +893,25 @@ export default class Dashboard extends BVCApp {
             const errStr = String(e);
             if (errStr.includes("DNS_FAIL")) {
                 error(`DNS resolution failed: ${e}`);
-                BootProgress.shared().step("Voice path", "bad", "DNS lookup failed");
+                BootProgress.shared().step("Voice path", "bad", I18n.t("DNS lookup failed"));
                 this.redirect("/error?code=DNS01");
             } else if (errStr.includes("CERT_INVALID")) {
                 // Both certificate branches are checked ahead of QUIC_FAIL: the firewall advice
                 // QUIC01 gives would send the user to fix something that is not broken.
                 error(`Server certificate rejected, credentials cleared: ${e}`);
-                BootProgress.shared().step("Voice path", "bad", "certificate rejected");
+                BootProgress.shared().step("Voice path", "bad", I18n.t("certificate rejected"));
                 this.redirect("/error?code=CERT01");
             } else if (errStr.includes("SERVER_CERT")) {
                 error(`Server voice certificate is misconfigured, credentials kept: ${e}`);
-                BootProgress.shared().step("Voice path", "bad", "server certificate");
+                BootProgress.shared().step("Voice path", "bad", I18n.t("server certificate"));
                 this.redirect("/error?code=CERT02");
             } else if (errStr.includes("QUIC_FAIL")) {
                 error(`QUIC connection failed: ${e}`);
-                BootProgress.shared().step("Voice path", "bad", "no voice transport");
+                BootProgress.shared().step("Voice path", "bad", I18n.t("no voice transport"));
                 this.redirect("/error?code=QUIC01");
             } else {
                 error(`Error changing network stream: ${e}`);
-                BootProgress.shared().step("Voice path", "bad", "connect failed");
+                BootProgress.shared().step("Voice path", "bad", I18n.t("connect failed"));
                 this.redirect("/error?code=CONN01");
             }
         }

@@ -38,10 +38,6 @@
 </script>
 
 <div class="rad-section">
-    <div class="rad-section__note">
-        {I18n.t("Global shortcuts. They work while Minecraft has focus, which is the entire point of them.")}
-    </div>
-
     <div class="rad-card">
         {#each keybinds.rows as row (row.id)}
             <SettingRow label={row.label}>
@@ -71,8 +67,8 @@
 
     <div class="rad-card">
         <SettingRow
-            label={I18n.t("Back to the defaults")}
-            note={I18n.t("Restores every shortcut above, not just the one you were editing.")}
+            label={I18n.t("Reset defaults")}
+            note={I18n.t("Restores every shortcut above to their default settings")}
         >
             {#snippet control()}
                 <button class="rad-btn" onclick={() => keybinds.resetAll()}>{I18n.t("Reset all")}</button>

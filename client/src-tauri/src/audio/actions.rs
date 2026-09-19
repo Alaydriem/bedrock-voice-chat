@@ -17,34 +17,12 @@ impl AudioActionsManager {
         Self { app_handle }
     }
 
-    /// Whether mute and deafen announce themselves.
-    ///
-    /// Read from the store on each change rather than cached. The plugin keeps the file in
-    /// memory so this is a map lookup, and one copy cannot drift from the settings pane the
-    /// way a mirrored flag would.
-    ///
-    /// An absent key is on. Every install that predates this feature has no key, and reading
-    /// that as off would ship the feature switched off for everyone who already has BVC.
-    fn cues_enabled(&self) -> bool {
-        self.app_handle
-            .store("store.json")
-            .ok()
-            .and_then(|store| store.get("mute_cues_enabled"))
-            .and_then(|value| value.as_bool())
-            .unwrap_or(true)
-    }
-
     /// Announce a mute change that actually happened.
     fn play_cue(&self, device: &AudioDeviceType, previous: bool, next: bool) {
         let Some(cue) = crate::audio::CuePolicy::for_change(device, previous, next) else {
             return;
         };
-        if !self.cues_enabled() {
-            return;
-        }
-        if let Some(sink) = self.app_handle.try_state::<Arc<crate::audio::CueSink>>() {
-            sink.play(cue);
-        }
+        crate::audio::CueAnnouncer::new(&self.app_handle).play(cue);
     }
 
     /// Toggle mute for a device, emit `mute:{device}` event, return new mute status.

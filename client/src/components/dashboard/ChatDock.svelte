@@ -141,7 +141,7 @@
     <button
         class="rad-scrim"
         onclick={() => (pickerOpen = false)}
-        aria-label="Close world picker"
+        aria-label={I18n.t("Close world picker")}
     ></button>
     <ChatTargetPicker
         options={target.options}

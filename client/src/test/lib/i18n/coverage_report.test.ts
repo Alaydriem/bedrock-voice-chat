@@ -118,6 +118,24 @@ test("log arguments are not counted as copy", () => {
   expect(CoverageReport.markingOf("x.ts", source).unmarked).toBe(1);
 });
 
+// `"Voice path"` selects the `[data-step]` row painted by `src/app.html`. Marking it would
+// translate a DOM key and leave the lookup finding nothing.
+test("a phase name opening a progress call is an identifier, not copy", () => {
+  const source = [
+    'progress.step("Voice path", "running");',
+    'progress.skipFrom("Voice path");',
+  ].join("\n");
+
+  expect(CoverageReport.markingOf("dashboard.ts", source).unmarked).toBe(0);
+});
+
+// The note is the half a reader learns something from, so it stays in the denominator.
+test("the note a phase reports is still counted as copy", () => {
+  const source = 'progress.step("Voice path", "bad", "DNS lookup failed");';
+
+  expect(CoverageReport.markingOf("dashboard.ts", source).unmarked).toBe(1);
+});
+
 test("single-word literals are treated as keys rather than copy", () => {
   const source = 'const k = "Account"; emit("StreamEvent"); cls("rad-btn");';
 
