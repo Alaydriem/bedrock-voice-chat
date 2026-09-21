@@ -838,7 +838,7 @@ impl BedrockProxyManager {
 
             let batch_len = batch.len();
             let batch_preview: Vec<u8> = batch.iter().take(32).copied().collect();
-            match writer.send_to_server(batch) {
+            match writer.send_raw_to_server(batch) {
                 Ok(()) => debug!(
                     "Bedrock: injected silent chat '{}' event_id={} (stagger {}ms, batch_len={}, head={:02X?})",
                     message, event_id, stagger_ms, batch_len, batch_preview
@@ -909,7 +909,7 @@ impl BedrockProxyManager {
                 }
             };
 
-        match writer.send_to_server(batch) {
+        match writer.send_raw_to_server(batch) {
             Ok(()) => debug!("Bedrock: injected chat for {}", player_name),
             Err(e) => warn!(
                 "Bedrock: failed to inject chat (player {}): {:?}",
@@ -951,7 +951,7 @@ impl BedrockProxyManager {
             }
         };
 
-        match writer.send_to_server(batch) {
+        match writer.send_raw_to_server(batch) {
             Ok(()) => debug!(
                 "Bedrock: injected bvcs ride for {}: {}",
                 player_name, ride.message
@@ -986,7 +986,7 @@ impl BedrockProxyManager {
             }
         };
 
-        if let Err(e) = session.writer().send_to_client(batch) {
+        if let Err(e) = session.writer().send_raw_to_client(batch) {
             warn!(
                 "Bedrock: failed to inject Disconnect for {} (client may have already left): {}",
                 player_name, e

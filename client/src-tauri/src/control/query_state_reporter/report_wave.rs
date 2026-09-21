@@ -9,6 +9,7 @@ pub(super) struct ReportWave {
     pub(super) preferences: bool,
     pub(super) sync: bool,
     pub(super) sync_targets: BTreeSet<String>,
+    pub(super) groups: bool,
 }
 
 impl ReportWave {
@@ -20,6 +21,7 @@ impl ReportWave {
                 self.sync = true;
                 self.sync_targets.extend(targets);
             }
+            ControlStateSignal::Groups => self.groups = true,
         }
     }
 

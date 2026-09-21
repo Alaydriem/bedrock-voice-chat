@@ -4,6 +4,8 @@
 //
 //   !bvcs:<seq>:q:m=<0|1>;d=<0|1>;r=<0|1>;g=<group|->   self-state snapshot
 //   !bvcs:<seq>:p:t=<target>;v=<percent>;h=<0|1>        one player preference
+//   !bvcs:<seq>:gl:c=<count>                            group-list header
+//   !bvcs:<seq>:g:i=<id>;n=<name>                       one group
 
 export interface BvcsQueryState {
   kind: 'q';
@@ -20,7 +22,22 @@ export interface BvcsPreference {
   heard: boolean;
 }
 
-export type BvcsMessage = BvcsQueryState | BvcsPreference;
+export interface BvcsGroupListHeader {
+  kind: 'gl';
+  count: number;
+}
+
+export interface BvcsGroup {
+  kind: 'g';
+  id: string;
+  name: string;
+}
+
+export type BvcsMessage =
+  | BvcsQueryState
+  | BvcsPreference
+  | BvcsGroupListHeader
+  | BvcsGroup;
 
 const BVCS_PREFIX = '!bvcs:';
 
@@ -91,6 +108,45 @@ export class BvcsCodec {
       };
     }
 
+    if (kind === 'gl') {
+      const c = fields.get('c');
+      if (c === undefined || !/^\d+$/.test(c)) {
+        return null;
+      }
+      return { kind: 'gl', count: Number(c) };
+    }
+
+    if (kind === 'g') {
+      const id = fields.get('i');
+      const encoded = fields.get('n');
+      if (id === undefined || encoded === undefined) {
+        return null;
+      }
+      const name = BvcsCodec.unescape(encoded);
+      // A name that cannot be decoded means a corrupt ride; a row with a mangled
+      // name is worse than no row.
+      return name === null ? null : { kind: 'g', id, name };
+    }
+
     return null;
+  }
+
+  // Mirrors BvcsCodec::unescape in common. The grammar delimits on `;`, `=` and
+  // `:`, which a renamed group may contain.
+  private static unescape(value: string): string | null {
+    let out = '';
+    for (let i = 0; i < value.length; i++) {
+      if (value[i] !== '%') {
+        out += value[i];
+        continue;
+      }
+      const hex = value.slice(i + 1, i + 3);
+      if (!/^[0-9a-fA-F]{2}$/.test(hex)) {
+        return null;
+      }
+      out += String.fromCharCode(parseInt(hex, 16));
+      i += 2;
+    }
+    return out;
   }
 }

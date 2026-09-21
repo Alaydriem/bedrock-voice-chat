@@ -8,9 +8,11 @@ import {
 import { DataDrivenScreenClosedReason } from '@minecraft/server-ui';
 import type { ControlSender } from '../control/sender';
 import type { StateCacheStore } from '../state/cache_store';
+import type { GroupSource } from '../state/group_source';
 import type { StateCache } from '../state/state_cache';
 import type { PanelFeed } from '../state/state_source';
 import { FormShow } from './form_show';
+import { GroupListView } from './group_list';
 import type { PanelTestConfig } from './panel_test';
 import { PlayerVolumesView } from './player_list';
 
@@ -28,6 +30,7 @@ export class ControlPanel {
     private readonly cacheStore: StateCacheStore,
     private readonly getFeed: () => PanelFeed | null,
     private readonly panelTest: PanelTestConfig,
+    private readonly getGroupSource: () => GroupSource | null,
   ) {}
 
   open(player: Player): void {
@@ -52,11 +55,6 @@ export class ControlPanel {
     // the volumes view swaps in its page's targets while it is open.
     let displayedTargets: string[] = cache.adjustedTargets();
     const feed = this.getFeed();
-    // Leave is gated on known group membership only when the feed actually
-    // tracks it (net). No-net cannot know the group, so keep Leave always
-    // clickable there and let a stray leave be a harmless server-side no-op.
-    const leaveDisabled: ObservableBoolean | boolean =
-      (feed?.tracksCurrentGroup() ?? true) ? cache.noGroup : false;
     const volumes = new PlayerVolumesView(
       sender,
       cache,
@@ -67,6 +65,9 @@ export class ControlPanel {
       this.panelTest,
     );
     feed?.start(player, cache, () => displayedTargets);
+    // The Groups page must resolve its rows before it builds its form, so ask
+    // early. Net mode's warm is a no-op; only the no-net ride needs a head start.
+    this.getGroupSource()?.warm(player);
 
     const syncTimeout = system.runTimeout(() => {
       if (!cache.synced) {
@@ -114,24 +115,8 @@ export class ControlPanel {
     });
     unsubscribes.push(() => cache.recording.unsubscribe(recordListener));
 
-    // Seeded with the current group's code: the text field is the only DDUI
-    // widget whose text a player can select and copy, so it doubles as the
-    // "share my group" surface.
-    const joinCode = new ObservableString(cache.group ?? '', {
-      clientWritable: true,
-    });
-    // The seed above races the first snapshot (cache.group may still be null on
-    // the first open); backfill the field once state rides in, but never clobber
-    // something the player typed.
-    const codeBackfill = cache.status.subscribe(() => {
-      const group = cache.group;
-      if (group && joinCode.getData() === '') {
-        joinCode.setData(group);
-      }
-    });
-    unsubscribes.push(() => cache.status.unsubscribe(codeBackfill));
-
     let reopenAfterVolumes = false;
+    let reopenAfterGroups = false;
     // A MessageBox cannot show over an open form (UserBusy, no selection), so
     // the record confirmation runs after this panel closes.
     let confirmRecordAfterClose = false;
@@ -154,28 +139,10 @@ export class ControlPanel {
         { disabled: cache.controlsLocked },
       )
       .divider()
-      .button('Create group', () => {
-        void this.onCreateGroup(player, sender, cache.status, joinCode);
+      .button('Groups…', () => {
+        reopenAfterGroups = true;
+        form.close();
       })
-      .textField('Group code', joinCode, {
-        description: cache.group
-          ? 'Your current group code — copy it to share, or paste another and press Join'
-          : 'Paste a share code, then press Join',
-      })
-      .button('Join group', () => {
-        const code = joinCode.getData().trim();
-        if (code.length > 0) {
-          void sender.send({ kind: 'group-join', channel: code }, player);
-        }
-      })
-      .button(
-        'Leave group',
-        () => {
-          void sender.send({ kind: 'group-leave' }, player);
-        },
-        { disabled: leaveDisabled },
-      )
-      .divider()
       .button('Player volumes…', () => {
         reopenAfterVolumes = true;
         form.close();
@@ -191,6 +158,29 @@ export class ControlPanel {
       await volumes.show(player);
     }
 
+    if (
+      reopenAfterGroups &&
+      closedReason === DataDrivenScreenClosedReason.ServerClosed
+    ) {
+      const source = this.getGroupSource();
+      if (source) {
+        // Leave is gated on known group membership only when the feed actually
+        // tracks it (net). No-net cannot know the group, so keep Leave always
+        // clickable there and let a stray leave be a harmless server-side no-op.
+        const leaveDisabled: ObservableBoolean | boolean =
+          (feed?.tracksCurrentGroup() ?? true) ? cache.noGroup : false;
+        await new GroupListView(
+          sender,
+          source,
+          cache,
+          this.panelTest,
+          leaveDisabled,
+        ).show(player);
+      } else {
+        player.sendMessage('§c[BVC] Still starting up; try again in a moment');
+      }
+    }
+
     system.clearRun(syncTimeout);
     for (const unsubscribe of unsubscribes) {
       unsubscribe();
@@ -202,10 +192,10 @@ export class ControlPanel {
         await this.confirmStartRecording(player, sender, cache);
       }
       if (
-        (reopenAfterVolumes || confirmRecordAfterClose) &&
+        (reopenAfterVolumes || reopenAfterGroups || confirmRecordAfterClose) &&
         player.isValid
       ) {
-        // Back out of the volumes view / record confirmation into a fresh panel.
+        // Back out of a sub-view / the record confirmation into a fresh panel.
         this.open(player);
       }
     }
@@ -244,26 +234,4 @@ export class ControlPanel {
       player.sendMessage('§c[BVC] Recording failed to start; try again');
     }
   }
-
-  private async onCreateGroup(
-    player: Player,
-    sender: ControlSender,
-    status: ObservableString,
-    joinCode: ObservableString,
-  ): Promise<void> {
-    const result = await sender.send({ kind: 'group-create' }, player);
-    if (!result.ok) {
-      player.sendMessage('§c[BVC] Group create failed; try again');
-      return;
-    }
-    if (result.groupCode) {
-      status.setData(`Group: ${result.groupCode}`);
-      // Land the code in the copyable text field, not just the status label.
-      joinCode.setData(result.groupCode);
-      player.sendMessage(
-        `§a[BVC] Group created — share code: §f${result.groupCode}`,
-      );
-    }
-  }
-
 }

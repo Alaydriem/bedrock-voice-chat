@@ -41,4 +41,9 @@ impl ControlStateBus {
     pub fn sync(&self, targets: Vec<String>) {
         let _ = self.tx.send(ControlStateSignal::Sync { targets });
     }
+
+    /// Best-effort group-list request from the in-game panel.
+    pub fn groups(&self) {
+        let _ = self.tx.send(ControlStateSignal::Groups);
+    }
 }

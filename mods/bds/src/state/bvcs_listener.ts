@@ -1,6 +1,7 @@
 import { system, world } from '@minecraft/server';
 import type { ChatSendBeforeEvent } from '@minecraft/server';
 import { BvcsCodec } from './bvcs_codec';
+import type { GroupCache } from './group_cache';
 import type { StateCache } from './state_cache';
 
 // Parses proxy-injected `!bvcs:` reverse-ride chat into the panel's state cache
@@ -9,7 +10,12 @@ import type { StateCache } from './state_cache';
 // state is attributed to `ev.sender` — a player cannot poison another's cache
 // without also chatting as them.
 export class BvcsListener {
-  constructor(private readonly cacheFor: (playerName: string) => StateCache) {}
+  constructor(
+    private readonly cacheFor: (playerName: string) => StateCache,
+    // Server-wide, unlike the per-player state caches: every player sees the same
+    // groups, so the rides fill one shared list.
+    private readonly groups: GroupCache,
+  ) {}
 
   buildHandler(): (ev: ChatSendBeforeEvent) => void {
     return (ev: ChatSendBeforeEvent): void => {
@@ -30,6 +36,14 @@ export class BvcsListener {
       const sender = ev.sender.name;
 
       system.run(() => {
+        if (msg.kind === 'gl') {
+          this.groups.beginList(msg.count);
+          return;
+        }
+        if (msg.kind === 'g') {
+          this.groups.add({ id: msg.id, name: msg.name });
+          return;
+        }
         const cache = this.cacheFor(sender);
         if (msg.kind === 'q') {
           cache.applyQueryState({

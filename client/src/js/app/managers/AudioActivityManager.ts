@@ -64,7 +64,7 @@ export class AudioActivityManager {
                 for (const [name, level] of Object.entries(snapshot.peers)) {
                     activityData[name] = LevelSteps.toLevel(level);
                 }
-                this.processActivityUpdate(activityData);
+                this.applyLevels(activityData);
             }, 'AudioActivityManager');
         } catch (e) {
             error(`AudioActivityManager: Failed to initialize audio activity listener: ${e}`);
@@ -74,9 +74,7 @@ export class AudioActivityManager {
     /**
      * Process incoming audio activity data
      */
-    private processActivityUpdate(activityData: Record<string, number>): void {
-        const timestamp = Date.now();
-
+    applyLevels(activityData: Record<string, number>, timestamp: number = Date.now()): void {
         this.audioActivityStore.update(state => {
             const newState = { ...state };
 
@@ -96,21 +94,56 @@ export class AudioActivityManager {
 
                 // Set timeout to remove highlighting
                 this.fadeTimeouts[playerName] = window.setTimeout(() => {
-                    this.audioActivityStore.update(currentState => ({
-                        ...currentState,
-                        activeSpeakers: {
-                            ...currentState.activeSpeakers,
-                            [playerName]: {
-                                ...currentState.activeSpeakers[playerName],
-                                isHighlighted: false
-                            }
-                        }
-                    }));
+                    this.fade(playerName);
                     delete this.fadeTimeouts[playerName];
                 }, HIGHLIGHT_DURATION);
             });
 
             return newState;
+        });
+
+        this.prune(timestamp);
+    }
+
+    /**
+     * End a speaker's highlight, if they are still listed.
+     */
+    fade(playerName: string): void {
+        this.audioActivityStore.update(currentState => {
+            const speaker = currentState.activeSpeakers[playerName];
+            // Pruned while this timeout was pending. Spreading the missing record would put
+            // back an entry with no level and no timestamp, which nothing would ever remove
+            // again.
+            if (!speaker) {
+                return currentState;
+            }
+            return {
+                ...currentState,
+                activeSpeakers: {
+                    ...currentState.activeSpeakers,
+                    [playerName]: { ...speaker, isHighlighted: false }
+                }
+            };
+        });
+    }
+
+    /**
+     * Drop speakers who have not been heard for longer than a highlight lasts.
+     *
+     * The backend ages its own peer entries out, so a departed speaker simply stops appearing
+     * in the snapshot and nothing here would ever remove their record. The highlight window is
+     * the bound rather than mere absence: a speaker who has just stopped is absent from the
+     * very next snapshot, and dropping them there would cut their highlight short.
+     */
+    prune(now: number = Date.now()): void {
+        this.audioActivityStore.update(state => {
+            const activeSpeakers: AudioActivityState['activeSpeakers'] = {};
+            for (const [name, speaker] of Object.entries(state.activeSpeakers)) {
+                if (now - speaker.lastActive < HIGHLIGHT_DURATION) {
+                    activeSpeakers[name] = speaker;
+                }
+            }
+            return { ...state, activeSpeakers };
         });
     }
 

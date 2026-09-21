@@ -39,7 +39,7 @@ pub(crate) use recording::RecordingManager;
 pub use speaker_test::Chime;
 pub(crate) use speaker_test::SpeakerTest;
 pub(crate) use stream::AudioStreamManager;
-pub use stream::level_bus::{LevelBus, LevelEmitPolicy, LoudnessTracker};
+pub use stream::level_bus::{LevelBus, LevelEmitPolicy, LoudnessTracker, TrackedPeer};
 pub use stream::stream_manager::device_lease::DeviceLease;
 pub use stream::stream_manager::job_set::JobSet;
 

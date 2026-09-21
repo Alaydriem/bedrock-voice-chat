@@ -92,6 +92,26 @@ fn decodes_sync_with_target_list() {
 }
 
 #[test]
+fn the_groups_request_round_trips() {
+    let encoded = CtlCodec::encode_groups();
+    assert_eq!(encoded, "bvc:ctl:groups");
+    assert!(matches!(
+        CtlCodec::decode(&encoded),
+        Some(CtlMessage::Groups)
+    ));
+}
+
+#[test]
+fn the_groups_request_does_not_collide_with_a_group_action() {
+    // `groups` and `group` share a prefix; the decoder splits on ':' and matches the
+    // whole first token, so neither shadows the other.
+    assert_eq!(
+        decode_action("bvc:ctl:group:create"),
+        ClientActionType::CreateGroup
+    );
+}
+
+#[test]
 fn rejects_non_ctl_and_unknown_verbs() {
     assert!(CtlCodec::decode("bvc:play:x:minecraft:overworld").is_none());
     assert!(CtlCodec::decode("bvc:ctl:bogus").is_none());

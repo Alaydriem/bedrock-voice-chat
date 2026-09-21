@@ -624,7 +624,13 @@ impl AudioStreamManager {
     pub async fn stop(&mut self, device: AudioDeviceType) -> Result<(), Error> {
         match device {
             AudioDeviceType::InputDevice => self.input.stop().await?,
-            AudioDeviceType::OutputDevice => self.output.stop().await?,
+            AudioDeviceType::OutputDevice => {
+                self.output.stop().await?;
+                // The mixer that produced these is gone. Expiry would clear them a third of a
+                // second later, but a stream that restarts inside that window would inherit
+                // the previous room.
+                self.levels.clear_peers();
+            }
         };
 
         Ok(())
@@ -757,6 +763,7 @@ impl AudioStreamManager {
         let discarded_inbound = self.drain_inbound();
 
         self.output.stop().await?;
+        self.levels.clear_peers();
 
         if discarded_outbound > 0 || discarded_inbound > 0 {
             log::info!(

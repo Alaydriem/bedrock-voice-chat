@@ -73,7 +73,7 @@ impl ModeDispatch for FullDispatch {
                 true
             }
             EventPacket::ChangeDimension(p) => {
-                let dimension = &p.dimension_id().value;
+                let dimension = &p.dimension_id.value;
                 ChangeDimensionHandler.handle(dimension, state, emitter);
                 true
             }

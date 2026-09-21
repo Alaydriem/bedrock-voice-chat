@@ -12,6 +12,7 @@ import type { ControlSender } from '../control/sender';
 import type { PlayerPreference, StateCache } from '../state/state_cache';
 import { FormShow } from './form_show';
 import type { PanelTestConfig } from './panel_test';
+import { SearchableRows } from './searchable_rows';
 
 // Players within this many blocks are offered in the volumes list even if the
 // owner has never adjusted them; already-adjusted players always appear.
@@ -156,10 +157,17 @@ export class PlayerVolumesView {
     // Pinned above the players and never sorted among them: the jukebox is always present, while
     // the rows below it come and go with who is nearby.
     form.label(JUKEBOX_LABEL);
-    this.addPlayerRow(form, owner, JUKEBOX_TARGET, unsubscribes, undefined, () => {
-      next = { kind: 'detail', target: JUKEBOX_TARGET, back: 'main' };
-      form.close();
-    });
+    this.addPlayerRow(
+      form,
+      owner,
+      JUKEBOX_TARGET,
+      unsubscribes,
+      undefined,
+      () => {
+        next = { kind: 'detail', target: JUKEBOX_TARGET, back: 'main' };
+        form.close();
+      },
+    );
     form.divider();
 
     if (targets.length === 0) {
@@ -200,7 +208,9 @@ export class PlayerVolumesView {
 
     // Pinned above the search field rather than inside it. Hiding the jukebox behind a filter over
     // player names would lose the one row that is always there.
-    const jukeboxLabel = new ObservableString(this.stateLabel(JUKEBOX_TARGET, false));
+    const jukeboxLabel = new ObservableString(
+      this.stateLabel(JUKEBOX_TARGET, false),
+    );
     form.button(jukeboxLabel, () => {
       next = { kind: 'detail', target: JUKEBOX_TARGET, back: 'list' };
       form.close();
@@ -217,27 +227,10 @@ export class PlayerVolumesView {
     if (targets.length === 0) {
       form.label('No players nearby');
     } else {
-      const search = new ObservableString('', { clientWritable: true });
-      form.textField('Search', search, {
-        description: 'Type to filter players',
-      });
-      form.divider();
-
-      const rowVisibility = new Map<string, ObservableBoolean>();
-      for (const t of targets) {
-        const visible = new ObservableBoolean(true);
-        rowVisibility.set(t.target, visible);
-        // Buttons are the toolkit's only one-line row, so the list stays a
-        // compact scannable column; the row's full controls live behind it.
+      // Buttons are the toolkit's only one-line row, so the list stays a compact
+      // scannable column; the row's full controls live behind it.
+      const rows = targets.map((t) => {
         const label = new ObservableString(this.stateLabel(t.target, false));
-        form.button(
-          label,
-          () => {
-            next = { kind: 'detail', target: t.target, back: 'list' };
-            form.close();
-          },
-          { visible },
-        );
         unsubscribes.push(
           this.cache.onPreferences((prefs) => {
             if (prefs.some((p) => p.target === t.target)) {
@@ -245,15 +238,21 @@ export class PlayerVolumesView {
             }
           }),
         );
-      }
-
-      const searchListener = search.subscribe((query) => {
-        const needle = query.trim().toLowerCase();
-        for (const [name, visible] of rowVisibility) {
-          visible.setData(name.toLowerCase().includes(needle));
-        }
+        return {
+          key: t.target,
+          label,
+          onSelect: (): void => {
+            next = { kind: 'detail', target: t.target, back: 'list' };
+            form.close();
+          },
+        };
       });
-      unsubscribes.push(() => search.unsubscribe(searchListener));
+      unsubscribes.push(
+        ...SearchableRows.attach(form, rows, {
+          placeholder: 'Search',
+          description: 'Type to filter players',
+        }),
+      );
     }
     form
       .divider()
@@ -285,10 +284,9 @@ export class PlayerVolumesView {
     const heard = new ObservableBoolean(!(pref?.muted ?? false), {
       clientWritable: true,
     });
-    const volume = new ObservableNumber(
-      Math.round((pref?.volume ?? 1) * 100),
-      { clientWritable: true },
-    );
+    const volume = new ObservableNumber(Math.round((pref?.volume ?? 1) * 100), {
+      clientWritable: true,
+    });
     let next: VolumesPage = { kind: 'exit' };
     const unsubscribes: Array<() => void> = [];
 
@@ -395,7 +393,12 @@ export class PlayerVolumesView {
       this.presetFromPref(this.cache.preferenceFor(target)),
       { clientWritable: true },
     );
-    form.dropdown(this.displayName(target), value, PRESET_ITEMS, visible ? { visible } : {});
+    form.dropdown(
+      this.displayName(target),
+      value,
+      PRESET_ITEMS,
+      visible ? { visible } : {},
+    );
 
     let lastSeen = value.getData();
     const listener = value.subscribe((v) => {
@@ -441,10 +444,7 @@ export class PlayerVolumesView {
       void this.sender.send({ kind: 'hear', target, on: true }, owner);
     }
     this.cache.markVolumePending(target, preset / 100);
-    void this.sender.send(
-      { kind: 'volume', target, value: preset },
-      owner,
-    );
+    void this.sender.send({ kind: 'volume', target, value: preset }, owner);
   }
 
   // Player rows only offer presets, so the current volume snaps to the nearest

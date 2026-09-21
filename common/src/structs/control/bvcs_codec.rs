@@ -18,6 +18,13 @@ pub enum BvcsMessage {
         volume: f32,
         muted: bool,
     },
+    GroupListHeader {
+        count: usize,
+    },
+    Group {
+        id: String,
+        name: String,
+    },
 }
 
 /// Encodes/decodes the no-net reverse-ride grammar the proxy injects as
@@ -61,6 +68,17 @@ impl BvcsCodec {
         )
     }
 
+    /// Announces how many `g` rows follow. A receiver clears its list on this message,
+    /// so rows from an earlier request that arrive afterwards are discarded rather than
+    /// mixed into the new one.
+    pub fn encode_group_header(seq: u64, count: usize) -> String {
+        format!("{BVCS_PREFIX}{seq}:gl:c={count}")
+    }
+
+    pub fn encode_group(seq: u64, id: &str, name: &str) -> String {
+        format!("{BVCS_PREFIX}{seq}:g:i={id};n={}", Self::escape(name))
+    }
+
     pub fn decode(message: &str) -> Option<BvcsMessage> {
         let rest = message.strip_prefix(BVCS_PREFIX)?;
         let mut it = rest.splitn(3, ':');
@@ -91,6 +109,15 @@ impl BvcsCodec {
                     muted: !heard,
                 })
             }
+            "gl" => {
+                let count: usize = fields.iter().find(|(k, _)| *k == "c")?.1.parse().ok()?;
+                Some(BvcsMessage::GroupListHeader { count })
+            }
+            "g" => {
+                let id = fields.iter().find(|(k, _)| *k == "i")?.1.to_string();
+                let name = Self::unescape(fields.iter().find(|(k, _)| *k == "n")?.1)?;
+                Some(BvcsMessage::Group { id, name })
+            }
             _ => None,
         }
     }
@@ -100,5 +127,38 @@ impl BvcsCodec {
             .split(';')
             .filter_map(|kv| kv.split_once('='))
             .collect()
+    }
+
+    // The grammar delimits on `;`, `=` and `:`, which a renamed group may contain.
+    // `%` is encoded first so decoding is unambiguous.
+    fn escape(value: &str) -> String {
+        let mut out = String::with_capacity(value.len());
+        for c in value.chars() {
+            match c {
+                '%' => out.push_str("%25"),
+                ';' => out.push_str("%3B"),
+                '=' => out.push_str("%3D"),
+                ':' => out.push_str("%3A"),
+                _ => out.push(c),
+            }
+        }
+        out
+    }
+
+    fn unescape(value: &str) -> Option<String> {
+        let bytes = value.as_bytes();
+        let mut out = Vec::with_capacity(bytes.len());
+        let mut index = 0;
+        while index < bytes.len() {
+            if bytes[index] == b'%' {
+                let hex = value.get(index + 1..index + 3)?;
+                out.push(u8::from_str_radix(hex, 16).ok()?);
+                index += 3;
+            } else {
+                out.push(bytes[index]);
+                index += 1;
+            }
+        }
+        String::from_utf8(out).ok()
     }
 }

@@ -1,12 +1,17 @@
 mod loudness;
+mod peer_entry;
 mod policy;
+mod tracked_peer;
 
 pub use loudness::LoudnessTracker;
+pub use peer_entry::PeerEntry;
 pub use policy::LevelEmitPolicy;
+pub use tracked_peer::TrackedPeer;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 use common::structs::audio::{LevelSnapshot, ParticipantLevel};
 
@@ -25,7 +30,7 @@ pub struct LevelBus {
     own_loudness: AtomicU8,
     // Peers arrive from the mixer's activity task rather than from an audio callback, so a lock
     // is affordable here and a map has to live somewhere.
-    peers: Mutex<HashMap<String, ParticipantLevel>>,
+    peers: Mutex<HashMap<String, PeerEntry>>,
     emitted: AtomicU64,
 }
 
@@ -49,10 +54,24 @@ impl LevelBus {
         self.own_loudness.store(level.loudness, Ordering::Relaxed);
     }
 
+    /// How long one activity update stands for.
+    ///
+    /// Six times `ActivityDetector`'s 50 ms emission cooldown, so a peer who is still talking
+    /// cannot expire between their own updates, and the same 300 ms the client already treats
+    /// as the end of speech.
+    pub const PEER_TTL: Duration = Duration::from_millis(300);
+
     /// Publish one peer's activity.
     pub fn set_peer(&self, name: String, level: ParticipantLevel) {
+        self.set_peer_at(name, level, Instant::now());
+    }
+
+    /// Publish one peer's activity as of a given moment.
+    ///
+    /// Separate from `set_peer` so expiry can be exercised without sleeping.
+    pub fn set_peer_at(&self, name: String, level: ParticipantLevel, now: Instant) {
         if let Ok(mut peers) = self.peers.lock() {
-            peers.insert(name, level);
+            peers.insert(name, PeerEntry::new(level, now));
         }
     }
 
@@ -65,16 +84,33 @@ impl LevelBus {
 
     /// What would be sent right now.
     pub fn snapshot(&self) -> LevelSnapshot {
+        self.snapshot_at(Instant::now())
+    }
+
+    /// What would be sent as of a given moment, dropping anyone who has gone quiet.
+    ///
+    /// Dropped rather than zeroed. A peer absent from a snapshot is what
+    /// `LevelEmitPolicy::voices_changed` already reads as having stopped, so the stop reaches
+    /// the client immediately; and an entry that is only zeroed still grows the map, the
+    /// per-poll scans over it and every serialized payload for the life of the process.
+    pub fn snapshot_at(&self, now: Instant) -> LevelSnapshot {
+        let peers = match self.peers.lock() {
+            Ok(mut peers) => {
+                peers.retain(|_, entry| entry.is_fresh(now, Self::PEER_TTL));
+                peers
+                    .iter()
+                    .map(|(name, entry)| (name.clone(), entry.level()))
+                    .collect()
+            }
+            Err(_) => HashMap::new(),
+        };
+
         LevelSnapshot {
             own: ParticipantLevel {
                 speaking: self.own_speaking.load(Ordering::Relaxed),
                 loudness: self.own_loudness.load(Ordering::Relaxed),
             },
-            peers: self
-                .peers
-                .lock()
-                .map(|peers| peers.clone())
-                .unwrap_or_default(),
+            peers,
         }
     }
 

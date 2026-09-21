@@ -42,6 +42,12 @@ interface PendingValue<T> {
 // client apply + its report debounce) can plausibly have completed, so an
 // in-flight stale poll cannot flap a control or yank a slider back.
 export class StateCache {
+  // Resolves a share code to a group name for the status line. Injected because
+  // the group list is server-wide and this cache is per player.
+  constructor(
+    private readonly groupNameFor: (id: string) => string | null = () => null,
+  ) {}
+
   readonly status = new ObservableString('Syncing…');
   readonly muted = new ObservableBoolean(false, { clientWritable: true });
   readonly deafened = new ObservableBoolean(false, {
@@ -57,7 +63,10 @@ export class StateCache {
   private syncing = false;
   private hasSnapshot = false;
   private currentGroup: string | null = null;
-  private readonly pendingChanges = new Map<SelfStateField, PendingValue<boolean>>();
+  private readonly pendingChanges = new Map<
+    SelfStateField,
+    PendingValue<boolean>
+  >();
   // Per-target preference shadows, in PlayerPreference units (volume 0..1 gain,
   // heard = !muted) — the volumes view's sliders race the preference poll the
   // same way the panel toggles race the state poll.
@@ -236,7 +245,21 @@ export class StateCache {
     return [...this.preferences.keys()];
   }
 
+  // A player reads the group's NAME here. `current_group` is the share code, which
+  // is what the code field is for; falling back to it only covers the window before
+  // the group list has arrived.
   private groupStatusLine(): string {
-    return this.currentGroup ? `Group: ${this.currentGroup}` : 'No group';
+    if (!this.currentGroup) {
+      return 'No group';
+    }
+    const name = this.groupNameFor(this.currentGroup);
+    return `Group: ${name ?? this.currentGroup}`;
+  }
+
+  // Re-renders the status line against a group list that has since arrived.
+  refreshStatus(): void {
+    if (this.hasSnapshot) {
+      this.status.setData(this.groupStatusLine());
+    }
   }
 }

@@ -120,3 +120,59 @@ fn delimiter_bearing_targets_are_not_wire_safe() {
     assert!(!BvcsCodec::target_is_wire_safe("a=b"));
     assert!(!BvcsCodec::target_is_wire_safe("a:b"));
 }
+
+#[test]
+fn the_group_list_header_is_pinned() {
+    assert_eq!(BvcsCodec::encode_group_header(7, 3), "!bvcs:7:gl:c=3");
+    assert_eq!(
+        BvcsCodec::decode("!bvcs:7:gl:c=3"),
+        Some(BvcsMessage::GroupListHeader { count: 3 })
+    );
+}
+
+#[test]
+fn an_empty_server_rides_a_zero_header() {
+    // c=0 is how an empty server says so. Riding nothing would be indistinguishable
+    // from the proxy never answering, which the panel reports differently.
+    assert_eq!(
+        BvcsCodec::decode("!bvcs:1:gl:c=0"),
+        Some(BvcsMessage::GroupListHeader { count: 0 })
+    );
+}
+
+#[test]
+fn a_group_row_is_pinned() {
+    assert_eq!(
+        BvcsCodec::encode_group(8, "Xk3_9aQ", "Sculk Striders"),
+        "!bvcs:8:g:i=Xk3_9aQ;n=Sculk Striders"
+    );
+    assert_eq!(
+        BvcsCodec::decode("!bvcs:8:g:i=Xk3_9aQ;n=Sculk Striders"),
+        Some(BvcsMessage::Group {
+            id: "Xk3_9aQ".to_string(),
+            name: "Sculk Striders".to_string(),
+        })
+    );
+}
+
+#[test]
+fn a_name_carrying_grammar_characters_survives_the_round_trip() {
+    // A renamed group can carry anything a player can type. Dropping such a row would
+    // hide the group from everyone rather than showing it with an awkward name.
+    let name = "a;b=c:d%e";
+    let encoded = BvcsCodec::encode_group(9, "id1", name);
+    assert_eq!(encoded, "!bvcs:9:g:i=id1;n=a%3Bb%3Dc%3Ad%25e");
+    assert_eq!(
+        BvcsCodec::decode(&encoded),
+        Some(BvcsMessage::Group {
+            id: "id1".to_string(),
+            name: name.to_string(),
+        })
+    );
+}
+
+#[test]
+fn a_row_whose_name_cannot_be_decoded_is_dropped() {
+    assert_eq!(BvcsCodec::decode("!bvcs:9:g:i=id1;n=a%ZZ"), None);
+    assert_eq!(BvcsCodec::decode("!bvcs:9:g:i=id1;n=trailing%"), None);
+}

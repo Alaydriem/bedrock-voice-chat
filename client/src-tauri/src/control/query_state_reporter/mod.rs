@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use common::structs::audio::PlayerGainStore;
+use common::structs::channel::Channel;
 use common::structs::control::{BvcsCodec, PlayerPreference, QueryState};
 use common::structs::packet::{
     PacketType, PlayerPreferencePacket, QueryStatePacket, QuicNetworkPacket, QuicNetworkPacketData,
@@ -18,6 +19,7 @@ use crate::audio::AudioActionsManager;
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::QueryStateInjector;
 use crate::players::PlayerSettingsCoordinator;
+use crate::structs::app_state::AppState;
 
 // Coalesce bursts of state changes into at most one report wave per window
 // (~5 waves/second), so slider drags and rapid toggles don't flood the server.
@@ -228,6 +230,39 @@ impl QueryStateReporter {
                 }
             }
         }
+
+        if wave.groups {
+            match self.list_channels().await {
+                Ok(channels) => {
+                    let seq = self.next_seq();
+                    self.ride_bvcs(BvcsCodec::encode_group_header(seq, channels.len()));
+                    for channel in channels {
+                        let seq = self.next_seq();
+                        self.ride_bvcs(BvcsCodec::encode_group(
+                            seq,
+                            &channel.id(),
+                            &channel.name,
+                        ));
+                    }
+                }
+                // No header rides on failure, so the panel's wait times out and reports
+                // the list as unavailable rather than drawing an empty server.
+                Err(e) => warn!("QueryStateReporter: group list unavailable: {e}"),
+            }
+        }
+    }
+
+    /// The server's channel list, over this client's own authenticated session.
+    ///
+    /// The no-net panel has no route to the server of its own; this is the only side of
+    /// that conversation that does.
+    async fn list_channels(&self) -> Result<Vec<Channel>, String> {
+        let api = {
+            let state = self.app_handle.state::<tauri::async_runtime::Mutex<AppState>>();
+            let state = state.lock().await;
+            state.get_api_client().cloned()?
+        };
+        api.list_channels().await
     }
 
     fn next_seq(&mut self) -> u64 {

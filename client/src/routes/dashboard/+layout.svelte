@@ -24,7 +24,6 @@
   import type { SelfSnapshot } from "$radial/core/controllers/SelfState";
   import type { LevelSource } from "$radial/core/sources/LevelSource";
   import { ConstantLevelSource } from "$radial/core/sources/LevelSource";
-  import { GroupName } from "$radial/core/naming/GroupName";
   import { PlayerHue } from "$radial/core/sources/PlayerHue";
   import { ChatManager } from "../../js/app/chat/ChatManager";
   import type { ChatLine } from "../../js/app/chat/ChatLine";
@@ -455,13 +454,14 @@
    * Create, join, and open for editing.
    *
    * Creating a group you are not in is never what was meant — the reason to make one is to talk
-   * in it. The generated name is a real name rather than a placeholder, so the editor opens on
-   * it as a suggestion, and to keep renaming from hiding behind a swipe nobody would try.
+   * in it. The empty name asks the server to name it, and the refreshed list carries a real name
+   * rather than a placeholder, so the editor opens on it as a suggestion, and renaming does not
+   * hide behind a swipe nobody would try.
    */
   async function createGroup(): Promise<void> {
     const channels = app?.channelManager;
     if (!channels) return;
-    const id = await channels.createChannel(GroupName.next(channelList.map((c) => c.name)));
+    const id = await channels.createChannel("");
     if (!id) return;
     await channels.joinChannel(id, identity);
     editId = id;

@@ -12,7 +12,7 @@ use crate::audio::recording::RecordingProducer;
 use crate::audio::spatial::{PerceptualGain, SpatialCalculator, SpatialGains};
 use crate::audio::stream::ActivityUpdate;
 use crate::audio::stream::jitter_buffer::{EncodedAudioFramePacket, JitterBuffer, PanState};
-use crate::audio::stream::level_bus::LoudnessTracker;
+use crate::audio::stream::level_bus::{LevelBus, TrackedPeer};
 use crate::audio::stream::stream_manager::audio_sink::AudioSink;
 use crate::audio::stream::stream_manager::mono_to_panned::MonoToPanned;
 use crate::diagnostics::{PeerRegistry, PeerRoute, PlayerReceiveStats};
@@ -98,10 +98,16 @@ impl SinkManager {
         // changed value is what buys a message.
         let bus = levels.clone();
         tokio::spawn(async move {
-            let mut trackers: std::collections::HashMap<String, LoudnessTracker> =
+            let mut trackers: std::collections::HashMap<String, TrackedPeer> =
                 std::collections::HashMap::new();
 
             while let Ok(update) = activity_rx.recv_async().await {
+                let now = std::time::Instant::now();
+                // Swept on the same window the bus ages its entries on, so the two maps hold
+                // the same names. A peer who is still talking is reported every 50 ms and
+                // cannot be swept between their own updates.
+                trackers.retain(|_, tracked| tracked.is_fresh(now, LevelBus::PEER_TTL));
+
                 // The roster is people. A jukebox is a synthetic speaker with no card, no
                 // presence and no gain of its own, and both webview consumers of this snapshot
                 // mint an entry for every name in it. Its counters still reach the diagnostics
@@ -113,10 +119,12 @@ impl SinkManager {
                     continue;
                 }
 
-                let tracker = trackers.entry(update.player_name.clone()).or_default();
+                let tracked = trackers
+                    .entry(update.player_name.clone())
+                    .or_insert_with(|| TrackedPeer::new(now));
                 // A peer's frame reaching the mixer at all is a frame that was decoded and
                 // played, so it is audible by construction; only the amplitude is in question.
-                let level = tracker.observe(update.rms_level, update.rms_level > 0.0);
+                let level = tracked.observe(update.rms_level, update.rms_level > 0.0, now);
                 bus.set_peer(update.player_name, level);
             }
         });

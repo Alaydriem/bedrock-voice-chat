@@ -2,6 +2,7 @@ mod analytics;
 mod audio;
 mod bedrock;
 mod certificate;
+mod channel;
 mod chat;
 mod control;
 mod game;

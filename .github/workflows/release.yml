@@ -578,7 +578,7 @@ jobs:
           loaders: |-
             fabric
           game-versions: |-
-            26.2
+            26.3
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
   # Job 13b: Publish the native libraries the skinny jar resolves at runtime.
@@ -650,7 +650,7 @@ jobs:
             spigot
             bukkit
           game-versions: |-
-            26.2
+            26.3
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
   # Job 16: Publish BDS to CurseForge

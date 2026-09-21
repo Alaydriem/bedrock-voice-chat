@@ -259,3 +259,59 @@ fn bvc_ctl_sync_signals_the_state_bus_with_scoped_targets() {
         "sync must signal the state bus with its scoped targets"
     );
 }
+
+#[test]
+fn bvc_ctl_groups_signals_the_state_bus() {
+    // The group-list request is a panel read, not a player action: nothing goes
+    // ServerBound and nothing goes on the local control channel. The reporter
+    // answers it with `gl` and `g` rides.
+    let (queued, control_rx, mut bus_rx) = drive_with_control(
+        "bvc:ctl:groups",
+        BlockPos::new(0, 0, 0),
+        "Alice",
+        Some("world-1"),
+    );
+
+    assert!(
+        queued.is_none(),
+        "a group-list request must not emit ServerBound"
+    );
+    assert!(
+        control_rx.try_recv().is_err(),
+        "a group-list request must not ride the control-action channel"
+    );
+    assert_eq!(
+        bus_rx.try_recv().ok(),
+        Some(ControlStateSignal::Groups),
+        "a group-list request must signal the state bus"
+    );
+}
+
+#[test]
+fn bvc_ctl_groups_arms_the_session_for_bvcs_rides() {
+    // Same proof as sync: only the BVC addon's panel emits this, so its arrival is
+    // what makes !bvcs: rides safe to inject into this session.
+    let (emitter, _rx) = make_emitter();
+    let (control_tx, _control_rx) = ControlActionSender::channel();
+    let beacon_cache = JukeboxBeaconCache::default();
+    let mut state = BedrockSessionState::new("Alice".to_string(), Some("xuid-1".to_string()));
+    state.set_world_uuid_for_test("world-1".to_string());
+    assert!(!state.bvcs_armed(), "a fresh session must start unarmed");
+
+    PlaySoundHandler {
+        beacon_cache: &beacon_cache,
+        player_name: "Alice",
+        control_tx: control_tx.clone(),
+        state_bus: ControlStateBus::new(),
+    }
+    .handle(
+        &packet("bvc:ctl:groups", BlockPos::new(0, 0, 0)),
+        &mut state,
+        Some(&emitter),
+    );
+
+    assert!(
+        state.bvcs_armed(),
+        "a group-list request proves the addon exists and must arm the session"
+    );
+}
