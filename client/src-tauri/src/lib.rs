@@ -310,6 +310,7 @@ pub fn run() {
             crate::commands::websocket::websocket_internal_endpoint,
             crate::commands::websocket::websocket_clients,
             crate::commands::websocket::generate_encryption_key,
+            crate::commands::websocket::publish_voice_roster,
             // Analytics
             crate::commands::analytics::track_event,
             // Keybinds

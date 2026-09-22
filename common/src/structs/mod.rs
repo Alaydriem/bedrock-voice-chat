@@ -27,6 +27,7 @@ pub mod relay;
 pub mod server_list_entry;
 pub mod setup;
 pub mod spatial_audio_config;
+pub mod voice;
 pub mod websocket;
 
 pub use analytics::{AnalyticsEvent, AnalyticsEventData};
@@ -41,3 +42,4 @@ pub use network::ConnectionHealth;
 pub use players::{PlayerIdentity, PlayerIdentityError, PlayerSource};
 pub use server_list_entry::ServerListEntry;
 pub use spatial_audio_config::SpatialAudioConfig;
+pub use voice::{VoiceMember, VoiceRoster};

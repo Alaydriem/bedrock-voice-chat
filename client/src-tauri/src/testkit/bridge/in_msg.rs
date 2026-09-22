@@ -25,6 +25,14 @@ pub enum InMsg {
     InjectPresence {
         token: String,
     },
+    // Bind the operator-facing command WebSocket the Stream Deck plugin speaks, so a
+    // scenario can drive the real command dispatch rather than the action layer beneath
+    // it. `port` is a preference: a conflict moves the listener, and the bin answers with
+    // the port it actually bound.
+    StartCommandWebSocket {
+        port: u16,
+        key: String,
+    },
     // Request a snapshot of the transport-fidelity counters. The bin responds
     // with OutMsg::Stats immediately.
     RequestStats,

@@ -5,6 +5,7 @@
 #![allow(dead_code)]
 
 pub mod bridge;
+pub mod command_socket;
 pub mod connect;
 pub mod counters;
 pub mod e2e_app_data;
@@ -12,6 +13,7 @@ pub mod port_pool;
 pub mod signal;
 
 pub use bridge::{Frame, InMsg, OutMsg};
+pub use command_socket::CommandSocket;
 pub use connect::ConnectConfig;
 pub use counters::TransportCounters;
 pub use e2e_app_data::E2eAppData;

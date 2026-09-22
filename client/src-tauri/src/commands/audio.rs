@@ -299,13 +299,21 @@ pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, (
     return crate::audio::device::AudioDeviceEnumerator::get_devices();
 }
 
-// Toggle mutes a given input stream
+/// Toggle mute for a device. The output device is deafen — see
+/// `AudioActionsManager::toggle_deafened` — so it drives the input as well.
 #[tauri::command]
 pub(crate) async fn mute(
     device: AudioDeviceType,
     actions: State<'_, AudioActionsManager>,
 ) -> Result<(), ()> {
-    actions.toggle_mute(device).await;
+    match device {
+        AudioDeviceType::OutputDevice => {
+            actions.toggle_deafened().await;
+        }
+        AudioDeviceType::InputDevice => {
+            actions.toggle_input_mute().await;
+        }
+    }
     actions.broadcast_state().await;
     Ok(())
 }

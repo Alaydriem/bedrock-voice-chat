@@ -32,6 +32,13 @@
 
     const address = $derived(`ws://127.0.0.1:${servingPort}`);
 
+    // Loopback whatever `allowExternal` says. A browser source has to load the page from
+    // 127.0.0.1 or Chromium refuses its connection back to this machine, so there is no
+    // second address to offer here.
+    const overlayUrl = $derived(
+        `http://127.0.0.1:${servingPort}/overlay?key=${encodeURIComponent(authKey)}`,
+    );
+
     const unsubs: Array<() => void> = [];
     let poll: ReturnType<typeof setInterval> | null = null;
 
@@ -154,6 +161,29 @@
                 </div>
             </SettingRow>
         {/if}
+
+        <SettingRow
+            label={I18n.t("OBS overlay")}
+            note={I18n.t("Add this as a Browser source in OBS, sized 3840 by 2160.")}
+        >
+            {#snippet control()}
+                <span class="rad-input" style="width: 230px">
+                    <input
+                        type="text"
+                        value={overlayUrl}
+                        readonly
+                        aria-label={I18n.t("OBS overlay URL")}
+                    />
+                </span>
+                <button
+                    class="rad-icon-btn"
+                    onclick={() => void copy(overlayUrl)}
+                    aria-label={I18n.t("Copy overlay URL")}
+                >
+                    <Icon name="copy" />
+                </button>
+            {/snippet}
+        </SettingRow>
 
         <SettingRow
             label={I18n.t("Access token")}

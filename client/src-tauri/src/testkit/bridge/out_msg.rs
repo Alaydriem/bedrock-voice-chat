@@ -37,6 +37,12 @@ pub enum OutMsg {
     ProxyStarted {
         listen_port: u16,
     },
+    // Emitted after StartCommandWebSocket, carrying the port the listener bound rather
+    // than the one that was asked for — a conflict moves it, and a scenario that dialled
+    // the requested port would hang against nothing.
+    CommandWebSocketStarted {
+        port: u16,
+    },
     // Transport-fidelity counter snapshot emitted in response to InMsg::RequestStats.
     // frames_sent      — Opus AudioFrame packets this client emitted to the QUIC bus.
     // frames_from_quic — AudioFrame packets this client received from the QUIC bus

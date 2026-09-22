@@ -23,4 +23,5 @@ mod proxy_net_addon_mode;
 mod reachability_probe;
 mod same_channel;
 mod unauthorized;
+mod websocket_deafen;
 mod websocket_transport;

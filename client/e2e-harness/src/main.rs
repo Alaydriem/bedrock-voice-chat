@@ -394,6 +394,21 @@ fn main() {
                                     .and_then(|s| s.link.downlink_loss_pct),
                             });
                         }
+                        Ok(InMsg::StartCommandWebSocket { port, key }) => {
+                            let h = stdin_handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                match bvc_client_lib::testkit::CommandSocket::start(&h, port, key)
+                                    .await
+                                {
+                                    Ok(port) => StdoutBridge::emit(
+                                        &OutMsg::CommandWebSocketStarted { port },
+                                    ),
+                                    Err(e) => StdoutBridge::emit(&OutMsg::Log {
+                                        line: format!("start_command_websocket failed: {e}"),
+                                    }),
+                                }
+                            });
+                        }
                         Ok(InMsg::RequestStats) => {
                             let (sent, from_quic, into_jitter_buffer) =
                                 bvc_client_lib::testkit::counters::TransportCounters::snapshot();

@@ -88,8 +88,8 @@ msgstr ""
 msgid "Access Denied"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:159
-#: src/components/settings/panes/WebSocketPane.svelte:168
+#: src/components/settings/panes/WebSocketPane.svelte:189
+#: src/components/settings/panes/WebSocketPane.svelte:198
 msgid "Access token"
 msgstr ""
 
@@ -145,6 +145,10 @@ msgstr ""
 msgid "Add the mod to your world"
 msgstr ""
 
+#: src/components/settings/panes/WebSocketPane.svelte:167
+msgid "Add this as a Browser source in OBS, sized 3840 by 2160."
+msgstr ""
+
 #: src/components/settings/panes/LibraryPane.svelte:194
 #: src/components/settings/panes/ManagePlayersPane.svelte:277
 msgid "Added"
@@ -154,14 +158,14 @@ msgstr ""
 msgid "ADDR"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:116
-#: src/components/settings/panes/WebSocketPane.svelte:119
+#: src/components/settings/panes/WebSocketPane.svelte:123
+#: src/components/settings/panes/WebSocketPane.svelte:126
 #: src/components/settings/ProxyServerEditor.svelte:114
 #: src/js/app/error/FaultCatalog.ts:165
 msgid "Address"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:132
+#: src/components/settings/panes/WebSocketPane.svelte:139
 msgid "Addresses"
 msgstr ""
 
@@ -193,8 +197,8 @@ msgstr ""
 msgid "Allow"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:86
-#: src/components/settings/panes/WebSocketPane.svelte:92
+#: src/components/settings/panes/WebSocketPane.svelte:93
+#: src/components/settings/panes/WebSocketPane.svelte:99
 msgid "Allow external connections"
 msgstr ""
 
@@ -212,11 +216,11 @@ msgstr ""
 msgid "Almost there…"
 msgstr ""
 
-#: src/js/app/dashboard.ts:397
+#: src/js/app/dashboard.ts:399
 msgid "already granted"
 msgstr ""
 
-#: src/js/app/dashboard.ts:721
+#: src/js/app/dashboard.ts:736
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
@@ -250,7 +254,7 @@ msgstr ""
 msgid "Audio output"
 msgstr ""
 
-#: src/js/app/dashboard.ts:325
+#: src/js/app/dashboard.ts:327
 msgid "Audio permission denied"
 msgstr ""
 
@@ -313,7 +317,7 @@ msgstr ""
 msgid "Background Audio Couldn't Start"
 msgstr ""
 
-#: src/js/app/dashboard.ts:351
+#: src/js/app/dashboard.ts:353
 msgid "background service"
 msgstr ""
 
@@ -411,7 +415,7 @@ msgstr ""
 msgid "Capturing"
 msgstr ""
 
-#: src/js/app/dashboard.ts:902
+#: src/js/app/dashboard.ts:917
 msgid "certificate rejected"
 msgstr ""
 
@@ -468,7 +472,7 @@ msgstr ""
 msgid "Checking"
 msgstr ""
 
-#: src/js/app/dashboard.ts:321
+#: src/js/app/dashboard.ts:323
 msgid "Checking audio permission..."
 msgstr ""
 
@@ -507,7 +511,7 @@ msgstr ""
 msgid "Click a binding, then press the combination."
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:194
+#: src/components/settings/panes/WebSocketPane.svelte:224
 #: src/js/app/error/FaultCatalog.ts:137
 msgid "Client"
 msgstr ""
@@ -564,7 +568,7 @@ msgstr ""
 msgid "Come back any time from the sign-in screen"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:197
+#: src/components/settings/panes/WebSocketPane.svelte:227
 msgid "Commands"
 msgstr ""
 
@@ -582,7 +586,7 @@ msgstr ""
 msgid "Connect"
 msgstr ""
 
-#: src/js/app/dashboard.ts:914
+#: src/js/app/dashboard.ts:929
 msgid "connect failed"
 msgstr ""
 
@@ -595,11 +599,11 @@ msgid "connected"
 msgstr ""
 
 #: src/components/settings/panes/ConnectPane.svelte:316
-#: src/components/settings/panes/WebSocketPane.svelte:196
+#: src/components/settings/panes/WebSocketPane.svelte:226
 msgid "Connected"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:187
+#: src/components/settings/panes/WebSocketPane.svelte:217
 msgid "Connected clients"
 msgstr ""
 
@@ -649,7 +653,7 @@ msgstr ""
 msgid "Copy"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:124
+#: src/components/settings/panes/WebSocketPane.svelte:131
 msgid "Copy address"
 msgstr ""
 
@@ -669,6 +673,10 @@ msgstr ""
 msgid "Copy message →"
 msgstr ""
 
+#: src/components/settings/panes/WebSocketPane.svelte:181
+msgid "Copy overlay URL"
+msgstr ""
+
 #: src/components/settings/panes/AboutPane.svelte:205
 msgid "Copy platform ID"
 msgstr ""
@@ -682,11 +690,11 @@ msgstr ""
 msgid "Copy the code"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:174
+#: src/components/settings/panes/WebSocketPane.svelte:204
 msgid "Copy token"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:144
+#: src/components/settings/panes/WebSocketPane.svelte:151
 msgid "Copy ws://{address}"
 msgstr ""
 
@@ -794,7 +802,7 @@ msgstr ""
 msgid "Display language"
 msgstr ""
 
-#: src/js/app/dashboard.ts:896
+#: src/js/app/dashboard.ts:911
 msgid "DNS lookup failed"
 msgstr ""
 
@@ -839,7 +847,7 @@ msgstr ""
 msgid "Enable notification permissions in system settings"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:195
+#: src/components/settings/panes/WebSocketPane.svelte:225
 msgid "Endpoint"
 msgstr ""
 
@@ -887,7 +895,7 @@ msgstr ""
 msgid "Failed to link Java identity."
 msgstr ""
 
-#: src/js/app/dashboard.ts:302
+#: src/js/app/dashboard.ts:304
 msgid "Failed to refresh server state, using cached permissions"
 msgstr ""
 
@@ -911,7 +919,7 @@ msgstr ""
 msgid "For a bug report. Written to your Documents folder."
 msgstr ""
 
-#: src/js/app/dashboard.ts:350
+#: src/js/app/dashboard.ts:352
 msgid "Foreground service could not be started."
 msgstr ""
 
@@ -1039,7 +1047,7 @@ msgstr ""
 msgid "In public group channel"
 msgstr ""
 
-#: src/js/app/dashboard.ts:392
+#: src/js/app/dashboard.ts:394
 #: src/js/app/managers/ChannelManager.ts:393
 msgid "In public voice chat"
 msgstr ""
@@ -1057,7 +1065,7 @@ msgstr ""
 msgid "Incompatible Audio Input Device"
 msgstr ""
 
-#: src/js/app/dashboard.ts:835
+#: src/js/app/dashboard.ts:850
 msgid "incompatible device"
 msgstr ""
 
@@ -1180,7 +1188,7 @@ msgstr ""
 msgid "Login failed. Please check your server URL and try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:720
+#: src/js/app/dashboard.ts:735
 msgid "Logout Failed"
 msgstr ""
 
@@ -1225,7 +1233,7 @@ msgstr ""
 msgid "Microphone access was refused"
 msgstr ""
 
-#: src/js/app/dashboard.ts:326
+#: src/js/app/dashboard.ts:328
 msgid "microphone denied"
 msgstr ""
 
@@ -1306,7 +1314,7 @@ msgstr ""
 msgid "NO ANSWER · CONN01"
 msgstr ""
 
-#: src/js/app/dashboard.ts:859
+#: src/js/app/dashboard.ts:874
 msgid "No current server found in store!"
 msgstr ""
 
@@ -1315,7 +1323,7 @@ msgstr ""
 msgid "NO DEVICE"
 msgstr ""
 
-#: src/js/app/dashboard.ts:841
+#: src/js/app/dashboard.ts:856
 msgid "no input device"
 msgstr ""
 
@@ -1335,11 +1343,11 @@ msgstr ""
 msgid "No microphone was detected on your system. Connect a microphone or headset, verify it appears in your system sound settings, then try again."
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:151
+#: src/components/settings/panes/WebSocketPane.svelte:158
 msgid "No network address yet. Connect to Wi-Fi and reopen this pane."
 msgstr ""
 
-#: src/js/app/dashboard.ts:847
+#: src/js/app/dashboard.ts:862
 msgid "no output device"
 msgstr ""
 
@@ -1355,7 +1363,7 @@ msgstr ""
 msgid "No players yet"
 msgstr ""
 
-#: src/js/app/dashboard.ts:238
+#: src/js/app/dashboard.ts:240
 msgid "no response"
 msgstr ""
 
@@ -1368,7 +1376,7 @@ msgstr ""
 msgid "No speakers or headphones were detected on your system. Connect an audio output device, verify it appears in your system sound settings, then try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:910
+#: src/js/app/dashboard.ts:925
 msgid "no voice transport"
 msgstr ""
 
@@ -1482,7 +1490,7 @@ msgstr ""
 msgid "Nothing is connected"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:213
+#: src/components/settings/panes/WebSocketPane.svelte:243
 msgid "Nothing is connected yet."
 msgstr ""
 
@@ -1506,7 +1514,7 @@ msgstr ""
 msgid "Notification access was refused"
 msgstr ""
 
-#: src/js/app/dashboard.ts:333
+#: src/js/app/dashboard.ts:335
 msgid "Notification permission denied - notifications may not be visible"
 msgstr ""
 
@@ -1523,8 +1531,16 @@ msgstr ""
 msgid "Notifications and devices come next"
 msgstr ""
 
-#: src/js/app/dashboard.ts:334
+#: src/js/app/dashboard.ts:336
 msgid "notifications denied"
+msgstr ""
+
+#: src/components/settings/panes/WebSocketPane.svelte:166
+msgid "OBS overlay"
+msgstr ""
+
+#: src/components/settings/panes/WebSocketPane.svelte:175
+msgid "OBS overlay URL"
 msgstr ""
 
 #: src/components/dashboard/ChatDock.svelte:78
@@ -1697,12 +1713,12 @@ msgstr ""
 msgid "Please enter a valid server URL"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:116
+#: src/components/settings/panes/WebSocketPane.svelte:123
 msgid "Point your plugin here."
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:107
-#: src/components/settings/panes/WebSocketPane.svelte:99
+#: src/components/settings/panes/WebSocketPane.svelte:106
+#: src/components/settings/panes/WebSocketPane.svelte:114
 msgid "Port"
 msgstr ""
 
@@ -1856,7 +1872,7 @@ msgstr ""
 msgid "Refused"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:179
+#: src/components/settings/panes/WebSocketPane.svelte:209
 msgid "Regenerate"
 msgstr ""
 
@@ -1896,7 +1912,7 @@ msgstr ""
 msgid "Required · background audio depends on it"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:160
+#: src/components/settings/panes/WebSocketPane.svelte:190
 msgid "Required on connect. Regenerating disconnects anything using the old one."
 msgstr ""
 
@@ -2039,7 +2055,7 @@ msgstr ""
 msgid "Server address"
 msgstr ""
 
-#: src/js/app/dashboard.ts:906
+#: src/js/app/dashboard.ts:921
 msgid "server certificate"
 msgstr ""
 
@@ -2247,7 +2263,7 @@ msgstr ""
 msgid "Stop"
 msgstr ""
 
-#: src/js/app/dashboard.ts:183
+#: src/js/app/dashboard.ts:185
 msgid "Stopped recording that was active before page refresh"
 msgstr ""
 
@@ -2256,7 +2272,7 @@ msgid "Stored in"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:348
-#: src/components/settings/panes/WebSocketPane.svelte:235
+#: src/components/settings/panes/WebSocketPane.svelte:265
 msgid "Stream Deck plugin"
 msgstr ""
 
@@ -2360,7 +2376,7 @@ msgstr ""
 msgid "The voice mode did not change."
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:81
+#: src/components/settings/panes/WebSocketPane.svelte:88
 msgid "The websocket server allows remote control of BVC from other devices on your network, such as a Stream Deck, or custom plugin."
 msgstr ""
 
@@ -2380,7 +2396,7 @@ msgstr ""
 msgid "They only have to do it once. Copy a short message with the guide link and send it over."
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:133
+#: src/components/settings/panes/WebSocketPane.svelte:140
 msgid "This device answers on all of them. Use whichever your other device can reach."
 msgstr ""
 
@@ -2449,7 +2465,7 @@ msgstr ""
 msgid "Turn on for Realms, Aternos, or other servers where the no-net addon is installed."
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:87
+#: src/components/settings/panes/WebSocketPane.svelte:94
 msgid "Turn on to drive BVC from another device on your network."
 msgstr ""
 
@@ -2652,7 +2668,7 @@ msgid "We need a grown-ups help to get started"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:351
-#: src/components/settings/panes/WebSocketPane.svelte:228
+#: src/components/settings/panes/WebSocketPane.svelte:258
 msgid "WebSocket API"
 msgstr ""
 

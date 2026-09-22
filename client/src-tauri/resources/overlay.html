@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>BVC Voice Overlay</title>
+<style>
+  /* Authored at 3840x2160. Every size is in rem against a vw-based root, so one browser
+     source covers every scene without a second layout. */
+  html { font-size: 1.55vw; }
+
+  :root {
+    /* One gutter for the roster and the mark, so their left edges are the same line. */
+    --gutter: 3vw;
+  }
+
+  body {
+    margin: 0;
+    background: transparent;
+    overflow: hidden;
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .frame {
+    position: fixed;
+    inset: 0;
+    padding: var(--gutter);
+    display: flex;
+    pointer-events: none;
+  }
+
+  .frame[data-anchor="tl"] { align-items: flex-start; justify-content: flex-start; }
+  .frame[data-anchor="tr"] { align-items: flex-start; justify-content: flex-end; }
+  .frame[data-anchor="bl"] { align-items: flex-end;   justify-content: flex-start; }
+  .frame[data-anchor="br"] { align-items: flex-end;   justify-content: flex-end; }
+
+  /* --s is the headcount scale, set from JS. Every size below is a multiple of it, so one
+     number shrinks the whole roster when the room is too full to fit the canvas. */
+  .roster { --s: 1; display: flex; gap: calc(0.6rem * var(--s)); }
+  .roster[data-layout="rail"]  { flex-direction: column; }
+  .roster[data-layout="bar"]   { flex-direction: row; align-items: flex-end; }
+  .roster[data-layout="chips"] { flex-direction: column; gap: calc(0.3rem * var(--s)); }
+
+  .frame[data-anchor="tr"] .roster[data-layout="rail"],
+  .frame[data-anchor="br"] .roster[data-layout="rail"],
+  .frame[data-anchor="tr"] .roster[data-layout="chips"],
+  .frame[data-anchor="br"] .roster[data-layout="chips"] { align-items: flex-end; }
+
+  /* --a is the member's accent, --l their eased loudness 0..1. */
+  .p {
+    --a: #8239d8;
+    --l: 0;
+    display: flex;
+    align-items: center;
+    gap: calc(0.4rem * var(--s));
+  }
+  .roster[data-layout="bar"] .p { flex-direction: column; gap: calc(0.3rem * var(--s)); }
+
+  .tile {
+    position: relative;
+    width: calc(2.2rem * var(--s));
+    height: calc(2.2rem * var(--s));
+    flex: none;
+    border-radius: calc(0.3rem * var(--s));
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--a) 26%, #0d0819);
+    box-shadow:
+      inset 0 0 0 0.12rem color-mix(in srgb, var(--a) calc(28% + 62% * var(--l)), #0d0819),
+      0 0 calc(0.4rem + 2.2rem * var(--l)) calc(-0.15rem + 0.25rem * var(--l)) color-mix(in srgb, var(--a) 90%, transparent),
+      0 0.15rem 0.5rem rgba(0,0,0,0.55);
+  }
+  .roster[data-layout="rail"] .tile {
+    width: calc(1.55rem * var(--s));
+    height: calc(1.55rem * var(--s));
+    border-radius: calc(0.24rem * var(--s));
+  }
+
+  .tile .initial {
+    font-size: calc(0.85rem * var(--s));
+    font-weight: 640;
+    letter-spacing: -0.03em;
+    color: #fff;
+    opacity: calc(0.62 + 0.38 * var(--l));
+    text-shadow: 0 0.04rem 0.14rem rgba(0,0,0,0.6);
+  }
+  .roster[data-layout="rail"] .tile .initial { font-size: calc(0.62rem * var(--s)); }
+
+  .tile img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; display: block; }
+
+  .tile .src {
+    position: absolute;
+    right: calc(-0.1rem * var(--s));
+    bottom: calc(-0.1rem * var(--s));
+    width: calc(0.68rem * var(--s));
+    height: calc(0.68rem * var(--s));
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: #150c28;
+    box-shadow: 0 0 0 0.1rem rgba(0,0,0,0.5);
+  }
+  .tile .src svg {
+    width: calc(0.42rem * var(--s));
+    height: calc(0.42rem * var(--s));
+    display: block;
+  }
+
+  .name {
+    font-size: calc(0.68rem * var(--s));
+    font-weight: 560;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: calc(9rem * var(--s));
+    text-shadow: 0 0.08rem 0.3rem rgba(0,0,0,0.85), 0 0 0.12rem rgba(0,0,0,0.7);
+    opacity: calc(0.74 + 0.26 * var(--l));
+  }
+  .roster[data-layout="bar"] .name { max-width: calc(6.4rem * var(--s)); text-align: center; }
+
+  .roster[data-names="off"] .name { display: none; }
+
+  .roster[data-layout="chips"] .p {
+    background: rgba(13, 8, 25, calc(0.42 + 0.22 * var(--l)));
+    border-radius: 999px;
+    padding: calc(0.19rem * var(--s)) calc(0.57rem * var(--s)) calc(0.19rem * var(--s)) calc(0.37rem * var(--s));
+    gap: calc(0.34rem * var(--s));
+    box-shadow: inset 0 0 0 calc(0.07rem * var(--s)) color-mix(in srgb, var(--a) calc(18% + 60% * var(--l)), transparent);
+  }
+  .roster[data-layout="chips"] .tile {
+    width: calc(0.48rem * var(--s));
+    height: calc(0.48rem * var(--s));
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--a) calc(30% + 70% * var(--l)), #1a1030);
+  }
+  .roster[data-layout="chips"] .tile .initial,
+  .roster[data-layout="chips"] .tile img,
+  .roster[data-layout="chips"] .tile .src { display: none; }
+
+  .wm { position: fixed; padding: var(--gutter); pointer-events: none; }
+  .wm[data-corner="tl"] { top: 0; left: 0; }
+  .wm[data-corner="tr"] { top: 0; right: 0; }
+  .wm[data-corner="bl"] { bottom: 0; left: 0; }
+  .wm[data-corner="br"] { bottom: 0; right: 0; }
+  .wm[data-corner="off"] { display: none; }
+  .wm canvas { display: block; filter: drop-shadow(0 0.1rem 0.35rem rgba(0,0,0,0.75)); }
+
+  /* A link that has dropped keeps its last roster rather than blanking, dimmed so the state
+     is visible to whoever is looking at the scene. */
+  body[data-link="down"] .frame, body[data-link="down"] .wm { opacity: 0.35; }
+
+</style>
+</head>
+<body>
+<div class="wm" id="wm"><canvas id="mark"></canvas></div>
+<div class="frame" id="frame"><div class="roster" id="roster"></div></div>
+<script>
+(function () {
+  'use strict';
+
+  var params = new URLSearchParams(location.search);
+  function opt(name, fallback) {
+    var value = params.get(name);
+    return value === null ? fallback : value;
+  }
+  function flag(name, fallback) {
+    var value = params.get(name);
+    return value === null ? fallback : value !== '0';
+  }
+
+  var OPTS = {
+    key: params.get('key') || '',
+    layout: opt('layout', 'rail'),
+    anchor: opt('anchor', 'tl'),
+    mark: opt('mark', 'bl'),
+    self: flag('self', false),
+    faces: flag('faces', true),
+    sources: flag('sources', true),
+    quiet: flag('quiet', true),
+    sort: opt('sort', 'name'),
+    pulse: flag('pulse', false),
+    names: flag('names', true)
+  };
+
+  var rosterEl = document.getElementById('roster');
+  var frameEl = document.getElementById('frame');
+  var wmEl = document.getElementById('wm');
+  var markEl = document.getElementById('mark');
+
+  rosterEl.dataset.layout = OPTS.layout;
+  rosterEl.dataset.names = OPTS.names ? 'on' : 'off';
+  frameEl.dataset.anchor = OPTS.anchor;
+  wmEl.dataset.corner = OPTS.mark;
+
+  /* The mark: 23 columns on a 13-row grid, each a contiguous vertical span. Ported from
+     client/src/radial/core/mark/MarkData.ts. It is a waveform envelope, not a badge, so it
+     doubles as the aggregate level meter. */
+  var COLUMNS = [
+    [6, 6, '#8239d8'], [5, 6, '#8238d8'], [3, 7, '#8238d8'], [4, 8, '#6a50e9'],
+    [5, 10, '#466cf3'], [3, 11, '#3d93ed'], [1, 8, '#28bae1'], [2, 9, '#21d8d8'],
+    [4, 8, '#26ddcd'], [2, 7, '#34d8a0'], [0, 7, '#3bd869'], [2, 10, '#6fd846'],
+    [4, 11, '#aee236'], [6, 12, '#f8e433'], [5, 11, '#f8e434'], [3, 8, '#f9bf21'],
+    [1, 6, '#f99a23'], [0, 7, '#f9871d'], [3, 9, '#f67414'], [5, 10, '#f65021'],
+    [4, 8, '#f0422b'], [5, 6, '#f8352b'], [6, 6, '#f63125']
+  ];
+  var COLS = COLUMNS.length, ROWS = 13, MID = 6;
+  var MARK_H_PER_W = 0.019;
+
+  function hueFor(name) {
+    var h = 0;
+    for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    return COLUMNS[h % COLS][2];
+  }
+
+  /* What the mark was last drawn at, so a mark that is not pulsing is not redrawn sixty times
+     a second for a shape that cannot have changed. A resize still forces it. */
+  var drawnGain = -1;
+  var drawnWidth = -1;
+
+  function drawMark(gain) {
+    if (gain === drawnGain && window.innerWidth === drawnWidth) return;
+    drawnGain = gain;
+    drawnWidth = window.innerWidth;
+
+    var cell = Math.max(1, Math.round(window.innerWidth * MARK_H_PER_W / 15.34));
+    var gap = Math.max(1, Math.round(cell * 0.18));
+    var dpr = window.devicePixelRatio || 1;
+    var w = COLS * (cell + gap) - gap, h = ROWS * (cell + gap) - gap;
+    if (markEl.width !== Math.round(w * dpr)) {
+      markEl.width = Math.round(w * dpr);
+      markEl.height = Math.round(h * dpr);
+      markEl.style.width = w + 'px';
+      markEl.style.height = h + 'px';
+    }
+    var ctx = markEl.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    for (var c = 0; c < COLS; c++) {
+      var col = COLUMNS[c];
+      var top = Math.round(MID - (MID - col[0]) * gain);
+      var bot = Math.round(MID + (col[1] - MID) * gain);
+      ctx.fillStyle = col[2];
+      for (var r = top; r <= bot; r++) ctx.fillRect(c * (cell + gap), r * (cell + gap), cell, cell);
+    }
+  }
+
+  var GROUP_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="#fbf8ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><path d="M2 13c0-2.2 1.8-3.6 4-3.6s4 1.4 4 3.6"/><path d="M11 4.2a2.4 2.4 0 0 1 0 4.6M12.4 13c0-1.6-.7-2.8-1.9-3.4"/></svg>';
+  var PROX_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="#fbf8ff" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="1.6" fill="#fbf8ff" stroke="none"/><path d="M4.6 4.6a4.8 4.8 0 0 0 0 6.8M11.4 4.6a4.8 4.8 0 0 1 0 6.8"/></svg>';
+
+  /* name -> { member, target, eased, node } */
+  var tiles = new Map();
+  var roster = { own: '', members: [] };
+  var ownLevel = { speaking: false, loudness: 0 };
+  var ownEased = 0;
+
+  function shortName(name) {
+    var cut = name.indexOf(':');
+    return cut === -1 ? name : name.slice(cut + 1);
+  }
+
+  function visibleMembers() {
+    var members = roster.members.slice();
+    if (OPTS.self && roster.own) {
+      members.push({ name: roster.own, sources: ['Proximity'], gamerpic: null });
+    }
+    if (OPTS.sort === 'activity') {
+      members.sort(function (a, b) {
+        var la = tiles.get(a.name), lb = tiles.get(b.name);
+        return (lb ? lb.eased : 0) - (la ? la.eased : 0);
+      });
+    } else {
+      members.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    }
+    if (!OPTS.quiet) {
+      members = members.filter(function (m) {
+        var tile = tiles.get(m.name);
+        return tile && tile.eased > 0.02;
+      });
+    }
+    return members;
+  }
+
+  function initialOf(member) {
+    var initial = document.createElement('span');
+    initial.className = 'initial';
+    initial.textContent = shortName(member.name).charAt(0).toUpperCase();
+    return initial;
+  }
+
+  function buildNode(member) {
+    var p = document.createElement('div');
+    p.className = 'p';
+    p.style.setProperty('--a', hueFor(member.name));
+
+    var tile = document.createElement('div');
+    tile.className = 'tile';
+
+    if (OPTS.faces && member.gamerpic) {
+      var img = document.createElement('img');
+      img.src = member.gamerpic;
+      img.alt = '';
+      // A CDN that is unreachable must not leave an empty box where a letter would do.
+      img.onerror = function () {
+        img.remove();
+        tile.appendChild(initialOf(member));
+      };
+      tile.appendChild(img);
+    } else {
+      tile.appendChild(initialOf(member));
+    }
+
+    if (OPTS.sources) {
+      var src = document.createElement('span');
+      src.className = 'src';
+      src.innerHTML = member.sources.indexOf('Group') >= 0 ? GROUP_ICON : PROX_ICON;
+      tile.appendChild(src);
+    }
+
+    var name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = shortName(member.name);
+
+    p.appendChild(tile);
+    p.appendChild(name);
+    return p;
+  }
+
+  function render() {
+    var members = visibleMembers();
+    var seen = new Set();
+
+    members.forEach(function (member, index) {
+      seen.add(member.name);
+      var tile = tiles.get(member.name);
+      if (!tile) {
+        tile = { member: member, target: 0, eased: 0, node: buildNode(member) };
+        tiles.set(member.name, tile);
+      }
+      // Appending an element already in the tree moves it, which is how order is applied
+      // without rebuilding a node and restarting its transition.
+      if (rosterEl.children[index] !== tile.node) {
+        rosterEl.insertBefore(tile.node, rosterEl.children[index] || null);
+      }
+    });
+
+    tiles.forEach(function (tile, name) {
+      if (!seen.has(name)) {
+        tile.node.remove();
+        tiles.delete(name);
+      }
+    });
+
+    fitToCanvas();
+  }
+
+  /**
+   * How small the roster is allowed to get before it would rather run off the canvas.
+   *
+   * A room large enough to hit this is past the point where a face on a stream is readable
+   * anyway, and clipping the last few people is a worse answer than a crowded column.
+   */
+  var MIN_SCALE = 0.45;
+
+  /* Measured rather than derived from a headcount: the three layouts run in different
+     directions, names can be off, and a gamertag's length changes the width. Measuring costs
+     one reflow per roster change, which is not per frame. */
+  function fitToCanvas() {
+    rosterEl.style.setProperty('--s', '1');
+
+    var horizontal = OPTS.layout === 'bar';
+    var gutters = 2 * window.innerWidth * 0.03;
+    var available = (horizontal ? window.innerWidth : window.innerHeight) - gutters;
+    var needed = horizontal ? rosterEl.scrollWidth : rosterEl.scrollHeight;
+
+    if (needed <= 0 || needed <= available) return;
+    var scale = Math.max(MIN_SCALE, available / needed);
+    rosterEl.style.setProperty('--s', scale.toFixed(3));
+  }
+
+  function onRoster(data) {
+    roster = data;
+    // A member whose gamerpic or sources changed needs its node rebuilt; a member that only
+    // moved does not.
+    roster.members.forEach(function (member) {
+      var tile = tiles.get(member.name);
+      if (!tile) return;
+      var was = tile.member;
+      if (was.gamerpic !== member.gamerpic || was.sources.join() !== member.sources.join()) {
+        var replacement = buildNode(member);
+        replacement.style.setProperty('--l', tile.eased.toFixed(3));
+        tile.node.replaceWith(replacement);
+        tile.node = replacement;
+      }
+      tile.member = member;
+    });
+    render();
+  }
+
+  function onLevels(data) {
+    ownLevel = data.own;
+    tiles.forEach(function (tile) { tile.target = 0; });
+    Object.keys(data.peers).forEach(function (name) {
+      var level = data.peers[name];
+      var tile = tiles.get(name);
+      if (tile) tile.target = level.speaking ? level.loudness / 8 : 0;
+    });
+  }
+
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var last = performance.now();
+
+  /* The wire carries eight loudness steps because speech changes faster than it is worth a
+     message. Fast attack, slower release is the shape a meter has. */
+  function ease(current, target, dt) {
+    if (reduce) return target;
+    var rate = target > current ? 0.022 : 0.009;
+    var next = current + (target - current) * Math.min(1, rate * dt);
+    return Math.abs(target - next) < 0.002 ? target : next;
+  }
+
+  function tick(now) {
+    var dt = Math.min(64, now - last);
+    last = now;
+
+    var peak = 0;
+    var ownTarget = ownLevel.speaking ? ownLevel.loudness / 8 : 0;
+    ownEased = ease(ownEased, ownTarget, dt);
+    if (OPTS.self) peak = ownEased;
+
+    tiles.forEach(function (tile) {
+      tile.eased = ease(tile.eased, tile.target, dt);
+      tile.node.style.setProperty('--l', tile.eased.toFixed(3));
+      if (tile.eased > peak) peak = tile.eased;
+    });
+
+    if (!OPTS.quiet || OPTS.sort === 'activity') render();
+    // The mark is a waveform envelope, so it can ride the loudest speaker — but it reads as
+    // the logo only at full height, which is what it is for in a corner. Full unless asked.
+    if (OPTS.mark !== 'off') drawMark(OPTS.pulse ? 0.18 + 0.82 * peak : 1);
+    requestAnimationFrame(tick);
+  }
+
+  var socket = null;
+  var backoff = 500;
+
+  function connect() {
+    var url = 'ws://' + location.host + '/events';
+    if (OPTS.key) url += '?key=' + encodeURIComponent(OPTS.key);
+
+    socket = new WebSocket(url);
+
+    socket.onopen = function () {
+      backoff = 500;
+      document.body.dataset.link = 'up';
+    };
+
+    socket.onmessage = function (event) {
+      var frame;
+      try {
+        frame = JSON.parse(event.data);
+      } catch (e) {
+        return;
+      }
+      if (frame.type === 'roster') onRoster(frame.data);
+      else if (frame.type === 'levels') onLevels(frame.data);
+    };
+
+    socket.onclose = function () {
+      document.body.dataset.link = 'down';
+      // The roster stays on screen while reconnecting. A scene that goes blank on a blip is
+      // worse than one that is briefly stale.
+      setTimeout(connect, backoff);
+      backoff = Math.min(backoff * 2, 10000);
+    };
+
+    socket.onerror = function () {
+      if (socket) socket.close();
+    };
+  }
+
+  // A browser source resized in OBS changes both the fit and the mark's raster.
+  window.addEventListener('resize', function () {
+    fitToCanvas();
+    drawnWidth = -1;
+  });
+
+  document.body.dataset.link = 'down';
+  drawMark(OPTS.pulse ? 0.18 : 1);
+  connect();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

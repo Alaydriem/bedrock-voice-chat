@@ -237,6 +237,9 @@ impl ClientProc {
                         Ok(OutMsg::ProxyStarted { listen_port }) => {
                             reader_state.lock().unwrap().proxy_listen = Some(listen_port);
                         }
+                        Ok(OutMsg::CommandWebSocketStarted { port }) => {
+                            reader_state.lock().unwrap().command_ws_port = Some(port);
+                        }
                         Ok(OutMsg::CapturedPcm { samples }) => {
                             reader_state
                                 .lock()
@@ -312,6 +315,29 @@ impl ClientProc {
     /// Block until the bin has emitted `Connected` or `timeout` elapses.
     pub fn await_connected(&self, timeout: Duration) -> Result<(), String> {
         self.await_flag(timeout, |s| s.connected, "Connected")
+    }
+
+    /// Block until the bin reports `(muted, deafened)` equal to `want`, or `timeout` elapses.
+    ///
+    /// Both halves together rather than one at a time: deafen moves the pair, and asserting
+    /// them separately passes on a client that reached only the one asked about second.
+    pub fn await_mute_pair(&self, want: (bool, bool), timeout: Duration) -> Result<(), String> {
+        let deadline = Instant::now() + timeout;
+        let mut last = None;
+        loop {
+            if let Some((muted, deafened, _)) = self.state.lock().unwrap().control_state {
+                if (muted, deafened) == want {
+                    return Ok(());
+                }
+                last = Some((muted, deafened));
+            }
+            if Instant::now() >= deadline {
+                return Err(format!(
+                    "timed out waiting for (muted, deafened)=={want:?} after {timeout:?}; last saw {last:?}"
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
     }
 
     /// Block until the bin reports its input-mute state equals `want` (via
@@ -509,6 +535,35 @@ impl ClientProc {
             }
             if Instant::now() >= deadline {
                 return Err("timed out waiting for ProxyStarted".into());
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    /// Bind the bin's operator-facing command WebSocket and block until it reports the port
+    /// it reached. Returns the `ws://127.0.0.1:{port}` address a controller would dial.
+    ///
+    /// The port comes back from the bin rather than being assumed: a conflict moves the
+    /// listener, and a scenario that dialled the requested port would hang against nothing.
+    pub fn start_command_websocket(
+        &self,
+        key: &str,
+        timeout: Duration,
+    ) -> Result<String, String> {
+        self.state.lock().unwrap().command_ws_port = None;
+        self.send(&InMsg::StartCommandWebSocket {
+            port: 0,
+            key: key.to_string(),
+        });
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(port) = self.state.lock().unwrap().command_ws_port {
+                return Ok(format!("ws://127.0.0.1:{port}"));
+            }
+            if Instant::now() >= deadline {
+                return Err(format!(
+                    "timed out waiting for CommandWebSocketStarted after {timeout:?}"
+                ));
             }
             std::thread::sleep(Duration::from_millis(20));
         }

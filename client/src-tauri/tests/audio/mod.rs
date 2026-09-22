@@ -1,3 +1,4 @@
+mod actions;
 mod capture_watchdog;
 mod cue;
 mod level_bus;

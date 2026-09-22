@@ -2,6 +2,7 @@ use common::structs::audio::LevelSnapshot;
 use common::structs::keybinds::VoiceMode as KeybindVoiceMode;
 use common::structs::network::ConnectionHealth;
 use common::structs::push::KeepalivePush;
+use common::structs::voice::VoiceRoster;
 use common::structs::websocket::InternalEndpoint;
 use common::traits::StreamTrait;
 use std::sync::Arc;
@@ -11,10 +12,12 @@ use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 
 pub mod clients;
+pub mod overlay;
 pub mod route;
 pub mod structs;
 
 pub use clients::{ClientRegistration, WebSocketClients};
+pub use overlay::{HeadVerdict, OverlayHttpResponder};
 pub use route::{RejectReason, WebSocketRoute};
 pub use structs::{
     Command, CommandMessage, ConnectData, ConnectTarget, ConnectTargetKind, DeviceType,
@@ -45,6 +48,7 @@ pub struct WebSocketManager {
     events_tx: broadcast::Sender<String>,
     health_tx: watch::Sender<ConnectionHealth>,
     levels_tx: watch::Sender<LevelSnapshot>,
+    roster_tx: watch::Sender<VoiceRoster>,
     clients: Arc<WebSocketClients>,
     internal_task: Option<JoinHandle<()>>,
     internal_shutdown: Option<watch::Sender<bool>>,
@@ -68,6 +72,9 @@ impl WebSocketManager {
         // stalls briefly should fall behind rather than be dropped.
         let (events_tx, _) = broadcast::channel(64);
         let (levels_tx, _) = watch::channel(LevelSnapshot::silent());
+        // Empty until the webview publishes one. An overlay that connects before the dashboard
+        // has resolved its roster draws nothing, which is correct rather than stale.
+        let (roster_tx, _) = watch::channel(VoiceRoster::empty(String::new()));
         // Disconnected until something says otherwise. `Connected` as the initial value would
         // tell the first subscriber the link is up before any connection has been attempted.
         let (health_tx, _) = watch::channel(ConnectionHealth::Disconnected);
@@ -83,6 +90,7 @@ impl WebSocketManager {
             events_tx,
             health_tx,
             levels_tx,
+            roster_tx,
             clients: WebSocketClients::new_shared(),
             internal_task: None,
             internal_shutdown: None,
@@ -99,6 +107,7 @@ impl WebSocketManager {
             self.health_tx.clone(),
             self.events_tx.clone(),
             self.levels_tx.clone(),
+            self.roster_tx.clone(),
         )
     }
 
@@ -331,7 +340,7 @@ impl WebSocketManager {
     }
 
     async fn handle_connection(
-        stream: tokio::net::TcpStream,
+        mut stream: tokio::net::TcpStream,
         app_handle: AppHandle,
         kind: ListenerKind,
         credential: String,
@@ -347,6 +356,13 @@ impl WebSocketManager {
             ErrorResponse as HandshakeError, Request, Response,
         };
         use tokio_tungstenite::tungstenite::http::StatusCode;
+
+        // Before the handshake, because the handshake consumes the stream. A browser asking for
+        // the overlay page is answered here and the connection ends; everything else reaches the
+        // upgrade with its stream untouched, because this only ever peeked.
+        if OverlayHttpResponder::answer(&mut stream, kind, &credential).await? {
+            return Ok(());
+        }
 
         // The route is decided during the handshake so a bad path or a wrong key refuses the
         // upgrade outright, rather than accepting a client that then waits forever.
@@ -682,14 +698,20 @@ impl WebSocketManager {
         match cmd {
             Command::Ping => Ok(ResponseData::Pong(PongData { pong: true })),
 
+            // The output device is deafen, not a speaker mute, so it routes through the
+            // deafen action and takes the microphone with it. Toggling the device directly
+            // left a controller able to reach a state no other surface can produce: hearing
+            // nobody while still transmitting.
+            //
+            // The response still names the device the caller asked about. The paired input
+            // change travels in the state broadcast this command already triggers, which
+            // carries `muted` and `deafened` together.
             Command::Mute { device } => {
-                let audio_device = match device {
-                    DeviceType::Input => crate::audio::AudioDeviceType::InputDevice,
-                    DeviceType::Output => crate::audio::AudioDeviceType::OutputDevice,
-                };
-
                 let actions = app_handle.state::<crate::audio::AudioActionsManager>();
-                let status = actions.toggle_mute(audio_device).await;
+                let status = match device {
+                    DeviceType::Input => actions.toggle_input_mute().await,
+                    DeviceType::Output => actions.toggle_deafened().await,
+                };
 
                 let device_str = match device {
                     DeviceType::Input => "input",

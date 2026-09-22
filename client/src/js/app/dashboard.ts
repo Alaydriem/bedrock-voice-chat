@@ -20,6 +20,7 @@ import ImageCacheOptions from './components/imageCacheOptions';
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
 import { AudioActivityManager } from './managers/AudioActivityManager';
+import { VoiceRosterPublisher } from './managers/VoiceRosterPublisher';
 import { SelfController } from './dashboard/SelfController';
 import { RailView, type RailServer } from './dashboard/RailView';
 import { NearbyManager } from './dashboard/NearbyManager';
@@ -65,6 +66,7 @@ export default class Dashboard extends BVCApp {
     public playerManager: PlayerManager | undefined;
     public channelManager: ChannelManager | undefined;
     public audioActivityManager: AudioActivityManager | undefined;
+    private voiceRosterPublisher: VoiceRosterPublisher | undefined;
     public platformDetector: PlatformDetector | undefined;
     public selfController: SelfController | undefined;
     public nearby: NearbyManager | undefined;
@@ -469,6 +471,18 @@ export default class Dashboard extends BVCApp {
             this.nearby = new NearbyManager();
         }
 
+        // Started here rather than with the other managers because the roster it publishes is
+        // the feed's, and the feed does not exist until this point. Reused for the same reason
+        // the two above are: a reconnect re-enters this, and a swapped publisher would leave
+        // the overlay bound to stores nothing writes to any more.
+        if (!this.voiceRosterPublisher && this.playerManager) {
+            this.voiceRosterPublisher = new VoiceRosterPublisher(
+                this.playerManager,
+                this.nearby.inEarshot,
+            );
+            this.voiceRosterPublisher.start();
+        }
+
         // `start` stops itself first, so re-entering it re-opens the feed on a fresh ticket
         // without stranding the old socket.
         await this.nearby.start(this.currentServer, this.voiceRange);
@@ -585,6 +599,7 @@ export default class Dashboard extends BVCApp {
             this.audioActivityManager = new AudioActivityManager(this.store);
             await this.audioActivityManager.initialize();
             timeline.mark('  ↳ managers: audio activity');
+
         } catch (err) {
             error("dashboard failed to initialize managers", {
                 error: String(err),
@@ -934,6 +949,9 @@ export default class Dashboard extends BVCApp {
             }
             if (this.audioActivityManager) {
                 this.audioActivityManager.destroy();
+            }
+            if (this.voiceRosterPublisher) {
+                this.voiceRosterPublisher.cleanup();
             }
             if (this.playerManager) {
                 this.playerManager.cleanup();

@@ -1,5 +1,6 @@
 use common::structs::audio::LevelSnapshot;
 use common::structs::network::ConnectionHealth;
+use common::structs::voice::VoiceRoster;
 use tokio::sync::{broadcast, watch};
 
 use super::{StateData, SuccessResponse};
@@ -21,6 +22,10 @@ pub struct WebSocketBroadcaster {
     // Retained for the same reason as `health`: a window that reconnects between changes has
     // nothing to wait for, because the level publisher never re-sends silence.
     levels: watch::Sender<LevelSnapshot>,
+    // Retained for the same reason again. Membership changes when somebody joins a group or
+    // walks into earshot, which in a settled session is not for hours, so a subscriber that
+    // arrives between changes would otherwise have nothing to draw.
+    roster: watch::Sender<VoiceRoster>,
 }
 
 impl WebSocketBroadcaster {
@@ -30,6 +35,7 @@ impl WebSocketBroadcaster {
         health: watch::Sender<ConnectionHealth>,
         events: broadcast::Sender<String>,
         levels: watch::Sender<LevelSnapshot>,
+        roster: watch::Sender<VoiceRoster>,
     ) -> Self {
         Self {
             commands,
@@ -37,7 +43,22 @@ impl WebSocketBroadcaster {
             health,
             events,
             levels,
+            roster,
         }
+    }
+
+    /// A broadcaster wired to nothing, for exercising what it retains.
+    ///
+    /// The channels are real; there is simply nothing subscribed to them, which is the normal
+    /// state of this object before any client connects.
+    pub fn for_test() -> Self {
+        let (commands, _) = broadcast::channel(16);
+        let (metrics, _) = broadcast::channel(16);
+        let (events, _) = broadcast::channel(16);
+        let (health, _) = watch::channel(ConnectionHealth::Disconnected);
+        let (levels, _) = watch::channel(LevelSnapshot::silent());
+        let (roster, _) = watch::channel(VoiceRoster::empty(String::new()));
+        Self::new(commands, metrics, health, events, levels, roster)
     }
 
     /// What a subscriber that has just arrived is told, before anything is forwarded.
@@ -51,7 +72,25 @@ impl WebSocketBroadcaster {
         if let Ok(json) = serde_json::to_string(&levels) {
             frames.push(json);
         }
+        let roster = common::structs::push::RosterPush::new(self.latest_roster());
+        if let Ok(json) = serde_json::to_string(&roster) {
+            frames.push(json);
+        }
         frames
+    }
+
+    /// Publish the roster to `/events` subscribers, and retain it for whoever subscribes next.
+    pub fn broadcast_roster(&self, roster: VoiceRoster) {
+        self.roster.send_replace(roster.clone());
+        let push = common::structs::push::RosterPush::new(roster);
+        if let Ok(json) = serde_json::to_string(&push) {
+            let _ = self.events.send(json);
+        }
+    }
+
+    /// The last roster published, for a subscriber that has just arrived.
+    pub fn latest_roster(&self) -> VoiceRoster {
+        self.roster.borrow().clone()
     }
 
     /// Serialize a diagnostics snapshot and broadcast it to `/metrics` subscribers.
@@ -73,7 +112,10 @@ impl WebSocketBroadcaster {
     /// subscriber is measuring, and a command client has `state` for what it cares about.
     pub fn broadcast_health(&self, health: ConnectionHealth) {
         let push = common::structs::push::HealthPush::new(health.clone());
-        let _ = self.health.send(health);
+        // `send_replace` rather than `send`: nothing holds a receiver for this channel — it is
+        // read with `borrow` at seed time — and `send` refuses to store a value when the
+        // receiver count is zero, which made the retention this channel exists for inert.
+        self.health.send_replace(health);
         if let Ok(json) = serde_json::to_string(&push) {
             let _ = self.metrics.send(json.clone());
             let _ = self.events.send(json);
@@ -82,7 +124,7 @@ impl WebSocketBroadcaster {
 
     /// Publish one level snapshot to `/events` subscribers, and retain it for the next arrival.
     pub fn broadcast_levels(&self, snapshot: LevelSnapshot) {
-        let _ = self.levels.send(snapshot.clone());
+        self.levels.send_replace(snapshot.clone());
         let push = common::structs::push::LevelsPush::new(snapshot);
         if let Ok(json) = serde_json::to_string(&push) {
             let _ = self.events.send(json);

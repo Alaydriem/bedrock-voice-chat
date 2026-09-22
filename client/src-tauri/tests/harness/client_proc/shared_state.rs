@@ -26,6 +26,8 @@ pub(super) struct SharedState {
     pub(super) last_upload: Option<(String, u32)>,
     // Local listen port reported by OutMsg::ProxyStarted after a StartProxy command.
     pub(super) proxy_listen: Option<u16>,
+    // Port the command WebSocket actually bound, from OutMsg::CommandWebSocketStarted.
+    pub(super) command_ws_port: Option<u16>,
     pub(super) captured: Vec<f32>,
     pub(super) stats: Option<(u64, u64, u64)>,
     // Latest self audio-control state from OutMsg::State (input mute / output
