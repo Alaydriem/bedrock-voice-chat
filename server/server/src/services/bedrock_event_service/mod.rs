@@ -178,7 +178,7 @@ impl BedrockEventService {
             },
             orientation: Orientation { x: 0.0, y: 0.0 },
             dimension: Dimension::Death,
-            deafen: false,
+            whispering: false,
             spectator: true,
             world_uuid: if world_uuid.is_empty() {
                 None
@@ -213,7 +213,7 @@ impl BedrockEventService {
             },
             orientation: Orientation { x: 0.0, y: 0.0 },
             dimension: Dimension::Death,
-            deafen: false,
+            whispering: false,
             spectator: true,
             world_uuid: if world_uuid.is_empty() {
                 None

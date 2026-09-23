@@ -112,6 +112,11 @@ impl CacheManager {
     ///
     /// `None` means nothing on this server knows where that sender is, and audio from it is not
     /// routable.
+    ///
+    /// A crouching player is resolved as whispering only if they chose crouch-to-whisper on
+    /// this server. No choice here is off, including for a speaker who arrived over a peer link.
+    /// Routing, the position on the frame and peer forwarding all read this one answer, so they
+    /// cannot disagree about it.
     pub async fn resolve_speaker(
         &self,
         packet: &QuicNetworkPacket,
@@ -125,7 +130,38 @@ impl CacheManager {
                 .get(&key)
                 .await
                 .map(|entry| entry.player),
-            None => self.players.inner_arc().get(&key).await,
+            None => {
+                let player = self.players.inner_arc().get(&key).await?;
+                Some(self.apply_whisper_choice(&key, player).await)
+            }
+        }
+    }
+
+    // Looked up only when the flag is set, so a speaker who is not crouching costs nothing here.
+    // An absent choice is off: after a restart or a lost report the speaker is heard normally
+    // until the client's next resync, which is the safe direction to fail.
+    async fn apply_whisper_choice(
+        &self,
+        key: &str,
+        player: common::PlayerEnum,
+    ) -> common::PlayerEnum {
+        use common::traits::player_data::PlayerData;
+
+        if !player.is_whispering() {
+            return player;
+        }
+
+        let choice = self
+            .preferences
+            .get(&PreferenceKey::new(key, common::consts::audio::WHISPER_CONTROL_TARGET))
+            .await;
+        match choice {
+            Some(preference)
+                if common::structs::control::WhisperPreference::is_enabled(&preference) =>
+            {
+                player
+            }
+            _ => player.without_whispering(),
         }
     }
 

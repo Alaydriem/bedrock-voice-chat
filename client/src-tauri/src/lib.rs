@@ -257,6 +257,7 @@ pub fn run() {
             crate::commands::audio::mute,
             crate::commands::audio::set_mute,
             crate::commands::audio::set_deafened,
+            crate::commands::audio::set_crouch_whisper,
             crate::commands::audio::mute_status,
             crate::commands::audio::is_stopped,
             crate::commands::audio::update_stream_metadata,

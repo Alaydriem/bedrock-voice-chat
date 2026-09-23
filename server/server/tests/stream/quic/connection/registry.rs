@@ -203,10 +203,10 @@ async fn sender_does_not_receive_own_frame() {
 }
 
 #[tokio::test]
-async fn deafened_sender_is_limited_to_deafen_distance() {
+async fn a_whispering_sender_is_limited_to_the_whisper_distance() {
     let reg = ConnectionRegistry::new();
     let alice = RoutingFixture::player("Alice", 0.0, true);
-    // 30 blocks: inside 1.73*50 (normal range) but outside 1.73*10 (deafen range).
+    // 30 blocks: inside 1.73*50 (normal range) but outside 1.73*10 (whisper range).
     let bob = RoutingFixture::player("Bob", 30.0, false);
     let cache = RoutingFixture::player_cache(&[alice.clone(), bob.clone()]).await;
 

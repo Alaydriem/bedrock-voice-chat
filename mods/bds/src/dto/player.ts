@@ -8,7 +8,7 @@ export class Player {
     public readonly name: string,
     public readonly dimension: string,
     public readonly coordinates: Coordinates,
-    public readonly deafen: boolean,
+    public readonly whispering: boolean,
     public readonly orientation: Orientation,
     public readonly spectator: boolean = false,
     public readonly world_uuid: string | undefined = undefined,
@@ -70,7 +70,8 @@ export class Player {
       name: this.name,
       dimension: this.dimension,
       coordinates: this.coordinates.toJSON(),
-      deafen: this.deafen,
+      // Keyed `deafen` on the wire: BVC servers of either version read that key.
+      deafen: this.whispering,
       orientation: this.orientation.toJSON(),
       spectator: this.spectator,
       ...(this.world_uuid && { world_uuid: this.world_uuid }),

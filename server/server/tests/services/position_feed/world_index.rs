@@ -16,7 +16,7 @@ fn player(name: &str, x: f32, z: f32) -> PlayerEnum {
         coordinates: Coordinate { x, y: 64.0, z },
         orientation: Orientation { x: 0.0, y: 0.0 },
         dimension: Dimension::Overworld,
-        deafen: false,
+        whispering: false,
         spectator: false,
         world_uuid: Some(WORLD.to_string()),
         alternative_identity: None,

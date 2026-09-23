@@ -65,5 +65,11 @@ pub enum InMsg {
         wav_path: String,
         game: String,
     },
+    // Record the crouch-to-whisper choice through the same path the settings pane's command
+    // takes, so the reporter carries it to the server. Fire and forget: the scenario observes
+    // the server's preference cache, which is the claim under test.
+    SetCrouchWhisper {
+        enabled: bool,
+    },
     Shutdown,
 }

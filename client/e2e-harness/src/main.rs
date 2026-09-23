@@ -316,6 +316,18 @@ fn main() {
                                 }
                             });
                         }
+                        Ok(InMsg::SetCrouchWhisper { enabled }) => {
+                            let h = stdin_handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                if let Err(e) =
+                                    bvc_client_lib::control::WhisperSetting::apply(&h, enabled).await
+                                {
+                                    StdoutBridge::emit(&OutMsg::Log {
+                                        line: format!("set_crouch_whisper failed: {e}"),
+                                    });
+                                }
+                            });
+                        }
                         Ok(InMsg::LeaveChannel { channel_id }) => {
                             ChannelDriver::run(
                                 &stdin_handle,

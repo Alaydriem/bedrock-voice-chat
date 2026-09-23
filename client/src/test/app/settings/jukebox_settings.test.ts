@@ -123,6 +123,47 @@ describe("jukebox volume", () => {
         const call = invokeCalls().find((c) => c.cmd === "set_jukebox_gain");
         expect(call?.args).toEqual({ gain: 0.2 });
     });
+
+    /** The slider fires on every step of a drag; only where it stopped goes to the backend. */
+    it("sends one level for a drag", async () => {
+        const audio = new AudioSettingsManager();
+        await audio.initialize();
+
+        await Promise.all([
+            audio.handleJukeboxGainChange(30),
+            audio.handleJukeboxGainChange(45),
+            audio.handleJukeboxGainChange(60),
+        ]);
+
+        const calls = invokeCalls().filter((c) => c.cmd === "set_jukebox_gain");
+        expect(calls).toHaveLength(1);
+        expect(calls[0]?.args).toEqual({ gain: 0.6 });
+    });
+
+    /** The backend clamps; the slider shows what it applied, not what was asked for. */
+    it("settles on the level the backend applied", async () => {
+        const audio = new AudioSettingsManager();
+        await audio.initialize();
+
+        await audio.handleJukeboxGainChange(90);
+
+        expect(read(audio.jukeboxGain)).toBe(60);
+    });
+
+    it("returns to the saved level when the backend refuses", async () => {
+        saved.jukebox_gain = 0.35;
+        mockInvoke({
+            set_jukebox_gain: () => {
+                throw new Error("no output stream");
+            },
+        });
+        const audio = new AudioSettingsManager();
+        await audio.initialize();
+
+        await audio.handleJukeboxGainChange(90);
+
+        expect(read(audio.jukeboxGain)).toBe(35);
+    });
 });
 
 describe("jukebox mute", () => {
@@ -157,6 +198,11 @@ describe("jukebox mute", () => {
 
     // The two are separate controls, so unmuting has to come back to the level that was set.
     it("leaves the level alone", async () => {
+        // The backend answers with the level it applied; for an in-range ask that is the ask.
+        mockInvoke({
+            set_jukebox_muted: (args: { muted: boolean }) => args.muted,
+            set_jukebox_gain: (args: { gain: number }) => args.gain,
+        });
         const audio = new AudioSettingsManager();
         await audio.initialize();
         await audio.handleJukeboxGainChange(40);
@@ -193,6 +239,20 @@ describe("jukebox mute", () => {
         audio.cleanup();
 
         expect(unlistenCalls).toBe(2);
+    });
+
+    it("returns to the saved mute when the backend refuses", async () => {
+        mockInvoke({
+            set_jukebox_muted: () => {
+                throw new Error("no output stream");
+            },
+        });
+        const audio = new AudioSettingsManager();
+        await audio.initialize();
+
+        await audio.handleJukeboxMutedChange(true);
+
+        expect(read(audio.jukeboxMuted)).toBe(false);
     });
 
     it("restores a saved mute", async () => {

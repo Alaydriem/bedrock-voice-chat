@@ -21,7 +21,7 @@ pub(crate) struct SessionSpawner {
     connection_registry: Arc<ConnectionRegistry>,
     cache_manager: CacheManager,
     broadcast_range: f32,
-    deafen_distance: f32,
+    whisper_distance: f32,
     webhook_receiver: WebhookReceiver,
     // Microseconds each session's output loop waits to batch outbound datagrams.
     send_batch_wait_micros: u64,
@@ -41,7 +41,7 @@ impl SessionSpawner {
         connection_registry: Arc<ConnectionRegistry>,
         cache_manager: CacheManager,
         broadcast_range: f32,
-        deafen_distance: f32,
+        whisper_distance: f32,
         webhook_receiver: WebhookReceiver,
         send_batch_wait_micros: u64,
     ) -> Self {
@@ -49,7 +49,7 @@ impl SessionSpawner {
             connection_registry,
             cache_manager,
             broadcast_range,
-            deafen_distance,
+            whisper_distance,
             webhook_receiver,
             send_batch_wait_micros,
         }
@@ -59,7 +59,7 @@ impl SessionSpawner {
         connection_registry: Arc<ConnectionRegistry>,
         cache_manager: CacheManager,
         broadcast_range: f32,
-        deafen_distance: f32,
+        whisper_distance: f32,
         webhook_receiver: WebhookReceiver,
         send_batch_wait_micros: u64,
     ) -> Arc<Self> {
@@ -67,7 +67,7 @@ impl SessionSpawner {
             connection_registry,
             cache_manager,
             broadcast_range,
-            deafen_distance,
+            whisper_distance,
             webhook_receiver,
             send_batch_wait_micros,
         ))
@@ -256,7 +256,7 @@ impl SessionSpawner {
         let connection_registry = self.connection_registry.clone();
         let cache_manager = self.cache_manager.clone();
         let broadcast_range = self.broadcast_range;
-        let deafen_distance = self.deafen_distance;
+        let whisper_distance = self.whisper_distance;
 
         async move {
             let (packet_tx, mut packet_rx) = mpsc::unbounded_channel();
@@ -328,7 +328,7 @@ impl SessionSpawner {
                                         speaker.as_ref(),
                                         &player_cache,
                                         broadcast_range,
-                                        deafen_distance,
+                                        whisper_distance,
                                     )
                                     .await;
                             }

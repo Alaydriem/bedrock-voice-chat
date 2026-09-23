@@ -13,3 +13,10 @@ pub const JUKEBOX_PLAYER_PREFIX: &str = "jukebox-";
 ///
 /// Distinct from `JUKEBOX_PLAYER_PREFIX`, which keys audio sinks; this keys a preference.
 pub const JUKEBOX_CONTROL_TARGET: &str = "#jukebox";
+
+/// The reserved control-plane target that carries the speaker's crouch-to-whisper choice.
+///
+/// Rides the per-player preference plane for the same reason as `JUKEBOX_CONTROL_TARGET`: the
+/// plane already reaches the server, resyncs, and is evicted on disconnect, so the setting needs
+/// no packet and no protocol bump of its own.
+pub const WHISPER_CONTROL_TARGET: &str = "#whisper";

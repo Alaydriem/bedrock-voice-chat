@@ -175,36 +175,72 @@ fn an_emitter_on_top_of_the_listener_is_centred() {
     assert_eq!(pan, 0.0);
 }
 
-// The server enforces the deafen distance, so a frame that arrived is played flat rather than
-// being attenuated a second time on this side.
-#[test]
-fn deafen_plays_at_full_volume() {
+fn whispered(x: f32, config: &SpatialAudioConfig) -> (f32, f32) {
     let result = SpatialCalculator::gains(
-        &at(2.0, 0.0, 0.0),
+        &at(x, 0.0, 0.0),
         true,
         &origin(),
         &facing(0.0),
         Game::Minecraft,
-        &SpatialAudioConfig::default(),
+        config,
     );
 
-    assert!((result.volume - 1.0).abs() < 0.01);
-    assert!(result.pan.abs() < 0.01);
+    (result.pan, result.volume)
 }
 
-// Deafen wins over the falloff cut: an emitter past the edge is still audible when the packet
-// arrived because the emitter was deafened.
 #[test]
-fn deafen_is_checked_before_the_falloff_cut() {
-    let config = SpatialAudioConfig::default();
-    let result = SpatialCalculator::gains(
-        &at(config.falloff_distance + 20.0, 0.0, 0.0),
-        true,
-        &origin(),
-        &facing(0.0),
-        Game::Minecraft,
-        &config,
-    );
+fn a_whisper_beside_the_listener_is_full_volume() {
+    let (_, volume) = whispered(0.5, &SpatialAudioConfig::default());
 
-    assert_eq!(result.volume, 1.0);
+    assert_eq!(volume, 1.0);
+}
+
+// The normal curve, compressed into the whisper range: quieter the further away, rather than
+// flat right up to a cut.
+#[test]
+fn a_whisper_fades_inside_its_range() {
+    let config = SpatialAudioConfig::default();
+    let edge = config.whisper_edge();
+    let (_, near) = whispered(edge * 0.6, &config);
+    let (_, far) = whispered(edge * 0.9, &config);
+
+    assert!(near < 1.0, "near {near}");
+    assert!(far < near, "far {far} near {near}");
+    assert!(far > 0.0, "far {far}");
+}
+
+// The server stops sending at the edge, so the curve has to be silent there already, or the
+// listener hears the cut the change exists to remove.
+#[test]
+fn a_whisper_is_silent_at_and_past_its_edge() {
+    let config = SpatialAudioConfig::default();
+    let edge = config.whisper_edge();
+
+    let (_, at_edge) = whispered(edge, &config);
+    let (_, past_edge) = whispered(edge + 0.5, &config);
+
+    assert!(at_edge < 0.001, "at edge {at_edge}");
+    assert_eq!(past_edge, 0.0);
+}
+
+#[test]
+fn a_whisper_keeps_its_direction() {
+    let config = SpatialAudioConfig::default();
+    let (pan, _) = whispered(config.whisper_edge() * 0.5, &config);
+
+    assert!(pan > 0.5, "Expected a whisper to the east to pan left, got {pan}");
+}
+
+// An operator can set the distance to zero. That must mean nobody hears a whisper, and never a
+// division that produces NaN on the audio path.
+#[test]
+fn a_zero_whisper_distance_is_silent() {
+    let config = SpatialAudioConfig {
+        whisper_distance: 0.0,
+        ..SpatialAudioConfig::default()
+    };
+    let (pan, volume) = whispered(0.0, &config);
+
+    assert_eq!(volume, 0.0);
+    assert_eq!(pan, 0.0);
 }

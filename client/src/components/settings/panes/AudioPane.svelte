@@ -36,6 +36,7 @@
     let jukeboxGain = $state(100);
     let jukeboxMuted = $state(false);
     let muteCues = $state(true);
+    let crouchWhisper = $state(false);
 
     const unsubs: Array<() => void> = [];
 
@@ -46,6 +47,7 @@
         unsubs.push(audio.jukeboxGain.subscribe((v) => (jukeboxGain = v)));
         unsubs.push(audio.jukeboxMuted.subscribe((v) => (jukeboxMuted = v)));
         unsubs.push(audio.muteCues.subscribe((v) => (muteCues = v)));
+        unsubs.push(audio.crouchWhisper.subscribe((v) => (crouchWhisper = v)));
         // The layout initialises the shared instance; only a standalone one needs it here.
         if (!shared) void audio.initialize();
         void probe.start();
@@ -163,6 +165,19 @@
                     checked={muteCues}
                     label={I18n.t("Voice chat sounds")}
                     onchange={(next) => void audio.handleMuteCuesChange(next)}
+                />
+            {/snippet}
+        </SettingRow>
+
+        <SettingRow
+            label={I18n.t("Crouch to whisper")}
+            note={I18n.t("When you crouch or crawl, only players within a few blocks hear you.")}
+        >
+            {#snippet control()}
+                <Toggle
+                    checked={crouchWhisper}
+                    label={I18n.t("Crouch to whisper")}
+                    onchange={(next) => void audio.handleCrouchWhisperChange(next)}
                 />
             {/snippet}
         </SettingRow>

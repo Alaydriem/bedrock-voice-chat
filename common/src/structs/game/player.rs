@@ -9,7 +9,9 @@ use crate::game_data::Dimension;
 pub struct Player {
     pub name: String,
     pub dimension: Dimension,
-    pub deafen: bool,
+    // Keyed `deafen` on the wire: mods and servers of either version read and write that key.
+    #[serde(rename = "deafen")]
+    pub whispering: bool,
     pub coordinates: Coordinate,
     pub orientation: Orientation,
     #[serde(default)]

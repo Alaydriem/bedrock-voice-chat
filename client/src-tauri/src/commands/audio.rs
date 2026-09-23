@@ -220,6 +220,17 @@ pub(crate) async fn set_jukebox_gain(
     Ok(reached)
 }
 
+/// Choose whether crouching or crawling limits this player's voice to the whisper range.
+#[tauri::command]
+pub(crate) async fn set_crouch_whisper(
+    enabled: bool,
+    app_handle: AppHandle,
+) -> Result<bool, String> {
+    crate::control::WhisperSetting::apply(&app_handle, enabled)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Flip it, for a control that cannot read the current value first.
 #[tauri::command]
 pub(crate) async fn toggle_jukebox_muted(

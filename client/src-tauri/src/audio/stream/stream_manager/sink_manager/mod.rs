@@ -313,11 +313,11 @@ impl SinkManager {
                     .player_data
                     .as_ref()
                     .map(|p| p.get_position().clone());
-                let deafen_emitter = packet
+                let whispering = packet
                     .emitter
                     .player_data
                     .as_ref()
-                    .map(|p| p.is_deafened())
+                    .map(|p| p.is_whispering())
                     .unwrap_or(false);
                 let emitter_spatial = packet.emitter.spatial.unwrap_or(true);
 
@@ -380,7 +380,7 @@ impl SinkManager {
 
                     let spatial_data = SpatialCalculator::gains(
                         &emitter_coordinate,
-                        deafen_emitter,
+                        whispering,
                         &listener_coordinate,
                         &listener_orientation,
                         game,

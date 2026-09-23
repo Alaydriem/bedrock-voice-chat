@@ -754,7 +754,7 @@ impl ConnectionRegistry {
         speaker: Option<&PlayerEnum>,
         player_cache: &Arc<Cache<String, PlayerEnum>>,
         broadcast_range: f32,
-        deafen_distance: f32,
+        whisper_distance: f32,
     ) {
         let route_started = Instant::now();
 
@@ -923,8 +923,8 @@ impl ConnectionRegistry {
                     continue;
                 }
 
-                let effective_range = if sp.is_deafened() {
-                    deafen_distance
+                let effective_range = if sp.is_whispering() {
+                    whisper_distance
                 } else {
                     broadcast_range
                 };

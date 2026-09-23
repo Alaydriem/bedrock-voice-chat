@@ -433,6 +433,11 @@ impl ClientProc {
         self.await_flag(timeout, |s| s.disconnected, "Disconnected")
     }
 
+    /// Record the crouch-to-whisper choice the way the settings pane does.
+    pub fn set_crouch_whisper(&self, enabled: bool) {
+        self.send(&InMsg::SetCrouchWhisper { enabled });
+    }
+
     /// Block until the bin reports the channel id it joined during connect, or
     /// `timeout` elapses.
     pub fn await_channel_id(&self, timeout: Duration) -> Result<String, String> {

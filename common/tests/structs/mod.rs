@@ -15,3 +15,4 @@ mod players;
 mod push;
 mod reachability;
 mod relay;
+mod spatial_audio_config;

@@ -50,9 +50,10 @@ pub struct QueryStateReporter {
     // Last-sent per-player preference values; only changed entries are re-sent,
     // which also bounds the on-connect burst to the store's actual contents.
     last_prefs: HashMap<String, (f32, bool)>,
-    // Identity the last QUIC report was sent as; a change (new connection)
-    // resets the diff so the new server receives every preference once.
-    last_identity: Option<String>,
+    // The connection the last report was sent on. A new one, even under the same identity,
+    // resets the diff so the server receives every preference once: it evicted the old
+    // connection's copy, and crouch-to-whisper is enforced from it.
+    last_generation: Option<u64>,
     // Monotonic tag on every !bvcs: message.
     seq: u64,
 }
@@ -62,7 +63,7 @@ impl QueryStateReporter {
         Self {
             app_handle,
             last_prefs: HashMap::new(),
-            last_identity: None,
+            last_generation: None,
             seq: 0,
         }
     }
@@ -111,13 +112,13 @@ impl QueryStateReporter {
     }
 
     async fn report(&mut self, wave: ReportWave) {
-        let id = {
+        let (id, generation) = {
             let identity = self.app_handle.state::<Arc<ConnectionIdentity>>();
-            identity.get()
+            (identity.get(), identity.generation())
         };
-        if self.last_identity != id {
+        if self.last_generation != Some(generation) {
             self.last_prefs.clear();
-            self.last_identity = id.clone();
+            self.last_generation = Some(generation);
         }
 
         // The panel's sync request always warrants a fresh self-state ride.
@@ -167,6 +168,21 @@ impl QueryStateReporter {
                 None => PlayerGainStore::default(),
             };
 
+            // Read beside the gain store and before the jukebox: this takes the AppState lock,
+            // and the jukebox read that follows takes the audio stream lock, the order
+            // `set_audio_device` establishes.
+            let whisper = {
+                let enabled = match super::WhisperSetting::from_app(&self.app_handle).await {
+                    Some(setting) => setting.enabled(),
+                    None => false,
+                };
+                let preference = common::structs::control::WhisperPreference::for_owner(
+                    String::new(),
+                    enabled,
+                );
+                (preference.target, preference.volume, preference.muted)
+            };
+
             // The jukebox rides this plane as a reserved target, so it is one more entry in the
             // same iteration rather than a second reporting path — the diff, the QUIC report and
             // the !bvcs: ride below all apply to it unchanged. Synthesised here and never
@@ -188,6 +204,7 @@ impl QueryStateReporter {
                 .iter()
                 .map(|(target, settings)| (target.clone(), settings.gain, settings.muted))
                 .chain(std::iter::once(jukebox))
+                .chain(std::iter::once(whisper))
                 .collect();
 
             for (target, gain, muted) in entries.iter() {
@@ -220,12 +237,14 @@ impl QueryStateReporter {
                         );
                     }
                 }
+                // No in-game panel reads the whisper choice, so it goes to the server only.
+                let panel_reads = target != common::consts::audio::WHISPER_CONTROL_TARGET;
                 // A delimiter-bearing target would corrupt the text grammar; the
                 // binary QUIC report above is unaffected.
-                if BvcsCodec::target_is_wire_safe(target) {
+                if panel_reads && BvcsCodec::target_is_wire_safe(target) {
                     let seq = self.next_seq();
                     self.ride_bvcs(BvcsCodec::encode_preference(seq, &preference));
-                } else {
+                } else if panel_reads {
                     debug!("QueryStateReporter: target not !bvcs:-safe; ride skipped: {target}");
                 }
             }

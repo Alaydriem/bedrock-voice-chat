@@ -13,7 +13,7 @@ fn player_at(name: &str, x: f32, z: f32, world: &str, dimension: Dimension, yaw:
         coordinates: Coordinate { x, y: 64.0, z },
         orientation: Orientation { x: 0.0, y: yaw },
         dimension,
-        deafen: false,
+        whispering: false,
         spectator: false,
         world_uuid: Some(world.to_string()),
         alternative_identity: None,

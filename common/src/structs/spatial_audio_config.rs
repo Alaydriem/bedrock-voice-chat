@@ -17,7 +17,7 @@ fn default_steepen_start() -> f32 {
     38.0
 }
 
-fn default_deafen_distance() -> f32 {
+fn default_whisper_distance() -> f32 {
     3.0
 }
 
@@ -41,8 +41,9 @@ pub struct SpatialAudioConfig {
     pub falloff_distance: f32,
     #[serde(default = "default_steepen_start")]
     pub steepen_start: f32,
-    #[serde(default = "default_deafen_distance")]
-    pub deafen_distance: f32,
+    // Keyed `deafen_distance` in operator config and the Java mods' generated mirror.
+    #[serde(rename = "deafen_distance", default = "default_whisper_distance")]
+    pub whisper_distance: f32,
     #[serde(default = "default_panning_start")]
     pub panning_start: f32,
     #[serde(default = "default_max_attenuation_db")]
@@ -56,9 +57,22 @@ impl Default for SpatialAudioConfig {
             close_threshold: default_close_threshold(),
             falloff_distance: default_falloff_distance(),
             steepen_start: default_steepen_start(),
-            deafen_distance: default_deafen_distance(),
+            whisper_distance: default_whisper_distance(),
             panning_start: default_panning_start(),
             max_attenuation_db: default_max_attenuation_db(),
         }
+    }
+}
+
+impl SpatialAudioConfig {
+    /// How far past a configured range a player is still heard.
+    pub const PROXIMITY_FACTOR: f32 = 1.73;
+
+    /// The distance at which the server stops sending a whispering speaker's frames.
+    ///
+    /// The listener's whisper curve reaches silence here too, so the two cannot disagree about
+    /// where a whisper ends.
+    pub fn whisper_edge(&self) -> f32 {
+        self.whisper_distance * Self::PROXIMITY_FACTOR
     }
 }

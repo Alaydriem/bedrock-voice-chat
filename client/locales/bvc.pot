@@ -72,7 +72,7 @@ msgstr ""
 msgid "A new version of Bedrock Voice Chat is available. This will download and install the update immediately."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:159
+#: src/components/settings/panes/AudioPane.svelte:161
 msgid "A short tone when you mute, deafen, or join and leave a group."
 msgstr ""
 
@@ -499,7 +499,7 @@ msgid "Choose Different Server"
 msgstr ""
 
 #: src/components/audio/AudioDeviceSelector.svelte:85
-#: src/components/settings/panes/AudioPane.svelte:67
+#: src/components/settings/panes/AudioPane.svelte:69
 msgid "Chosen by the system"
 msgstr ""
 
@@ -722,6 +722,11 @@ msgstr ""
 msgid "Credentials Could Not Be Saved"
 msgstr ""
 
+#: src/components/settings/panes/AudioPane.svelte:173
+#: src/components/settings/panes/AudioPane.svelte:179
+msgid "Crouch to whisper"
+msgstr ""
+
 #: src/components/settings/NoiseGate.svelte:64
 msgid "Cut my mic when I am not speaking"
 msgstr ""
@@ -773,7 +778,7 @@ msgstr ""
 msgid "Device setup continues after sign-in"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:62
+#: src/components/settings/panes/AudioPane.svelte:64
 #: src/components/setup/DevicesScreen.svelte:37
 msgid "Devices"
 msgstr ""
@@ -996,7 +1001,7 @@ msgstr ""
 msgid "How do I unlock this?"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:132
+#: src/components/settings/panes/AudioPane.svelte:134
 msgid "How hard voices are pushed left and right by where their speaker is standing. Audio is centered at 0%"
 msgstr ""
 
@@ -1004,7 +1009,7 @@ msgstr ""
 msgid "How long it stays open after you stop talking."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:189
+#: src/components/settings/panes/AudioPane.svelte:204
 msgid "How loud jukebox music plays before distance is applied."
 msgstr ""
 
@@ -1116,13 +1121,13 @@ msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:52
 #: src/components/dashboard/JukeboxChip.svelte:73
-#: src/components/settings/panes/AudioPane.svelte:188
-#: src/components/settings/panes/AudioPane.svelte:207
+#: src/components/settings/panes/AudioPane.svelte:203
+#: src/components/settings/panes/AudioPane.svelte:222
 msgid "Jukebox volume"
 msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:64
-#: src/components/settings/panes/AudioPane.svelte:172
+#: src/components/settings/panes/AudioPane.svelte:187
 msgid "Jukeboxes"
 msgstr ""
 
@@ -1264,12 +1269,12 @@ msgid "MS RTT"
 msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:43
-#: src/components/settings/panes/AudioPane.svelte:175
-#: src/components/settings/panes/AudioPane.svelte:181
+#: src/components/settings/panes/AudioPane.svelte:190
+#: src/components/settings/panes/AudioPane.svelte:196
 msgid "Mute jukeboxes"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:194
+#: src/components/settings/panes/AudioPane.svelte:209
 msgid "Muted"
 msgstr ""
 
@@ -1401,7 +1406,7 @@ msgid "Nobody you have changed has that name."
 msgstr ""
 
 #: src/components/settings/NoiseGate.svelte:70
-#: src/components/settings/panes/AudioPane.svelte:218
+#: src/components/settings/panes/AudioPane.svelte:233
 #: src/js/app/dashboard/DiagnosticsCopy.ts:28
 msgid "Noise gate"
 msgstr ""
@@ -1698,7 +1703,7 @@ msgstr ""
 msgid "Players"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:194
+#: src/components/settings/panes/AudioPane.svelte:209
 msgid "Playing"
 msgstr ""
 
@@ -2220,8 +2225,8 @@ msgstr ""
 msgid "Sound"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:131
-#: src/components/settings/panes/AudioPane.svelte:148
+#: src/components/settings/panes/AudioPane.svelte:133
+#: src/components/settings/panes/AudioPane.svelte:150
 msgid "Spatial panning"
 msgstr ""
 
@@ -2283,7 +2288,7 @@ msgstr ""
 msgid "Supported"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:71
+#: src/components/settings/panes/AudioPane.svelte:73
 msgid "System default"
 msgstr ""
 
@@ -2295,15 +2300,15 @@ msgstr ""
 msgid "Takes about a minute on a normal connection"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:86
+#: src/components/settings/panes/AudioPane.svelte:88
 msgid "Test my microphone"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:97
+#: src/components/settings/panes/AudioPane.svelte:99
 msgid "Test playback"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:83
+#: src/components/settings/panes/AudioPane.svelte:85
 msgid "Test your devices"
 msgstr ""
 
@@ -2372,7 +2377,7 @@ msgstr ""
 msgid "The update could not be installed. Try again, or download the new version by hand."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:124
+#: src/components/settings/panes/AudioPane.svelte:126
 msgid "The voice mode did not change."
 msgstr ""
 
@@ -2575,7 +2580,7 @@ msgstr ""
 msgid "View privacy statement"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:106
+#: src/components/settings/panes/AudioPane.svelte:108
 msgid "Voice"
 msgstr ""
 
@@ -2596,8 +2601,8 @@ msgstr ""
 msgid "Voice chat needs two things: a mod on your world, and a BVC server running somewhere you control. Nothing at all on your players' machines."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:158
-#: src/components/settings/panes/AudioPane.svelte:164
+#: src/components/settings/panes/AudioPane.svelte:160
+#: src/components/settings/panes/AudioPane.svelte:166
 msgid "Voice chat sounds"
 msgstr ""
 
@@ -2609,7 +2614,7 @@ msgstr ""
 msgid "Voice has to keep running"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:108
+#: src/components/settings/panes/AudioPane.svelte:110
 msgid "Voice mode"
 msgstr ""
 
@@ -2688,8 +2693,12 @@ msgstr ""
 msgid "What's involved"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:176
+#: src/components/settings/panes/AudioPane.svelte:191
 msgid "When enabled, you won't hear Jukeboxes in your world."
+msgstr ""
+
+#: src/components/settings/panes/AudioPane.svelte:174
+msgid "When you crouch or crawl, only players within a few blocks hear you."
 msgstr ""
 
 #: src/components/dashboard/ChatDock.svelte:94
@@ -2847,7 +2856,7 @@ msgstr ""
 msgid "Your PC, a VPS, or a home box"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:68
+#: src/components/settings/panes/AudioPane.svelte:70
 msgid "Your phone routes voice to whatever you last connected. Plug in a headset and it follows — there is nothing to pick here."
 msgstr ""
 

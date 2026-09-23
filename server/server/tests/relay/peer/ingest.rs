@@ -38,7 +38,7 @@ fn speaker(name: &str, world: Option<&str>) -> PlayerEnum {
         },
         orientation: Orientation { x: 0.0, y: 0.0 },
         dimension: Dimension::Overworld,
-        deafen: false,
+        whispering: false,
         spectator: false,
         world_uuid: None,
         alternative_identity: None,
