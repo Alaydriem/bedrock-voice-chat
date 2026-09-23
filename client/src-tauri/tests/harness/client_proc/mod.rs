@@ -6,6 +6,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use bvc_client_lib::testkit::E2eAppData;
+use bvc_client_lib::testkit::PeerStat;
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
 use common::structs::bedrock::AddonMode;
 
@@ -255,6 +256,7 @@ impl ClientProc {
                             stalled,
                             uptime_secs,
                             peers,
+                            peer_stats,
                             downlink_loss_pct,
                             transport,
                             ..
@@ -262,6 +264,7 @@ impl ClientProc {
                             let mut guard = reader_state.lock().unwrap();
                             guard.diagnostics = Some((connected, stalled, uptime_secs));
                             guard.diagnostic_peers = peers;
+                            guard.diagnostic_peer_stats = peer_stats;
                             guard.diagnostic_downlink_loss = Some(downlink_loss_pct);
                             guard.diagnostic_transport = Some(transport);
                         }
@@ -756,6 +759,40 @@ impl ClientProc {
     /// Speaker names in the per-peer diagnostics table as of the last `diagnostics()` call.
     pub fn diagnostic_peers(&self) -> Vec<String> {
         self.state.lock().unwrap().diagnostic_peers.clone()
+    }
+
+    /// Per-speaker counters as of the last `diagnostics()` call.
+    pub fn diagnostic_peer_stats(&self) -> Vec<PeerStat> {
+        self.state.lock().unwrap().diagnostic_peer_stats.clone()
+    }
+
+    /// Polls `diagnostics()` until the named speaker's counters satisfy `pred`.
+    pub fn await_peer_stat<F>(
+        &self,
+        name: &str,
+        pred: F,
+        timeout: Duration,
+    ) -> Result<PeerStat, String>
+    where
+        F: Fn(&PeerStat) -> bool,
+    {
+        let deadline = Instant::now() + timeout;
+        let mut last: Option<PeerStat> = None;
+        while Instant::now() < deadline {
+            self.diagnostics();
+            if let Some(stat) = self
+                .diagnostic_peer_stats()
+                .into_iter()
+                .find(|s| s.name == name)
+            {
+                if pred(&stat) {
+                    return Ok(stat);
+                }
+                last = Some(stat);
+            }
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        Err(format!("peer stat predicate for {name} never held; last {last:?}"))
     }
 
     /// Polls until the derived downlink loss satisfies `pred`, returning the value that matched.

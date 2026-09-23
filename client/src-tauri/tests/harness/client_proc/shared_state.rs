@@ -1,3 +1,5 @@
+use bvc_client_lib::testkit::PeerStat;
+
 /// Shared state the stdout-reader thread writes and the orchestrator reads.
 /// `ready`/`connected` latch on first sight of the matching `OutMsg`; `captured`
 /// accumulates every `CapturedPcm` chunk in arrival order; `stats` holds the
@@ -10,6 +12,8 @@ pub(super) struct SharedState {
     pub(super) diagnostics: Option<(bool, bool, u64)>,
     // Speaker names from the most recent `OutMsg::Diagnostics`.
     pub(super) diagnostic_peers: Vec<String>,
+    // Per-speaker counters from the most recent `OutMsg::Diagnostics`.
+    pub(super) diagnostic_peer_stats: Vec<PeerStat>,
     // Derived downlink loss from the most recent reading. The outer Option is "no reading yet", the
     // inner one is "the client reports it unmeasured" — two different facts.
     pub(super) diagnostic_downlink_loss: Option<Option<f32>>,

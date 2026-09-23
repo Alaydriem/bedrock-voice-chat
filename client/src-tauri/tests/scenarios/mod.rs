@@ -1,6 +1,7 @@
 mod audio_flow;
 mod audio_routing;
 mod boot;
+mod burst_loss;
 mod capacity;
 mod channel_disconnect_stale;
 mod channel_lifecycle;
@@ -17,6 +18,7 @@ mod path_exhaustion;
 mod peer_diagnostics;
 mod position_feed;
 mod provision;
+mod proximity_movement;
 mod proxy_audio;
 mod proxy_jukebox;
 mod proxy_net_addon_mode;

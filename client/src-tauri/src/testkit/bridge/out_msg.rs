@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::PeerStat;
+
 // Events the e2e client emits to the orchestrator over stdout, framed
 // identically to `InMsg`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +74,9 @@ pub enum OutMsg {
         // scenario that only asserts audio arrived cannot tell QUIC from WebSocket, and a
         // fallback test that silently ran on QUIC would pass while proving nothing.
         transport: Option<String>,
+        // Per-speaker receive counters, so a scenario can assert on what one listener did with
+        // one speaker's frames rather than on whether audio arrived at all.
+        peer_stats: Vec<PeerStat>,
     },
     Stats {
         frames_sent: u64,

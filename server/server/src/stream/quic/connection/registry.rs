@@ -12,9 +12,13 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
-use super::{AtCapacity, CapacityPolicy, ConnectionEntry, ConnectionSequence, RoutedPacket};
+use super::{
+    AtCapacity, CapacityPolicy, ConnectionEntry, ConnectionSequence, RouteRejectionCounts,
+    RoutedPacket,
+};
 use crate::services::MetricsService;
 use crate::services::metrics_service::interaction::InteractionRoute;
+use crate::services::metrics_service::interaction::RouteRejection;
 use crate::services::metrics_service::interaction::InteractionTracker;
 use crate::stream::quic::log_throttle::LogThrottle;
 use crate::stream::session::WebSocketDeviceId;
@@ -39,6 +43,9 @@ pub struct ConnectionRegistry {
     // Emits connect/disconnect counters + events. Installed after construction
     // rather than at build time.
     metrics: OnceLock<Arc<MetricsService>>,
+    // Every reason `route_audio_frame` withheld a frame, counted whether or not a metrics
+    // service is installed.
+    route_rejections: RouteRejectionCounts,
     // The peer plane, when any peer is declared. Absent is the common case: a
     // server with no `peer` block binds no peer socket at all.
     peer_plane: OnceLock<Arc<crate::relay::PeerPlane>>,
@@ -82,6 +89,7 @@ impl ConnectionRegistry {
             player_channel: DashMap::new(),
             fingerprint_index: DashMap::new(),
             metrics: OnceLock::new(),
+            route_rejections: RouteRejectionCounts::new(),
             peer_plane: OnceLock::new(),
             channel_absent_ticks: DashMap::new(),
             oversized_broadcast_log: LogThrottle::new(OVERSIZED_BROADCAST_LOG_INTERVAL),
@@ -121,6 +129,19 @@ impl ConnectionRegistry {
     // Installs the metrics service. Set once; a later install is ignored.
     pub fn set_metrics(&self, metrics: Arc<MetricsService>) {
         let _ = self.metrics.set(metrics);
+    }
+
+    pub fn route_rejections(&self) -> &RouteRejectionCounts {
+        &self.route_rejections
+    }
+
+    // Every withheld frame goes through here, so the local counts and the exported metric
+    // cannot disagree.
+    fn reject(&self, reason: RouteRejection) {
+        self.route_rejections.record(reason);
+        if let Some(m) = self.metrics.get() {
+            m.record_route_rejection(reason);
+        }
     }
 
     // Installs the capacity policy. Set once; a later install is ignored.
@@ -741,13 +762,17 @@ impl ConnectionRegistry {
         // service name for audio this server injected. An unstamped packet has no sender to
         // route from and a reduced one is never inbound, so both are unroutable.
         let Some(sender_identity) = packet.sender_key() else {
+            self.reject(RouteRejection::SenderUnknown);
             return;
         };
         let sender_identity = sender_identity.as_str();
 
         let audio_frame = match &packet.data {
             QuicNetworkPacketData::AudioFrame(af) => af,
-            _ => return,
+            _ => {
+                self.reject(RouteRejection::NotAudio);
+                return;
+            }
         };
 
         let sender_channel: Option<Arc<str>> =
@@ -882,14 +907,19 @@ impl ConnectionRegistry {
                 // channel delivery never reads it, and the fetch is an awaited cache
                 // lookup per recipient per frame.
                 let Some(sp) = speaker else {
+                    self.reject(RouteRejection::SpeakerUnresolved);
                     continue;
                 };
                 let rp = match player_cache.get(recipient_identity.as_ref()).await {
                     Some(p) => p,
-                    None => continue,
+                    None => {
+                        self.reject(RouteRejection::RecipientUnpositioned);
+                        continue;
+                    }
                 };
 
                 if sp.get_game() != rp.get_game() {
+                    self.reject(RouteRejection::GameMismatch);
                     continue;
                 }
 
@@ -900,6 +930,7 @@ impl ConnectionRegistry {
                 };
 
                 if let Err(e) = sp.can_communicate_with(&rp, effective_range) {
+                    self.reject(RouteRejection::from_communication_error(&e));
                     curia::debug!(
                         "Audio packet {} -> {} rejected: {}",
                         sender_identity,
@@ -911,7 +942,10 @@ impl ConnectionRegistry {
 
                 // Some(false) is rejected outside channels
                 match original_spatial {
-                    Some(false) => continue,
+                    Some(false) => {
+                        self.reject(RouteRejection::NonSpatialOutsideChannel);
+                        continue;
+                    }
                     Some(true) | None => (false, InteractionRoute::Proximity),
                 }
             };
@@ -920,7 +954,10 @@ impl ConnectionRegistry {
                 if template_channel.is_none() {
                     match serialize_variant(false) {
                         Some(bytes) => template_channel = Some(bytes),
-                        None => continue,
+                        None => {
+                            self.reject(RouteRejection::SerializeFailed);
+                            continue;
+                        }
                     }
                 }
                 template_channel.as_deref().unwrap_or_default()
@@ -928,13 +965,17 @@ impl ConnectionRegistry {
                 if template_spatial.is_none() {
                     match serialize_variant(true) {
                         Some(bytes) => template_spatial = Some(bytes),
-                        None => continue,
+                        None => {
+                            self.reject(RouteRejection::SerializeFailed);
+                            continue;
+                        }
                     }
                 }
                 template_spatial.as_deref().unwrap_or_default()
             };
 
             let Some(bytes_to_send) = sequence.patch(template) else {
+                self.reject(RouteRejection::SequenceExhausted);
                 continue;
             };
 
@@ -944,7 +985,10 @@ impl ConnectionRegistry {
                         m.record_interaction(route, sender_hash, *recipient_hash);
                     }
                 }
+                // Counted twice on purpose: once by reason alongside every other rejection, and
+                // once by the existing drop counter that dashboards already read.
                 Err(mpsc::error::TrySendError::Full(_)) => {
+                    self.reject(RouteRejection::RecipientQueueFull);
                     if let Some(m) = self.metrics.get() {
                         m.record_audio_route_drop();
                     }
@@ -954,6 +998,7 @@ impl ConnectionRegistry {
                     );
                 }
                 Err(mpsc::error::TrySendError::Closed(_)) => {
+                    self.reject(RouteRejection::RecipientClosed);
                     dead_keys.push(*device);
                 }
             }

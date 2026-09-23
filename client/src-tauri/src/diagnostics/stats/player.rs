@@ -21,6 +21,14 @@ pub struct PlayerReceiveStats {
     silence_frames: AtomicU64,
     frames_decoded: AtomicU64,
     frames_received: AtomicU64,
+    // The sender's stamp jumped backward past the admission band: its clock restarted.
+    reanchors: AtomicU64,
+    // Starvation outlasted the grace window and playback was held until depth rebuilt.
+    warmup_rearms: AtomicU64,
+    // A queued frame decoded but not played, to bring depth back down.
+    drain_sheds: AtomicU64,
+    // Frames missing inside accepted forward gaps: loss, and speaker pauses shorter than the band.
+    gap_frames: AtomicU64,
     ring_len: AtomicU32,
     capacity: AtomicU32,
     warmup_needed: AtomicU32,
@@ -51,6 +59,38 @@ impl PlayerReceiveStats {
 
     pub fn record_ooo_drop(&self) {
         self.ooo_drops.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_reanchor(&self) {
+        self.reanchors.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_warmup_rearm(&self) {
+        self.warmup_rearms.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_drain_shed(&self) {
+        self.drain_sheds.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_gap(&self, missing_frames: u64) {
+        self.gap_frames.fetch_add(missing_frames, Ordering::Relaxed);
+    }
+
+    pub fn reanchors(&self) -> u64 {
+        self.reanchors.load(Ordering::Relaxed)
+    }
+
+    pub fn warmup_rearms(&self) -> u64 {
+        self.warmup_rearms.load(Ordering::Relaxed)
+    }
+
+    pub fn drain_sheds(&self) -> u64 {
+        self.drain_sheds.load(Ordering::Relaxed)
+    }
+
+    pub fn gap_frames(&self) -> u64 {
+        self.gap_frames.load(Ordering::Relaxed)
     }
 
     pub fn record_plc(&self) {
@@ -91,6 +131,10 @@ impl PlayerReceiveStats {
         self.silence_frames.store(0, Ordering::Relaxed);
         self.frames_decoded.store(0, Ordering::Relaxed);
         self.frames_received.store(0, Ordering::Relaxed);
+        self.reanchors.store(0, Ordering::Relaxed);
+        self.warmup_rearms.store(0, Ordering::Relaxed);
+        self.drain_sheds.store(0, Ordering::Relaxed);
+        self.gap_frames.store(0, Ordering::Relaxed);
     }
 
     pub fn set_ring(&self, ring_len: usize, capacity: usize, warmup_needed: usize) {
@@ -201,6 +245,12 @@ impl PlayerReceiveStats {
             quality_score: self.quality_score(),
             concealment_pct: self.concealment_pct(),
             buffer_ms: self.buffer_ms(),
+            reanchors: self.reanchors(),
+            warmup_rearms: self.warmup_rearms(),
+            drain_sheds: self.drain_sheds(),
+            // Filled per route by the registry, which knows which route these stats belong to.
+            spatial_gap_frames: 0,
+            normal_gap_frames: 0,
         }
     }
 
@@ -214,6 +264,9 @@ impl PlayerReceiveStats {
         base.plc_frames += self.plc_frames();
         base.silence_frames += self.silence_frames();
         base.frames_decoded += self.frames_decoded();
+        base.reanchors += self.reanchors();
+        base.warmup_rearms += self.warmup_rearms();
+        base.drain_sheds += self.drain_sheds();
         base.ring_len = base.ring_len.max(self.ring_len());
         base.capacity = base.capacity.max(self.capacity());
         base.warmup_needed = base.warmup_needed.max(self.warmup_needed());

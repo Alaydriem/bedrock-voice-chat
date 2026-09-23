@@ -1,6 +1,5 @@
 use crate::AudioPacket;
 use crate::audio::stream::jitter_buffer::EncodedAudioFramePacket;
-use crate::audio::stream::stream_manager::AudioSinkType;
 use crate::audio::stream::stream_manager::output::{RecordedPlayer, SpeakerStateCache};
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxBeaconCache;
@@ -435,16 +434,14 @@ impl PacketRouter {
             })
             .unwrap_or_else(|| RecordingPlayerData::unknown());
 
-        let encoded_packet = EncodedAudioFramePacket {
-            timestamp: frame.timestamp() as u64,
-            sample_rate: crate::audio::AudioResampling::OPUS_SAMPLE_RATE,
-            data: frame.data,
-            route: AudioSinkType::from_spatial(frame.spatial.unwrap_or(true)),
+        let encoded_packet = EncodedAudioFramePacket::new(
+            frame.timestamp() as u64,
+            crate::audio::AudioResampling::OPUS_SAMPLE_RATE,
+            frame.data,
+            frame.spatial.unwrap_or(true),
             emitter,
             listener,
-            buffer_size_ms: 120,
-            time_between_reports_secs: 30,
-        };
+        );
 
         // Send to playback - recording is now handled post-jitter-buffer in JitterBufferSource
         #[cfg(feature = "e2e")]

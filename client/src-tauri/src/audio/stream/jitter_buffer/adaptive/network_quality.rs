@@ -40,16 +40,4 @@ impl NetworkQuality {
             NetworkQuality::Poor => 8,
         }
     }
-
-    /// Get reorder tolerance window (in milliseconds)
-    ///
-    /// Each step is a whole number of 20 ms frames: 2, 4, 8 and 16 respectively.
-    pub fn reorder_window_ms(&self) -> u64 {
-        match self {
-            NetworkQuality::Excellent => 40,
-            NetworkQuality::Good => 80,
-            NetworkQuality::Moderate => 160,
-            NetworkQuality::Poor => 320,
-        }
-    }
 }

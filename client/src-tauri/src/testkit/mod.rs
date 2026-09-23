@@ -12,7 +12,7 @@ pub mod e2e_app_data;
 pub mod port_pool;
 pub mod signal;
 
-pub use bridge::{Frame, InMsg, OutMsg};
+pub use bridge::{Frame, InMsg, OutMsg, PeerStat};
 pub use command_socket::CommandSocket;
 pub use connect::ConnectConfig;
 pub use counters::TransportCounters;

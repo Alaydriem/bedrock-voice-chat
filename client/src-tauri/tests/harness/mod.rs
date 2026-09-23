@@ -1,4 +1,5 @@
 pub mod client_proc;
+pub mod drop_pattern;
 pub mod ffi;
 pub mod insecure_tls;
 pub mod jukebox_fixture;

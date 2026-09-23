@@ -61,6 +61,31 @@ impl JitterBuffer {
         let handle = JitterBufferHandle::new(tx);
         Ok((jitter_buffer, handle))
     }
+
+    /// A buffer without activity reporting.
+    ///
+    /// The sink manager builds buffers through `create_with_handle_and_activity`, whose activity
+    /// channel carries a crate-internal message type. This is the same buffer without that
+    /// channel, which is what lets the playback contract be exercised from outside the crate.
+    pub fn for_listener(
+        initial_packet: EncodedAudioFramePacket,
+        player_name: String,
+        recording_producer: Option<RecordingProducer>,
+        recording_active: Option<Arc<AtomicBool>>,
+        receive_stats: Arc<PlayerReceiveStats>,
+        transport: common::structs::metrics::TransportKind,
+    ) -> Result<(Self, JitterBufferHandle), JitterBufferError> {
+        Self::create_with_handle_and_activity(
+            initial_packet,
+            player_name.clone(),
+            player_name,
+            None,
+            recording_producer,
+            recording_active,
+            receive_stats,
+            transport,
+        )
+    }
 }
 
 impl Source for JitterBuffer {

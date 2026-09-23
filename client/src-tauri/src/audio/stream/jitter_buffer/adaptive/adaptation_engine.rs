@@ -98,25 +98,4 @@ impl AdaptationEngine {
     pub fn warmup_packets_needed(&self) -> usize {
         self.state.warmup_packets_needed
     }
-
-    /// Get reorder tolerance window based on network quality
-    pub fn reorder_window_ms(&self) -> u64 {
-        self.network_quality.reorder_window_ms()
-    }
-
-    /// Check if packet timestamp is acceptable given current network conditions
-    pub fn is_timestamp_acceptable(&self, timestamp: u64, last_accepted: u64) -> bool {
-        if timestamp <= last_accepted {
-            return false;
-        }
-
-        let time_diff = timestamp.saturating_sub(last_accepted);
-        let reorder_window = self.reorder_window_ms();
-
-        if time_diff > 1000 {
-            return true;
-        }
-
-        time_diff <= reorder_window
-    }
 }

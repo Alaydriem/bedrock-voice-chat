@@ -85,12 +85,18 @@ pub use crate::audio::stream::stream_manager::sink::CapturingSink;
 #[cfg(feature = "e2e")]
 pub use crate::audio::stream::stream_manager::source::BridgeInputSource;
 
-// Re-exported for the integration test crate to cover one contract: feeding the adaptation
-// engine real buffer underruns leaves capacity, warmup, and reorder tolerance unmoved,
-// because the capacity floor swallows every reachable multiplier. Two type re-exports rather
-// than widening `audio::stream`, which would leak the whole playback pipeline.
+// Re-exported for the integration test crate to cover what feeding real buffer underruns to the
+// adaptation engine changes within its first adjustment interval. Two type re-exports rather than
+// a path into the playback pipeline.
 pub use crate::audio::stream::jitter_buffer::adaptive::AdaptationEngine;
 pub use crate::audio::stream::jitter_buffer::metrics::MetricsCollector;
+// The playback contract — packets in, samples out — for the test crate's jitter buffer rig.
+pub use crate::audio::stream::jitter_buffer::{
+    EncodedAudioFramePacket, JitterBuffer, JitterBufferError, JitterBufferHandle,
+};
+pub use crate::audio::stream::jitter_buffer::adaptive::DrainPolicy;
+pub use crate::audio::stream::jitter_buffer::audio_processor::AudioProcessor;
+pub use crate::audio::stream::jitter_buffer::{Admission, FrameAdmission, WarmupGate};
 
 /// JNI export called from MainActivity.onCreate to populate the global
 /// `ndk_context` static. tao 0.35 (Tauri 2.11) dropped this initialization as

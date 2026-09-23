@@ -389,6 +389,15 @@ fn main() {
                                     .as_ref()
                                     .map(|s| s.peers.iter().map(|p| p.name.clone()).collect())
                                     .unwrap_or_default(),
+                                peer_stats: snapshot
+                                    .as_ref()
+                                    .map(|s| {
+                                        s.peers
+                                            .iter()
+                                            .map(bvc_client_lib::testkit::PeerStat::from_diagnostics)
+                                            .collect()
+                                    })
+                                    .unwrap_or_default(),
                                 downlink_loss_pct: snapshot
                                     .as_ref()
                                     .and_then(|s| s.link.downlink_loss_pct),
