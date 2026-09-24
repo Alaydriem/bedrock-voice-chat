@@ -27,9 +27,9 @@ None of this applies to a Bedrock Dedicated Server or a Java server. The Addon r
 | 1.26.40 | `v2168` |
 | 1.26.45 | `v2169` |
 | 1.26.50 | `v2192` |
-| 1.26.51 | `v2193` |
+| 1.26.50 | `v2193` |
 
-**1.26.51 is the newest supported release.**
+**1.26.50 is the newest supported release.**
 
 ## Not supported
 

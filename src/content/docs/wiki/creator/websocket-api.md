@@ -3,7 +3,7 @@ title: WebSocket API
 description: Drive mute, deafen, recording, jukebox music, and groups from your own tooling.
 sidebar:
   label: WebSocket API
-  order: 4
+  order: 5
 ---
 
 Bedrock Voice Chat runs a local WebSocket server that lets your own tooling toggle mute, deafen and recording, set jukebox music levels, manage groups, hold push-to-talk, and start or stop a Bedrock Voice Chat Connect session. The [Stream Deck plugin](/wiki/creator/stream-deck/) uses it.
