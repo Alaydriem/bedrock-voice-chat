@@ -5,6 +5,7 @@ mod audio_file_service;
 mod audio_playback_service;
 mod certificate_revocation_service;
 mod channel_membership_service;
+mod channel_reaper_service;
 mod chat_service;
 mod host_capability;
 mod interaction_tracker;

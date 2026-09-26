@@ -16,7 +16,7 @@ const CAPTURE_WINDOW: Duration = Duration::from_millis(1500);
 /// would surface in public chat under the player's own name.
 #[tokio::test(flavor = "multi_thread")]
 async fn net_mode_sends_no_in_band_rides_upstream() {
-    let v = ProtocolMatrix::last_two()
+    let v = ProtocolMatrix::coverage()
         .into_iter()
         .next()
         .expect("at least one protocol version");

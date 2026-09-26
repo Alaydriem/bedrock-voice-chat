@@ -1,4 +1,5 @@
-use crate::websocket::{WebSocketConfig, WebSocketManager};
+use crate::websocket::{WebSocketBroadcaster, WebSocketConfig, WebSocketManager};
+use common::structs::voice::VoiceRoster;
 use common::structs::websocket::{InternalEndpoint, WebSocketClientInfo};
 use common::traits::StreamTrait;
 use tauri::State;
@@ -64,6 +65,19 @@ pub async fn generate_encryption_key() -> Result<String, String> {
         .collect();
 
     Ok(key)
+}
+
+/// Publish who this client can hear to every `/events` subscriber.
+///
+/// The roster is the webview's, because the union of group membership and proximity presence is
+/// computed there already and a second implementation in Rust would drift from it.
+#[tauri::command]
+pub async fn publish_voice_roster(
+    roster: VoiceRoster,
+    broadcaster: State<'_, WebSocketBroadcaster>,
+) -> Result<(), String> {
+    broadcaster.broadcast_roster(roster);
+    Ok(())
 }
 
 /// Where this process's push channel is listening.

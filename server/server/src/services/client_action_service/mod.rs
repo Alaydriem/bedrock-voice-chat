@@ -1,5 +1,5 @@
 use common::structs::audio::PlayerGainSettings;
-use common::structs::channel::ChannelCollection;
+use common::structs::channel::{ChannelCollection, GroupCode, GroupName};
 use common::structs::control::{
     ClientAction, ClientActionType, PlayerPreference, PreferenceKey, QueryState,
 };
@@ -151,10 +151,10 @@ impl ClientActionService {
     /// Applies a group action for the authenticated actor. `CreateGroup` and `JoinGroup` are MOVES — the actor's
     /// current groups are left first, so a player occupies at most one group
     /// through this plane (multi-membership renders as an invalid state in the
-    /// desktop client, whose own flow also moves). Returns the new nanoid for
+    /// desktop client, whose own flow also moves). Returns the new share code for
     /// `CreateGroup`; errors when a `JoinGroup` targets a channel that does not
     /// exist (never creates phantom membership, never disturbs the current
-    /// group on a bad code). Any channel left empty is closed.
+    /// group on a bad code). A group the actor leaves stays open.
     pub async fn route_group(
         action: &ClientActionType,
         actor: &common::PlayerIdentity,
@@ -164,10 +164,11 @@ impl ClientActionService {
         match action {
             ClientActionType::CreateGroup => {
                 Self::leave_all(channels, webhook, actor).await;
+                let taken: Vec<String> = channels.list().into_iter().map(|c| c.name).collect();
                 let id = ChannelMembershipService::create(
                     channels,
                     webhook,
-                    format!("{actor} group"),
+                    GroupName::next(&taken),
                     actor.clone(),
                 )
                 .await;
@@ -175,13 +176,17 @@ impl ClientActionService {
                 Ok(Some(id))
             }
             ClientActionType::JoinGroup { channel } => {
+                // A player types this off another player's screen, so case, spacing and
+                // the dash are all forgiven before the code is looked up. A code the
+                // format cannot account for is refused here rather than missing later.
+                let channel = &GroupCode::normalize(channel)
+                    .ok_or_else(|| anyhow::anyhow!("not a group code: {channel}"))?;
                 // Validate the code BEFORE leaving anything: a typo must not
                 // kick the actor out of their current group.
                 if channels.get(channel).await.is_none() {
                     anyhow::bail!("channel does not exist: {channel}");
                 }
-                // A repeat join of the current group is a no-op, not a move —
-                // leaving first would close the group under its last member.
+                // A repeat join of the current group is a no-op, not a move.
                 if channels
                     .get_player_channels(actor)
                     .iter()
@@ -204,13 +209,21 @@ impl ClientActionService {
         }
     }
 
+    /// Drops the actor from every group they are in, leaving the groups themselves
+    /// standing.
+    ///
+    /// A group outlives the member who walked out of it: the last person to leave
+    /// must not take the group with them, or a code someone else is holding stops
+    /// working the moment its creator moves. `ChannelReaperService` closes what is
+    /// genuinely abandoned, and the desktop client's Leave has always passed
+    /// `close_if_empty: false` for the same reason.
     async fn leave_all(
         channels: &ChannelCollection,
         webhook: &WebhookReceiver,
         actor: &common::PlayerIdentity,
     ) {
         for cid in channels.get_player_channels(actor) {
-            ChannelMembershipService::leave(channels, webhook, actor, &cid, true).await;
+            ChannelMembershipService::leave(channels, webhook, actor, &cid, false).await;
         }
     }
 }

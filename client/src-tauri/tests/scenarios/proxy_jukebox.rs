@@ -15,7 +15,7 @@ const JUKEBOX_BLOCK: (i32, i32, i32) = (0, 64, 0);
 /// track via the proxy PlaySound path; an eject stops playback within one loop.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_jukebox_both_in_range_hear_then_eject_stops() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice", "Bob"]).await;
 
         let fixture_dir = tempfile::tempdir().expect("fixture dir");
@@ -119,7 +119,7 @@ async fn proxy_jukebox_both_in_range_hear_then_eject_stops() {
 /// zero incremental frames and is RMS-silent.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_jukebox_in_range_hears_out_silent() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice", "Bob"]).await;
 
         let fixture_dir = tempfile::tempdir().expect("fixture dir");
@@ -192,7 +192,7 @@ async fn proxy_jukebox_in_range_hears_out_silent() {
 /// arrive and capture is RMS-silent.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_jukebox_natural_end_returns_to_silence() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice"]).await;
 
         let fixture_dir = tempfile::tempdir().expect("fixture dir");
@@ -267,7 +267,7 @@ async fn proxy_jukebox_natural_end_returns_to_silence() {
 /// < one loop and a fresh capture is RMS-silent.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_jukebox_explicit_eject_returns_to_silence() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice"]).await;
 
         let fixture_dir = tempfile::tempdir().expect("fixture dir");
@@ -366,7 +366,7 @@ async fn proxy_jukebox_explicit_eject_returns_to_silence() {
 /// the assertion.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_jukebox_ended_with_nobody_then_late_arrival_silent() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice", "Bob"]).await;
 
         let fixture_dir = tempfile::tempdir().expect("fixture dir");

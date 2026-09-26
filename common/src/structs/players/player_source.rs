@@ -4,6 +4,7 @@ use ts_rs::TS;
 /// Represents the source of how a player was added to the player store
 /// This enables multi-source tracking for proximity detection vs group membership
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
 pub enum PlayerSource {
     /// Player was detected through proximity/audio packets

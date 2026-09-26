@@ -6,6 +6,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use bvc_client_lib::testkit::E2eAppData;
+use bvc_client_lib::testkit::PeerStat;
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
 use common::structs::bedrock::AddonMode;
 
@@ -237,6 +238,9 @@ impl ClientProc {
                         Ok(OutMsg::ProxyStarted { listen_port }) => {
                             reader_state.lock().unwrap().proxy_listen = Some(listen_port);
                         }
+                        Ok(OutMsg::CommandWebSocketStarted { port }) => {
+                            reader_state.lock().unwrap().command_ws_port = Some(port);
+                        }
                         Ok(OutMsg::CapturedPcm { samples }) => {
                             reader_state
                                 .lock()
@@ -252,6 +256,7 @@ impl ClientProc {
                             stalled,
                             uptime_secs,
                             peers,
+                            peer_stats,
                             downlink_loss_pct,
                             transport,
                             ..
@@ -259,6 +264,7 @@ impl ClientProc {
                             let mut guard = reader_state.lock().unwrap();
                             guard.diagnostics = Some((connected, stalled, uptime_secs));
                             guard.diagnostic_peers = peers;
+                            guard.diagnostic_peer_stats = peer_stats;
                             guard.diagnostic_downlink_loss = Some(downlink_loss_pct);
                             guard.diagnostic_transport = Some(transport);
                         }
@@ -312,6 +318,29 @@ impl ClientProc {
     /// Block until the bin has emitted `Connected` or `timeout` elapses.
     pub fn await_connected(&self, timeout: Duration) -> Result<(), String> {
         self.await_flag(timeout, |s| s.connected, "Connected")
+    }
+
+    /// Block until the bin reports `(muted, deafened)` equal to `want`, or `timeout` elapses.
+    ///
+    /// Both halves together rather than one at a time: deafen moves the pair, and asserting
+    /// them separately passes on a client that reached only the one asked about second.
+    pub fn await_mute_pair(&self, want: (bool, bool), timeout: Duration) -> Result<(), String> {
+        let deadline = Instant::now() + timeout;
+        let mut last = None;
+        loop {
+            if let Some((muted, deafened, _)) = self.state.lock().unwrap().control_state {
+                if (muted, deafened) == want {
+                    return Ok(());
+                }
+                last = Some((muted, deafened));
+            }
+            if Instant::now() >= deadline {
+                return Err(format!(
+                    "timed out waiting for (muted, deafened)=={want:?} after {timeout:?}; last saw {last:?}"
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
     }
 
     /// Block until the bin reports its input-mute state equals `want` (via
@@ -402,6 +431,11 @@ impl ClientProc {
     pub fn disconnect(&self, timeout: Duration) -> Result<(), String> {
         self.send(&InMsg::Disconnect);
         self.await_flag(timeout, |s| s.disconnected, "Disconnected")
+    }
+
+    /// Record the crouch-to-whisper choice the way the settings pane does.
+    pub fn set_crouch_whisper(&self, enabled: bool) {
+        self.send(&InMsg::SetCrouchWhisper { enabled });
     }
 
     /// Block until the bin reports the channel id it joined during connect, or
@@ -514,6 +548,35 @@ impl ClientProc {
         }
     }
 
+    /// Bind the bin's operator-facing command WebSocket and block until it reports the port
+    /// it reached. Returns the `ws://127.0.0.1:{port}` address a controller would dial.
+    ///
+    /// The port comes back from the bin rather than being assumed: a conflict moves the
+    /// listener, and a scenario that dialled the requested port would hang against nothing.
+    pub fn start_command_websocket(
+        &self,
+        key: &str,
+        timeout: Duration,
+    ) -> Result<String, String> {
+        self.state.lock().unwrap().command_ws_port = None;
+        self.send(&InMsg::StartCommandWebSocket {
+            port: 0,
+            key: key.to_string(),
+        });
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(port) = self.state.lock().unwrap().command_ws_port {
+                return Ok(format!("ws://127.0.0.1:{port}"));
+            }
+            if Instant::now() >= deadline {
+                return Err(format!(
+                    "timed out waiting for CommandWebSocketStarted after {timeout:?}"
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
     /// Send one channel-membership command and block until the bin echoes a
     /// matching `ChannelOpDone`. The completion latch is cleared first so a
     /// prior op's ack is never mistaken for this one.
@@ -618,6 +681,29 @@ impl ClientProc {
         }
     }
 
+    /// Blocks until this client has passed `expected` frames into the jitter buffer, or
+    /// `timeout` passes, then returns the final counters.
+    ///
+    /// A separate wait from `await_transport_frames` because the two counters sit either
+    /// side of the router: a frame is counted off the transport before the router decides
+    /// whether it can attribute it to a speaker, and dropped frames never reach the second
+    /// counter at all. Waiting on the first and reading the second cannot tell a frame
+    /// still in flight from one the router discarded.
+    pub fn await_jitter_buffer_frames(&self, expected: u64, timeout: Duration) -> (u64, u64, u64) {
+        let deadline = Instant::now() + timeout;
+
+        loop {
+            let stats = self.stats();
+            if stats.2 >= expected {
+                return stats;
+            }
+            if Instant::now() >= deadline {
+                return stats;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
     /// Request a link-diagnostics reading from the bin and block until it arrives (or the 5 s
     /// deadline passes). Returns `(connected, stalled, uptime_secs)`.
     ///
@@ -678,6 +764,40 @@ impl ClientProc {
     /// Speaker names in the per-peer diagnostics table as of the last `diagnostics()` call.
     pub fn diagnostic_peers(&self) -> Vec<String> {
         self.state.lock().unwrap().diagnostic_peers.clone()
+    }
+
+    /// Per-speaker counters as of the last `diagnostics()` call.
+    pub fn diagnostic_peer_stats(&self) -> Vec<PeerStat> {
+        self.state.lock().unwrap().diagnostic_peer_stats.clone()
+    }
+
+    /// Polls `diagnostics()` until the named speaker's counters satisfy `pred`.
+    pub fn await_peer_stat<F>(
+        &self,
+        name: &str,
+        pred: F,
+        timeout: Duration,
+    ) -> Result<PeerStat, String>
+    where
+        F: Fn(&PeerStat) -> bool,
+    {
+        let deadline = Instant::now() + timeout;
+        let mut last: Option<PeerStat> = None;
+        while Instant::now() < deadline {
+            self.diagnostics();
+            if let Some(stat) = self
+                .diagnostic_peer_stats()
+                .into_iter()
+                .find(|s| s.name == name)
+            {
+                if pred(&stat) {
+                    return Ok(stat);
+                }
+                last = Some(stat);
+            }
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        Err(format!("peer stat predicate for {name} never held; last {last:?}"))
     }
 
     /// Polls until the derived downlink loss satisfies `pred`, returning the value that matched.

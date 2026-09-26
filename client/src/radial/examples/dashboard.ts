@@ -9,7 +9,6 @@ import { Diagnostics, type DiagnosticsInput } from "$radial/core/controllers/Dia
 import { Handoff, type Point } from "$radial/core/controllers/Handoff";
 import { KvGridView } from "$radial/core/controllers/KvGridView";
 import { MENU_DIVIDER, Menu } from "$radial/core/controllers/Menu";
-import { GroupName } from "$radial/core/naming/GroupName";
 import { SelfState } from "$radial/core/controllers/SelfState";
 import { Sheet } from "$radial/core/controllers/Sheet";
 import { SwipeActions } from "$radial/core/controllers/SwipeActions";
@@ -794,9 +793,10 @@ frame.addEventListener("click", (e) => {
 
   if (target.closest("[data-group-new]")) {
     // Create, join, and open for editing. Creating a group you are not in is never what was
-    // meant, and the generated name is a suggestion the editor opens on.
+    // meant, and the name is a suggestion the editor opens on. The app takes that name from
+    // the server, which names a group on create; this reference build has no server.
     const id = `g${GROUPS.length + 1}`;
-    const name = GroupName.next(GROUPS.map((g) => g.name));
+    const name = `Ember Ravagers ${GROUPS.length + 1}`;
     GROUPS.push({ id, name, members: 0, owned: true, activeAt: 0, roster: [] });
     state.editId = id;
     joinGroup(id);

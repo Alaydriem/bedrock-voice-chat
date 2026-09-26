@@ -3,7 +3,7 @@ use bvc_server_lib::stream::quic::WebhookReceiver;
 use bvc_server_lib::stream::quic::connection::{ConnectionRegistry, RoutedPacket};
 use bvc_server_lib::stream::quic::{CacheTrait, PlayerPreferenceCache, PlayerStateCache};
 use common::structs::audio::PlayerGainSettings;
-use common::structs::channel::{Channel, ChannelCollection};
+use common::structs::channel::{Channel, ChannelCollection, GroupCode, GroupName};
 use common::structs::control::{ClientAction, ClientActionType, PreferenceKey, QueryState};
 use common::structs::packet::{PacketType, QuicNetworkPacket, QuicNetworkPacketData};
 use tokio::sync::mpsc;
@@ -368,7 +368,70 @@ async fn create_group_returns_id_and_adds_creator() {
 }
 
 #[tokio::test]
-async fn leave_group_removes_and_closes_when_empty() {
+async fn create_group_draws_a_generated_name() {
+    let channels = ChannelCollection::new(64);
+    let (webhook, mut _rx) = test_webhook();
+
+    let id = ClientActionService::route_group(
+            &ClientActionType::CreateGroup,
+            &identity("minecraft:Alice"),
+            &channels,
+            &webhook,
+        )
+        .await
+        .unwrap()
+        .expect("CreateGroup returns the new nanoid");
+
+    let ch = channels.get(&id).await.unwrap();
+
+    // The fault this replaces: the name was the canonical identity, which carries a colon.
+    assert!(
+        !ch.name.contains(':'),
+        "generated name still carries an identity: {}",
+        ch.name
+    );
+    let (adjective, noun) = ch.name.split_once(' ').expect("two words");
+    assert!(
+        GroupName::ADJECTIVES.contains(&adjective),
+        "adjective: {adjective}"
+    );
+    assert!(GroupName::NOUNS.contains(&noun), "noun: {noun}");
+}
+
+#[tokio::test]
+async fn a_second_create_does_not_repeat_the_first_name() {
+    let channels = ChannelCollection::new(64);
+    let (webhook, mut _rx) = test_webhook();
+
+    let first = ClientActionService::route_group(
+            &ClientActionType::CreateGroup,
+            &identity("minecraft:Alice"),
+            &channels,
+            &webhook,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    let second = ClientActionService::route_group(
+            &ClientActionType::CreateGroup,
+            &identity("minecraft:Bob"),
+            &channels,
+            &webhook,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+    let first = channels.get(&first).await.unwrap().name;
+    let second = channels.get(&second).await.unwrap().name;
+    assert_ne!(first, second);
+}
+
+// A group outlives the member who walked out of it: the last person to leave must
+// not take the group with them, or a code someone else is holding stops working.
+// ChannelReaperService closes what is genuinely abandoned.
+#[tokio::test]
+async fn leave_group_removes_the_member_and_leaves_the_group_standing() {
     let channels = ChannelCollection::new(64);
     let (webhook, mut _rx) = test_webhook();
 
@@ -391,14 +454,17 @@ async fn leave_group_removes_and_closes_when_empty() {
     )
     .await
     .unwrap();
+
+    let survivor = channels.get(&id).await.expect("the group stays open");
     assert!(
-        channels.get(&id).await.is_none(),
-        "a group left empty is closed"
+        survivor.players.is_empty(),
+        "the member who left is no longer in it"
     );
 }
 
 // Group actions are MOVES: creating a group while in another leaves the old one
-// (closing it if emptied) — a player never occupies two groups via this plane.
+// standing but without this member — a player never occupies two groups via this
+// plane.
 #[tokio::test]
 async fn create_group_moves_actor_out_of_previous_group() {
     let channels = ChannelCollection::new(64);
@@ -425,9 +491,13 @@ async fn create_group_moves_actor_out_of_previous_group() {
 
     let memberships = channels.get_player_channels(&identity("minecraft:Alice"));
     assert_eq!(memberships, vec![second.clone()], "only the new group remains");
+    let previous = channels
+        .get(&first)
+        .await
+        .expect("the group Alice moved out of stays open");
     assert!(
-        channels.get(&first).await.is_none(),
-        "the emptied previous group is closed"
+        previous.players.is_empty(),
+        "Alice is no longer a member of it"
     );
 }
 
@@ -469,8 +539,8 @@ async fn join_group_moves_actor_out_of_previous_group() {
         "the join replaced the previous membership"
     );
     assert!(
-        channels.get(&own).await.is_none(),
-        "the emptied previous group is closed"
+        channels.get(&own).await.is_some(),
+        "the group Alice moved out of stays open"
     );
 }
 
@@ -586,5 +656,91 @@ async fn one_identity_keys_both_self_delivery_and_group_membership() {
             .players
             .contains(&identity(ACTOR)),
         "group membership resolves the same identity, not a second form of it"
+    );
+}
+
+#[tokio::test]
+async fn a_created_group_is_keyed_by_its_share_code() {
+    let channels = ChannelCollection::new(64);
+    let (webhook, mut _rx) = test_webhook();
+
+    let id = ClientActionService::route_group(
+            &ClientActionType::CreateGroup,
+            &identity("minecraft:Alice"),
+            &channels,
+            &webhook,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(
+        GroupCode::normalize(&id).as_deref(),
+        Some(id.as_str()),
+        "the id a create returns must be a canonical share code: {id}"
+    );
+}
+
+#[tokio::test]
+async fn a_join_forgives_case_spacing_and_the_dash() {
+    // The code is read off another player's screen and typed by hand.
+    let channels = ChannelCollection::new(64);
+    let (webhook, mut _rx) = test_webhook();
+    let alice = identity("minecraft:Alice");
+    let bob = identity("minecraft:Bob");
+
+    let id = ClientActionService::route_group(
+            &ClientActionType::CreateGroup,
+            &alice,
+            &channels,
+            &webhook,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    let typed = id.replace('-', "").to_lowercase();
+
+    ClientActionService::route_group(
+        &ClientActionType::JoinGroup { channel: typed },
+        &bob,
+        &channels,
+        &webhook,
+    )
+    .await
+    .expect("a dashless lowercase code must join");
+
+    assert!(channels.get(&id).await.unwrap().players.contains(&bob));
+}
+
+#[tokio::test]
+async fn a_join_with_a_code_of_the_wrong_shape_errors_without_disturbing_membership() {
+    let channels = ChannelCollection::new(64);
+    let (webhook, mut _rx) = test_webhook();
+    let alice = identity("minecraft:Alice");
+
+    let id = ClientActionService::route_group(
+            &ClientActionType::CreateGroup,
+            &alice,
+            &channels,
+            &webhook,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+    let result = ClientActionService::route_group(
+        &ClientActionType::JoinGroup {
+            channel: "not a code".into(),
+        },
+        &alice,
+        &channels,
+        &webhook,
+    )
+    .await;
+
+    assert!(result.is_err(), "a malformed code must error");
+    assert!(
+        channels.get(&id).await.unwrap().players.contains(&alice),
+        "a malformed code must not move the actor out of their group"
     );
 }

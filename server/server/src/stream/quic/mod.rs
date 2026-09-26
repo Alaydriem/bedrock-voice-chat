@@ -113,7 +113,7 @@ impl QuicServerManager {
                     self.connection_registry.clone(),
                     self.cache_manager.clone(),
                     self.config.voice.spatial_audio.broadcast_range,
-                    self.config.voice.spatial_audio.deafen_distance,
+                    self.config.voice.spatial_audio.whisper_distance,
                     self.webhook_receiver.clone(),
                     self.config.voice.send_batch_wait_micros,
                 )
@@ -256,7 +256,7 @@ impl StreamTrait for QuicServerManager {
         let connection_registry = self.connection_registry.clone();
         let player_cache = cache_manager.players().inner_arc();
         let broadcast_range = self.config.voice.spatial_audio.broadcast_range;
-        let deafen_distance = self.config.voice.spatial_audio.deafen_distance;
+        let whisper_distance = self.config.voice.spatial_audio.whisper_distance;
         let mut shutdown_rx = self
             .shutdown_rx
             .take()
@@ -301,7 +301,7 @@ impl StreamTrait for QuicServerManager {
                                     speaker.as_ref(),
                                     &player_cache,
                                     broadcast_range,
-                                    deafen_distance,
+                                    whisper_distance,
                                 )
                                 .await;
                         }

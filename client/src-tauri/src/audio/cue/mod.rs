@@ -1,6 +1,8 @@
+mod announcer;
 mod policy;
 mod sink;
 
+pub use announcer::CueAnnouncer;
 pub use policy::CuePolicy;
 pub use sink::CueSink;
 
@@ -11,12 +13,19 @@ use crate::audio::tone::{Tone, ToneSpec};
 /// Descending for off, ascending for on, which is the convention every other voice client
 /// uses and therefore the one that needs no explaining. Mute is two notes and deafen is
 /// three, so the two states are distinguishable by ear rather than by counting semitones.
+///
+/// The group pair sits a register above both, because it answers a different question.
+/// Pitch separates "where am I" from "what is my microphone doing" faster than note count
+/// does, and the two families are heard within a second of each other every time somebody
+/// joins a group muted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Cue {
     Mute,
     Unmute,
     Deafen,
     Undeafen,
+    GroupJoin,
+    GroupLeave,
 }
 
 impl Cue {
@@ -63,12 +72,32 @@ impl Cue {
         duration_seconds: 0.26,
     };
 
+    const GROUP_JOIN: ToneSpec = ToneSpec {
+        notes: &[(880.0, 0.0), (1174.66, 0.055)],
+        partials: &Cue::PARTIALS,
+        decay_seconds: Cue::DECAY_SECONDS,
+        attack_seconds: Cue::ATTACK_SECONDS,
+        peak: Cue::PEAK,
+        duration_seconds: 0.20,
+    };
+
+    const GROUP_LEAVE: ToneSpec = ToneSpec {
+        notes: &[(1174.66, 0.0), (880.0, 0.055)],
+        partials: &Cue::PARTIALS,
+        decay_seconds: Cue::DECAY_SECONDS,
+        attack_seconds: Cue::ATTACK_SECONDS,
+        peak: Cue::PEAK,
+        duration_seconds: 0.20,
+    };
+
     fn spec(&self) -> ToneSpec {
         match self {
             Cue::Mute => Cue::MUTE,
             Cue::Unmute => Cue::UNMUTE,
             Cue::Deafen => Cue::DEAFEN,
             Cue::Undeafen => Cue::UNDEAFEN,
+            Cue::GroupJoin => Cue::GROUP_JOIN,
+            Cue::GroupLeave => Cue::GROUP_LEAVE,
         }
     }
 

@@ -7,6 +7,8 @@ pub const CTL_PREFIX: &str = "bvc:ctl:";
 pub enum CtlMessage {
     Action(ClientActionType),
     Sync { targets: Vec<String> },
+    // The panel's request for the server's group list, answered with `gl` and `g` rides.
+    Groups,
 }
 
 pub struct CtlCodec;
@@ -36,6 +38,10 @@ impl CtlCodec {
 
     pub fn encode_sync(targets: &[String]) -> String {
         format!("{CTL_PREFIX}sync:{}", targets.join(","))
+    }
+
+    pub fn encode_groups() -> String {
+        format!("{CTL_PREFIX}groups")
     }
 
     pub fn decode(name: &str) -> Option<CtlMessage> {
@@ -68,6 +74,7 @@ impl CtlCodec {
                 "leave" => CtlMessage::Action(ClientActionType::LeaveGroup),
                 _ => return None,
             },
+            "groups" => CtlMessage::Groups,
             "sync" => {
                 let targets = match it.next() {
                     Some(s) if !s.is_empty() => s.split(',').map(str::to_string).collect(),

@@ -56,15 +56,26 @@ impl SpeakerStateCache {
                 self.states.insert(key.to_string(), state.clone());
                 Some(state)
             }
-            // A frame carrying no position reads, and does not write: a speaker whose
-            // position never arrives must still age out of the cache.
+            // A frame carrying no position never overwrites a cached one — the last known
+            // position is the whole reason later frames can be placed. It does record a name
+            // this key had none for: a speaker with no position is named by the attach
+            // heartbeat and by no frame in between, so without this the frames in between
+            // resolve to nothing and are discarded, and a group member who has not reported a
+            // position is heard one frame in eight.
+            //
+            // Aging is unaffected. `time_to_idle` is refreshed by the read below either way,
+            // so an entry still lapses once the speaker stops sending.
             None => {
                 let cached = self.states.get(key);
                 let name = named.or_else(|| cached.as_ref().map(|s| s.name.clone()))?;
-                Some(SpeakerState {
+                let state = SpeakerState {
                     name,
-                    speaker: cached.and_then(|s| s.speaker),
-                })
+                    speaker: cached.as_ref().and_then(|s| s.speaker.clone()),
+                };
+                if cached.is_none() {
+                    self.states.insert(key.to_string(), state.clone());
+                }
+                Some(state)
             }
         }
     }

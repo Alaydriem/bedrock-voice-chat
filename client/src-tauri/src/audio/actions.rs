@@ -17,49 +17,30 @@ impl AudioActionsManager {
         Self { app_handle }
     }
 
-    /// Whether mute and deafen announce themselves.
-    ///
-    /// Read from the store on each change rather than cached. The plugin keeps the file in
-    /// memory so this is a map lookup, and one copy cannot drift from the settings pane the
-    /// way a mirrored flag would.
-    ///
-    /// An absent key is on. Every install that predates this feature has no key, and reading
-    /// that as off would ship the feature switched off for everyone who already has BVC.
-    fn cues_enabled(&self) -> bool {
-        self.app_handle
-            .store("store.json")
-            .ok()
-            .and_then(|store| store.get("mute_cues_enabled"))
-            .and_then(|value| value.as_bool())
-            .unwrap_or(true)
-    }
-
     /// Announce a mute change that actually happened.
     fn play_cue(&self, device: &AudioDeviceType, previous: bool, next: bool) {
         let Some(cue) = crate::audio::CuePolicy::for_change(device, previous, next) else {
             return;
         };
-        if !self.cues_enabled() {
-            return;
-        }
-        if let Some(sink) = self.app_handle.try_state::<Arc<crate::audio::CueSink>>() {
-            sink.play(cue);
-        }
+        crate::audio::CueAnnouncer::new(&self.app_handle).play(cue);
     }
 
-    /// Toggle mute for a device, emit `mute:{device}` event, return new mute status.
-    pub async fn toggle_mute(&self, device: AudioDeviceType) -> bool {
+    /// Flip the microphone, emit `mute:input`, and report the state it reached.
+    ///
+    /// The microphone only, with no device parameter. Muting the output device is deafen and
+    /// has to take the input with it, so one toggle spanning both devices let a caller ask
+    /// for a half-deafen no surface wants. `toggle_deafened` is the other half of this pair,
+    /// and between them the state is unreachable.
+    pub async fn toggle_input_mute(&self) -> bool {
+        let device = AudioDeviceType::InputDevice;
         let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
-        let mut asm = asm.lock().await;
-        let previous = asm.mute_status(&device).await.unwrap_or(false);
-        let _ = asm.toggle(&device, StreamEvent::Mute).await;
-        let status = asm.mute_status(&device).await.unwrap_or(false);
-        drop(asm);
+        let mut guard = asm.lock().await;
+        let previous = guard.mute_status(&device).await.unwrap_or(false);
+        let (_, status) = Self::drive_mute(&mut guard, &device, !previous).await;
+        drop(guard);
 
         self.play_cue(&device, previous, status);
-
-        let mute_event = MuteEvent::from(&device);
-        self.app_handle.emit(&mute_event.to_string(), status).ok();
+        self.emit_mute(&device, status);
 
         status
     }
@@ -101,27 +82,42 @@ impl AudioActionsManager {
     }
 
     /// The body of `set_mute`, with a say in whether the change announces itself.
-    ///
-    /// Deafening drives two devices, and each leg reaching this with `cue` set would play
-    /// three tones over one keypress. The deafen path emits once, for the state the user
-    /// actually changed, and silences both legs here.
     async fn apply_mute(&self, device: AudioDeviceType, desired: bool, cue: bool) -> bool {
         let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
-        let mut asm = asm.lock().await;
-        let previous = asm.mute_status(&device).await.unwrap_or(false);
-        if previous != desired {
-            let _ = asm.toggle(&device, StreamEvent::Mute).await;
-        }
-        let status = asm.mute_status(&device).await.unwrap_or(false);
-        drop(asm);
+        let mut guard = asm.lock().await;
+        let (previous, status) = Self::drive_mute(&mut guard, &device, desired).await;
+        drop(guard);
 
         if cue {
             self.play_cue(&device, previous, status);
         }
 
-        let mute_event = MuteEvent::from(&device);
-        self.app_handle.emit(&mute_event.to_string(), status).ok();
+        self.emit_mute(&device, status);
         status
+    }
+
+    /// Drive one device to `desired` under a guard the caller holds, reporting
+    /// `(previous, reached)`.
+    ///
+    /// The guard belongs to the caller because deafen moves two devices, and a lock released
+    /// between them lets another surface land in the middle and leave the pair half applied.
+    async fn drive_mute(
+        asm: &mut AudioStreamManager,
+        device: &AudioDeviceType,
+        desired: bool,
+    ) -> (bool, bool) {
+        let previous = asm.mute_status(device).await.unwrap_or(false);
+        if previous != desired {
+            let _ = asm.toggle(device, StreamEvent::Mute).await;
+        }
+        (previous, asm.mute_status(device).await.unwrap_or(false))
+    }
+
+    /// Tell every surface what a device settled on. Callers emit after dropping the guard,
+    /// so a deafen announces the pair it reached rather than one device mid-transition.
+    fn emit_mute(&self, device: &AudioDeviceType, status: bool) {
+        let mute_event = MuteEvent::from(device);
+        self.app_handle.emit(&mute_event.to_string(), status).ok();
     }
 
     /// Deafen, and the mute that has to come with it.
@@ -132,26 +128,52 @@ impl AudioActionsManager {
     /// second button they have no reason to suspect.
     ///
     /// The pairing lives here rather than in each caller so the in-game action, the global
-    /// hotkey and the app cannot disagree about what deafen means. Each leg still emits its
-    /// own `mute:*` event, which is how every surface learns the resulting pair.
-    /// Deafen, and put the microphone back where the voice mode says it belongs.
-    ///
-    /// Coming out of deafen used to open the input unconditionally. In push-to-talk that is
-    /// the wrong resting state — the microphone is supposed to be shut until the button is
-    /// held — so undeafening left it live, and the mic button, which reads the same flag,
-    /// disagreed with the mode it was drawing.
+    /// hotkey, a controller and the app cannot disagree about what deafen means. Each leg
+    /// still emits its own `mute:*` event, which is how every surface learns the resulting
+    /// pair.
     pub async fn set_deafened(&self, desired: bool) -> bool {
-        let previous = self.is_muted(AudioDeviceType::OutputDevice).await;
+        self.apply_deafen(|_| desired).await;
+        desired
+    }
 
-        let next = self
-            .apply_mute(AudioDeviceType::OutputDevice, desired, false)
-            .await;
-        self.apply_mute(
-            AudioDeviceType::InputDevice,
-            desired || self.input_rests_muted().await,
-            false,
+    /// Flip deafen, for a surface that can only toggle.
+    ///
+    /// A hotkey and a controller button both arrive as a toggle — neither can read state
+    /// first, so neither can call `set_deafened`. Lacking this, both muted the output device
+    /// on its own and left the microphone open, which is the one state deafen exists to
+    /// prevent.
+    pub async fn toggle_deafened(&self) -> bool {
+        self.apply_deafen(|previous| !previous).await
+    }
+
+    /// The deafen transition every surface shares, reporting the deafen state reached.
+    ///
+    /// `resolve` turns the state read under the guard into the state wanted, which is the
+    /// only thing that separates a toggle from an absolute set. Reading inside the guard is
+    /// what makes the toggle safe: read and flip across a lock boundary lets a second press
+    /// land between them and leaves the pair permanently inverted.
+    async fn apply_deafen(&self, resolve: impl FnOnce(bool) -> bool) -> bool {
+        // Read before the audio lock is taken. This consults the keybind listener, and
+        // `query_state` already holds the audio lock while doing the same — taking them in
+        // the other order here would be the second half of a deadlock.
+        let input_rests_muted = self.input_rests_muted().await;
+
+        let asm = self.app_handle.state::<Mutex<AudioStreamManager>>();
+        let mut guard = asm.lock().await;
+        let previous = guard
+            .mute_status(&AudioDeviceType::OutputDevice)
+            .await
+            .unwrap_or(false);
+        let desired = resolve(previous);
+        let (_, output) =
+            Self::drive_mute(&mut guard, &AudioDeviceType::OutputDevice, desired).await;
+        let (_, input) = Self::drive_mute(
+            &mut guard,
+            &AudioDeviceType::InputDevice,
+            Self::deafen_input_target(desired, input_rests_muted),
         )
         .await;
+        drop(guard);
 
         // Cued from the state the flag reached rather than the one that was asked for, so a
         // refused change stays silent instead of announcing itself.
@@ -159,9 +181,21 @@ impl AudioActionsManager {
         // One cue for one press, and it reports the deafen rather than the microphone that
         // moved with it. Undeafening in push-to-talk leaves the microphone muted on purpose,
         // so a cue per leg would announce an unmute that did not happen.
-        self.play_cue(&AudioDeviceType::OutputDevice, previous, next);
+        self.play_cue(&AudioDeviceType::OutputDevice, previous, output);
 
-        desired
+        self.emit_mute(&AudioDeviceType::OutputDevice, output);
+        self.emit_mute(&AudioDeviceType::InputDevice, input);
+
+        output
+    }
+
+    /// Where deafen leaves the microphone.
+    ///
+    /// Deafening always shuts it. Undeafening opens it only where an idle microphone belongs
+    /// open: in push-to-talk the resting state is shut, and an undeafen that opened it left
+    /// the mic button — which reads the same flag — drawing the opposite of its mode.
+    pub fn deafen_input_target(deafened: bool, input_rests_muted: bool) -> bool {
+        deafened || input_rests_muted
     }
 
     /// Whether an idle microphone belongs muted. True in push-to-talk, where only the hold

@@ -27,7 +27,7 @@ fn jukebox_player() -> PlayerEnum {
         },
         orientation: Orientation { x: 0.0, y: 0.0 },
         dimension: Dimension::Overworld,
-        deafen: false,
+        whispering: false,
         spectator: false,
         world_uuid: Some("world-abc".to_string()),
         alternative_identity: None,

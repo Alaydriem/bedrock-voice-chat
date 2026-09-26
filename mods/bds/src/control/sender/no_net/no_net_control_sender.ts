@@ -21,6 +21,12 @@ export class NoNetControlSender implements ControlSender {
     await this.playCtl(ControlCodec.encodeSync(targets), actor);
   }
 
+  // The panel's group-list request: the proxy answers with a header ride and one
+  // ride per group.
+  async requestGroups(actor: Player): Promise<void> {
+    await this.playCtl(ControlCodec.encodeGroups(), actor);
+  }
+
   private async playCtl(name: string, actor: Player): Promise<void> {
     // Yield to a fresh tick so playSound runs outside any read-only command
     // callback context (mirrors NoNetAudioSender).

@@ -150,15 +150,27 @@ impl PeerRegistry {
     pub fn peers(&self) -> Vec<PeerDiagnostics> {
         let mut by_name: Vec<(String, PeerDiagnostics)> = Vec::new();
 
-        for (_, stats) in self.entries.iter() {
+        for (key, stats) in self.entries.iter() {
             if stats.is_idle() {
                 continue;
             }
 
             let name = stats.name().to_string();
-            match by_name.iter_mut().find(|(existing, _)| existing == &name) {
-                Some((_, base)) => stats.merge_into(base),
-                None => by_name.push((name, stats.to_diagnostics())),
+            let index = match by_name.iter().position(|(existing, _)| existing == &name) {
+                Some(index) => {
+                    stats.merge_into(&mut by_name[index].1);
+                    index
+                }
+                None => {
+                    by_name.push((name, stats.to_diagnostics()));
+                    by_name.len() - 1
+                }
+            };
+
+            let record = &mut by_name[index].1;
+            match key.1 {
+                PeerRoute::Spatial => record.spatial_gap_frames += stats.gap_frames(),
+                PeerRoute::Normal => record.normal_gap_frames += stats.gap_frames(),
             }
         }
 

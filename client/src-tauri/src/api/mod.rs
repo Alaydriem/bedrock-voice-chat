@@ -22,7 +22,6 @@ use common::reqwest::{
     Client as ReqwestClient, StatusCode,
     header::{HeaderMap, HeaderValue},
 };
-use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -105,7 +104,7 @@ impl Api {
                         attempt,
                         MAX_SEND_ATTEMPTS,
                         self.endpoint,
-                        Self::error_chain(&e)
+                        common::net::ErrorChain::render(&e)
                     );
                     tokio::time::sleep(RETRY_BASE_DELAY * attempt).await;
                     current = retry.unwrap();
@@ -117,7 +116,7 @@ impl Api {
                         "Request to {} failed after {} attempt(s): {}",
                         self.endpoint,
                         attempt,
-                        Self::error_chain(&e)
+                        common::net::ErrorChain::render(&e)
                     );
 
                     // Only the failure that opens an outage is an error. A client
@@ -141,21 +140,6 @@ impl Api {
                 }
             }
         }
-    }
-
-    /// Render a reqwest error with its full `source()` chain. The top-level
-    /// Display ("error sending request for url (...)") omits the underlying
-    /// cause — connect timeout, TLS failure, reset — which is the part that
-    /// identifies the fault.
-    fn error_chain(e: &common::reqwest::Error) -> String {
-        let mut out = e.to_string();
-        let mut source = e.source();
-        while let Some(cause) = source {
-            out.push_str(": ");
-            out.push_str(&cause.to_string());
-            source = cause.source();
-        }
-        out
     }
 
     pub(crate) fn endpoint(&self) -> &str {

@@ -60,7 +60,7 @@ fn each_connection_numbers_independently() {
 #[test]
 fn a_packet_that_is_never_stamped_consumes_no_sequence_number() {
     // The invariant the whole mechanism rests on. The router drops recipients for proximity,
-    // channel membership and deafen distance before stamping; if a number were consumed by a packet
+    // channel membership and whisper distance before stamping; if a number were consumed by a packet
     // that is never sent, the client would see a gap that was never loss and report phantom loss.
     let sequence = ConnectionSequence::new_shared();
     let mut packet = envelope();

@@ -273,3 +273,53 @@ async fn preference_change_reaches_server_cache() {
         "reporter must push Alice's volume preference for Bob to the server cache"
     );
 }
+
+/// Crouch-to-whisper is the speaker's choice, and the server is what enforces it, so the choice
+/// has to reach the server's preference cache under the reserved target. Off must reach it too:
+/// a player who turns the setting back off has to be heard normally again without reconnecting.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_whisper_choice_reaches_the_server_both_ways() {
+    let data_dir = tempfile::tempdir().expect("create temp data dir");
+
+    let rocket_port = EmbeddedServer::free_port_tcp();
+    let quic_port = EmbeddedServer::free_port_udp();
+
+    let config_json = EmbeddedServer::config_json(rocket_port, quic_port, data_dir.path());
+    let certs_path = data_dir.path().join("certificates");
+
+    let lib = EmbeddedServer::load_library();
+    let server =
+        EmbeddedServer::start(lib, &config_json, rocket_port, quic_port, &certs_path).await;
+
+    let alice_code = server.login_code("Alice");
+    let url = format!("https://127.0.0.1:{}", server.rocket_port());
+
+    let alice = ClientProc::spawn("Alice", &alice_code, &url, "ctlwhisper");
+    alice
+        .await_connected(Duration::from_secs(30))
+        .expect("Alice connects");
+
+    let whisper = common::consts::audio::WHISPER_CONTROL_TARGET;
+
+    alice.set_crouch_whisper(true);
+    let on = server
+        .await_preference(
+            "Alice",
+            whisper,
+            |p| p["muted"] == serde_json::Value::Bool(true),
+            Duration::from_secs(10),
+        )
+        .await;
+    assert!(on.is_some(), "turning the setting on must reach the server");
+
+    alice.set_crouch_whisper(false);
+    let off = server
+        .await_preference(
+            "Alice",
+            whisper,
+            |p| p["muted"] == serde_json::Value::Bool(false),
+            Duration::from_secs(10),
+        )
+        .await;
+    assert!(off.is_some(), "turning the setting off must reach the server");
+}

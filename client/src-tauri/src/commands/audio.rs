@@ -220,6 +220,17 @@ pub(crate) async fn set_jukebox_gain(
     Ok(reached)
 }
 
+/// Choose whether crouching or crawling limits this player's voice to the whisper range.
+#[tauri::command]
+pub(crate) async fn set_crouch_whisper(
+    enabled: bool,
+    app_handle: AppHandle,
+) -> Result<bool, String> {
+    crate::control::WhisperSetting::apply(&app_handle, enabled)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Flip it, for a control that cannot read the current value first.
 #[tauri::command]
 pub(crate) async fn toggle_jukebox_muted(
@@ -299,13 +310,21 @@ pub(crate) async fn get_devices() -> Result<HashMap<String, Vec<AudioDevice>>, (
     return crate::audio::device::AudioDeviceEnumerator::get_devices();
 }
 
-// Toggle mutes a given input stream
+/// Toggle mute for a device. The output device is deafen — see
+/// `AudioActionsManager::toggle_deafened` — so it drives the input as well.
 #[tauri::command]
 pub(crate) async fn mute(
     device: AudioDeviceType,
     actions: State<'_, AudioActionsManager>,
 ) -> Result<(), ()> {
-    actions.toggle_mute(device).await;
+    match device {
+        AudioDeviceType::OutputDevice => {
+            actions.toggle_deafened().await;
+        }
+        AudioDeviceType::InputDevice => {
+            actions.toggle_input_mute().await;
+        }
+    }
     actions.broadcast_state().await;
     Ok(())
 }

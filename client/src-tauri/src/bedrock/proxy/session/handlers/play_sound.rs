@@ -41,15 +41,6 @@ impl<'a> PlaySoundHandler<'a> {
         }
     }
 
-    fn position(packet: &PlaySoundPacketAny) -> &BlockPos {
-        match packet {
-            PlaySoundPacketAny::V897(p) => &p.position,
-            PlaySoundPacketAny::V944(p) => &p.position,
-            PlaySoundPacketAny::V975(p) => &p.position,
-            PlaySoundPacketAny::V2168(p) => &p.position,
-        }
-    }
-
     fn parse(name: &str, position: &BlockPos) -> Option<JukeboxCommand> {
         let pos = Self::block_coords(position);
         if let Some(rest) = name.strip_prefix(PLAY) {
@@ -117,12 +108,18 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
                     state.arm_bvcs();
                     self.state_bus.sync(targets);
                 }
+                Some(CtlMessage::Groups) => {
+                    // Same proof as sync: only the addon's panel asks for the group
+                    // list, so its arrival is what makes rides safe to inject.
+                    state.arm_bvcs();
+                    self.state_bus.groups();
+                }
                 None => {}
             }
             return;
         }
 
-        let command = match Self::parse(name, Self::position(packet)) {
+        let command = match Self::parse(name, packet.position()) {
             Some(c) => c,
             None => return,
         };

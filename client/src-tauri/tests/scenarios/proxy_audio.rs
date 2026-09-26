@@ -13,7 +13,7 @@ use crate::harness::proxy_world::ProxyWorld;
 /// PlayerAuthInput position drive does not error.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_single_player_attaches_to_upstream() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice"]).await;
         // Drive a non-default position via PlayerAuthInput; if the proxy were in
         // transparent-relay mode it would never decode this, so reaching here with
@@ -38,7 +38,7 @@ async fn proxy_single_player_attaches_to_upstream() {
 /// buffer without a second sleep, keeping total wall time to one capture window.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_two_players_in_range_hear_each_other() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice", "Bob"]).await;
 
         // Drive co-located positions via PlayerAuthInput. Loop so the proxy's
@@ -118,7 +118,7 @@ async fn proxy_two_players_in_range_hear_each_other() {
 /// become muted, proving the proxy applies self-actions in-process.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_ctl_mute_local() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice"]).await;
 
         for _ in 0..3 {
@@ -154,7 +154,7 @@ async fn proxy_ctl_mute_local() {
 /// current_group overlay AND at the client's channel_event render trigger.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_ctl_group_create_reaches_server() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice"]).await;
 
         for _ in 0..3 {
@@ -210,7 +210,7 @@ async fn proxy_ctl_group_create_reaches_server() {
 /// game. It has to land on `minecraft:Bob`, or the mixer's gain projection never resolves it.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_ctl_volume_and_hear_apply_locally() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice"]).await;
 
         for _ in 0..3 {
@@ -253,7 +253,7 @@ async fn proxy_ctl_volume_and_hear_apply_locally() {
 /// with a snapshot ride and subsequent local changes keep riding.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_bvcs_reverse_ride_reports_state_only_after_sync_arms() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice"]).await;
 
         for _ in 0..3 {
@@ -324,7 +324,7 @@ async fn proxy_bvcs_reverse_ride_reports_state_only_after_sync_arms() {
 /// channel).
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_bvc_ctl_does_not_disrupt_proximity_audio() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice", "Bob"]).await;
 
         for _ in 0..5 {
@@ -384,7 +384,7 @@ async fn proxy_bvc_ctl_does_not_disrupt_proximity_audio() {
 /// captured buffer is RMS-silent.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_out_of_range_cannot_hear() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice", "Bob"]).await;
 
         // PHASE 1: in-range baseline. Co-locate 1 block apart.
@@ -454,7 +454,7 @@ async fn proxy_out_of_range_cannot_hear() {
 /// out to the other two. A single 4 500 ms window covers all three paced sends.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_three_players_in_range_all_hear() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice", "Bob", "Carol"]).await;
 
         for _ in 0..5 {
@@ -534,7 +534,7 @@ async fn proxy_three_players_in_range_all_hear() {
 /// router.
 #[tokio::test(flavor = "multi_thread")]
 async fn proxy_two_isolated_pairs_audio_within_not_across() {
-    for v in ProtocolMatrix::last_two() {
+    for v in ProtocolMatrix::coverage() {
         let mut w = ProxyWorld::boot(v, &["Alice", "Bob", "Carol", "Dave"]).await;
 
         for _ in 0..5 {

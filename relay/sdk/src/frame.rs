@@ -101,7 +101,7 @@ impl From<SdkFrame> for VoiceFrame {
                 // a modded dimension must still be audible somewhere, and the wire
                 // type has no variant meaning "unknown".
                 dimension: Dimension::from(frame.dimension.as_str()),
-                deafen: false,
+                whispering: false,
                 spectator: false,
                 world_uuid: None,
                 alternative_identity: None,

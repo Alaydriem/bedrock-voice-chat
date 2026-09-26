@@ -24,7 +24,7 @@ impl RecordingPlayerData {
     /// read off the sender, because a reduced sender names only a device.
     ///
     /// `player_data` is composed by the caller too. The recorded header has always held a whole
-    /// player and the renderer reads a position and a deafened flag back out of it, but the
+    /// player and the renderer reads a position and a whispering flag back out of it, but the
     /// frame carries only those two facts now — so the caller builds one rather than this
     /// reading a wire type.
     pub fn from_speaker(

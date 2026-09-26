@@ -94,8 +94,8 @@ impl BedrockSessionState {
         }
     }
 
-    pub fn apply_change_dimension(&mut self, p: &ChangeDimensionPacket) {
-        self.dimension = Self::dimension_from_i32(p.dimension_id.value);
+    pub fn apply_change_dimension(&mut self, dimension: i32) {
+        self.dimension = Self::dimension_from_i32(dimension);
         debug!("Bedrock state: ChangeDimension -> {:?}", self.dimension);
     }
 
@@ -116,7 +116,7 @@ impl BedrockSessionState {
             coordinates: self.coordinates.clone(),
             orientation: self.orientation.clone(),
             dimension: self.dimension.clone(),
-            deafen: self.sneaking,
+            whispering: self.sneaking,
             spectator: self.spectator,
             world_uuid: None,
             alternative_identity: None,
@@ -132,7 +132,7 @@ impl BedrockSessionState {
             coordinates: self.coordinates.clone(),
             orientation: self.orientation.clone(),
             dimension: Dimension::Death,
-            deafen: self.sneaking,
+            whispering: self.sneaking,
             spectator: true,
             world_uuid: None,
             alternative_identity: None,

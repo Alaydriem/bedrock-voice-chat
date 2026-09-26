@@ -8,8 +8,13 @@ import type { KeybindConfig } from "../../../bindings/KeybindConfig";
 import type { VoiceMode } from "../../../bindings/VoiceMode";
 import type { VoiceRuntimeState } from "../../../bindings/VoiceRuntimeState";
 import { AppStore } from "../../services/AppStore";
+import { BackendControl } from "./BackendControl";
 
 export class AudioSettingsManager {
+    // Long enough to fold a slider drag into one request, short enough that a switch still
+    // reaches the backend before anyone notices.
+    private static readonly SETTLE_DELAY_MS = 100;
+
     private readonly platformDetector: PlatformDetector;
 
     private storeStore: Writable<Store | undefined>;
@@ -22,14 +27,17 @@ export class AudioSettingsManager {
     public readonly voiceMode: Readable<VoiceMode>;
     private panningIntensityStore: Writable<number>;
     public readonly panningIntensity: Readable<number>;
-    private jukeboxGainStore: Writable<number>;
+    private readonly jukeboxGainControl: BackendControl<number>;
     /** Percent, 0–150. The store holds the fraction; this is what a slider shows. */
     public readonly jukeboxGain: Readable<number>;
-    private jukeboxMutedStore: Writable<boolean>;
+    private readonly jukeboxMutedControl: BackendControl<boolean>;
     public readonly jukeboxMuted: Readable<boolean>;
     private muteCuesStore: Writable<boolean>;
-    /** Whether mute and deafen announce themselves with a tone. */
+    /** Whether mute, deafen and group membership announce themselves with a tone. */
     public readonly muteCues: Readable<boolean>;
+    private readonly crouchWhisperControl: BackendControl<boolean>;
+    /** Whether crouching or crawling limits this player's voice to a few blocks. */
+    public readonly crouchWhisper: Readable<boolean>;
     private voiceModeErrorStore: Writable<string>;
     /** Why the last mode change did not take, or empty. */
     public readonly voiceModeError: Readable<string>;
@@ -49,12 +57,32 @@ export class AudioSettingsManager {
         this.voiceMode = { subscribe: this.voiceModeStore.subscribe };
         this.panningIntensityStore = writable(80);
         this.panningIntensity = { subscribe: this.panningIntensityStore.subscribe };
-        this.jukeboxGainStore = writable(100);
-        this.jukeboxGain = { subscribe: this.jukeboxGainStore.subscribe };
-        this.jukeboxMutedStore = writable(false);
-        this.jukeboxMuted = { subscribe: this.jukeboxMutedStore.subscribe };
+        // Each control recovers from `store.json`, which the backend writes only once a change
+        // has been applied, so after a refusal it still holds the value in effect.
+        this.jukeboxGainControl = new BackendControl<number>(
+            100,
+            async (percent) =>
+                Math.round((await invoke<number>("set_jukebox_gain", { gain: percent / 100 })) * 100),
+            async () => Math.round(((await this.savedValue<number>("jukebox_gain")) ?? 1) * 100),
+            AudioSettingsManager.SETTLE_DELAY_MS,
+        );
+        this.jukeboxGain = this.jukeboxGainControl.value;
+        this.jukeboxMutedControl = new BackendControl<boolean>(
+            false,
+            (muted) => invoke<boolean>("set_jukebox_muted", { muted }),
+            async () => (await this.savedValue<boolean>("jukebox_muted")) ?? false,
+            AudioSettingsManager.SETTLE_DELAY_MS,
+        );
+        this.jukeboxMuted = this.jukeboxMutedControl.value;
         this.muteCuesStore = writable(true);
         this.muteCues = { subscribe: this.muteCuesStore.subscribe };
+        this.crouchWhisperControl = new BackendControl<boolean>(
+            false,
+            (enabled) => invoke<boolean>("set_crouch_whisper", { enabled }),
+            async () => (await this.savedValue<boolean>("crouch_whisper_enabled")) ?? false,
+            AudioSettingsManager.SETTLE_DELAY_MS,
+        );
+        this.crouchWhisper = this.crouchWhisperControl.value;
         this.voiceModeErrorStore = writable("");
         this.voiceModeError = { subscribe: this.voiceModeErrorStore.subscribe };
     }
@@ -72,12 +100,12 @@ export class AudioSettingsManager {
 
         const savedJukeboxGain = await store.get<number>("jukebox_gain");
         if (savedJukeboxGain !== null && savedJukeboxGain !== undefined) {
-            this.jukeboxGainStore.set(Math.round(savedJukeboxGain * 100));
+            this.jukeboxGainControl.set(Math.round(savedJukeboxGain * 100));
         }
 
         const savedJukeboxMuted = await store.get<boolean>("jukebox_muted");
         if (savedJukeboxMuted !== null && savedJukeboxMuted !== undefined) {
-            this.jukeboxMutedStore.set(savedJukeboxMuted);
+            this.jukeboxMutedControl.set(savedJukeboxMuted);
         }
 
         // An absent key is on, not off. Nothing writes this key until the user touches the
@@ -85,17 +113,21 @@ export class AudioSettingsManager {
         const savedMuteCues = await store.get<boolean>("mute_cues_enabled");
         this.muteCuesStore.set(savedMuteCues ?? true);
 
+        // An absent key is off: the choice is opt-in.
+        const savedCrouchWhisper = await store.get<boolean>("crouch_whisper_enabled");
+        this.crouchWhisperControl.set(savedCrouchWhisper ?? false);
+
         // A WebSocket controller or the in-game panel changes this without the pane being asked,
         // and the switch reads this store. Without the listener it keeps drawing the pre-change
         // state for as long as it stays mounted.
         this.unlistenJukeboxMuted = await listen<boolean>("jukebox_muted_updated", (event) =>
-            this.jukeboxMutedStore.set(event.payload),
+            this.jukeboxMutedControl.set(event.payload),
         );
 
         // The same for the level, which the slider reads. The payload is the fraction the backend
         // applied, which is the requested value clamped, so this also corrects an out-of-range ask.
         this.unlistenJukeboxGain = await listen<number>("jukebox_gain_updated", (event) =>
-            this.jukeboxGainStore.set(Math.round(event.payload * 100)),
+            this.jukeboxGainControl.set(Math.round(event.payload * 100)),
         );
 
         const saved = await store.get<KeybindConfig>("keybinds");
@@ -133,15 +165,15 @@ export class AudioSettingsManager {
      * metadata a rebuild restores from, and `store.json` — and emits the event that moves this
      * store. Writing any of them from here as well is how they drift, so this only asks.
      *
-     * The store is still set optimistically, like the mute switch: the slider has to move under
-     * the finger rather than a round trip later, and the event reconciles it either way.
+     * The slider moves under the finger, a drag sends one request for where it stopped, and the
+     * slider then settles on the level the backend applied — clamped, or the saved level if the
+     * request failed.
      *
      * The mute flag is deliberately untouched. They are separate controls on every surface, so a
      * level set while muted is the level that comes back on unmute.
      */
     async handleJukeboxGainChange(percent: number): Promise<void> {
-        this.jukeboxGainStore.set(percent);
-        await invoke("set_jukebox_gain", { gain: percent / 100 });
+        await this.jukeboxGainControl.request(percent);
     }
 
     /**
@@ -151,12 +183,11 @@ export class AudioSettingsManager {
      * a rebuild restores from, and `store.json` — and emits the event that moves this store.
      * Writing any of them from here as well is how they drift, so this only asks.
      *
-     * The store is still set optimistically: the switch has to move under the finger rather than
-     * a round trip later, and the event reconciles it either way.
+     * The switch moves under the finger, then settles on the flag the backend reached, or the
+     * saved flag if the request failed.
      */
     async handleJukeboxMutedChange(muted: boolean): Promise<void> {
-        this.jukeboxMutedStore.set(muted);
-        await invoke("set_jukebox_muted", { muted });
+        await this.jukeboxMutedControl.request(muted);
     }
 
     /**
@@ -178,6 +209,17 @@ export class AudioSettingsManager {
 
         await store.set("mute_cues_enabled", next);
         await store.save();
+    }
+
+    /**
+     * Choose whether crouching or crawling limits this player's voice to the whisper range.
+     *
+     * Asked of the backend rather than written here: the backend owns the store key and has to
+     * tell the server, which is what actually enforces the range. The switch moves at once and
+     * settles on the value the backend reached, or the saved choice if the request failed.
+     */
+    async handleCrouchWhisperChange(next: boolean): Promise<void> {
+        await this.crouchWhisperControl.request(next);
     }
 
     /** Releases the event listeners. A listener outliving the manager writes to a dead store. */
@@ -239,5 +281,11 @@ export class AudioSettingsManager {
         const store = await AppStore.load();
         this.storeStore.set(store);
         return store;
+    }
+
+    /** What the backend last saved under `key`, or `undefined` when nothing has been saved. */
+    private async savedValue<T>(key: string): Promise<T | undefined> {
+        const store = await this.requireStore();
+        return (await store.get<T>(key)) ?? undefined;
     }
 }

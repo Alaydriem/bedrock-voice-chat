@@ -32,7 +32,10 @@ pub mod app_builder;
 pub mod audio;
 mod auth;
 // Re-exported for the integration test crate (a separate crate root that can only reach
-// `pub` items) to cover how a server URL and an API path are joined.
+// `pub` items) to cover how a server URL and an API path are joined, and how the login
+// path's HTTP client is configured.
+pub use auth::LoginClientConfig;
+pub use auth::LoginFailure;
 pub use auth::ServerEndpoint;
 #[cfg(feature = "bedrock-protocol")]
 pub mod bedrock;
@@ -82,12 +85,18 @@ pub use crate::audio::stream::stream_manager::sink::CapturingSink;
 #[cfg(feature = "e2e")]
 pub use crate::audio::stream::stream_manager::source::BridgeInputSource;
 
-// Re-exported for the integration test crate to cover one contract: feeding the adaptation
-// engine real buffer underruns leaves capacity, warmup, and reorder tolerance unmoved,
-// because the capacity floor swallows every reachable multiplier. Two type re-exports rather
-// than widening `audio::stream`, which would leak the whole playback pipeline.
+// Re-exported for the integration test crate to cover what feeding real buffer underruns to the
+// adaptation engine changes within its first adjustment interval. Two type re-exports rather than
+// a path into the playback pipeline.
 pub use crate::audio::stream::jitter_buffer::adaptive::AdaptationEngine;
 pub use crate::audio::stream::jitter_buffer::metrics::MetricsCollector;
+// The playback contract — packets in, samples out — for the test crate's jitter buffer rig.
+pub use crate::audio::stream::jitter_buffer::{
+    EncodedAudioFramePacket, JitterBuffer, JitterBufferError, JitterBufferHandle,
+};
+pub use crate::audio::stream::jitter_buffer::adaptive::DrainPolicy;
+pub use crate::audio::stream::jitter_buffer::audio_processor::AudioProcessor;
+pub use crate::audio::stream::jitter_buffer::{Admission, FrameAdmission, WarmupGate};
 
 /// JNI export called from MainActivity.onCreate to populate the global
 /// `ndk_context` static. tao 0.35 (Tauri 2.11) dropped this initialization as
@@ -231,6 +240,7 @@ pub fn run() {
             crate::commands::about::get_platform_id,
             crate::commands::about::refresh_platform_id,
             // Authentication
+            crate::auth::commands::check_server,
             crate::auth::commands::server_login,
             crate::auth::commands::logout,
             crate::auth::commands::code_login,
@@ -247,6 +257,7 @@ pub fn run() {
             crate::commands::audio::mute,
             crate::commands::audio::set_mute,
             crate::commands::audio::set_deafened,
+            crate::commands::audio::set_crouch_whisper,
             crate::commands::audio::mute_status,
             crate::commands::audio::is_stopped,
             crate::commands::audio::update_stream_metadata,
@@ -306,6 +317,7 @@ pub fn run() {
             crate::commands::websocket::websocket_internal_endpoint,
             crate::commands::websocket::websocket_clients,
             crate::commands::websocket::generate_encryption_key,
+            crate::commands::websocket::publish_voice_roster,
             // Analytics
             crate::commands::analytics::track_event,
             // Keybinds

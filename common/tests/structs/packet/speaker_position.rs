@@ -13,7 +13,7 @@ fn speaker() -> PlayerEnum {
         },
         orientation: Orientation { x: 12.5, y: -3.25 },
         dimension: Dimension::Overworld,
-        deafen: true,
+        whispering: true,
         spectator: false,
         world_uuid: Some("8f14e45f-ceea-467a-9575-1b0aaf2c1e6c".to_string()),
         alternative_identity: None,
@@ -40,16 +40,16 @@ fn it_is_far_smaller_than_the_player_it_replaces() {
     );
 }
 
-// A deafened speaker plays centre-panned at unity rather than attenuated, so losing this flag
-// is inaudible rather than obvious — which is exactly why it is asserted.
+// A whispering speaker is heard only inside the whisper range, and losing this flag is
+// inaudible rather than obvious, which is exactly why it is asserted.
 #[test]
-fn a_deafened_speaker_stays_deafened() {
+fn a_whispering_speaker_stays_whispering() {
     let reduced = SpeakerPosition::from_player(&speaker());
-    assert!(reduced.deafened);
+    assert!(reduced.whispering);
 
     let round_tripped: SpeakerPosition =
         postcard::from_bytes(&postcard::to_stdvec(&reduced).unwrap()).unwrap();
-    assert!(round_tripped.deafened);
+    assert!(round_tripped.whispering);
 }
 
 // The position is the one field a listener pans from. Taking it from the player rather than

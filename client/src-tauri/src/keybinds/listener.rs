@@ -75,10 +75,10 @@ impl KeybindListener {
         let is_muted = actions.is_muted(AudioDeviceType::InputDevice).await;
         match config.voice_mode {
             VoiceMode::PushToTalk if !is_muted => {
-                actions.toggle_mute(AudioDeviceType::InputDevice).await;
+                actions.toggle_input_mute().await;
             }
             VoiceMode::OpenMic if is_muted => {
-                actions.toggle_mute(AudioDeviceType::InputDevice).await;
+                actions.toggle_input_mute().await;
             }
             _ => {}
         }
@@ -109,13 +109,13 @@ impl KeybindListener {
 
     async fn dispatch_toggle_mute(&self) {
         let actions = self.app_handle.state::<AudioActionsManager>();
-        actions.toggle_mute(AudioDeviceType::InputDevice).await;
+        actions.toggle_input_mute().await;
         actions.broadcast_state().await;
     }
 
     async fn dispatch_toggle_deafen(&self) {
         let actions = self.app_handle.state::<AudioActionsManager>();
-        actions.toggle_mute(AudioDeviceType::OutputDevice).await;
+        actions.toggle_deafened().await;
         actions.broadcast_state().await;
     }
 
@@ -136,7 +136,7 @@ impl KeybindListener {
         }
         let actions = self.app_handle.state::<AudioActionsManager>();
         if actions.is_muted(AudioDeviceType::InputDevice).await {
-            actions.toggle_mute(AudioDeviceType::InputDevice).await;
+            actions.toggle_input_mute().await;
         }
         self.app_handle
             .emit(&PttEvent::Active.to_string(), true)
@@ -168,7 +168,7 @@ impl KeybindListener {
             }
             let actions = app_handle.state::<AudioActionsManager>();
             if !actions.is_muted(AudioDeviceType::InputDevice).await {
-                actions.toggle_mute(AudioDeviceType::InputDevice).await;
+                actions.toggle_input_mute().await;
             }
             app_handle.emit(&PttEvent::Active.to_string(), false).ok();
             actions.broadcast_state().await;

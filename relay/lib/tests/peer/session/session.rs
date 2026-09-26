@@ -34,7 +34,7 @@ fn frame(marker: u8) -> VoiceFrame {
             },
             orientation: Orientation { x: 0.0, y: 0.0 },
             dimension: Dimension::Overworld,
-            deafen: false,
+            whispering: false,
             spectator: false,
             world_uuid: None,
             alternative_identity: None,

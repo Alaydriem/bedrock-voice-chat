@@ -1,12 +1,15 @@
+pub mod code;
 pub mod collection;
 pub mod event;
 pub mod events;
+pub mod naming;
 
+pub use code::GroupCode;
 pub use collection::ChannelCollection;
 pub use event::ChannelEvent;
 pub use events::ChannelEvents;
+pub use naming::GroupName;
 
-use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -26,8 +29,14 @@ pub struct Channel {
 
 impl Channel {
     pub fn new(name: String, creator: crate::PlayerIdentity) -> Self {
+        Self::with_id(GroupCode::generate(), name, creator)
+    }
+
+    /// A channel carrying a caller-supplied code, for the create path that has to
+    /// check the code is free before it commits to one.
+    pub fn with_id(id: String, name: String, creator: crate::PlayerIdentity) -> Self {
         Self {
-            id: nanoid!(),
+            id,
             name,
             players: Vec::new(),
             creator,

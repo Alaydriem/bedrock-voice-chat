@@ -312,7 +312,7 @@ impl AudioPlaybackService {
                         coordinates: ctx.coordinates,
                         orientation: Orientation { x: 0.0, y: 0.0 },
                         dimension: ctx.dimension,
-                        deafen: false,
+                        whispering: false,
                         spectator: false,
                         world_uuid: Some(ctx.world_uuid),
                         alternative_identity: None,

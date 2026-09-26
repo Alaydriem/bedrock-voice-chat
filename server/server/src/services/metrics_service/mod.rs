@@ -27,6 +27,7 @@ use crate::services::metrics_service::heartbeat_snapshot::HeartbeatSnapshot;
 use crate::services::metrics_service::host_capability::HostCapability;
 use crate::services::metrics_service::interaction::InteractionRoute;
 use crate::services::metrics_service::interaction::InteractionTracker;
+use crate::services::metrics_service::interaction::RouteRejection;
 use crate::services::metrics_service::metric::Metric;
 use crate::services::metrics_service::posthog::PosthogClient;
 
@@ -52,6 +53,9 @@ pub struct MetricsService {
     peak_players: AtomicI64,
     capacity_refusals: AtomicI64,
     interactions: InteractionTracker,
+    // One resolved handle per reason. Resolved once at construction so the per-recipient hot path
+    // is a lock-free increment rather than a key build and registry lookup on every rejection.
+    route_rejections: [metrics::Counter; RouteRejection::ALL.len()],
     started_at: Instant,
     features_enabled: Vec<String>,
     recording_enabled: bool,
@@ -127,6 +131,12 @@ impl MetricsService {
             peak_players: AtomicI64::new(0),
             capacity_refusals: AtomicI64::new(0),
             interactions: InteractionTracker::new(),
+            route_rejections: std::array::from_fn(|i| {
+                counter!(
+                    Metric::AudioRouteRejectionsTotal.name(),
+                    "reason" => RouteRejection::ALL[i].label()
+                )
+            }),
             started_at: Instant::now(),
             features_enabled,
             recording_enabled,
@@ -172,6 +182,13 @@ impl MetricsService {
 
                 for m in Metric::counters() {
                     counter!(m.name()).absolute(0);
+                }
+                // Labelled family, one series per reason, zeroed here where it runs once per
+                // process, so an idle server's /metrics shows every reason rather than only the
+                // ones that have fired.
+                for reason in RouteRejection::ALL {
+                    counter!(Metric::AudioRouteRejectionsTotal.name(), "reason" => reason.label())
+                        .absolute(0);
                 }
                 gauge!(Metric::ActivePlayers.name()).set(0.0);
                 gauge!(Metric::PeakPlayers.name()).set(0.0);
@@ -424,6 +441,11 @@ impl MetricsService {
     // them — the first user-audible routing failure mode under load.
     pub fn record_audio_route_drop(&self) {
         counter!(Metric::AudioRouteRecipientDropsTotal.name()).increment(1);
+    }
+
+    // One recipient did not get one frame, by reason. Per recipient per frame on the hot path.
+    pub fn record_route_rejection(&self, reason: RouteRejection) {
+        self.route_rejections[reason.index()].increment(1);
     }
 
     // One position datagram put on the wire, with its encoded size. The size

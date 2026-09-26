@@ -296,3 +296,146 @@ mod policy {
         );
     }
 }
+
+/// The seam between the two modules above: the bus produces the snapshots, the policy decides
+/// what they cost. Each is correct alone, and every test above hand-builds the snapshot it
+/// wants — so nothing covered the shapes the bus actually produces.
+mod bus {
+    use super::*;
+    use bvc_client_lib::audio::LevelBus;
+
+    fn at(base: Instant, millis: u64) -> Instant {
+        base + Duration::from_millis(millis)
+    }
+
+    const PEER: &str = "minecraft:VoxelWren";
+
+    /// `ActivityDetector::process` emits only while a peer is above its threshold and never
+    /// below it, so the last thing the bus is told about a speaker is that they were speaking.
+    #[test]
+    fn a_peer_who_has_stopped_talking_is_not_reported_as_speaking() {
+        let bus = LevelBus::new();
+        let base = Instant::now();
+        bus.set_peer_at(PEER.to_string(), speaking(5), base);
+
+        assert!(
+            !bus.snapshot_at(base).is_silent(),
+            "a peer who has just spoken must read as speaking"
+        );
+        assert!(
+            bus.snapshot_at(at(base, 400)).is_silent(),
+            "a peer with no recent activity update must not read as speaking"
+        );
+    }
+
+    /// Dropped rather than held at zero, because a peer absent from the snapshot is what
+    /// `LevelEmitPolicy::voices_changed` reads as having stopped, and because an entry that is
+    /// only zeroed still grows the map for the life of the process.
+    #[test]
+    fn an_expired_peer_is_dropped_rather_than_kept_at_zero() {
+        let bus = LevelBus::new();
+        let base = Instant::now();
+        bus.set_peer_at(PEER.to_string(), speaking(5), base);
+
+        assert!(
+            bus.snapshot_at(at(base, 400)).peers.is_empty(),
+            "an expired peer must leave the map"
+        );
+    }
+
+    /// The margin that stops expiry chopping speech. `emission_cooldown_ms` is 50, so a peer
+    /// who is still talking is reported six times inside one window.
+    #[test]
+    fn a_peer_who_is_still_talking_is_never_expired_between_updates() {
+        let bus = LevelBus::new();
+        let base = Instant::now();
+
+        for tick in 0..40u64 {
+            let now = at(base, tick * 50);
+            bus.set_peer_at(PEER.to_string(), speaking(5), now);
+            assert!(
+                !bus.snapshot_at(now).is_silent(),
+                "a talking peer must not expire at tick {tick}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_peer_who_returns_after_expiring_is_reported_again() {
+        let bus = LevelBus::new();
+        let base = Instant::now();
+        bus.set_peer_at(PEER.to_string(), speaking(5), base);
+        assert!(bus.snapshot_at(at(base, 400)).is_silent());
+
+        bus.set_peer_at(PEER.to_string(), speaking(3), at(base, 500));
+        let snapshot = bus.snapshot_at(at(base, 500));
+        assert_eq!(
+            snapshot.peers.get(PEER).map(|level| level.loudness),
+            Some(3),
+            "a peer who speaks again must be reported again"
+        );
+    }
+
+    /// The number the whole subsystem is measured in. `meter_events_per_sec` reports it, and
+    /// it must be zero in a room where nobody is talking.
+    #[test]
+    fn a_room_that_has_gone_quiet_stops_costing_messages() {
+        let bus = LevelBus::new();
+        let mut policy = LevelEmitPolicy::new();
+        let base = Instant::now();
+
+        bus.set_peer_at(PEER.to_string(), speaking(5), base);
+
+        let mut sent = 0;
+        for tick in 0..600u64 {
+            let now = at(base, tick * 100);
+            if policy.admit(now, &bus.snapshot_at(now)) {
+                sent += 1;
+            }
+        }
+
+        assert!(
+            sent <= 2,
+            "a quiet room must stop producing messages, sent {sent} over a minute"
+        );
+    }
+}
+
+/// The tracker map inside the mixer's activity task is a second map over the same key space,
+/// and `clear_peers` cannot reach it.
+mod tracked {
+    use super::*;
+    use bvc_client_lib::audio::{LevelBus, TrackedPeer};
+
+    fn at(base: Instant, millis: u64) -> Instant {
+        base + Duration::from_millis(millis)
+    }
+
+    #[test]
+    fn a_tracker_for_a_peer_who_stopped_talking_goes_stale() {
+        let base = Instant::now();
+        let mut tracked = TrackedPeer::new(base);
+        tracked.observe(0.05, true, base);
+
+        assert!(
+            tracked.is_fresh(at(base, 100), LevelBus::PEER_TTL),
+            "a tracker must survive the gap between a talking peer's updates"
+        );
+        assert!(
+            !tracked.is_fresh(at(base, 400), LevelBus::PEER_TTL),
+            "a tracker with no recent update must go stale so it can be reaped"
+        );
+    }
+
+    #[test]
+    fn observing_refreshes_the_tracker() {
+        let base = Instant::now();
+        let mut tracked = TrackedPeer::new(base);
+        tracked.observe(0.05, true, at(base, 250));
+
+        assert!(
+            tracked.is_fresh(at(base, 400), LevelBus::PEER_TTL),
+            "a peer who spoke again must not be reaped on their old timestamp"
+        );
+    }
+}

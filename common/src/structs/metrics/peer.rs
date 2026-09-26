@@ -23,4 +23,12 @@ pub struct PeerDiagnostics {
     // from what this client can observe — see the note on `LinkDiagnostics`.
     pub concealment_pct: f32,
     pub buffer_ms: u32,
+    pub reanchors: u64,
+    pub warmup_rearms: u64,
+    pub drain_sheds: u64,
+    // Kept per route rather than folded like every other counter, because the question they
+    // answer is whether the proximity route loses frames the group route does not. Server-side
+    // proximity skips are decided per frame, per recipient, so they can only appear on spatial.
+    pub spatial_gap_frames: u64,
+    pub normal_gap_frames: u64,
 }

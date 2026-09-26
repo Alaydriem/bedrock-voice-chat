@@ -12,4 +12,7 @@ pub enum ControlStateSignal {
     // The in-game panel requested a fresh snapshot (bvc:ctl:sync) scoped to the
     // players it is showing; rides the !bvcs: reverse path only.
     Sync { targets: Vec<String> },
+    // The in-game panel requested the server's group list (bvc:ctl:groups); rides the
+    // !bvcs: reverse path only.
+    Groups,
 }

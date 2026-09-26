@@ -14,7 +14,7 @@ impl PlayerFixture {
             },
             orientation: Orientation { x: 0.0, y: 0.0 },
             dimension: Dimension::Overworld,
-            deafen: false,
+            whispering: false,
             spectator: false,
             world_uuid: world_uuid.map(String::from),
             alternative_identity: None,

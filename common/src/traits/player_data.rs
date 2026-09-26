@@ -6,7 +6,7 @@ pub trait PlayerData: Send + Sync {
     fn get_name(&self) -> &str;
     fn get_position(&self) -> &Coordinate;
     fn get_orientation(&self) -> &Orientation;
-    fn is_deafened(&self) -> bool {
+    fn is_whispering(&self) -> bool {
         false
     }
     fn get_game(&self) -> Game;

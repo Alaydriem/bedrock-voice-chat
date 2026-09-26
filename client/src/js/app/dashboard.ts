@@ -20,6 +20,7 @@ import ImageCacheOptions from './components/imageCacheOptions';
 import { PlayerManager } from './managers/PlayerManager';
 import ChannelManager from './managers/ChannelManager';
 import { AudioActivityManager } from './managers/AudioActivityManager';
+import { VoiceRosterPublisher } from './managers/VoiceRosterPublisher';
 import { SelfController } from './dashboard/SelfController';
 import { RailView, type RailServer } from './dashboard/RailView';
 import { NearbyManager } from './dashboard/NearbyManager';
@@ -65,6 +66,7 @@ export default class Dashboard extends BVCApp {
     public playerManager: PlayerManager | undefined;
     public channelManager: ChannelManager | undefined;
     public audioActivityManager: AudioActivityManager | undefined;
+    private voiceRosterPublisher: VoiceRosterPublisher | undefined;
     public platformDetector: PlatformDetector | undefined;
     public selfController: SelfController | undefined;
     public nearby: NearbyManager | undefined;
@@ -235,7 +237,7 @@ export default class Dashboard extends BVCApp {
         progress.step("Server", "running");
 
         if (currentServer && !(await this.answers(currentServer))) {
-            progress.step("Server", "bad", "no response");
+            progress.step("Server", "bad", I18n.t("no response"));
             progress.skipFrom("Voice path");
             return this.redirect("/error?code=CONN01");
         }
@@ -323,7 +325,7 @@ export default class Dashboard extends BVCApp {
 
                 if (!audioPermission.granted) {
                     warn(I18n.t("Audio permission denied"));
-                    progress.step("Permissions", "bad", "microphone denied");
+                    progress.step("Permissions", "bad", I18n.t("microphone denied"));
                     return this.redirect("/error?code=PERM1");
                 }
 
@@ -331,7 +333,7 @@ export default class Dashboard extends BVCApp {
 
                 if (!notificationGranted.granted) {
                     warn(I18n.t("Notification permission denied - notifications may not be visible"));
-                    progress.step("Permissions", "bad", "notifications denied");
+                    progress.step("Permissions", "bad", I18n.t("notifications denied"));
                     return this.redirect("/error?code=PERM2");
                 }
 
@@ -348,7 +350,7 @@ export default class Dashboard extends BVCApp {
 
                     if (!serviceResult.started) {
                         warn(I18n.t("Foreground service could not be started."));
-                        progress.step("Permissions", "bad", "background service");
+                        progress.step("Permissions", "bad", I18n.t("background service"));
                         return this.redirect("/error?code=SERV01");
                     }
                 }
@@ -394,7 +396,7 @@ export default class Dashboard extends BVCApp {
             } else {
                 // Nothing was asked of the operating system: both streams were already
                 // running, which is what a warm re-entry looks like.
-                progress.step("Permissions", "skipped", "already granted");
+                progress.step("Permissions", "skipped", I18n.t("already granted"));
             }
         }
 
@@ -467,6 +469,18 @@ export default class Dashboard extends BVCApp {
         this.levelSources();
         if (!this.nearby) {
             this.nearby = new NearbyManager();
+        }
+
+        // Started here rather than with the other managers because the roster it publishes is
+        // the feed's, and the feed does not exist until this point. Reused for the same reason
+        // the two above are: a reconnect re-enters this, and a swapped publisher would leave
+        // the overlay bound to stores nothing writes to any more.
+        if (!this.voiceRosterPublisher && this.playerManager) {
+            this.voiceRosterPublisher = new VoiceRosterPublisher(
+                this.playerManager,
+                this.nearby.inEarshot,
+            );
+            this.voiceRosterPublisher.start();
         }
 
         // `start` stops itself first, so re-entering it re-opens the feed on a fresh ticket
@@ -585,6 +599,7 @@ export default class Dashboard extends BVCApp {
             this.audioActivityManager = new AudioActivityManager(this.store);
             await this.audioActivityManager.initialize();
             timeline.mark('  ↳ managers: audio activity');
+
         } catch (err) {
             error("dashboard failed to initialize managers", {
                 error: String(err),
@@ -832,19 +847,19 @@ export default class Dashboard extends BVCApp {
                             defect: "AudioDeviceLost",
                             error: String(e),
                         });
-                        BootProgress.shared().step("Audio", "bad", "incompatible device");
+                        BootProgress.shared().step("Audio", "bad", I18n.t("incompatible device"));
                         this.redirect("/error?code=AUDI01");
                         return;
                     }
                     if (errStr.includes("NO_INPUT_DEVICE")) {
                         error(`No input device available: ${e}`);
-                        BootProgress.shared().step("Audio", "bad", "no input device");
+                        BootProgress.shared().step("Audio", "bad", I18n.t("no input device"));
                         this.redirect("/error?code=AUDI02");
                         return;
                     }
                     if (errStr.includes("NO_OUTPUT_DEVICE")) {
                         error(`No output device available: ${e}`);
-                        BootProgress.shared().step("Audio", "bad", "no output device");
+                        BootProgress.shared().step("Audio", "bad", I18n.t("no output device"));
                         this.redirect("/error?code=AUDI03");
                         return;
                     }
@@ -893,25 +908,25 @@ export default class Dashboard extends BVCApp {
             const errStr = String(e);
             if (errStr.includes("DNS_FAIL")) {
                 error(`DNS resolution failed: ${e}`);
-                BootProgress.shared().step("Voice path", "bad", "DNS lookup failed");
+                BootProgress.shared().step("Voice path", "bad", I18n.t("DNS lookup failed"));
                 this.redirect("/error?code=DNS01");
             } else if (errStr.includes("CERT_INVALID")) {
                 // Both certificate branches are checked ahead of QUIC_FAIL: the firewall advice
                 // QUIC01 gives would send the user to fix something that is not broken.
                 error(`Server certificate rejected, credentials cleared: ${e}`);
-                BootProgress.shared().step("Voice path", "bad", "certificate rejected");
+                BootProgress.shared().step("Voice path", "bad", I18n.t("certificate rejected"));
                 this.redirect("/error?code=CERT01");
             } else if (errStr.includes("SERVER_CERT")) {
                 error(`Server voice certificate is misconfigured, credentials kept: ${e}`);
-                BootProgress.shared().step("Voice path", "bad", "server certificate");
+                BootProgress.shared().step("Voice path", "bad", I18n.t("server certificate"));
                 this.redirect("/error?code=CERT02");
             } else if (errStr.includes("QUIC_FAIL")) {
                 error(`QUIC connection failed: ${e}`);
-                BootProgress.shared().step("Voice path", "bad", "no voice transport");
+                BootProgress.shared().step("Voice path", "bad", I18n.t("no voice transport"));
                 this.redirect("/error?code=QUIC01");
             } else {
                 error(`Error changing network stream: ${e}`);
-                BootProgress.shared().step("Voice path", "bad", "connect failed");
+                BootProgress.shared().step("Voice path", "bad", I18n.t("connect failed"));
                 this.redirect("/error?code=CONN01");
             }
         }
@@ -934,6 +949,9 @@ export default class Dashboard extends BVCApp {
             }
             if (this.audioActivityManager) {
                 this.audioActivityManager.destroy();
+            }
+            if (this.voiceRosterPublisher) {
+                this.voiceRosterPublisher.cleanup();
             }
             if (this.playerManager) {
                 this.playerManager.cleanup();

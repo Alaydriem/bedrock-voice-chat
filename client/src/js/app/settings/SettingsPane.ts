@@ -5,8 +5,6 @@ export interface SettingsPane {
     readonly title: string;
     /** Empty for the ungrouped run at the top of the list. */
     readonly group: string;
-    /** Content is plates or a wide table, so the row measure does not apply. */
-    readonly wide: boolean;
     /** Absent from the mobile build entirely. */
     readonly desktopOnly: boolean;
     /**

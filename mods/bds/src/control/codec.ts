@@ -38,11 +38,21 @@ export class ControlCodec {
     return `${ControlCodec.PREFIX}sync:${targets.join(',')}`;
   }
 
+  // The panel's group-list request (no-net): the proxy answers with a `gl` header
+  // ride followed by one `g` ride per group.
+  static encodeGroups(): string {
+    return `${ControlCodec.PREFIX}groups`;
+  }
+
   // `game` labels the actor the same way the /api/position body does, so the server
   // builds this player's canonical `game:gamertag` key from a declared value instead
   // of assuming one. A BDS pack is always Minecraft.
   static toClientActionJson(a: ControlAction, actorId: string): unknown {
-    return { id: actorId, game: 'minecraft', action: ControlCodec.actionJson(a) };
+    return {
+      id: actorId,
+      game: 'minecraft',
+      action: ControlCodec.actionJson(a),
+    };
   }
 
   // Unit variants serialize as bare strings; struct/tuple variants as { Variant: ... }.

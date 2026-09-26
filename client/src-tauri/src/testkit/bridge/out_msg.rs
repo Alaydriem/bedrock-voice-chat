@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::PeerStat;
+
 // Events the e2e client emits to the orchestrator over stdout, framed
 // identically to `InMsg`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +39,12 @@ pub enum OutMsg {
     ProxyStarted {
         listen_port: u16,
     },
+    // Emitted after StartCommandWebSocket, carrying the port the listener bound rather
+    // than the one that was asked for — a conflict moves it, and a scenario that dialled
+    // the requested port would hang against nothing.
+    CommandWebSocketStarted {
+        port: u16,
+    },
     // Transport-fidelity counter snapshot emitted in response to InMsg::RequestStats.
     // frames_sent      — Opus AudioFrame packets this client emitted to the QUIC bus.
     // frames_from_quic — AudioFrame packets this client received from the QUIC bus
@@ -66,6 +74,9 @@ pub enum OutMsg {
         // scenario that only asserts audio arrived cannot tell QUIC from WebSocket, and a
         // fallback test that silently ran on QUIC would pass while proving nothing.
         transport: Option<String>,
+        // Per-speaker receive counters, so a scenario can assert on what one listener did with
+        // one speaker's frames rather than on whether audio arrived at all.
+        peer_stats: Vec<PeerStat>,
     },
     Stats {
         frames_sent: u64,

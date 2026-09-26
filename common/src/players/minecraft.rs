@@ -11,7 +11,9 @@ pub struct MinecraftPlayer {
     pub coordinates: Coordinate,
     pub orientation: Orientation,
     pub dimension: Dimension,
-    pub deafen: bool,
+    // Keyed `deafen` on the wire: mods and servers of either version read and write that key.
+    #[serde(rename = "deafen")]
+    pub whispering: bool,
     #[serde(default)]
     pub spectator: bool,
     #[serde(default)]
@@ -42,8 +44,8 @@ impl PlayerData for MinecraftPlayer {
         &self.orientation
     }
 
-    fn is_deafened(&self) -> bool {
-        self.deafen
+    fn is_whispering(&self) -> bool {
+        self.whispering
     }
 
     fn get_game(&self) -> Game {
@@ -115,7 +117,7 @@ impl MinecraftPlayer {
             ));
         }
 
-        let proximity = 1.73 * range;
+        let proximity = crate::structs::SpatialAudioConfig::PROXIMITY_FACTOR * range;
         let distance = self.distance_to(other);
         if distance > proximity {
             return Err(CommunicationError::OutOfRange {
@@ -135,7 +137,7 @@ impl From<crate::Player> for MinecraftPlayer {
             coordinates: player.coordinates,
             orientation: player.orientation,
             dimension: player.dimension,
-            deafen: player.deafen,
+            whispering: player.whispering,
             spectator: player.spectator,
             world_uuid: None,
             alternative_identity: None,
@@ -153,7 +155,7 @@ impl From<MinecraftPlayer> for crate::Player {
             coordinates: player.coordinates,
             orientation: player.orientation,
             dimension: player.dimension,
-            deafen: player.deafen,
+            whispering: player.whispering,
             spectator: player.spectator,
         }
     }

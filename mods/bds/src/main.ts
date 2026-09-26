@@ -5,6 +5,9 @@ import { AudioComponentRegistry } from './audio/components';
 import { ChatEjectListener } from './audio/chat_eject_listener';
 import { BvcsListener } from './state/bvcs_listener';
 import { StateCacheStore } from './state/cache_store';
+import { GroupCache } from './state/group_cache';
+import { NetGroupSource, NoNetGroupSource } from './state/group_source';
+import type { GroupSource } from './state/group_source';
 import { NetStateSource, NoNetStateSource } from './state/state_source';
 import type { PanelFeed } from './state/state_source';
 import { ControlPanel } from './ui/panel';
@@ -80,8 +83,13 @@ chatEjectListener.register();
 
 // Panel state: the !bvcs: reverse ride feeds per-player caches in no-net mode;
 // the control panel binds to the same store.
-const stateCacheStore = new StateCacheStore();
-const bvcsListener = new BvcsListener((name) => stateCacheStore.for(name));
+// Server-wide, unlike the per-player state caches: every player sees the same groups.
+const groupCache = new GroupCache();
+const stateCacheStore = new StateCacheStore(groupCache);
+const bvcsListener = new BvcsListener(
+  (name) => stateCacheStore.for(name),
+  groupCache,
+);
 bvcsListener.register();
 
 // A leave must tear down that player's panel plumbing even if their form never
@@ -96,12 +104,14 @@ DiscCommand.register();
 // Resolved once the sender selection below runs; the commands read it lazily.
 let controlSender: ControlSender | null = null;
 let panelFeed: PanelFeed | null = null;
+let groupSource: GroupSource | null = null;
 const panelTestConfig = new PanelTestConfig();
 const controlPanel = new ControlPanel(
   () => controlSender,
   stateCacheStore,
   () => panelFeed,
   panelTestConfig,
+  () => groupSource,
 );
 ControlCommands.register(
   () => controlSender,
@@ -118,6 +128,7 @@ serverAdminConfig
       const noNetSender = new NoNetControlSender();
       controlSender = noNetSender;
       panelFeed = new NoNetStateSource(() => noNetSender);
+      groupSource = new NoNetGroupSource(() => noNetSender, groupCache);
       console.warn(
         '[BVC] HTTP unavailable; using no-net jukebox bus (position polling and HTTP disc events disabled)',
       );
@@ -126,6 +137,7 @@ serverAdminConfig
 
     controlSender = new NetControlSender(serverAdminConfig);
     panelFeed = new NetStateSource(serverAdminConfig);
+    groupSource = new NetGroupSource(serverAdminConfig, groupCache);
 
     audioManager.setSender(
       new NetAudioSender(

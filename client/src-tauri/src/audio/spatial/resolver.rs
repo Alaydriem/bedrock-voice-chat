@@ -32,7 +32,7 @@ impl SpatialResolver {
 
         let spatial = SpatialCalculator::gains(
             emitter.get_position(),
-            emitter.is_deafened(),
+            emitter.is_whispering(),
             listener.get_position(),
             listener.get_orientation(),
             listener.get_game(),

@@ -47,7 +47,7 @@ fn the_reserved_slot_answers_inertly_rather_than_panicking() {
     assert_eq!(reserved.world_identifier(), None);
     assert_eq!(reserved.dimension(), None);
     assert!(!reserved.has_bridged_voice());
-    assert!(reserved.is_deafened());
+    assert!(reserved.is_whispering());
 }
 
 #[test]

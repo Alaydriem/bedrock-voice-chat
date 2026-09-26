@@ -18,13 +18,13 @@ use tokio::sync::mpsc;
 pub struct RoutingFixture;
 
 impl RoutingFixture {
-    pub fn player(name: &str, x: f32, deafen: bool) -> PlayerEnum {
+    pub fn player(name: &str, x: f32, whispering: bool) -> PlayerEnum {
         PlayerEnum::Minecraft(MinecraftPlayer {
             name: name.to_string(),
             coordinates: Coordinate { x, y: 64.0, z: 0.0 },
             orientation: Orientation { x: 0.0, y: 0.0 },
             dimension: Dimension::Overworld,
-            deafen,
+            whispering,
             spectator: false,
             world_uuid: None,
             alternative_identity: None,

@@ -50,7 +50,7 @@ impl CloneBench {
             coordinates: Coordinate { x: 12.0, y: 64.0, z: -40.0 },
             orientation: Orientation { x: 90.0, y: 12.0 },
             dimension: Dimension::Overworld,
-            deafen: false,
+            whispering: false,
             spectator: false,
             world_uuid: Some("00000000-0000-0000-0000-000000000000".to_string()),
             alternative_identity: None,

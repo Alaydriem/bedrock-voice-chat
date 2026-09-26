@@ -57,13 +57,13 @@ impl PlayerData for PlayerEnum {
         }
     }
 
-    // Deafened, so anything that reaches this before the ingestion filter treats it as
-    // somebody who receives no audio rather than as a silent listener.
-    fn is_deafened(&self) -> bool {
+    // Whispering, the narrowest range there is, so anything that reaches this before the
+    // ingestion filter is treated as somebody almost nobody can hear.
+    fn is_whispering(&self) -> bool {
         match self {
-            PlayerEnum::Minecraft(p) => p.is_deafened(),
+            PlayerEnum::Minecraft(p) => p.is_whispering(),
             PlayerEnum::Reserved => true,
-            PlayerEnum::Generic(p) => p.is_deafened(),
+            PlayerEnum::Generic(p) => p.is_whispering(),
         }
     }
 
@@ -150,6 +150,20 @@ impl PlayerEnum {
                     })
                 }
             }
+        }
+    }
+
+    /// This player as heard by someone who did not opt in to crouch-to-whisper.
+    ///
+    /// A copy rather than a setter, because the cached player records what the game reported
+    /// and the same entry must answer again once the choice changes.
+    pub fn without_whispering(self) -> Self {
+        match self {
+            PlayerEnum::Minecraft(p) => PlayerEnum::Minecraft(MinecraftPlayer {
+                whispering: false,
+                ..p
+            }),
+            other => other,
         }
     }
 

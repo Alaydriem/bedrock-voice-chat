@@ -11,8 +11,8 @@ pub mod state;
 use crate::config::ApplicationConfig;
 use crate::http::manager::RocketManager;
 use crate::services::{
-    AudioPlaybackService, BedrockEventService, CertificateService, EjectScheduler, MeridianService,
-    PlayerIdentityService, PlayerRegistrarService,
+    AudioPlaybackService, BedrockEventService, CertificateService, ChannelReaperService,
+    EjectScheduler, MeridianService, PlayerIdentityService, PlayerRegistrarService,
 };
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 use common::traits::StreamTrait;
@@ -598,6 +598,14 @@ impl ServerRuntime {
         // so it relays to wherever the listener actually landed.
         let api_bind = crate::demux::ApiBind::reserve()?;
 
+        // Built before the managers take ownership of the webhook and the cache manager,
+        // and driven from the reap arm of the main loop below.
+        let channel_reaper = ChannelReaperService::new_shared(
+            cache_manager.get_channel_collection(),
+            connection_registry.clone(),
+            webhook_receiver.clone(),
+        );
+
         // Create Rocket manager
         let rocket_manager = RocketManager::new(
             self.config.clone(),
@@ -793,6 +801,7 @@ impl ServerRuntime {
                 }
                 _ = reap_interval.tick() => {
                     connection_registry.reap_stale_channels();
+                    channel_reaper.sweep().await;
                 }
             }
         }

@@ -6,6 +6,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
 
+use super::drop_pattern::DropPattern;
+
 /// A UDP relay that discards a deterministic fraction of the server-to-client direction.
 ///
 /// Deterministic rather than random: dropping every Nth datagram makes the induced rate exact, so an
@@ -33,13 +35,22 @@ pub struct LossyUdpRelay {
 }
 
 impl LossyUdpRelay {
-    /// Binds `listen_port` facing clients, forwards to `server_quic_port`, and once armed discards one
-    /// downstream datagram in every `drop_one_in` **per client**.
+    /// The original constructor: one downstream datagram in every `drop_one_in`.
     pub async fn start(listen_port: u16, server_quic_port: u16, drop_one_in: u64) -> Self {
-        assert!(
-            drop_one_in >= 2,
-            "drop_one_in must leave some traffic through"
-        );
+        Self::start_with(listen_port, server_quic_port, DropPattern::OneIn(drop_one_in)).await
+    }
+
+    /// Binds `listen_port` facing clients, forwards to `server_quic_port`, and once armed
+    /// discards downstream datagrams matching `pattern`, **per client**.
+    pub async fn start_with(listen_port: u16, server_quic_port: u16, pattern: DropPattern) -> Self {
+        // Validated in one place for both constructors.
+        match pattern {
+            DropPattern::OneIn(n) => assert!(n >= 2, "OneIn must leave some traffic through"),
+            DropPattern::Burst { every, consecutive } => assert!(
+                consecutive >= 1 && consecutive < every,
+                "Burst must drop at least one and fewer than every datagram of a window"
+            ),
+        }
 
         let client_sock = Arc::new(
             UdpSocket::bind((Ipv4Addr::LOCALHOST, listen_port))
@@ -92,7 +103,7 @@ impl LossyUdpRelay {
                                 fresh.clone(),
                                 inbound_sock.clone(),
                                 from,
-                                drop_one_in,
+                                pattern,
                                 armed.clone(),
                                 forwarded.clone(),
                                 dropped.clone(),
@@ -116,7 +127,7 @@ impl LossyUdpRelay {
         upstream: Arc<UdpSocket>,
         client_sock: Arc<UdpSocket>,
         client: SocketAddr,
-        drop_one_in: u64,
+        pattern: DropPattern,
         armed: Arc<AtomicBool>,
         forwarded: Arc<AtomicU64>,
         dropped: Arc<AtomicU64>,
@@ -132,7 +143,7 @@ impl LossyUdpRelay {
                 };
 
                 seen += 1;
-                if armed.load(Ordering::Relaxed) && seen % drop_one_in == 0 {
+                if armed.load(Ordering::Relaxed) && pattern.should_drop(seen) {
                     dropped.fetch_add(1, Ordering::Relaxed);
                     continue;
                 }

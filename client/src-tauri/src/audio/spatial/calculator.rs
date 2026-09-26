@@ -12,7 +12,7 @@ pub struct SpatialCalculator;
 impl SpatialCalculator {
     pub fn gains(
         emitter: &Coordinate,
-        deafen_emitter: bool,
+        whispering: bool,
         listener: &Coordinate,
         orientation: &Orientation,
         game: Game,
@@ -23,23 +23,22 @@ impl SpatialCalculator {
         let dz = emitter.z - listener.z;
         let distance = (dx * dx + dy * dy + dz * dz).sqrt();
 
-        // Deafen: server enforces deafen_distance, so if we receive the packet just play it
-        if deafen_emitter {
+        let Some(curve_distance) = Self::curve_distance(distance, whispering, config) else {
             return SpatialAudioData {
                 pan: 0.0,
-                volume: 1.0,
+                volume: 0.0,
             };
-        }
+        };
 
         // Beyond falloff: silence
-        if distance > config.falloff_distance {
+        if curve_distance > config.falloff_distance {
             return SpatialAudioData {
                 pan: 0.0,
                 volume: 0.0,
             };
         }
 
-        // Pan: dot product of XZ direction with listener's left vector
+        // Direction from the real offset; how far along the curve from `curve_distance`.
         let raw_pan = if distance > 0.01 {
             let dir_x = dx / distance;
             let dir_z = dz / distance;
@@ -56,26 +55,27 @@ impl SpatialCalculator {
         };
 
         // Suppress panning at close range
-        let proximity_factor = if distance <= config.panning_start {
+        let proximity_factor = if curve_distance <= config.panning_start {
             0.0
-        } else if distance <= config.close_threshold {
-            (distance - config.panning_start) / (config.close_threshold - config.panning_start)
+        } else if curve_distance <= config.close_threshold {
+            (curve_distance - config.panning_start)
+                / (config.close_threshold - config.panning_start)
         } else {
             1.0
         };
         let pan = raw_pan * proximity_factor.clamp(0.0, 1.0);
 
         // dB-based volume attenuation
-        let volume = if distance <= config.close_threshold {
+        let volume = if curve_distance <= config.close_threshold {
             1.0
         } else {
-            let t = (distance - config.close_threshold)
+            let t = (curve_distance - config.close_threshold)
                 / (config.falloff_distance - config.close_threshold);
             let db_atten = t * config.max_attenuation_db;
             let mut vol = 10.0_f32.powf(-db_atten / 20.0);
 
-            if distance >= config.steepen_start {
-                let s = (distance - config.steepen_start)
+            if curve_distance >= config.steepen_start {
+                let s = (curve_distance - config.steepen_start)
                     / (config.falloff_distance - config.steepen_start);
                 vol *= 1.0 - s;
             }
@@ -84,5 +84,23 @@ impl SpatialCalculator {
         };
 
         SpatialAudioData { pan, volume }
+    }
+
+    /// Where on the normal curve a listener at `distance` sits, or `None` for silence.
+    ///
+    /// A whisper's whole range maps onto the whole curve, so it fades to silence at the edge
+    /// the server stops sending at instead of cutting off there. An edge of zero or less, or
+    /// one that is not a number, is a whisper nobody hears.
+    fn curve_distance(distance: f32, whispering: bool, config: &SpatialAudioConfig) -> Option<f32> {
+        if !whispering {
+            return Some(distance);
+        }
+
+        let edge = config.whisper_edge();
+        if !(edge > 0.0) || distance > edge {
+            return None;
+        }
+
+        Some(distance * config.falloff_distance / edge)
     }
 }

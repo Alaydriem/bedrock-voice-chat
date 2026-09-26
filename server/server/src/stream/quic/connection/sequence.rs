@@ -9,7 +9,7 @@ use common::structs::packet::QuicNetworkPacket;
 //
 // Exists so the one invariant this mechanism rests on has a single enforcement point: a number is
 // consumed only when a datagram is actually produced for this connection. Every routing decision
-// not to send — proximity, channel membership, deafen distance, a serialization failure — must
+// not to send — proximity, channel membership, whisper distance, a serialization failure — must
 // happen before `stamp` is called, or the receiver sees a gap that was never loss and reports
 // phantom packet loss.
 //

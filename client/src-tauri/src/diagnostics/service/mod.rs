@@ -684,10 +684,11 @@ impl LinkDiagnosticsService {
     }
 
     fn log_peer(peer: &PeerDiagnostics, rtt: &str, uplink_loss: f32, family: &str) {
-        log::debug!(
+        log::info!(
             "Receive diagnostics [{}]: underruns={} overflow_drops={} ooo_drops={} plc={} \
              silence={} decoded={} ring={}/{} warmup={} buffer={}ms quality={:.2} \
-             concealment={:.1}% | link rtt={}ms uplink_loss={:.1}% family={}",
+             concealment={:.1}% reanchors={} rearms={} sheds={} gaps_spatial={} gaps_normal={} \
+             | link rtt={}ms uplink_loss={:.1}% family={}",
             peer.name,
             peer.underruns,
             peer.overflow_drops,
@@ -701,6 +702,11 @@ impl LinkDiagnosticsService {
             peer.buffer_ms,
             peer.quality_score,
             peer.concealment_pct,
+            peer.reanchors,
+            peer.warmup_rearms,
+            peer.drain_sheds,
+            peer.spatial_gap_frames,
+            peer.normal_gap_frames,
             rtt,
             uplink_loss,
             family,

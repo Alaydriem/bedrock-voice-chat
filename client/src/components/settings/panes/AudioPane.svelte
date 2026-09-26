@@ -36,6 +36,7 @@
     let jukeboxGain = $state(100);
     let jukeboxMuted = $state(false);
     let muteCues = $state(true);
+    let crouchWhisper = $state(false);
 
     const unsubs: Array<() => void> = [];
 
@@ -46,6 +47,7 @@
         unsubs.push(audio.jukeboxGain.subscribe((v) => (jukeboxGain = v)));
         unsubs.push(audio.jukeboxMuted.subscribe((v) => (jukeboxMuted = v)));
         unsubs.push(audio.muteCues.subscribe((v) => (muteCues = v)));
+        unsubs.push(audio.crouchWhisper.subscribe((v) => (crouchWhisper = v)));
         // The layout initialises the shared instance; only a standalone one needs it here.
         if (!shared) void audio.initialize();
         void probe.start();
@@ -84,7 +86,6 @@
 
         <SettingRow
             label={I18n.t("Test my microphone")}
-            note={I18n.t("Talk for a moment. The mark fills out as it hears you.")}
             stack
         >
             <!-- The mark alone, centred. The row's own label and note already say what this is
@@ -96,7 +97,6 @@
 
         <SettingRow
             label={I18n.t("Test playback")}
-            note={I18n.t("Plays a chime through the device you listen on, not through whatever the browser would pick.")}
         >
             {#snippet control()}
                 <PlaybackTest ontest={() => speaker.play()} />
@@ -131,7 +131,7 @@
 
         <SettingRow
             label={I18n.t("Spatial panning")}
-            note={I18n.t("How hard voices are pushed left and right by where their speaker is standing. At 0% everyone is centred; distance still governs volume either way.")}
+            note={I18n.t("How hard voices are pushed left and right by where their speaker is standing. Audio is centered at 0%")}
             stack
         >
             <div class="rad-knob__head">
@@ -157,14 +157,27 @@
         </SettingRow>
 
         <SettingRow
-            label={I18n.t("Mute and deafen sounds")}
-            note={I18n.t("A short tone when you mute or deafen, and a rising one when you turn either back on. It falls for off and rises for on, so you can tell without looking at the window.")}
+            label={I18n.t("Voice chat sounds")}
+            note={I18n.t("A short tone when you mute, deafen, or join and leave a group.")}
         >
             {#snippet control()}
                 <Toggle
                     checked={muteCues}
-                    label={I18n.t("Mute and deafen sounds")}
+                    label={I18n.t("Voice chat sounds")}
                     onchange={(next) => void audio.handleMuteCuesChange(next)}
+                />
+            {/snippet}
+        </SettingRow>
+
+        <SettingRow
+            label={I18n.t("Crouch to whisper")}
+            note={I18n.t("When you crouch or crawl, only players within a few blocks hear you.")}
+        >
+            {#snippet control()}
+                <Toggle
+                    checked={crouchWhisper}
+                    label={I18n.t("Crouch to whisper")}
+                    onchange={(next) => void audio.handleCrouchWhisperChange(next)}
                 />
             {/snippet}
         </SettingRow>
@@ -175,7 +188,7 @@
 
         <SettingRow
             label={I18n.t("Mute jukeboxes")}
-            note={I18n.t("Music from jukeboxes in the world. Voices are not affected.")}
+            note={I18n.t("When enabled, you won't hear Jukeboxes in your world.")}
         >
             {#snippet control()}
                 <Toggle
@@ -188,7 +201,7 @@
 
         <SettingRow
             label={I18n.t("Jukebox volume")}
-            note={I18n.t("How loud jukebox music plays before distance is applied. Every jukebox keeps its own position and its own falloff, so this scales what distance already decided.")}
+            note={I18n.t("How loud jukebox music plays before distance is applied.")}
             stack
         >
             <div class="rad-knob__head">

@@ -1,6 +1,5 @@
 use crate::AudioPacket;
 use crate::audio::stream::jitter_buffer::EncodedAudioFramePacket;
-use crate::audio::stream::stream_manager::AudioSinkType;
 use crate::audio::stream::stream_manager::output::{RecordedPlayer, SpeakerStateCache};
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::JukeboxBeaconCache;
@@ -28,6 +27,7 @@ use common::{
 use log::{debug, error, info, warn};
 use moka::future::Cache;
 use std::sync::Arc;
+use tauri_plugin_store::StoreExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 // Activation is reported at most once per process, which is the same scope as the
@@ -221,6 +221,8 @@ impl PacketRouter {
                     event.channel_name.as_deref().unwrap_or("unknown")
                 );
 
+                self.announce_channel_event(&event);
+
                 if let Err(e) = tauri::Emitter::emit(
                     &self.app_handle,
                     crate::events::event::channel::CHANNEL_EVENT,
@@ -240,6 +242,35 @@ impl PacketRouter {
                 warn!("Could not decode channel event packet");
             }
         }
+    }
+
+    /// Announce the local player's own move between groups.
+    ///
+    /// Driven from the server's broadcast rather than from the request that caused it, so
+    /// every surface that can move this player announces itself once — the desktop UI, the
+    /// in-game panel, a WebSocket controller, a move made on this player's behalf — and a
+    /// request that failed announces nothing.
+    fn announce_channel_event(&self, event: &ChannelEventPacket) {
+        let Some(current_player) = self
+            .app_handle
+            .store("store.json")
+            .ok()
+            .and_then(|store| store.get("current_player"))
+            .and_then(|value| value.as_str().map(String::from))
+        else {
+            return;
+        };
+
+        // The login writes a bare gamertag and the packet carries a canonical identity, so
+        // the gamertag is the part that can be compared. Exactly: a miss costs a tone, where
+        // a tolerant comparison would announce somebody else's move as this player's own.
+        let is_self = event.name.gamertag() == current_player;
+
+        let Some(cue) = crate::audio::CuePolicy::for_channel_event(&event.event, is_self) else {
+            return;
+        };
+
+        crate::audio::CueAnnouncer::new(&self.app_handle).play(cue);
     }
 
     /// The first frame of another player's voice to reach this client.
@@ -403,16 +434,14 @@ impl PacketRouter {
             })
             .unwrap_or_else(|| RecordingPlayerData::unknown());
 
-        let encoded_packet = EncodedAudioFramePacket {
-            timestamp: frame.timestamp() as u64,
-            sample_rate: crate::audio::AudioResampling::OPUS_SAMPLE_RATE,
-            data: frame.data,
-            route: AudioSinkType::from_spatial(frame.spatial.unwrap_or(true)),
+        let encoded_packet = EncodedAudioFramePacket::new(
+            frame.timestamp() as u64,
+            crate::audio::AudioResampling::OPUS_SAMPLE_RATE,
+            frame.data,
+            frame.spatial.unwrap_or(true),
             emitter,
             listener,
-            buffer_size_ms: 120,
-            time_between_reports_secs: 30,
-        };
+        );
 
         // Send to playback - recording is now handled post-jitter-buffer in JitterBufferSource
         #[cfg(feature = "e2e")]

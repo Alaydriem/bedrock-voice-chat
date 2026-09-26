@@ -46,13 +46,6 @@ describe("SettingsCatalogue", () => {
         }
     });
 
-    // Plates and a seven-column table both need more than the 760px row measure.
-    it("marks the panes that need the wide measure", () => {
-        const wide = SettingsCatalogue.for(false)
-            .filter((pane) => pane.wide)
-            .map((pane) => pane.id);
-        expect(wide.sort()).toEqual(["connect", "library", "players"]);
-    });
     // The roster, the whitelist and the ban button are the same permission the server
     // checks. A viewer without it must not see the pane at all — an empty pane that 403s
     // on open is worse than no pane.
@@ -110,11 +103,6 @@ describe("SettingsCatalogue", () => {
 
     it("resolves nothing for a pane that does not exist", () => {
         expect(SettingsCatalogue.resolve("nonsense", false)).toBeNull();
-    });
-
-    // A seven-column roster does not fit the row measure.
-    it("marks the admin pane as wide", () => {
-        expect(SettingsCatalogue.find("manage-players", false, ["admin"])?.wide).toBe(true);
     });
 
     // The pane beside it now manages the roster, so "Players" no longer says which is which.

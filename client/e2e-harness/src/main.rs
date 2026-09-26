@@ -316,6 +316,18 @@ fn main() {
                                 }
                             });
                         }
+                        Ok(InMsg::SetCrouchWhisper { enabled }) => {
+                            let h = stdin_handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                if let Err(e) =
+                                    bvc_client_lib::control::WhisperSetting::apply(&h, enabled).await
+                                {
+                                    StdoutBridge::emit(&OutMsg::Log {
+                                        line: format!("set_crouch_whisper failed: {e}"),
+                                    });
+                                }
+                            });
+                        }
                         Ok(InMsg::LeaveChannel { channel_id }) => {
                             ChannelDriver::run(
                                 &stdin_handle,
@@ -389,9 +401,33 @@ fn main() {
                                     .as_ref()
                                     .map(|s| s.peers.iter().map(|p| p.name.clone()).collect())
                                     .unwrap_or_default(),
+                                peer_stats: snapshot
+                                    .as_ref()
+                                    .map(|s| {
+                                        s.peers
+                                            .iter()
+                                            .map(bvc_client_lib::testkit::PeerStat::from_diagnostics)
+                                            .collect()
+                                    })
+                                    .unwrap_or_default(),
                                 downlink_loss_pct: snapshot
                                     .as_ref()
                                     .and_then(|s| s.link.downlink_loss_pct),
+                            });
+                        }
+                        Ok(InMsg::StartCommandWebSocket { port, key }) => {
+                            let h = stdin_handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                match bvc_client_lib::testkit::CommandSocket::start(&h, port, key)
+                                    .await
+                                {
+                                    Ok(port) => StdoutBridge::emit(
+                                        &OutMsg::CommandWebSocketStarted { port },
+                                    ),
+                                    Err(e) => StdoutBridge::emit(&OutMsg::Log {
+                                        line: format!("start_command_websocket failed: {e}"),
+                                    }),
+                                }
                             });
                         }
                         Ok(InMsg::RequestStats) => {

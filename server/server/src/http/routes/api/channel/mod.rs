@@ -30,17 +30,20 @@ inventory::submit! {
         },
     }
 }
-use crate::http::guards::PlayerGuard;
+use crate::http::guards::ChannelReader;
 use crate::http::openapi::CustomJsonResponseRequired;
 use common::structs::channel::Channel;
 use rocket::{State, http::Status};
 use rocket_okapi::openapi;
 
 /// List channels on the server.
+///
+/// Readable by a player certificate or a game server access token: the in-game panel's
+/// group page is a game server asking on a player's behalf.
 #[openapi(tag = "Channels")]
 #[get("/?<id>")]
 pub async fn channel_list(
-    _guard: PlayerGuard,
+    _guard: ChannelReader,
     cache_manager: &State<CacheManager>,
     id: Option<String>,
 ) -> CustomJsonResponseRequired<Vec<Channel>> {

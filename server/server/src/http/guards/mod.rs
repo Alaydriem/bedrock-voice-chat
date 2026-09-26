@@ -4,6 +4,9 @@ mod access_token;
 mod admin;
 pub(crate) use admin::AdminGuard;
 
+mod channel_reader;
+pub(crate) use channel_reader::ChannelReader;
+
 mod game_access_token;
 pub(crate) use game_access_token::GameAccessToken;
 

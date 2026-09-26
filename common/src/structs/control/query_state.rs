@@ -8,7 +8,7 @@ pub struct QueryState {
     pub deafened: bool,
     pub recording: bool,
     // Server-authoritative: overlaid from channel membership when the state is
-    // read (`/api/state`), not trusted from the client's report. The nanoid of the
-    // player's current group, or None.
+    // read (`/api/state`), not trusted from the client's report. The share code of
+    // the player's current group, or None.
     pub current_group: Option<String>,
 }

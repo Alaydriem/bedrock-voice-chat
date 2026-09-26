@@ -568,6 +568,20 @@ export default class ChannelManager {
                     })
                 );
 
+                // A join this client did not initiate reaches it only here: the in-game
+                // panel can move this player, and the server is the authority on where
+                // they ended up. Adopting it is what `leave` already does in reverse.
+                // Without this the membership lives in `channels` but not in
+                // `currentUserChannelId`, so the next join from the webview finds no
+                // origin to leave and the player is left sitting in two groups.
+                if (currentUser && player_name === currentUser) {
+                    const alreadyHere = get(this.currentUserChannelIdStore) === channel_id;
+                    this.currentUserChannelIdStore.set(channel_id);
+                    if (!alreadyHere) {
+                        await this.addExistingGroupMembers(channel_id, currentUser);
+                    }
+                }
+
                 // Add player to group membership if current user is in this channel
                 if (currentUser && this.playerManager) {
                     const channels = get(this.channels);

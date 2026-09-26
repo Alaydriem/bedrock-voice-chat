@@ -24,7 +24,7 @@ pub use resampling::AudioResampling;
 // Re-exported for the same reason as the watchdog below: the cue a mute change earns is a
 // decision rule worth testing without an audio device, and the tone it renders is the one
 // part of an audible cue a test can observe at all.
-pub use cue::{Cue, CuePolicy, CueSink};
+pub use cue::{Cue, CueAnnouncer, CuePolicy, CueSink};
 // Re-exported rather than opening `stream`: the watchdog's decision rule is a behavioural
 // contract worth testing on its own, and the rest of that module is not.
 pub use stream::capture_watchdog::{CaptureVerdict, CaptureWatchdog};
@@ -39,7 +39,7 @@ pub(crate) use recording::RecordingManager;
 pub use speaker_test::Chime;
 pub(crate) use speaker_test::SpeakerTest;
 pub(crate) use stream::AudioStreamManager;
-pub use stream::level_bus::{LevelBus, LevelEmitPolicy, LoudnessTracker};
+pub use stream::level_bus::{LevelBus, LevelEmitPolicy, LoudnessTracker, TrackedPeer};
 pub use stream::stream_manager::device_lease::DeviceLease;
 pub use stream::stream_manager::job_set::JobSet;
 
