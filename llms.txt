@@ -63,6 +63,7 @@ URL. `/llms-full.txt` contains the entire wiki in one document.
 ## Streaming and recording
 
 - [Streaming & recording](https://www.bedrockvoicechat.com/wiki/creator.md): Multi-track recording, Stream Deck control, and the local WebSocket API.
+- [OBS Overlay](https://www.bedrockvoicechat.com/wiki/creator/obs-overlay.md): Show who you can hear, and who is talking, as a Browser source in OBS.
 - [Recording](https://www.bedrockvoicechat.com/wiki/creator/recording.md): Capture a session and export per-player tracks as BWAV or MP4/Opus.
 - [Stream Deck](https://www.bedrockvoicechat.com/wiki/creator/stream-deck.md): Control mute, deafen, recording, jukebox music, world connection, and live stats from an Elgato Stream Deck.
 - [WebSocket API](https://www.bedrockvoicechat.com/wiki/creator/websocket-api.md): Drive mute, deafen, recording, jukebox music, and groups from your own tooling.
