@@ -93,6 +93,7 @@ rocket_cors = { version = "^0.6" }
 dryoc = { version = "^0.7" }
 semver = { version = "^1.0" }
 dashmap = { version = "^6" }
+rustc-hash = { version = "^2" }
 cached = { version = "^0.58" }
 meridian-proxy = { git = "https://github.com/Alaydriem/meridian", default-features = false, features = ["client"] }
 tokio-util = { version = "^0.7" }

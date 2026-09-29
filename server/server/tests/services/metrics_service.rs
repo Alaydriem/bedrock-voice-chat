@@ -250,6 +250,7 @@ async fn resetting_peak_players_drops_to_the_current_count() {
 async fn heartbeat_closes_the_window_and_publishes_interaction_gauges() {
     use bvc_server_lib::services::metrics_service::interaction::InteractionRoute;
     use bvc_server_lib::services::metrics_service::interaction::InteractionTracker;
+    use bvc_server_lib::services::metrics_service::route::RouteFrameReport;
 
     let path = ca_dir("bvc-metrics-heartbeat-ca");
     let (svc, _posthog) = MetricsService::new_shared(
@@ -263,11 +264,11 @@ async fn heartbeat_closes_the_window_and_publishes_interaction_gauges() {
     );
 
     svc.set_active_players(5);
-    svc.record_interaction(
-        InteractionRoute::Proximity,
-        InteractionTracker::hash_name("alice"),
-        InteractionTracker::hash_name("bob"),
-    );
+    // Queued and never flushed by hand: the heartbeat has to apply it before closing the
+    // window, or this delivery would be counted in the next one.
+    let mut report = RouteFrameReport::new(Some(InteractionTracker::hash_name("alice")));
+    report.deliver(InteractionRoute::Proximity, InteractionTracker::hash_name("bob"));
+    svc.record_route_frame(report);
 
     let mut last = chrono::Utc::now().date_naive();
     svc.emit_heartbeat(&mut last);
@@ -275,6 +276,10 @@ async fn heartbeat_closes_the_window_and_publishes_interaction_gauges() {
     let body = svc.render();
     assert!(body.contains("bvc_players_reached"), "exposition:\n{body}");
     assert!(body.contains("route=\"proximity\""), "exposition:\n{body}");
+
+    // Had the heartbeat not flushed first, the delivery would still be queued and this flush
+    // would count it into the new window.
+    svc.flush_route_telemetry();
 
     // the window closed, so the next one starts empty
     assert_eq!(

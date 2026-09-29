@@ -70,7 +70,10 @@ impl PositionFeedService {
 
     async fn rebuild(&self, cache_manager: &CacheManager) {
         let players = cache_manager.players().inner_arc();
-        let world: Vec<PlayerEnum> = players.iter().map(|(_, player)| player).collect();
+        let world: Vec<PlayerEnum> = players
+            .iter()
+            .map(|(_, player)| PlayerEnum::clone(&player))
+            .collect();
 
         // Voice connections are tracked by the QUIC registry, not by the position cache the
         // mod feeds — which is exactly what makes "in the world, not on voice" answerable.

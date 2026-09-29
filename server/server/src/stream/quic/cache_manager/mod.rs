@@ -132,7 +132,10 @@ impl CacheManager {
                 .map(|entry| entry.player),
             None => {
                 let player = self.players.inner_arc().get(&key).await?;
-                Some(self.apply_whisper_choice(&key, player).await)
+                Some(
+                    self.apply_whisper_choice(&key, common::PlayerEnum::clone(&player))
+                        .await,
+                )
             }
         }
     }

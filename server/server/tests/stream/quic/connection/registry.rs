@@ -266,6 +266,7 @@ async fn synthetic_sender_audio_is_not_counted_as_an_interaction() {
         RoutingFixture::delivered_spatial(&mut bob_rx).await.is_some(),
         "jukebox audio must still be delivered"
     );
+    metrics.flush_route_telemetry();
     assert_eq!(
         metrics
             .interactions()
@@ -296,6 +297,7 @@ async fn audio_between_two_connected_players_counts_both() {
     reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
 
     assert!(RoutingFixture::delivered_spatial(&mut bob_rx).await.is_some());
+    metrics.flush_route_telemetry();
     assert_eq!(
         metrics
             .interactions()
@@ -304,6 +306,35 @@ async fn audio_between_two_connected_players_counts_both() {
         2,
         "both the speaker and the listener are participants"
     );
+}
+
+// Measurement is deferred off the routing thread: a delivery is queued, and reaches the
+// interaction tracker only when the flush applies it.
+#[tokio::test]
+async fn a_delivery_is_counted_only_once_the_telemetry_is_flushed() {
+    let reg = ConnectionRegistry::new();
+    let metrics = metrics_for("bvc-registry-deferred-ca");
+    reg.set_metrics(metrics.clone());
+
+    let alice = RoutingFixture::player("Alice", 0.0, false);
+    let bob = RoutingFixture::player("Bob", 1.0, false);
+    let cache = RoutingFixture::player_cache(&[alice.clone(), bob.clone()]).await;
+
+    let (alice_tx, _alice_rx) = mpsc::channel(16);
+    let (bob_tx, mut bob_rx) = mpsc::channel(16);
+    reg.try_register(1, "minecraft:Alice".into(), format!("fp-{}", 1), alice_tx).expect("admitted");
+    reg.try_register(2, "minecraft:Bob".into(), format!("fp-{}", 2), bob_tx).expect("admitted");
+
+    let speaker = Some(alice.clone());
+    let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
+    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
+    assert!(RoutingFixture::delivered_spatial(&mut bob_rx).await.is_some());
+
+    let reached = || metrics.interactions().counts(InteractionRoute::Proximity).reached;
+    assert_eq!(reached(), 0, "the routing thread must not write the tracker itself");
+
+    metrics.flush_route_telemetry();
+    assert_eq!(reached(), 2);
 }
 
 // Revocation addresses a live session by the credential it was opened with, so one identity

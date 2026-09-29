@@ -20,7 +20,13 @@ impl RouteRejectionCounts {
     }
 
     pub fn record(&self, reason: RouteRejection) {
-        self.counts[reason.index()].fetch_add(1, Ordering::Relaxed);
+        self.add(reason, 1);
+    }
+
+    // A frame's whole tally for one reason in one write, so a fan-out rejecting N recipients
+    // touches this shared counter once rather than N times.
+    pub fn add(&self, reason: RouteRejection, count: u64) {
+        self.counts[reason.index()].fetch_add(count, Ordering::Relaxed);
     }
 
     pub fn get(&self, reason: RouteRejection) -> u64 {

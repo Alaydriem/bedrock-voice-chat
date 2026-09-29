@@ -852,6 +852,7 @@ dependencies = [
  "rocket_ws",
  "rodio",
  "ron",
+ "rustc-hash",
  "rustls 0.23.45",
  "rustls-pemfile 2.2.0",
  "schemars",
@@ -1658,9 +1659,9 @@ dependencies = [
 
 [[package]]
 name = "curia"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d06e410276b20cfd387bebd59cb30b58a2b0ecda6b712640fe8c466f035383b0"
+checksum = "6fefbdebae1610781270dd3eb56ca88c887386414a6b76c2dfc3e38af3b874c4"
 dependencies = [
  "android_logger",
  "chrono",

@@ -32,7 +32,7 @@ pub struct PeerPlane {
     // Where a relayed speaker's position is published, so audio routing resolves it the same
     // way it resolves a local player's. Written per frame because a relayed peer moves, and
     // the cache's own presence TTL is what ages a silent one out.
-    speakers: Arc<moka::future::Cache<String, common::PlayerEnum>>,
+    speakers: Arc<moka::future::Cache<String, Arc<common::PlayerEnum>>>,
     // The minted ticket, so `/api/config` can serve it on every request without paying a
     // registry round trip each time. One entry because there is one ticket; a TTL rather
     // than a permanent cell so a server whose observed address changes picks the new one up
@@ -55,7 +55,7 @@ impl PeerPlane {
         grants: Arc<GrantTable>,
         locals: Arc<dyn LocalClients>,
         sink: Arc<dyn PeerSink>,
-        speakers: Arc<moka::future::Cache<String, common::PlayerEnum>>,
+        speakers: Arc<moka::future::Cache<String, Arc<common::PlayerEnum>>>,
         // `server.peer_port`. Absent leaves the port to the operating system, which
         // is a different one on every start — and this endpoint's port is part of
         // the ticket an operator pastes into the far side's config.
@@ -297,7 +297,7 @@ impl PeerPlane {
                         // Published before the packet, so routing never sees a relayed frame
                         // whose speaker it cannot resolve.
                         if let Some(key) = packet.sender_key() {
-                            plane.speakers.insert(key, speaker).await;
+                            plane.speakers.insert(key, Arc::new(speaker)).await;
                         }
                         plane.sink.publish(packet);
                     }

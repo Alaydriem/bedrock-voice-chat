@@ -57,12 +57,20 @@ struct Args {
     /// Server broadcast_range config value
     #[clap(long, default_value = "50.0")]
     broadcast_range: f32,
+
+    /// Populate the UUID fields a mod sends, so a cached player costs what it does in production
+    #[clap(long, default_value = "false")]
+    mod_ids: bool,
+
+    /// Install a metrics service, so each delivery also pays for interaction measurement
+    #[clap(long, default_value = "false")]
+    metrics: bool,
 }
 
 struct RouteBench {
     args: Args,
     registry: Arc<ConnectionRegistry>,
-    player_cache: Arc<Cache<String, PlayerEnum>>,
+    player_cache: Arc<Cache<String, Arc<PlayerEnum>>>,
     delivered: Arc<AtomicU64>,
 }
 
@@ -85,6 +93,8 @@ impl RouteBench {
     fn player(&self, i: usize) -> PlayerEnum {
         let cluster = (i / self.args.group_size.max(1)) as f32;
         let offset = (i % self.args.group_size.max(1)) as f32;
+        // Every player shares one world, so the world gates compare equal strings and pass.
+        let mod_id = |value: String| self.args.mod_ids.then_some(value);
         PlayerEnum::Minecraft(MinecraftPlayer {
             name: Self::player_name(i),
             coordinates: Coordinate {
@@ -96,10 +106,10 @@ impl RouteBench {
             dimension: Dimension::Overworld,
             whispering: false,
             spectator: false,
-            world_uuid: None,
+            world_uuid: mod_id("00000000-0000-4000-8000-000000000001".to_string()),
             alternative_identity: None,
-            player_uuid: None,
-            relay_world_uuid: None,
+            player_uuid: mod_id(format!("00000000-0000-4000-8000-{:012x}", i)),
+            relay_world_uuid: mod_id("00000000-0000-4000-8000-000000000002".to_string()),
             bridged_voice: false,
         })
     }
@@ -123,12 +133,35 @@ impl RouteBench {
     }
 
     async fn setup(&self) {
+        if self.args.metrics {
+            // The service derives its server id from the CA, and refuses to start without one.
+            let certs = std::env::temp_dir().join("route_bench_certs");
+            std::fs::create_dir_all(&certs).expect("certs dir");
+            let certs = certs.to_string_lossy().to_string();
+            bvc_server_lib::runtime::ca_cert::CaCertManager::new(&certs)
+                .ensure(&[String::from("localhost")])
+                .expect("bench CA");
+            let (metrics, _posthog) = bvc_server_lib::services::MetricsService::new_shared(
+                false,
+                &certs,
+                "/nonexistent-cert.pem",
+                Vec::new(),
+                false,
+                false,
+                None,
+            );
+            // The heartbeat task is also the route telemetry flusher. Without it the queue
+            // fills and every frame after that measures the full-queue path.
+            let _flusher = metrics.spawn_heartbeat(tokio_util::sync::CancellationToken::new());
+            self.registry.set_metrics(metrics);
+        }
+
         for i in 0..self.args.connections {
             let player = self.player(i);
             self.player_cache
                 .insert(
                     Game::Minecraft.membership_key(&Self::player_name(i)).to_string(),
-                    player,
+                    Arc::new(player),
                 )
                 .await;
 
@@ -216,12 +249,13 @@ impl RouteBench {
 
         println!("--- route_bench results ---");
         println!(
-            "connections={} speakers={} group_size={} channels={} paced={} duration={}s",
+            "connections={} speakers={} group_size={} channels={} paced={} metrics={} duration={}s",
             self.args.connections,
             self.args.speakers,
             self.args.group_size,
             self.args.channels,
             self.args.paced,
+            self.args.metrics,
             self.args.duration,
         );
         println!("frames routed:      {}", latencies_ns.len());

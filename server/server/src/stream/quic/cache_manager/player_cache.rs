@@ -12,9 +12,13 @@ use super::cache_trait::CacheTrait;
 /// Beyond the uniform `CacheTrait`, it exposes the raw moka handle for the audio
 /// hot path (`route_audio_frame`, `AudioFramePacket::update_coordinates`) and
 /// iteration (relay world populations), which need direct access for per-frame work.
+///
+/// Values are `Arc`-wrapped because moka clones on every `get`, and the audio fan-out reads one
+/// entry per recipient per frame. A bare `PlayerEnum` made each of those reads a deep copy of the
+/// name and up to four UUID strings; the `Arc` makes it a refcount increment.
 #[derive(Clone)]
 pub struct PlayerCache {
-    cache: Arc<Cache<String, PlayerEnum>>,
+    cache: Arc<Cache<String, Arc<PlayerEnum>>>,
 }
 
 impl PlayerCache {
@@ -47,7 +51,7 @@ impl PlayerCache {
 
     /// Cloned handle for the audio hot path (per-frame lookups in
     /// `route_audio_frame` / `update_coordinates`).
-    pub fn inner_arc(&self) -> Arc<Cache<String, PlayerEnum>> {
+    pub fn inner_arc(&self) -> Arc<Cache<String, Arc<PlayerEnum>>> {
         self.cache.clone()
     }
 
@@ -82,12 +86,14 @@ impl CacheTrait for PlayerCache {
     type Key = String;
     type Value = PlayerEnum;
 
+    // Returns an owned copy to keep the uniform trait shape. Nothing per-frame reads through
+    // here; the hot path uses `inner_arc` and keeps the `Arc`.
     async fn get(&self, key: &String) -> Option<PlayerEnum> {
-        self.cache.get(key).await
+        self.cache.get(key).await.map(|player| PlayerEnum::clone(&player))
     }
 
     async fn set(&self, key: String, value: PlayerEnum) {
-        self.cache.insert(key, value).await;
+        self.cache.insert(key, Arc::new(value)).await;
     }
 
     async fn delete(&self, key: &String) {

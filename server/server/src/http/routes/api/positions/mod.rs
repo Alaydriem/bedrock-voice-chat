@@ -105,7 +105,7 @@ pub async fn position(
     let mut players = Vec::new();
 
     for (_, player) in player_cache.iter() {
-        players.push(player.clone());
+        players.push(common::PlayerEnum::clone(&player));
     }
 
     Json(players)
