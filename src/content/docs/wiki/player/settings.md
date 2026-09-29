@@ -10,7 +10,7 @@ Bedrock Voice Chat has a variety of different settings that enable you to custom
 
 ## Audio
 
-<div class="shot"><span>Audio settings page showing input and output device selection</span></div>
+<div class="window"><img src="/assets/wiki/settings-audio.jpg" alt="Audio settings page showing input and output device selection" /></div>
 
 ### Devices
 
@@ -39,6 +39,8 @@ How hard voices are pushed left and right by where the speaker stands. At 0% eve
 
 One volume and one mute for every jukebox in the world. Voices are unaffected. See [using the jukebox](/wiki/player/using-the-jukebox/).
 
+<div class="window"><img src="/assets/wiki/settings-audio-more.jpg" alt="Audio settings page showing voice chat sounds, jukebox volume, and the noise gate toggle" /></div>
+
 ### Noise gate
 
 BVC has a built-in noise gate that behaves like OBS's. The defaults handle fans, keyboards, and mouse clicks.
@@ -57,6 +59,8 @@ Skip it if you already run a VST chain or system-level noise suppression. Two ga
 
 Global shortcuts that work while Minecraft has focus.
 
+<div class="window"><img src="/assets/wiki/settings-keybinds.jpg" alt="Keybinds settings page listing mute, deafen, recording, and push to talk" /></div>
+
 | Action | Notes |
 |---|---|
 | Toggle Mute | |
@@ -70,17 +74,23 @@ Everyone you have heard, with a volume and a mute for each. Changes stick after 
 
 Search when the list gets long. **Reset everybody** returns every player to full volume and unmutes them all.
 
+<div class="window"><img src="/assets/wiki/settings-players.jpg" alt="Player audio levels page listing players with a volume slider and mute for each" /></div>
+
 ## Recordings
 
 Review past sessions, rename them, and export players to separate files as BWAV or MP4/Opus. See [Recording](/wiki/creator/recording/).
 
-<div class="shot"><span>Recordings settings page listing recent sessions</span></div>
+<div class="window"><img src="/assets/wiki/settings-recordings.jpg" alt="Recordings settings page listing recent sessions" /></div>
 
 ## Language
 
 Under About. Pick a language, or **Match my system**. Untranslated text stays in English.
 
+<div class="window"><img src="/assets/wiki/settings-about.jpg" alt="About page showing build information, display language, and diagnostics" /></div>
+
 ## The rest
+
+<div class="window"><img src="/assets/wiki/settings-account.jpg" alt="Account page showing the signed-in identity and linked accounts" /></div>
 
 | Pane | What it does |
 |---|---|

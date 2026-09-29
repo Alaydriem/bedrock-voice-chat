@@ -5,12 +5,13 @@
   "type": "module",
   "description": "bedrockvoicechat.com — marketing site and wiki",
   "scripts": {
-    "dev": "npm run gen:versions && astro dev --host",
-    "build": "npm run gen:versions && astro build && npm run check:links",
+    "dev": "npm run gen:versions && npm run gen:images && astro dev --host",
+    "build": "npm run gen:versions && npm run gen:images && astro build && npm run check:links",
     "gen:versions": "node scripts/version-support.mjs",
+    "gen:images": "node scripts/images.mjs",
     "preview": "astro preview --host",
     "check": "astro check",
-    "dev:local": "npm run gen:versions && astro dev",
+    "dev:local": "npm run gen:versions && npm run gen:images && astro dev",
     "check:links": "node scripts/check-links.mjs",
     "check:prose": "node scripts/check-prose.mjs",
     "slides:export": "node slides/export.mjs"

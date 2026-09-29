@@ -14,15 +14,13 @@ Download it from the [Elgato Marketplace](https://marketplace.elgato.com/product
 
 Bedrock Voice Chat does not listen by default. Open **Settings → WebSocket server**.
 
-<div class="shot"><span>WebSocket settings page with the server enabled, showing port and key</span></div>
+<div class="window"><img src="/assets/wiki/settings-websocket.jpg" alt="WebSocket settings page with the server enabled, showing port and key" /></div>
 
 Note the port and the authentication key.
 
 ## Configure the plugin
 
 Install the plugin, then enter the same port and authentication key. Set the host if BVC is not on the same machine as the Stream Deck.
-
-<div class="shot"><span>Stream Deck plugin settings with port, host, and key filled in</span></div>
 
 ## The actions
 

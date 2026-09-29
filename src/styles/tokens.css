@@ -18,6 +18,8 @@
   --line: #432f6c;
   --line-2: #5b4487;
   --mortar: #43306e;
+  /* window title bar — the client's chrome, darker than the panel it sits on */
+  --bar: #150e24;
 
   /* ---- ink ---------------------------------------------------------- */
   --tx: #fbf8ff;

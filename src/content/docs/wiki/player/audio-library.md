@@ -10,7 +10,7 @@ The audio library holds clips stored on the BVC server. Anyone can bind a stored
 
 Open **Settings → Audio library**.
 
-<div class="shot"><span>Audio Library settings page with several uploaded clips</span></div>
+<div class="window"><img src="/assets/wiki/settings-audio-library.jpg" alt="Audio Library settings page with several uploaded clips" /></div>
 
 ## Permissions
 

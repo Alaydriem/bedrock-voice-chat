@@ -18,7 +18,7 @@ Requires a server running the [Bedrock Addon](/wiki/server/bedrock-addon/), and 
 
 Opens a form with the same controls as the app: mute, deafen, record, jukebox music, and per-player volume.
 
-<div class="shot"><span>The /bvc:panel control panel open in-game</span></div>
+<div class="window"><img src="/assets/wiki/mc-bvc-panel.jpg" alt="The /bvc:panel control panel open in-game" /></div>
 
 ## Your own audio
 
@@ -38,6 +38,8 @@ Opens a form with the same controls as the app: mute, deafen, record, jukebox mu
 Both are local to you.
 
 100 leaves a player untouched. Above that boosts a quiet one, to 150 at most. The app's per-player slider covers the same range.
+
+<div class="window"><img src="/assets/wiki/mc-player-volumes.jpg" alt="The Player volumes form, with the Jukebox music row above the player list" /></div>
 
 ## Jukebox music
 
@@ -59,6 +61,8 @@ The panel has the same two controls on its **Jukebox music** row. See [using the
 | `/bvc:groupleave` | Leave the group you are in. |
 
 Read the share code out, or paste it in chat. See [Groups](/wiki/player/groups/).
+
+<div class="window"><img src="/assets/wiki/mc-groups.jpg" alt="The Groups form, listing groups with the current group's share code" /></div>
 
 ## Audio discs
 

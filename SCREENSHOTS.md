@@ -10,17 +10,27 @@ grep -rn 'class="shot"' src/content/docs/wiki/
 
 ## How to fill one
 
-Drop the image in `public/assets/wiki/` and replace the whole `<div class="shot">…</div>`
-with an image tag:
+Save the original as a PNG in `screenshots/wiki/`, then replace the whole
+`<div class="shot">…</div>` with the image inside `.window`, so it keeps the app title bar
+the placeholder had. Write the path with a `.jpg` extension:
 
 ```html
-<img src="/assets/wiki/signing-in-login.png" alt="BVC login window" />
+<div class="window"><img src="/assets/wiki/signing-in-login.jpg" alt="BVC login window" /></div>
 ```
+
+`npm run build` and `npm run dev` run `scripts/images.mjs`, which turns each original into
+AVIF, WebP and JPEG in `public/assets/wiki/` (1600 px wide at most). The build wraps the
+`<img>` in a `<picture>`, so a browser takes AVIF, then WebP, then the JPEG. Do not commit
+`public/assets/wiki/`; it is generated. `npm run gen:images -- --force` rebuilds every
+image after a change to the quality settings.
+
+Crop the capture to the window's content. The bar is added by CSS, so a screenshot that
+already includes the OS title bar would show two.
 
 Delete the placeholder div when you do. An unfilled slot renders as a dashed box on the
 live page — deliberately visible, so it does not ship unnoticed.
 
-PNG. Under ~200 KB where you can; Astro does not optimise anything in `public/`.
+Keep the original at full size. It is the source for every published format.
 
 ---
 
