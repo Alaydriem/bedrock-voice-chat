@@ -32,7 +32,7 @@ https://example.bedrockvc.stream
 
 Your operator gives you this address.
 
-<div class="shot"><span>BVC login window with the server URL field filled in</span></div>
+<div class="window"><img src="/assets/wiki/signing-in-login.jpg" alt="BVC login window with the server URL field filled in" /></div>
 
 ## Sign in
 
@@ -42,4 +42,4 @@ Your operator gives you this address.
 
 You land on the dashboard. Headphones on, go play.
 
-<div class="shot"><span>BVC dashboard immediately after a successful sign-in</span></div>
+<div class="window"><img src="/assets/wiki/signing-in-dashboard.jpg" alt="BVC dashboard immediately after a successful sign-in" /></div>

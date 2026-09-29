@@ -177,22 +177,75 @@ header.header {
   color: var(--dim);
 }
 
+/* ---- app window frame -------------------------------------------------- */
+
+/* The client's title bar, taken from the store-screen design (Paper: desktop-01
+   Proximity > Surface > Window > Title bar) at half its 2x size. Every
+   screenshot wears it, filled or not, so the wiki reads as one set:
+
+     <div class="window"><img src="/assets/wiki/x.jpg" alt="..." /></div>
+
+   The bar is drawn entirely by ::before — dots as gradients, label as content —
+   so there is no markup to keep in step. */
+.window,
+.shot {
+  display: flex;
+  flex-direction: column;
+  margin: 1.5rem 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--brand-lift) 22%, transparent);
+  border-radius: 13px;
+  background: var(--void-2);
+}
+
+.window::before,
+.shot::before {
+  content: 'Bedrock Voice Chat';
+  order: -2;
+  flex: none;
+  align-self: stretch;
+  box-sizing: border-box;
+  height: 37px;
+  /* Equal padding each side keeps the label on the bar's centre line, clear of
+     the dots. text-indent cancels the trailing letter-spacing after the last
+     letter, which would otherwise pull the text left. */
+  padding-inline: 83px;
+  text-align: center;
+  text-indent: 0.22em;
+  line-height: 36px;
+  border-bottom: 1px solid color-mix(in srgb, var(--brand-lift) 22%, transparent);
+  background:
+    radial-gradient(circle 5px at 21px 50%, var(--fault) 98%, transparent) no-repeat,
+    radial-gradient(circle 5px at 41px 50%, var(--warn) 98%, transparent) no-repeat,
+    radial-gradient(circle 5px at 61px 50%, var(--ok) 98%, transparent) no-repeat,
+    var(--bar);
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.window picture,
+.window img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;
+}
+
 /* ---- screenshot placeholders ------------------------------------------- */
 
 /* Marks where a screenshot belongs but has not been captured yet. Deliberately
    loud in the rendered page: an empty slot that looks intentional is one that
-   ships. Delete the element when the image lands. */
+   ships. Replace the div with a .window when the image lands. */
 .shot {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-height: 8rem;
-  margin: 1.5rem 0;
-  padding: 1.25rem;
-  border: 2px dashed var(--line-2);
-  border-radius: 6px;
-  background: transparent;
+  min-height: 9.5rem;
+  border-style: dashed;
+  border-width: 2px;
+  border-color: var(--line-2);
   color: var(--faint);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -201,16 +254,20 @@ header.header {
   text-wrap: balance;
 }
 
-.shot::before {
+/* Auto margins centre the label and caption in the space under the bar. */
+.shot::after {
   content: 'SCREENSHOT NEEDED';
-  display: block;
-  margin-bottom: 0.4rem;
+  order: -1;
+  margin: auto 0 0.4rem;
+  padding-top: 1.25rem;
   color: var(--line-2);
   letter-spacing: 0.16em;
 }
 
 .shot > span {
   display: block;
+  margin-bottom: auto;
+  padding: 0 1.25rem 1.25rem;
   text-transform: none;
   letter-spacing: 0.02em;
   line-height: 1.5;

@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
+import rehypeWikiPicture from './src/plugins/rehype-wiki-picture.mjs';
+
 // `astro dev` puts "dev" in argv. `astro build` never does, so a production
 // build cannot pick up the local-editor link below.
 const DEV = process.argv.includes('dev');
@@ -22,6 +24,9 @@ const LOCAL_EDIT_BASE = `${process.env.WIKI_EDITOR ?? 'vscode'}://file/${PROJECT
 // so the wiki cannot drift away from the site.
 export default defineConfig({
   site: 'https://www.bedrockvoicechat.com',
+  // Screenshots are written as JPEG paths and served as AVIF, WebP, then JPEG.
+  // See scripts/images.mjs.
+  markdown: { rehypePlugins: [rehypeWikiPicture] },
   integrations: [
     // Starlight injects a root [...slug] route and derives each URL from the
     // file's path under src/content/docs. Nesting the docs in a `wiki/` folder

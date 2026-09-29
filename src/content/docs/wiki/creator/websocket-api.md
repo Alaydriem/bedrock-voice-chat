@@ -18,7 +18,7 @@ Open **Settings → WebSocket server**. Off by default.
 
 Note the port and the authentication key. Every message carries the key. Messages without a valid one are rejected.
 
-<div class="shot"><span>WebSocket settings page with the server enabled, showing port and key</span></div>
+<div class="window"><img src="/assets/wiki/settings-websocket.jpg" alt="WebSocket settings page with the server enabled, showing port and key" /></div>
 
 ## Routes
 

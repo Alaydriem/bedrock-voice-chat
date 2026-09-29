@@ -55,6 +55,10 @@ Give Bob the code. He redeems it with `bvc login`, or just signs in through the 
 
 Codes default to one hour and cap at 24.
 
+An admin can also add players from **Settings → Manage Players** in the app.
+
+<div class="window"><img src="/assets/wiki/settings-manage-players.jpg" alt="Manage Players page listing the players who can sign in to the server" /></div>
+
 ## Removing players
 
 ```bash
@@ -102,6 +106,10 @@ bvc permission list  -p Bob -g minecraft
 `allow` and `deny` are explicit overrides. `clear` removes the override, and the config default applies again. `clear` is not `deny`.
 
 Empty output from `list` means the player has no overrides and is governed entirely by the defaults.
+
+**Manage Players** sets the same three overrides from the settings icon on a player's row. **Default** clears the override.
+
+<div class="window"><img src="/assets/wiki/settings-manage-permissions.jpg" alt="Permissions dialog for a player with Default, Allow, and Deny for Administrator, Upload sounds, and Delete sounds" /></div>
 
 ## A reasonable starting policy
 

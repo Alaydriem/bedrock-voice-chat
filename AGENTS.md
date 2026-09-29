@@ -12,6 +12,8 @@ Source for **bedrockvoicechat.com** — the marketing site and the wiki, one Ast
 | `src/styles/tokens.css` | **The only file allowed to contain a hex value.** |
 | `src/lib/site.ts` | Facts — versions, URLs, feature gates. Not design decisions. |
 | `src/data/version-matrix.json` | Generated. See below. |
+| `screenshots/wiki/*.png` | Screenshot originals. Never published. |
+| `public/assets/wiki/` | Generated from `screenshots/wiki/`. Gitignored. |
 | `scripts/` | Build-time generators and checks. |
 
 Nesting docs under `wiki/` is what puts them on `/wiki/**`; Starlight 0.41 removed `routeBasePath`. The marketing page keeps `/` because a static route outranks an injected dynamic one.
@@ -19,7 +21,7 @@ Nesting docs under `wiki/` is what puts them on `/wiki/**`; Starlight 0.41 remov
 ## Commands
 
 ```
-npm run build     # gen:versions -> astro build -> check:links
+npm run build     # gen:versions -> gen:images -> astro build -> check:links
 npm run check     # astro check
 npm run dev       # local, --host
 ```
@@ -41,7 +43,9 @@ cargo run --example version-matrix > ../../bvc-pages-src/src/data/version-matrix
 
 **Renaming or removing a page** means adding a redirect in `astro.config.mjs`. Old URLs are linked from Discord and indexed.
 
-**Screenshots** are `<div class="shot"><span>caption</span></div>` placeholders. They render as a dashed box, deliberately visible. Replace with an `<img>` and delete the div.
+**Screenshots** are `<div class="shot"><span>caption</span></div>` placeholders. They render as a dashed box under the app title bar, deliberately visible. Replace the div with `<div class="window"><img …></div>`, which keeps the title bar.
+
+Save the original PNG in `screenshots/wiki/` and write the `src` as `/assets/wiki/<name>.jpg`. `scripts/images.mjs` builds AVIF, WebP and JPEG from it on every build and dev start, and `src/plugins/rehype-wiki-picture.mjs` wraps the `<img>` in a `<picture>`. Crop the OS title bar off the capture, because CSS draws one. Astro caches rendered markdown in `node_modules/.astro/data-store.json`; delete it after changing the plugin.
 
 **Say "Addon", not "behavior pack".** The Bedrock artifact is a behavior pack plus a resource pack; Addon is the term for both.
 
