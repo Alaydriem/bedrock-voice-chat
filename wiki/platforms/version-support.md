@@ -63,8 +63,6 @@ Patreon supporters and YouTube members get early access to builds and packs, whi
 
 When connecting through Bedrock Voice Chat Connect you can pin the protocol BVC advertises, per server, in the client's server list. Auto mirrors whatever the real backend reports and is correct in almost every case. Leave it there unless you have a reason not to.
 
-<div class="shot"><span>Bedrock Voice Chat Connect server entry with the advertised-version dropdown open</span></div>
-
 ---
 
 <small>Generated from the protocol matrix emitted by <code>bedrock-protocol-rs</code>. </small>

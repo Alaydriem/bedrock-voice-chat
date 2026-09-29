@@ -5,7 +5,7 @@ source: https://www.bedrockvoicechat.com/wiki/player/using-voice-chat/
 ---
 Bedrock Voice Chat lets you hear people nearby you in the world, and in groups you create or join.
 
-<div class="shot"><span>BVC dashboard showing the player list with proximity and group members</span></div>
+<div class="window"><img src="/assets/wiki/dashboard-group.jpg" alt="BVC dashboard showing the player list with proximity and group members" /></div>
 
 ## Proximity
 
@@ -35,13 +35,13 @@ Both controls are at the bottom left of the secondary sidebar.
 
 Both can be bound to a key, along with push-to-talk. See [Settings](/wiki/player/settings/).
 
-<div class="shot"><span>The Mute and Deafen buttons within the app.</span></div>
+<div class="window"><img src="/assets/wiki/mute-deafen.jpg" alt="The Mute and Deafen buttons within the app." /></div>
 
 ## Adjust another player
 
 BVC enables you to adjust the volume of any player you come in range with. You can mute them entirely, or adjust their volume up or down for comfort.
 
-<div class="shot"><span>Adjusting player volume</span></div>
+<div class="window"><img src="/assets/wiki/dashboard-earshot.jpg" alt="Adjusting player volume" /></div>
 
 :::tip
 When adjusting player volume, be sure to do it while they are within 24 blocks of you, as this is their baseline level.

@@ -22,11 +22,9 @@ Support lags every Minecraft release. A host that auto-updates **will break** vo
 1. Find the `.mcworld` you exported and change the extension to `.zip`.
 2. Upload it to Aternos.
 
-   <div class="shot"><span>Aternos world upload page</span></div>
+   <div class="window"><img src="/assets/wiki/aternos-worlds.jpg" alt="Aternos world upload page" /></div>
 
 3. Set the Aternos server version to match the Addon's supported Minecraft version. These Addons are not backwards compatible — a mismatch fails outright.
-
-   <div class="shot"><span>Aternos server version selector</span></div>
 
 Check [version support](/wiki/platforms/version-support/) for what to pick.
 
@@ -36,11 +34,11 @@ Check [version support](/wiki/platforms/version-support/) for what to pick.
 2. Settings cog, bottom left. Then **Voice Chat Connect** in the sidebar. First visit asks you to sign in again.
 3. Add a server with the button at the top: your Aternos domain and port.
 
-   <div class="shot"><span>Bedrock Voice Chat Connect add-server dialog with an Aternos address</span></div>
+   <div class="window"><img src="/assets/wiki/settings-connect-aternos-edit.jpg" alt="Bedrock Voice Chat Connect add-server dialog with an Aternos address" /></div>
 
 4. Connect. You get connection details back.
 
-   <div class="shot"><span>Bedrock Voice Chat Connect showing connection information for a connected server</span></div>
+   <div class="window"><img src="/assets/wiki/settings-connect-aternos-connected.jpg" alt="Bedrock Voice Chat Connect showing connection information for a connected server" /></div>
 
 ## Open Minecraft
 

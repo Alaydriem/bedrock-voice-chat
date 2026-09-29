@@ -13,8 +13,6 @@ Recording is available on Windows, macOS, and Linux only. Mobile devices lack th
 
 Press **REC** at the bottom of the sub-sidebar. The indicator turns red.
 
-<div class="shot"><span>The REC button active, showing the red recording indicator</span></div>
-
 Sessions capture position and group data alongside audio. Export can place each voice where it stood.
 
 Start and stop also work from [in-game](/wiki/player/in-game-commands/) with `/bvc:record <on|off>`, and from a [Stream Deck](/wiki/creator/stream-deck/).
@@ -45,7 +43,7 @@ See [configuration](/wiki/reference/configuration/#voicerecording).
 
 Open **Settings → Recordings**.
 
-<div class="shot"><span>Recordings page listing sessions with their participants</span></div>
+<div class="window"><img src="/assets/wiki/settings-recordings.jpg" alt="Recordings page listing sessions with their participants" /></div>
 
 Review sessions, see participants, rename, delete, and export.
 
@@ -78,8 +76,6 @@ A spatial render needs two values the recording does not carry: the server's spa
 A render that falls back to defaults against a server that changed its `broadcast_range` produces a different curve. Nothing in the audio shows it. Check the log line when an export sounds wrong.
 
 See [`voice.spatial_audio`](/wiki/reference/configuration/#voicespatial_audio).
-
-<div class="shot"><span>Recording detail with the spatial positions toggle on</span></div>
 
 ## Format version
 

@@ -40,7 +40,7 @@ Nothing to configure. The relay defaults handle it.
 4. Open Minecraft on the console. Go to **Worlds**.
 5. Pick the entry named after your world. The second line shows your gamertag and **Bedrock Voice Chat**.
 
-<div class="shot"><span>Minecraft's Worlds tab showing a BVC session, world name on the first line and gamertag on the second</span></div>
+<div class="window"><img src="/assets/wiki/mc-worlds.jpg" alt="Minecraft's Worlds tab showing a BVC session, world name on the first line and gamertag on the second" /></div>
 
 If two people on the network run BVC in the same world, both entries appear. The gamertag on the second line tells them apart.
 

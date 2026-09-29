@@ -19,14 +19,14 @@ To use the jukebox, you'll need three things:
 
 `audio_id` is the clip's ID from the audio library. You get a music disc named `BVC: <audio_id>`.
 
-<div class="shot"><span>Inventory showing a BVC disc, with its <code>BVC: &lt;audio_id&gt;</code> name visible</span></div>
+<div class="window"><img src="/assets/wiki/mc-disc.jpg" alt="A BVC disc in the hotbar, with its BVC: audio_id name visible" /></div>
 
 ## Craft the audio player
 
 ### Bedrock
 On Bedrock edition, the BVC Audio Player must first be crafted.
 
-<div class="shot"><span>Crafting recipe for the BVC audio player block</span></div>
+<div class="window"><img src="/assets/wiki/mc-audio-player-recipe.jpg" alt="Crafting recipe for the BVC audio player block" /></div>
 
 ### Java
 
@@ -36,6 +36,8 @@ On Java edition, the native Jukebox is used.
 
 1. Place the block.
 2. Put the disc in.
+
+<div class="window"><img src="/assets/wiki/mc-jukebox.jpg" alt="A jukebox placed in the world, with a BVC disc in hand" /></div>
 
 Everyone in range hears it through BVC with the same distance falloff as voice. See [using voice chat](/wiki/player/using-voice-chat/) for the ranges.
 

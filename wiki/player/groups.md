@@ -5,7 +5,7 @@ source: https://www.bedrockvoicechat.com/wiki/player/groups/
 ---
 Everyone in a group hears everyone else at full volume, wherever they are in the world.
 
-<div class="shot"><span>Group panel in the left sub-sidebar, showing members</span></div>
+<div class="window"><img src="/assets/wiki/dashboard-group.jpg" alt="Group panel in the left sub-sidebar, showing members" /></div>
 
 ## Create a group
 

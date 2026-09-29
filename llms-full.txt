@@ -268,7 +268,7 @@ The audio library holds clips stored on the BVC server. Anyone can bind a stored
 
 Open **Settings → Audio library**.
 
-<div class="shot"><span>Audio Library settings page with several uploaded clips</span></div>
+<div class="window"><img src="/assets/wiki/settings-audio-library.jpg" alt="Audio Library settings page with several uploaded clips" /></div>
 
 ## Permissions
 
@@ -310,7 +310,7 @@ Bedrock Voice Chat mirrors your server's in-game chat into the app, letting you 
 
 Your message appears in game as `<yourname> your message`.
 
-<div class="shot"><span>BVC Chat Window</span></div>
+<div class="window"><img src="/assets/wiki/chat-open.jpg" alt="BVC Chat Window" /></div>
 
 ## Where your message goes
 
@@ -322,8 +322,6 @@ You get a picker when you are signed in, not in game, and the server carries mor
 |---|---|
 | **Active** | People are in it right now |
 | **Available** | Its chat relay is up |
-
-<div class="shot"><span>The chat target picker listing worlds with their Active and Available labels</span></div>
 
 :::caution
 A world can be **Active** without being **Available**. The game server is running, but its chat link to Bedrock Voice Chat is down, and your message **will not send** there.
@@ -382,7 +380,7 @@ Source: https://www.bedrockvoicechat.com/wiki/player/groups
 
 Everyone in a group hears everyone else at full volume, wherever they are in the world.
 
-<div class="shot"><span>Group panel in the left sub-sidebar, showing members</span></div>
+<div class="window"><img src="/assets/wiki/dashboard-group.jpg" alt="Group panel in the left sub-sidebar, showing members" /></div>
 
 ## Create a group
 
@@ -472,7 +470,7 @@ Requires a server running the [Bedrock Addon](/wiki/server/bedrock-addon/), and 
 
 Opens a form with the same controls as the app: mute, deafen, record, jukebox music, and per-player volume.
 
-<div class="shot"><span>The /bvc:panel control panel open in-game</span></div>
+<div class="window"><img src="/assets/wiki/mc-bvc-panel.jpg" alt="The /bvc:panel control panel open in-game" /></div>
 
 ## Your own audio
 
@@ -492,6 +490,8 @@ Opens a form with the same controls as the app: mute, deafen, record, jukebox mu
 Both are local to you.
 
 100 leaves a player untouched. Above that boosts a quiet one, to 150 at most. The app's per-player slider covers the same range.
+
+<div class="window"><img src="/assets/wiki/mc-player-volumes.jpg" alt="The Player volumes form, with the Jukebox music row above the player list" /></div>
 
 ## Jukebox music
 
@@ -513,6 +513,8 @@ The panel has the same two controls on its **Jukebox music** row. See [using the
 | `/bvc:groupleave` | Leave the group you are in. |
 
 Read the share code out, or paste it in chat. See [Groups](/wiki/player/groups/).
+
+<div class="window"><img src="/assets/wiki/mc-groups.jpg" alt="The Groups form, listing groups with the current group's share code" /></div>
 
 ## Audio discs
 
@@ -720,7 +722,7 @@ Bedrock Voice Chat has a variety of different settings that enable you to custom
 
 ## Audio
 
-<div class="shot"><span>Audio settings page showing input and output device selection</span></div>
+<div class="window"><img src="/assets/wiki/settings-audio.jpg" alt="Audio settings page showing input and output device selection" /></div>
 
 ### Devices
 
@@ -749,6 +751,8 @@ How hard voices are pushed left and right by where the speaker stands. At 0% eve
 
 One volume and one mute for every jukebox in the world. Voices are unaffected. See [using the jukebox](/wiki/player/using-the-jukebox/).
 
+<div class="window"><img src="/assets/wiki/settings-audio-more.jpg" alt="Audio settings page showing voice chat sounds, jukebox volume, and the noise gate toggle" /></div>
+
 ### Noise gate
 
 BVC has a built-in noise gate that behaves like OBS's. The defaults handle fans, keyboards, and mouse clicks.
@@ -767,6 +771,8 @@ Skip it if you already run a VST chain or system-level noise suppression. Two ga
 
 Global shortcuts that work while Minecraft has focus.
 
+<div class="window"><img src="/assets/wiki/settings-keybinds.jpg" alt="Keybinds settings page listing mute, deafen, recording, and push to talk" /></div>
+
 | Action | Notes |
 |---|---|
 | Toggle Mute | |
@@ -780,17 +786,23 @@ Everyone you have heard, with a volume and a mute for each. Changes stick after 
 
 Search when the list gets long. **Reset everybody** returns every player to full volume and unmutes them all.
 
+<div class="window"><img src="/assets/wiki/settings-players.jpg" alt="Player audio levels page listing players with a volume slider and mute for each" /></div>
+
 ## Recordings
 
 Review past sessions, rename them, and export players to separate files as BWAV or MP4/Opus. See [Recording](/wiki/creator/recording/).
 
-<div class="shot"><span>Recordings settings page listing recent sessions</span></div>
+<div class="window"><img src="/assets/wiki/settings-recordings.jpg" alt="Recordings settings page listing recent sessions" /></div>
 
 ## Language
 
 Under About. Pick a language, or **Match my system**. Untranslated text stays in English.
 
+<div class="window"><img src="/assets/wiki/settings-about.jpg" alt="About page showing build information, display language, and diagnostics" /></div>
+
 ## The rest
+
+<div class="window"><img src="/assets/wiki/settings-account.jpg" alt="Account page showing the signed-in identity and linked accounts" /></div>
 
 | Pane | What it does |
 |---|---|
@@ -843,7 +855,7 @@ https://example.bedrockvc.stream
 
 Your operator gives you this address.
 
-<div class="shot"><span>BVC login window with the server URL field filled in</span></div>
+<div class="window"><img src="/assets/wiki/signing-in-login.jpg" alt="BVC login window with the server URL field filled in" /></div>
 
 ## Sign in
 
@@ -853,7 +865,7 @@ Your operator gives you this address.
 
 You land on the dashboard. Headphones on, go play.
 
-<div class="shot"><span>BVC dashboard immediately after a successful sign-in</span></div>
+<div class="window"><img src="/assets/wiki/signing-in-dashboard.jpg" alt="BVC dashboard immediately after a successful sign-in" /></div>
 
 ---
 
@@ -984,14 +996,14 @@ To use the jukebox, you'll need three things:
 
 `audio_id` is the clip's ID from the audio library. You get a music disc named `BVC: <audio_id>`.
 
-<div class="shot"><span>Inventory showing a BVC disc, with its <code>BVC: &lt;audio_id&gt;</code> name visible</span></div>
+<div class="window"><img src="/assets/wiki/mc-disc.jpg" alt="A BVC disc in the hotbar, with its BVC: audio_id name visible" /></div>
 
 ## Craft the audio player
 
 ### Bedrock
 On Bedrock edition, the BVC Audio Player must first be crafted.
 
-<div class="shot"><span>Crafting recipe for the BVC audio player block</span></div>
+<div class="window"><img src="/assets/wiki/mc-audio-player-recipe.jpg" alt="Crafting recipe for the BVC audio player block" /></div>
 
 ### Java
 
@@ -1001,6 +1013,8 @@ On Java edition, the native Jukebox is used.
 
 1. Place the block.
 2. Put the disc in.
+
+<div class="window"><img src="/assets/wiki/mc-jukebox.jpg" alt="A jukebox placed in the world, with a BVC disc in hand" /></div>
 
 Everyone in range hears it through BVC with the same distance falloff as voice. See [using voice chat](/wiki/player/using-voice-chat/) for the ranges.
 
@@ -1045,7 +1059,7 @@ Source: https://www.bedrockvoicechat.com/wiki/player/using-voice-chat
 
 Bedrock Voice Chat lets you hear people nearby you in the world, and in groups you create or join.
 
-<div class="shot"><span>BVC dashboard showing the player list with proximity and group members</span></div>
+<div class="window"><img src="/assets/wiki/dashboard-group.jpg" alt="BVC dashboard showing the player list with proximity and group members" /></div>
 
 ## Proximity
 
@@ -1075,13 +1089,13 @@ Both controls are at the bottom left of the secondary sidebar.
 
 Both can be bound to a key, along with push-to-talk. See [Settings](/wiki/player/settings/).
 
-<div class="shot"><span>The Mute and Deafen buttons within the app.</span></div>
+<div class="window"><img src="/assets/wiki/mute-deafen.jpg" alt="The Mute and Deafen buttons within the app." /></div>
 
 ## Adjust another player
 
 BVC enables you to adjust the volume of any player you come in range with. You can mute them entirely, or adjust their volume up or down for comfort.
 
-<div class="shot"><span>Adjusting player volume</span></div>
+<div class="window"><img src="/assets/wiki/dashboard-earshot.jpg" alt="Adjusting player volume" /></div>
 
 :::tip
 When adjusting player volume, be sure to do it while they are within 24 blocks of you, as this is their baseline level.
@@ -2294,17 +2308,17 @@ Running your own Bedrock Dedicated Server avoids all of it. See [version support
 
 3. Create a new world. Under **Behavior Packs**, enable the Bedrock Voice Chat Realms + No-Net pack.
 
-   <div class="shot"><span>Behavior Packs list with the Realms + No-Net pack enabled</span></div>
+   <div class="window"><img src="/assets/wiki/mc-packs-active.jpg" alt="Pack list with the Bedrock Voice Chat (Realms + No-Net Servers) pack active" /></div>
 
 4. Under **Experiments**, enable **Beta APIs**.
 
-   <div class="shot"><span>Experiments toggle showing Beta APIs enabled</span></div>
+   <div class="window"><img src="/assets/wiki/mc-experiments.jpg" alt="Experiments toggle showing Beta APIs enabled" /></div>
 
 5. Create the world, then exit it immediately.
 
 6. Open the world's settings and export it.
 
-   <div class="shot"><span>World settings with the Export World option at the bottom</span></div>
+   <div class="window"><img src="/assets/wiki/mc-export-world.jpg" alt="World settings with the Export World option at the bottom" /></div>
 
 Save it somewhere you can find.
 
@@ -2388,6 +2402,10 @@ Give Bob the code. He redeems it with `bvc login`, or just signs in through the 
 
 Codes default to one hour and cap at 24.
 
+An admin can also add players from **Settings → Manage Players** in the app.
+
+<div class="window"><img src="/assets/wiki/settings-manage-players.jpg" alt="Manage Players page listing the players who can sign in to the server" /></div>
+
 ## Removing players
 
 ```bash
@@ -2435,6 +2453,10 @@ bvc permission list  -p Bob -g minecraft
 `allow` and `deny` are explicit overrides. `clear` removes the override, and the config default applies again. `clear` is not `deny`.
 
 Empty output from `list` means the player has no overrides and is governed entirely by the defaults.
+
+**Manage Players** sets the same three overrides from the settings icon on a player's row. **Default** clears the override.
+
+<div class="window"><img src="/assets/wiki/settings-manage-permissions.jpg" alt="Permissions dialog for a player with Default, Allow, and Deny for Administrator, Upload sounds, and Delete sounds" /></div>
 
 ## A reasonable starting policy
 
@@ -2758,11 +2780,9 @@ Support lags every Minecraft release. A host that auto-updates **will break** vo
 1. Find the `.mcworld` you exported and change the extension to `.zip`.
 2. Upload it to Aternos.
 
-   <div class="shot"><span>Aternos world upload page</span></div>
+   <div class="window"><img src="/assets/wiki/aternos-worlds.jpg" alt="Aternos world upload page" /></div>
 
 3. Set the Aternos server version to match the Addon's supported Minecraft version. These Addons are not backwards compatible — a mismatch fails outright.
-
-   <div class="shot"><span>Aternos server version selector</span></div>
 
 Check [version support](/wiki/platforms/version-support/) for what to pick.
 
@@ -2772,11 +2792,11 @@ Check [version support](/wiki/platforms/version-support/) for what to pick.
 2. Settings cog, bottom left. Then **Voice Chat Connect** in the sidebar. First visit asks you to sign in again.
 3. Add a server with the button at the top: your Aternos domain and port.
 
-   <div class="shot"><span>Bedrock Voice Chat Connect add-server dialog with an Aternos address</span></div>
+   <div class="window"><img src="/assets/wiki/settings-connect-aternos-edit.jpg" alt="Bedrock Voice Chat Connect add-server dialog with an Aternos address" /></div>
 
 4. Connect. You get connection details back.
 
-   <div class="shot"><span>Bedrock Voice Chat Connect showing connection information for a connected server</span></div>
+   <div class="window"><img src="/assets/wiki/settings-connect-aternos-connected.jpg" alt="Bedrock Voice Chat Connect showing connection information for a connected server" /></div>
 
 ## Open Minecraft
 
@@ -2841,7 +2861,7 @@ Nothing to configure. The relay defaults handle it.
 4. Open Minecraft on the console. Go to **Worlds**.
 5. Pick the entry named after your world. The second line shows your gamertag and **Bedrock Voice Chat**.
 
-<div class="shot"><span>Minecraft's Worlds tab showing a BVC session, world name on the first line and gamertag on the second</span></div>
+<div class="window"><img src="/assets/wiki/mc-worlds.jpg" alt="Minecraft's Worlds tab showing a BVC session, world name on the first line and gamertag on the second" /></div>
 
 If two people on the network run BVC in the same world, both entries appear. The gamertag on the second line tells them apart.
 
@@ -2940,7 +2960,7 @@ Realms use Nethernet, which has a connect cooldown. If you disconnect from Bedro
 2. Settings cog, bottom left. Then **Voice Chat Connect** in the sidebar. First visit asks you to sign in again.
 3. Select your Realm.
 
-<div class="shot"><span>Voice Chat Connect page with a Realm selected</span></div>
+<div class="window"><img src="/assets/wiki/settings-connect.jpg" alt="Voice Chat Connect page with a Realm selected" /></div>
 
 ## Open Minecraft
 
@@ -3027,8 +3047,6 @@ Patreon supporters and YouTube members get early access to builds and packs, whi
 ## Advertised version
 
 When connecting through Bedrock Voice Chat Connect you can pin the protocol BVC advertises, per server, in the client's server list. Auto mirrors whatever the real backend reports and is correct in almost every case. Leave it there unless you have a reason not to.
-
-<div class="shot"><span>Bedrock Voice Chat Connect server entry with the advertised-version dropdown open</span></div>
 
 ---
 
@@ -3131,8 +3149,6 @@ Recording is available on Windows, macOS, and Linux only. Mobile devices lack th
 
 Press **REC** at the bottom of the sub-sidebar. The indicator turns red.
 
-<div class="shot"><span>The REC button active, showing the red recording indicator</span></div>
-
 Sessions capture position and group data alongside audio. Export can place each voice where it stood.
 
 Start and stop also work from [in-game](/wiki/player/in-game-commands/) with `/bvc:record <on|off>`, and from a [Stream Deck](/wiki/creator/stream-deck/).
@@ -3163,7 +3179,7 @@ See [configuration](/wiki/reference/configuration/#voicerecording).
 
 Open **Settings → Recordings**.
 
-<div class="shot"><span>Recordings page listing sessions with their participants</span></div>
+<div class="window"><img src="/assets/wiki/settings-recordings.jpg" alt="Recordings page listing sessions with their participants" /></div>
 
 Review sessions, see participants, rename, delete, and export.
 
@@ -3196,8 +3212,6 @@ A spatial render needs two values the recording does not carry: the server's spa
 A render that falls back to defaults against a server that changed its `broadcast_range` produces a different curve. Nothing in the audio shows it. Check the log line when an export sounds wrong.
 
 See [`voice.spatial_audio`](/wiki/reference/configuration/#voicespatial_audio).
-
-<div class="shot"><span>Recording detail with the spatial positions toggle on</span></div>
 
 ## Format version
 
@@ -3252,15 +3266,13 @@ Download it from the [Elgato Marketplace](https://marketplace.elgato.com/product
 
 Bedrock Voice Chat does not listen by default. Open **Settings → WebSocket server**.
 
-<div class="shot"><span>WebSocket settings page with the server enabled, showing port and key</span></div>
+<div class="window"><img src="/assets/wiki/settings-websocket.jpg" alt="WebSocket settings page with the server enabled, showing port and key" /></div>
 
 Note the port and the authentication key.
 
 ## Configure the plugin
 
 Install the plugin, then enter the same port and authentication key. Set the host if BVC is not on the same machine as the Stream Deck.
-
-<div class="shot"><span>Stream Deck plugin settings with port, host, and key filled in</span></div>
 
 ## The actions
 
@@ -3343,7 +3355,7 @@ Open **Settings → WebSocket server**. Off by default.
 
 Note the port and the authentication key. Every message carries the key. Messages without a valid one are rejected.
 
-<div class="shot"><span>WebSocket settings page with the server enabled, showing port and key</span></div>
+<div class="window"><img src="/assets/wiki/settings-websocket.jpg" alt="WebSocket settings page with the server enabled, showing port and key" /></div>
 
 ## Routes
 

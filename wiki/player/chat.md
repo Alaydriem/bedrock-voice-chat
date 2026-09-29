@@ -13,7 +13,7 @@ Bedrock Voice Chat mirrors your server's in-game chat into the app, letting you 
 
 Your message appears in game as `<yourname> your message`.
 
-<div class="shot"><span>BVC Chat Window</span></div>
+<div class="window"><img src="/assets/wiki/chat-open.jpg" alt="BVC Chat Window" /></div>
 
 ## Where your message goes
 
@@ -25,8 +25,6 @@ You get a picker when you are signed in, not in game, and the server carries mor
 |---|---|
 | **Active** | People are in it right now |
 | **Available** | Its chat relay is up |
-
-<div class="shot"><span>The chat target picker listing worlds with their Active and Available labels</span></div>
 
 :::caution
 A world can be **Active** without being **Available**. The game server is running, but its chat link to Bedrock Voice Chat is down, and your message **will not send** there.

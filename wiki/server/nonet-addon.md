@@ -37,17 +37,17 @@ Running your own Bedrock Dedicated Server avoids all of it. See [version support
 
 3. Create a new world. Under **Behavior Packs**, enable the Bedrock Voice Chat Realms + No-Net pack.
 
-   <div class="shot"><span>Behavior Packs list with the Realms + No-Net pack enabled</span></div>
+   <div class="window"><img src="/assets/wiki/mc-packs-active.jpg" alt="Pack list with the Bedrock Voice Chat (Realms + No-Net Servers) pack active" /></div>
 
 4. Under **Experiments**, enable **Beta APIs**.
 
-   <div class="shot"><span>Experiments toggle showing Beta APIs enabled</span></div>
+   <div class="window"><img src="/assets/wiki/mc-experiments.jpg" alt="Experiments toggle showing Beta APIs enabled" /></div>
 
 5. Create the world, then exit it immediately.
 
 6. Open the world's settings and export it.
 
-   <div class="shot"><span>World settings with the Export World option at the bottom</span></div>
+   <div class="window"><img src="/assets/wiki/mc-export-world.jpg" alt="World settings with the Export World option at the bottom" /></div>
 
 Save it somewhere you can find.
 

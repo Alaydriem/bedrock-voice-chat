@@ -30,7 +30,7 @@ Realms use Nethernet, which has a connect cooldown. If you disconnect from Bedro
 2. Settings cog, bottom left. Then **Voice Chat Connect** in the sidebar. First visit asks you to sign in again.
 3. Select your Realm.
 
-<div class="shot"><span>Voice Chat Connect page with a Realm selected</span></div>
+<div class="window"><img src="/assets/wiki/settings-connect.jpg" alt="Voice Chat Connect page with a Realm selected" /></div>
 
 ## Open Minecraft
 
