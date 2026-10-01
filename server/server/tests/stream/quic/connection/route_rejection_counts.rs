@@ -66,6 +66,31 @@ async fn a_channel_delivery_counts_no_rejection() {
     }
 }
 
+// A frame tallies its rejections and writes them once at the end. The one write must still
+// carry every recipient it refused, not one per reason.
+#[tokio::test]
+async fn a_frame_refusing_several_recipients_for_one_reason_counts_each() {
+    let reg = ConnectionRegistry::new();
+    let (alice_tx, _alice_rx) = mpsc::channel(8);
+    reg.try_register(1, "minecraft:Alice".into(), "fp-1".into(), alice_tx).expect("admitted");
+    let alice = RoutingFixture::player("Alice", 0.0, false);
+    let mut players = vec![alice.clone()];
+    let mut listeners = Vec::new();
+    for (device, name) in [(2, "Bob"), (3, "Carol"), (4, "Dave")] {
+        let (tx, rx) = mpsc::channel(8);
+        reg.try_register(device, format!("minecraft:{name}").into(), format!("fp-{device}"), tx)
+            .expect("admitted");
+        players.push(RoutingFixture::player(name, 10_000.0 * device as f32, false));
+        listeners.push(rx);
+    }
+    let cache = RoutingFixture::player_cache(&players).await;
+    let packet = RoutingFixture::audio_packet(alice.clone(), "minecraft:Alice");
+
+    reg.route_audio_frame(&packet, Some(&alice), &cache, RANGE, DEAFEN).await;
+
+    assert_eq!(reg.route_rejections().get(RouteRejection::OutOfRange), 3);
+}
+
 #[tokio::test]
 async fn a_frame_with_no_routable_sender_is_counted_once() {
     let reg = ConnectionRegistry::new();

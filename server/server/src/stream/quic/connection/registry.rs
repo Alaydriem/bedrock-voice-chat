@@ -20,6 +20,7 @@ use crate::services::MetricsService;
 use crate::services::metrics_service::interaction::InteractionRoute;
 use crate::services::metrics_service::interaction::RouteRejection;
 use crate::services::metrics_service::interaction::InteractionTracker;
+use crate::services::metrics_service::route::RouteFrameReport;
 use crate::stream::quic::log_throttle::LogThrottle;
 use crate::stream::session::WebSocketDeviceId;
 
@@ -752,7 +753,7 @@ impl ConnectionRegistry {
         &self,
         packet: &QuicNetworkPacket,
         speaker: Option<&PlayerEnum>,
-        player_cache: &Arc<Cache<String, PlayerEnum>>,
+        player_cache: &Arc<Cache<String, Arc<PlayerEnum>>>,
         broadcast_range: f32,
         whisper_distance: f32,
     ) {
@@ -865,6 +866,10 @@ impl ConnectionRegistry {
         // background music.
         let sender_hash = self.connection_name_hash(sender_identity);
 
+        // Every measurement this frame makes goes here, not to a shared counter. Reach is only
+        // collected when something will read it.
+        let mut report = RouteFrameReport::new(self.metrics.get().and(sender_hash));
+
         for (device, recipient_identity, recipient_hash, tx, sequence) in &snapshot {
             if recipient_identity.as_ref() == sender_identity {
                 continue;
@@ -907,19 +912,19 @@ impl ConnectionRegistry {
                 // channel delivery never reads it, and the fetch is an awaited cache
                 // lookup per recipient per frame.
                 let Some(sp) = speaker else {
-                    self.reject(RouteRejection::SpeakerUnresolved);
+                    report.reject(RouteRejection::SpeakerUnresolved);
                     continue;
                 };
                 let rp = match player_cache.get(recipient_identity.as_ref()).await {
                     Some(p) => p,
                     None => {
-                        self.reject(RouteRejection::RecipientUnpositioned);
+                        report.reject(RouteRejection::RecipientUnpositioned);
                         continue;
                     }
                 };
 
                 if sp.get_game() != rp.get_game() {
-                    self.reject(RouteRejection::GameMismatch);
+                    report.reject(RouteRejection::GameMismatch);
                     continue;
                 }
 
@@ -930,7 +935,7 @@ impl ConnectionRegistry {
                 };
 
                 if let Err(e) = sp.can_communicate_with(&rp, effective_range) {
-                    self.reject(RouteRejection::from_communication_error(&e));
+                    report.reject(RouteRejection::from_communication_error(&e));
                     curia::debug!(
                         "Audio packet {} -> {} rejected: {}",
                         sender_identity,
@@ -943,7 +948,7 @@ impl ConnectionRegistry {
                 // Some(false) is rejected outside channels
                 match original_spatial {
                     Some(false) => {
-                        self.reject(RouteRejection::NonSpatialOutsideChannel);
+                        report.reject(RouteRejection::NonSpatialOutsideChannel);
                         continue;
                     }
                     Some(true) | None => (false, InteractionRoute::Proximity),
@@ -955,7 +960,7 @@ impl ConnectionRegistry {
                     match serialize_variant(false) {
                         Some(bytes) => template_channel = Some(bytes),
                         None => {
-                            self.reject(RouteRejection::SerializeFailed);
+                            report.reject(RouteRejection::SerializeFailed);
                             continue;
                         }
                     }
@@ -966,7 +971,7 @@ impl ConnectionRegistry {
                     match serialize_variant(true) {
                         Some(bytes) => template_spatial = Some(bytes),
                         None => {
-                            self.reject(RouteRejection::SerializeFailed);
+                            report.reject(RouteRejection::SerializeFailed);
                             continue;
                         }
                     }
@@ -975,30 +980,24 @@ impl ConnectionRegistry {
             };
 
             let Some(bytes_to_send) = sequence.patch(template) else {
-                self.reject(RouteRejection::SequenceExhausted);
+                report.reject(RouteRejection::SequenceExhausted);
                 continue;
             };
 
             match tx.try_send(RoutedPacket::Serialized(bytes_to_send)) {
-                Ok(()) => {
-                    if let (Some(m), Some(sender_hash)) = (self.metrics.get(), sender_hash) {
-                        m.record_interaction(route, sender_hash, *recipient_hash);
-                    }
-                }
+                Ok(()) => report.deliver(route, *recipient_hash),
                 // Counted twice on purpose: once by reason alongside every other rejection, and
                 // once by the existing drop counter that dashboards already read.
                 Err(mpsc::error::TrySendError::Full(_)) => {
-                    self.reject(RouteRejection::RecipientQueueFull);
-                    if let Some(m) = self.metrics.get() {
-                        m.record_audio_route_drop();
-                    }
+                    report.reject(RouteRejection::RecipientQueueFull);
+                    report.drop_for_full_queue();
                     curia::debug!(
                         "Dropping audio packet for player {} (channel full)",
                         recipient_identity,
                     );
                 }
                 Err(mpsc::error::TrySendError::Closed(_)) => {
-                    self.reject(RouteRejection::RecipientClosed);
+                    report.reject(RouteRejection::RecipientClosed);
                     dead_keys.push(*device);
                 }
             }
@@ -1008,8 +1007,19 @@ impl ConnectionRegistry {
             self.unregister(key);
         }
 
+        self.finish_route(report, route_started);
+    }
+
+    // Writes the frame's tally to the registry's own counts, one write per reason, and hands the
+    // rest to the metrics service to apply off this thread.
+    fn finish_route(&self, mut report: RouteFrameReport, started: Instant) {
+        for (reason, count) in report.rejections() {
+            self.route_rejections.add(reason, u64::from(count));
+        }
+
         if let Some(m) = self.metrics.get() {
-            m.record_audio_route(route_started.elapsed());
+            report.finish(started.elapsed());
+            m.record_route_frame(report);
         }
     }
 }

@@ -4,6 +4,7 @@ pub mod host_capability;
 pub mod interaction;
 pub mod metric;
 pub mod posthog;
+pub mod route;
 
 use common::curia;
 use std::io::ErrorKind;
@@ -30,6 +31,7 @@ use crate::services::metrics_service::interaction::InteractionTracker;
 use crate::services::metrics_service::interaction::RouteRejection;
 use crate::services::metrics_service::metric::Metric;
 use crate::services::metrics_service::posthog::PosthogClient;
+use crate::services::metrics_service::route::{RouteFrameReport, RouteTelemetry};
 
 const POSTHOG_KEY: Option<&str> = option_env!("POSTHOG_KEY");
 const POSTHOG_HOST: Option<&str> = option_env!("POSTHOG_HOST");
@@ -38,6 +40,7 @@ const EVENT_CHANNEL_CAPACITY: usize = 1024;
 const STATSD_ADDR: &str = "127.0.0.1:8125";
 const STATSD_PROBE_TIMEOUT: Duration = Duration::from_millis(150);
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(15 * 60);
+const ROUTE_TELEMETRY_FLUSH_INTERVAL: Duration = Duration::from_secs(1);
 const RECONNECT_WINDOW: Duration = Duration::from_secs(30 * 60);
 const RECONNECT_CACHE_CAPACITY: u64 = 4096;
 
@@ -53,9 +56,9 @@ pub struct MetricsService {
     peak_players: AtomicI64,
     capacity_refusals: AtomicI64,
     interactions: InteractionTracker,
-    // One resolved handle per reason. Resolved once at construction so the per-recipient hot path
-    // is a lock-free increment rather than a key build and registry lookup on every rejection.
-    route_rejections: [metrics::Counter; RouteRejection::ALL.len()],
+    // Everything `route_audio_frame` measures. Queued by the routing thread and applied by the
+    // flush, so the fan-out never writes a shared counter itself.
+    route: RouteTelemetry,
     started_at: Instant,
     features_enabled: Vec<String>,
     recording_enabled: bool,
@@ -131,12 +134,7 @@ impl MetricsService {
             peak_players: AtomicI64::new(0),
             capacity_refusals: AtomicI64::new(0),
             interactions: InteractionTracker::new(),
-            route_rejections: std::array::from_fn(|i| {
-                counter!(
-                    Metric::AudioRouteRejectionsTotal.name(),
-                    "reason" => RouteRejection::ALL[i].label()
-                )
-            }),
+            route: RouteTelemetry::new(),
             started_at: Instant::now(),
             features_enabled,
             recording_enabled,
@@ -416,36 +414,28 @@ impl MetricsService {
         self.emit(TelemetryEvent::ChannelLeft { at: Utc::now() });
     }
 
-    // Per-frame routing cost on the audio hot path. Counter + histogram record
-    // is lock-free and nanosecond-scale, three orders of magnitude below the
-    // route work itself. No PostHog event: per-frame volume, no fleet value.
-    pub fn record_audio_route(&self, duration: Duration) {
-        counter!(Metric::AudioFramesRoutedTotal.name()).increment(1);
-        histogram!(Metric::AudioRouteDurationSeconds.name()).record(duration.as_secs_f64());
+    // One routed frame: its duration, its rejections by reason, its queue-full drops and the
+    // recipients it reached. Queued, not recorded; the next flush applies it. No PostHog event:
+    // per-frame volume, no fleet value.
+    pub fn record_route_frame(&self, report: RouteFrameReport) {
+        self.route.submit(report);
     }
 
-    // One delivered frame reached one recipient. This is per-recipient, not
-    // per-frame: at a fanout of N it runs N times for each serialization the route
-    // does, so it is the most frequently executed work on the delivery path. Steady
-    // state is two sharded read locks (per-route window plus `any`) and an integer
-    // compare; budget accordingly before adding anything here.
-    pub fn record_interaction(&self, route: InteractionRoute, sender: u64, recipient: u64) {
-        self.interactions.record_delivery(route, sender, recipient);
+    // A whole frame refused before fan-out, which has no report to join.
+    pub fn record_route_rejection(&self, reason: RouteRejection) {
+        self.route.reject_now(reason);
+    }
+
+    /// Applies every queued routing report to the recorder and the interaction tracker.
+    ///
+    /// Runs every `ROUTE_TELEMETRY_FLUSH_INTERVAL` on the heartbeat task and before each
+    /// heartbeat closes its window. Called directly wherever a count must be read back.
+    pub fn flush_route_telemetry(&self) {
+        self.route.flush(&self.interactions);
     }
 
     pub fn interactions(&self) -> &InteractionTracker {
         &self.interactions
-    }
-
-    // A recipient's bounded output queue was full and the frame was dropped for
-    // them — the first user-audible routing failure mode under load.
-    pub fn record_audio_route_drop(&self) {
-        counter!(Metric::AudioRouteRecipientDropsTotal.name()).increment(1);
-    }
-
-    // One recipient did not get one frame, by reason. Per recipient per frame on the hot path.
-    pub fn record_route_rejection(&self, reason: RouteRejection) {
-        self.route_rejections[reason.index()].increment(1);
     }
 
     // One position datagram put on the wire, with its encoded size. The size
@@ -501,11 +491,16 @@ impl MetricsService {
 
     // 15-minute cadence. Downstream treats a heartbeat inside the last 35 minutes
     // as active, so one missed beat does not flip a live server to inactive.
+    //
+    // Also the route telemetry flusher, on its own one-second tick, so the audio path's
+    // queued measurements reach the recorder without a second task to own and join.
     pub fn spawn_heartbeat(self: &Arc<Self>, cancel: CancellationToken) -> JoinHandle<()> {
         let service = self.clone();
         tokio::spawn(async move {
             let mut tick = tokio::time::interval(HEARTBEAT_INTERVAL);
             tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            let mut flush = tokio::time::interval(ROUTE_TELEMETRY_FLUSH_INTERVAL);
+            flush.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             // The first tick of a tokio interval resolves immediately; consuming it
             // here keeps the first heartbeat one full interval after boot instead of
             // duplicating Server::Started.
@@ -514,15 +509,22 @@ impl MetricsService {
             loop {
                 tokio::select! {
                     _ = tick.tick() => service.emit_heartbeat(&mut last_utc_date),
+                    _ = flush.tick() => service.flush_route_telemetry(),
                     _ = cancel.cancelled() => break,
                 }
             }
+            // The last second of routing would otherwise never reach the recorder.
+            service.flush_route_telemetry();
         })
     }
 
     // Closes the interaction window and emits the sample. This is the only caller
     // of close_window, which is what makes the window boundary the heartbeat tick.
+    //
+    // Flushes first, so deliveries still queued are counted in the window they happened in.
     pub fn emit_heartbeat(&self, last_utc_date: &mut chrono::NaiveDate) {
+        self.flush_route_telemetry();
+
         // Read the high-water mark before any reset, so the sample that observes a
         // new UTC day still reports the peak the closing day actually reached in the
         // interval since its last heartbeat.

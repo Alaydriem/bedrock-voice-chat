@@ -92,13 +92,13 @@ impl RoutingFixture {
         }
     }
 
-    pub async fn player_cache(players: &[PlayerEnum]) -> Arc<Cache<String, PlayerEnum>> {
-        let cache: Arc<Cache<String, PlayerEnum>> = Arc::new(Cache::builder().build());
+    pub async fn player_cache(players: &[PlayerEnum]) -> Arc<Cache<String, Arc<PlayerEnum>>> {
+        let cache: Arc<Cache<String, Arc<PlayerEnum>>> = Arc::new(Cache::builder().build());
         for p in players {
             use common::traits::player_data::PlayerData;
             // Keyed the way the router reads it: on the canonical identity, not the
             // bare name. Seeding it bare made every lookup miss.
-            cache.insert(p.identity().to_string(), p.clone()).await;
+            cache.insert(p.identity().to_string(), Arc::new(p.clone())).await;
         }
         cache
     }

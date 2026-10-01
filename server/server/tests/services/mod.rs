@@ -15,4 +15,5 @@ mod pairing_service;
 mod position_feed;
 mod relay_enrollment;
 mod position_service;
+mod route_frame_report;
 mod session_authorization_service;

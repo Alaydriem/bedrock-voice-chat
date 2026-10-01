@@ -1,22 +1,27 @@
 use dashmap::DashMap;
+use rustc_hash::FxBuildHasher;
 
 use super::counts::InteractionCounts;
 
 /// One route's view of the window currently being measured. Entries carry the
 /// window they were written in, so a survivor of a concurrent clear is ignored
 /// rather than leaking into the next window's count.
+///
+/// Keyed with Fx rather than the default SipHash. Every key is already a SipHash of
+/// an identity (`InteractionTracker::hash_name`), so hashing it again with SipHash
+/// buys no distribution and costs a SipHash per recipient per frame.
 pub struct InteractionWindow {
-    pairs: DashMap<u128, u64>,
-    participants: DashMap<u64, u64>,
-    mutual: DashMap<u64, u64>,
+    pairs: DashMap<u128, u64, FxBuildHasher>,
+    participants: DashMap<u64, u64, FxBuildHasher>,
+    mutual: DashMap<u64, u64, FxBuildHasher>,
 }
 
 impl InteractionWindow {
     pub fn new() -> Self {
         Self {
-            pairs: DashMap::new(),
-            participants: DashMap::new(),
-            mutual: DashMap::new(),
+            pairs: DashMap::with_hasher(FxBuildHasher),
+            participants: DashMap::with_hasher(FxBuildHasher),
+            mutual: DashMap::with_hasher(FxBuildHasher),
         }
     }
 
@@ -64,7 +69,7 @@ impl InteractionWindow {
         self.pairs.clear();
     }
 
-    fn live(map: &DashMap<u64, u64>, window: u64) -> u64 {
+    fn live(map: &DashMap<u64, u64, FxBuildHasher>, window: u64) -> u64 {
         map.iter().filter(|e| *e.value() == window).count() as u64
     }
 }

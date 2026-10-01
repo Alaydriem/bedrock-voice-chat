@@ -67,7 +67,7 @@ struct Bridged {
     // The receiving server's position cache. The plane publishes every relayed speaker into
     // it, and the position feed reads presence back out of it, so it is where a bridged
     // speaker's record can be observed as the rest of the server sees it.
-    speakers: Arc<moka::future::Cache<String, common::PlayerEnum>>,
+    speakers: Arc<moka::future::Cache<String, Arc<common::PlayerEnum>>>,
     _server: Arc<PeerPlane>,
     _dirs: (TempDir, TempDir),
 }

@@ -36,7 +36,7 @@ pub struct ChatService {
     sinks: RwLock<Vec<Arc<dyn ChatSink>>>,
     // The raw presence handle rather than the whole `PlayerCache`: the service only needs
     // to answer "which world is this identity in", and `cache_manager` stays private.
-    players: OnceLock<Arc<moka::future::Cache<String, PlayerEnum>>>,
+    players: OnceLock<Arc<moka::future::Cache<String, Arc<PlayerEnum>>>>,
     db: OnceLock<Arc<DatabaseConnection>>,
     identities: OnceLock<Arc<PlayerIdentityService>>,
     /// Throttles the history upsert. A player is seen in a world four times a second, and the
@@ -70,7 +70,7 @@ impl ChatService {
         self.enabled
     }
 
-    pub fn set_players(&self, players: Arc<moka::future::Cache<String, PlayerEnum>>) {
+    pub fn set_players(&self, players: Arc<moka::future::Cache<String, Arc<PlayerEnum>>>) {
         let _ = self.players.set(players);
     }
 
@@ -324,7 +324,7 @@ impl ChatService {
     /// picker exists for. Only a live mismatch is a rejection.
     async fn current_world_of(&self, identity: &str) -> Option<String> {
         let players = self.players.get()?;
-        match players.get(identity).await? {
+        match players.get(identity).await?.as_ref() {
             PlayerEnum::Minecraft(mc) => mc.world_uuid.clone(),
             _ => None,
         }

@@ -77,28 +77,17 @@ impl MinecraftPlayer {
         other: &MinecraftPlayer,
         range: f32,
     ) -> Result<(), CommunicationError> {
-        match (&self.relay_world_uuid, &other.relay_world_uuid) {
-            (Some(self_rw), Some(other_rw)) if self_rw != other_rw => {
-                return Err(CommunicationError::minecraft(
-                    MinecraftCommunicationError::WorldMismatch {
-                        sender_world: self_rw.clone(),
-                        recipient_world: other_rw.clone(),
-                    },
-                ));
-            }
-            _ => {}
-        }
+        // A world id absent on either side is unknown rather than different, so it never blocks.
+        let differs = |a: &Option<String>, b: &Option<String>| {
+            matches!((a, b), (Some(a), Some(b)) if a != b)
+        };
 
-        match (&self.world_uuid, &other.world_uuid) {
-            (Some(self_world), Some(other_world)) if self_world != other_world => {
-                return Err(CommunicationError::minecraft(
-                    MinecraftCommunicationError::WorldMismatch {
-                        sender_world: self_world.clone(),
-                        recipient_world: other_world.clone(),
-                    },
-                ));
-            }
-            _ => {}
+        if differs(&self.relay_world_uuid, &other.relay_world_uuid)
+            || differs(&self.world_uuid, &other.world_uuid)
+        {
+            return Err(CommunicationError::minecraft(
+                MinecraftCommunicationError::WorldMismatch,
+            ));
         }
 
         if !self.dimension.eq(&other.dimension) {

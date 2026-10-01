@@ -16,20 +16,20 @@ use crate::stream::quic::connection::ConnectionRegistry;
 /// used either — peers are separate instances, and a chat room is one world on one server.
 pub struct QuicChatSink {
     registry: Arc<ConnectionRegistry>,
-    players: Arc<moka::future::Cache<String, PlayerEnum>>,
+    players: Arc<moka::future::Cache<String, Arc<PlayerEnum>>>,
 }
 
 impl QuicChatSink {
     pub fn new(
         registry: Arc<ConnectionRegistry>,
-        players: Arc<moka::future::Cache<String, PlayerEnum>>,
+        players: Arc<moka::future::Cache<String, Arc<PlayerEnum>>>,
     ) -> Self {
         Self { registry, players }
     }
 
     pub fn new_shared(
         registry: Arc<ConnectionRegistry>,
-        players: Arc<moka::future::Cache<String, PlayerEnum>>,
+        players: Arc<moka::future::Cache<String, Arc<PlayerEnum>>>,
     ) -> Arc<Self> {
         Arc::new(Self::new(registry, players))
     }
@@ -47,7 +47,7 @@ impl ChatSink for QuicChatSink {
         let mut delivered = 0usize;
         let mut author_reached = false;
         for (identity, player) in self.players.iter() {
-            let PlayerEnum::Minecraft(mc) = &player else {
+            let PlayerEnum::Minecraft(mc) = player.as_ref() else {
                 continue;
             };
             if mc.world_uuid.as_deref() != Some(world_uuid) {

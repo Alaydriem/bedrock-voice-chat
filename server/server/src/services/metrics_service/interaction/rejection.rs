@@ -61,12 +61,10 @@ impl RouteRejection {
     }
 
     // Position in `ALL`, for the fixed-size arrays behind `RouteRejectionCounts` and the
-    // resolved metric handles. A variant missing from `ALL` is a programming error and fails loudly.
+    // resolved metric handles. The discriminant, because this runs per rejected recipient per
+    // frame; it holds only while `ALL` lists the variants in declaration order.
     pub fn index(&self) -> usize {
-        Self::ALL
-            .iter()
-            .position(|r| r == self)
-            .expect("every RouteRejection variant is listed in ALL")
+        *self as usize
     }
 
     /// The proximity gate folds four distinct refusals into one error; this splits them back.
