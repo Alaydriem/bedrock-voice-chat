@@ -1,4 +1,4 @@
-import { I18n } from "$lib/i18n";
+import { I18n } from "#lib/i18n/index.js";
 import type { PlayerGainSettings } from '../../../bindings/PlayerGainSettings';
 import type { PlayerSource } from '../../../bindings/PlayerSource';
 import type { GamerpicResponse } from '../../../bindings/GamerpicResponse';

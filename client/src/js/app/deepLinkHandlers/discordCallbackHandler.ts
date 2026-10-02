@@ -1,4 +1,4 @@
-import { I18n } from "$lib/i18n";
+import { I18n } from "#lib/i18n/index.js";
 import { invoke } from "@tauri-apps/api/core";
 import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
 import type { DeepLinkOutcome } from "../deepLinkRouter.ts";

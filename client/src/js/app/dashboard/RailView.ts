@@ -1,5 +1,5 @@
 import type { ServerListEntry } from '../../bindings/ServerListEntry';
-import { ServerRosterManager } from '../server/ServerRosterManager';
+import { ServerRosterManager } from '../serverList/ServerRosterManager';
 
 /** One button on the rail. */
 export interface RailServer {

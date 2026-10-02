@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import LevelMeter from "$radial/components/LevelMeter.svelte";
     import ServerGlyph from "$radial/components/ServerGlyph.svelte";

@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
-    import type { PreflightStep } from "../../js/app/server/preflight/PreflightStep";
-    import type { PreflightStepState } from "../../js/app/server/preflight/PreflightStepState";
+  import { I18n } from "#lib/i18n/index.js";
+    import type { PreflightStep } from "../../js/app/serverList/preflight/PreflightStep";
+    import type { PreflightStepState } from "../../js/app/serverList/preflight/PreflightStepState";
 
     interface Props {
         steps: readonly PreflightStep[];

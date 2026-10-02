@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import { invoke } from "@tauri-apps/api/core";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import { onMount } from "svelte";
     import type { ProxyServerEntry } from "../../js/app/managers/bedrock/ProxyServerEntry";
     import type { AddonMode } from "../../js/bindings/AddonMode";

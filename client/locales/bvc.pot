@@ -93,7 +93,7 @@ msgstr ""
 msgid "Access token"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:114
+#: src/components/serverList/PreflightPanel.svelte:114
 #: src/js/app/error/FaultCatalog.ts:225
 #: src/js/app/error/FaultCatalog.ts:318
 #: src/js/app/settings/SettingsCatalogue.ts:28
@@ -122,8 +122,8 @@ msgid "Add a player"
 msgstr ""
 
 #: src/components/dashboard/ServerRail.svelte:46
-#: src/components/server/ServerListScreen.svelte:52
-#: src/components/server/ServerListScreen.svelte:78
+#: src/components/serverList/ServerListScreen.svelte:52
+#: src/components/serverList/ServerListScreen.svelte:78
 #: src/components/settings/panes/ConnectPane.svelte:262
 msgid "Add a server"
 msgstr ""
@@ -521,7 +521,7 @@ msgid "Client Update Required"
 msgstr ""
 
 #: src/components/dashboard/GroupRow.svelte:204
-#: src/components/server/PreflightPanel.svelte:79
+#: src/components/serverList/PreflightPanel.svelte:79
 msgid "Close"
 msgstr ""
 
@@ -948,7 +948,7 @@ msgstr ""
 msgid "FULL VOLUME · ANY DISTANCE"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:120
+#: src/components/serverList/PreflightPanel.svelte:120
 #: src/components/settings/panes/ManagePlayersPane.svelte:276
 msgid "Game"
 msgstr ""
@@ -1162,7 +1162,7 @@ msgstr ""
 msgid "Length"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:129
+#: src/components/serverList/PreflightPanel.svelte:129
 #: src/js/app/dashboard/DiagnosticsCopy.ts:23
 msgid "Link"
 msgstr ""
@@ -1616,7 +1616,7 @@ msgstr ""
 msgid "Open the page on any device and enter this code. This window updates by itself once you are done."
 msgstr ""
 
-#: src/components/server/PreflightStrip.svelte:29
+#: src/components/serverList/PreflightStrip.svelte:29
 msgid "Open the preflight readout"
 msgstr ""
 
@@ -1735,7 +1735,7 @@ msgstr ""
 msgid "Post to"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:69
+#: src/components/serverList/PreflightPanel.svelte:69
 msgid "Preflight readout"
 msgstr ""
 
@@ -1755,7 +1755,7 @@ msgstr ""
 msgid "Profile and sign-out"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:141
+#: src/components/serverList/PreflightPanel.svelte:141
 #: src/components/settings/panes/AboutPane.svelte:143
 #: src/js/app/dashboard/DiagnosticsCopy.ts:41
 msgid "Protocol"
@@ -1789,7 +1789,7 @@ msgstr ""
 msgid "Puts every player back to full volume and unmutes them all. Use this if somebody is silent and you do not remember why."
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:135
+#: src/components/serverList/PreflightPanel.svelte:135
 #: src/js/app/dashboard/DiagnosticsCopy.ts:37
 msgid "QUIC port"
 msgstr ""
@@ -1827,12 +1827,12 @@ msgstr ""
 msgid "Receiving"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:165
+#: src/components/serverList/PreflightPanel.svelte:165
 msgid "Recheck"
 msgstr ""
 
-#: src/components/server/ServerListScreen.svelte:46
-#: src/components/server/ServerListScreen.svelte:47
+#: src/components/serverList/ServerListScreen.svelte:46
+#: src/components/serverList/ServerListScreen.svelte:47
 msgid "Recheck every server"
 msgstr ""
 
@@ -1885,7 +1885,7 @@ msgstr ""
 msgid "Release"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:161
+#: src/components/serverList/PreflightPanel.svelte:161
 msgid "Remove"
 msgstr ""
 
@@ -1959,7 +1959,7 @@ msgstr ""
 msgid "Restores every shortcut above to their default settings"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:131
+#: src/components/serverList/PreflightPanel.svelte:131
 #: src/js/app/dashboard/DiagnosticsCopy.ts:34
 msgid "Round trip"
 msgstr ""
@@ -2018,7 +2018,7 @@ msgstr ""
 msgid "Secure storage"
 msgstr ""
 
-#: src/components/server/ServerListScreen.svelte:58
+#: src/components/serverList/ServerListScreen.svelte:58
 msgid "Select a server"
 msgstr ""
 
@@ -2184,7 +2184,7 @@ msgstr ""
 msgid "Sign-in code"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:116
+#: src/components/serverList/PreflightPanel.svelte:116
 msgid "Signed in as"
 msgstr ""
 
@@ -2272,7 +2272,7 @@ msgstr ""
 msgid "Stopped recording that was active before page refresh"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:124
+#: src/components/serverList/PreflightPanel.svelte:124
 msgid "Stored in"
 msgstr ""
 
@@ -2441,7 +2441,7 @@ msgstr ""
 msgid "Tracks"
 msgstr ""
 
-#: src/components/server/PreflightPanel.svelte:148
+#: src/components/serverList/PreflightPanel.svelte:148
 msgid "Transport"
 msgstr ""
 

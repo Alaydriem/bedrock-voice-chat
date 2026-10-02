@@ -1,4 +1,4 @@
-import { I18n } from "$lib/i18n";
+import { I18n } from "#lib/i18n/index.js";
 import type { AdminActionOutcome } from "../../bindings/AdminActionOutcome";
 import type { AdminUserRow } from "../../bindings/AdminUserRow";
 import type { Permission } from "../../bindings/Permission";

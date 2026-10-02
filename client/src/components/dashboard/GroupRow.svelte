@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import { SwipeActions } from "$radial/core/controllers/SwipeActions";
     import { GroupsView } from "../../js/app/dashboard/GroupsView";

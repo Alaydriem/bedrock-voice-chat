@@ -1,4 +1,4 @@
-import { I18n } from "$lib/i18n";
+import { I18n } from "#lib/i18n/index.js";
 import type { Permission } from "../../bindings/Permission";
 import type { SettingsGroup, SettingsPane } from "./SettingsPane";
 

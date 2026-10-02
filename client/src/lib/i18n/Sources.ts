@@ -26,7 +26,7 @@ export default class Sources {
     "src/radial/core/",
     "src/radial/bindings/",
     // Paints before the application boots, and is built by its own vite config with no
-    // `$lib` alias. There is no pack loaded when this renders.
+    // `#lib` import. There is no pack loaded when this renders.
     "src/preloader/",
   ];
 

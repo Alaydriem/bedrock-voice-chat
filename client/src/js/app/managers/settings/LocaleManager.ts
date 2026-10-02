@@ -3,7 +3,7 @@ import { error as logError } from "@charlesportwoodii/tauri-plugin-curia";
 import { writable, type Readable, type Writable } from "svelte/store";
 import type { Store } from "@tauri-apps/plugin-store";
 import type { LanguagePack } from "../../../bindings/LanguagePack";
-import { I18n } from "$lib/i18n";
+import { I18n } from "#lib/i18n/index.js";
 
 const KEY = "locale";
 const AUTO = "auto";

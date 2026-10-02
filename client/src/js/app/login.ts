@@ -1,4 +1,4 @@
-import { I18n } from "$lib/i18n";
+import { I18n } from "#lib/i18n/index.js";
 import { info, error, warn } from '@charlesportwoodii/tauri-plugin-curia';
 import { Store } from '@tauri-apps/plugin-store';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -13,7 +13,7 @@ import BVCApp from './BVCApp.ts';
 import HelpLinks from './HelpLinks';
 import Analytics from './analytics';
 import PlatformDetector from './utils/PlatformDetector.ts';
-import { AddServerRoute } from './server/AddServerRoute';
+import { AddServerRoute } from './serverList/AddServerRoute';
 import type { LoginPageState } from './login/LoginPageState';
 import { AppStore } from "./services/AppStore";
 

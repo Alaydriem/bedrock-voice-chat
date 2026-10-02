@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
-import PreflightPanel from "../../components/server/PreflightPanel.svelte";
-import { PREFLIGHT_STEPS } from "../../js/app/server/preflight/PreflightStepName";
-import type { PreflightStepState } from "../../js/app/server/preflight/PreflightStepState";
-import type { RosterStatus } from "../../js/app/server/RosterStatus";
-import type { ServerRosterEntry } from "../../js/app/server/ServerRosterEntry";
+import PreflightPanel from "../../components/serverList/PreflightPanel.svelte";
+import { PREFLIGHT_STEPS } from "../../js/app/serverList/preflight/PreflightStepName";
+import type { PreflightStepState } from "../../js/app/serverList/preflight/PreflightStepState";
+import type { RosterStatus } from "../../js/app/serverList/RosterStatus";
+import type { ServerRosterEntry } from "../../js/app/serverList/ServerRosterEntry";
 
 function entry(status: RosterStatus, overrides: Partial<ServerRosterEntry> = {}) {
   return {

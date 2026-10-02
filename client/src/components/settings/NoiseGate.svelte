@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import { invoke } from "@tauri-apps/api/core";
     import type { Store } from "@tauri-apps/plugin-store";
     import { AppStore } from "../../js/app/services/AppStore";

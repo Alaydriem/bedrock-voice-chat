@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import type { ChatRejectionState, ChatTarget } from "../../js/app/chat/ChatTarget";
     import { WorldLabel, type WorldAssociations } from "../../js/app/chat/WorldLabel";

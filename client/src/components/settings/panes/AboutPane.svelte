@@ -10,7 +10,7 @@
     import type LocaleManager from "../../../js/app/managers/settings/LocaleManager";
     import { UpdateStatus, type UpdateState } from "../../../js/app/settings/UpdateStatus";
     import type { AppInfo } from "../../../js/bindings/AppInfo";
-    import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import { LoggingSmokeTest } from "../../../js/app/LoggingSmokeTest";
 
     interface Props {

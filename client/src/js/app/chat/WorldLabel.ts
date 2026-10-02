@@ -1,4 +1,4 @@
-import { I18n } from '$lib/i18n';
+import { I18n } from '#lib/i18n/index.js';
 
 /** Remembered `world_uuid` → the name the reader chose for it in BVC Connect. */
 export type WorldAssociations = Readonly<Record<string, string>>;

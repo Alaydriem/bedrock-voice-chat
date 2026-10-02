@@ -1,3 +1,5 @@
+import adapter from "@sveltejs/adapter-static";
+import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite";
 import { sveltekit } from "@sveltejs/kit/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
@@ -8,6 +10,17 @@ import { fileURLToPath } from "node:url";
 const host = process.env.TAURI_DEV_HOST;
 
 const PRELOADER_FILES = ["app-preloader.js", "app-preloader.css"];
+
+// Origins allowed to read the dev server cross-origin. The first entry is Vite's own default
+// (localhost and its subdomains, which covers Android's `http://tauri.localhost`); the iOS
+// webview (`tauri://localhost`) and a device dialling TAURI_DEV_HOST are added to it. Any
+// wider than this and an unrelated page in a browser could read the dev bundle, including
+// every `SENTRY_*` variable `envPrefix` inlines into it.
+const DEV_ORIGINS = [
+  /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/,
+  "tauri://localhost",
+  ...(host ? [`http://${host}:1420`] : []),
+];
 
 // The boot preloader's two files are plain static assets: nothing hashes their
 // filenames, so a webview serves a stale copy across reloads and app restarts unless
@@ -42,7 +55,23 @@ export default defineConfig(async () => ({
   envPrefix: ["VITE_", "SENTRY_"],
 
   plugins: [
-    sveltekit(),
+    sveltekit({
+      preprocess: vitePreprocess(),
+      // Tauri doesn't have a Node.js server to do proper SSR
+      // so we will use adapter-static to prerender the app (SSG)
+      // See: https://v2.tauri.app/start/frontend/sveltekit/ for more info
+      adapter: adapter(),
+      alias: {
+        // The Radial design system. Kit turns this into a tsconfig path too, so
+        // `import { Mark } from "$radial/..."` resolves for svelte-check as well as
+        // for the bundler. The standalone reference pages get the same alias from
+        // vite.radial.config.ts.
+        $radial: "src/radial",
+      },
+      // Updates arrive through the Tauri updater as a new binary; the bundle never changes
+      // underneath a running app, so there is nothing for SvelteKit to poll for.
+      version: { pollInterval: 0 },
+    }),
     sentryVitePlugin({
       org: process.env.SENTRY_ORG,
       project: process.env.SENTRY_PROJECT,
@@ -84,6 +113,7 @@ export default defineConfig(async () => ({
   server: {
     port: 1420,
     strictPort: true,
+    cors: { origin: DEV_ORIGINS },
     // `true` rather than the address itself: bind every interface, not just that one.
     // A multi-homed host can hold two addresses on the same subnet with the same gateway
     // and different route metrics, and inbound can arrive on either -- listening on the

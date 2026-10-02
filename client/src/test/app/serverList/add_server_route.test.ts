@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AddServerRoute } from "../../../js/app/server/AddServerRoute";
+import { AddServerRoute } from "../../../js/app/serverList/AddServerRoute";
 
 function paramsOf(href: string): URLSearchParams {
   return new URLSearchParams(href.slice(href.indexOf("?")));

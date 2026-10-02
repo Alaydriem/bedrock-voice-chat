@@ -6,7 +6,7 @@ import CoverageReport, {
 
 const SVELTE = [
   '<script lang="ts">',
-  '  import { I18n } from "$lib/i18n";',
+  '  import { I18n } from "#lib/i18n/index.js";',
   "</script>",
   "<h1>Connect to a server</h1>",
   '<button title="Sign in again">{I18n.t("Sign In")}</button>',

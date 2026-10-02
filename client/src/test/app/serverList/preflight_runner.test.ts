@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { invokeCalls, mockInvoke } from "../../tauri";
-import { PreflightRunner } from "../../../js/app/server/preflight/PreflightRunner";
-import type { PreflightStep } from "../../../js/app/server/preflight/PreflightStep";
+import { PreflightRunner } from "../../../js/app/serverList/preflight/PreflightRunner";
+import type { PreflightStep } from "../../../js/app/serverList/preflight/PreflightStep";
 
 /** The unauthenticated config read, which decides why a handshake failed. */
 let answering = true;

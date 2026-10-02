@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import type { RingMode } from "$radial/bindings/RingBinding";
     import RadScreen from "../shell/RadScreen.svelte";

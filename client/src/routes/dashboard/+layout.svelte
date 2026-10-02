@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
   import "../../css/app.css";
   import { onDestroy, onMount, setContext, type Snippet } from "svelte";
   import { get } from "svelte/store";
@@ -47,7 +47,7 @@
   import type { RailServer } from "../../js/app/dashboard/RailView";
   import { RosterHandoff } from "../../js/app/dashboard/RosterHandoff";
   import { RosterView } from "../../js/app/dashboard/RosterView";
-  import { AddServerRoute } from "../../js/app/server/AddServerRoute";
+  import { AddServerRoute } from "../../js/app/serverList/AddServerRoute";
   import GameNameUtils from "../../js/app/utils/GameNameUtils";
 
   interface Props {

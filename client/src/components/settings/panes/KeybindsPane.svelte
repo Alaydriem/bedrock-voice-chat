@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import { onDestroy, onMount } from "svelte";
     import SettingRow from "$radial/components/SettingRow.svelte";
     import { KeybindsManager } from "../../../js/app/managers/settings/KeybindsManager";

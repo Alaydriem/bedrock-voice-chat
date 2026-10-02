@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import Ring from "$radial/components/Ring.svelte";
     import { Handoff, type Point } from "$radial/core/controllers/Handoff";
     import type { NearbyPlayer } from "../../js/app/dashboard/NearbyPlayer";

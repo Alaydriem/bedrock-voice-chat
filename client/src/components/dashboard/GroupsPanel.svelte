@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import type { GroupRowView } from "../../js/app/dashboard/GroupRowView";
     import GroupRow from "./GroupRow.svelte";

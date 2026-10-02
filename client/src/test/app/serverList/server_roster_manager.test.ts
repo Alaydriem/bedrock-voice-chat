@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { get } from "svelte/store";
-import { ServerRosterManager } from "../../../js/app/server/ServerRosterManager";
-import { PreflightRunner } from "../../../js/app/server/preflight/PreflightRunner";
-import type { PreflightOutcome } from "../../../js/app/server/preflight/PreflightOutcome";
+import { ServerRosterManager } from "../../../js/app/serverList/ServerRosterManager";
+import { PreflightRunner } from "../../../js/app/serverList/preflight/PreflightRunner";
+import type { PreflightOutcome } from "../../../js/app/serverList/preflight/PreflightOutcome";
 
 function outcome(
   status: PreflightOutcome["status"],

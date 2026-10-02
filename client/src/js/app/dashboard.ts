@@ -1,4 +1,4 @@
-import { I18n } from "$lib/i18n";
+import { I18n } from "#lib/i18n/index.js";
 
 import { Store } from '@tauri-apps/plugin-store';
 import { info, error, warn } from '@charlesportwoodii/tauri-plugin-curia';

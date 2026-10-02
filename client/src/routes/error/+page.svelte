@@ -1,7 +1,7 @@
 <script lang="ts">
   import "../../css/app.css";
   import BootOverlay from "../../js/app/shell/BootOverlay";
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
   import RadFrame from "../../components/shell/RadFrame.svelte";
   import FaultScreen from "../../components/error/FaultScreen.svelte";
   import { onMount } from "svelte";

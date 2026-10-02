@@ -2,9 +2,9 @@ import { info } from '@charlesportwoodii/tauri-plugin-curia';
 
 import BVCApp from './BVCApp.ts';
 
-import { AddServerRoute } from './server/AddServerRoute';
-import { ServerRosterManager } from './server/ServerRosterManager';
-import type { ServerLanding } from './server/ServerLanding';
+import { AddServerRoute } from './serverList/AddServerRoute';
+import { ServerRosterManager } from './serverList/ServerRosterManager';
+import type { ServerLanding } from './serverList/ServerLanding';
 import type { NextAction } from './shell/NextAction';
 import { BootTimeline } from './shell/BootTimeline';
 

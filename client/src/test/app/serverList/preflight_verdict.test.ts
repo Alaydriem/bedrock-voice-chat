@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { PreflightVerdict } from "../../../js/app/server/preflight/PreflightVerdict";
-import { PREFLIGHT_STEPS, type PreflightStepName } from "../../../js/app/server/preflight/PreflightStepName";
-import type { PreflightStepState } from "../../../js/app/server/preflight/PreflightStepState";
-import type { RosterStatus } from "../../../js/app/server/RosterStatus";
-import type { ServerRosterEntry } from "../../../js/app/server/ServerRosterEntry";
+import { PreflightVerdict } from "../../../js/app/serverList/preflight/PreflightVerdict";
+import { PREFLIGHT_STEPS, type PreflightStepName } from "../../../js/app/serverList/preflight/PreflightStepName";
+import type { PreflightStepState } from "../../../js/app/serverList/preflight/PreflightStepState";
+import type { RosterStatus } from "../../../js/app/serverList/RosterStatus";
+import type { ServerRosterEntry } from "../../../js/app/serverList/ServerRosterEntry";
 
 /** A finished preflight where one named check failed and everything before it passed. */
 function failedAt(

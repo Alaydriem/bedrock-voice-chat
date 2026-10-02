@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import { onMount } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { info, error } from "@charlesportwoodii/tauri-plugin-curia";

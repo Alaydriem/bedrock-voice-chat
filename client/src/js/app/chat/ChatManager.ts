@@ -2,7 +2,7 @@ import { writable, derived, get, type Writable, type Readable } from 'svelte/sto
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { warn } from '@charlesportwoodii/tauri-plugin-curia';
-import { I18n } from '$lib/i18n';
+import { I18n } from '#lib/i18n/index.js';
 import type { BedrockStatus } from '../../bindings/BedrockStatus';
 import { AppStore } from '../services/AppStore';
 import type { ChatTransport } from '../../bindings/ChatTransport';

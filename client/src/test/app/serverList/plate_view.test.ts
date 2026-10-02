@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { PlateView } from "../../../js/app/server/PlateView";
-import { PreflightRunner } from "../../../js/app/server/preflight/PreflightRunner";
-import type { RosterStatus } from "../../../js/app/server/RosterStatus";
-import type { ServerRosterEntry } from "../../../js/app/server/ServerRosterEntry";
+import { PlateView } from "../../../js/app/serverList/PlateView";
+import { PreflightRunner } from "../../../js/app/serverList/preflight/PreflightRunner";
+import type { RosterStatus } from "../../../js/app/serverList/RosterStatus";
+import type { ServerRosterEntry } from "../../../js/app/serverList/ServerRosterEntry";
 
 function entry(status: RosterStatus, overrides: Partial<ServerRosterEntry> = {}) {
   return {

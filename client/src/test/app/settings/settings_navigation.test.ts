@@ -5,7 +5,7 @@ import { SettingsNavigation } from "../../../js/app/settings/SettingsNavigation"
 // Typed with the parameters it stands in for, so `mock.calls` carries them: an
 // argument-less stub records every call as an empty tuple and the assertions below
 // cannot read the href out of it.
-const navigate = vi.fn(async (_href: string, _opts?: { replaceState?: boolean }) => {});
+const navigate = vi.fn(async (_href: string, _opts?: { replace?: boolean }) => {});
 const pop = vi.fn((_delta: number) => {});
 
 /** A navigator for one platform. `mobile` is fixed per test, as it is per device. */
@@ -15,7 +15,7 @@ function nav(mobile: boolean): SettingsNavigation {
 
 /** The hrefs handed to `navigate`, paired with whether each replaced or pushed. */
 function moves(): Array<[string, boolean]> {
-    return navigate.mock.calls.map(([href, opts]) => [href, Boolean(opts?.replaceState)]);
+    return navigate.mock.calls.map(([href, opts]) => [href, Boolean(opts?.replace)]);
 }
 
 beforeEach(() => {

@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import Verdict from "$radial/components/Verdict.svelte";
-    import { PlateView } from "../../js/app/server/PlateView";
-    import { PREFLIGHT_STEPS } from "../../js/app/server/preflight/PreflightStepName";
-    import { PreflightVerdict } from "../../js/app/server/preflight/PreflightVerdict";
-    import type { PreflightStepState } from "../../js/app/server/preflight/PreflightStepState";
-    import type { ServerRosterEntry } from "../../js/app/server/ServerRosterEntry";
+    import { PlateView } from "../../js/app/serverList/PlateView";
+    import { PREFLIGHT_STEPS } from "../../js/app/serverList/preflight/PreflightStepName";
+    import { PreflightVerdict } from "../../js/app/serverList/preflight/PreflightVerdict";
+    import type { PreflightStepState } from "../../js/app/serverList/preflight/PreflightStepState";
+    import type { ServerRosterEntry } from "../../js/app/serverList/ServerRosterEntry";
     import ServerIdentity from "./ServerIdentity.svelte";
 
     interface Props {

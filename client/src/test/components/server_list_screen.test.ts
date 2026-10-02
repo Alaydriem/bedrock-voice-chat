@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
-import ServerListScreen from "../../components/server/ServerListScreen.svelte";
-import { PREFLIGHT_STEPS } from "../../js/app/server/preflight/PreflightStepName";
-import type { PreflightStepState } from "../../js/app/server/preflight/PreflightStepState";
-import type { RosterStatus } from "../../js/app/server/RosterStatus";
-import type { ServerRosterEntry } from "../../js/app/server/ServerRosterEntry";
+import ServerListScreen from "../../components/serverList/ServerListScreen.svelte";
+import { PREFLIGHT_STEPS } from "../../js/app/serverList/preflight/PreflightStepName";
+import type { PreflightStepState } from "../../js/app/serverList/preflight/PreflightStepState";
+import type { RosterStatus } from "../../js/app/serverList/RosterStatus";
+import type { ServerRosterEntry } from "../../js/app/serverList/ServerRosterEntry";
 
 function entry(host: string, status: RosterStatus, overrides: Partial<ServerRosterEntry> = {}) {
   const settled: PreflightStepState = status === "checking" ? "pending" : "ok";

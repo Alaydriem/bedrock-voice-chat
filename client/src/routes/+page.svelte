@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
   import "../css/app.css";
   import { onMount, onDestroy } from "svelte";
   import { goto } from "$app/navigation";
   import RadFrame from "../components/shell/RadFrame.svelte";
   import RadConfirm from "../components/shell/RadConfirm.svelte";
-  import ServerListScreen from "../components/server/ServerListScreen.svelte";
-  import PreflightPanel from "../components/server/PreflightPanel.svelte";
-  import Server from "../js/app/server.ts";
+  import ServerListScreen from "../components/serverList/ServerListScreen.svelte";
+  import PreflightPanel from "../components/serverList/PreflightPanel.svelte";
+  import Server from "../js/app/serverList.ts";
   import Analytics from "../js/app/analytics";
   import { BootTimeline } from "../js/app/shell/BootTimeline";
   import type { NextAction } from "../js/app/shell/NextAction";
-  import type { ServerRosterEntry } from "../js/app/server/ServerRosterEntry";
+  import type { ServerRosterEntry } from "../js/app/serverList/ServerRosterEntry";
 
   let app: Server | null = null;
   const unsubs: Array<() => void> = [];
@@ -35,7 +35,7 @@
   // Replaced rather than pushed: the roster forwards a device with one saved server
   // straight through, so an entry for it is one the back button can only bounce off.
   function apply(action: NextAction): void {
-    if (action.kind === "navigate") void goto(action.href, { replaceState: true });
+    if (action.kind === "navigate") void goto(action.href, { replace: true });
   }
 
   onMount(() => {
@@ -55,7 +55,7 @@
         // The overlay comes down only when this screen is the destination. A redirect and a
         // deep-link handoff are both already navigating, and showing the list on the way past
         // would flash a screen nobody asked for.
-        if (landing.kind === "navigate") void goto(landing.href, { replaceState: true });
+        if (landing.kind === "navigate") void goto(landing.href, { replace: true });
         else if (landing.kind === "show") {
           instance.showPreloader();
           BootTimeline.shared().report();

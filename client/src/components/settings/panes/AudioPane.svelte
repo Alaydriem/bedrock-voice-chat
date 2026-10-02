@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import { getContext, onDestroy, onMount } from "svelte";
     import { AUDIO_SETTINGS_KEY } from "../../../js/app/shell/AudioSettingsContext";
     import Segmented from "$radial/components/Segmented.svelte";

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import Ring from "$radial/components/Ring.svelte";
     import RadScreen from "../shell/RadScreen.svelte";
 

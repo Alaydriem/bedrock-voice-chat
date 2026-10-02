@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import LevelMeter from "$radial/components/LevelMeter.svelte";
     import { AnimationLoop } from "$radial/core/canvas/AnimationLoop";

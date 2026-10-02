@@ -6,7 +6,7 @@
   "scripts": {
     "prepare": "svelte-kit sync || echo ''",
     "dev": "yarn i18n:extract && yarn i18n:build && yarn preloader:build && vite dev",
-    "build": "yarn i18n:build && yarn preloader:build && vite build",
+    "build": "yarn i18n:build && yarn preloader:build && vite build && node scripts/check-preloader-version.mjs",
     "i18n:build": "node --disable-warning=ExperimentalWarning scripts/i18n/build.mjs",
     "i18n:extract": "node --disable-warning=ExperimentalWarning scripts/i18n/extract.mjs",
     "i18n:check": "node --disable-warning=ExperimentalWarning scripts/i18n/extract.mjs --check",
@@ -56,8 +56,8 @@
     "tauri-plugin-audio-permissions": "git+https://github.com/charlesportwoodii/tauri-plugin-audio-permissions.git#master"
   },
   "devDependencies": {
-    "@sveltejs/adapter-static": "^3.0",
-    "@sveltejs/kit": "^2.60.1",
+    "@sveltejs/adapter-static": "^4.0.0",
+    "@sveltejs/kit": "^3.0.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tauri-apps/cli": "^2",
     "@testing-library/dom": "^10.4",
@@ -75,10 +75,13 @@
     "postcss": "^8.4",
     "postcss-import": "^16.1",
     "prettier": "^3.4",
-    "svelte": "^5.46",
-    "svelte-check": "^4.1",
+    "svelte": "^5.57.1",
+    "svelte-check": "^4.7.6",
     "typescript": "^6.0",
     "vite": "^8.0.16",
     "vitest": "^4.1"
+  },
+  "imports": {
+    "#lib/*": "./src/lib/*"
   }
 }

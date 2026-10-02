@@ -1,7 +1,7 @@
 {
   // The preloader's own tsconfig, deliberately not extending the app's, for the same
   // reason `src/radial/tsconfig.json` exists: `client/tsconfig.json` extends
-  // `.svelte-kit/tsconfig.json`, which only exists after `svelte-kit sync`.
+  // `node_modules/$app/tsconfig.json`, which only exists after `svelte-kit sync`.
   //
   // `yarn preloader:build` is a plain Vite build with no SvelteKit plugin, and it runs
   // before the app build that would have generated that file, so on a fresh checkout it

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
   import "../../css/app.css";
   import { onMount, onDestroy } from "svelte";
   import Loader from "$radial/components/Loader.svelte";

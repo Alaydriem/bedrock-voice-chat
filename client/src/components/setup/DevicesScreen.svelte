@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+  import { I18n } from "#lib/i18n/index.js";
     import AudioDeviceSelector from "../audio/AudioDeviceSelector.svelte";
     import MicMeter from "../audio/MicMeter.svelte";
     import { LevelScale } from "$radial/core/sources/LevelScale";
