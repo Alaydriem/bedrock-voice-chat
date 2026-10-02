@@ -67,7 +67,10 @@ describe("GroupsView", () => {
     it("marks a group this client created even when it is not in it", () => {
         const view = new GroupsView();
         const rows = view.rows(
-            [channel("mine", "Mine", [], "minecraft:Alaydriem"), channel("theirs", "Theirs", [], "minecraft:Petra")],
+            [
+                channel("mine", "Mine", [], "minecraft:Alaydriem"),
+                channel("theirs", "Theirs", [], "minecraft:Petra"),
+            ],
             null,
             "minecraft:Alaydriem",
         );

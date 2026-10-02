@@ -9,12 +9,14 @@ import { I18n } from "#lib/i18n/index.js";
 export default class InviteMessage {
     static readonly TEXT = [
         "Hey — I'd like to use proximity voice chat on our Minecraft world.",
-        '',
-        I18n.t("It's a one-time setup on your side: run the BVC server on any machine you control,"),
-        'and add a small mod to the world. The guide walks through both:',
-        'https://bedrockvoicechat.com/wiki',
-        '',
-        'Takes about fifteen minutes. Once it\'s running, send me the server address and',
-        'everyone signs in with the account they already play on.',
-    ].join('\n');
+        "",
+        I18n.t(
+            "It's a one-time setup on your side: run the BVC server on any machine you control,",
+        ),
+        "and add a small mod to the world. The guide walks through both:",
+        "https://bedrockvoicechat.com/wiki",
+        "",
+        "Takes about fifteen minutes. Once it's running, send me the server address and",
+        "everyone signs in with the account they already play on.",
+    ].join("\n");
 }

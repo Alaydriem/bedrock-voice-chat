@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import AudioDeviceSelector from "../audio/AudioDeviceSelector.svelte";
     import MicMeter from "../audio/MicMeter.svelte";
     import { LevelScale } from "$radial/core/sources/LevelScale";
@@ -49,7 +49,9 @@
                 {I18n.t("Pick your microphone")}<br /><b>and where you listen.</b>
             </h2>
             <p class="rad-body rad-rise" style="--d: 210">
-                {I18n.t("Both can be changed later in settings. Talk for a moment and the mark beside this fills out as your voice passes the noise gate.")}
+                {I18n.t(
+                    "Both can be changed later in settings. Talk for a moment and the mark beside this fills out as your voice passes the noise gate.",
+                )}
             </p>
 
             <div class="rad-rise" style="--d: 300; margin-top: 24px">

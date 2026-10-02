@@ -48,7 +48,9 @@ export class NoiseGateModel {
         {
             id: "close_threshold",
             label: I18n.t("Closes below"),
-            note: I18n.t("Held under the level that opens it, so a steady voice at the edge does not stutter."),
+            note: I18n.t(
+                "Held under the level that opens it, so a steady voice at the edge does not stutter.",
+            ),
             unit: "dBFS",
             min: -96,
             max: 0,

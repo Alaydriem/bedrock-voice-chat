@@ -11,20 +11,20 @@ import { openUrl } from "@tauri-apps/plugin-opener";
  * navigated to GitHub is a dead end with no way back.
  */
 export default class HelpLinks {
-  static readonly WIKI = "https://www.bedrockvoicechat.com/wiki";
-  static readonly DISCORD = "https://discord.gg/WGXy5kBP9E";
-  static readonly PRIVACY =
-    "https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md";
+    static readonly WIKI = "https://www.bedrockvoicechat.com/wiki";
+    static readonly DISCORD = "https://discord.gg/WGXy5kBP9E";
+    static readonly PRIVACY =
+        "https://raw.githubusercontent.com/Alaydriem/bedrock-voice-chat/refs/heads/master/PRIVACY_STATEMENT.md";
 
-  static openWiki(): Promise<void> {
-    return openUrl(HelpLinks.WIKI);
-  }
+    static openWiki(): Promise<void> {
+        return openUrl(HelpLinks.WIKI);
+    }
 
-  static openDiscord(): Promise<void> {
-    return openUrl(HelpLinks.DISCORD);
-  }
+    static openDiscord(): Promise<void> {
+        return openUrl(HelpLinks.DISCORD);
+    }
 
-  static openPrivacyNotice(): Promise<void> {
-    return openUrl(HelpLinks.PRIVACY);
-  }
+    static openPrivacyNotice(): Promise<void> {
+        return openUrl(HelpLinks.PRIVACY);
+    }
 }

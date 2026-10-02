@@ -11,87 +11,87 @@
 /* ---- header ---- */
 
 .rad-dash-top {
-  flex: 0 0 auto;
-  height: calc(66px + var(--rad-inset-top, 0px));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: var(--rad-inset-top, 0px) calc(26px + var(--rad-inset-right, 0px)) 0
-    calc(26px + var(--rad-inset-left, 0px));
-  border-bottom: 1px solid var(--color-rad-line);
+    flex: 0 0 auto;
+    height: calc(66px + var(--rad-inset-top, 0px));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: var(--rad-inset-top, 0px) calc(26px + var(--rad-inset-right, 0px)) 0
+        calc(26px + var(--rad-inset-left, 0px));
+    border-bottom: 1px solid var(--color-rad-line);
 }
 
 .rad-dash-top__who {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    min-width: 0;
 }
 
 .rad-dash-top__server {
-  display: block;
-  font-size: var(--text-rad-md);
-  font-weight: 520;
-  letter-spacing: -0.01em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    display: block;
+    font-size: var(--text-rad-md);
+    font-weight: 520;
+    letter-spacing: -0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .rad-dash-top__sub {
-  margin-top: 2px;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-xs);
-  letter-spacing: var(--tracking-rad-caption);
-  color: var(--color-rad-faint);
+    margin-top: 2px;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-xs);
+    letter-spacing: var(--tracking-rad-caption);
+    color: var(--color-rad-faint);
 }
 
 .rad-dash-top__state {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-sm);
-  letter-spacing: var(--tracking-rad-caption);
-  color: var(--color-rad-dim);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-sm);
+    letter-spacing: var(--tracking-rad-caption);
+    color: var(--color-rad-dim);
 }
 
 /* The connection, and nothing else. Its own indicator so a muted mic can never be
    mistaken for a dropped link. */
 .rad-health-dot {
-  flex: 0 0 auto;
-  width: 9px;
-  height: 9px;
-  border-radius: var(--radius-rad-pill);
-  background: var(--color-rad-ok);
+    flex: 0 0 auto;
+    width: 9px;
+    height: 9px;
+    border-radius: var(--radius-rad-pill);
+    background: var(--color-rad-ok);
 }
 
 .rad-health-dot--warn {
-  background: var(--color-rad-warn);
+    background: var(--color-rad-warn);
 }
 
 .rad-health-dot--bad {
-  background: var(--color-rad-fault);
+    background: var(--color-rad-fault);
 }
 
 /* Shown on desktop, hidden in a phone container. */
 .rad-desk-only {
-  display: flex;
-  align-items: center;
-  gap: 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
 }
 
 .rad-phone-only {
-  display: none;
+    display: none;
 }
 
 /* ---- main area ---- */
 
 .rad-main {
-  flex: 1 1 auto;
-  position: relative;
-  min-height: 0;
+    flex: 1 1 auto;
+    position: relative;
+    min-height: 0;
 }
 
 /* ---- the empty state ----
@@ -101,125 +101,125 @@
  */
 
 .rad-idle {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  transition:
-    opacity 0.42s var(--ease-rad-out),
-    transform 0.42s var(--ease-rad-out);
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition:
+        opacity 0.42s var(--ease-rad-out),
+        transform 0.42s var(--ease-rad-out);
 }
 
 .rad-idle.is-gone {
-  opacity: 0;
-  transform: scale(0.9);
-  pointer-events: none;
+    opacity: 0;
+    transform: scale(0.9);
+    pointer-events: none;
 }
 
 .rad-idle__caption {
-  margin-top: 4px;
-  text-align: center;
+    margin-top: 4px;
+    text-align: center;
 }
 
 .rad-idle__kicker {
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-sm);
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--color-rad-brand-lift);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-sm);
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--color-rad-brand-lift);
 }
 
 .rad-idle__headline {
-  display: block;
-  margin-top: 9px;
-  font-size: var(--text-rad-subhead);
-  font-weight: 300;
-  letter-spacing: -0.018em;
-  color: var(--color-rad-tx);
+    display: block;
+    margin-top: 9px;
+    font-size: var(--text-rad-subhead);
+    font-weight: 300;
+    letter-spacing: -0.018em;
+    color: var(--color-rad-tx);
 }
 
 .rad-idle__note {
-  display: block;
-  max-width: 34ch;
-  margin: 10px auto 0;
-  font-size: var(--text-rad-sm);
-  line-height: 1.6;
-  color: var(--color-rad-dim);
+    display: block;
+    max-width: 34ch;
+    margin: 10px auto 0;
+    font-size: var(--text-rad-sm);
+    line-height: 1.6;
+    color: var(--color-rad-dim);
 }
 
 /* The route from noticing a dead link to diagnosing it. Present only while the link is down,
    which is the one state on this screen with somewhere to go. */
 .rad-idle__action {
-  margin-top: 16px;
+    margin-top: 16px;
 }
 
 /* ---- the roster ---- */
 
 .rad-roster {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  padding: 22px 26px 26px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  background: var(--color-rad-void);
-  will-change: transform, opacity;
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    padding: 22px 26px 26px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--color-rad-void);
+    will-change: transform, opacity;
 }
 
 .rad-roster.is-gone {
-  opacity: 0;
-  pointer-events: none;
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* Deafened dims everything incoming at once. One gesture, one consequence, visible. */
 .rad-roster.is-deafened {
-  opacity: 0.5;
+    opacity: 0.5;
 }
 
 .rad-section-rule {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 6px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 6px 0 12px;
 }
 
 .rad-section-rule + .rad-card-grid {
-  margin-bottom: 24px;
+    margin-bottom: 24px;
 }
 
 .rad-section-rule__title {
-  min-width: 0;
-  max-width: 60%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-xs);
-  letter-spacing: var(--tracking-rad-label);
-  text-transform: uppercase;
-  color: var(--color-rad-faint);
+    min-width: 0;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-xs);
+    letter-spacing: var(--tracking-rad-label);
+    text-transform: uppercase;
+    color: var(--color-rad-faint);
 }
 
 .rad-section-rule__line {
-  flex: 1 1 auto;
-  height: 1px;
-  background: var(--color-rad-line);
+    flex: 1 1 auto;
+    height: 1px;
+    background: var(--color-rad-line);
 }
 
 .rad-section-rule__count {
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-xs);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-rad-faint);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-rad-faint);
 }
 
 .rad-card-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
 }
 
 /* ---- the player card ----
@@ -232,153 +232,153 @@
  */
 
 .rad-player {
-  display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  gap: 15px;
-  padding: 15px 17px;
-  border: 1px solid var(--color-rad-line);
-  border-radius: var(--radius-rad-lg);
-  background: var(--color-rad-void-2);
-  transition:
-    border-color 0.25s,
-    background 0.25s,
-    opacity 0.3s,
-    transform 0.3s;
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    gap: 15px;
+    padding: 15px 17px;
+    border: 1px solid var(--color-rad-line);
+    border-radius: var(--radius-rad-lg);
+    background: var(--color-rad-void-2);
+    transition:
+        border-color 0.25s,
+        background 0.25s,
+        opacity 0.3s,
+        transform 0.3s;
 }
 
 /* Held back until its flyer lands, so the card appears where the mark arrived. */
 .rad-player.is-pending {
-  opacity: 0;
-  transform: translateY(8px);
+    opacity: 0;
+    transform: translateY(8px);
 }
 
 .rad-player.is-live {
-  background: var(--color-rad-panel);
+    background: var(--color-rad-panel);
 }
 
 .rad-player__avatar {
-  position: relative;
-  width: 54px;
-  height: 54px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-rad-lg);
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-base);
-  font-weight: 700;
-  color: var(--color-rad-void);
+    position: relative;
+    width: 54px;
+    height: 54px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-rad-lg);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-base);
+    font-weight: 700;
+    color: var(--color-rad-void);
 }
 
 /* Lights only while they are actually speaking. */
 .rad-player__ring {
-  position: absolute;
-  inset: -3px;
-  border: 2px solid transparent;
-  border-radius: 15px;
-  transition: border-color 0.2s;
+    position: absolute;
+    inset: -3px;
+    border: 2px solid transparent;
+    border-radius: 15px;
+    transition: border-color 0.2s;
 }
 
 .rad-player.is-live .rad-player__ring {
-  border-color: currentColor;
+    border-color: currentColor;
 }
 
 .rad-player__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
 }
 
 .rad-player__name {
-  font-size: var(--text-rad-base);
-  font-weight: 540;
-  letter-spacing: -0.012em;
-  color: var(--color-rad-tx);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    font-size: var(--text-rad-base);
+    font-weight: 540;
+    letter-spacing: -0.012em;
+    color: var(--color-rad-tx);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .rad-player__distance {
-  flex: 0 0 auto;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-sm);
-  letter-spacing: var(--tracking-rad-tag);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-rad-faint);
+    flex: 0 0 auto;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-sm);
+    letter-spacing: var(--tracking-rad-tag);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-rad-faint);
 }
 
 .rad-player__level {
-  height: 18px;
-  margin-top: 7px;
-  display: flex;
-  align-items: center;
+    height: 18px;
+    margin-top: 7px;
+    display: flex;
+    align-items: center;
 }
 
 .rad-player__controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 9px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 9px;
 }
 
 .rad-player__percent {
-  flex: 0 0 auto;
-  width: 44px;
-  text-align: right;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-sm);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-rad-dim);
+    flex: 0 0 auto;
+    width: 44px;
+    text-align: right;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-sm);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-rad-dim);
 }
 
 .rad-player__mute {
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--color-rad-line-2);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--color-rad-dim);
-  cursor: pointer;
-  transition: 0.16s;
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--color-rad-line-2);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-rad-dim);
+    cursor: pointer;
+    transition: 0.16s;
 }
 
 .rad-player__mute > [data-rad-icon] > svg {
-  width: 15px;
-  height: 15px;
+    width: 15px;
+    height: 15px;
 }
 
 .rad-player__mute:hover {
-  border-color: var(--color-rad-brand-lift);
-  color: var(--color-rad-tx);
+    border-color: var(--color-rad-brand-lift);
+    color: var(--color-rad-tx);
 }
 
 .rad-player__mute[aria-pressed="true"] {
-  background: rgb(255 130 102 / 0.16);
-  border-color: var(--color-rad-fault);
-  color: var(--color-rad-fault);
+    background: rgb(255 130 102 / 0.16);
+    border-color: var(--color-rad-fault);
+    color: var(--color-rad-fault);
 }
 
 .rad-leave-btn {
-  padding: 4px 10px;
-  border: 1px solid var(--color-rad-line-2);
-  border-radius: var(--radius-rad-sm);
-  background: transparent;
-  color: var(--color-rad-dim);
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  letter-spacing: var(--tracking-rad-caption);
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: 0.16s;
+    padding: 4px 10px;
+    border: 1px solid var(--color-rad-line-2);
+    border-radius: var(--radius-rad-sm);
+    background: transparent;
+    color: var(--color-rad-dim);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    letter-spacing: var(--tracking-rad-caption);
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: 0.16s;
 }
 
 .rad-leave-btn:hover {
-  border-color: var(--color-rad-fault);
-  color: var(--color-rad-fault);
+    border-color: var(--color-rad-fault);
+    color: var(--color-rad-fault);
 }
 
 /* ---- the dense roster ----
@@ -388,13 +388,13 @@
  */
 
 .rad-roster__section:not(:last-child) {
-  margin-bottom: 24px;
+    margin-bottom: 24px;
 }
 
 .rad-roster__empty {
-  margin: 0;
-  font-size: var(--text-rad-sm);
-  color: var(--color-rad-faint);
+    margin: 0;
+    font-size: var(--text-rad-sm);
+    color: var(--color-rad-faint);
 }
 
 /* ---- a recently-seen player, in settings ----
@@ -403,46 +403,46 @@
  */
 
 .rad-recent-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--color-rad-line);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-rad-line);
 }
 
 .rad-recent-row__id {
-  flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-rad-sm);
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-rad-sm);
 }
 
 .rad-recent-row__id canvas,
 .rad-recent-row__id img {
-  border-radius: inherit;
+    border-radius: inherit;
 }
 
 .rad-recent-row__text {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
 }
 
 .rad-recent-row__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-rad-md);
-  color: var(--color-rad-tx);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-rad-md);
+    color: var(--color-rad-tx);
 }
 
 .rad-recent-row__seen {
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  letter-spacing: var(--tracking-rad-tag);
-  color: var(--color-rad-faint);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    letter-spacing: var(--tracking-rad-tag);
+    color: var(--color-rad-faint);
 }
 
 /* On a phone the six controls on this row share the width of one card, and the name is the
@@ -451,38 +451,38 @@
    across the bottom. Forget stays with the name, because it is what to do with the player
    rather than with their volume. */
 @container rad (max-width: 560px) {
-  .rad-recent-row {
-    display: grid;
-    grid-template-columns: 34px minmax(0, 1fr) auto;
-    column-gap: 12px;
-    row-gap: 8px;
-    padding: 12px 0;
-  }
+    .rad-recent-row {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr) auto;
+        column-gap: 12px;
+        row-gap: 8px;
+        padding: 12px 0;
+    }
 
-  .rad-recent-row__id {
-    grid-area: 1 / 1;
-  }
+    .rad-recent-row__id {
+        grid-area: 1 / 1;
+    }
 
-  .rad-recent-row__text {
-    grid-area: 1 / 2;
-  }
+    .rad-recent-row__text {
+        grid-area: 1 / 2;
+    }
 
-  .rad-recent-row > .rad-icon-btn {
-    grid-area: 1 / 3;
-    justify-self: end;
-  }
+    .rad-recent-row > .rad-icon-btn {
+        grid-area: 1 / 3;
+        justify-self: end;
+    }
 
-  .rad-recent-row > .rad-player__mute {
-    grid-area: 2 / 1;
-  }
+    .rad-recent-row > .rad-player__mute {
+        grid-area: 2 / 1;
+    }
 
-  .rad-recent-row > .rad-range {
-    grid-area: 2 / 2;
-  }
+    .rad-recent-row > .rad-range {
+        grid-area: 2 / 2;
+    }
 
-  .rad-recent-row > .rad-player__percent {
-    grid-area: 2 / 3;
-  }
+    .rad-recent-row > .rad-player__percent {
+        grid-area: 2 / 3;
+    }
 }
 
 /* ---- a group row's members ----
@@ -492,106 +492,106 @@
  */
 
 .rad-group-row__text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 .rad-group-row__since {
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  letter-spacing: var(--tracking-rad-tag);
-  color: var(--color-rad-faint);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    letter-spacing: var(--tracking-rad-tag);
+    color: var(--color-rad-faint);
 }
 
 .rad-group-cluster {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
 }
 
 /* Overlapped, so a cluster reads as a group rather than as a row of separate things. */
 .rad-group-cluster__face + .rad-group-cluster__face {
-  margin-left: -7px;
+    margin-left: -7px;
 }
 
 /* Initials on the player's own hue, the same hue their card carries. The block glyph
    the cards use needs room its 5x5 grid does not have here, and two members reduced to
    22px of mirrored blocks are not tellable apart. */
 .rad-group-cluster__face {
-  flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--face, var(--color-rad-brand));
-  box-shadow: 0 0 0 1.5px var(--color-rad-void);
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  font-weight: 700;
-  line-height: 1;
-  color: var(--color-rad-void);
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--face, var(--color-rad-brand));
+    box-shadow: 0 0 0 1.5px var(--color-rad-void);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    font-weight: 700;
+    line-height: 1;
+    color: var(--color-rad-void);
 }
 
 .rad-group-cluster__more {
-  margin-left: 5px;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  color: var(--color-rad-faint);
+    margin-left: 5px;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    color: var(--color-rad-faint);
 }
 
 /* Somebody joined or left. Movement rather than a meter: it is the one thing that genuinely
    happened, and it fades on its own. */
 @keyframes rad-group-stir {
-  0%,
-  100% {
-    border-color: transparent;
-  }
-  50% {
-    border-color: var(--color-rad-brand-lift);
-  }
+    0%,
+    100% {
+        border-color: transparent;
+    }
+    50% {
+        border-color: var(--color-rad-brand-lift);
+    }
 }
 
 .rad-group-row.is-stirring {
-  animation: rad-group-stir 1.4s ease-in-out 2;
+    animation: rad-group-stir 1.4s ease-in-out 2;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rad-group-row.is-stirring {
-    animation: none;
-    border-color: var(--color-rad-brand-lift);
-  }
+    .rad-group-row.is-stirring {
+        animation: none;
+        border-color: var(--color-rad-brand-lift);
+    }
 }
 
 .rad-avatar-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap: 12px 10px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 12px 10px;
 }
 
 .rad-avatar-chip {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
 }
 
 /* The positioning box, not the clipped one: the ring and the badge sit outside the
  * identity's bounds, and `.rad-server-id` hides its overflow. */
 .rad-avatar-chip__face {
-  position: relative;
-  width: 46px;
-  height: 46px;
-  transition: transform 0.18s;
+    position: relative;
+    width: 46px;
+    height: 46px;
+    transition: transform 0.18s;
 }
 
 /* A player's identity is a server's identity. `ServerGlyph` derives a mark and a hue
@@ -602,39 +602,39 @@
  * specific and dashboard.css is imported after server-select.css. */
 .rad-avatar-chip__id,
 .rad-player__id {
-  width: 100%;
-  height: 100%;
+    width: 100%;
+    height: 100%;
 }
 
 .rad-avatar-chip__id {
-  border-radius: var(--radius-rad-md);
+    border-radius: var(--radius-rad-md);
 }
 
 .rad-player__id {
-  border-radius: var(--radius-rad-lg);
+    border-radius: var(--radius-rad-lg);
 }
 
 .rad-avatar-chip__id canvas,
 .rad-avatar-chip__id img,
 .rad-player__id canvas,
 .rad-player__id img {
-  border-radius: inherit;
+    border-radius: inherit;
 }
 
 .rad-avatar-chip:hover .rad-avatar-chip__face {
-  transform: translateY(-2px);
+    transform: translateY(-2px);
 }
 
 /* The level, without a canvas per entry. `--level` is written on the chip and read
  * here, so forty avatars cost forty style writes rather than forty render loops. */
 .rad-avatar-chip__ring {
-  position: absolute;
-  inset: -3px;
-  border: 2px solid currentColor;
-  border-radius: 15px;
-  opacity: calc(var(--level, 0) * 0.9);
-  transform: scale(calc(1 + var(--level, 0) * 0.06));
-  /*
+    position: absolute;
+    inset: -3px;
+    border: 2px solid currentColor;
+    border-radius: 15px;
+    opacity: calc(var(--level, 0) * 0.9);
+    transform: scale(calc(1 + var(--level, 0) * 0.06));
+    /*
     Matched to the gap between level messages rather than to a frame.
     An avatar has no render loop to carry it between values — that is the whole point of
     driving it from a custom property — so the transition is the only thing that fills the
@@ -643,151 +643,151 @@
     A quarter second is one message apart, so consecutive levels blend into one movement,
     and the compositor does it off the main thread.
   */
-  transition:
-    opacity 0.25s ease-out,
-    transform 0.25s ease-out;
+    transition:
+        opacity 0.25s ease-out,
+        transform 0.25s ease-out;
 }
 
 .rad-avatar-chip__name {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-rad-xs);
-  color: var(--color-rad-dim);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-rad-xs);
+    color: var(--color-rad-dim);
 }
 
 .rad-avatar-chip__meta {
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  letter-spacing: var(--tracking-rad-tag);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-rad-faint);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    letter-spacing: var(--tracking-rad-tag);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-rad-faint);
 }
 
 .rad-avatar-chip.is-pinned .rad-avatar-chip__face {
-  outline: 2px solid var(--color-rad-brand-lift);
-  outline-offset: 3px;
+    outline: 2px solid var(--color-rad-brand-lift);
+    outline-offset: 3px;
 }
 
 /* An opened avatar expands where it stands. Promoting it to a band at the top of the
  * roster put the card off-screen for anyone scrolled into a long list, so the tap
  * appeared to do nothing at all. */
 .rad-avatar-grid__open {
-  grid-column: 1 / -1;
-  margin: 4px 0 8px;
+    grid-column: 1 / -1;
+    margin: 4px 0 8px;
 }
 
 /* In the world, not on voice. Drained rather than hidden: they are present, and the
  * one thing worth knowing about them is that talking will not reach them. */
 .rad-avatar-chip--game .rad-avatar-chip__id {
-  filter: grayscale(1);
-  opacity: 0.55;
+    filter: grayscale(1);
+    opacity: 0.55;
 }
 
 .rad-avatar-chip--game .rad-avatar-chip__name {
-  color: var(--color-rad-faint);
+    color: var(--color-rad-faint);
 }
 
 .rad-avatar-chip__badge {
-  position: absolute;
-  right: -5px;
-  bottom: -5px;
-  width: 18px;
-  height: 18px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--color-rad-void);
-  border-radius: var(--radius-rad-pill);
-  background: var(--color-rad-panel);
-  color: var(--color-rad-faint);
+    position: absolute;
+    right: -5px;
+    bottom: -5px;
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--color-rad-void);
+    border-radius: var(--radius-rad-pill);
+    background: var(--color-rad-panel);
+    color: var(--color-rad-faint);
 }
 
 .rad-avatar-chip__badge > [data-rad-icon] > svg {
-  width: 9px;
-  height: 9px;
+    width: 9px;
+    height: 9px;
 }
 
 /* A card for somebody who cannot hear you. The gain controls are absent rather than
  * disabled — there is no audio to turn down, and a greyed slider invites the reading
  * that they have been muted. */
 .rad-player--game .rad-player__id {
-  filter: grayscale(1);
-  opacity: 0.55;
+    filter: grayscale(1);
+    opacity: 0.55;
 }
 
 .rad-player__note {
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: var(--text-rad-xs);
-  color: var(--color-rad-faint);
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: var(--text-rad-xs);
+    color: var(--color-rad-faint);
 }
 
 .rad-player__note > [data-rad-icon] > svg {
-  width: 12px;
-  height: 12px;
+    width: 12px;
+    height: 12px;
 }
 
 .rad-player__dismiss {
-  flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--color-rad-line-2);
-  border-radius: var(--radius-rad-sm);
-  background: transparent;
-  color: var(--color-rad-faint);
-  cursor: pointer;
-  transition: 0.16s;
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--color-rad-line-2);
+    border-radius: var(--radius-rad-sm);
+    background: transparent;
+    color: var(--color-rad-faint);
+    cursor: pointer;
+    transition: 0.16s;
 }
 
 .rad-player__dismiss:hover {
-  border-color: var(--color-rad-brand-lift);
-  color: var(--color-rad-tx);
+    border-color: var(--color-rad-brand-lift);
+    color: var(--color-rad-tx);
 }
 
 .rad-player__dismiss > [data-rad-icon] > svg {
-  width: 12px;
-  height: 12px;
+    width: 12px;
+    height: 12px;
 }
 
 @container rad (max-width: 560px) {
-  .rad-avatar-grid {
-    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-  }
+    .rad-avatar-grid {
+        grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    }
 }
 
 /* ---- groups ---- */
 
 .rad-new-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  margin-bottom: 6px;
-  padding: 11px 13px;
-  text-align: left;
-  font: inherit;
-  font-size: var(--text-rad-md);
-  border: 0;
-  border-radius: var(--radius-rad-md);
-  background: var(--color-rad-void-2);
-  color: var(--color-rad-dim);
-  cursor: pointer;
-  transition: 0.18s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin-bottom: 6px;
+    padding: 11px 13px;
+    text-align: left;
+    font: inherit;
+    font-size: var(--text-rad-md);
+    border: 0;
+    border-radius: var(--radius-rad-md);
+    background: var(--color-rad-void-2);
+    color: var(--color-rad-dim);
+    cursor: pointer;
+    transition: 0.18s;
 }
 
 .rad-new-group:hover {
-  background: var(--color-rad-panel);
-  color: var(--color-rad-tx);
+    background: var(--color-rad-panel);
+    color: var(--color-rad-tx);
 }
 
 .rad-new-group > [data-rad-icon] > svg {
-  width: 14px;
-  height: 14px;
+    width: 14px;
+    height: 14px;
 }
 
 /* ---- the group list as a card ----
@@ -801,47 +801,47 @@
  */
 
 .rad-group-list {
-  overflow: hidden;
-  border: 1px solid var(--color-rad-line);
-  border-radius: var(--radius-rad-lg);
-  background: var(--color-rad-void-2);
+    overflow: hidden;
+    border: 1px solid var(--color-rad-line);
+    border-radius: var(--radius-rad-lg);
+    background: var(--color-rad-void-2);
 }
 
 .rad-group-list .rad-swipe,
 .rad-group-list .rad-group-row,
 .rad-group-list .rad-new-group {
-  border-radius: 0;
+    border-radius: 0;
 }
 
 /* One hairline between rows, none at the ends — the card's own border closes those. */
 .rad-group-list > * + * {
-  border-top: 1px solid var(--color-rad-line);
+    border-top: 1px solid var(--color-rad-line);
 }
 
 .rad-group-list .rad-new-group {
-  margin-bottom: 0;
-  background: transparent;
+    margin-bottom: 0;
+    background: transparent;
 }
 
 .rad-group-list .rad-group-row {
-  border-left: 3px solid transparent;
-  background: transparent;
+    border-left: 3px solid transparent;
+    background: transparent;
 }
 
 /* A left accent rather than a full outline. A border on four sides of a flush row draws
    lines the list already has, and doubles them against its neighbours. */
 .rad-group-list .rad-group-row.is-on {
-  border-color: transparent;
-  border-left-color: var(--color-rad-brand-lift);
+    border-color: transparent;
+    border-left-color: var(--color-rad-brand-lift);
 }
 
 /* Flattened into the card: its own frame inside a framed list is two boxes deep for one
    thing. The darker ground is what separates it from the rows instead. */
 .rad-group-list .rad-group-edit {
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  background: var(--color-rad-void);
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: var(--color-rad-void);
 }
 
 /* ---- swipe to reveal ----
@@ -854,185 +854,185 @@
  */
 
 .rad-swipe {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--radius-rad-md);
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-rad-md);
 }
 
 .rad-swipe__track {
-  position: relative;
-  z-index: 1;
-  background: var(--color-rad-void);
-  /* Vertical scrolling stays the browser's; horizontal is ours. Without this the sheet
+    position: relative;
+    z-index: 1;
+    background: var(--color-rad-void);
+    /* Vertical scrolling stays the browser's; horizontal is ours. Without this the sheet
      scrolls under the finger and the swipe never accumulates. */
-  touch-action: pan-y;
-  transition: transform 0.26s var(--ease-rad-out);
+    touch-action: pan-y;
+    transition: transform 0.26s var(--ease-rad-out);
 }
 
 /* No transition while a finger is down: the row must track the finger, not chase it. */
 .rad-swipe__track.is-dragging {
-  transition: none;
+    transition: none;
 }
 
 /* Stated on the row as well as the track, because the row is the element the pointer is
    actually over and effective touch-action is read from there upward. */
 .rad-swipe .rad-group-row {
-  touch-action: pan-y;
+    touch-action: pan-y;
 }
 
 .rad-swipe__tray {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: stretch;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: stretch;
 }
 
 .rad-swipe__action {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  /* Wide enough to be a thumb target once revealed; the gesture already did the aiming. */
-  min-width: 78px;
-  padding: 0 12px;
-  border: 0;
-  font: inherit;
-  font-size: var(--text-rad-xs);
-  background: var(--color-rad-panel);
-  color: var(--color-rad-tx);
-  cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    /* Wide enough to be a thumb target once revealed; the gesture already did the aiming. */
+    min-width: 78px;
+    padding: 0 12px;
+    border: 0;
+    font: inherit;
+    font-size: var(--text-rad-xs);
+    background: var(--color-rad-panel);
+    color: var(--color-rad-tx);
+    cursor: pointer;
 }
 
 .rad-swipe__action > [data-rad-icon] > svg {
-  width: 17px;
-  height: 17px;
+    width: 17px;
+    height: 17px;
 }
 
 .rad-swipe__action:hover {
-  background: var(--color-rad-brand);
+    background: var(--color-rad-brand);
 }
 
 .rad-swipe__action--danger {
-  background: var(--color-rad-fault);
-  color: var(--color-rad-void);
+    background: var(--color-rad-fault);
+    color: var(--color-rad-void);
 }
 
 /* ---- group edit ---- */
 
 .rad-group-edit {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin: 8px 0 14px;
-  padding: 14px;
-  border: 1px solid var(--color-rad-line-2);
-  border-radius: var(--radius-rad-md);
-  background: var(--color-rad-void-2);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 8px 0 14px;
+    padding: 14px;
+    border: 1px solid var(--color-rad-line-2);
+    border-radius: var(--radius-rad-md);
+    background: var(--color-rad-void-2);
 }
 
 .rad-group-edit__row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .rad-group-edit__id {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  text-align: left;
-  font: inherit;
-  border: 1px solid var(--color-rad-line);
-  border-radius: var(--radius-rad-sm);
-  background: var(--color-rad-void);
-  color: var(--color-rad-dim);
-  cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    text-align: left;
+    font: inherit;
+    border: 1px solid var(--color-rad-line);
+    border-radius: var(--radius-rad-sm);
+    background: var(--color-rad-void);
+    color: var(--color-rad-dim);
+    cursor: pointer;
 }
 
 .rad-group-edit__id code {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-sm);
-  color: var(--color-rad-tx);
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-sm);
+    color: var(--color-rad-tx);
 }
 
 .rad-group-edit__copy {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: var(--text-rad-xs);
-  color: var(--color-rad-brand-lift);
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--text-rad-xs);
+    color: var(--color-rad-brand-lift);
 }
 
 .rad-group-edit__foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 .rad-group-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 11px 13px;
-  text-align: left;
-  font: inherit;
-  border: 1px solid transparent;
-  border-radius: var(--radius-rad-md);
-  background: transparent;
-  color: var(--color-rad-dim);
-  cursor: pointer;
-  transition: 0.18s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px 13px;
+    text-align: left;
+    font: inherit;
+    border: 1px solid transparent;
+    border-radius: var(--radius-rad-md);
+    background: transparent;
+    color: var(--color-rad-dim);
+    cursor: pointer;
+    transition: 0.18s;
 }
 
 .rad-group-row:hover {
-  background: var(--color-rad-void-2);
-  color: var(--color-rad-tx);
+    background: var(--color-rad-void-2);
+    color: var(--color-rad-tx);
 }
 
 .rad-group-row.is-on {
-  background: var(--color-rad-panel);
-  border-color: var(--color-rad-brand-lift);
-  color: var(--color-rad-tx);
+    background: var(--color-rad-panel);
+    border-color: var(--color-rad-brand-lift);
+    color: var(--color-rad-tx);
 }
 
 .rad-group-row__name {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: var(--text-rad-md);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--text-rad-md);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* A group's own level: whether anything is happening in there, without joining. */
 .rad-group-row canvas {
-  display: block;
-  flex: 0 0 auto;
-  opacity: 0.85;
+    display: block;
+    flex: 0 0 auto;
+    opacity: 0.85;
 }
 
 .rad-group-row__count {
-  min-width: 14px;
-  text-align: right;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-sm);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-rad-faint);
+    min-width: 14px;
+    text-align: right;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-sm);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-rad-faint);
 }
 
 .rad-group-row.is-on .rad-group-row__count {
-  color: var(--color-rad-brand-lift);
+    color: var(--color-rad-brand-lift);
 }
 
 /* ---- self controls, desktop ----
@@ -1043,136 +1043,136 @@
 /* What a tablet shows in place of `.rad-self-bar`, and it sits in the same corner, so it
    clears the home indicator the same way. */
 .rad-self-pill {
-  position: absolute;
-  left: calc(14px + var(--rad-inset-left, 0px));
-  bottom: calc(14px + var(--rad-inset-bottom, 0px));
-  z-index: 14;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 66px;
-  padding: 0 9px 0 58px;
-  border: 1px solid var(--color-rad-line-2);
-  border-radius: 22px;
-  background: rgb(37 24 68 / 0.95);
-  backdrop-filter: blur(14px);
-  box-shadow: var(--shadow-rad-pill);
+    position: absolute;
+    left: calc(14px + var(--rad-inset-left, 0px));
+    bottom: calc(14px + var(--rad-inset-bottom, 0px));
+    z-index: 14;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 66px;
+    padding: 0 9px 0 58px;
+    border: 1px solid var(--color-rad-line-2);
+    border-radius: 22px;
+    background: rgb(37 24 68 / 0.95);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow-rad-pill);
 }
 
 .rad-self__avatar {
-  position: absolute;
-  left: -9px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 56px;
-  height: 56px;
-  display: grid;
-  place-items: center;
-  border-radius: 17px;
-  background: var(--color-rad-brand);
-  box-shadow: 0 0 0 4px var(--color-rad-void);
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-lead);
-  font-weight: 700;
-  color: #fff;
+    position: absolute;
+    left: -9px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 56px;
+    height: 56px;
+    display: grid;
+    place-items: center;
+    border-radius: 17px;
+    background: var(--color-rad-brand);
+    box-shadow: 0 0 0 4px var(--color-rad-void);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-lead);
+    font-weight: 700;
+    color: #fff;
 }
 
 .rad-self__id {
-  min-width: 0;
-  max-width: 152px;
-  padding: 0 4px 0 0;
-  text-align: left;
-  font: inherit;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
+    min-width: 0;
+    max-width: 152px;
+    padding: 0 4px 0 0;
+    text-align: left;
+    font: inherit;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
 }
 
 .rad-self__name {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  font-size: var(--text-rad-md);
-  font-weight: 600;
-  color: var(--color-rad-tx);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    font-size: var(--text-rad-md);
+    font-weight: 600;
+    color: var(--color-rad-tx);
 }
 
 .rad-self__name > span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .rad-self__chev {
-  flex: 0 0 auto;
-  font-size: 9px;
-  color: var(--color-rad-faint);
+    flex: 0 0 auto;
+    font-size: 9px;
+    color: var(--color-rad-faint);
 }
 
 .rad-self__sub {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  height: 16px;
-  min-width: 0;
-  margin-top: 5px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 16px;
+    min-width: 0;
+    margin-top: 5px;
 }
 
 .rad-self__sub canvas {
-  display: block;
-  flex: 0 0 auto;
+    display: block;
+    flex: 0 0 auto;
 }
 
 .rad-self__state {
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono);
-  letter-spacing: var(--tracking-rad-wide);
-  text-transform: uppercase;
-  color: var(--color-rad-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono);
+    letter-spacing: var(--tracking-rad-wide);
+    text-transform: uppercase;
+    color: var(--color-rad-faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .rad-self__btn {
-  flex: 0 0 auto;
-  /* A hold control in push-to-talk, so the browser must not read a press on it as the
+    flex: 0 0 auto;
+    /* A hold control in push-to-talk, so the browser must not read a press on it as the
      start of a scroll: it answers that by cancelling the gesture, and a hold cancelled
      rather than released never sends its release. */
-  touch-action: none;
-  /* Sized by max-width rather than width so the record button can grow to fit its
+    touch-action: none;
+    /* Sized by max-width rather than width so the record button can grow to fit its
      timer: `width: auto` is not an animatable value, and snapping open was the
      single most abrupt moment on the dashboard. */
-  width: auto;
-  min-width: 42px;
-  max-width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border: 0;
-  border-radius: var(--radius-rad-pill);
-  background: rgb(20 12 38 / 0.68);
-  color: var(--color-rad-dim);
-  cursor: pointer;
-  transition:
-    background 0.22s var(--ease-rad-out),
-    color 0.22s var(--ease-rad-out),
-    max-width 0.38s var(--ease-rad-out),
-    padding 0.38s var(--ease-rad-out);
+    width: auto;
+    min-width: 42px;
+    max-width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border: 0;
+    border-radius: var(--radius-rad-pill);
+    background: rgb(20 12 38 / 0.68);
+    color: var(--color-rad-dim);
+    cursor: pointer;
+    transition:
+        background 0.22s var(--ease-rad-out),
+        color 0.22s var(--ease-rad-out),
+        max-width 0.38s var(--ease-rad-out),
+        padding 0.38s var(--ease-rad-out);
 }
 
 .rad-self__btn > [data-rad-icon] > svg {
-  width: 19px;
-  height: 19px;
+    width: 19px;
+    height: 19px;
 }
 
 .rad-self__btn:hover {
-  background: var(--color-rad-panel);
-  color: var(--color-rad-tx);
+    background: var(--color-rad-panel);
+    color: var(--color-rad-tx);
 }
 
 /* Filled, not tinted.
@@ -1182,23 +1182,23 @@
  * thing in reach that says it. The glyph goes dark against the fill so the whole control reads
  * as one coloured object rather than a coloured box holding a pale icon. */
 .rad-self__btn[aria-pressed="true"] {
-  background: var(--color-rad-fault);
-  border-color: var(--color-rad-fault);
-  color: var(--color-rad-void);
+    background: var(--color-rad-fault);
+    border-color: var(--color-rad-fault);
+    color: var(--color-rad-void);
 }
 
 /* Deafen is warn, not fault: you chose it, and it is recoverable in one press. */
 .rad-self__btn--deafen[aria-pressed="true"] {
-  background: var(--color-rad-warn);
-  border-color: var(--color-rad-warn);
-  color: var(--color-rad-void);
+    background: var(--color-rad-warn);
+    border-color: var(--color-rad-warn);
+    color: var(--color-rad-void);
 }
 
 /* Push-to-talk held down. Green because it is the only state in which you are
    definitely being heard. */
 .rad-self__btn.is-holding {
-  background: rgb(92 227 131 / 0.28);
-  color: var(--color-rad-ok);
+    background: rgb(92 227 131 / 0.28);
+    color: var(--color-rad-ok);
 }
 
 /* Recording: a circle grows into an oval, then turns red, then the timer fades in.
@@ -1214,90 +1214,90 @@
  * changed on the first frame. That is what was snapping.
  */
 .rad-self__btn--record {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  min-width: 0;
-  max-width: none;
-  padding: 0;
-  gap: 0;
-  /* Set once, so nothing about the text changes mid-animation. */
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-sm);
-  letter-spacing: var(--tracking-rad-tag);
-  /* Stopping runs in reverse: the timer goes first, then the colour, then the shape. */
-  transition:
-    width 0.42s var(--ease-rad-out) 0.16s,
-    background 0.24s ease,
-    color 0.24s ease;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    min-width: 0;
+    max-width: none;
+    padding: 0;
+    gap: 0;
+    /* Set once, so nothing about the text changes mid-animation. */
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-sm);
+    letter-spacing: var(--tracking-rad-tag);
+    /* Stopping runs in reverse: the timer goes first, then the colour, then the shape. */
+    transition:
+        width 0.42s var(--ease-rad-out) 0.16s,
+        background 0.24s ease,
+        color 0.24s ease;
 }
 
 /* Dimmed and inert where the server does not permit recording. The button keeps its
    place in the row so its absence is never what the creator has to notice. */
 .rad-self__btn--record:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 .rad-self__btn--record:disabled:hover {
-  background: transparent;
+    background: transparent;
 }
 
 /* 106px is what the contents actually need: 18px in, a 19px glyph, a 10px gap, five
    monospaced characters of mm:ss at ~41px, and 18px out again. Anything wider is a gap
    the eye reads as the timer being off-centre. */
 .rad-self__btn--record[aria-pressed="true"] {
-  width: 106px;
-  background: rgb(255 130 102 / 0.22);
-  color: var(--color-rad-fault);
-  transition:
-    width 0.42s var(--ease-rad-out),
-    background 0.3s ease 0.32s,
-    color 0.3s ease 0.32s;
+    width: 106px;
+    background: rgb(255 130 102 / 0.22);
+    color: var(--color-rad-fault);
+    transition:
+        width 0.42s var(--ease-rad-out),
+        background 0.3s ease 0.32s,
+        color 0.3s ease 0.32s;
 }
 
 /* The glyph glides from the centre of the circle to the left of the oval. Absolutely
    positioned so it never contributes to the width being animated. */
 .rad-self__btn--record > [data-rad-icon] {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  transition:
-    left 0.42s var(--ease-rad-out),
-    transform 0.42s var(--ease-rad-out);
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    transition:
+        left 0.42s var(--ease-rad-out),
+        transform 0.42s var(--ease-rad-out);
 }
 
 .rad-self__btn--record[aria-pressed="true"] > [data-rad-icon] {
-  left: 18px;
-  transform: none;
-  /* One indicator. A blinking dot beside a record glyph states the same fact twice. */
-  animation: rad-blip 1.6s ease-in-out infinite;
+    left: 18px;
+    transform: none;
+    /* One indicator. A blinking dot beside a record glyph states the same fact twice. */
+    animation: rad-blip 1.6s ease-in-out infinite;
 }
 
 .rad-self__rec-time {
-  position: absolute;
-  left: 47px;
-  /* Clips rather than pushing the button wider if a session ever runs past 99 minutes
+    position: absolute;
+    left: 47px;
+    /* Clips rather than pushing the button wider if a session ever runs past 99 minutes
      and the value grows a character. */
-  max-width: 46px;
-  white-space: nowrap;
-  opacity: 0;
-  font-variant-numeric: tabular-nums;
-  transition: opacity 0.18s ease;
+    max-width: 46px;
+    white-space: nowrap;
+    opacity: 0;
+    font-variant-numeric: tabular-nums;
+    transition: opacity 0.18s ease;
 }
 
 /* Last in, after the shape has settled and the colour has landed. */
 [aria-pressed="true"] > .rad-self__rec-time {
-  opacity: 1;
-  transition: opacity 0.28s ease 0.62s;
+    opacity: 1;
+    transition: opacity 0.28s ease 0.62s;
 }
 
 /* ---- self controls, phone ---- */
 
 .rad-self-bar {
-  display: none;
+    display: none;
 }
 
 /* ---- the handoff ----
@@ -1307,24 +1307,24 @@
  */
 
 .rad-flyer {
-  position: fixed;
-  z-index: 60;
-  width: 15px;
-  height: 15px;
-  border-radius: var(--radius-rad-xs);
-  pointer-events: none;
-  transition:
-    transform 0.55s var(--ease-rad-fly),
-    opacity 0.55s ease;
+    position: fixed;
+    z-index: 60;
+    width: 15px;
+    height: 15px;
+    border-radius: var(--radius-rad-xs);
+    pointer-events: none;
+    transition:
+        transform 0.55s var(--ease-rad-fly),
+        opacity 0.55s ease;
 }
 
 .rad-flyer--spark {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  transition:
-    transform 0.46s var(--ease-rad-rise),
-    opacity 0.46s ease;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    transition:
+        transform 0.46s var(--ease-rad-rise),
+        opacity 0.46s ease;
 }
 
 /* ---- status panel ----
@@ -1333,31 +1333,31 @@
  */
 
 .rad-status {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-rad-void);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-rad-void);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
 }
 
 .rad-frame.is-status .rad-status {
-  z-index: 6;
-  opacity: 1;
-  pointer-events: auto;
+    z-index: 6;
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .rad-frame.is-status .rad-roster,
 .rad-frame.is-status .rad-idle {
-  transform: translateY(102%);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform 0.42s var(--ease-rad-out),
-    opacity 0.3s ease;
+    transform: translateY(102%);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        transform 0.42s var(--ease-rad-out),
+        opacity 0.3s ease;
 }
 
 /* The tab strip and the chat dock go with the roster they belong to.
@@ -1372,103 +1372,103 @@
 .rad-frame.is-status .rad-tabs,
 .rad-frame.is-status .rad-chat-dock,
 .rad-frame.is-status.is-chat .rad-chat-dock {
-  display: none;
+    display: none;
 }
 
 .rad-status__head {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-width: 0;
-  padding: 18px 26px 0;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+    padding: 18px 26px 0;
 }
 
 .rad-status__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
 }
 
 /* The dismiss is the one control in this row that must survive being crowded: everything else
    in the panel is readable elsewhere, and a status panel that cannot be closed is a screen with
    no way out. It is also last in the row, so it is the first thing an overflow pushes away. */
 .rad-status__close {
-  flex: 0 0 auto;
+    flex: 0 0 auto;
 }
 
 .rad-status__act {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 15px;
-  font: inherit;
-  font-size: var(--text-rad-xs);
-  letter-spacing: var(--tracking-rad-wide);
-  border: 0;
-  border-radius: var(--radius-rad-lg);
-  background: var(--color-rad-void-2);
-  color: var(--color-rad-dim);
-  cursor: pointer;
-  transition: 0.16s;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 15px;
+    font: inherit;
+    font-size: var(--text-rad-xs);
+    letter-spacing: var(--tracking-rad-wide);
+    border: 0;
+    border-radius: var(--radius-rad-lg);
+    background: var(--color-rad-void-2);
+    color: var(--color-rad-dim);
+    cursor: pointer;
+    transition: 0.16s;
 }
 
 .rad-status__act:hover {
-  background: var(--color-rad-panel);
-  color: var(--color-rad-tx);
+    background: var(--color-rad-panel);
+    color: var(--color-rad-tx);
 }
 
 .rad-status__act > [data-rad-icon] > svg {
-  width: 16px;
-  height: 16px;
+    width: 16px;
+    height: 16px;
 }
 
 .rad-status__act.is-busy {
-  color: var(--color-rad-brand-lift);
-  pointer-events: none;
+    color: var(--color-rad-brand-lift);
+    pointer-events: none;
 }
 
 .rad-status__act.is-busy > [data-rad-icon] > svg {
-  animation: rad-spin 0.9s linear infinite;
+    animation: rad-spin 0.9s linear infinite;
 }
 
 .rad-status__body {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  gap: 30px;
-  padding: 10px 26px 26px;
-  overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    gap: 30px;
+    padding: 10px 26px 26px;
+    overflow-y: auto;
 }
 
 .rad-status__scope {
-  flex: 0 0 292px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
+    flex: 0 0 292px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
 }
 
 .rad-status__scope canvas {
-  display: block;
-  width: 268px;
-  height: 268px;
+    display: block;
+    width: 268px;
+    height: 268px;
 }
 
 .rad-status__scope-cap {
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  letter-spacing: var(--tracking-rad-label);
-  text-transform: uppercase;
-  color: var(--color-rad-faint);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    letter-spacing: var(--tracking-rad-label);
+    text-transform: uppercase;
+    color: var(--color-rad-faint);
 }
 
 .rad-status__read {
-  flex: 1 1 auto;
-  min-width: 0;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 /* The scope is a fixed 292px column and the readout beside it carries whole sentences, so the
@@ -1476,14 +1476,14 @@
    the desktop branch of every other rule, too narrow for this panel side by side. Stacking is
    width-driven rather than platform-driven because a small desktop window has the same gap. */
 @container rad (max-width: 1024px) {
-  .rad-status__body {
-    flex-direction: column;
-    gap: 18px;
-  }
+    .rad-status__body {
+        flex-direction: column;
+        gap: 18px;
+    }
 
-  .rad-status__scope {
-    flex: 0 0 auto;
-  }
+    .rad-status__scope {
+        flex: 0 0 auto;
+    }
 }
 
 /* The same stack on a tablet, at any width.
@@ -1494,157 +1494,157 @@
  * desktop window of the same size, which is what the frame's platform class is for. The
  * scope goes on top and the readout takes the full width, as it does on a phone. */
 .rad-frame--mobile .rad-status__body {
-  flex-direction: column;
-  gap: 18px;
+    flex-direction: column;
+    gap: 18px;
 }
 
 .rad-frame--mobile .rad-status__scope {
-  flex: 0 0 auto;
+    flex: 0 0 auto;
 }
 
 @container rad (max-width: 560px) {
-  /* 48px rather than the desktop 66px, and lower than a phone bar would otherwise want.
+    /* 48px rather than the desktop 66px, and lower than a phone bar would otherwise want.
      The status bar above it is the OS's and can be tall — 45dp on OxygenOS, where the
      glyphs fill only its middle third — so the two stack into a band that reads as one
      oversized header. The bar is the only half we control. Still clears the 44px touch
      target floor below. */
-  .rad-dash-top {
-    height: calc(48px + var(--rad-inset-top, 0px));
-    padding: var(--rad-inset-top, 0px) calc(18px + var(--rad-inset-right, 0px)) 0
-      calc(18px + var(--rad-inset-left, 0px));
-  }
+    .rad-dash-top {
+        height: calc(48px + var(--rad-inset-top, 0px));
+        padding: var(--rad-inset-top, 0px) calc(18px + var(--rad-inset-right, 0px)) 0
+            calc(18px + var(--rad-inset-left, 0px));
+    }
 
-  .rad-desk-only {
-    display: none !important;
-  }
+    .rad-desk-only {
+        display: none !important;
+    }
 
-  .rad-phone-only {
-    display: grid;
-  }
+    .rad-phone-only {
+        display: grid;
+    }
 
-  .rad-self-pill {
-    display: none;
-  }
+    .rad-self-pill {
+        display: none;
+    }
 
-  /* A floor of 44px on the controls: nothing else in the kit guaranteed a touch target, and a
+    /* A floor of 44px on the controls: nothing else in the kit guaranteed a touch target, and a
      34px glyph in a corner is not one. */
-  .rad-dash-top .rad-header-btn,
-  .rad-dash-top .rad-header-glyph {
-    min-width: 44px;
-    min-height: 44px;
-  }
+    .rad-dash-top .rad-header-btn,
+    .rad-dash-top .rad-header-glyph {
+        min-width: 44px;
+        min-height: 44px;
+    }
 
-  .rad-idle {
-    padding-bottom: 90px;
-  }
+    .rad-idle {
+        padding-bottom: 90px;
+    }
 
-  .rad-roster {
-    padding: 18px 16px 120px;
-  }
+    .rad-roster {
+        padding: 18px 16px 120px;
+    }
 
-  .rad-card-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+    .rad-card-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
 
-  .rad-status__head {
-    padding: 14px 18px 0;
-  }
+    .rad-status__head {
+        padding: 14px 18px 0;
+    }
 
-  /* Icons only. Three labelled actions and a close button do not fit a phone row, and the
+    /* Icons only. Three labelled actions and a close button do not fit a phone row, and the
      labels are the part a glyph can carry on its own — each button keeps its `aria-label`, so
      nothing is lost but the width. */
-  .rad-status__act {
-    padding: 9px;
-    font-size: var(--text-rad-mono-sm);
-  }
+    .rad-status__act {
+        padding: 9px;
+        font-size: var(--text-rad-mono-sm);
+    }
 
-  .rad-status__act-label {
-    display: none;
-  }
+    .rad-status__act-label {
+        display: none;
+    }
 
-  .rad-status__body {
-    flex-direction: column;
-    gap: 18px;
-    padding: 6px 18px 118px;
-  }
+    .rad-status__body {
+        flex-direction: column;
+        gap: 18px;
+        padding: 6px 18px 118px;
+    }
 
-  .rad-status__scope {
-    flex: 0 0 auto;
-    gap: 10px;
-  }
+    .rad-status__scope {
+        flex: 0 0 auto;
+        gap: 10px;
+    }
 
-  .rad-status__scope canvas {
-    width: 212px;
-    height: 212px;
-  }
+    .rad-status__scope canvas {
+        width: 212px;
+        height: 212px;
+    }
 
-  /* The margin is measured from the avatar, which is the visually leading edge. */
-  .rad-self-bar {
-    display: block;
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 12;
-    padding: 0 calc(15px + var(--rad-inset-right, 0px))
-      calc(15px + var(--rad-inset-bottom, 0px)) calc(24px + var(--rad-inset-left, 0px));
-    pointer-events: none;
-  }
+    /* The margin is measured from the avatar, which is the visually leading edge. */
+    .rad-self-bar {
+        display: block;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 12;
+        padding: 0 calc(15px + var(--rad-inset-right, 0px))
+            calc(15px + var(--rad-inset-bottom, 0px)) calc(24px + var(--rad-inset-left, 0px));
+        pointer-events: none;
+    }
 
-  .rad-self-capsule {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    height: 70px;
-    padding: 0 9px 0 62px;
-    border: 1px solid var(--color-rad-line-2);
-    border-radius: 24px;
-    background: rgb(37 24 68 / 0.94);
-    backdrop-filter: blur(14px);
-    box-shadow: 0 18px 44px -16px rgb(0 0 0 / 0.85);
-    pointer-events: auto;
-  }
+    .rad-self-capsule {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        height: 70px;
+        padding: 0 9px 0 62px;
+        border: 1px solid var(--color-rad-line-2);
+        border-radius: 24px;
+        background: rgb(37 24 68 / 0.94);
+        backdrop-filter: blur(14px);
+        box-shadow: 0 18px 44px -16px rgb(0 0 0 / 0.85);
+        pointer-events: auto;
+    }
 
-  .rad-self-capsule .rad-self__avatar {
-    width: 58px;
-    height: 58px;
-    border-radius: 18px;
-    font-size: var(--text-rad-lead);
-  }
+    .rad-self-capsule .rad-self__avatar {
+        width: 58px;
+        height: 58px;
+        border-radius: 18px;
+        font-size: var(--text-rad-lead);
+    }
 
-  .rad-self-capsule .rad-self__id {
-    flex: 1 1 auto;
-    max-width: none;
-    overflow: hidden;
-  }
+    .rad-self-capsule .rad-self__id {
+        flex: 1 1 auto;
+        max-width: none;
+        overflow: hidden;
+    }
 
-  .rad-self-capsule .rad-self__btn {
-    width: 44px;
-    height: 44px;
-  }
+    .rad-self-capsule .rad-self__btn {
+        width: 44px;
+        height: 44px;
+    }
 
-  /* Resting only.
+    /* Resting only.
    *
    * `.rad-self-capsule .rad-self__btn` is two classes; `.rad-self__btn[aria-pressed="true"]`
    * is one class and one attribute. Equal specificity, and the capsule block is later in the
    * file, so an unqualified background here silently reverted every pressed and held state to
    * the resting ground while the dark glyph colour survived — a dark icon on a dark button.
    * The phone treatment is the desktop treatment; only the metrics differ. */
-  .rad-self-capsule .rad-self__btn:not([aria-pressed="true"], .is-holding) {
-    background: rgb(20 12 38 / 0.7);
-  }
+    .rad-self-capsule .rad-self__btn:not([aria-pressed="true"], .is-holding) {
+        background: rgb(20 12 38 / 0.7);
+    }
 
-  .rad-self-capsule .rad-self__btn > [data-rad-icon] > svg {
-    width: 20px;
-    height: 20px;
-  }
+    .rad-self-capsule .rad-self__btn > [data-rad-icon] > svg {
+        width: 20px;
+        height: 20px;
+    }
 
-  /* The mic is the primary control on a phone and is lifted out of the row. */
-  .rad-self-capsule .rad-self__btn--primary:not([aria-pressed="true"], .is-holding) {
-    background: var(--color-rad-panel);
-    color: var(--color-rad-tx);
-  }
+    /* The mic is the primary control on a phone and is lifted out of the row. */
+    .rad-self-capsule .rad-self__btn--primary:not([aria-pressed="true"], .is-holding) {
+        background: var(--color-rad-panel);
+        color: var(--color-rad-tx);
+    }
 }
 
 /* ---- the dashboard's own scale ----
@@ -1666,8 +1666,8 @@
  *   --rad-idle-ring         the logo in the empty state
  */
 :root[data-rad-dash] {
-  --rad-dash-type-scale: 1.18;
-  --rad-type-scale: var(--rad-dash-type-scale);
+    --rad-dash-type-scale: 1.18;
+    --rad-type-scale: var(--rad-dash-type-scale);
 }
 
 /* The logo scales with the window rather than sitting at one size.
@@ -1680,7 +1680,7 @@
  *
  * `--rad-idle-ring` is the knob. */
 .rad-idle__ring {
-  width: var(--rad-idle-ring, clamp(330px, 48vmin, 470px));
-  height: var(--rad-idle-ring, clamp(330px, 48vmin, 470px));
-  flex: 0 0 auto;
+    width: var(--rad-idle-ring, clamp(330px, 48vmin, 470px));
+    height: var(--rad-idle-ring, clamp(330px, 48vmin, 470px));
+    flex: 0 0 auto;
 }

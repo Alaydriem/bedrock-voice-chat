@@ -42,7 +42,8 @@
     >
         <span class="rad-msg__avatar" style="background:{tone}">{initial}</span>
         <span class="rad-msg__text">
-            <span class="rad-msg__author" style="color:{tone}">{line.author}</span>{line.text}{#if line.fromApp}<span
+            <span class="rad-msg__author" style="color:{tone}">{line.author}</span
+            >{line.text}{#if line.fromApp}<span
                     class="rad-msg__app"
                     title={I18n.t("sent from the app, not in game")}
                 ></span>{/if}

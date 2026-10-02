@@ -24,8 +24,7 @@
         onToggle,
         onFocus,
         onDismissRejection,
-    }: Props =
-        $props();
+    }: Props = $props();
 
     let text = $state("");
     let unavailable = $derived(target.kind === "unavailable");

@@ -1,9 +1,9 @@
-import type { DiagnosticsInput, KvGroup } from '$radial/core/controllers/Diagnostics';
-import { Diagnostics } from '$radial/core/controllers/Diagnostics';
-import type { MeterProbeSnapshot } from '$radial/core/canvas/MeterProbe';
-import type { LinkDiagnosticsSnapshot } from '../../bindings/LinkDiagnosticsSnapshot';
-import type { VoiceMode } from '$radial/core/controllers/SelfState';
-import type { VoiceDiagnostics } from './SelfController';
+import type { DiagnosticsInput, KvGroup } from "$radial/core/controllers/Diagnostics";
+import { Diagnostics } from "$radial/core/controllers/Diagnostics";
+import type { MeterProbeSnapshot } from "$radial/core/canvas/MeterProbe";
+import type { LinkDiagnosticsSnapshot } from "../../bindings/LinkDiagnosticsSnapshot";
+import type { VoiceMode } from "$radial/core/controllers/SelfState";
+import type { VoiceDiagnostics } from "./SelfController";
 
 /** What the push channel is doing, as the panel needs to describe it. */
 export interface ChannelState {
@@ -23,7 +23,7 @@ export interface ChannelState {
  */
 export class DiagnosticsView {
     /** Neither zero nor a guess. */
-    private static readonly UNKNOWN = '—';
+    private static readonly UNKNOWN = "—";
 
     /**
      * How long the channel may be quiet before silence is worth reporting.
@@ -45,24 +45,24 @@ export class DiagnosticsView {
         if (!state.connected) {
             const retries =
                 state.attempts > 0
-                    ? `  ← ${state.attempts} reconnect attempt${state.attempts === 1 ? '' : 's'} so far`
-                    : '  ← nothing is being pushed to this window';
-            return ['Push channel', `not connected${retries}`];
+                    ? `  ← ${state.attempts} reconnect attempt${state.attempts === 1 ? "" : "s"} so far`
+                    : "  ← nothing is being pushed to this window";
+            return ["Push channel", `not connected${retries}`];
         }
 
         if (state.lastFrameAgoMs === null) {
-            return ['Push channel', 'connected  ← nothing has arrived on it yet'];
+            return ["Push channel", "connected  ← nothing has arrived on it yet"];
         }
 
         if (state.lastFrameAgoMs > DiagnosticsView.CHANNEL_QUIET_MS) {
             const seconds = Math.round(state.lastFrameAgoMs / 1000);
             return [
-                'Push channel',
+                "Push channel",
                 `connected, but nothing has arrived for ${seconds}s  ← the channel is being replaced`,
             ];
         }
 
-        return ['Push channel', `connected, last frame ${state.lastFrameAgoMs}ms ago`];
+        return ["Push channel", `connected, last frame ${state.lastFrameAgoMs}ms ago`];
     }
 
     static input(
@@ -135,41 +135,46 @@ export class DiagnosticsView {
         meter?: MeterProbeSnapshot,
     ): KvGroup {
         if (!voice) {
-            return { title: 'Voice', rows: [['State', 'not read yet']] };
+            return { title: "Voice", rows: [["State", "not read yet"]] };
         }
         if (!voice.backend) {
             return {
-                title: 'Voice',
-                rows: [['State', `could not read  ← ${voice.error ?? 'no reason given'}`]],
+                title: "Voice",
+                rows: [["State", `could not read  ← ${voice.error ?? "no reason given"}`]],
             };
         }
 
         const { backend, mic } = voice;
-        const ptt = backend.voiceMode === 'pushToTalk';
+        const ptt = backend.voiceMode === "pushToTalk";
         // The mode reaches the button by event, and the button is what turns a tap into a
         // hold. Disagreement here means that event did not arrive, which is invisible
         // otherwise: the button simply keeps behaving like the mode it last heard about.
-        const agreed = uiMode === undefined || (uiMode === 'ptt') === ptt;
-        const mode = ptt ? 'push-to-talk' : 'open mic';
+        const agreed = uiMode === undefined || (uiMode === "ptt") === ptt;
+        const mode = ptt ? "push-to-talk" : "open mic";
         return {
-            title: 'Voice',
+            title: "Voice",
             rows: [
                 [
-                    'Mode',
+                    "Mode",
                     agreed
                         ? mode
-                        : `${mode}  ← the button still thinks ${uiMode === 'ptt' ? 'push-to-talk' : 'open mic'}`,
+                        : `${mode}  ← the button still thinks ${uiMode === "ptt" ? "push-to-talk" : "open mic"}`,
                 ],
                 [
-                    'Microphone',
+                    "Microphone",
                     backend.inputMuted
-                        ? `muted${ptt ? '  (resting state of push-to-talk)' : '  ← nothing is being captured'}`
-                        : 'open',
+                        ? `muted${ptt ? "  (resting state of push-to-talk)" : "  ← nothing is being captured"}`
+                        : "open",
                 ],
-                ['Hold', ptt ? (backend.pttActive ? 'held' : 'released') : 'n/a in open mic'],
-                ['Capture stream', DiagnosticsView.captureStream(mic, capturing ?? null)],
+                ["Hold", ptt ? (backend.pttActive ? "held" : "released") : "n/a in open mic"],
+                ["Capture stream", DiagnosticsView.captureStream(mic, capturing ?? null)],
                 ...(meter
-                    ? [['Self meter', DiagnosticsView.selfMeter(meter, mic.ownListeners)] as [string, string]]
+                    ? [
+                          ["Self meter", DiagnosticsView.selfMeter(meter, mic.ownListeners)] as [
+                              string,
+                              string,
+                          ],
+                      ]
                     : []),
             ],
         };
@@ -198,20 +203,19 @@ export class DiagnosticsView {
         // unanswered probe must not take the row that can still be measured down with it.
         const rows: ReadonlyArray<readonly [string, string]> = voice?.backend
             ? DiagnosticsView.voiceGroup(voice, undefined, capturing, meter).rows.filter(
-                  ([label]) => label === 'Capture stream' || label === 'Self meter',
+                  ([label]) => label === "Capture stream" || label === "Self meter",
               )
             : [
-                  ['Capture stream', 'not read yet'],
-                  ['Self meter', DiagnosticsView.selfMeter(meter, voice?.mic.ownListeners ?? null)],
+                  ["Capture stream", "not read yet"],
+                  ["Self meter", DiagnosticsView.selfMeter(meter, voice?.mic.ownListeners ?? null)],
               ];
 
         return [
-            'This window',
+            "This window",
             ...rows.map(
-                ([label, value]) =>
-                    `  ${label.padEnd(DiagnosticsView.REPORT_LABEL_WIDTH)}${value}`,
+                ([label, value]) => `  ${label.padEnd(DiagnosticsView.REPORT_LABEL_WIDTH)}${value}`,
             ),
-        ].join('\n');
+        ].join("\n");
     }
 
     /**
@@ -226,7 +230,7 @@ export class DiagnosticsView {
 
     private static selfMeter(meter: MeterProbeSnapshot, ownListeners: number | null): string {
         if (!meter.mounted) {
-            return 'not mounted  ← no pill has registered a meter in this window';
+            return "not mounted  ← no pill has registered a meter in this window";
         }
         // Fewer listeners on the live source than there are meters claiming this name. Zero is
         // not the only fault: the pill is mounted twice — a capsule for a phone, a floating one
@@ -245,7 +249,7 @@ export class DiagnosticsView {
         // Merged counts. Which canvas painted is then unanswerable from the numbers alone, and
         // the dashboard mounts the pill twice on purpose — a capsule for a phone, a floating
         // one for desktop — so this is a normal reading rather than a fault on its own.
-        const shared = meter.bindings > 1 ? `  ← ${meter.bindings} bindings share this meter` : '';
+        const shared = meter.bindings > 1 ? `  ← ${meter.bindings} bindings share this meter` : "";
         if (meter.levels === 0) {
             return `no levels have reached it  ← the feed above decides whether that is a fault`;
         }
@@ -261,7 +265,7 @@ export class DiagnosticsView {
             return `stopped painting ${Math.round((meter.paintAgeMs ?? 0) / 1000)}s ago — ${counts}  ← levels are still arriving`;
         }
         const age =
-            meter.paintAgeMs === null ? '' : `, ${Math.round(meter.paintAgeMs / 1000)}s ago`;
+            meter.paintAgeMs === null ? "" : `, ${Math.round(meter.paintAgeMs / 1000)}s ago`;
         return `painting — ${counts}, last level ${meter.lastLevel.toFixed(2)}${age}${shared}`;
     }
 
@@ -279,11 +283,11 @@ export class DiagnosticsView {
      * `capturing` is the backend's own frame rate off the device, so the two can now be told
      * apart: frames without events is a broken bridge to this window, not a broken microphone.
      */
-    private static captureStream(mic: VoiceDiagnostics['mic'], capturing: number | null): string {
+    private static captureStream(mic: VoiceDiagnostics["mic"], capturing: number | null): string {
         if (!mic.attached) {
             return mic.sinkHeld
-                ? 'no registration  ← this window is asking for levels and the feed holds no listener'
-                : 'not subscribed  ← the level fan-out stopped asking, so re-registering would fix nothing';
+                ? "no registration  ← this window is asking for levels and the feed holds no listener"
+                : "not subscribed  ← the level fan-out stopped asking, so re-registering would fix nothing";
         }
         // Above the event count, because it is the stronger statement: events arrived and this
         // window could not read them, which no amount of looking at the transport will explain.
@@ -294,8 +298,8 @@ export class DiagnosticsView {
             if (capturing !== null && capturing > 0) {
                 return `no events here, but ${Math.round(capturing)} frames/s are being captured  ← the meter is not receiving, the microphone is fine`;
             }
-            if (capturing === null) return 'no events  ← nothing captured yet either';
-            return 'no events  ← the capture stream is not running';
+            if (capturing === null) return "no events  ← nothing captured yet either";
+            return "no events  ← the capture stream is not running";
         }
         // The meter's own level, not an RMS. It was labelled `rms` and stopped being one when
         // levels became quantised steps — and it is the number that says whether a still meter
@@ -305,7 +309,9 @@ export class DiagnosticsView {
         // before it died, and two reports taken a few seconds apart look the same either way.
         const rate = `${mic.events} events, ${mic.eventsPerSecond.toFixed(1)}/s`;
         const level =
-            mic.lastRms > 0 ? `level ${mic.lastRms.toFixed(2)}` : 'level 0  ← reported as not speaking';
+            mic.lastRms > 0
+                ? `level ${mic.lastRms.toFixed(2)}`
+                : "level 0  ← reported as not speaking";
         const stale = mic.silentForMs !== null && mic.silentForMs > 1000;
         return stale
             ? `${rate}, ${level}  ← stopped ${Math.round(mic.silentForMs! / 1000)}s ago`
@@ -323,47 +329,47 @@ export class DiagnosticsView {
         const link = snapshot.link;
         const downlink =
             link.downlink_loss_pct === null || link.downlink_loss_pct === undefined
-                ? 'unmeasured (server too old)'
+                ? "unmeasured (server too old)"
                 : `${DiagnosticsView.round(link.downlink_loss_pct)} %`;
 
         return [
             {
-                title: 'Loss, by direction',
+                title: "Loss, by direction",
                 rows: [
-                    ['Uplink', `${DiagnosticsView.round(link.uplink_loss_pct)} %`],
-                    ['Downlink', downlink],
-                    ['Provable, lower bound', `${DiagnosticsView.round(link.burst_loss_pct)} %`],
-                    ['Worst direction', `${DiagnosticsView.worstLoss(snapshot)} %`],
+                    ["Uplink", `${DiagnosticsView.round(link.uplink_loss_pct)} %`],
+                    ["Downlink", downlink],
+                    ["Provable, lower bound", `${DiagnosticsView.round(link.burst_loss_pct)} %`],
+                    ["Worst direction", `${DiagnosticsView.worstLoss(snapshot)} %`],
                 ],
             },
             {
                 // Neither a network figure nor a device one. It reports what this client chose
                 // to publish, which is the only thing that distinguishes a meter with nothing
                 // to draw from a meter that is not drawing.
-                title: 'Interface',
+                title: "Interface",
                 rows: [
                     DiagnosticsView.channelRow(channel),
                     [
-                        'Level updates',
+                        "Level updates",
                         `${DiagnosticsView.round(snapshot.meter_events_per_sec)}/s` +
-                            (snapshot.meter_events_per_sec === 0 ? '  (nobody is speaking)' : ''),
+                            (snapshot.meter_events_per_sec === 0 ? "  (nobody is speaking)" : ""),
                     ],
                 ],
             },
             {
-                title: 'What you heard',
+                title: "What you heard",
                 rows: [
                     // Named as the worst speaker's figure, because that is what it is: the
                     // maximum across everyone audible, not an average over them. Labelled
                     // "Reconstructed" alone it read as the latter, so one person on a bad
                     // connection looked like the whole room breaking up.
                     [
-                        'Reconstructed, worst speaker',
+                        "Reconstructed, worst speaker",
                         `${DiagnosticsView.round(link.worst_concealment_pct)} %`,
                     ],
-                    ['Quality', String(link.quality).toLowerCase()],
-                    ['Address family', link.family ?? DiagnosticsView.UNKNOWN],
-                    ['Paths used', String(link.paths_used)],
+                    ["Quality", String(link.quality).toLowerCase()],
+                    ["Address family", link.family ?? DiagnosticsView.UNKNOWN],
+                    ["Paths used", String(link.paths_used)],
                 ],
             },
         ];

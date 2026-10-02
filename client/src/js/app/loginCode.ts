@@ -1,11 +1,11 @@
-import { info, error as logError } from '@charlesportwoodii/tauri-plugin-curia';
-import { invoke } from '@tauri-apps/api/core';
-import { writable, type Readable, type Writable } from 'svelte/store';
-import BVCApp from './BVCApp.ts';
-import type { LoginResponse } from '../bindings/LoginResponse';
-import type { Game } from '../bindings/Game';
-import type { ServerListEntry } from '../bindings/ServerListEntry';
-import { ServerListStore } from './services/ServerListStore';
+import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
+import { invoke } from "@tauri-apps/api/core";
+import { writable, type Readable, type Writable } from "svelte/store";
+import BVCApp from "./BVCApp.ts";
+import type { LoginResponse } from "../bindings/LoginResponse";
+import type { Game } from "../bindings/Game";
+import type { ServerListEntry } from "../bindings/ServerListEntry";
+import { ServerListStore } from "./services/ServerListStore";
 
 export interface CodeLoginInput {
     readonly code: string;
@@ -22,7 +22,7 @@ export interface CodeLoginInput {
  * screen owns its inputs and this owns the attempt.
  */
 export default class LoginCode extends BVCApp {
-    private serverUrl = '';
+    private serverUrl = "";
     private readonly errorStore: Writable<string>;
     private readonly isSubmittingStore: Writable<boolean>;
 
@@ -31,7 +31,7 @@ export default class LoginCode extends BVCApp {
 
     constructor() {
         super();
-        this.errorStore = writable('');
+        this.errorStore = writable("");
         this.isSubmittingStore = writable(false);
         this.error = { subscribe: this.errorStore.subscribe };
         this.isSubmitting = { subscribe: this.isSubmittingStore.subscribe };
@@ -42,32 +42,32 @@ export default class LoginCode extends BVCApp {
     }
 
     async submit(input: CodeLoginInput): Promise<void> {
-        this.errorStore.set('');
+        this.errorStore.set("");
 
         const code = input.code.trim().toUpperCase();
         if (!code) {
-            this.errorStore.set('Please enter your code.');
+            this.errorStore.set("Please enter your code.");
             return;
         }
 
         this.isSubmittingStore.set(true);
         try {
             info(`Attempting code login to ${this.serverUrl}`);
-            const response = await invoke<LoginResponse>('code_login', {
+            const response = await invoke<LoginResponse>("code_login", {
                 server: this.serverUrl,
                 code,
             });
 
             // A server too old to report the game predates this being anything but
             // Minecraft, which is what the picker this replaced always defaulted to.
-            const game: Game = response.game ?? 'minecraft';
+            const game: Game = response.game ?? "minecraft";
 
             const store = await this.getStore();
             const [rawServerList] = await Promise.all([
-                store.get('server_list') as Promise<ServerListEntry[] | null>,
-                store.set('current_server', this.serverUrl),
-                store.set('current_player', response.gamertag),
-                store.set('active_game', game),
+                store.get("server_list") as Promise<ServerListEntry[] | null>,
+                store.set("current_server", this.serverUrl),
+                store.set("current_player", response.gamertag),
+                store.set("active_game", game),
             ]);
 
             const serverList = rawServerList || [];
@@ -81,16 +81,16 @@ export default class LoginCode extends BVCApp {
                     game,
                 });
             }
-            await store.set('server_list', serverList);
+            await store.set("server_list", serverList);
             await store.save();
             ServerListStore.mirrorServerCount(serverList);
 
-            info('Code login successful, continuing to setup');
+            info("Code login successful, continuing to setup");
             // Replaced, not pushed: the code is spent and going back to it signs nobody in.
-            window.location.replace('/setup');
+            window.location.replace("/setup");
         } catch (e) {
             logError(`Code login failed: ${String(e)}`);
-            this.errorStore.set('That code was not accepted. Check it and try again.');
+            this.errorStore.set("That code was not accepted. Check it and try again.");
             this.isSubmittingStore.set(false);
         }
     }

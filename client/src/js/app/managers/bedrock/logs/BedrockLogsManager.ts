@@ -1,6 +1,6 @@
-import { writable, type Writable, type Readable } from 'svelte/store';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import type { BedrockLogEntry } from '../../../../bindings/BedrockLogEntry';
+import { writable, type Writable, type Readable } from "svelte/store";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import type { BedrockLogEntry } from "../../../../bindings/BedrockLogEntry";
 
 export class BedrockLogsManager {
     // Info and above. What a reader opened the pane to see, and what a support
@@ -37,19 +37,16 @@ export class BedrockLogsManager {
             return;
         }
         const appWebview = getCurrentWebviewWindow();
-        const unlisten = await appWebview.listen<BedrockLogEntry>(
-            'bedrock-log',
-            (event) => {
-                const entry = event.payload;
+        const unlisten = await appWebview.listen<BedrockLogEntry>("bedrock-log", (event) => {
+            const entry = event.payload;
 
-                // Every level is buffered. The view decides what to show, so its
-                // debug toggle has something to reveal; dropping levels here made
-                // that toggle inert.
-                this.realmsLogsStore.update((current) =>
-                    BedrockLogsManager.retain([...current, entry]),
-                );
-            },
-        );
+            // Every level is buffered. The view decides what to show, so its
+            // debug toggle has something to reveal; dropping levels here made
+            // that toggle inert.
+            this.realmsLogsStore.update((current) =>
+                BedrockLogsManager.retain([...current, entry]),
+            );
+        });
 
         // `listen` is a round trip, and a destroy landing inside it used to leave the
         // listener attached with nothing left to release it — writing into a store nobody
@@ -63,7 +60,7 @@ export class BedrockLogsManager {
 
     static isVerbose(entry: BedrockLogEntry): boolean {
         const level = entry.level.toLowerCase();
-        return level.startsWith('debug') || level.startsWith('trace');
+        return level.startsWith("debug") || level.startsWith("trace");
     }
 
     /**

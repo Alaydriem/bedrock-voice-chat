@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
-import { warn } from '@charlesportwoodii/tauri-plugin-curia';
+import { invoke } from "@tauri-apps/api/core";
+import { warn } from "@charlesportwoodii/tauri-plugin-curia";
 
 /**
  * The speaker test on the setup device screen.
@@ -30,7 +30,7 @@ export default class SpeakerTest {
         this.playing = true;
 
         try {
-            await invoke('test_output_device');
+            await invoke("test_output_device");
             return true;
         } catch (e) {
             await warn(`Speaker test failed: ${e}`);

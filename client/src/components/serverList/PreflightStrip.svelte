@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import type { PreflightStep } from "../../js/app/serverList/preflight/PreflightStep";
     import type { PreflightStepState } from "../../js/app/serverList/preflight/PreflightStepState";
 

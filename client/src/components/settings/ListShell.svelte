@@ -55,11 +55,7 @@
             <span class="rad-empty__note">{failNote}</span>
             {#if onretry}
                 <span class="rad-swatchrow" style="justify-content: center">
-                    <button
-                        class="rad-btn rad-btn--primary"
-                        onclick={onretry}
-                        disabled={retrying}
-                    >
+                    <button class="rad-btn rad-btn--primary" onclick={onretry} disabled={retrying}>
                         {retrying ? retryingLabel : retryLabel}
                     </button>
                 </span>

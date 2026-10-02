@@ -114,9 +114,7 @@ export class ReactivityWatchdog {
             if (this.#probe.settled) return false;
 
             this.#flush();
-            this.#report(
-                "Svelte scheduler was wedged; flushSync applied the backlog",
-            );
+            this.#report("Svelte scheduler was wedged; flushSync applied the backlog");
             return true;
         } finally {
             this.#checking = false;

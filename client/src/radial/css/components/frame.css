@@ -7,85 +7,89 @@
  */
 
 .rad-frame {
-  container-type: inline-size;
-  container-name: rad;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--color-rad-void);
-  color: var(--color-rad-tx);
-  border: 1px solid #4a3374;
-  border-radius: var(--radius-rad-lg);
-  box-shadow: var(--shadow-rad-frame);
-  font-family: var(--font-rad-sans);
+    container-type: inline-size;
+    container-name: rad;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--color-rad-void);
+    color: var(--color-rad-tx);
+    border: 1px solid #4a3374;
+    border-radius: var(--radius-rad-lg);
+    box-shadow: var(--shadow-rad-frame);
+    font-family: var(--font-rad-sans);
 }
 
 /* Reference sizes: the client's actual desktop window, and a phone. */
 .rad-frame--desktop {
-  width: 1280px;
-  height: 800px;
-  max-width: 100%;
+    width: 1280px;
+    height: 800px;
+    max-width: 100%;
 }
 
 .rad-frame--phone {
-  width: 412px;
-  height: 892px;
-  max-width: 100%;
+    width: 412px;
+    height: 892px;
+    max-width: 100%;
 }
 
 /* A frame that fills whatever it is given. What the real app uses. */
 .rad-frame--fluid {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
 }
 
 /* Sinks the corners so the frame reads as lit from the middle. */
 .rad-frame::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 9;
-  pointer-events: none;
-  background: radial-gradient(150% 115% at 50% 34%, transparent 62%, rgb(12 5 22 / 0.3) 100%);
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+    pointer-events: none;
+    background: radial-gradient(150% 115% at 50% 34%, transparent 62%, rgb(12 5 22 / 0.3) 100%);
 }
 
 .rad-frame--fluid::after {
-  display: none;
+    display: none;
 }
 
 /* Film grain. Stops large flat violet areas from banding on cheap panels. */
 .rad-grain {
-  position: absolute;
-  inset: 0;
-  z-index: 8;
-  pointer-events: none;
-  opacity: 0.2;
-  mix-blend-mode: overlay;
-  background-image: radial-gradient(circle at 50% 50%, rgb(255 255 255 / 0.7) 0.5px, transparent 0.6px);
-  background-size: 3px 3px;
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none;
+    opacity: 0.2;
+    mix-blend-mode: overlay;
+    background-image: radial-gradient(
+        circle at 50% 50%,
+        rgb(255 255 255 / 0.7) 0.5px,
+        transparent 0.6px
+    );
+    background-size: 3px 3px;
 }
 
 .rad-frame :is(button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--color-rad-brand-lift);
-  outline-offset: 3px;
+    outline: 2px solid var(--color-rad-brand-lift);
+    outline-offset: 3px;
 }
 
 /* ---- screens ---- */
 
 .rad-screen {
-  position: absolute;
-  inset: 0;
-  display: none;
-  flex-direction: column;
-  overflow-x: hidden;
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    overflow-x: hidden;
 }
 
 .rad-screen.is-on {
-  display: flex;
+    display: flex;
 }
 
 /* ---- top and bottom bars ---- */
@@ -94,130 +98,130 @@
    against 70px. Padding alone would squash the brand into the remainder. The tokens are
    0 on desktop, so this is the desktop rule unchanged. */
 .rad-topbar {
-  flex: 0 0 auto;
-  height: calc(70px + var(--rad-inset-top, 0px));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: var(--rad-inset-top, 0px) calc(30px + var(--rad-inset-right, 0px)) 0
-    calc(30px + var(--rad-inset-left, 0px));
-  position: relative;
-  z-index: 5;
-  background: var(--color-rad-void);
-  border-bottom: 1px solid var(--color-rad-line);
+    flex: 0 0 auto;
+    height: calc(70px + var(--rad-inset-top, 0px));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: var(--rad-inset-top, 0px) calc(30px + var(--rad-inset-right, 0px)) 0
+        calc(30px + var(--rad-inset-left, 0px));
+    position: relative;
+    z-index: 5;
+    background: var(--color-rad-void);
+    border-bottom: 1px solid var(--color-rad-line);
 }
 
 .rad-brand {
-  display: flex;
-  align-items: center;
-  gap: 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
 }
 
 .rad-brand canvas {
-  display: block;
+    display: block;
 }
 
 .rad-wordmark {
-  font-size: var(--text-rad-xs);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-rad-dim);
+    font-size: var(--text-rad-xs);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-rad-dim);
 }
 
 /* The last flex item in the screen, so it touches the bottom edge of the window and the
    primary action inside it sits under the navigation bar or the home indicator. */
 .rad-footbar {
-  flex: 0 0 auto;
-  min-height: calc(80px + var(--rad-inset-bottom, 0px));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 14px calc(30px + var(--rad-inset-right, 0px))
-    calc(14px + var(--rad-inset-bottom, 0px)) calc(30px + var(--rad-inset-left, 0px));
-  position: relative;
-  z-index: 5;
-  background: var(--color-rad-void);
-  border-top: 1px solid var(--color-rad-line);
+    flex: 0 0 auto;
+    min-height: calc(80px + var(--rad-inset-bottom, 0px));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px calc(30px + var(--rad-inset-right, 0px)) calc(14px + var(--rad-inset-bottom, 0px))
+        calc(30px + var(--rad-inset-left, 0px));
+    position: relative;
+    z-index: 5;
+    background: var(--color-rad-void);
+    border-top: 1px solid var(--color-rad-line);
 }
 
 /* The reference line: a code, a version, and on the fault screens the platform id.
    Selectable as one value, because it is quoted whole into a support thread and
    picking a uuid out of a line by hand is the part people get wrong. */
 .rad-footbar__ref {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-  user-select: all;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    user-select: all;
 }
 
 /* Not uppercased like the labels either side of it. The value is copied as it is
    stored, and a line that reads back in a different case than it pastes is a line
    someone will retype by hand. */
 .rad-footbar__ref-id {
-  text-transform: none;
+    text-transform: none;
 }
 
 /* The separator belongs to the id rather than sitting between the halves, so dropping
    the half in front of it on a phone takes the dot with it. */
 .rad-footbar__ref-id::before {
-  content: "· ";
+    content: "· ";
 }
 
 .rad-footbar__actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 /* ---- the two-pane split ---- */
 
 .rad-split {
-  flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: 44% 56%;
-  min-height: 0;
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: 44% 56%;
+    min-height: 0;
 }
 
 .rad-visual-pane {
-  position: relative;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--color-rad-void-2);
-  border-right: 1px solid var(--color-rad-line);
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--color-rad-void-2);
+    border-right: 1px solid var(--color-rad-line);
 }
 
 .rad-content-pane {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-  padding: 38px 44px;
-  overflow-y: auto;
-  overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+    padding: 38px 44px;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .rad-content-pane--top {
-  justify-content: flex-start;
-  padding-top: 26px;
+    justify-content: flex-start;
+    padding-top: 26px;
 }
 
 /* ---- the dashboard and settings shell ---- */
 
 .rad-shell {
-  flex: 1 1 auto;
-  display: flex;
-  min-height: 0;
+    flex: 1 1 auto;
+    display: flex;
+    min-height: 0;
 }
 
 .rad-stage {
-  flex: 1 1 auto;
-  min-width: 0;
-  position: relative;
-  display: flex;
-  flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 /* ---- rail ---- */
@@ -230,17 +234,17 @@
    safe-area inset on its behalf — the stage pays its own in `.rad-dash-top`. A tablet is the
    only place that shows: a phone hides the rail, and the token is 0 on desktop. */
 .rad-rail {
-  --rad-rail-plate: 58px;
-  --rad-rail-gutter: 17px;
+    --rad-rail-plate: 58px;
+    --rad-rail-gutter: 17px;
 
-  flex: 0 0 calc(var(--rad-rail-plate) + var(--rad-rail-gutter) * 2);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: calc(18px + var(--rad-inset-top, 0px)) 0 104px;
-  background: rgb(20 12 38 / 0.55);
-  border-right: 1px solid var(--color-rad-line);
+    flex: 0 0 calc(var(--rad-rail-plate) + var(--rad-rail-gutter) * 2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: calc(18px + var(--rad-inset-top, 0px)) 0 104px;
+    background: rgb(20 12 38 / 0.55);
+    border-right: 1px solid var(--color-rad-line);
 }
 
 /* The gap inside the list separates two servers. This margin separates the servers from the add
@@ -248,88 +252,88 @@
    gap the add button sat in the rhythm of the list and looked like another server, and at twice
    the gap it still read as a wider member of the same list rather than as the end of it. */
 .rad-rail__list {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 28px;
-  overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 28px;
+    overflow-y: auto;
 }
 
 .rad-rail__spacer {
-  flex: 1 1 auto;
+    flex: 1 1 auto;
 }
 
 .rad-rail-item {
-  position: relative;
-  width: var(--rad-rail-plate, 58px);
-  height: var(--rad-rail-plate, 58px);
-  padding: 0;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  background: var(--color-rad-void-2);
-  border: 1px solid var(--color-rad-line);
-  border-radius: var(--radius-rad-rail);
-  transition: 0.18s;
+    position: relative;
+    width: var(--rad-rail-plate, 58px);
+    height: var(--rad-rail-plate, 58px);
+    padding: 0;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    background: var(--color-rad-void-2);
+    border: 1px solid var(--color-rad-line);
+    border-radius: var(--radius-rad-rail);
+    transition: 0.18s;
 }
 
 .rad-rail-item:hover {
-  border-color: var(--color-rad-line-2);
-  transform: translateY(-1px);
+    border-color: var(--color-rad-line-2);
+    transform: translateY(-1px);
 }
 
 .rad-rail-item.is-on {
-  border-color: var(--color-rad-brand-lift);
-  box-shadow: 0 0 0 1px var(--color-rad-brand-lift);
+    border-color: var(--color-rad-brand-lift);
+    box-shadow: 0 0 0 1px var(--color-rad-brand-lift);
 }
 
 /* The active server is marked outside its own tile, against the rail edge, so
    selection is legible without recolouring the glyph. */
 .rad-rail-item.is-on::before {
-  content: "";
-  position: absolute;
-  left: calc(var(--rad-rail-gutter, 17px) * -1);
-  top: 50%;
-  transform: translateY(-50%);
-  width: 4px;
-  height: 26px;
-  border-radius: 0 3px 3px 0;
-  background: var(--color-rad-brand-lift);
+    content: "";
+    position: absolute;
+    left: calc(var(--rad-rail-gutter, 17px) * -1);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 26px;
+    border-radius: 0 3px 3px 0;
+    background: var(--color-rad-brand-lift);
 }
 
 .rad-rail-item canvas {
-  display: block;
-  border-radius: var(--radius-rad-md);
+    display: block;
+    border-radius: var(--radius-rad-md);
 }
 
 .rad-rail-btn {
-  width: var(--rad-rail-plate, 58px);
-  height: var(--rad-rail-plate, 58px);
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: var(--radius-rad-rail);
-  background: transparent;
-  color: var(--color-rad-faint);
-  cursor: pointer;
-  transition: 0.18s;
+    width: var(--rad-rail-plate, 58px);
+    height: var(--rad-rail-plate, 58px);
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: var(--radius-rad-rail);
+    background: transparent;
+    color: var(--color-rad-faint);
+    cursor: pointer;
+    transition: 0.18s;
 }
 
 .rad-rail-btn:hover {
-  color: var(--color-rad-tx);
-  background: var(--color-rad-panel);
+    color: var(--color-rad-tx);
+    background: var(--color-rad-panel);
 }
 
 .rad-rail-btn.is-on {
-  color: var(--color-rad-brand-lift);
-  background: var(--color-rad-panel);
+    color: var(--color-rad-brand-lift);
+    background: var(--color-rad-panel);
 }
 
 .rad-rail-btn svg {
-  width: 26px;
-  height: 26px;
-  display: block;
+    width: 26px;
+    height: 26px;
+    display: block;
 }
 
 /* ---- the second column ---- */
@@ -342,32 +346,32 @@
  * the chat controls under it, were unreachable behind a control that looked like it belonged to
  * something else. The pane has to be wider than the pill is, not merely wide enough to read. */
 .rad-panel {
-  flex: 0 0 var(--rad-panel-width, 350px);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: rgb(20 12 38 / 0.32);
-  border-right: 1px solid var(--color-rad-line);
+    flex: 0 0 var(--rad-panel-width, 350px);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: rgb(20 12 38 / 0.32);
+    border-right: 1px solid var(--color-rad-line);
 }
 
 /* Carries the top inset for the same reason the rail does: this column starts at the top of
    the shell, and the header in the stage beside it pays only for itself. */
 .rad-panel__head {
-  padding: calc(18px + var(--rad-inset-top, 0px)) 18px 10px;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-xs);
-  letter-spacing: var(--tracking-rad-label);
-  text-transform: uppercase;
-  color: var(--color-rad-faint);
+    padding: calc(18px + var(--rad-inset-top, 0px)) 18px 10px;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-xs);
+    letter-spacing: var(--tracking-rad-label);
+    text-transform: uppercase;
+    color: var(--color-rad-faint);
 }
 
 .rad-panel__body {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 0 12px 96px;
-  overflow-y: auto;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 0 12px 96px;
+    overflow-y: auto;
 }
 
 /* ---- entry animation ----
@@ -376,19 +380,19 @@
  */
 
 .rad-rise {
-  animation: rad-rise 0.58s var(--ease-rad-rise) backwards;
-  animation-delay: calc(var(--d, 0) * 1ms);
+    animation: rad-rise 0.58s var(--ease-rad-rise) backwards;
+    animation-delay: calc(var(--d, 0) * 1ms);
 }
 
 @keyframes rad-rise {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
 }
 
 /* ---- self-state, stated once for the whole frame ----
@@ -398,19 +402,19 @@
 
 .rad-frame.is-muted .rad-stage::before,
 .rad-frame.is-deafened .rad-stage::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 3px;
-  z-index: 8;
-  opacity: 0.85;
-  background: var(--color-rad-fault);
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 3px;
+    z-index: 8;
+    opacity: 0.85;
+    background: var(--color-rad-fault);
 }
 
 .rad-frame.is-deafened .rad-stage::before {
-  background: var(--color-rad-warn);
+    background: var(--color-rad-warn);
 }
 
 /* A cover shares the frame and brings its own stage, so the one declaration above
@@ -419,13 +423,13 @@
    reader can act on and reads as a fault in the screen they are looking at. */
 .rad-frame.is-muted .rad-cover .rad-stage::before,
 .rad-frame.is-deafened .rad-cover .rad-stage::before {
-  content: none;
+    content: none;
 }
 
 /* ================= phone ================= */
 
 @container rad (max-width: 560px) {
-  /* The screen keeps its column and the two bars stay flex items, so both are on
+    /* The screen keeps its column and the two bars stay flex items, so both are on
      screen at every content length. The body between them is what scrolls.
 
      `position: sticky` on the bars cannot do this job. A sticky offset is clamped to
@@ -433,74 +437,74 @@
      there is no room below it to lift off from, so it sat wherever the flow left it.
      On a short step that happened to be on screen and on a long one it was far past
      the bottom of the window, with the primary action inside it. */
-  .rad-screen.is-on {
-    overflow-x: hidden;
-  }
+    .rad-screen.is-on {
+        overflow-x: hidden;
+    }
 
-  /* Matches `.rad-dash-top` on a phone, for the reason recorded there: the system status
+    /* Matches `.rad-dash-top` on a phone, for the reason recorded there: the system status
      bar stacks on top of this and can be tall, so the two together read as one band. The
      two headers have to agree or moving between them steps the chrome height. */
-  .rad-topbar {
-    height: calc(48px + var(--rad-inset-top, 0px));
-    padding: var(--rad-inset-top, 0px) calc(18px + var(--rad-inset-right, 0px)) 0
-      calc(18px + var(--rad-inset-left, 0px));
-  }
+    .rad-topbar {
+        height: calc(48px + var(--rad-inset-top, 0px));
+        padding: var(--rad-inset-top, 0px) calc(18px + var(--rad-inset-right, 0px)) 0
+            calc(18px + var(--rad-inset-left, 0px));
+    }
 
-  .rad-wordmark {
-    display: none;
-  }
+    .rad-wordmark {
+        display: none;
+    }
 
-  .rad-footbar {
-    min-height: calc(72px + var(--rad-inset-bottom, 0px));
-    padding: 12px calc(18px + var(--rad-inset-right, 0px))
-      calc(12px + var(--rad-inset-bottom, 0px)) calc(18px + var(--rad-inset-left, 0px));
-    box-shadow: 0 -10px 24px -14px rgb(0 0 0 / 0.75);
-  }
+    .rad-footbar {
+        min-height: calc(72px + var(--rad-inset-bottom, 0px));
+        padding: 12px calc(18px + var(--rad-inset-right, 0px))
+            calc(12px + var(--rad-inset-bottom, 0px)) calc(18px + var(--rad-inset-left, 0px));
+        box-shadow: 0 -10px 24px -14px rgb(0 0 0 / 0.75);
+    }
 
-  .rad-footbar .rad-label {
-    display: none;
-  }
+    .rad-footbar .rad-label {
+        display: none;
+    }
 
-  /* The one label a phone keeps. Support asks every reporter for the platform id, and
+    /* The one label a phone keeps. Support asks every reporter for the platform id, and
      the bar is the only place on these screens with room for a uuid. */
-  .rad-footbar .rad-footbar__ref-id {
-    display: inline;
-  }
+    .rad-footbar .rad-footbar__ref-id {
+        display: inline;
+    }
 
-  .rad-footbar__ref-id::before {
-    content: none;
-  }
+    .rad-footbar__ref-id::before {
+        content: none;
+    }
 
-  .rad-footbar__actions {
-    width: 100%;
-    justify-content: space-between;
-    gap: 8px;
-  }
+    .rad-footbar__actions {
+        width: 100%;
+        justify-content: space-between;
+        gap: 8px;
+    }
 
-  /* Block, so the visual and the content stack instead of sharing a row — and the
+    /* Block, so the visual and the content stack instead of sharing a row — and the
      scroll container, because everything tall on a phone is inside here. */
-  .rad-split {
-    display: block;
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-  }
+    .rad-split {
+        display: block;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
 
-  .rad-visual-pane {
-    display: block;
-    height: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--color-rad-line);
-  }
+    .rad-visual-pane {
+        display: block;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--color-rad-line);
+    }
 
-  .rad-content-pane {
-    padding: 26px 20px 30px;
-    justify-content: flex-start;
-    overflow: visible;
-  }
+    .rad-content-pane {
+        padding: 26px 20px 30px;
+        justify-content: flex-start;
+        overflow: visible;
+    }
 
-  .rad-rail,
-  .rad-panel {
-    display: none;
-  }
+    .rad-rail,
+    .rad-panel {
+        display: none;
+    }
 }

@@ -62,7 +62,9 @@ export class AudioSettingsManager {
         this.jukeboxGainControl = new BackendControl<number>(
             100,
             async (percent) =>
-                Math.round((await invoke<number>("set_jukebox_gain", { gain: percent / 100 })) * 100),
+                Math.round(
+                    (await invoke<number>("set_jukebox_gain", { gain: percent / 100 })) * 100,
+                ),
             async () => Math.round(((await this.savedValue<number>("jukebox_gain")) ?? 1) * 100),
             AudioSettingsManager.SETTLE_DELAY_MS,
         );

@@ -107,7 +107,10 @@ describe("RecordingsView.row", () => {
 
 describe("RecordingsView.totalSize", () => {
     it("adds the sessions up rather than the rounded labels", () => {
-        const rows = RecordingsView.rows([session({ file_size_mb: 700 }), session({ file_size_mb: 700 })]);
+        const rows = RecordingsView.rows([
+            session({ file_size_mb: 700 }),
+            session({ file_size_mb: 700 }),
+        ]);
         expect(RecordingsView.totalSize(rows)).toBe("1.4 GB");
     });
 });

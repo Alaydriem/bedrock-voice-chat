@@ -64,9 +64,7 @@
     let pickerOpen = $state(false);
 
     let label = $derived(
-        target.kind === "local" ||
-            target.kind === "unavailable" ||
-            target.kind === "disabled"
+        target.kind === "local" || target.kind === "unavailable" || target.kind === "disabled"
             ? I18n.t("Server chat")
             : target.world.world_name,
     );
@@ -98,7 +96,11 @@
             </button>
             <span class="rad-status-chip {status.cls}">{status.text}</span>
             <span class="rad-spacer"></span>
-            <button class="rad-icon-btn" onclick={() => onToggle(false)} aria-label={I18n.t("Close chat")}>
+            <button
+                class="rad-icon-btn"
+                onclick={() => onToggle(false)}
+                aria-label={I18n.t("Close chat")}
+            >
                 <Icon name="close" />
             </button>
         </div>

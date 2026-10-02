@@ -1,8 +1,8 @@
-import { type Readable, type Writable, derived, writable } from 'svelte/store';
-import { PlayerHue } from '$radial/core/sources/PlayerHue';
-import type { Channel } from '../../bindings/Channel';
-import GameNameUtils from '../utils/GameNameUtils';
-import type { GroupMember, GroupRowView } from './GroupRowView';
+import { type Readable, type Writable, derived, writable } from "svelte/store";
+import { PlayerHue } from "$radial/core/sources/PlayerHue";
+import type { Channel } from "../../bindings/Channel";
+import GameNameUtils from "../utils/GameNameUtils";
+import type { GroupMember, GroupRowView } from "./GroupRowView";
 
 /**
  * The groups pane's rows.
@@ -49,7 +49,7 @@ export class GroupsView {
     rows(
         channels: readonly Channel[],
         joinedId: string | null,
-        self = '',
+        self = "",
     ): Readable<readonly GroupRowView[]> {
         return derived([this.activityStore, this.nowStore], ([$activity, $now]) =>
             channels.map((channel) => {
@@ -62,7 +62,7 @@ export class GroupsView {
                     // Exact. The creator is the certificate's Common Name and so is `self`, and a
                     // comparison that tolerated the bare form would hand the close button for one
                     // game prefix's group to the same gamertag under another.
-                    owned: self !== '' && channel.creator === self,
+                    owned: self !== "" && channel.creator === self,
                     activeAt,
                     stirring: activeAt !== null && $now - activeAt < GroupsView.STIR_MS,
                 };
@@ -95,16 +95,16 @@ export class GroupsView {
      */
     private static initials(gamertag: string): string {
         const words = gamertag.trim().split(/\s+/).filter(Boolean);
-        if (words.length === 0) return '?';
+        if (words.length === 0) return "?";
         if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
         return (words[0][0] + words[1][0]).toUpperCase();
     }
 
     /** "active 2 min ago", or nothing when no join or leave has been seen. */
     static since(activeAt: number | null, now: number): string {
-        if (activeAt === null) return '';
+        if (activeAt === null) return "";
         const seconds = Math.max(0, Math.round((now - activeAt) / 1000));
-        if (seconds < 60) return 'active just now';
+        if (seconds < 60) return "active just now";
         const minutes = Math.round(seconds / 60);
         if (minutes < 60) return `active ${minutes} min ago`;
         const hours = Math.round(minutes / 60);

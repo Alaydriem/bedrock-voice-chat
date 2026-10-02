@@ -14,15 +14,15 @@
  * `oauth20_desktop.srf`, whose value is a Rust constant used for both halves.
  */
 export default class MinecraftRedirect {
-  static readonly URI = "bedrock-voice-chat://auth";
+    static readonly URI = "bedrock-voice-chat://auth";
 
-  /**
-   * Escaped for use as a query-parameter value.
-   *
-   * The authorize URL was interpolating the raw value, so a `:` and two `/` went into a
-   * query string unescaped and the provider was left to interpret them.
-   */
-  static encoded(): string {
-    return encodeURIComponent(MinecraftRedirect.URI);
-  }
+    /**
+     * Escaped for use as a query-parameter value.
+     *
+     * The authorize URL was interpolating the raw value, so a `:` and two `/` went into a
+     * query string unescaped and the provider was left to interpret them.
+     */
+    static encoded(): string {
+        return encodeURIComponent(MinecraftRedirect.URI);
+    }
 }

@@ -1,8 +1,8 @@
-import type { LoginResponse } from '../../bindings/LoginResponse';
-import type ImageCache from '../components/imageCache';
-import type { ServerListStore } from '../services/ServerListStore';
-import type { PreflightObserver } from './preflight/PreflightRunner';
-import type { PreflightOutcome } from './preflight/PreflightOutcome';
+import type { LoginResponse } from "../../bindings/LoginResponse";
+import type ImageCache from "../components/imageCache";
+import type { ServerListStore } from "../services/ServerListStore";
+import type { PreflightObserver } from "./preflight/PreflightRunner";
+import type { PreflightOutcome } from "./preflight/PreflightOutcome";
 
 /** One server's four checks. Injected so a test never opens a socket. */
 export type PreflightFactory = (

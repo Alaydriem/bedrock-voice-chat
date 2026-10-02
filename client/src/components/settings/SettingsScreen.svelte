@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import { getContext, onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import ServerGlyph from "$radial/components/ServerGlyph.svelte";
@@ -129,7 +129,6 @@
         void pane;
         if (body) body.scrollTop = 0;
     });
-
 </script>
 
 <div class="rad-shell rad-settings" class:is-list={level === "list"}>
@@ -160,7 +159,11 @@
                 <span class="rad-dash-top__server">{current.title}</span>
             </span>
             <span class="rad-dash-top__state">
-                <button class="rad-header-btn" onclick={onclose} aria-label={I18n.t("Close settings")}>
+                <button
+                    class="rad-header-btn"
+                    onclick={onclose}
+                    aria-label={I18n.t("Close settings")}
+                >
                     <Icon name="close" />
                 </button>
             </span>
@@ -183,8 +186,9 @@
             {#if standalone}
                 <div class="rad-callout" style="margin-bottom: 14px">
                     <span>
-                        {I18n.t("You are in settings on its own.")} <b>{I18n.t("Nothing is connected")}</b> — go back to
-                        the dashboard when you are done here.
+                        {I18n.t("You are in settings on its own.")}
+                        <b>{I18n.t("Nothing is connected")}</b> — go back to the dashboard when you are
+                        done here.
                     </span>
                 </div>
             {/if}

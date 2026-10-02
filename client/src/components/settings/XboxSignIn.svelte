@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import StatusChip from "$radial/components/StatusChip.svelte";
@@ -44,7 +44,9 @@
     <div class="rad-modal rad-modal--wide is-open">
         <h5 class="rad-modal__title">{I18n.t("Sign in with Microsoft")}</h5>
         <p>
-            {I18n.t("Open the page on any device and enter this code. This window updates by itself once you are done.")}
+            {I18n.t(
+                "Open the page on any device and enter this code. This window updates by itself once you are done.",
+            )}
         </p>
 
         <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 7px">
@@ -76,13 +78,17 @@
                 onclick={() => void bedrock.openLoginUrl()}
                 aria-label={I18n.t("Open the sign-in page")}
             >
-                {url || "microsoft.com/link"} <Icon name="ext" />
+                {url || "microsoft.com/link"}
+                <Icon name="ext" />
             </button>
         </div>
 
         {#if restoring}
             <div class="rad-callout" style="margin-top: 12px">
-                <span><StatusChip severity="idle">{I18n.t("Waiting")}</StatusChip> {I18n.t("Watching for your sign-in.")}</span>
+                <span
+                    ><StatusChip severity="idle">{I18n.t("Waiting")}</StatusChip>
+                    {I18n.t("Watching for your sign-in.")}</span
+                >
             </div>
         {/if}
 
@@ -93,9 +99,12 @@
         {/if}
 
         <div class="rad-modal__actions">
-            <button class="rad-btn" onclick={() => void bedrock.closeLoginModal()}>{I18n.t("Cancel")}</button>
+            <button class="rad-btn" onclick={() => void bedrock.closeLoginModal()}
+                >{I18n.t("Cancel")}</button
+            >
             <button class="rad-btn rad-btn--primary" onclick={() => void bedrock.openLoginUrl()}>
-                <Icon name="ext" /> {I18n.t("Open the page")}
+                <Icon name="ext" />
+                {I18n.t("Open the page")}
             </button>
         </div>
     </div>

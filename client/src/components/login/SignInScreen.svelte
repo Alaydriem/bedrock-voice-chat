@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import RadScreen from "../shell/RadScreen.svelte";
@@ -49,7 +49,6 @@
               ? "rad-resolve rad-resolve--bad"
               : "rad-resolve",
     );
-
 </script>
 
 <RadScreen label={I18n.t("Connect")}>
@@ -104,7 +103,9 @@
                     </button>
                 {:else}
                     <button class="rad-ms-signin" onclick={onconnect}>
-                        <span class="rad-ms-mark"><i></i><i></i><i></i><i></i></span>{I18n.t("Sign in with Microsoft")}
+                        <span class="rad-ms-mark"><i></i><i></i><i></i><i></i></span>{I18n.t(
+                            "Sign in with Microsoft",
+                        )}
                     </button>
                 {/if}
             </div>
@@ -116,8 +117,12 @@
             {#if onback && backLabel}
                 <button class="rad-btn rad-btn--quiet" onclick={onback}>{backLabel}</button>
             {/if}
-            <button class="rad-btn rad-btn--quiet" onclick={onprivacy}>{I18n.t("Privacy notice")}</button>
-            <button class="rad-btn rad-btn--quiet" onclick={onrevisit}>{I18n.t("What is this?")}</button>
+            <button class="rad-btn rad-btn--quiet" onclick={onprivacy}
+                >{I18n.t("Privacy notice")}</button
+            >
+            <button class="rad-btn rad-btn--quiet" onclick={onrevisit}
+                >{I18n.t("What is this?")}</button
+            >
         </span>
         <span class="rad-label rad-num">v{appVersion}</span>
     {/snippet}

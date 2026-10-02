@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import RadScreen from "../shell/RadScreen.svelte";
     import type { CodeLoginInput } from "../../js/app/loginCode";
@@ -48,7 +48,11 @@
               Anything else here would ask for something the server already knows and can
               only be contradicted.
             -->
-            <form onsubmit={submit} class="rad-rise" style="--d: 200; margin-top: 24px; max-width: 400px">
+            <form
+                onsubmit={submit}
+                class="rad-rise"
+                style="--d: 200; margin-top: 24px; max-width: 400px"
+            >
                 <span class="rad-label">{I18n.t("Code")}</span>
                 <div class="rad-field">
                     <span class="rad-field__prefix">{I18n.t("CODE")}</span>

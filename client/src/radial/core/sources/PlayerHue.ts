@@ -14,16 +14,16 @@ import { MarkData } from "../mark/MarkData";
  * because the hue is a recognition aid beside a name, never the identifier.
  */
 export class PlayerHue {
-  /** @param key `game:gamertag`, e.g. `minecraft:Alaydriem`. */
-  static of(key: string): string {
-    return MarkData.hueAt(PlayerHue.columnOf(key));
-  }
+    /** @param key `game:gamertag`, e.g. `minecraft:Alaydriem`. */
+    static of(key: string): string {
+        return MarkData.hueAt(PlayerHue.columnOf(key));
+    }
 
-  static columnOf(key: string): number {
-    return Hash.fnv1a(key.toLowerCase()) % MarkData.COLS;
-  }
+    static columnOf(key: string): number {
+        return Hash.fnv1a(key.toLowerCase()) % MarkData.COLS;
+    }
 
-  static forPlayer(game: string, gamertag: string): string {
-    return PlayerHue.of(`${game}:${gamertag}`);
-  }
+    static forPlayer(game: string, gamertag: string): string {
+        return PlayerHue.of(`${game}:${gamertag}`);
+    }
 }

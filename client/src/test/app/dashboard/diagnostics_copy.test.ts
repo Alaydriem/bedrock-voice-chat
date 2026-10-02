@@ -66,10 +66,12 @@ test("numbers are interpolated into a translated verdict", () => {
 });
 
 test("reconnecting reads differently once there is an attempt to name", () => {
-    expect(DiagnosticsCopy.of({ severity: "bad", code: "reconnecting", params: { attempt: 0 } }))
-        .toBe("Reconnecting. Nobody can hear you right now.");
-    expect(DiagnosticsCopy.of({ severity: "bad", code: "reconnecting", params: { attempt: 3 } }))
-        .toBe("Reconnecting — attempt 3. Nobody can hear you right now.");
+    expect(
+        DiagnosticsCopy.of({ severity: "bad", code: "reconnecting", params: { attempt: 0 } }),
+    ).toBe("Reconnecting. Nobody can hear you right now.");
+    expect(
+        DiagnosticsCopy.of({ severity: "bad", code: "reconnecting", params: { attempt: 3 } }),
+    ).toBe("Reconnecting — attempt 3. Nobody can hear you right now.");
 });
 
 // Every code the kit can emit, with the parameters it emits alongside. A code whose copy

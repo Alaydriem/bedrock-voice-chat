@@ -50,9 +50,7 @@
     async function load(): Promise<void> {
         listState = "loading";
         try {
-            rows = RecordingsView.rows(
-                await invoke<RecordingSession[]>("get_recording_sessions"),
-            );
+            rows = RecordingsView.rows(await invoke<RecordingSession[]>("get_recording_sessions"));
             listState = "ready";
         } catch (e) {
             failure = e instanceof Error ? e.message : String(e);
@@ -180,9 +178,7 @@
 {:else}
     <div class="rad-section">
         <div class="rad-section__note">
-            {I18n.t(
-                "Export your sessions to disk to import into your DAW or video editor.",
-            )}
+            {I18n.t("Export your sessions to disk to import into your DAW or video editor.")}
         </div>
 
         <!-- A callout, not the list's failure state: recordings already on disk stay listed,
@@ -301,13 +297,13 @@
     <div class="rad-modal is-open">
         <h5 class="rad-modal__title">{I18n.t("Delete this recording?")}</h5>
         <p>
-            <b>{deleting.name}</b> and all of its tracks will be removed from disk. This cannot be
-            undone.
+            <b>{deleting.name}</b> and all of its tracks will be removed from disk. This cannot be undone.
         </p>
         <div class="rad-modal__actions">
             <button class="rad-btn" onclick={() => (deleting = null)}>{I18n.t("Keep it")}</button>
             <button class="rad-btn rad-btn--danger" onclick={() => void runDelete()}>
-                <Icon name="trash" /> {I18n.t("Delete")}
+                <Icon name="trash" />
+                {I18n.t("Delete")}
             </button>
         </div>
     </div>

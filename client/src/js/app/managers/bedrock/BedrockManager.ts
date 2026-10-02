@@ -1,24 +1,24 @@
-import { writable, derived, type Writable, type Readable } from 'svelte/store';
-import { invoke } from '@tauri-apps/api/core';
-import { Store } from '@tauri-apps/plugin-store';
-import { error as logError } from '@charlesportwoodii/tauri-plugin-curia';
-import type { BedrockStatus } from '../../../bindings/BedrockStatus';
-import type { BedrockLogEntry } from '../../../bindings/BedrockLogEntry';
-import type { BedrockConnectionInfo } from '../../../bindings/BedrockConnectionInfo';
-import type { RealmEntry } from '../../../bindings/RealmEntry';
-import type { NetworkInterface } from '../../../bindings/NetworkInterface';
-import type { ProtocolVersionOption } from '../../../bindings/ProtocolVersionOption';
-import type { AddonMode } from '../../../bindings/AddonMode';
-import type { ProxyServerEntry } from './ProxyServerEntry';
-import type { BedrockCapabilityManager } from './BedrockCapabilityManager';
-import { BedrockAuthManager } from './auth/BedrockAuthManager';
-import { BedrockProxyManager } from './proxy/BedrockProxyManager';
-import { BedrockRealmsManager } from './realms/BedrockRealmsManager';
-import { BedrockLogsManager } from './logs/BedrockLogsManager';
-import { BedrockConnectionManager } from './connection/BedrockConnectionManager';
-import type { RealmsConnectionError } from './connection/RealmsConnectionError';
-import type { RealmsConnectionErrorKind } from './connection/RealmsConnectionErrorKind';
-import { AppStore } from '../../services/AppStore';
+import { writable, derived, type Writable, type Readable } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import { Store } from "@tauri-apps/plugin-store";
+import { error as logError } from "@charlesportwoodii/tauri-plugin-curia";
+import type { BedrockStatus } from "../../../bindings/BedrockStatus";
+import type { BedrockLogEntry } from "../../../bindings/BedrockLogEntry";
+import type { BedrockConnectionInfo } from "../../../bindings/BedrockConnectionInfo";
+import type { RealmEntry } from "../../../bindings/RealmEntry";
+import type { NetworkInterface } from "../../../bindings/NetworkInterface";
+import type { ProtocolVersionOption } from "../../../bindings/ProtocolVersionOption";
+import type { AddonMode } from "../../../bindings/AddonMode";
+import type { ProxyServerEntry } from "./ProxyServerEntry";
+import type { BedrockCapabilityManager } from "./BedrockCapabilityManager";
+import { BedrockAuthManager } from "./auth/BedrockAuthManager";
+import { BedrockProxyManager } from "./proxy/BedrockProxyManager";
+import { BedrockRealmsManager } from "./realms/BedrockRealmsManager";
+import { BedrockLogsManager } from "./logs/BedrockLogsManager";
+import { BedrockConnectionManager } from "./connection/BedrockConnectionManager";
+import type { RealmsConnectionError } from "./connection/RealmsConnectionError";
+import type { RealmsConnectionErrorKind } from "./connection/RealmsConnectionErrorKind";
+import { AppStore } from "../../services/AppStore";
 
 export type { RealmsConnectionError, RealmsConnectionErrorKind };
 
@@ -80,7 +80,7 @@ export class BedrockManager {
     private store: Store | null = null;
 
     constructor(capability: BedrockCapabilityManager) {
-        this.statusMessageStore = writable('');
+        this.statusMessageStore = writable("");
         this.statusMessage = { subscribe: this.statusMessageStore.subscribe };
 
         const setStatus = (msg: string) => this.statusMessageStore.set(msg);
@@ -155,9 +155,13 @@ export class BedrockManager {
         this.connectionInfo = this.connectionManager.connectionInfo;
 
         this.canStartProxy = derived(
-            [this.authManager.isAuthenticated, this.proxyManager.proxyRunning, this.realmsManager.realmsRunning, this.proxyManager.serverHost],
-            ([$auth, $proxy, $realms, $host]) =>
-                $auth && !$proxy && !$realms && $host.length > 0,
+            [
+                this.authManager.isAuthenticated,
+                this.proxyManager.proxyRunning,
+                this.realmsManager.realmsRunning,
+                this.proxyManager.serverHost,
+            ],
+            ([$auth, $proxy, $realms, $host]) => $auth && !$proxy && !$realms && $host.length > 0,
         );
 
         this.capability = capability;
@@ -191,7 +195,7 @@ export class BedrockManager {
         await this.authManager.restoreAuth();
 
         try {
-            const status = await invoke<BedrockStatus>('bedrock_get_status');
+            const status = await invoke<BedrockStatus>("bedrock_get_status");
             this.proxyManager.applyStatus({
                 host: status.proxy_target_host ?? null,
                 port: status.proxy_target_port ?? null,
@@ -246,7 +250,6 @@ export class BedrockManager {
     async initializeRealmsAccess(): Promise<void> {
         this.realmsUnavailableModalStore.set(false);
     }
-
 
     dismissRealmsUnavailableModal(): void {
         this.realmsUnavailableModalStore.set(false);
@@ -323,7 +326,10 @@ export class BedrockManager {
         return this.proxyManager.addProxyServer(name, host, port, protocolVersion, addonMode);
     }
 
-    async updateProxyServer(id: string, patch: Partial<Omit<ProxyServerEntry, 'id'>>): Promise<void> {
+    async updateProxyServer(
+        id: string,
+        patch: Partial<Omit<ProxyServerEntry, "id">>,
+    ): Promise<void> {
         return this.proxyManager.updateProxyServer(id, patch);
     }
 

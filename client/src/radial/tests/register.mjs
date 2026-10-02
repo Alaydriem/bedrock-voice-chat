@@ -15,17 +15,17 @@ import { fileURLToPath } from "node:url";
  *     "./src/radial/tests/**\/*.test.ts"
  */
 registerHooks({
-  resolve(specifier, context, nextResolve) {
-    const relative = specifier.startsWith("./") || specifier.startsWith("../");
-    const hasExtension = /\.[cm]?[jt]sx?$/.test(specifier);
-    if (relative && !hasExtension && context.parentURL) {
-      for (const extension of [".ts", ".js"]) {
-        const candidate = new URL(specifier + extension, context.parentURL);
-        if (existsSync(fileURLToPath(candidate))) {
-          return nextResolve(specifier + extension, context);
+    resolve(specifier, context, nextResolve) {
+        const relative = specifier.startsWith("./") || specifier.startsWith("../");
+        const hasExtension = /\.[cm]?[jt]sx?$/.test(specifier);
+        if (relative && !hasExtension && context.parentURL) {
+            for (const extension of [".ts", ".js"]) {
+                const candidate = new URL(specifier + extension, context.parentURL);
+                if (existsSync(fileURLToPath(candidate))) {
+                    return nextResolve(specifier + extension, context);
+                }
+            }
         }
-      }
-    }
-    return nextResolve(specifier, context);
-  },
+        return nextResolve(specifier, context);
+    },
 });

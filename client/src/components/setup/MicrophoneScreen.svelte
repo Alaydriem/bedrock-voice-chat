@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import Loader from "$radial/components/Loader.svelte";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import type { PermissionFlowState } from "../../js/app/PermissionRequestManager";
@@ -54,14 +54,18 @@
                 {I18n.t("BVC needs")}<br /><b>your microphone.</b>
             </h2>
             <p class="rad-body rad-rise" style="--d: 210">
-                {I18n.t("Nothing is recorded or sent anywhere until you are in a voice session, and the noise gate keeps silence off the wire entirely.")}
+                {I18n.t(
+                    "Nothing is recorded or sent anywhere until you are in a voice session, and the noise gate keeps silence off the wire entirely.",
+                )}
             </p>
 
             {#if state === "denied"}
                 <div class="rad-callout rad-rise" style="--d: 280; margin-top: 22px">
                     <span class="rad-choice__title">{I18n.t("Microphone access was refused")}</span>
                     <span class="rad-choice__note">
-                        {I18n.t("Grant it in your system settings, then come back and try again. Voice chat cannot work without it.")}
+                        {I18n.t(
+                            "Grant it in your system settings, then come back and try again. Voice chat cannot work without it.",
+                        )}
                     </span>
                 </div>
                 <div class="rad-rise" style="--d: 340; margin-top: 18px">
@@ -73,9 +77,13 @@
                 <div class="rad-choices rad-rise" style="--d: 300">
                     <button class="rad-choice" onclick={onrequest}>
                         <span>
-                            <span class="rad-choice__title">{I18n.t("Allow microphone access")}</span>
+                            <span class="rad-choice__title"
+                                >{I18n.t("Allow microphone access")}</span
+                            >
                             <span class="rad-choice__note">
-                                {I18n.t("Your operating system will ask. BVC never listens outside a session.")}
+                                {I18n.t(
+                                    "Your operating system will ask. BVC never listens outside a session.",
+                                )}
                             </span>
                         </span>
                         <span class="rad-choice__action">{I18n.t("Continue →")}</span>

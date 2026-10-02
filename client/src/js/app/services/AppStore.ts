@@ -1,4 +1,4 @@
-import { Store } from '@tauri-apps/plugin-store';
+import { Store } from "@tauri-apps/plugin-store";
 
 /**
  * The one handle to `store.json`.
@@ -13,7 +13,7 @@ import { Store } from '@tauri-apps/plugin-store';
  * in-flight load instead of racing to start several.
  */
 export class AppStore {
-    private static readonly PATH = 'store.json';
+    private static readonly PATH = "store.json";
 
     private static handle: Promise<Store> | null = null;
 

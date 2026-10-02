@@ -6,94 +6,94 @@
  */
 
 .rad-table-wrap {
-  overflow-x: auto;
+    overflow-x: auto;
 }
 
 .rad-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-rad-sm);
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-rad-sm);
 }
 
 .rad-table th {
-  padding: 14px 14px 11px;
-  text-align: left;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  font-weight: 600;
-  letter-spacing: var(--tracking-rad-caption);
-  text-transform: uppercase;
-  color: var(--color-rad-faint);
-  background: rgb(20 12 38 / 0.35);
-  border-bottom: 1px solid var(--color-rad-line-2);
+    padding: 14px 14px 11px;
+    text-align: left;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    font-weight: 600;
+    letter-spacing: var(--tracking-rad-caption);
+    text-transform: uppercase;
+    color: var(--color-rad-faint);
+    background: rgb(20 12 38 / 0.35);
+    border-bottom: 1px solid var(--color-rad-line-2);
 }
 
 .rad-table td {
-  padding: 13px 14px;
-  vertical-align: middle;
-  color: var(--color-rad-dim);
-  border-bottom: 1px solid var(--color-rad-line);
+    padding: 13px 14px;
+    vertical-align: middle;
+    color: var(--color-rad-dim);
+    border-bottom: 1px solid var(--color-rad-line);
 }
 
 .rad-table tr:last-child td {
-  border-bottom: 0;
+    border-bottom: 0;
 }
 
 .rad-table tbody tr {
-  transition: background 0.15s;
+    transition: background 0.15s;
 }
 
 .rad-table tbody tr:hover {
-  background: var(--color-rad-void-2);
+    background: var(--color-rad-void-2);
 }
 
 .rad-table__name {
-  color: var(--color-rad-tx);
-  font-weight: 500;
+    color: var(--color-rad-tx);
+    font-weight: 500;
 }
 
 .rad-table th.rad-num,
 .rad-table td.rad-num {
-  text-align: right;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-sm);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+    text-align: right;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-sm);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .rad-table__id {
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-sm);
-  color: var(--color-rad-faint);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-sm);
+    color: var(--color-rad-faint);
 }
 
 .rad-table__actions {
-  width: 46px;
-  padding-right: 10px;
-  text-align: right;
+    width: 46px;
+    padding-right: 10px;
+    text-align: right;
 }
 
 /* A row that opens the record it names. A chevron says the row goes somewhere; a
    kebab would say it has a menu, which is a different promise. */
 .rad-table__go {
-  display: inline-flex;
-  color: var(--color-rad-faint);
+    display: inline-flex;
+    color: var(--color-rad-faint);
 }
 
 .rad-table__go > svg {
-  width: 16px;
-  height: 16px;
-  transform: rotate(-90deg);
+    width: 16px;
+    height: 16px;
+    transform: rotate(-90deg);
 }
 
 .rad-table tr.is-openable td {
-  cursor: pointer;
+    cursor: pointer;
 }
 
 .rad-row-actions {
-  display: flex;
-  gap: 2px;
-  justify-content: flex-end;
+    display: flex;
+    gap: 2px;
+    justify-content: flex-end;
 }
 
 /* ---- sorting ----
@@ -102,113 +102,113 @@
  */
 
 .rad-table th.rad-sortable {
-  cursor: pointer;
-  user-select: none;
+    cursor: pointer;
+    user-select: none;
 }
 
 .rad-table th.rad-sortable:hover {
-  color: var(--color-rad-dim);
+    color: var(--color-rad-dim);
 }
 
 .rad-table th .rad-caret {
-  margin-left: 6px;
-  font-size: 9px;
-  opacity: 0;
+    margin-left: 6px;
+    font-size: 9px;
+    opacity: 0;
 }
 
 .rad-table th.is-sorted .rad-caret {
-  opacity: 1;
-  color: var(--color-rad-brand-lift);
+    opacity: 1;
+    color: var(--color-rad-brand-lift);
 }
 
 /* ---- selection ---- */
 
 .rad-table th.rad-select-cell,
 .rad-table td.rad-select-cell {
-  width: 44px;
-  padding-left: 16px;
-  padding-right: 0;
+    width: 44px;
+    padding-left: 16px;
+    padding-right: 0;
 }
 
 .rad-table tr.is-selected {
-  background: rgb(130 57 216 / 0.1);
+    background: rgb(130 57 216 / 0.1);
 }
 
 /* Appears only when something is selected, and holds every action that applies to
    a set rather than to a row. */
 .rad-selection-bar {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-bottom: 10px;
-  padding: 11px 14px;
-  border: 1px solid var(--color-rad-brand-lift);
-  border-radius: 11px;
-  background: rgb(130 57 216 / 0.16);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 10px;
+    padding: 11px 14px;
+    border: 1px solid var(--color-rad-brand-lift);
+    border-radius: 11px;
+    background: rgb(130 57 216 / 0.16);
 }
 
 .rad-selection-bar__count {
-  font-size: var(--text-rad-xs);
-  color: var(--color-rad-dim);
+    font-size: var(--text-rad-xs);
+    color: var(--color-rad-dim);
 }
 
 .rad-selection-bar__count b {
-  color: var(--color-rad-tx);
+    color: var(--color-rad-tx);
 }
 
 /* ---- pagination ---- */
 
 .rad-pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--color-rad-line);
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono);
-  color: var(--color-rad-faint);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-rad-line);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono);
+    color: var(--color-rad-faint);
 }
 
 .rad-pager__pages {
-  display: flex;
-  gap: 6px;
+    display: flex;
+    gap: 6px;
 }
 
 .rad-pager button {
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: var(--radius-rad-sm);
-  background: transparent;
-  color: var(--color-rad-dim);
-  font: inherit;
-  font-size: var(--text-rad-mono-sm);
-  cursor: pointer;
-  transition: 0.15s;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: var(--radius-rad-sm);
+    background: transparent;
+    color: var(--color-rad-dim);
+    font: inherit;
+    font-size: var(--text-rad-mono-sm);
+    cursor: pointer;
+    transition: 0.15s;
 }
 
 .rad-pager button:hover {
-  background: var(--color-rad-panel);
-  color: var(--color-rad-tx);
+    background: var(--color-rad-panel);
+    color: var(--color-rad-tx);
 }
 
 .rad-pager button.is-on {
-  background: var(--color-rad-brand);
-  color: #fff;
+    background: var(--color-rad-brand);
+    color: #fff;
 }
 
 .rad-pager button:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
+    opacity: 0.35;
+    cursor: not-allowed;
 }
 
 /* A search that found nothing is not an empty state — the data is there, the query
    is wrong — so it says so inside the table rather than replacing it. */
 .rad-table__nomatch {
-  padding: 26px;
-  text-align: center;
-  color: var(--color-rad-faint);
+    padding: 26px;
+    text-align: center;
+    color: var(--color-rad-faint);
 }
 
 /* ---- one record as a card ----
@@ -220,73 +220,73 @@
  */
 
 .rad-datacards {
-  display: none;
+    display: none;
 }
 
 .rad-datacard {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 3px 12px;
-  padding: 13px 16px;
-  border-bottom: 1px solid var(--color-rad-line);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 3px 12px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--color-rad-line);
 }
 
 .rad-datacard:last-child {
-  border-bottom: 0;
+    border-bottom: 0;
 }
 
 .rad-datacard__name {
-  grid-column: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-rad-md);
-  font-weight: 500;
-  color: var(--color-rad-tx);
+    grid-column: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-rad-md);
+    font-weight: 500;
+    color: var(--color-rad-tx);
 }
 
 /* Selectable, so it can be copied by hand. */
 .rad-datacard__id {
-  grid-column: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-sm);
-  letter-spacing: var(--tracking-rad-wide);
-  color: var(--color-rad-dim);
-  user-select: all;
+    grid-column: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-sm);
+    letter-spacing: var(--tracking-rad-wide);
+    color: var(--color-rad-dim);
+    user-select: all;
 }
 
 /* Everything a table would have given its own column. */
 .rad-datacard__meta {
-  grid-column: 1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 10px;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  letter-spacing: var(--tracking-rad-wide);
-  color: var(--color-rad-faint);
+    grid-column: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    letter-spacing: var(--tracking-rad-wide);
+    color: var(--color-rad-faint);
 }
 
 .rad-datacard__actions {
-  grid-column: 2;
-  grid-row: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 2px;
+    grid-column: 2;
+    grid-row: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 2px;
 }
 
 @container rad (max-width: 620px) {
-  .rad-table-wrap--wide {
-    display: none;
-  }
+    .rad-table-wrap--wide {
+        display: none;
+    }
 
-  .rad-datacards {
-    display: block;
-  }
+    .rad-datacards {
+        display: block;
+    }
 }

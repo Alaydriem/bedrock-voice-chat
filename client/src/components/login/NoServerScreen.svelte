@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import Ring from "$radial/components/Ring.svelte";
     import RadScreen from "../shell/RadScreen.svelte";
 
@@ -31,7 +31,9 @@
                 {I18n.t("Set it up once.")}<br /><b>{I18n.t("Then everyone just signs in.")}</b>
             </h2>
             <p class="rad-body rad-rise" style="--d: 200">
-                {I18n.t("Voice chat needs two things: a mod on your world, and a BVC server running somewhere you control. Nothing at all on your players' machines.")}
+                {I18n.t(
+                    "Voice chat needs two things: a mod on your world, and a BVC server running somewhere you control. Nothing at all on your players' machines.",
+                )}
             </p>
 
             <span class="rad-label rad-rise" style="--d: 240; display: block; margin-top: 26px">
@@ -40,17 +42,33 @@
             <div class="rad-steps rad-rise" style="--d: 270">
                 <div class="rad-step">
                     <span class="rad-step__n">1</span>
-                    <span><span class="rad-step__title">{I18n.t("Run the BVC server")}</span>
-                        <span class="rad-step__note">{I18n.t("On a machine you control — your PC, a VPS, or a home box")}</span></span>
+                    <span
+                        ><span class="rad-step__title">{I18n.t("Run the BVC server")}</span>
+                        <span class="rad-step__note"
+                            >{I18n.t(
+                                "On a machine you control — your PC, a VPS, or a home box",
+                            )}</span
+                        ></span
+                    >
                 </div>
                 <div class="rad-step">
                     <span class="rad-step__n">2</span>
-                    <span><span class="rad-step__title">{I18n.t("Add the mod to your world")}</span>
-                        <span class="rad-step__note">{I18n.t("Wherever your world is hosted, including Aternos and Realms")}</span></span>
+                    <span
+                        ><span class="rad-step__title">{I18n.t("Add the mod to your world")}</span>
+                        <span class="rad-step__note"
+                            >{I18n.t(
+                                "Wherever your world is hosted, including Aternos and Realms",
+                            )}</span
+                        ></span
+                    >
                 </div>
                 <div class="rad-step">
                     <span class="rad-step__n">3</span>
-                    <span><span class="rad-step__title">{I18n.t("Share the address — everyone talks")}</span></span>
+                    <span
+                        ><span class="rad-step__title"
+                            >{I18n.t("Share the address — everyone talks")}</span
+                        ></span
+                    >
                 </div>
             </div>
 
@@ -62,7 +80,9 @@
                     <span>
                         <span class="rad-choice__title">{I18n.t("I run the server")}</span>
                         <span class="rad-choice__note">
-                            {I18n.t("Do both installs yourself. The guide covers the server and the mod, start to finish, in about fifteen minutes.")}
+                            {I18n.t(
+                                "Do both installs yourself. The guide covers the server and the mod, start to finish, in about fifteen minutes.",
+                            )}
                         </span>
                     </span>
                     <span class="rad-choice__action">{I18n.t("Install guide →")}</span>
@@ -71,7 +91,9 @@
                     <span>
                         <span class="rad-choice__title">{I18n.t("A friend runs the server")}</span>
                         <span class="rad-choice__note">
-                            {I18n.t("They only have to do it once. Copy a short message with the guide link and send it over.")}
+                            {I18n.t(
+                                "They only have to do it once. Copy a short message with the guide link and send it over.",
+                            )}
                         </span>
                     </span>
                     <span class="rad-choice__action">{I18n.t("Copy message →")}</span>
@@ -80,7 +102,9 @@
                     <span>
                         <span class="rad-choice__title">{I18n.t("I'm just looking")}</span>
                         <span class="rad-choice__note">
-                            {I18n.t("Watch the setup walkthrough and see it running before you commit to anything.")}
+                            {I18n.t(
+                                "Watch the setup walkthrough and see it running before you commit to anything.",
+                            )}
                         </span>
                     </span>
                     <span class="rad-choice__action">{I18n.t("Watch it →")}</span>
@@ -103,6 +127,8 @@
 
     {#snippet footbar()}
         <span class="rad-label">{I18n.t("Come back any time from the sign-in screen")}</span>
-        <button class="rad-btn rad-btn--lg" onclick={onsignin}>{I18n.t("I have an address — sign in")}</button>
+        <button class="rad-btn rad-btn--lg" onclick={onsignin}
+            >{I18n.t("I have an address — sign in")}</button
+        >
     {/snippet}
 </RadScreen>

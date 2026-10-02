@@ -110,4 +110,3 @@ describe("SoundPreview", () => {
         expect(current(preview)).toBeNull();
     });
 });
-

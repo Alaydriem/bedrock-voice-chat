@@ -1,19 +1,19 @@
-import { invoke } from '@tauri-apps/api/core';
-import { error as logError, info, warn } from '@charlesportwoodii/tauri-plugin-curia';
-import type { LoginResponse } from '../../bindings/LoginResponse';
-import { get, writable, type Readable, type Writable } from 'svelte/store';
-import ImageCache from '../components/imageCache';
-import ImageCacheOptions from '../components/imageCacheOptions';
-import { AppStore } from '../services/AppStore';
-import { ServerListStore } from '../services/ServerListStore';
-import SetupFlow from '../setup/SetupFlow';
-import type { SetupState } from '../../bindings/SetupState';
-import { BootTimeline } from '../shell/BootTimeline';
-import type { NextAction } from '../shell/NextAction';
-import { PlateView } from './PlateView';
-import { PreflightRunner } from './preflight/PreflightRunner';
-import type { ServerRosterDeps } from './ServerRosterDeps';
-import type { ServerRosterEntry } from './ServerRosterEntry';
+import { invoke } from "@tauri-apps/api/core";
+import { error as logError, info, warn } from "@charlesportwoodii/tauri-plugin-curia";
+import type { LoginResponse } from "../../bindings/LoginResponse";
+import { get, writable, type Readable, type Writable } from "svelte/store";
+import ImageCache from "../components/imageCache";
+import ImageCacheOptions from "../components/imageCacheOptions";
+import { AppStore } from "../services/AppStore";
+import { ServerListStore } from "../services/ServerListStore";
+import SetupFlow from "../setup/SetupFlow";
+import type { SetupState } from "../../bindings/SetupState";
+import { BootTimeline } from "../shell/BootTimeline";
+import type { NextAction } from "../shell/NextAction";
+import { PlateView } from "./PlateView";
+import { PreflightRunner } from "./preflight/PreflightRunner";
+import type { ServerRosterDeps } from "./ServerRosterDeps";
+import type { ServerRosterEntry } from "./ServerRosterEntry";
 
 /**
  * Every saved server, and whether voice will actually work on it.
@@ -26,8 +26,8 @@ import type { ServerRosterEntry } from './ServerRosterEntry';
  * where is testable without a browser.
  */
 export class ServerRosterManager {
-    static readonly SIGN_IN_HREF = '/login';
-    static readonly SETUP_HREF = '/setup';
+    static readonly SIGN_IN_HREF = "/login";
+    static readonly SETUP_HREF = "/setup";
 
     /** A week, matching what the old card used. Operator art does not change often. */
     private static readonly ART_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -49,15 +49,15 @@ export class ServerRosterManager {
             imageCache: deps?.imageCache ?? new ImageCache(),
             forgetCredentials:
                 deps?.forgetCredentials ??
-                ((server: string) => invoke<void>('delete_credentials', { server })),
+                ((server: string) => invoke<void>("delete_credentials", { server })),
             checkForUpdates:
-                deps?.checkForUpdates ?? (() => invoke<string | null>('check_for_updates')),
+                deps?.checkForUpdates ?? (() => invoke<string | null>("check_for_updates")),
             credentials:
                 deps?.credentials ??
-                ((server: string) => invoke<LoginResponse>('get_credentials', { server })),
+                ((server: string) => invoke<LoginResponse>("get_credentials", { server })),
             isCertificateExpired:
                 deps?.isCertificateExpired ??
-                ((server: string) => invoke<boolean>('is_certificate_expired', { server })),
+                ((server: string) => invoke<boolean>("is_certificate_expired", { server })),
             isSetupComplete:
                 deps?.isSetupComplete ??
                 (async () => {
@@ -84,24 +84,24 @@ export class ServerRosterManager {
      */
     async load(): Promise<number> {
         const saved = await this.deps.serverList.getServerList();
-        BootTimeline.shared().mark('  ↳ server list read');
+        BootTimeline.shared().mark("  ↳ server list read");
 
         this.entriesStore.set(
             saved.map((entry) => ({
                 server: entry.server,
                 host: ServerRosterManager.hostOf(entry.server),
                 player: entry.player,
-                game: entry.game ?? 'minecraft',
-                status: 'checking' as const,
+                game: entry.game ?? "minecraft",
+                status: "checking" as const,
                 steps: PreflightRunner.pending(),
                 rtt: 0,
                 slow: false,
                 quicPort: 443,
-                serverVersion: '',
-                clientVersion: '',
+                serverVersion: "",
+                clientVersion: "",
                 clientTooOld: false,
-                avatarUrl: '',
-                canvasUrl: '',
+                avatarUrl: "",
+                canvasUrl: "",
             })),
         );
 
@@ -139,7 +139,7 @@ export class ServerRosterManager {
     /** Re-run one server's preflight, leaving the others alone. */
     async recheck(server: string): Promise<void> {
         this.patch(server, {
-            status: 'checking',
+            status: "checking",
             steps: PreflightRunner.pending(),
             note: undefined,
         });
@@ -154,23 +154,23 @@ export class ServerRosterManager {
      */
     async choose(server: string): Promise<NextAction> {
         const entry = this.find(server);
-        if (!entry) return { kind: 'none' };
+        if (!entry) return { kind: "none" };
 
         switch (PlateView.of(entry).kind) {
-            case 'connect':
+            case "connect":
                 return this.connectTo(entry);
 
-            case 'signin':
-                return { kind: 'navigate', href: `/login?reauth=true&server=${entry.server}` };
+            case "signin":
+                return { kind: "navigate", href: `/login?reauth=true&server=${entry.server}` };
 
-            case 'recheck':
+            case "recheck":
                 await this.recheck(server);
-                return { kind: 'none' };
+                return { kind: "none" };
 
-            case 'blocked':
-                return entry.status === 'version_mismatch' && entry.clientTooOld
+            case "blocked":
+                return entry.status === "version_mismatch" && entry.clientTooOld
                     ? this.offerUpdate(server)
-                    : { kind: 'none' };
+                    : { kind: "none" };
         }
     }
 
@@ -190,14 +190,14 @@ export class ServerRosterManager {
             this.entriesStore.update((entries) => entries.filter((e) => e.server !== server));
 
             if (remaining.length === 0) {
-                info('Last server removed, returning to sign-in');
-                return { kind: 'navigate', href: ServerRosterManager.SIGN_IN_HREF };
+                info("Last server removed, returning to sign-in");
+                return { kind: "navigate", href: ServerRosterManager.SIGN_IN_HREF };
             }
-            return { kind: 'none' };
+            return { kind: "none" };
         } catch (e) {
             logError(`Failed to remove ${server}: ${e}`);
-            this.patch(server, { note: 'That server could not be removed. Try again.' });
-            return { kind: 'none' };
+            this.patch(server, { note: "That server could not be removed. Try again." });
+            return { kind: "none" };
         }
     }
 
@@ -230,10 +230,10 @@ export class ServerRosterManager {
         // device concern that cannot come before an account.
         if (!complete) {
             info(`Device setup is not finished, going to setup before ${entry.server}`);
-            return { kind: 'navigate', href: ServerRosterManager.SETUP_HREF };
+            return { kind: "navigate", href: ServerRosterManager.SETUP_HREF };
         }
 
-        return { kind: 'navigate', href: `/dashboard?server=${entry.server}` };
+        return { kind: "navigate", href: `/dashboard?server=${entry.server}` };
     }
 
     /**
@@ -247,7 +247,7 @@ export class ServerRosterManager {
      */
     async soleDestination(): Promise<NextAction> {
         const entries = get(this.entriesStore);
-        if (entries.length !== 1) return { kind: 'none' };
+        if (entries.length !== 1) return { kind: "none" };
 
         const entry = entries[0];
 
@@ -261,14 +261,14 @@ export class ServerRosterManager {
             this.deps.isSetupComplete(),
         ]);
 
-        if (credentials.status === 'rejected') {
+        if (credentials.status === "rejected") {
             info(
                 `No usable credentials for ${entry.server}, going to sign-in: ${credentials.reason}`,
             );
-            return { kind: 'navigate', href: ServerRosterManager.SIGN_IN_HREF };
+            return { kind: "navigate", href: ServerRosterManager.SIGN_IN_HREF };
         }
 
-        if (expired.status === 'rejected') {
+        if (expired.status === "rejected") {
             // An unreadable expiry is not an expired certificate. The dashboard checks this
             // again and does redirect on expiry, so guessing wrong here would send somebody to
             // re-authenticate over a keyring hiccup.
@@ -276,22 +276,22 @@ export class ServerRosterManager {
         } else if (expired.value) {
             info(`Certificate expired for ${entry.server}, going to reauth`);
             return {
-                kind: 'navigate',
+                kind: "navigate",
                 href: `/login?reauth=true&server=${entry.server}`,
             };
         }
 
         // An unreadable setup state counts as finished. The dashboard checks it again, and a
         // store hiccup should not divert somebody into onboarding they have already done.
-        if (setup.status === 'rejected') {
+        if (setup.status === "rejected") {
             warn(`Could not read the setup state: ${setup.reason}`);
         }
 
-        return this.connectTo(entry, setup.status === 'fulfilled' ? setup.value : true);
+        return this.connectTo(entry, setup.status === "fulfilled" ? setup.value : true);
     }
 
     static hostOf(server: string): string {
-        return server.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        return server.replace(/^https?:\/\//, "").replace(/\/$/, "");
     }
 
     private async offerUpdate(server: string): Promise<NextAction> {
@@ -299,20 +299,20 @@ export class ServerRosterManager {
             const version = await this.deps.checkForUpdates();
             if (version) {
                 return {
-                    kind: 'navigate',
+                    kind: "navigate",
                     href: `/error?code=UPD01&version=${encodeURIComponent(version)}`,
                 };
             }
             this.patch(server, {
-                note: 'No update has been published yet. That server is ahead of every build of the app.',
+                note: "No update has been published yet. That server is ahead of every build of the app.",
             });
         } catch (e) {
             info(`No updater available: ${e}`);
             this.patch(server, {
-                note: 'Updates are installed from wherever you got the app.',
+                note: "Updates are installed from wherever you got the app.",
             });
         }
-        return { kind: 'none' };
+        return { kind: "none" };
     }
 
     private async checkOne(server: string): Promise<void> {
@@ -332,10 +332,10 @@ export class ServerRosterManager {
         const [avatarUrl, canvasUrl] = await Promise.all([
             this.deps.imageCache
                 .getImage(new ImageCacheOptions(`${server}/assets/avatar.png`, ttl))
-                .catch(() => ''),
+                .catch(() => ""),
             this.deps.imageCache
                 .getImage(new ImageCacheOptions(`${server}/assets/canvas.png`, ttl))
-                .catch(() => ''),
+                .catch(() => ""),
         ]);
         this.patch(server, { avatarUrl, canvasUrl });
     }

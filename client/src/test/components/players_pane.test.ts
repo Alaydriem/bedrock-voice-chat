@@ -12,9 +12,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
     },
 }));
 
-const { default: PlayersPane } = await import(
-    "../../components/settings/panes/PlayersPane.svelte"
-);
+const { default: PlayersPane } = await import("../../components/settings/panes/PlayersPane.svelte");
 
 const NOW = Date.now();
 
@@ -135,9 +133,9 @@ describe("PlayersPane", () => {
         await waitFor(() => expect(view.text()).toContain("Reset everybody?"));
         expect(invokeCalls().some((c) => c.cmd === "player_settings_reset_all")).toBe(false);
 
-        const confirm = [...view.host.querySelectorAll<HTMLButtonElement>(".rad-modal__actions button")].find(
-            (b) => b.textContent?.trim() === "Reset",
-        );
+        const confirm = [
+            ...view.host.querySelectorAll<HTMLButtonElement>(".rad-modal__actions button"),
+        ].find((b) => b.textContent?.trim() === "Reset");
         await fireEvent.click(confirm!);
         await waitFor(() =>
             expect(invokeCalls().some((c) => c.cmd === "player_settings_reset_all")).toBe(true),

@@ -37,11 +37,7 @@ const PHRASE_SECONDS = 1.6;
 /** Withholds the paint but keeps the box, so revealing these costs no layout. */
 const QUIET_CLASS = "app-preloader-quiet";
 
-const STATUS_PHRASES = [
-    "Getting things ready…",
-    "Connecting to your BVC Server…",
-    "Almost there…",
-];
+const STATUS_PHRASES = ["Getting things ready…", "Connecting to your BVC Server…", "Almost there…"];
 
 /** As many of the cast as `ProximityRing` places in the app. */
 const CAST_COUNT = 4;

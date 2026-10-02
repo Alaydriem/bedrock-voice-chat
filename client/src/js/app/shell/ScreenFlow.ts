@@ -1,5 +1,5 @@
-import { writable, get, type Readable, type Writable } from 'svelte/store';
-import { StepFlow } from '$radial/core/controllers/StepFlow';
+import { writable, get, type Readable, type Writable } from "svelte/store";
+import { StepFlow } from "$radial/core/controllers/StepFlow";
 
 export interface ScreenFlowOptions {
     readonly screens: readonly string[];

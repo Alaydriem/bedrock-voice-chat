@@ -1,3 +1,3 @@
-import type { BedrockConnectError } from '../../../../bindings/BedrockConnectError';
+import type { BedrockConnectError } from "../../../../bindings/BedrockConnectError";
 
-export type RealmsConnectionErrorKind = BedrockConnectError['kind'];
+export type RealmsConnectionErrorKind = BedrockConnectError["kind"];

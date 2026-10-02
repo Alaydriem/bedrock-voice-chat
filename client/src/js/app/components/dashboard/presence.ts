@@ -1,14 +1,14 @@
 import { I18n } from "#lib/i18n/index.js";
-import type { PlayerGainSettings } from '../../../bindings/PlayerGainSettings';
-import type { PlayerSource } from '../../../bindings/PlayerSource';
-import type { GamerpicResponse } from '../../../bindings/GamerpicResponse';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { debug, info, error } from '@charlesportwoodii/tauri-plugin-curia';
-import { invoke } from '@tauri-apps/api/core';
-import type { PlayerManager } from '../../managers/PlayerManager';
-import ImageCache from '../imageCache';
-import ImageCacheOptions from '../imageCacheOptions';
-import GameNameUtils from '../../utils/GameNameUtils';
+import type { PlayerGainSettings } from "../../../bindings/PlayerGainSettings";
+import type { PlayerSource } from "../../../bindings/PlayerSource";
+import type { GamerpicResponse } from "../../../bindings/GamerpicResponse";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { debug, info, error } from "@charlesportwoodii/tauri-plugin-curia";
+import { invoke } from "@tauri-apps/api/core";
+import type { PlayerManager } from "../../managers/PlayerManager";
+import ImageCache from "../imageCache";
+import ImageCacheOptions from "../imageCacheOptions";
+import GameNameUtils from "../../utils/GameNameUtils";
 
 export class PlayerPresenceManager {
     private playerManager: PlayerManager;
@@ -44,10 +44,11 @@ export class PlayerPresenceManager {
 
     private async syncCurrentPlayers(): Promise<void> {
         try {
-            const backendPlayersMap = await invoke<Record<string, string | null>>("get_current_players");
+            const backendPlayersMap =
+                await invoke<Record<string, string | null>>("get_current_players");
             const backendPlayerNames = new Set(Object.keys(backendPlayersMap));
             const frontendPlayers = this.playerManager.getAll();
-            const frontendPlayerNames = new Set(frontendPlayers.map(p => p.name));
+            const frontendPlayerNames = new Set(frontendPlayers.map((p) => p.name));
 
             // Calculate differences
             const toAdd: string[] = [];
@@ -55,14 +56,17 @@ export class PlayerPresenceManager {
 
             for (const playerName of backendPlayerNames) {
                 // Only add if not already present with Proximity source
-                if (!this.playerManager.hasPlayerSource(playerName, 'Proximity')) {
+                if (!this.playerManager.hasPlayerSource(playerName, "Proximity")) {
                     toAdd.push(playerName);
                 }
             }
 
             for (const playerName of frontendPlayerNames) {
                 // Only remove Proximity source if backend doesn't have them
-                if (!backendPlayerNames.has(playerName) && this.playerManager.hasPlayerSource(playerName, 'Proximity')) {
+                if (
+                    !backendPlayerNames.has(playerName) &&
+                    this.playerManager.hasPlayerSource(playerName, "Proximity")
+                ) {
                     toRemove.push(playerName);
                 }
             }
@@ -76,12 +80,18 @@ export class PlayerPresenceManager {
             for (const playerName of toAdd) {
                 const settings = await this.getPlayerSettings(playerName);
                 const playerGame = backendPlayersMap[playerName] ?? undefined;
-                await this.playerManager.addPlayerSource(playerName, 'Proximity', settings, undefined, playerGame);
+                await this.playerManager.addPlayerSource(
+                    playerName,
+                    "Proximity",
+                    settings,
+                    undefined,
+                    playerGame,
+                );
                 this.fetchAndSetGamepic(playerName, playerGame);
             }
 
             for (const playerName of toRemove) {
-                this.playerManager.removePlayerSource(playerName, 'Proximity');
+                this.playerManager.removePlayerSource(playerName, "Proximity");
             }
 
             // Retry gamerpic fetch for existing proximity players missing one
@@ -113,7 +123,9 @@ export class PlayerPresenceManager {
         // Composed once, here, rather than at each of the three store helpers below. The
         // presence event's name form varies with which producer emitted it, and the gain store
         // is keyed on the canonical identity — so the boundary is the place to settle it.
-        const playerName = rawName ? GameNameUtils.canonical(rawName, game ?? 'minecraft') : rawName;
+        const playerName = rawName
+            ? GameNameUtils.canonical(rawName, game ?? "minecraft")
+            : rawName;
 
         if (!playerName) {
             error(`Player presence event missing player name: ${JSON.stringify(payload)}`);
@@ -125,21 +137,27 @@ export class PlayerPresenceManager {
             return;
         }
 
-        if (status === 'joined') {
+        if (status === "joined") {
             const settings = await this.getPlayerSettings(playerName);
 
             // Use source-aware addition with 'Proximity' source for audio detection
-            const success = await this.playerManager.addPlayerSource(playerName, 'Proximity', settings, undefined, game);
+            const success = await this.playerManager.addPlayerSource(
+                playerName,
+                "Proximity",
+                settings,
+                undefined,
+                game,
+            );
             if (success) {
                 // Fire-and-forget gamerpic fetch
                 this.fetchAndSetGamepic(playerName, game);
             }
-        } else if (status === 'disconnected') {
+        } else if (status === "disconnected") {
             // Remove only from 'Proximity' source. Their settings are deliberately left
             // behind: a volume you set is about the person, not about them being in earshot,
             // and the settings pane exists so you can change it after they have gone. The
             // store's pruner drops the rows nobody decided anything about.
-            this.playerManager.removePlayerSource(playerName, 'Proximity');
+            this.playerManager.removePlayerSource(playerName, "Proximity");
         } else {
             error(`Unknown presence status: ${status} for player ${playerName}`);
         }
@@ -155,7 +173,7 @@ export class PlayerPresenceManager {
      */
     private async getPlayerSettings(playerName: string): Promise<PlayerGainSettings> {
         try {
-            return await invoke<PlayerGainSettings>('player_settings_touch', { cn: playerName });
+            return await invoke<PlayerGainSettings>("player_settings_touch", { cn: playerName });
         } catch (err) {
             error("failed to get player settings", {
                 player: playerName,
@@ -189,9 +207,9 @@ export class PlayerPresenceManager {
             const gamertag = GameNameUtils.stripPrefix(playerName);
 
             // Ask the server for the gamerpic URL
-            const response = await invoke<GamerpicResponse>('api_get_player_gamerpic', {
+            const response = await invoke<GamerpicResponse>("api_get_player_gamerpic", {
                 game,
-                gamertag
+                gamertag,
             });
 
             if (!response.gamerpic) {

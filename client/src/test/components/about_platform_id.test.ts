@@ -12,7 +12,9 @@ const CURRENT = "b6f1c0e2-4d33-4a71-9c58-2f0e9a71d55c";
 const REPLACEMENT = "9f3c1d84-2b57-4c0a-9e11-6d4a7b28e0f5";
 
 function updates() {
-    return { state: { subscribe: (run: (v: unknown) => void) => (run({ kind: "idle" }), () => {}) } };
+    return {
+        state: { subscribe: (run: (v: unknown) => void) => (run({ kind: "idle" }), () => {}) },
+    };
 }
 
 function mount() {

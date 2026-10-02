@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import { onDestroy } from "svelte";
     import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
     import { info } from "@charlesportwoodii/tauri-plugin-curia";
@@ -90,7 +90,12 @@
 >
     {text}
     {#if severity === "bad"}
-        <button type="button" class="rad-toast__close" aria-label={I18n.t("Dismiss")} onclick={dismiss}>
+        <button
+            type="button"
+            class="rad-toast__close"
+            aria-label={I18n.t("Dismiss")}
+            onclick={dismiss}
+        >
             ×
         </button>
     {/if}

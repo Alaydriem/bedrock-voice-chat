@@ -1,7 +1,7 @@
-import { Store } from '@tauri-apps/plugin-store';
-import { info, error as logError } from '@charlesportwoodii/tauri-plugin-curia';
-import { AuthCallbackHandler } from './deepLinkHandlers/authCallbackHandler.ts';
-import { DiscordCallbackHandler } from './deepLinkHandlers/discordCallbackHandler.ts';
+import { Store } from "@tauri-apps/plugin-store";
+import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
+import { AuthCallbackHandler } from "./deepLinkHandlers/authCallbackHandler.ts";
+import { DiscordCallbackHandler } from "./deepLinkHandlers/discordCallbackHandler.ts";
 
 /**
  * Outcome of handling a deep link.
@@ -10,7 +10,7 @@ import { DiscordCallbackHandler } from './deepLinkHandlers/discordCallbackHandle
  * - `deferred` the handler navigated elsewhere (e.g. to /login) and needs the
  *              pending entry kept so the destination page can pick it up.
  */
-export type DeepLinkOutcome = 'handled' | 'deferred';
+export type DeepLinkOutcome = "handled" | "deferred";
 
 interface DeepLinkHandler {
     canHandle(url: string): boolean;
@@ -61,7 +61,7 @@ export class DeepLinkRouter {
                 info(`DeepLinkRouter: Handler found for URL`);
                 try {
                     const outcome = await handler.handle(url);
-                    if (outcome !== 'deferred') {
+                    if (outcome !== "deferred") {
                         await this.clearPending();
                     }
                     return;

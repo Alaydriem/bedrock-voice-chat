@@ -1,12 +1,12 @@
-import { type Readable, type Writable, derived, get, writable } from 'svelte/store';
-import { invoke } from '@tauri-apps/api/core';
-import { warn } from '@charlesportwoodii/tauri-plugin-curia';
-import { PlayerHue } from '$radial/core/sources/PlayerHue';
-import type { PositionSnapshot } from '../../bindings/PositionSnapshot';
-import type { RelativePosition } from '../../bindings/RelativePosition';
-import GameNameUtils from '../utils/GameNameUtils';
-import type { NearbyPlayer } from './NearbyPlayer';
-import { PositionFeed } from './PositionFeed';
+import { type Readable, type Writable, derived, get, writable } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import { warn } from "@charlesportwoodii/tauri-plugin-curia";
+import { PlayerHue } from "$radial/core/sources/PlayerHue";
+import type { PositionSnapshot } from "../../bindings/PositionSnapshot";
+import type { RelativePosition } from "../../bindings/RelativePosition";
+import GameNameUtils from "../utils/GameNameUtils";
+import type { NearbyPlayer } from "./NearbyPlayer";
+import { PositionFeed } from "./PositionFeed";
 
 /**
  * Who is near you, and how far away.
@@ -110,7 +110,7 @@ export class NearbyManager {
     }
 
     private toPlayer(entry: RelativePosition): NearbyPlayer {
-        const game = GameNameUtils.extractGame(entry.name) ?? 'minecraft';
+        const game = GameNameUtils.extractGame(entry.name) ?? "minecraft";
         return {
             name: entry.name,
             gamertag: GameNameUtils.stripPrefix(entry.name),
@@ -171,7 +171,7 @@ export class NearbyManager {
         try {
             // `player.name` is already the canonical identity from the position feed;
             // `player.gamertag` is the bare display form and would not resolve at the mixer.
-            await invoke('player_settings_touch', { cn: player.name });
+            await invoke("player_settings_touch", { cn: player.name });
         } catch (e) {
             warn(`NearbyManager: could not record ${player.gamertag}: ${e}`);
         }

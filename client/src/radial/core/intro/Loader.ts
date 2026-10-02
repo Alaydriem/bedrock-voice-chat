@@ -2,8 +2,8 @@ import type { IntroConfig } from "./IntroConfig";
 import { IntroSequence } from "./IntroSequence";
 
 export interface LoaderOptions extends Partial<IntroConfig> {
-  /** Play the full boot sequence before settling into the dance. */
-  withIntro?: boolean;
+    /** Play the full boot sequence before settling into the dance. */
+    withIntro?: boolean;
 }
 
 /**
@@ -20,29 +20,29 @@ export interface LoaderOptions extends Partial<IntroConfig> {
  * Background defaults to null so the loader sits on whatever is behind it.
  */
 export class Loader {
-  readonly sequence: IntroSequence;
+    readonly sequence: IntroSequence;
 
-  private constructor(sequence: IntroSequence) {
-    this.sequence = sequence;
-  }
+    private constructor(sequence: IntroSequence) {
+        this.sequence = sequence;
+    }
 
-  static mount(canvas: HTMLCanvasElement, options: LoaderOptions = {}): Loader {
-    const { withIntro = false, ...rest } = options;
-    const sequence = new IntroSequence(canvas, {
-      background: null,
-      ...rest,
-      endState: "dance",
-      loop: false,
-    });
-    sequence.startLoading(withIntro);
-    return new Loader(sequence);
-  }
+    static mount(canvas: HTMLCanvasElement, options: LoaderOptions = {}): Loader {
+        const { withIntro = false, ...rest } = options;
+        const sequence = new IntroSequence(canvas, {
+            background: null,
+            ...rest,
+            endState: "dance",
+            loop: false,
+        });
+        sequence.startLoading(withIntro);
+        return new Loader(sequence);
+    }
 
-  finish(seconds?: number): Promise<void> {
-    return this.sequence.finishCollapse(seconds);
-  }
+    finish(seconds?: number): Promise<void> {
+        return this.sequence.finishCollapse(seconds);
+    }
 
-  stop(): void {
-    this.sequence.stop();
-  }
+    stop(): void {
+        this.sequence.stop();
+    }
 }

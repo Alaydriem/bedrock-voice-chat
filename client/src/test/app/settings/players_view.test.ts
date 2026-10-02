@@ -103,10 +103,11 @@ describe("PlayersView.matching", () => {
         );
 
         expect(PlayersView.matching(rows, "adjusted", "").map((r) => r.name)).toEqual(["Quiet"]);
-        expect(PlayersView.matching(rows, "all", "").map((r) => r.name).sort()).toEqual([
-            "Plain",
-            "Quiet",
-        ]);
+        expect(
+            PlayersView.matching(rows, "all", "")
+                .map((r) => r.name)
+                .sort(),
+        ).toEqual(["Plain", "Quiet"]);
     });
 
     // A slider dragged back to exactly 100% stops being "adjusted" mid-drag. Without pinning

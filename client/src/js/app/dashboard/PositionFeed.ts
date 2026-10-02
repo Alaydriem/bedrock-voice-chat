@@ -1,7 +1,7 @@
-import { invoke } from '@tauri-apps/api/core';
-import { debug, info, warn } from '@charlesportwoodii/tauri-plugin-curia';
-import type { PositionSnapshot } from '../../bindings/PositionSnapshot';
-import type { WebsocketTicketResponse } from '../../bindings/WebsocketTicketResponse';
+import { invoke } from "@tauri-apps/api/core";
+import { debug, info, warn } from "@charlesportwoodii/tauri-plugin-curia";
+import type { PositionSnapshot } from "../../bindings/PositionSnapshot";
+import type { WebsocketTicketResponse } from "../../bindings/WebsocketTicketResponse";
 
 export type SnapshotListener = (snapshot: PositionSnapshot) => void;
 
@@ -25,7 +25,7 @@ export type SnapshotListener = (snapshot: PositionSnapshot) => void;
  * one would move every card backwards for a tick.
  */
 export class PositionFeed {
-    private static readonly PROTOCOL = 'bvc.positions.v1';
+    private static readonly PROTOCOL = "bvc.positions.v1";
 
     /** First delay before redialling a socket lost to the network rather than to design. */
     static readonly BACKOFF_MIN_MS = 3_000;
@@ -118,7 +118,7 @@ export class PositionFeed {
 
         let ticket: WebsocketTicketResponse;
         try {
-            ticket = await invoke<WebsocketTicketResponse>('api_websocket_ticket', {
+            ticket = await invoke<WebsocketTicketResponse>("api_websocket_ticket", {
                 server: this.server,
             });
         } catch (e) {
@@ -133,7 +133,7 @@ export class PositionFeed {
         // rather than this one, so the abandoned request is dropped here instead.
         if (!current()) return;
 
-        const url = `${this.server.replace(/^http/, 'ws').replace(/\/$/, '')}/api/websocket/positions`;
+        const url = `${this.server.replace(/^http/, "ws").replace(/\/$/, "")}/api/websocket/positions`;
 
         let socket: WebSocket;
         try {
@@ -171,7 +171,7 @@ export class PositionFeed {
             this.scheduleRetry();
         };
 
-        this.opening = setTimeout(() => fail('socket never opened'), PositionFeed.OPEN_TIMEOUT_MS);
+        this.opening = setTimeout(() => fail("socket never opened"), PositionFeed.OPEN_TIMEOUT_MS);
 
         const opened = (): void => {
             if (this.socket !== socket) return;
@@ -184,7 +184,7 @@ export class PositionFeed {
 
         socket.onopen = () => {
             opened();
-            debug('PositionFeed: connected');
+            debug("PositionFeed: connected");
         };
         socket.onmessage = (event) => {
             // A socket delivering frames has plainly opened, whether or not `onopen` was seen.
@@ -192,8 +192,8 @@ export class PositionFeed {
             if (current()) this.receive(event.data);
         };
         // The server holds this open, so a close is a lost link rather than a handover.
-        socket.onclose = () => fail('socket closed');
-        socket.onerror = () => fail('socket error');
+        socket.onclose = () => fail("socket closed");
+        socket.onerror = () => fail("socket error");
     }
 
     /**
@@ -253,7 +253,7 @@ export class PositionFeed {
     }
 
     private receive(data: unknown): void {
-        if (typeof data !== 'string') return;
+        if (typeof data !== "string") return;
         let snapshot: PositionSnapshot;
         try {
             snapshot = JSON.parse(data) as PositionSnapshot;

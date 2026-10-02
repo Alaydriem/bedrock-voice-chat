@@ -140,7 +140,9 @@ describe("ManagePlayersView.blocks", () => {
     // every row, so a column of rows can be read down. A held permission colours its slot
     // and an unheld one dims it; dropping the slot would shift the ones after it.
     it("gives every row the same number of slots", () => {
-        const held = ManagePlayersView.blocks(ManagePlayersView.row(user({ permissions: ["admin"] })));
+        const held = ManagePlayersView.blocks(
+            ManagePlayersView.row(user({ permissions: ["admin"] })),
+        );
         const none = ManagePlayersView.blocks(ManagePlayersView.row(user()));
         expect(held).toHaveLength(1 + ManagePlayersView.EDITABLE.length);
         expect(none).toHaveLength(held.length);
@@ -162,7 +164,9 @@ describe("ManagePlayersView.blocks", () => {
     });
 
     it("colours a held permission and dims one that is not held", () => {
-        const blocks = ManagePlayersView.blocks(ManagePlayersView.row(user({ permissions: ["admin"] })));
+        const blocks = ManagePlayersView.blocks(
+            ManagePlayersView.row(user({ permissions: ["admin"] })),
+        );
         const admin = blocks.find((block) => block.label === "Administrator");
         const upload = blocks.find((block) => block.label === "Upload sounds");
         expect(admin?.color).toBe("var(--color-rad-brand-lift)");
@@ -196,17 +200,17 @@ describe("ManagePlayersView.isSelf", () => {
     });
 
     it("does not match a different player", () => {
-        expect(ManagePlayersView.isSelf(ManagePlayersView.row(user({ gamertag: "Carol" })), me)).toBe(
-            false,
-        );
+        expect(
+            ManagePlayersView.isSelf(ManagePlayersView.row(user({ gamertag: "Carol" })), me),
+        ).toBe(false);
     });
 
     // Two players under different game prefixes can share a gamertag, and they are not the
     // same person.
     it("does not match the same gamertag under another game prefix", () => {
-        expect(ManagePlayersView.isSelf(ManagePlayersView.row(user({ game: "othergame" })), me)).toBe(
-            false,
-        );
+        expect(
+            ManagePlayersView.isSelf(ManagePlayersView.row(user({ game: "othergame" })), me),
+        ).toBe(false);
     });
 
     // Before introspect answers there is no identity, and nothing may be assumed to be self.

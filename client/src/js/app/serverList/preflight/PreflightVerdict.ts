@@ -1,7 +1,7 @@
-import type { ServerRosterEntry } from '../ServerRosterEntry';
-import type { PreflightStep } from './PreflightStep';
+import type { ServerRosterEntry } from "../ServerRosterEntry";
+import type { PreflightStep } from "./PreflightStep";
 
-export type VerdictSeverity = 'ok' | 'warn' | 'bad';
+export type VerdictSeverity = "ok" | "warn" | "bad";
 
 export interface Verdict {
     readonly severity: VerdictSeverity;
@@ -17,68 +17,68 @@ export interface Verdict {
  */
 export class PreflightVerdict {
     static of(entry: ServerRosterEntry): Verdict {
-        if (entry.status === 'checking') {
-            return { severity: 'ok', sentence: 'Checking…' };
+        if (entry.status === "checking") {
+            return { severity: "ok", sentence: "Checking…" };
         }
 
-        const failed = entry.steps.find((step) => step.state === 'bad');
+        const failed = entry.steps.find((step) => step.state === "bad");
         if (failed) return PreflightVerdict.forFailure(failed, entry);
 
         // Named before the round-trip warning, which is the other thing that turns a row
         // amber. Both say "voice works, but slower"; only one of them has a cause worth
         // stating, and it is not one the player can do anything about by waiting.
-        if (entry.status === 'ws_fallback') {
+        if (entry.status === "ws_fallback") {
             return {
-                severity: 'warn',
+                severity: "warn",
                 sentence:
                     `UDP ${entry.quicPort} to this server is blocked, so voice will use the slower ` +
-                    'fallback path over TCP. It works — expect more delay when the network is busy.',
+                    "fallback path over TCP. It works — expect more delay when the network is busy.",
             };
         }
 
-        if (entry.steps.some((step) => step.state === 'warn')) {
+        if (entry.steps.some((step) => step.state === "warn")) {
             return {
-                severity: 'warn',
+                severity: "warn",
                 sentence: `${entry.rtt} ms to this server. Voice works, with delay you will notice.`,
             };
         }
 
-        return { severity: 'ok', sentence: 'Everything looks fine.' };
+        return { severity: "ok", sentence: "Everything looks fine." };
     }
 
     private static forFailure(failed: PreflightStep, entry: ServerRosterEntry): Verdict {
         switch (failed.name) {
-            case 'Credentials':
+            case "Credentials":
                 return {
-                    severity: 'bad',
+                    severity: "bad",
                     sentence:
-                        'You are not signed in to this server any more. Sign in again to connect.',
+                        "You are not signed in to this server any more. Sign in again to connect.",
                 };
 
-            case 'Handshake':
+            case "Handshake":
                 return {
-                    severity: 'bad',
+                    severity: "bad",
                     sentence:
-                        entry.status === 'reauth'
-                            ? 'This server refused your saved sign-in. Sign in again to connect.'
-                            : 'This server is not answering. Nothing is wrong on this device — ask whoever runs it.',
+                        entry.status === "reauth"
+                            ? "This server refused your saved sign-in. Sign in again to connect."
+                            : "This server is not answering. Nothing is wrong on this device — ask whoever runs it.",
                 };
 
-            case 'Protocol':
+            case "Protocol":
                 return {
-                    severity: 'bad',
+                    severity: "bad",
                     sentence: entry.clientTooOld
                         ? `This server speaks protocol ${entry.serverVersion} and your client speaks ${entry.clientVersion}. Update the client to connect.`
                         : `This server speaks protocol ${entry.serverVersion} and your client speaks ${entry.clientVersion}. Whoever runs it has to update it.`,
                 };
 
-            case 'Voice path':
+            case "Voice path":
                 return {
-                    severity: 'bad',
+                    severity: "bad",
                     sentence:
                         `UDP ${entry.quicPort} to this server is blocked and it offers no fallback path, ` +
-                        'so voice cannot connect at all. Check the network or firewall you are behind, ' +
-                        'then recheck.',
+                        "so voice cannot connect at all. Check the network or firewall you are behind, " +
+                        "then recheck.",
                 };
         }
     }

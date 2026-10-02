@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import ServerGlyph from "$radial/components/ServerGlyph.svelte";
@@ -123,10 +123,7 @@
         // nothing. The mic button carries that state instead; the stripe stays for a mute
         // that is not supposed to be there.
         const restingInPtt = selfState.mode === "ptt" && !selfState.holding;
-        frame.classList.toggle(
-            "is-muted",
-            selfState.muted && !selfState.deafened && !restingInPtt,
-        );
+        frame.classList.toggle("is-muted", selfState.muted && !selfState.deafened && !restingInPtt);
         frame.classList.toggle("is-deafened", selfState.deafened);
     });
 
@@ -178,12 +175,12 @@
         icon: import("$radial/core/icons/Icons").IconName;
         danger?: boolean;
     }[] = [
-            { action: "connect", label: "Voice Chat Connect", icon: "server" },
-            { action: "add", label: "Add a server", icon: "plus" },
-            { action: "settings", label: "Settings", icon: "gear" },
-            { action: "status", label: "Connection status", icon: "field" },
-            { action: "signout", label: "Sign out", icon: "close", danger: true },
-        ];
+        { action: "connect", label: "Voice Chat Connect", icon: "server" },
+        { action: "add", label: "Add a server", icon: "plus" },
+        { action: "settings", label: "Settings", icon: "gear" },
+        { action: "status", label: "Connection status", icon: "field" },
+        { action: "signout", label: "Sign out", icon: "close", danger: true },
+    ];
 
     function run(action: SessionAction): void {
         sheet?.close();

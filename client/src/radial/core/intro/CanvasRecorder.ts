@@ -9,44 +9,49 @@
  *     -c:v prores_ks -profile:v 4444 -pix_fmt yuva444p10le intro.mov
  */
 export class CanvasRecorder {
-  static readonly MIME_PREFERENCE = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+    static readonly MIME_PREFERENCE = [
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+    ];
 
-  static isSupported(): boolean {
-    return typeof MediaRecorder !== "undefined" && typeof HTMLCanvasElement !== "undefined";
-  }
+    static isSupported(): boolean {
+        return typeof MediaRecorder !== "undefined" && typeof HTMLCanvasElement !== "undefined";
+    }
 
-  static toWebM(canvas: HTMLCanvasElement, seconds: number, fps = 60): Promise<Blob> {
-    const stream = canvas.captureStream(fps);
-    const mimeType = CanvasRecorder.MIME_PREFERENCE.find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
-    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 12_000_000 });
-    const chunks: Blob[] = [];
+    static toWebM(canvas: HTMLCanvasElement, seconds: number, fps = 60): Promise<Blob> {
+        const stream = canvas.captureStream(fps);
+        const mimeType =
+            CanvasRecorder.MIME_PREFERENCE.find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+        const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 12_000_000 });
+        const chunks: Blob[] = [];
 
-    return new Promise((resolve, reject) => {
-      recorder.ondataavailable = (e) => {
-        if (e.data.size) chunks.push(e.data);
-      };
-      recorder.onerror = () => reject(new Error("radial: recording failed"));
-      recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType || "video/webm" }));
-      recorder.start();
-      setTimeout(() => recorder.stop(), seconds * 1000);
-    });
-  }
+        return new Promise((resolve, reject) => {
+            recorder.ondataavailable = (e) => {
+                if (e.data.size) chunks.push(e.data);
+            };
+            recorder.onerror = () => reject(new Error("radial: recording failed"));
+            recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType || "video/webm" }));
+            recorder.start();
+            setTimeout(() => recorder.stop(), seconds * 1000);
+        });
+    }
 
-  static toPng(canvas: HTMLCanvasElement): Promise<Blob> {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error("radial: frame capture failed"));
-      }, "image/png");
-    });
-  }
+    static toPng(canvas: HTMLCanvasElement): Promise<Blob> {
+        return new Promise((resolve, reject) => {
+            canvas.toBlob((blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error("radial: frame capture failed"));
+            }, "image/png");
+        });
+    }
 
-  static download(blob: Blob, filename: string): void {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-  }
+    static download(blob: Blob, filename: string): void {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
 }

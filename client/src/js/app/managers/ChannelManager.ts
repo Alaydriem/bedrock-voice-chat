@@ -1,22 +1,22 @@
 import { I18n } from "#lib/i18n/index.js";
-import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
-import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { info, error as logError, debug, warn } from '@charlesportwoodii/tauri-plugin-curia';
-import { Store } from '@tauri-apps/plugin-store';
-import type { Channel } from '../../bindings/Channel';
-import type { ChannelEvent } from '../../bindings/ChannelEvent';
-import type { ChannelEvents } from '../../bindings/ChannelEvents';
-import type { Game } from '../../bindings/Game';
-import type { PlayerSource } from '../../bindings/PlayerSource';
-import type { GamerpicResponse } from '../../bindings/GamerpicResponse';
-import type { PlayerManager } from './PlayerManager';
-import { updateNotification } from 'tauri-plugin-audio-permissions';
-import PlatformDetector from '../utils/PlatformDetector';
-import GameNameUtils from '../utils/GameNameUtils';
-import ImageCache from '../components/imageCache';
-import ImageCacheOptions from '../components/imageCacheOptions';
-import Analytics from '../analytics';
+import { writable, derived, get, type Writable, type Readable } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { info, error as logError, debug, warn } from "@charlesportwoodii/tauri-plugin-curia";
+import { Store } from "@tauri-apps/plugin-store";
+import type { Channel } from "../../bindings/Channel";
+import type { ChannelEvent } from "../../bindings/ChannelEvent";
+import type { ChannelEvents } from "../../bindings/ChannelEvents";
+import type { Game } from "../../bindings/Game";
+import type { PlayerSource } from "../../bindings/PlayerSource";
+import type { GamerpicResponse } from "../../bindings/GamerpicResponse";
+import type { PlayerManager } from "./PlayerManager";
+import { updateNotification } from "tauri-plugin-audio-permissions";
+import PlatformDetector from "../utils/PlatformDetector";
+import GameNameUtils from "../utils/GameNameUtils";
+import ImageCache from "../components/imageCache";
+import ImageCacheOptions from "../components/imageCacheOptions";
+import Analytics from "../analytics";
 
 interface ChannelStoreState {
     channels: Channel[];
@@ -54,7 +54,7 @@ export default class ChannelManager {
     public readonly error: Readable<string | null>;
     public readonly channelState: Readable<ChannelStoreState>;
 
-    constructor(playerManager: PlayerManager, store: Store, serverUrl: string = '') {
+    constructor(playerManager: PlayerManager, store: Store, serverUrl: string = "") {
         this.playerManager = playerManager;
         this.store = store;
         this.serverUrl = serverUrl;
@@ -77,18 +77,32 @@ export default class ChannelManager {
 
         // Derived store for component convenience (matches current channelStore interface)
         this.channelState = derived(
-            [this.channelsStore, this.currentUserChannelIdStore, this.isListeningStore, this.isLoadingStore, this.lastFetchTimeStore, this.errorStore],
-            ([$channels, $currentUserChannelId, $isListening, $isLoading, $lastFetchTime, $error]) => ({
+            [
+                this.channelsStore,
+                this.currentUserChannelIdStore,
+                this.isListeningStore,
+                this.isLoadingStore,
+                this.lastFetchTimeStore,
+                this.errorStore,
+            ],
+            ([
+                $channels,
+                $currentUserChannelId,
+                $isListening,
+                $isLoading,
+                $lastFetchTime,
+                $error,
+            ]) => ({
                 channels: $channels,
                 currentUserChannelId: $currentUserChannelId,
                 isListening: $isListening,
                 isLoading: $isLoading,
                 lastFetchTime: $lastFetchTime,
-                error: $error
-            })
+                error: $error,
+            }),
         );
 
-        info(`ChannelManager: Initialized with server URL: ${serverUrl || 'none'}`);
+        info(`ChannelManager: Initialized with server URL: ${serverUrl || "none"}`);
     }
 
     /**
@@ -107,8 +121,8 @@ export default class ChannelManager {
     private getCurrentUserName(): string {
         // Get current user from PlayerManager instead of store
         const currentUserStore = this.playerManager.currentUser;
-        let currentUser = '';
-        const unsubscribe = currentUserStore.subscribe(value => {
+        let currentUser = "";
+        const unsubscribe = currentUserStore.subscribe((value) => {
             currentUser = value;
         });
         unsubscribe(); // Immediately unsubscribe since we just want the current value
@@ -117,7 +131,7 @@ export default class ChannelManager {
 
     private handleError(error: any): void {
         logError(`Channel manager error: ${error}`);
-        this.errorStore.set(error.message || 'An unknown error occurred');
+        this.errorStore.set(error.message || "An unknown error occurred");
     }
 
     public clearError(): void {
@@ -169,7 +183,7 @@ export default class ChannelManager {
             this.clearError();
             this.isLoadingStore.set(true);
 
-            const channels = await invoke<Channel[]>('api_list_channels');
+            const channels = await invoke<Channel[]>("api_list_channels");
 
             this.channelsStore.set(channels);
             this.isLoadingStore.set(false);
@@ -188,7 +202,7 @@ export default class ChannelManager {
         try {
             this.clearError();
 
-            const channel = await invoke<Channel>('api_get_channel', { channelId });
+            const channel = await invoke<Channel>("api_get_channel", { channelId });
 
             // Update or add the channel in the store
             this.channelsStore.update((channels: Channel[]) => {
@@ -216,7 +230,7 @@ export default class ChannelManager {
         try {
             this.clearError();
 
-            const channelId = await invoke<string>('api_create_channel', { name });
+            const channelId = await invoke<string>("api_create_channel", { name });
 
             // Refresh channels after creation
             await this.fetchChannels();
@@ -232,11 +246,13 @@ export default class ChannelManager {
         try {
             this.clearError();
 
-            const success = await invoke<boolean>('api_delete_channel', { channelId });
+            const success = await invoke<boolean>("api_delete_channel", { channelId });
 
             if (success) {
                 // Remove channel from local state immediately
-                this.channelsStore.update((channels: Channel[]) => channels.filter((c: Channel) => c.id !== channelId));
+                this.channelsStore.update((channels: Channel[]) =>
+                    channels.filter((c: Channel) => c.id !== channelId),
+                );
 
                 // Update current user channel if they were in the deleted channel
                 const currentChannelId = get(this.currentUserChannelIdStore);
@@ -256,7 +272,10 @@ export default class ChannelManager {
         try {
             this.clearError();
 
-            const success = await invoke<boolean>('api_rename_channel', { channelId, name: newName });
+            const success = await invoke<boolean>("api_rename_channel", {
+                channelId,
+                name: newName,
+            });
 
             if (success) {
                 this.channelsStore.update((channels: Channel[]) =>
@@ -265,7 +284,7 @@ export default class ChannelManager {
                             return { ...channel, name: newName };
                         }
                         return channel;
-                    })
+                    }),
                 );
             }
 
@@ -280,7 +299,7 @@ export default class ChannelManager {
     // async and nullable because callers compose the canonical `game:gamertag` key from it,
     // and that composition is what a second game would change.
     private async getActiveGame(): Promise<Game | null> {
-        return 'minecraft';
+        return "minecraft";
     }
 
     async joinChannel(channelId: string, currentUser: string): Promise<boolean> {
@@ -303,14 +322,14 @@ export default class ChannelManager {
 
             // Check if user is already in the channel's player list (e.g. server added them on create)
             const existingChannels = get(this.channelsStore);
-            const targetChannel = existingChannels.find(c => c.id === channelId);
+            const targetChannel = existingChannels.find((c) => c.id === channelId);
             if (targetChannel?.players.includes(actor)) {
                 this.currentUserChannelIdStore.set(channelId);
                 const isMobile = await this.platformDetector.checkMobile();
                 if (isMobile) {
                     await updateNotification({
                         title: "Bedrock Voice Chat",
-                        message: I18n.t("In public group channel")
+                        message: I18n.t("In public group channel"),
                     });
                 }
                 await this.addExistingGroupMembers(channelId, actor);
@@ -320,16 +339,16 @@ export default class ChannelManager {
             const activeGame = await this.getActiveGame();
             const event: ChannelEvent = { event: "Join" as ChannelEvents, game: activeGame };
 
-            const success = await invoke<boolean>('api_channel_event', {
+            const success = await invoke<boolean>("api_channel_event", {
                 channelId: channelId,
-                event
+                event,
             });
 
             if (success) {
                 const existingChannels = get(this.channelsStore);
-                const joinedChannel = existingChannels.find(c => c.id === channelId);
+                const joinedChannel = existingChannels.find((c) => c.id === channelId);
                 Analytics.track("ChannelJoined", {
-                    participant_count: (joinedChannel?.players.length ?? 0) + 1
+                    participant_count: (joinedChannel?.players.length ?? 0) + 1,
                 });
 
                 // Update local state optimistically
@@ -339,11 +358,11 @@ export default class ChannelManager {
                         if (channel.id === channelId && !channel.players.includes(actor)) {
                             return {
                                 ...channel,
-                                players: [...channel.players, actor]
+                                players: [...channel.players, actor],
                             };
                         }
                         return channel;
-                    })
+                    }),
                 );
 
                 // Update notification on mobile only
@@ -351,7 +370,7 @@ export default class ChannelManager {
                 if (isMobile) {
                     await updateNotification({
                         title: "Bedrock Voice Chat",
-                        message: I18n.t("In public group channel")
+                        message: I18n.t("In public group channel"),
                     });
                 }
                 // Add existing group members to PlayerManager
@@ -361,7 +380,7 @@ export default class ChannelManager {
             return success;
         } catch (error: any) {
             // Check if the error is because the channel no longer exists
-            if (error.message && error.message.includes('404')) {
+            if (error.message && error.message.includes("404")) {
                 // Channel was deleted, refresh channels list
                 await this.fetchChannels();
             }
@@ -377,9 +396,9 @@ export default class ChannelManager {
             const actor = this.identity(currentUser);
             const event: ChannelEvent = { event: "Leave" as ChannelEvents, game: null };
 
-            const success = await invoke<boolean>('api_channel_event', {
+            const success = await invoke<boolean>("api_channel_event", {
                 channelId: channelId,
-                event
+                event,
             });
 
             if (success) {
@@ -390,7 +409,7 @@ export default class ChannelManager {
                 if (isMobile) {
                     await updateNotification({
                         title: "Bedrock Voice Chat",
-                        message: I18n.t("In public voice chat")
+                        message: I18n.t("In public voice chat"),
                     });
                 }
                 // Update local state optimistically
@@ -404,11 +423,11 @@ export default class ChannelManager {
                         if (channel.id === channelId) {
                             return {
                                 ...channel,
-                                players: channel.players.filter((p: string) => p !== actor)
+                                players: channel.players.filter((p: string) => p !== actor),
                             };
                         }
                         return channel;
-                    })
+                    }),
                 );
             }
 
@@ -426,12 +445,12 @@ export default class ChannelManager {
      */
     private async addExistingGroupMembers(channelId: string, currentUser: string): Promise<void> {
         if (!this.playerManager) {
-            warn('ChannelManager: PlayerManager not available for adding group members');
+            warn("ChannelManager: PlayerManager not available for adding group members");
             return;
         }
 
         const channels = get(this.channels);
-        const channel = channels.find(c => c.id === channelId);
+        const channel = channels.find((c) => c.id === channelId);
 
         if (!channel) {
             warn(`ChannelManager: Channel ${channelId} not found for adding existing members`);
@@ -441,7 +460,7 @@ export default class ChannelManager {
         for (const member of channel.players) {
             if (member !== currentUser) {
                 try {
-                    const success = await this.playerManager.addPlayerSource(member, 'Group');
+                    const success = await this.playerManager.addPlayerSource(member, "Group");
                     if (!success) {
                         warn(`ChannelManager: Failed to add existing group member: ${member}`);
                     }
@@ -459,13 +478,13 @@ export default class ChannelManager {
      */
     private removeAllGroupMembers(members: string[], currentUser: string, reason: string): void {
         if (!this.playerManager) {
-            warn('ChannelManager: PlayerManager not available for removing group members');
+            warn("ChannelManager: PlayerManager not available for removing group members");
             return;
         }
 
-        members.forEach(member => {
+        members.forEach((member) => {
             if (member !== currentUser) {
-                this.playerManager.removePlayerSource(member, 'Group');
+                this.playerManager.removePlayerSource(member, "Group");
             }
         });
     }
@@ -475,13 +494,21 @@ export default class ChannelManager {
      *
      * @param currentUser This client's canonical identity, composed by the caller.
      */
-    private async handleChannelMovement(fromChannelId: string, toChannelId: string, currentUser: string): Promise<void> {
+    private async handleChannelMovement(
+        fromChannelId: string,
+        toChannelId: string,
+        currentUser: string,
+    ): Promise<void> {
         // Get members from the old channel before leaving
         const channels = get(this.channels);
-        const oldChannel = channels.find(c => c.id === fromChannelId);
+        const oldChannel = channels.find((c) => c.id === fromChannelId);
 
         if (oldChannel && this.playerManager) {
-            this.removeAllGroupMembers(oldChannel.players, currentUser, 'user moving to new channel');
+            this.removeAllGroupMembers(
+                oldChannel.players,
+                currentUser,
+                "user moving to new channel",
+            );
         }
 
         // Leave the old channel
@@ -498,7 +525,7 @@ export default class ChannelManager {
             this.isListeningStore.set(true);
 
             const appWebview = getCurrentWebviewWindow();
-            this.eventUnlisten = await appWebview.listen('channel_event', (event: any) => {
+            this.eventUnlisten = await appWebview.listen("channel_event", (event: any) => {
                 this.handleChannelEvent(event);
             });
         } catch (error) {
@@ -531,22 +558,28 @@ export default class ChannelManager {
         const currentUser = this.getCurrentUserName();
 
         switch (event_type) {
-            case 'create':
+            case "create":
                 // Fetch the new channel to get complete data (includes gamerpics from server)
                 await this.fetchChannel(channel_id);
                 break;
 
-            case 'delete':
+            case "delete":
                 // Get channel members before deleting to clean up group memberships
                 const channels = get(this.channels);
-                const channelToDelete = channels.find(c => c.id === channel_id);
+                const channelToDelete = channels.find((c) => c.id === channel_id);
 
                 if (channelToDelete && this.playerManager) {
-                    this.removeAllGroupMembers(channelToDelete.players, currentUser, 'channel deleted');
+                    this.removeAllGroupMembers(
+                        channelToDelete.players,
+                        currentUser,
+                        "channel deleted",
+                    );
                 }
 
                 // Remove the channel from our store
-                this.channelsStore.update((channels: Channel[]) => channels.filter((c: Channel) => c.id !== channel_id));
+                this.channelsStore.update((channels: Channel[]) =>
+                    channels.filter((c: Channel) => c.id !== channel_id),
+                );
 
                 const currentChannelId = get(this.currentUserChannelIdStore);
                 if (currentChannelId === channel_id) {
@@ -554,7 +587,7 @@ export default class ChannelManager {
                 }
                 break;
 
-            case 'join':
+            case "join":
                 // Update the channel's player list (upsert)
                 this.channelsStore.update((channels: Channel[]) =>
                     channels.map((channel: Channel) => {
@@ -565,7 +598,7 @@ export default class ChannelManager {
                         }
 
                         return { ...channel, players: [...channel.players, player_name] };
-                    })
+                    }),
                 );
 
                 // A join this client did not initiate reaches it only here: the in-game
@@ -585,26 +618,38 @@ export default class ChannelManager {
                 // Add player to group membership if current user is in this channel
                 if (currentUser && this.playerManager) {
                     const channels = get(this.channels);
-                    const userChannel = channels.find(c => c.players.includes(currentUser));
-                    if (userChannel && userChannel.id === channel_id && player_name !== currentUser) {
+                    const userChannel = channels.find((c) => c.players.includes(currentUser));
+                    if (
+                        userChannel &&
+                        userChannel.id === channel_id &&
+                        player_name !== currentUser
+                    ) {
                         const playerGame = this.playerManager.getPlayerGame(player_name);
-                        await this.playerManager.addPlayerSource(player_name, 'Group', undefined, undefined, playerGame);
+                        await this.playerManager.addPlayerSource(
+                            player_name,
+                            "Group",
+                            undefined,
+                            undefined,
+                            playerGame,
+                        );
                         this.fetchAndSetGroupMemberGamepic(player_name);
                     }
                 }
                 break;
 
-            case 'leave':
+            case "leave":
                 // Check channel membership BEFORE removing from list
                 let wasCurrentUserInChannel = false;
                 let channelMembersBeforeLeave: string[] = [];
                 if (currentUser) {
                     const channels = get(this.channels);
-                    const userChannelBefore = channels.find(c => c.players.includes(currentUser));
-                    wasCurrentUserInChannel = !!(userChannelBefore && userChannelBefore.id === channel_id);
+                    const userChannelBefore = channels.find((c) => c.players.includes(currentUser));
+                    wasCurrentUserInChannel = !!(
+                        userChannelBefore && userChannelBefore.id === channel_id
+                    );
 
                     // Capture channel members before any updates
-                    const channelBeforeLeave = channels.find(c => c.id === channel_id);
+                    const channelBeforeLeave = channels.find((c) => c.id === channel_id);
                     if (channelBeforeLeave) {
                         channelMembersBeforeLeave = [...channelBeforeLeave.players];
                     }
@@ -614,26 +659,33 @@ export default class ChannelManager {
                 this.channelsStore.update((channels: Channel[]) =>
                     channels.map((channel: Channel) => {
                         if (channel.id === channel_id) {
-                            return { ...channel, players: channel.players.filter((p: string) => p !== player_name) };
+                            return {
+                                ...channel,
+                                players: channel.players.filter((p: string) => p !== player_name),
+                            };
                         }
                         return channel;
-                    })
+                    }),
                 );
 
                 // Remove player from group membership if current user was in this channel
                 if (currentUser && wasCurrentUserInChannel && this.playerManager) {
                     if (player_name === currentUser) {
-                        this.removeAllGroupMembers(channelMembersBeforeLeave, currentUser, 'current user leaving channel');
+                        this.removeAllGroupMembers(
+                            channelMembersBeforeLeave,
+                            currentUser,
+                            "current user leaving channel",
+                        );
 
                         // Clear current user's channel
                         this.currentUserChannelIdStore.set(null);
                     } else {
-                        this.playerManager.removePlayerSource(player_name, 'Group');
+                        this.playerManager.removePlayerSource(player_name, "Group");
                     }
                 }
                 break;
 
-            case 'rename':
+            case "rename":
                 if (channel_name) {
                     this.channelsStore.update((channels: Channel[]) =>
                         channels.map((channel: Channel) => {
@@ -641,7 +693,7 @@ export default class ChannelManager {
                                 return { ...channel, name: channel_name };
                             }
                             return channel;
-                        })
+                        }),
                     );
                 }
                 break;
@@ -653,12 +705,14 @@ export default class ChannelManager {
 
     private async fetchAndSetGroupMemberGamepic(playerName: string): Promise<void> {
         try {
-            const game = this.playerManager?.getPlayerGame(playerName) ?? GameNameUtils.extractGame(playerName);
+            const game =
+                this.playerManager?.getPlayerGame(playerName) ??
+                GameNameUtils.extractGame(playerName);
             const gamertag = GameNameUtils.stripPrefix(playerName);
 
-            const response = await invoke<GamerpicResponse>('api_get_player_gamerpic', {
+            const response = await invoke<GamerpicResponse>("api_get_player_gamerpic", {
                 game,
-                gamertag
+                gamertag,
             });
 
             if (response.gamerpic) {

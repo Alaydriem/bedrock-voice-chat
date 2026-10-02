@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import Fault from "$radial/components/Fault.svelte";
     import RadScreen from "../shell/RadScreen.svelte";
 
@@ -46,13 +46,23 @@
                 {I18n.t("We couldn't reach")}<br /><b>{server}</b>
             </h2>
             <p class="rad-body rad-rise" style="--d: 210">
-                {I18n.t("Make sure your BVC server is running, and that your account has permission to use it.")}
+                {I18n.t(
+                    "Make sure your BVC server is running, and that your account has permission to use it.",
+                )}
             </p>
             <div class="rad-rise" style="--d: 300; margin-top: 22px; max-width: 370px">
-                <button class="rad-btn rad-btn--lg rad-btn--primary" style="width: 100%" onclick={onretry}>
+                <button
+                    class="rad-btn rad-btn--lg rad-btn--primary"
+                    style="width: 100%"
+                    onclick={onretry}
+                >
                     {I18n.t("Try again")}
                 </button>
-                <button class="rad-btn rad-btn--lg" style="width: 100%; margin-top: 10px" onclick={onchangeserver}>
+                <button
+                    class="rad-btn rad-btn--lg"
+                    style="width: 100%; margin-top: 10px"
+                    onclick={onchangeserver}
+                >
                     {I18n.t("Connect to a different server")}
                 </button>
             </div>

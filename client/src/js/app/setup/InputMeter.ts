@@ -1,7 +1,7 @@
-import { invoke } from '@tauri-apps/api/core';
-import { warn } from '@charlesportwoodii/tauri-plugin-curia';
-import type { InputLevel } from '../../bindings/InputLevel';
-import { EventChannel } from '../events/EventChannel';
+import { invoke } from "@tauri-apps/api/core";
+import { warn } from "@charlesportwoodii/tauri-plugin-curia";
+import type { InputLevel } from "../../bindings/InputLevel";
+import { EventChannel } from "../events/EventChannel";
 
 /**
  * The microphone level on the setup device screen.
@@ -29,12 +29,12 @@ export default class InputMeter {
         if (this.running) return true;
         this.running = true;
 
-        this.unlisten = EventChannel.shared().subscribe<InputLevel>('input_level', (level) =>
+        this.unlisten = EventChannel.shared().subscribe<InputLevel>("input_level", (level) =>
             this.onlevel(level),
         );
 
         try {
-            await invoke('start_input_meter');
+            await invoke("start_input_meter");
             return true;
         } catch (e) {
             // A device that is missing or held exclusively by another application. The
@@ -50,7 +50,7 @@ export default class InputMeter {
         this.running = false;
 
         try {
-            await invoke('stop_input_meter');
+            await invoke("stop_input_meter");
         } catch (e) {
             await warn(`Could not stop the input meter: ${e}`);
         }

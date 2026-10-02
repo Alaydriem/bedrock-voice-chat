@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import { onDestroy, onMount } from "svelte";
     import SettingRow from "$radial/components/SettingRow.svelte";
     import { AboutManager } from "../../../js/app/managers/settings/AboutManager";
@@ -118,7 +118,9 @@
                     class="rad-btn"
                     disabled={discordBusy}
                     onclick={() =>
-                        void about.discordAction(discord.linked ? "discord_unlink" : "discord_link")}
+                        void about.discordAction(
+                            discord.linked ? "discord_unlink" : "discord_link",
+                        )}
                 >
                     {discord.linked ? "Unlink" : "Link"}
                 </button>
@@ -135,11 +137,11 @@
     {/if}
 
     <div class="rad-card">
-        <SettingRow
-            label={I18n.t("Sign out of this server")}
-        >
+        <SettingRow label={I18n.t("Sign out of this server")}>
             {#snippet control()}
-                <button class="rad-btn rad-btn--danger" onclick={onsignout}>{I18n.t("Sign out")}</button>
+                <button class="rad-btn rad-btn--danger" onclick={onsignout}
+                    >{I18n.t("Sign out")}</button
+                >
             {/snippet}
         </SettingRow>
     </div>

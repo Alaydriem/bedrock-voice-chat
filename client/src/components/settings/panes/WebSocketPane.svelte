@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import { invoke } from "@tauri-apps/api/core";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
@@ -85,7 +85,9 @@
 
 <div class="rad-section">
     <div class="rad-section__note">
-        {I18n.t("The websocket server allows remote control of BVC from other devices on your network, such as a Stream Deck, or custom plugin.")}
+        {I18n.t(
+            "The websocket server allows remote control of BVC from other devices on your network, such as a Stream Deck, or custom plugin.",
+        )}
     </div>
 
     <div class="rad-card">
@@ -102,9 +104,7 @@
             {/snippet}
         </SettingRow>
 
-        <SettingRow
-            label={I18n.t("Port")}
-        >
+        <SettingRow label={I18n.t("Port")}>
             {#snippet control()}
                 <span class="rad-input" style="width: 104px">
                     <input
@@ -123,7 +123,12 @@
             <SettingRow label={I18n.t("Address")} note={I18n.t("Point your plugin here.")}>
                 {#snippet control()}
                     <span class="rad-input" style="width: 230px">
-                        <input type="text" value={address} readonly aria-label={I18n.t("Address")} />
+                        <input
+                            type="text"
+                            value={address}
+                            readonly
+                            aria-label={I18n.t("Address")}
+                        />
                     </span>
                     <button
                         class="rad-icon-btn"
@@ -137,7 +142,9 @@
         {:else}
             <SettingRow
                 label={I18n.t("Addresses")}
-                note={I18n.t("This device answers on all of them. Use whichever your other device can reach.")}
+                note={I18n.t(
+                    "This device answers on all of them. Use whichever your other device can reach.",
+                )}
                 stack
             >
                 <div class="rad-addresses">
@@ -148,14 +155,18 @@
                             <button
                                 class="rad-icon-btn"
                                 onclick={() => void copy(`ws://${candidate.address}`)}
-                                aria-label={I18n.tf("Copy ws://{address}", { address: candidate.address })}
+                                aria-label={I18n.tf("Copy ws://{address}", {
+                                    address: candidate.address,
+                                })}
                             >
                                 <Icon name="copy" />
                             </button>
                         </div>
                     {:else}
                         <span class="rad-address__label">
-                            {I18n.t("No network address yet. Connect to Wi-Fi and reopen this pane.")}
+                            {I18n.t(
+                                "No network address yet. Connect to Wi-Fi and reopen this pane.",
+                            )}
                         </span>
                     {/each}
                 </div>
@@ -187,7 +198,9 @@
 
         <SettingRow
             label={I18n.t("Access token")}
-            note={I18n.t("Required on connect. Regenerating disconnects anything using the old one.")}
+            note={I18n.t(
+                "Required on connect. Regenerating disconnects anything using the old one.",
+            )}
         >
             {#snippet control()}
                 <span class="rad-input" style="width: 230px">
@@ -255,14 +268,16 @@
                 onclick={() =>
                     void copy("https://www.bedrockvoicechat.com/wiki/creator/websocket-api/")}
             >
-                {I18n.t("WebSocket API")} <Icon name="ext" />
+                {I18n.t("WebSocket API")}
+                <Icon name="ext" />
             </button>
             <button
                 class="rad-link-card"
                 onclick={() =>
                     void copy("https://www.bedrockvoicechat.com/wiki/creator/stream-deck/")}
             >
-                {I18n.t("Stream Deck plugin")} <Icon name="ext" />
+                {I18n.t("Stream Deck plugin")}
+                <Icon name="ext" />
             </button>
         </div>
     </div>

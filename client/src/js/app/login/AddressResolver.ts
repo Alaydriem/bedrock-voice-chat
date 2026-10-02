@@ -1,13 +1,13 @@
-import { invoke } from '@tauri-apps/api/core';
-import { warn } from '@charlesportwoodii/tauri-plugin-curia';
-import { writable, type Readable, type Writable } from 'svelte/store';
-import type { RingMode } from '$radial/bindings/RingBinding';
-import type { ProtocolCompatibility } from '../../bindings/ProtocolCompatibility';
-import type { ServerReachability } from '../../bindings/ServerReachability';
-import { PublicServerConfig } from '../services/PublicServerConfig';
+import { invoke } from "@tauri-apps/api/core";
+import { warn } from "@charlesportwoodii/tauri-plugin-curia";
+import { writable, type Readable, type Writable } from "svelte/store";
+import type { RingMode } from "$radial/bindings/RingBinding";
+import type { ProtocolCompatibility } from "../../bindings/ProtocolCompatibility";
+import type { ServerReachability } from "../../bindings/ServerReachability";
+import { PublicServerConfig } from "../services/PublicServerConfig";
 
 export interface ResolveVerdict {
-    readonly state: 'editing' | 'ok' | 'bad';
+    readonly state: "editing" | "ok" | "bad";
     readonly ring: RingMode;
     /** The line under the field. */
     readonly line: string;
@@ -43,25 +43,25 @@ export default class AddressResolver {
 
     /** The field has something in it that no probe will be spent on. */
     private static readonly EDITING: ResolveVerdict = {
-        state: 'editing',
-        ring: 'empty',
-        line: '○ Resolving',
-        caption: 'RESOLVING',
+        state: "editing",
+        ring: "empty",
+        line: "○ Resolving",
+        caption: "RESOLVING",
         busy: false,
     };
 
     /** The same state with something actually happening behind it. */
     private static readonly MEASURING: ResolveVerdict = {
         ...AddressResolver.EDITING,
-        line: 'Resolving',
+        line: "Resolving",
         busy: true,
     };
 
     private static readonly NO_RESPONSE: ResolveVerdict = {
-        state: 'bad',
-        ring: 'empty',
-        line: '✕ Nothing at that address',
-        caption: 'NO RESPONSE',
+        state: "bad",
+        ring: "empty",
+        line: "✕ Nothing at that address",
+        caption: "NO RESPONSE",
         busy: false,
     };
 
@@ -90,8 +90,8 @@ export default class AddressResolver {
             : `✕ Server is on an older protocol — it speaks ${check.server_version}, this build speaks ${check.client_version}`;
 
         return {
-            state: 'bad',
-            ring: 'empty',
+            state: "bad",
+            ring: "empty",
             line,
             caption: `PROTOCOL ${check.server_version}`,
             busy: false,
@@ -113,8 +113,8 @@ export default class AddressResolver {
              * The transport is settled at connect time from the complete report, and the
              * server selector names it there, where the walk has actually finished.
              */
-            case 'Ready':
-            case 'VoiceFallback': {
+            case "Ready":
+            case "VoiceFallback": {
                 const micros = report.best_rtt_micros ?? report.fallback_rtt_micros ?? 0;
                 const ms = Math.round(micros / 1000);
                 // Only a QUIC endpoint has a port worth naming, and `answeringPort` finds one
@@ -122,33 +122,33 @@ export default class AddressResolver {
                 const port = AddressResolver.answeringPort(report);
                 const suffix =
                     port === null || port === AddressResolver.STANDARD_QUIC_PORT
-                        ? ''
+                        ? ""
                         : ` · port ${port}`;
                 return {
-                    state: 'ok',
-                    ring: 'lock',
+                    state: "ok",
+                    ring: "lock",
                     line: `● Resolved · ${ms} ms${suffix}`,
                     caption: `RESOLVED · ${ms} MS`,
                     busy: false,
                 };
             }
-            case 'VoiceBlocked':
+            case "VoiceBlocked":
                 return {
-                    state: 'bad',
-                    ring: 'empty',
-                    line: '✕ Server reachable, but no voice path',
-                    caption: 'NO VOICE PATH',
+                    state: "bad",
+                    ring: "empty",
+                    line: "✕ Server reachable, but no voice path",
+                    caption: "NO VOICE PATH",
                     busy: false,
                 };
-            case 'NoRoute':
+            case "NoRoute":
                 return {
-                    state: 'bad',
-                    ring: 'empty',
-                    line: '✕ This device has no route to that address',
-                    caption: 'NO ROUTE',
+                    state: "bad",
+                    ring: "empty",
+                    line: "✕ This device has no route to that address",
+                    caption: "NO ROUTE",
                     busy: false,
                 };
-            case 'Unreachable':
+            case "Unreachable":
                 return AddressResolver.NO_RESPONSE;
         }
     }
@@ -164,7 +164,7 @@ export default class AddressResolver {
         const best = report.best_rtt_micros;
         for (const endpoint of report.quic) {
             const outcome = endpoint.outcome as { state: string; rtt_micros?: number };
-            if (outcome.state === 'answered' && outcome.rtt_micros === best) {
+            if (outcome.state === "answered" && outcome.rtt_micros === best) {
                 return endpoint.port;
             }
         }
@@ -186,8 +186,8 @@ export default class AddressResolver {
 
         const trimmed = value
             .trim()
-            .replace(/^https?:\/\//, '')
-            .replace(/\/$/, '');
+            .replace(/^https?:\/\//, "")
+            .replace(/\/$/, "");
 
         // Nothing about this value will be measured, so it must not claim to be working.
         if (!AddressResolver.HOSTNAME.test(trimmed)) {
@@ -219,7 +219,7 @@ export default class AddressResolver {
             // build cannot speak to is not made better by having a fast voice path,
             // and saying "resolved" first would be a promise the connect cannot keep.
             const compatibility = await invoke<ProtocolCompatibility>(
-                'check_protocol_compatibility',
+                "check_protocol_compatibility",
                 { serverVersion: config.protocol_version },
             );
             if (generation !== this.generation) return;
@@ -231,7 +231,7 @@ export default class AddressResolver {
             // The narrower command: it returns on the first leg that proves voice can get
             // through rather than waiting out the QUIC budget, and finishes the full
             // measurement in the background so the connect after this reads a complete one.
-            const report = await invoke<ServerReachability>('probe_voice_path', {
+            const report = await invoke<ServerReachability>("probe_voice_path", {
                 server,
                 quicPorts: config.quic_ports,
                 quicPort: config.quic_port,

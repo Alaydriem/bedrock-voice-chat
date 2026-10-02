@@ -17,66 +17,66 @@
  * died without clearing it would otherwise hold the screen open forever.
  */
 export default class FinishWatchdog {
-  static readonly TIMEOUT_MS = 30000;
+    static readonly TIMEOUT_MS = 30000;
 
-  /** Further windows granted while a callback is demonstrably still in progress. */
-  static readonly EXTENSIONS = 3;
+    /** Further windows granted while a callback is demonstrably still in progress. */
+    static readonly EXTENSIONS = 3;
 
-  private timer: ReturnType<typeof setTimeout> | null = null;
-  private extensions = 0;
+    private timer: ReturnType<typeof setTimeout> | null = null;
+    private extensions = 0;
 
-  /**
-   * @param stillWaiting whether the sign-in is still outstanding. Asked before the verdict
-   *   and again after the evidence check, which awaits.
-   * @param inFlight whether a callback has arrived and not yet been disposed of.
-   * @param onLost called once, when the attempt is judged lost.
-   * @param log where a granted extension is recorded, so a slow sign-in is visible in a log
-   *   rather than looking like the deadline silently not working.
-   */
-  constructor(
-    private readonly stillWaiting: () => boolean,
-    private readonly inFlight: () => Promise<boolean>,
-    private readonly onLost: () => void,
-    private readonly log: (message: string) => void = () => {},
-  ) {}
+    /**
+     * @param stillWaiting whether the sign-in is still outstanding. Asked before the verdict
+     *   and again after the evidence check, which awaits.
+     * @param inFlight whether a callback has arrived and not yet been disposed of.
+     * @param onLost called once, when the attempt is judged lost.
+     * @param log where a granted extension is recorded, so a slow sign-in is visible in a log
+     *   rather than looking like the deadline silently not working.
+     */
+    constructor(
+        private readonly stillWaiting: () => boolean,
+        private readonly inFlight: () => Promise<boolean>,
+        private readonly onLost: () => void,
+        private readonly log: (message: string) => void = () => {},
+    ) {}
 
-  start(): void {
-    this.cancel();
-    this.arm();
-  }
-
-  cancel(): void {
-    this.extensions = 0;
-    if (this.timer !== null) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
-  }
-
-  private arm(): void {
-    this.timer = setTimeout(() => {
-      void this.deadlineReached();
-    }, FinishWatchdog.TIMEOUT_MS);
-  }
-
-  private async deadlineReached(): Promise<void> {
-    this.timer = null;
-    if (!this.stillWaiting()) return;
-
-    if (this.extensions < FinishWatchdog.EXTENSIONS && (await this.inFlight())) {
-      this.extensions += 1;
-      this.log(
-        `Login: auth callback still in progress, waiting (${this.extensions}/${FinishWatchdog.EXTENSIONS})`,
-      );
-      this.arm();
-      return;
+    start(): void {
+        this.cancel();
+        this.arm();
     }
 
-    // Asked again because the evidence check awaited: a redemption that finished while it
-    // did has already moved the sign-in on, and failing it now would replace a completed
-    // login with an error.
-    if (!this.stillWaiting()) return;
+    cancel(): void {
+        this.extensions = 0;
+        if (this.timer !== null) {
+            clearTimeout(this.timer);
+            this.timer = null;
+        }
+    }
 
-    this.onLost();
-  }
+    private arm(): void {
+        this.timer = setTimeout(() => {
+            void this.deadlineReached();
+        }, FinishWatchdog.TIMEOUT_MS);
+    }
+
+    private async deadlineReached(): Promise<void> {
+        this.timer = null;
+        if (!this.stillWaiting()) return;
+
+        if (this.extensions < FinishWatchdog.EXTENSIONS && (await this.inFlight())) {
+            this.extensions += 1;
+            this.log(
+                `Login: auth callback still in progress, waiting (${this.extensions}/${FinishWatchdog.EXTENSIONS})`,
+            );
+            this.arm();
+            return;
+        }
+
+        // Asked again because the evidence check awaited: a redemption that finished while it
+        // did has already moved the sign-in on, and failing it now would replace a completed
+        // login with an error.
+        if (!this.stillWaiting()) return;
+
+        this.onLost();
+    }
 }

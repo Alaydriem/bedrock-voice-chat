@@ -3,16 +3,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invokeCalls, mockInvoke } from "../tauri";
 
 vi.mock("@tauri-apps/plugin-store", () => ({
-    Store: { load: async () => ({ get: async () => "https://bvc.example.com", set: async () => {}, save: async () => {} }) },
+    Store: {
+        load: async () => ({
+            get: async () => "https://bvc.example.com",
+            set: async () => {},
+            save: async () => {},
+        }),
+    },
 }));
 
-const { default: RecordingsPane } = await import(
-    "../../components/settings/panes/RecordingsPane.svelte"
-);
+const { default: RecordingsPane } =
+    await import("../../components/settings/panes/RecordingsPane.svelte");
 const { default: LibraryPane } = await import("../../components/settings/panes/LibraryPane.svelte");
-const { default: WebSocketPane } = await import(
-    "../../components/settings/panes/WebSocketPane.svelte"
-);
+const { default: WebSocketPane } =
+    await import("../../components/settings/panes/WebSocketPane.svelte");
 
 function mount(component: unknown, props: Record<string, unknown> = {}) {
     const host = document.createElement("div");
@@ -240,9 +244,7 @@ describe("RecordingsPane", () => {
         });
         const view = mount(RecordingsPane);
 
-        await waitFor(() =>
-            expect(view.text()).toContain("This server does not allow recording"),
-        );
+        await waitFor(() => expect(view.text()).toContain("This server does not allow recording"));
     });
 
     // Turning recording off must not read as losing what was already recorded.
@@ -323,7 +325,11 @@ describe("LibraryPane", () => {
     // would be invisible on exactly one form factor, which is the kind of gap nobody notices
     // until a phone is the only thing to hand.
     it("renders every sound in both the table and the card list", async () => {
-        library(["audio_delete"], [sound(), sound({ id: "snd_bell", original_filename: "bell.ogg" })], 2);
+        library(
+            ["audio_delete"],
+            [sound(), sound({ id: "snd_bell", original_filename: "bell.ogg" })],
+            2,
+        );
         const view = mount(LibraryPane);
         await waitFor(() => expect(view.host.querySelectorAll(".rad-datacard")).toHaveLength(2));
         expect(view.host.querySelectorAll(".rad-table tbody tr")).toHaveLength(2);
@@ -490,9 +496,7 @@ describe("WebSocketPane", () => {
         await waitFor(() => expect(view.text()).toContain("Address"));
         expect(view.text()).not.toContain("192.168.1.24");
 
-        view.host
-            .querySelector<HTMLElement>('[aria-label="Allow external connections"]')
-            ?.click();
+        view.host.querySelector<HTMLElement>('[aria-label="Allow external connections"]')?.click();
         await waitFor(() => expect(view.text()).toContain("192.168.1.24"));
     });
 

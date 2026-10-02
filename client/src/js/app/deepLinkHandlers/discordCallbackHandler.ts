@@ -8,11 +8,11 @@ export class DiscordCallbackHandler {
     // form used by the iOS fragment-trampoline fallback.
     private readonly PREFIXES = [
         "https://www.bedrockvoicechat.com/discord/callback",
-        "bedrock-voice-chat://discord-callback"
+        "bedrock-voice-chat://discord-callback",
     ];
 
     canHandle(url: string): boolean {
-        return this.PREFIXES.some(prefix => url.startsWith(prefix));
+        return this.PREFIXES.some((prefix) => url.startsWith(prefix));
     }
 
     async handle(url: string): Promise<DeepLinkOutcome> {

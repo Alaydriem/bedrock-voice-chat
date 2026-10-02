@@ -32,11 +32,7 @@ describe("Sheet drag to dismiss", () => {
         sheet.open("groups");
         expect(sheet.openName).toBe("groups");
 
-        drag(
-            el.querySelector(".rad-sheet__handle") as Element,
-            100,
-            100 + CoverDrag.DISMISS + 1,
-        );
+        drag(el.querySelector(".rad-sheet__handle") as Element, 100, 100 + CoverDrag.DISMISS + 1);
         expect(sheet.openName).toBeNull();
     });
 
@@ -66,11 +62,7 @@ describe("Sheet drag to dismiss", () => {
         const el = frame();
         const sheet = new Sheet(el);
 
-        drag(
-            el.querySelector(".rad-sheet__handle") as Element,
-            100,
-            100 + CoverDrag.DISMISS + 1,
-        );
+        drag(el.querySelector(".rad-sheet__handle") as Element, 100, 100 + CoverDrag.DISMISS + 1);
         expect(sheet.openName).toBeNull();
         expect((el.querySelector("[data-rad-sheet]") as HTMLElement).style.transform).toBe("");
     });

@@ -1,52 +1,51 @@
-import { platform } from '@tauri-apps/plugin-os';
+import { platform } from "@tauri-apps/plugin-os";
 
 export default class PlatformDetector {
-  private isMobile: boolean | null = null;
+    private isMobile: boolean | null = null;
 
-  /**
-   * The platform family, without awaiting.
-   *
-   * `plugin-os` reads a value injected at startup rather than crossing the IPC
-   * boundary, so there is nothing to wait for. Awaiting it anyway leaves every caller
-   * rendering as desktop for a frame first.
-   */
-  mobile(): boolean {
-    if (this.isMobile !== null) {
-      return this.isMobile;
+    /**
+     * The platform family, without awaiting.
+     *
+     * `plugin-os` reads a value injected at startup rather than crossing the IPC
+     * boundary, so there is nothing to wait for. Awaiting it anyway leaves every caller
+     * rendering as desktop for a frame first.
+     */
+    mobile(): boolean {
+        if (this.isMobile !== null) {
+            return this.isMobile;
+        }
+
+        try {
+            const typeStr = String(platform()).toLowerCase();
+            this.isMobile = typeStr.includes("ios") || typeStr.includes("android");
+        } catch (error) {
+            this.isMobile = false;
+        }
+
+        return this.isMobile;
     }
 
-    try {
-      const typeStr = String(platform()).toLowerCase();
-      this.isMobile = typeStr.includes('ios') || typeStr.includes('android');
-    } catch (error) {
-      this.isMobile = false;
+    async checkMobile(): Promise<boolean> {
+        return this.mobile();
     }
 
-    return this.isMobile;
-  }
+    async isWindows(): Promise<boolean> {
+        if (this.isMobile) {
+            return false;
+        }
 
-  async checkMobile(): Promise<boolean> {
-    return this.mobile();
-  }
+        try {
+            const family = await platform();
+            const typeStr = String(family).toLowerCase();
+            if (typeStr.includes("windows")) {
+                return true;
+            }
+        } catch (error) {}
 
-  async isWindows(): Promise<boolean> {
-    if (this.isMobile) {
-      return false;
+        return false;
     }
 
-    try {
-      const family = await platform();
-      const typeStr = String(family).toLowerCase();
-      if (typeStr.includes("windows")) {
-        return true;
-      }
-    } catch (error) {
+    reset(): void {
+        this.isMobile = null;
     }
-
-    return false;
-  }
-
-  reset(): void {
-    this.isMobile = null;
-  }
 }

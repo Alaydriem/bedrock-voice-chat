@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     interface Props {
         /** Play a chime through the selected output device. Resolves when it has finished. */
         ontest: () => Promise<boolean>;

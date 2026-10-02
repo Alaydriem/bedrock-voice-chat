@@ -1,11 +1,11 @@
-import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
-import { invoke } from '@tauri-apps/api/core';
-import { Store } from '@tauri-apps/plugin-store';
-import { info, error as logError } from '@charlesportwoodii/tauri-plugin-curia';
-import type { BedrockRenewal } from '../../../../bindings/BedrockRenewal';
-import type { RealmEntry } from '../../../../bindings/RealmEntry';
-import type { RealmsLifecycle } from './RealmsLifecycle';
-import type { BedrockRealmsManagerCallbacks } from './BedrockRealmsManagerCallbacks';
+import { writable, derived, get, type Writable, type Readable } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import { Store } from "@tauri-apps/plugin-store";
+import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
+import type { BedrockRenewal } from "../../../../bindings/BedrockRenewal";
+import type { RealmEntry } from "../../../../bindings/RealmEntry";
+import type { RealmsLifecycle } from "./RealmsLifecycle";
+import type { BedrockRealmsManagerCallbacks } from "./BedrockRealmsManagerCallbacks";
 
 export class BedrockRealmsManager implements RealmsLifecycle {
     private realmsRunningStore: Writable<boolean>;
@@ -36,7 +36,7 @@ export class BedrockRealmsManager implements RealmsLifecycle {
         this.favoritesStore = writable(new Set());
         this.isLoadingRealmsStore = writable(false);
         this.activeRealmIdStore = writable(null);
-        this.activeRealmNameStore = writable('');
+        this.activeRealmNameStore = writable("");
 
         this.realmsRunning = { subscribe: this.realmsRunningStore.subscribe };
         this.realms = { subscribe: this.realmsStore.subscribe };
@@ -58,7 +58,7 @@ export class BedrockRealmsManager implements RealmsLifecycle {
 
     async initialize(store: Store): Promise<void> {
         this.store = store;
-        const savedFavs = await store.get<string[]>('bedrock_realm_favorites');
+        const savedFavs = await store.get<string[]>("bedrock_realm_favorites");
         if (savedFavs) {
             this.favoritesStore.set(new Set(savedFavs));
         }
@@ -81,7 +81,7 @@ export class BedrockRealmsManager implements RealmsLifecycle {
     async loadRealms(): Promise<void> {
         this.isLoadingRealmsStore.set(true);
         try {
-            const realms = await invoke<RealmEntry[]>('bedrock_list_realms');
+            const realms = await invoke<RealmEntry[]>("bedrock_list_realms");
             this.realmsStore.set(realms);
         } catch (e) {
             this.reportListFailure(e);
@@ -96,23 +96,23 @@ export class BedrockRealmsManager implements RealmsLifecycle {
         // The one renewal the player asks for by hand. Every other surface renews for itself
         // when it needs to, so this is the only place that still calls it directly.
         try {
-            const outcome = await invoke<BedrockRenewal>('bedrock_force_refresh');
-            if (outcome.kind === 'reauth_required') {
+            const outcome = await invoke<BedrockRenewal>("bedrock_force_refresh");
+            if (outcome.kind === "reauth_required") {
                 this.callbacks.onReauthRequired();
                 this.isLoadingRealmsStore.set(false);
                 return;
             }
-            if (outcome.kind === 'unavailable') {
+            if (outcome.kind === "unavailable") {
                 logError(`Token refresh unavailable: ${outcome.message}`);
             } else {
-                info('Bedrock token refreshed');
+                info("Bedrock token refreshed");
             }
         } catch (e) {
             logError(`Token refresh failed: ${e}`);
         }
 
         try {
-            const realms = await invoke<RealmEntry[]>('bedrock_list_realms');
+            const realms = await invoke<RealmEntry[]>("bedrock_list_realms");
             this.realmsStore.set(realms);
         } catch (e) {
             this.reportListFailure(e);
@@ -125,7 +125,7 @@ export class BedrockRealmsManager implements RealmsLifecycle {
      * sentinel rather than a variant. Anything else is an ordinary failure.
      */
     private reportListFailure(e: unknown): void {
-        if (String(e).includes('REAUTH_REQUIRED')) {
+        if (String(e).includes("REAUTH_REQUIRED")) {
             this.callbacks.onReauthRequired();
             return;
         }
@@ -145,21 +145,18 @@ export class BedrockRealmsManager implements RealmsLifecycle {
         });
 
         if (this.store) {
-            await this.store.set(
-                'bedrock_realm_favorites',
-                [...get(this.favoritesStore)],
-            );
+            await this.store.set("bedrock_realm_favorites", [...get(this.favoritesStore)]);
             await this.store.save();
         }
     }
 
     async connectToRealm(realm: RealmEntry): Promise<void> {
-        this.callbacks.setStatus('');
+        this.callbacks.setStatus("");
         this.callbacks.clearLogs();
         this.callbacks.clearConnectionError();
 
         try {
-            await invoke('bedrock_start_realms', {
+            await invoke("bedrock_start_realms", {
                 realmId: Number(realm.id),
                 realmName: realm.name,
                 networkInterface: this.selectedInterface(),
@@ -178,11 +175,11 @@ export class BedrockRealmsManager implements RealmsLifecycle {
 
     async stopRealms(): Promise<void> {
         try {
-            await invoke('bedrock_stop_realms');
+            await invoke("bedrock_stop_realms");
             this.realmsRunningStore.set(false);
             this.activeRealmIdStore.set(null);
-            this.activeRealmNameStore.set('');
-            this.callbacks.setStatus('Disconnected');
+            this.activeRealmNameStore.set("");
+            this.callbacks.setStatus("Disconnected");
         } catch (e) {
             this.callbacks.setStatus(`Error stopping: ${e}`);
         }
@@ -192,6 +189,6 @@ export class BedrockRealmsManager implements RealmsLifecycle {
         this.realmsStore.set([]);
         this.realmsRunningStore.set(false);
         this.activeRealmIdStore.set(null);
-        this.activeRealmNameStore.set('');
+        this.activeRealmNameStore.set("");
     }
 }

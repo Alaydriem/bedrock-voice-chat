@@ -1,11 +1,11 @@
-import { get, type Readable } from 'svelte/store';
-import { invoke } from '@tauri-apps/api/core';
-import { error } from '@charlesportwoodii/tauri-plugin-curia';
-import type { VoiceRoster } from '../../bindings/VoiceRoster';
-import type { VoiceMember } from '../../bindings/VoiceMember';
-import type { NearbyPlayer } from '../dashboard/NearbyPlayer';
-import type { PlayerManager } from './PlayerManager';
-import { Coalescer } from '../utils/Coalescer';
+import { get, type Readable } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import { error } from "@charlesportwoodii/tauri-plugin-curia";
+import type { VoiceRoster } from "../../bindings/VoiceRoster";
+import type { VoiceMember } from "../../bindings/VoiceMember";
+import type { NearbyPlayer } from "../dashboard/NearbyPlayer";
+import type { PlayerManager } from "./PlayerManager";
+import { Coalescer } from "../utils/Coalescer";
 
 /**
  * Publishes who this client can hear to the `/events` WebSocket, for the OBS overlay.
@@ -55,25 +55,25 @@ export class VoiceRosterPublisher {
         for (const player of get(this.inEarshot)) {
             // `game` presence is somebody in the world with no voice connection. Nothing they
             // say arrives and nothing said to them lands, so they are not on this roster.
-            if (player.presence !== 'voice') continue;
+            if (player.presence !== "voice") continue;
             if (player.name === own) continue;
             members.set(player.name, {
                 name: player.name,
-                sources: ['Proximity'],
+                sources: ["Proximity"],
                 gamerpic: this.playerManager.get(player.name)?.gamerpic ?? null,
             });
         }
 
         for (const player of get(this.playerManager.activePlayers)) {
-            if (!player.sources.has('Group')) continue;
+            if (!player.sources.has("Group")) continue;
             const already = members.get(player.name);
             if (already) {
-                already.sources = ['Group', 'Proximity'];
+                already.sources = ["Group", "Proximity"];
                 continue;
             }
             members.set(player.name, {
                 name: player.name,
-                sources: ['Group'],
+                sources: ["Group"],
                 gamerpic: player.gamerpic ?? null,
             });
         }
@@ -101,7 +101,7 @@ export class VoiceRosterPublisher {
 
     private async publish(): Promise<void> {
         try {
-            await invoke('publish_voice_roster', { roster: this.project() });
+            await invoke("publish_voice_roster", { roster: this.project() });
         } catch (err) {
             // The overlay keeps the roster it already has. A failure here is not worth
             // interrupting anything the user is doing.

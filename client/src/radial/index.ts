@@ -22,7 +22,11 @@ export { RingRenderer, type RingPaint } from "./core/ring/RingRenderer";
 export type { RingSource } from "./core/ring/RingSource";
 export { ScopeBuffer } from "./core/ring/ScopeBuffer";
 export { ScopeRenderer, type ScopePaint } from "./core/ring/ScopeRenderer";
-export { TimelineRenderer, type TimelineLane, type TimelinePaint } from "./core/timeline/TimelineRenderer";
+export {
+    TimelineRenderer,
+    type TimelineLane,
+    type TimelinePaint,
+} from "./core/timeline/TimelineRenderer";
 export { TimelineEnvelope } from "./core/timeline/TimelineEnvelope";
 export { ServerGlyph, type Glyph } from "./core/glyph/ServerGlyph";
 
@@ -38,19 +42,28 @@ export { Hash } from "./core/math/Hash";
 
 // ---- the boot sequence, and the loader it becomes ----
 export { IntroSequence } from "./core/intro/IntroSequence";
-export { INTRO_DEFAULTS, BRAND_LIFT, type IntroConfig, type IntroEndState } from "./core/intro/IntroConfig";
+export {
+    INTRO_DEFAULTS,
+    BRAND_LIFT,
+    type IntroConfig,
+    type IntroEndState,
+} from "./core/intro/IntroConfig";
 export { INTRO_PHASES, IntroMarks, type IntroPhase } from "./core/intro/IntroPhases";
 export { Loader, type LoaderOptions } from "./core/intro/Loader";
-export { LoaderStatus, type LoaderStatusFrame, type LoaderStatusOptions } from "./core/intro/LoaderStatus";
+export {
+    LoaderStatus,
+    type LoaderStatusFrame,
+    type LoaderStatusOptions,
+} from "./core/intro/LoaderStatus";
 export { CanvasRecorder } from "./core/intro/CanvasRecorder";
 
 // ---- where data comes from ----
 export {
-  type LevelSource,
-  type LevelListener,
-  type Unsubscribe,
-  PushLevelSource,
-  ConstantLevelSource,
+    type LevelSource,
+    type LevelListener,
+    type Unsubscribe,
+    PushLevelSource,
+    ConstantLevelSource,
 } from "./core/sources/LevelSource";
 export { SyntheticLevelSource, type SyntheticOptions } from "./core/sources/SyntheticLevelSource";
 export { PlayerHue } from "./core/sources/PlayerHue";
@@ -72,7 +85,13 @@ export { IconBinding } from "./bindings/IconBinding";
 
 // ---- behaviour ----
 export { Toast } from "./core/controllers/Toast";
-export { Menu, MENU_DIVIDER, type MenuItem, type MenuSection, type MenuEntry } from "./core/controllers/Menu";
+export {
+    Menu,
+    MENU_DIVIDER,
+    type MenuItem,
+    type MenuSection,
+    type MenuEntry,
+} from "./core/controllers/Menu";
 export { Modal } from "./core/controllers/Modal";
 export { Sheet } from "./core/controllers/Sheet";
 export { Cover, type CoverOptions } from "./core/controllers/Cover";
@@ -80,12 +99,22 @@ export { FormControls, type FormControlHooks } from "./core/controllers/FormCont
 export { SelectControl, type SelectOption } from "./core/controllers/SelectControl";
 export { KeybindCapture } from "./core/controllers/KeybindCapture";
 export { DragReorder } from "./core/controllers/DragReorder";
-export { TableController, type TableOptions, type TableView, type TableColumn } from "./core/controllers/TableController";
+export {
+    TableController,
+    type TableOptions,
+    type TableView,
+    type TableColumn,
+} from "./core/controllers/TableController";
 export { TypedConfirm } from "./core/controllers/TypedConfirm";
 export { Conditional } from "./core/controllers/Conditional";
 export { Handoff, type Point } from "./core/controllers/Handoff";
 export { SelfState, type SelfSnapshot, type VoiceMode } from "./core/controllers/SelfState";
-export { Diagnostics, type DiagnosticsInput, type KvGroup, type Severity } from "./core/controllers/Diagnostics";
+export {
+    Diagnostics,
+    type DiagnosticsInput,
+    type KvGroup,
+    type Severity,
+} from "./core/controllers/Diagnostics";
 export { KvGridView } from "./core/controllers/KvGridView";
 export { ChatLog, type ChatMessage, type ChatOptions } from "./core/controllers/ChatLog";
 export { LogConsole, type LogLevel, type LogLine } from "./core/controllers/LogConsole";

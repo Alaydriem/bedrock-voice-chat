@@ -7,7 +7,7 @@
  * is theirs everywhere in the product.
  */
 export interface RingSource {
-  angle: number;
-  volume: number;
-  hue: string;
+    angle: number;
+    volume: number;
+    hue: string;
 }

@@ -1,7 +1,7 @@
-import type { RingMode } from '$radial/bindings/RingBinding';
-import { PositionalSource } from '$radial/core/sources/PositionalSource';
-import type { RingSource } from '$radial/core/ring/RingSource';
-import type { NearbyPlayer } from './NearbyPlayer';
+import type { RingMode } from "$radial/bindings/RingBinding";
+import { PositionalSource } from "$radial/core/sources/PositionalSource";
+import type { RingSource } from "$radial/core/ring/RingSource";
+import type { NearbyPlayer } from "./NearbyPlayer";
 
 export interface RingState {
     mode: RingMode;
@@ -25,16 +25,12 @@ export class RingCast {
     /**
      * @param connected False when the link is down, which outranks everything below it.
      */
-    static of(
-        approaching: readonly NearbyPlayer[],
-        scope: number,
-        connected = true,
-    ): RingState {
+    static of(approaching: readonly NearbyPlayer[], scope: number, connected = true): RingState {
         // A ring at rest is the only honest reading for a link that is down, and the only place
         // `empty` still belongs. Drawing marks would assert positions this client can no longer
         // be told about.
         if (!connected) {
-            return { mode: 'empty', sources: [] };
+            return { mode: "empty", sources: [] };
         }
 
         if (approaching.length === 0) {
@@ -43,7 +39,7 @@ export class RingCast {
             // A proximity client with nobody nearby is not at rest, it is looking — the same
             // activity the loader draws while it waits, and the same register. `empty` was
             // saying the system had stopped.
-            return { mode: 'live', sources: [] };
+            return { mode: "live", sources: [] };
         }
 
         const sources = approaching
@@ -59,6 +55,6 @@ export class RingCast {
             )
             .filter((source): source is RingSource => source !== null);
 
-        return { mode: approaching.length === 1 ? 'lock' : 'live', sources };
+        return { mode: approaching.length === 1 ? "lock" : "live", sources };
     }
 }

@@ -18,11 +18,7 @@ export class ListenAddress {
     }
 
     /** What another device types, or null when that is the same as `join`. */
-    static lan(
-        bind: string,
-        port: number,
-        interfaces: readonly NetworkInterface[],
-    ): string | null {
+    static lan(bind: string, port: number, interfaces: readonly NetworkInterface[]): string | null {
         if (bind !== this.ANY) return null;
         const routable = interfaces.find(
             (nic) =>
@@ -54,23 +50,35 @@ export class ListenAddress {
             : [];
         return local.concat(
             interfaces
-            .filter(
-                (nic) =>
-                    nic.is_ipv4 &&
-                    nic.ip !== this.LOOPBACK &&
-                    !nic.ip.startsWith("127.") &&
-                    !nic.ip.startsWith(this.LINK_LOCAL),
-            )
-            .map((nic) => ({ nic, rank: this.rank(nic) }))
-            .sort((a, b) => a.rank - b.rank)
-            .map(({ nic }) => ({ label: nic.name, address: `${nic.ip}:${port}` })),
+                .filter(
+                    (nic) =>
+                        nic.is_ipv4 &&
+                        nic.ip !== this.LOOPBACK &&
+                        !nic.ip.startsWith("127.") &&
+                        !nic.ip.startsWith(this.LINK_LOCAL),
+                )
+                .map((nic) => ({ nic, rank: this.rank(nic) }))
+                .sort((a, b) => a.rank - b.rank)
+                .map(({ nic }) => ({ label: nic.name, address: `${nic.ip}:${port}` })),
         );
     }
 
     /** Lower sorts first: private, then anything else, then a virtual interface. */
     private static rank(nic: NetworkInterface): number {
         const name = nic.name.toLowerCase();
-        const virtual = ["tun", "tap", "utun", "wg", "zt", "docker", "veth", "vmnet", "vethernet", "hyper-v", "loopback"];
+        const virtual = [
+            "tun",
+            "tap",
+            "utun",
+            "wg",
+            "zt",
+            "docker",
+            "veth",
+            "vmnet",
+            "vethernet",
+            "hyper-v",
+            "loopback",
+        ];
         if (virtual.some((token) => name.includes(token))) return 2;
         return this.isPrivate(nic.ip) ? 0 : 1;
     }

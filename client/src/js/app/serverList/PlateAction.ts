@@ -5,4 +5,4 @@
  * anyway" button on a server with no UDP path would only sell a failure as a choice.
  * `blocked` leads somewhere too — an update, not a connection that would fail.
  */
-export type PlateAction = 'connect' | 'signin' | 'recheck' | 'blocked';
+export type PlateAction = "connect" | "signin" | "recheck" | "blocked";

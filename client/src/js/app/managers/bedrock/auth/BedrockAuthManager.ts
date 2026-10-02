@@ -1,9 +1,9 @@
-import { writable, get, type Writable, type Readable } from 'svelte/store';
-import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { info, error as logError } from '@charlesportwoodii/tauri-plugin-curia';
-import type { BedrockAuthManagerCallbacks } from './BedrockAuthManagerCallbacks';
+import { writable, get, type Writable, type Readable } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
+import type { BedrockAuthManagerCallbacks } from "./BedrockAuthManagerCallbacks";
 
 export class BedrockAuthManager {
     private isAuthenticatedStore: Writable<boolean>;
@@ -32,9 +32,9 @@ export class BedrockAuthManager {
         this.isAuthenticatedStore = writable(false);
         this.isRestoringAuthStore = writable(true);
         this.showLoginModalStore = writable(false);
-        this.deviceCodeStore = writable('');
-        this.deviceUrlStore = writable('');
-        this.loginErrorStore = writable('');
+        this.deviceCodeStore = writable("");
+        this.deviceUrlStore = writable("");
+        this.loginErrorStore = writable("");
         this.codeCopiedStore = writable(false);
 
         this.isAuthenticated = { subscribe: this.isAuthenticatedStore.subscribe };
@@ -52,7 +52,7 @@ export class BedrockAuthManager {
 
     async restoreAuth(): Promise<void> {
         try {
-            const restored = await invoke<boolean>('bedrock_restore_auth');
+            const restored = await invoke<boolean>("bedrock_restore_auth");
             if (restored) {
                 this.isAuthenticatedStore.set(true);
             }
@@ -70,14 +70,14 @@ export class BedrockAuthManager {
     }
 
     async openLoginModal(): Promise<void> {
-        this.deviceCodeStore.set('');
-        this.deviceUrlStore.set('');
-        this.loginErrorStore.set('');
+        this.deviceCodeStore.set("");
+        this.deviceUrlStore.set("");
+        this.loginErrorStore.set("");
         this.showLoginModalStore.set(true);
 
         const appWebview = getCurrentWebviewWindow();
         this.loginFlowUnlisten = await appWebview.listen(
-            'bedrock-device-code',
+            "bedrock-device-code",
             (event: { payload?: { code?: string; url?: string } }) => {
                 const payload = event.payload;
                 if (payload?.code) {
@@ -91,16 +91,16 @@ export class BedrockAuthManager {
         );
 
         try {
-            await invoke('bedrock_xbox_login');
-            info('Xbox login succeeded');
+            await invoke("bedrock_xbox_login");
+            info("Xbox login succeeded");
             this.isAuthenticatedStore.set(true);
-            this.callbacks.setStatus('Signed in to Xbox Live');
+            this.callbacks.setStatus("Signed in to Xbox Live");
             this.showLoginModalStore.set(false);
             this.cleanupLoginListener();
             await this.callbacks.onLoginSuccess();
         } catch (e) {
             const msg = String(e);
-            if (msg === 'Login cancelled') {
+            if (msg === "Login cancelled") {
                 this.showLoginModalStore.set(false);
             } else {
                 this.loginErrorStore.set(msg);
@@ -112,7 +112,7 @@ export class BedrockAuthManager {
 
     async closeLoginModal(): Promise<void> {
         try {
-            await invoke('bedrock_cancel_xbox_login');
+            await invoke("bedrock_cancel_xbox_login");
         } catch (e) {
             logError(`Cancel failed: ${e}`);
         }
@@ -122,9 +122,9 @@ export class BedrockAuthManager {
 
     async signOut(): Promise<void> {
         try {
-            await invoke('bedrock_xbox_logout');
+            await invoke("bedrock_xbox_logout");
             this.isAuthenticatedStore.set(false);
-            this.callbacks.setStatus('');
+            this.callbacks.setStatus("");
         } catch (e) {
             this.callbacks.setStatus(`Error: ${e}`);
         }

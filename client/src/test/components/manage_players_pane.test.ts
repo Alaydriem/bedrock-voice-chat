@@ -2,9 +2,8 @@ import { fireEvent, render, waitFor } from "@testing-library/svelte";
 import { beforeEach, describe, expect, it } from "vitest";
 import { invokeCalls, mockInvoke } from "../tauri";
 
-const { default: ManagePlayersPane } = await import(
-    "../../components/settings/panes/ManagePlayersPane.svelte"
-);
+const { default: ManagePlayersPane } =
+    await import("../../components/settings/panes/ManagePlayersPane.svelte");
 
 function page(items: unknown[], total = items.length) {
     return { items, total, page: 0, page_size: 8 };
@@ -35,12 +34,13 @@ function mount() {
             [...document.body.querySelectorAll<HTMLButtonElement>("button")].find(
                 (b) => b.textContent?.trim() === label,
             ),
-        strips: () =>
-            [...document.body.querySelectorAll<HTMLElement>(".rad-table .rad-matrix__blocks")],
+        strips: () => [
+            ...document.body.querySelectorAll<HTMLElement>(".rad-table .rad-matrix__blocks"),
+        ],
         blocks: () =>
-            [...document.body.querySelectorAll<HTMLElement>(".rad-table .rad-matrix__blocks i")].map(
-                (block) => block.style.background,
-            ),
+            [
+                ...document.body.querySelectorAll<HTMLElement>(".rad-table .rad-matrix__blocks i"),
+            ].map((block) => block.style.background),
         cards: () => [...document.body.querySelectorAll<HTMLElement>(".rad-datacard")],
         cardText: () =>
             [...document.body.querySelectorAll<HTMLElement>(".rad-datacard")].map(
@@ -239,8 +239,7 @@ describe("ManagePlayersPane", () => {
         mockInvoke({
             api_introspect: () => ({ permissions: ["admin"] }),
             get_credential: () => JSON.stringify({ allowed: ["admin"] }),
-            admin_list_users: () =>
-                page([user(), user({ gamertag: "Griefer", banished: true })]),
+            admin_list_users: () => page([user(), user({ gamertag: "Griefer", banished: true })]),
         });
 
         const pane = mount();
@@ -266,7 +265,11 @@ describe("ManagePlayersPane", () => {
     // the row stays: an admin may still edit their own non-admin permissions.
     it("offers no ban button on the operator's own row", async () => {
         mockInvoke({
-            api_introspect: () => ({ gamertag: "RootAdmin", game: "minecraft", permissions: ["admin"] }),
+            api_introspect: () => ({
+                gamertag: "RootAdmin",
+                game: "minecraft",
+                permissions: ["admin"],
+            }),
             get_credential: () => JSON.stringify({ allowed: ["admin"] }),
             admin_list_users: () => page([user({ gamertag: "RootAdmin" }), user()]),
         });
@@ -323,8 +326,7 @@ describe("ManagePlayersPane", () => {
         mockInvoke({
             api_introspect: () => ({ permissions: ["admin"] }),
             get_credential: () => JSON.stringify({ allowed: ["admin"] }),
-            admin_list_users: () =>
-                page([user({ connected: true }), user({ gamertag: "Carol" })]),
+            admin_list_users: () => page([user({ connected: true }), user({ gamertag: "Carol" })]),
         });
 
         const pane = mount();
@@ -340,7 +342,11 @@ describe("ManagePlayersPane", () => {
     // The same controls, so a phone is not a read-only view of the roster.
     it("carries the strip, the cog and the ban button on a card", async () => {
         mockInvoke({
-            api_introspect: () => ({ gamertag: "RootAdmin", game: "minecraft", permissions: ["admin"] }),
+            api_introspect: () => ({
+                gamertag: "RootAdmin",
+                game: "minecraft",
+                permissions: ["admin"],
+            }),
             get_credential: () => JSON.stringify({ allowed: ["admin"] }),
             admin_list_users: () => page([user(), user({ gamertag: "RootAdmin" })]),
         });
@@ -355,9 +361,7 @@ describe("ManagePlayersPane", () => {
 
         // And the operator's own card withholds the ban, exactly as their table row does.
         const mine = pane.cards()[1];
-        await waitFor(() =>
-            expect(mine.querySelector('[aria-label="Ban RootAdmin"]')).toBeNull(),
-        );
+        await waitFor(() => expect(mine.querySelector('[aria-label="Ban RootAdmin"]')).toBeNull());
         expect(mine.querySelector('[aria-label="Settings for RootAdmin"]')).not.toBeNull();
     });
 

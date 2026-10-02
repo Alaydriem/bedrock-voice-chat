@@ -3,8 +3,8 @@ import { ServerGlyph } from "../core/glyph/ServerGlyph";
 import type { Binding } from "./Binding";
 
 export interface GlyphOptions {
-  /** Edge length in CSS px. Read from the layout box when omitted. */
-  size?: number;
+    /** Edge length in CSS px. Read from the layout box when omitted. */
+    size?: number;
 }
 
 /**
@@ -17,49 +17,49 @@ export interface GlyphOptions {
  * dashboard combined and would look identical.
  */
 export class GlyphBinding implements Binding {
-  readonly canvas: HTMLCanvasElement;
+    readonly canvas: HTMLCanvasElement;
 
-  #surface: Surface;
-  #options: GlyphOptions;
-  #name = "";
-  #drawnAt = "";
+    #surface: Surface;
+    #options: GlyphOptions;
+    #name = "";
+    #drawnAt = "";
 
-  constructor(canvas: HTMLCanvasElement, name: string, options: GlyphOptions = {}) {
-    this.canvas = canvas;
-    this.#surface = new Surface(canvas);
-    this.#options = options;
-    this.name = name;
-  }
+    constructor(canvas: HTMLCanvasElement, name: string, options: GlyphOptions = {}) {
+        this.canvas = canvas;
+        this.#surface = new Surface(canvas);
+        this.#options = options;
+        this.name = name;
+    }
 
-  get name(): string {
-    return this.#name;
-  }
+    get name(): string {
+        return this.#name;
+    }
 
-  set name(value: string) {
-    this.#name = value;
-    this.render();
-  }
+    set name(value: string) {
+        this.#name = value;
+        this.render();
+    }
 
-  /** @param prog 0 to 1, for a progressive reveal. */
-  render(prog = 1): void {
-    const size = this.#options.size ?? this.#measured();
-    if (!size) return;
-    const key = `${this.#name}@${size}@${prog}`;
-    if (key === this.#drawnAt) return;
-    this.#drawnAt = key;
-    this.#surface.resize(size, size);
-    const x = this.#surface.begin();
-    ServerGlyph.draw(x, this.#name, size, prog);
-  }
+    /** @param prog 0 to 1, for a progressive reveal. */
+    render(prog = 1): void {
+        const size = this.#options.size ?? this.#measured();
+        if (!size) return;
+        const key = `${this.#name}@${size}@${prog}`;
+        if (key === this.#drawnAt) return;
+        this.#drawnAt = key;
+        this.#surface.resize(size, size);
+        const x = this.#surface.begin();
+        ServerGlyph.draw(x, this.#name, size, prog);
+    }
 
-  destroy(): void {
-    // No loop registration and no subscription of its own; the surface holds a resize
-    // subscription that does have to be released.
-    this.#surface.destroy();
-  }
+    destroy(): void {
+        // No loop registration and no subscription of its own; the surface holds a resize
+        // subscription that does have to be released.
+        this.#surface.destroy();
+    }
 
-  #measured(): number {
-    const rect = this.canvas.getBoundingClientRect();
-    return Math.round(Math.min(rect.width, rect.height));
-  }
+    #measured(): number {
+        const rect = this.canvas.getBoundingClientRect();
+        return Math.round(Math.min(rect.width, rect.height));
+    }
 }

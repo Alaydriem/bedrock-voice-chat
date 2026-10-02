@@ -21,9 +21,8 @@ vi.mock("@tauri-apps/api/webviewWindow", () => ({
     }),
 }));
 
-const { BedrockLogsManager } = await import(
-    "../../../js/app/managers/bedrock/logs/BedrockLogsManager"
-);
+const { BedrockLogsManager } =
+    await import("../../../js/app/managers/bedrock/logs/BedrockLogsManager");
 
 function entry(level: string, message: string): BedrockLogEntry {
     return { timestamp_ms: 0n, level, target: "bedrock_protocol", message };

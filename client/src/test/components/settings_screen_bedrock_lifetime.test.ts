@@ -25,9 +25,7 @@ vi.mock("@tauri-apps/api/webviewWindow", () => ({
     }),
 }));
 
-const { default: SettingsScreen } = await import(
-    "../../components/settings/SettingsScreen.svelte"
-);
+const { default: SettingsScreen } = await import("../../components/settings/SettingsScreen.svelte");
 const { BedrockManagerHolder } = await import("../../js/app/shell/BedrockManagerHolder");
 const { BEDROCK_MANAGER_KEY } = await import("../../js/app/shell/BedrockManagerContext");
 

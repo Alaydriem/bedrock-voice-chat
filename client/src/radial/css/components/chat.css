@@ -11,42 +11,42 @@
  */
 
 .rad-chat-dock {
-  flex: 0 0 auto;
-  position: relative;
-  z-index: 7;
-  background: var(--color-rad-void);
-  border-top: 1px solid var(--color-rad-line);
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 7;
+    background: var(--color-rad-void);
+    border-top: 1px solid var(--color-rad-line);
 }
 
 .rad-chat-history {
-  display: flex;
-  flex-direction: column;
-  height: 0;
-  overflow: hidden;
-  transition: height 0.3s var(--ease-rad-out);
+    display: flex;
+    flex-direction: column;
+    height: 0;
+    overflow: hidden;
+    transition: height 0.3s var(--ease-rad-out);
 }
 
 .rad-frame.is-chat .rad-chat-history {
-  height: 342px;
-  border-bottom: 1px solid var(--color-rad-line);
+    height: 342px;
+    border-bottom: 1px solid var(--color-rad-line);
 }
 
 .rad-chat__head {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 13px 22px 11px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 13px 22px 11px;
 }
 
 .rad-chat__body {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 4px 22px 14px;
-  overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 22px 14px;
+    overflow-y: auto;
 }
 
 /* ---- where the message goes ----
@@ -58,151 +58,151 @@
 */
 
 .rad-chat-target {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: -8px;
-  padding: 4px 8px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--color-rad-faint);
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  letter-spacing: var(--tracking-rad-tag);
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: 0.16s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: -8px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-rad-faint);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    letter-spacing: var(--tracking-rad-tag);
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: 0.16s;
 }
 
 .rad-chat-target:hover {
-  color: var(--color-rad-tx);
-  background: var(--color-rad-panel);
+    color: var(--color-rad-tx);
+    background: var(--color-rad-panel);
 }
 
 .rad-chat-target__caret > svg {
-  width: 12px;
-  height: 12px;
-  transform: rotate(90deg);
+    width: 12px;
+    height: 12px;
+    transform: rotate(90deg);
 }
 
 /* Nothing to choose. Same words, no affordance offered. */
 .rad-chat-target.is-static {
-  margin-left: 0;
-  padding-left: 0;
-  background: transparent;
-  pointer-events: none;
+    margin-left: 0;
+    padding-left: 0;
+    background: transparent;
+    pointer-events: none;
 }
 
 .rad-chat-target.is-static .rad-chat-target__caret {
-  display: none;
+    display: none;
 }
 
 .rad-chat__note {
-  margin-bottom: 12px;
-  padding: 10px 0 16px;
-  text-align: center;
-  border-bottom: 1px solid var(--color-rad-line);
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  letter-spacing: var(--tracking-rad-tag);
-  text-transform: uppercase;
-  color: var(--color-rad-faint);
+    margin-bottom: 12px;
+    padding: 10px 0 16px;
+    text-align: center;
+    border-bottom: 1px solid var(--color-rad-line);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    letter-spacing: var(--tracking-rad-tag);
+    text-transform: uppercase;
+    color: var(--color-rad-faint);
 }
 
 /* ---- a message ---- */
 
 .rad-msg {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
-  gap: 11px;
-  align-items: baseline;
-  padding: 5px 0;
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) auto;
+    gap: 11px;
+    align-items: baseline;
+    padding: 5px 0;
 }
 
 .rad-msg__avatar {
-  align-self: start;
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border-radius: 7px;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  font-weight: 700;
-  color: var(--color-rad-void);
+    align-self: start;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 7px;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    font-weight: 700;
+    color: var(--color-rad-void);
 }
 
 .rad-msg__author {
-  margin-right: 8px;
-  font-weight: 600;
+    margin-right: 8px;
+    font-weight: 600;
 }
 
 .rad-msg__text {
-  font-size: var(--text-rad-sm);
-  line-height: 1.55;
-  color: var(--color-rad-dim);
-  word-break: break-word;
+    font-size: var(--text-rad-sm);
+    line-height: 1.55;
+    color: var(--color-rad-dim);
+    word-break: break-word;
 }
 
 .rad-msg__ts {
-  align-self: start;
-  padding-top: 3px;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-rad-faint);
+    align-self: start;
+    padding-top: 3px;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-rad-faint);
 }
 
 /* Sent from the app rather than typed in game. A small distinction that matters when
    someone is wondering why a player is not responding in chat. */
 .rad-msg__app {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-left: 7px;
-  vertical-align: middle;
-  border-radius: 2px;
-  background: var(--color-rad-brand-lift);
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 7px;
+    vertical-align: middle;
+    border-radius: 2px;
+    background: var(--color-rad-brand-lift);
 }
 
 /* Sent, but nothing has confirmed it arrived — or something said it did not. The whole row
  * goes grey, identity colour included, so it cannot be mistaken for a delivered line; the
  * text stays readable because the sender has to be able to read back what they typed. */
 .rad-msg--unconfirmed {
-  opacity: 0.72;
+    opacity: 0.72;
 }
 
 .rad-msg--unconfirmed .rad-msg__text,
 .rad-msg--unconfirmed .rad-msg__ts {
-  color: var(--color-rad-dim);
+    color: var(--color-rad-dim);
 }
 
 .rad-msg--unconfirmed .rad-msg__app {
-  background: var(--color-rad-dim);
+    background: var(--color-rad-dim);
 }
 
 .rad-msg--mention {
-  margin: 2px -10px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  background: rgb(130 57 216 / 0.14);
+    margin: 2px -10px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgb(130 57 216 / 0.14);
 }
 
 .rad-msg--mention .rad-msg__text {
-  color: var(--color-rad-tx);
+    color: var(--color-rad-tx);
 }
 
 /* The server talking, not a person. No hue, no name, quieter. */
 .rad-msg--system .rad-msg__text {
-  font-size: var(--text-rad-xs);
-  color: var(--color-rad-faint);
+    font-size: var(--text-rad-xs);
+    color: var(--color-rad-faint);
 }
 
 .rad-msg--system .rad-msg__avatar {
-  background: transparent;
-  color: var(--color-rad-faint);
-  font-size: var(--text-rad-mono);
+    background: transparent;
+    color: var(--color-rad-faint);
+    font-size: var(--text-rad-mono);
 }
 
 /* ---- the composer ---- */
@@ -210,109 +210,109 @@
 /* The dock is the last flex item in the stage, so this row is what the navigation bar or
    the home indicator lands on. */
 .rad-chat-bar {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 11px calc(16px + var(--rad-inset-right, 0px))
-    calc(11px + var(--rad-inset-bottom, 0px)) calc(14px + var(--rad-inset-left, 0px));
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px calc(16px + var(--rad-inset-right, 0px)) calc(11px + var(--rad-inset-bottom, 0px))
+        calc(14px + var(--rad-inset-left, 0px));
 }
 
 .rad-chat-toggle {
-  position: relative;
-  flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 11px;
-  background: transparent;
-  color: var(--color-rad-dim);
-  cursor: pointer;
-  transition: 0.16s;
+    position: relative;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 11px;
+    background: transparent;
+    color: var(--color-rad-dim);
+    cursor: pointer;
+    transition: 0.16s;
 }
 
 .rad-chat-toggle:hover {
-  color: var(--color-rad-tx);
-  background: var(--color-rad-panel);
+    color: var(--color-rad-tx);
+    background: var(--color-rad-panel);
 }
 
 .rad-frame.is-chat .rad-chat-toggle {
-  color: var(--color-rad-brand-lift);
-  background: var(--color-rad-panel);
+    color: var(--color-rad-brand-lift);
+    background: var(--color-rad-panel);
 }
 
 .rad-chat-toggle > [data-rad-icon] > svg {
-  width: 20px;
-  height: 20px;
+    width: 20px;
+    height: 20px;
 }
 
 .rad-chat-badge {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 5px;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--color-rad-void);
-  border-radius: var(--radius-rad-pill);
-  background: var(--color-rad-brand);
-  color: #fff;
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 5px;
+    display: grid;
+    place-items: center;
+    border: 2px solid var(--color-rad-void);
+    border-radius: var(--radius-rad-pill);
+    background: var(--color-rad-brand);
+    color: #fff;
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
 }
 
 .rad-chat-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 11px 15px;
-  border: 1px solid transparent;
-  border-radius: 11px;
-  outline: 0;
-  background: var(--color-rad-void-2);
-  color: var(--color-rad-tx);
-  font: inherit;
-  font-size: var(--text-rad-sm);
-  transition: 0.16s;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 11px 15px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    outline: 0;
+    background: var(--color-rad-void-2);
+    color: var(--color-rad-tx);
+    font: inherit;
+    font-size: var(--text-rad-sm);
+    transition: 0.16s;
 }
 
 .rad-chat-input::placeholder {
-  color: var(--color-rad-faint);
+    color: var(--color-rad-faint);
 }
 
 .rad-chat-input:focus {
-  border-color: var(--color-rad-brand-lift);
-  background: var(--color-rad-panel);
+    border-color: var(--color-rad-brand-lift);
+    background: var(--color-rad-panel);
 }
 
 /* Dim until there is something to send, so the button reports whether pressing it
    will do anything. */
 .rad-chat-send {
-  flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 11px;
-  background: var(--color-rad-brand);
-  color: #fff;
-  cursor: pointer;
-  opacity: 0.4;
-  pointer-events: none;
-  transition: 0.16s;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 11px;
+    background: var(--color-rad-brand);
+    color: #fff;
+    cursor: pointer;
+    opacity: 0.4;
+    pointer-events: none;
+    transition: 0.16s;
 }
 
 .rad-chat-send.is-ready {
-  opacity: 1;
-  pointer-events: auto;
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .rad-chat-send:hover {
-  background: var(--color-rad-brand-lift);
+    background: var(--color-rad-brand-lift);
 }
 
 /* ---- nothing is listening ----
@@ -323,12 +323,12 @@
 */
 
 .rad-chat-bar.is-unavailable .rad-chat-input {
-  color: var(--color-rad-faint);
-  cursor: not-allowed;
+    color: var(--color-rad-faint);
+    cursor: not-allowed;
 }
 
 .rad-chat-bar.is-unavailable .rad-chat-send {
-  display: none;
+    display: none;
 }
 
 /* ---- a send that did not land ----
@@ -339,76 +339,76 @@
 */
 
 .rad-chat-notice {
-  flex: 0 0 auto;
-  display: block;
-  width: 100%;
-  margin: 0;
-  padding: 9px 22px;
-  border: 0;
-  border-top: 1px solid var(--color-rad-line);
-  background: rgb(255 207 77 / 0.1);
-  color: var(--color-rad-warn);
-  font-family: var(--font-rad-mono);
-  font-size: var(--text-rad-mono-2xs);
-  letter-spacing: var(--tracking-rad-tag);
-  text-transform: uppercase;
-  text-align: left;
-  cursor: pointer;
+    flex: 0 0 auto;
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 9px 22px;
+    border: 0;
+    border-top: 1px solid var(--color-rad-line);
+    background: rgb(255 207 77 / 0.1);
+    color: var(--color-rad-warn);
+    font-family: var(--font-rad-mono);
+    font-size: var(--text-rad-mono-2xs);
+    letter-spacing: var(--tracking-rad-tag);
+    text-transform: uppercase;
+    text-align: left;
+    cursor: pointer;
 }
 
 .rad-chat-notice:hover {
-  background: rgb(255 207 77 / 0.16);
+    background: rgb(255 207 77 / 0.16);
 }
 
 .rad-chat-send > [data-rad-icon] > svg {
-  width: 18px;
-  height: 18px;
+    width: 18px;
+    height: 18px;
 }
 
 @container rad (max-width: 560px) {
-  .rad-chat-dock {
-    display: none;
-    border-top: 0;
-  }
+    .rad-chat-dock {
+        display: none;
+        border-top: 0;
+    }
 
-  .rad-frame.is-chat .rad-chat-dock {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 auto;
-    min-height: 0;
-  }
+    .rad-frame.is-chat .rad-chat-dock {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
 
-  /* Except under the status panel, which lives inside `.rad-main`.
+    /* Except under the status panel, which lives inside `.rad-main`.
      The panel is a second page of the whole stage, not of the roster tab, so on a phone it
      has to survive whichever tab is showing. Hidden with its parent it left the stage empty:
      `is-status` hides the tabs and the dock, so nothing remained on screen and the panel's
      own close button — the only phone control that clears the state — went with it. */
-  .rad-frame.is-chat:not(.is-status) .rad-main {
-    display: none;
-  }
+    .rad-frame.is-chat:not(.is-status) .rad-main {
+        display: none;
+    }
 
-  .rad-frame.is-chat .rad-chat-history {
-    height: auto;
-    flex: 1 1 auto;
-    min-height: 0;
-    border-bottom: 0;
-  }
+    .rad-frame.is-chat .rad-chat-history {
+        height: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+        border-bottom: 0;
+    }
 
-  .rad-chat__head {
-    padding: 12px 18px 6px;
-  }
+    .rad-chat__head {
+        padding: 12px 18px 6px;
+    }
 
-  .rad-chat__body {
-    padding: 4px 18px 10px;
-  }
+    .rad-chat__body {
+        padding: 4px 18px 10px;
+    }
 
-  /* Clears the capsule, which stays put while chat is open. */
-  .rad-chat-bar {
-    padding: 10px calc(14px + var(--rad-inset-right, 0px))
-      calc(100px + var(--rad-inset-bottom, 0px)) calc(14px + var(--rad-inset-left, 0px));
-  }
+    /* Clears the capsule, which stays put while chat is open. */
+    .rad-chat-bar {
+        padding: 10px calc(14px + var(--rad-inset-right, 0px))
+            calc(100px + var(--rad-inset-bottom, 0px)) calc(14px + var(--rad-inset-left, 0px));
+    }
 
-  .rad-chat-toggle {
-    display: none;
-  }
+    .rad-chat-toggle {
+        display: none;
+    }
 }

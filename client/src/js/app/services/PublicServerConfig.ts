@@ -1,5 +1,5 @@
-import { fetch } from '@tauri-apps/plugin-http';
-import type { ApiConfigResponse } from '../../bindings/ApiConfigResponse';
+import { fetch } from "@tauri-apps/plugin-http";
+import type { ApiConfigResponse } from "../../bindings/ApiConfigResponse";
 
 /**
  * A server's `/api/config`, read without credentials.
@@ -28,7 +28,7 @@ export class PublicServerConfig {
         const timer = setTimeout(() => controller.abort(), PublicServerConfig.TIMEOUT_MS);
         try {
             const response = await fetch(`${server}/api/config`, {
-                method: 'GET',
+                method: "GET",
                 signal: controller.signal,
             });
             if (response.status !== 200) throw new Error(`config returned ${response.status}`);

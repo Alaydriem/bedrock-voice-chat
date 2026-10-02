@@ -1,9 +1,9 @@
-import type { BedrockConnectError } from '../../../../bindings/BedrockConnectError';
+import type { BedrockConnectError } from "../../../../bindings/BedrockConnectError";
 
 export interface RealmsConnectionError {
     raw: BedrockConnectError;
     title: string;
     detail: string;
     suggestion: string;
-    severity: 'error' | 'warning';
+    severity: "error" | "warning";
 }

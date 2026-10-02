@@ -116,7 +116,13 @@ describe("Bedrock proxy manager server list", () => {
 
     it("leaves the addon mode alone when the patch does not mention it", async () => {
         const proxy = manager();
-        const mine = await proxy.addProxyServer("Aternos", "a.aternos.me", 19132, undefined, "no_net");
+        const mine = await proxy.addProxyServer(
+            "Aternos",
+            "a.aternos.me",
+            19132,
+            undefined,
+            "no_net",
+        );
 
         await proxy.updateProxyServer(mine.id, { name: "Renamed" });
 

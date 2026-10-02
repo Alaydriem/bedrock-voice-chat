@@ -1,4 +1,4 @@
-import type { NearbyPlayer } from './NearbyPlayer';
+import type { NearbyPlayer } from "./NearbyPlayer";
 
 export interface RosterSplit {
     /** Players worth a whole card. */
@@ -47,6 +47,6 @@ export class RosterView {
         if (approaching > 0) {
             return `${approaching} NEARBY`;
         }
-        return 'NOBODY IN EARSHOT';
+        return "NOBODY IN EARSHOT";
     }
 }

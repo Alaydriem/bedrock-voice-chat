@@ -1,4 +1,4 @@
-import type { AddonMode } from '../../../bindings/AddonMode';
+import type { AddonMode } from "../../../bindings/AddonMode";
 
 export interface ProxyServerEntry {
     id: string;

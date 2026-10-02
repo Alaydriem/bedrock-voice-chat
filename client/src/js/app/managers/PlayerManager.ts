@@ -1,13 +1,13 @@
-import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
-import { invoke } from '@tauri-apps/api/core';
-import type { UnlistenFn } from '@tauri-apps/api/event';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { info, error, debug, warn } from '@charlesportwoodii/tauri-plugin-curia';
-import type { PlayerGainSettings } from '../../bindings/PlayerGainSettings';
-import type { PlayerSettingsRow } from '../../bindings/PlayerSettingsRow';
-import type { PlayerSource } from '../../bindings/PlayerSource';
-import { Coalescer } from '../utils/Coalescer';
-import GameNameUtils from '../utils/GameNameUtils';
+import { writable, derived, get, type Writable, type Readable } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import type { UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { info, error, debug, warn } from "@charlesportwoodii/tauri-plugin-curia";
+import type { PlayerGainSettings } from "../../bindings/PlayerGainSettings";
+import type { PlayerSettingsRow } from "../../bindings/PlayerSettingsRow";
+import type { PlayerSource } from "../../bindings/PlayerSource";
+import { Coalescer } from "../utils/Coalescer";
+import GameNameUtils from "../utils/GameNameUtils";
 
 // Define PlayerData interface locally
 interface PlayerData {
@@ -73,7 +73,7 @@ export class PlayerManager {
         return GameNameUtils.canonical(name, this.game);
     }
 
-    constructor(currentUser: string = '', game: string = 'minecraft') {
+    constructor(currentUser: string = "", game: string = "minecraft") {
         this.game = game;
 
         // Initialize internal stores
@@ -95,11 +95,11 @@ export class PlayerManager {
                 // Both sides are canonical — map keys by construction, `currentUser` because
                 // it is composed on the way in — so this is an exact comparison rather than a
                 // tolerant one.
-                return players.filter(player => player.name !== currentUser);
-            }
+                return players.filter((player) => player.name !== currentUser);
+            },
         );
 
-        info(`PlayerManager: Initialized with current user: ${currentUser || 'none'}`);
+        info(`PlayerManager: Initialized with current user: ${currentUser || "none"}`);
     }
 
     /**
@@ -127,11 +127,11 @@ export class PlayerManager {
             name = this.identity(name);
             const playerSettings = settings || { gain: 1.0, muted: false };
 
-            this.playersMapStore.update(map => {
+            this.playersMapStore.update((map) => {
                 map.set(name, {
                     name,
                     settings: playerSettings,
-                    sources: new Set()
+                    sources: new Set(),
                 });
                 return new Map(map);
             });
@@ -148,7 +148,7 @@ export class PlayerManager {
     remove(name: string): boolean {
         try {
             name = this.identity(name);
-            this.playersMapStore.update(map => {
+            this.playersMapStore.update((map) => {
                 const removed = map.delete(name);
                 return new Map(map);
             });
@@ -165,7 +165,7 @@ export class PlayerManager {
     update(name: string, settings: Partial<PlayerGainSettings>): boolean {
         try {
             name = this.identity(name);
-            this.playersMapStore.update(map => {
+            this.playersMapStore.update((map) => {
                 const player = map.get(name);
                 if (player) {
                     player.settings = { ...player.settings, ...settings };
@@ -243,13 +243,19 @@ export class PlayerManager {
      * Add a source to a player, creating the player if it doesn't exist
      * If no settings provided, will load from persistent store
      */
-    async addPlayerSource(name: string, source: PlayerSource, settings?: PlayerGainSettings, gamerpic?: string, game?: string): Promise<boolean> {
+    async addPlayerSource(
+        name: string,
+        source: PlayerSource,
+        settings?: PlayerGainSettings,
+        gamerpic?: string,
+        game?: string,
+    ): Promise<boolean> {
         try {
             name = this.identity(name);
             // Load settings if not provided
-            const playerSettings = settings || await this.loadPlayerSettings(name);
+            const playerSettings = settings || (await this.loadPlayerSettings(name));
 
-            this.playersMapStore.update(map => {
+            this.playersMapStore.update((map) => {
                 const existing = map.get(name);
                 if (existing) {
                     // Player exists, just add the source
@@ -268,7 +274,7 @@ export class PlayerManager {
                         settings: playerSettings,
                         sources: new Set([source]),
                         gamerpic,
-                        game
+                        game,
                     });
                 }
                 return new Map(map);
@@ -285,7 +291,7 @@ export class PlayerManager {
      */
     updatePlayerGamepic(name: string, gamerpic: string): void {
         name = this.identity(name);
-        this.playersMapStore.update(map => {
+        this.playersMapStore.update((map) => {
             const player = map.get(name);
             if (player) {
                 player.gamerpic = gamerpic;
@@ -301,7 +307,7 @@ export class PlayerManager {
     removePlayerSource(name: string, source: PlayerSource): boolean {
         try {
             name = this.identity(name);
-            this.playersMapStore.update(map => {
+            this.playersMapStore.update((map) => {
                 const existing = map.get(name);
                 if (existing) {
                     if (existing.sources.has(source)) {
@@ -381,7 +387,10 @@ export class PlayerManager {
     /**
      * Private method to update the persistent Tauri store
      */
-    private async updatePlayerGainStore(playerName: string, newSettings: Partial<PlayerGainSettings>): Promise<void> {
+    private async updatePlayerGainStore(
+        playerName: string,
+        newSettings: Partial<PlayerGainSettings>,
+    ): Promise<void> {
         // The persisted store keys on the canonical identity — the same key the mixer's gain
         // projection and the control plane resolve against.
         const key = this.identity(playerName);
@@ -446,20 +455,20 @@ export class PlayerManager {
         // mute/deafen buttons' working pattern) while global-target listeners
         // can miss them; desktop delivers both.
         this.gainStoreUnlisten = await getCurrentWebviewWindow().listen(
-            'player_gain_store_updated',
+            "player_gain_store_updated",
             () => {
-                debug('PlayerManager: player_gain_store_updated received; re-seeding cards');
+                debug("PlayerManager: player_gain_store_updated received; re-seeding cards");
                 void this.loadFromPersistentStore();
             },
         );
 
         this.visibilityHandler = () => {
-            if (document.visibilityState === 'visible') {
-                debug('PlayerManager: webview foregrounded; re-seeding cards');
+            if (document.visibilityState === "visible") {
+                debug("PlayerManager: webview foregrounded; re-seeding cards");
                 void this.loadFromPersistentStore();
             }
         };
-        document.addEventListener('visibilitychange', this.visibilityHandler);
+        document.addEventListener("visibilitychange", this.visibilityHandler);
 
         this.reseedInterval = setInterval(() => {
             void this.loadFromPersistentStore();
@@ -480,7 +489,7 @@ export class PlayerManager {
             this.gainStoreUnlisten = null;
         }
         if (this.visibilityHandler) {
-            document.removeEventListener('visibilitychange', this.visibilityHandler);
+            document.removeEventListener("visibilitychange", this.visibilityHandler);
             this.visibilityHandler = null;
         }
         if (this.reseedInterval) {
@@ -496,7 +505,7 @@ export class PlayerManager {
             // Row keys are already canonical, so they are used as read. Re-composing one here
             // would turn a leftover bare key from an older install into a live entry under a
             // canonical name it was never written for.
-            this.playersMapStore.update(map => {
+            this.playersMapStore.update((map) => {
                 for (const row of rows) {
                     const player = map.get(row.key.cn);
                     if (player && row.settings) {

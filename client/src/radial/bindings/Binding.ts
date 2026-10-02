@@ -6,15 +6,15 @@
  * is not optional and Mount tracks it for you.
  */
 export interface Binding {
-  destroy(): void;
+    destroy(): void;
 }
 
 /** Read a numeric CSS custom property off an element, for container-query-driven sizing. */
 export class CssNumber {
-  static read(el: Element, property: string, fallback: number): number {
-    const raw = getComputedStyle(el).getPropertyValue(property).trim();
-    if (!raw) return fallback;
-    const n = Number.parseFloat(raw);
-    return Number.isFinite(n) ? n : fallback;
-  }
+    static read(el: Element, property: string, fallback: number): number {
+        const raw = getComputedStyle(el).getPropertyValue(property).trim();
+        if (!raw) return fallback;
+        const n = Number.parseFloat(raw);
+        return Number.isFinite(n) ? n : fallback;
+    }
 }

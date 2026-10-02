@@ -43,7 +43,9 @@ describe("NoiseGateModel.apply", () => {
     });
 
     it("does not let a threshold leave its own range", () => {
-        expect(NoiseGateModel.apply(NoiseGateModel.DEFAULTS, "open_threshold", 40).open_threshold).toBe(0);
+        expect(
+            NoiseGateModel.apply(NoiseGateModel.DEFAULTS, "open_threshold", 40).open_threshold,
+        ).toBe(0);
         expect(
             NoiseGateModel.apply(NoiseGateModel.DEFAULTS, "attack_rate", 9_000).attack_rate,
         ).toBe(250);

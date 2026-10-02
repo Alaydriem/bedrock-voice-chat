@@ -2,9 +2,8 @@ import { render } from "@testing-library/svelte";
 import { describe, expect, it } from "vitest";
 import type { ChatLine } from "../../js/app/chat/ChatLine";
 
-const { default: ChatMessageRow } = await import(
-    "../../components/dashboard/ChatMessageRow.svelte"
-);
+const { default: ChatMessageRow } =
+    await import("../../components/dashboard/ChatMessageRow.svelte");
 
 function line(over: Partial<ChatLine> = {}): ChatLine {
     return {
@@ -39,9 +38,7 @@ describe("ChatMessageRow events", () => {
     });
 
     it("renders a death as a system line", () => {
-        const el = mount(
-            line({ system: true, author: null, text: "Moth was slain by Enderman" }),
-        );
+        const el = mount(line({ system: true, author: null, text: "Moth was slain by Enderman" }));
 
         expect(el.querySelector(".rad-msg--system")).not.toBeNull();
     });

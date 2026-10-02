@@ -27,7 +27,9 @@ describe("SoundLibraryView.row", () => {
     // An empty cell reads as a rendering fault rather than as a fact about the row.
     it("names an uploader it cannot resolve", () => {
         expect(SoundLibraryView.row(file({ uploader: {} })).uploader).toBe("Unknown");
-        expect(SoundLibraryView.row(file({ uploader: { gamertag: "  " } })).uploader).toBe("Unknown");
+        expect(SoundLibraryView.row(file({ uploader: { gamertag: "  " } })).uploader).toBe(
+            "Unknown",
+        );
     });
 });
 

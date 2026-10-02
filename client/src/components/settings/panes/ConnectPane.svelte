@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import { invoke } from "@tauri-apps/api/core";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
@@ -222,7 +222,10 @@
                     <span class="rad-account__name">{I18n.t("Sign in with Microsoft")}</span>
                     <span class="rad-account__meta">{I18n.t("BVC JOINS THE WORLD AS YOU")}</span>
                 </span>
-                <button class="rad-btn rad-btn--primary" onclick={() => void bedrock.openLoginModal()}>
+                <button
+                    class="rad-btn rad-btn--primary"
+                    onclick={() => void bedrock.openLoginModal()}
+                >
                     {I18n.t("Sign in")}
                 </button>
             </div>
@@ -231,7 +234,11 @@
         {#if capability === "unknown"}
             <div class="rad-callout rad-callout--warn">
                 <span>
-                    <b>{I18n.t("We could not reach this server to ask whether Bedrock support is on.")}</b>
+                    <b
+                        >{I18n.t(
+                            "We could not reach this server to ask whether Bedrock support is on.",
+                        )}</b
+                    >
                     {I18n.t("You can connect anyway — if position is refused, this is why.")}
                     <!-- The list is no longer replaced by a loader while a check runs, so
                          this button is the only thing that can report one. -->
@@ -259,7 +266,8 @@
         >
             {#snippet emptyAction()}
                 <button class="rad-btn rad-btn--primary" onclick={() => (editing = null)}>
-                    <Icon name="plus" /> {I18n.t("Add a server")}
+                    <Icon name="plus" />
+                    {I18n.t("Add a server")}
                 </button>
             {/snippet}
 
@@ -307,8 +315,6 @@
                 onremove={(id) => void bedrock.deleteProxyServer(id)}
             />
         </ListShell>
-
-
 
         {#if activeName}
             <div class="rad-callout">

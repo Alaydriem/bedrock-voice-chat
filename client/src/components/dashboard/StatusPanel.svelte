@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import Scope from "$radial/components/Scope.svelte";
@@ -122,16 +122,17 @@
     $effect(() => {
         if (!grid) return;
         const labels = DiagnosticsCopy.labels();
-        const link = input && snapshot
-            ? [
-                  ...Diagnostics.groups(input, labels),
-                  ...DiagnosticsView.extraGroups(snapshot, {
-                      connected: EventChannel.shared().connected,
-                      lastFrameAgoMs: EventChannel.shared().lastFrameAgoMs,
-                      attempts: EventChannel.shared().attempts,
-                  }),
-              ]
-            : [];
+        const link =
+            input && snapshot
+                ? [
+                      ...Diagnostics.groups(input, labels),
+                      ...DiagnosticsView.extraGroups(snapshot, {
+                          connected: EventChannel.shared().connected,
+                          lastFrameAgoMs: EventChannel.shared().lastFrameAgoMs,
+                          attempts: EventChannel.shared().attempts,
+                      }),
+                  ]
+                : [];
         grid.update([
             DiagnosticsView.voiceGroup(
                 voice,
@@ -183,7 +184,11 @@
                     {reconnecting ? "Reconnecting…" : "Reconnect"}
                 </span>
             </button>
-            <button class="rad-icon-btn rad-status__close" aria-label={I18n.t("Close status")} onclick={onclose}>
+            <button
+                class="rad-icon-btn rad-status__close"
+                aria-label={I18n.t("Close status")}
+                onclick={onclose}
+            >
                 <Icon name="close" />
             </button>
         </span>

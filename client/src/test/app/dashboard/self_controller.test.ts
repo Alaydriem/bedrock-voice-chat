@@ -205,10 +205,11 @@ describe("SelfController", () => {
         self.hold(true);
         self.hold(false);
 
-        expect(invokeCalls().filter((c) => c.cmd === "set_ptt").map((c) => c.args)).toEqual([
-            { down: true },
-            { down: false },
-        ]);
+        expect(
+            invokeCalls()
+                .filter((c) => c.cmd === "set_ptt")
+                .map((c) => c.args),
+        ).toEqual([{ down: true }, { down: false }]);
     });
 
     /**

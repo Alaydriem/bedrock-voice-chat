@@ -1,4 +1,4 @@
-const GAME_PREFIXES = ['minecraft:'];
+const GAME_PREFIXES = ["minecraft:"];
 
 export default class GameNameUtils {
     /**
@@ -12,9 +12,9 @@ export default class GameNameUtils {
      * would move a player from one game to another. An empty name is not a player and stays
      * empty, because `minecraft:` is a key that matches nobody and never expires.
      */
-    static canonical(name: string, game: string = 'minecraft'): string {
-        if (name.trim() === '') {
-            return '';
+    static canonical(name: string, game: string = "minecraft"): string {
+        if (name.trim() === "") {
+            return "";
         }
         for (const prefix of GAME_PREFIXES) {
             if (name.startsWith(prefix)) {
@@ -46,6 +46,6 @@ export default class GameNameUtils {
                 return prefix.slice(0, -1);
             }
         }
-        return 'minecraft';
+        return "minecraft";
     }
 }

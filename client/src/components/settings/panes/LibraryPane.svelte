@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import { invoke } from "@tauri-apps/api/core";
     import { open } from "@tauri-apps/plugin-dialog";
     import { readFile } from "@tauri-apps/plugin-fs";
@@ -137,7 +137,9 @@
             <div class="rad-row">
                 <span class="rad-row__text">
                     <span class="rad-row__label">{I18n.t("Add a sound")}</span>
-                    <span class="rad-row__note">{I18n.t("Uploaded sounds can be played on a Jukeboxes")}</span>
+                    <span class="rad-row__note"
+                        >{I18n.t("Uploaded sounds can be played on a Jukeboxes")}</span
+                    >
                 </span>
                 <span class="rad-row__control">
                     <button
@@ -237,7 +239,9 @@
                                             <button
                                                 class="rad-kebab"
                                                 onclick={() => (deleting = row)}
-                                                aria-label={I18n.tf("Delete {name}", { name: row.name })}
+                                                aria-label={I18n.tf("Delete {name}", {
+                                                    name: row.name,
+                                                })}
                                             >
                                                 <Icon name="trash" />
                                             </button>
@@ -309,9 +313,8 @@
                                 {index + 1}
                             </button>
                         {/each}
-                        <button
-                            disabled={page >= pages - 1}
-                            onclick={() => goToPage(page + 1)}>›</button
+                        <button disabled={page >= pages - 1} onclick={() => goToPage(page + 1)}
+                            >›</button
                         >
                     </span>
                 </div>
@@ -321,7 +324,8 @@
 
     <div class="rad-callout">
         <span>
-            {I18n.t("In game, run")} <code>/bvc:disc &lt;id&gt;</code> to give yourself a music disc that plays the sound.
+            {I18n.t("In game, run")} <code>/bvc:disc &lt;id&gt;</code> to give yourself a music disc that
+            plays the sound.
         </span>
     </div>
 </div>
@@ -331,13 +335,14 @@
     <div class="rad-modal is-open">
         <h5 class="rad-modal__title">{I18n.t("Delete this sound?")}</h5>
         <p>
-            <b>{deleting.name}</b> is removed for everyone on this server. Anything that plays it by
-            id stops working.
+            <b>{deleting.name}</b> is removed for everyone on this server. Anything that plays it by id
+            stops working.
         </p>
         <div class="rad-modal__actions">
             <button class="rad-btn" onclick={() => (deleting = null)}>{I18n.t("Keep it")}</button>
             <button class="rad-btn rad-btn--danger" onclick={() => void runDelete()}>
-                <Icon name="trash" /> {I18n.t("Delete")}
+                <Icon name="trash" />
+                {I18n.t("Delete")}
             </button>
         </div>
     </div>

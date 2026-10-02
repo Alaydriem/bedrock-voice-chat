@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import Verdict from "$radial/components/Verdict.svelte";
     import { PlateView } from "../../js/app/serverList/PlateView";
@@ -140,16 +140,13 @@
                     <div class="rad-kv">
                         <span class="rad-kv__key">{I18n.t("Protocol")}</span>
                         <span class="rad-kv__value">
-                            {entry.clientVersion || "—"} · server {entry.serverVersion ||
-                                "—"}
+                            {entry.clientVersion || "—"} · server {entry.serverVersion || "—"}
                         </span>
                     </div>
                     <div class="rad-kv">
                         <span class="rad-kv__key">{I18n.t("Transport")}</span>
                         <span class="rad-kv__value">
-                            {entry.status === "ws_fallback"
-                                ? "WebSocket"
-                                : "QUIC"} · TLS 1.3 · mTLS
+                            {entry.status === "ws_fallback" ? "WebSocket" : "QUIC"} · TLS 1.3 · mTLS
                         </span>
                     </div>
                 </div>
@@ -158,11 +155,13 @@
 
         <div class="rad-preflight-panel__foot">
             <button class="rad-btn rad-btn--danger" onclick={() => onremove(entry)}>
-                <Icon name="trash" /> {I18n.t("Remove")}
+                <Icon name="trash" />
+                {I18n.t("Remove")}
             </button>
             <span class="rad-footbar__actions">
                 <button class="rad-btn" onclick={() => onrecheck(entry.server)}>
-                    <Icon name="refresh" /> {I18n.t("Recheck")}
+                    <Icon name="refresh" />
+                    {I18n.t("Recheck")}
                 </button>
                 <!--
                   A blocked server still leads somewhere from here: the update, not the

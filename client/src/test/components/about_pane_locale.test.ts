@@ -16,7 +16,9 @@ const RUSSIAN = {
 };
 
 function updates() {
-    return { state: { subscribe: (run: (v: unknown) => void) => (run({ kind: "idle" }), () => {}) } };
+    return {
+        state: { subscribe: (run: (v: unknown) => void) => (run({ kind: "idle" }), () => {}) },
+    };
 }
 
 function mount() {

@@ -1,18 +1,18 @@
 export type VoiceMode = "activated" | "ptt";
 
 export interface SelfSnapshot {
-  muted: boolean;
-  deafened: boolean;
-  recording: boolean;
-  mode: VoiceMode;
-  /** True while push-to-talk is held. Meaningless in `activated` mode. */
-  holding: boolean;
-  /** True when audio is actually leaving this machine. */
-  transmitting: boolean;
-  /** Whether the connected server permits arming a recording. */
-  recordAllowed: boolean;
-  /** False when the capture device could not be opened. Not a mute: the user did not do it. */
-  captureAvailable: boolean;
+    muted: boolean;
+    deafened: boolean;
+    recording: boolean;
+    mode: VoiceMode;
+    /** True while push-to-talk is held. Meaningless in `activated` mode. */
+    holding: boolean;
+    /** True when audio is actually leaving this machine. */
+    transmitting: boolean;
+    /** Whether the connected server permits arming a recording. */
+    recordAllowed: boolean;
+    /** False when the capture device could not be opened. Not a mute: the user did not do it. */
+    captureAvailable: boolean;
 }
 
 /**
@@ -34,138 +34,138 @@ export interface SelfSnapshot {
  * is a function of one value and they cannot disagree.
  */
 export class SelfState {
-  #muted = false;
-  #deafened = false;
-  #recording = false;
-  #recordAllowed = true;
-  #captureAvailable = true;
-  #mode: VoiceMode = "activated";
-  #holding = false;
-  #recordStartedAt = 0;
-  #listeners = new Set<(s: SelfSnapshot) => void>();
+    #muted = false;
+    #deafened = false;
+    #recording = false;
+    #recordAllowed = true;
+    #captureAvailable = true;
+    #mode: VoiceMode = "activated";
+    #holding = false;
+    #recordStartedAt = 0;
+    #listeners = new Set<(s: SelfSnapshot) => void>();
 
-  get snapshot(): SelfSnapshot {
-    return {
-      muted: this.#muted,
-      deafened: this.#deafened,
-      recording: this.#recording,
-      mode: this.#mode,
-      holding: this.#holding,
-      transmitting: this.transmitting,
-      recordAllowed: this.#recordAllowed,
-      captureAvailable: this.#captureAvailable,
-    };
-  }
-
-  /** Whether audio is leaving this machine right now. */
-  get transmitting(): boolean {
-    if (this.#mode === "ptt") return this.#holding;
-    return !this.#muted;
-  }
-
-  /** Milliseconds since recording was armed, or 0. */
-  elapsed(now: number): number {
-    return this.#recording ? Math.max(0, now - this.#recordStartedAt) : 0;
-  }
-
-  subscribe(listener: (s: SelfSnapshot) => void): () => void {
-    this.#listeners.add(listener);
-    listener(this.snapshot);
-    return () => this.#listeners.delete(listener);
-  }
-
-  toggleMute(): void {
-    // Deafened is the louder state, so the mic button clears it first: one press
-    // gets you all the way back into the conversation.
-    if (this.#deafened) {
-      this.#deafened = false;
-      this.#muted = false;
-    } else {
-      this.#muted = !this.#muted;
+    get snapshot(): SelfSnapshot {
+        return {
+            muted: this.#muted,
+            deafened: this.#deafened,
+            recording: this.#recording,
+            mode: this.#mode,
+            holding: this.#holding,
+            transmitting: this.transmitting,
+            recordAllowed: this.#recordAllowed,
+            captureAvailable: this.#captureAvailable,
+        };
     }
-    this.#emit();
-  }
 
-  toggleDeafen(): void {
-    this.#deafened = !this.#deafened;
-    this.#muted = this.#deafened;
-    this.#emit();
-  }
-
-  setMode(mode: VoiceMode): void {
-    this.#mode = mode;
-    // Leaving mute set on entering PTT would make the hold control silently do
-    // nothing, which reads as a broken button rather than as a muted mic.
-    this.#muted = false;
-    this.#holding = false;
-    this.#emit();
-  }
-
-  /** Push-to-talk key or button held. Ignored outside PTT mode. */
-  hold(down: boolean): void {
-    if (this.#mode !== "ptt") return;
-    if (this.#holding === down) return;
-    this.#holding = down;
-    this.#emit();
-  }
-
-  toggleRecording(now: number): void {
-    this.#recording = !this.#recording;
-    if (this.#recording) this.#recordStartedAt = now;
-    this.#emit();
-  }
-
-  /**
-   * Adopt state that was established somewhere else.
-   *
-   * Mute, deafen and recording are not this object's to own in a real client: a global
-   * hotkey, an in-game command and a reload all change them without anything here being
-   * asked. Toggling toward what the backend reports needs a read first, and anything that
-   * fires between the read and the toggle leaves the two permanently inverted — taking the
-   * value cannot.
-   *
-   * The invariants above are deliberately not enforced here. This reports what is true,
-   * and a pair that should be impossible is a bug worth seeing rather than one worth
-   * papering over on the way in.
-   *
-   * @param now Passed when `recording` is turning on from outside, so the timer counts
-   *   from when the change was observed rather than from whenever this object last armed
-   *   a recording of its own.
-   */
-  sync(
-    state: Partial<
-      Pick<
-        SelfSnapshot,
-        "muted" | "deafened" | "recording" | "mode" | "recordAllowed" | "captureAvailable"
-      >
-    >,
-    now = 0,
-  ): void {
-    if (state.muted !== undefined) this.#muted = state.muted;
-    if (state.deafened !== undefined) this.#deafened = state.deafened;
-    if (state.mode !== undefined) this.#mode = state.mode;
-    if (state.recordAllowed !== undefined) this.#recordAllowed = state.recordAllowed;
-    if (state.captureAvailable !== undefined) this.#captureAvailable = state.captureAvailable;
-    if (state.recording !== undefined && state.recording !== this.#recording) {
-      this.#recording = state.recording;
-      if (state.recording) this.#recordStartedAt = now;
+    /** Whether audio is leaving this machine right now. */
+    get transmitting(): boolean {
+        if (this.#mode === "ptt") return this.#holding;
+        return !this.#muted;
     }
-    this.#emit();
-  }
 
-  reset(): void {
-    this.#muted = false;
-    this.#deafened = false;
-    this.#recording = false;
-    this.#recordAllowed = true;
-    this.#captureAvailable = true;
-    this.#mode = "activated";
-    this.#holding = false;
-    this.#emit();
-  }
+    /** Milliseconds since recording was armed, or 0. */
+    elapsed(now: number): number {
+        return this.#recording ? Math.max(0, now - this.#recordStartedAt) : 0;
+    }
 
-  #emit(): void {
-    const snapshot = this.snapshot;
-    for (const listener of this.#listeners) listener(snapshot);
-  }
+    subscribe(listener: (s: SelfSnapshot) => void): () => void {
+        this.#listeners.add(listener);
+        listener(this.snapshot);
+        return () => this.#listeners.delete(listener);
+    }
+
+    toggleMute(): void {
+        // Deafened is the louder state, so the mic button clears it first: one press
+        // gets you all the way back into the conversation.
+        if (this.#deafened) {
+            this.#deafened = false;
+            this.#muted = false;
+        } else {
+            this.#muted = !this.#muted;
+        }
+        this.#emit();
+    }
+
+    toggleDeafen(): void {
+        this.#deafened = !this.#deafened;
+        this.#muted = this.#deafened;
+        this.#emit();
+    }
+
+    setMode(mode: VoiceMode): void {
+        this.#mode = mode;
+        // Leaving mute set on entering PTT would make the hold control silently do
+        // nothing, which reads as a broken button rather than as a muted mic.
+        this.#muted = false;
+        this.#holding = false;
+        this.#emit();
+    }
+
+    /** Push-to-talk key or button held. Ignored outside PTT mode. */
+    hold(down: boolean): void {
+        if (this.#mode !== "ptt") return;
+        if (this.#holding === down) return;
+        this.#holding = down;
+        this.#emit();
+    }
+
+    toggleRecording(now: number): void {
+        this.#recording = !this.#recording;
+        if (this.#recording) this.#recordStartedAt = now;
+        this.#emit();
+    }
+
+    /**
+     * Adopt state that was established somewhere else.
+     *
+     * Mute, deafen and recording are not this object's to own in a real client: a global
+     * hotkey, an in-game command and a reload all change them without anything here being
+     * asked. Toggling toward what the backend reports needs a read first, and anything that
+     * fires between the read and the toggle leaves the two permanently inverted — taking the
+     * value cannot.
+     *
+     * The invariants above are deliberately not enforced here. This reports what is true,
+     * and a pair that should be impossible is a bug worth seeing rather than one worth
+     * papering over on the way in.
+     *
+     * @param now Passed when `recording` is turning on from outside, so the timer counts
+     *   from when the change was observed rather than from whenever this object last armed
+     *   a recording of its own.
+     */
+    sync(
+        state: Partial<
+            Pick<
+                SelfSnapshot,
+                "muted" | "deafened" | "recording" | "mode" | "recordAllowed" | "captureAvailable"
+            >
+        >,
+        now = 0,
+    ): void {
+        if (state.muted !== undefined) this.#muted = state.muted;
+        if (state.deafened !== undefined) this.#deafened = state.deafened;
+        if (state.mode !== undefined) this.#mode = state.mode;
+        if (state.recordAllowed !== undefined) this.#recordAllowed = state.recordAllowed;
+        if (state.captureAvailable !== undefined) this.#captureAvailable = state.captureAvailable;
+        if (state.recording !== undefined && state.recording !== this.#recording) {
+            this.#recording = state.recording;
+            if (state.recording) this.#recordStartedAt = now;
+        }
+        this.#emit();
+    }
+
+    reset(): void {
+        this.#muted = false;
+        this.#deafened = false;
+        this.#recording = false;
+        this.#recordAllowed = true;
+        this.#captureAvailable = true;
+        this.#mode = "activated";
+        this.#holding = false;
+        this.#emit();
+    }
+
+    #emit(): void {
+        const snapshot = this.snapshot;
+        for (const listener of this.#listeners) listener(snapshot);
+    }
 }

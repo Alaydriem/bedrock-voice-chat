@@ -16,29 +16,29 @@ import "./tauri";
  * never what it painted. Pixels are the operator's eyes.
  */
 const context2d = {
-  canvas: null as unknown as HTMLCanvasElement,
-  clearRect: vi.fn(),
-  fillRect: vi.fn(),
-  beginPath: vi.fn(),
-  arc: vi.fn(),
-  stroke: vi.fn(),
-  fill: vi.fn(),
-  save: vi.fn(),
-  restore: vi.fn(),
-  setTransform: vi.fn(),
-  scale: vi.fn(),
-  translate: vi.fn(),
-  fillStyle: "",
-  strokeStyle: "",
-  lineWidth: 1,
-  globalAlpha: 1,
-  shadowColor: "",
-  shadowBlur: 0,
+    canvas: null as unknown as HTMLCanvasElement,
+    clearRect: vi.fn(),
+    fillRect: vi.fn(),
+    beginPath: vi.fn(),
+    arc: vi.fn(),
+    stroke: vi.fn(),
+    fill: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    setTransform: vi.fn(),
+    scale: vi.fn(),
+    translate: vi.fn(),
+    fillStyle: "",
+    strokeStyle: "",
+    lineWidth: 1,
+    globalAlpha: 1,
+    shadowColor: "",
+    shadowBlur: 0,
 };
 
 HTMLCanvasElement.prototype.getContext = vi.fn(() => context2d) as never;
 
 afterEach(() => {
-  cleanup();
-  vi.clearAllMocks();
+    cleanup();
+    vi.clearAllMocks();
 });

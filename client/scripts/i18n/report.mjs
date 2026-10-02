@@ -9,48 +9,46 @@ import PackCompiler from "../../src/lib/i18n/PackCompiler.ts";
 
 const CLIENT = fileURLToPath(new URL("../..", import.meta.url));
 
-
 function flag(name) {
-  const index = process.argv.indexOf(name);
-  return index === -1 ? null : process.argv[index + 1];
+    const index = process.argv.indexOf(name);
+    return index === -1 ? null : process.argv[index + 1];
 }
 
-
 async function marking(clientDir) {
-  const files = [];
+    const files = [];
 
-  for await (const absolute of glob(join(clientDir, Sources.GLOB))) {
-    const path = relative(clientDir, absolute).split("\\").join("/");
-    if (Sources.isIgnored(path)) continue;
+    for await (const absolute of glob(join(clientDir, Sources.GLOB))) {
+        const path = relative(clientDir, absolute).split("\\").join("/");
+        if (Sources.isIgnored(path)) continue;
 
-    files.push(CoverageReport.markingOf(path, readFileSync(absolute, "utf8")));
-  }
+        files.push(CoverageReport.markingOf(path, readFileSync(absolute, "utf8")));
+    }
 
-  return CoverageReport.totals(files);
+    return CoverageReport.totals(files);
 }
 
 function locales(clientDir) {
-  const directory = join(clientDir, "locales");
-  if (!existsSync(directory)) return [];
+    const directory = join(clientDir, "locales");
+    if (!existsSync(directory)) return [];
 
-  return readdirSync(directory)
-    .filter((name) => name.endsWith(".po"))
-    .map((name) => {
-      const po = gettextParser.po.parse(readFileSync(join(directory, name)));
-      const total = Object.values(po.translations)
-        .flatMap((messages) => Object.values(messages))
-        .filter((message) => message.msgid !== "").length;
+    return readdirSync(directory)
+        .filter((name) => name.endsWith(".po"))
+        .map((name) => {
+            const po = gettextParser.po.parse(readFileSync(join(directory, name)));
+            const total = Object.values(po.translations)
+                .flatMap((messages) => Object.values(messages))
+                .filter((message) => message.msgid !== "").length;
 
-      return {
-        locale: basename(name, ".po"),
-        translated: Math.round(PackCompiler.coverage(po) * total),
-        total,
-      };
-    });
+            return {
+                locale: basename(name, ".po"),
+                translated: Math.round(PackCompiler.coverage(po) * total),
+                total,
+            };
+        });
 }
 
 async function measure(clientDir) {
-  return { marking: await marking(clientDir), locales: locales(clientDir) };
+    return { marking: await marking(clientDir), locales: locales(clientDir) };
 }
 
 const current = await measure(CLIENT);
@@ -59,9 +57,9 @@ const current = await measure(CLIENT);
 // on a push build, where a delta would have nothing to be relative to.
 const baselineDir = flag("--baseline");
 const baseline =
-  baselineDir !== null && existsSync(join(baselineDir, "src"))
-    ? await measure(baselineDir)
-    : undefined;
+    baselineDir !== null && existsSync(join(baselineDir, "src"))
+        ? await measure(baselineDir)
+        : undefined;
 
 const body = CoverageReport.render(current.marking, current.locales, baseline);
 

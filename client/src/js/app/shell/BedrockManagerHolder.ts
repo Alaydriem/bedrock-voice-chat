@@ -1,5 +1,5 @@
-import { BedrockManager } from '../managers/bedrock/BedrockManager';
-import { BedrockCapabilityManager } from '../managers/bedrock/BedrockCapabilityManager';
+import { BedrockManager } from "../managers/bedrock/BedrockManager";
+import { BedrockCapabilityManager } from "../managers/bedrock/BedrockCapabilityManager";
 
 /**
  * The session's one `BedrockManager`, built on first use.

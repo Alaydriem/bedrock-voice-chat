@@ -6,6 +6,6 @@
  * flashes an empty list on the way past.
  */
 export type ServerLanding =
-    | { kind: 'navigate'; href: string }
-    | { kind: 'show' }
-    | { kind: 'handoff' };
+    | { kind: "navigate"; href: string }
+    | { kind: "show" }
+    | { kind: "handoff" };

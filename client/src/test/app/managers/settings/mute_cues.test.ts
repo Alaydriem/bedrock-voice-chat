@@ -16,9 +16,8 @@ vi.mock("@tauri-apps/plugin-store", () => ({
     },
 }));
 
-const { AudioSettingsManager } = await import(
-    "../../../../js/app/managers/settings/AudioSettingsManager"
-);
+const { AudioSettingsManager } =
+    await import("../../../../js/app/managers/settings/AudioSettingsManager");
 
 beforeEach(() => {
     saved = {};

@@ -1,17 +1,20 @@
-import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
-import { listen } from '@tauri-apps/api/event';
-import { info, error, warn, debug } from '@charlesportwoodii/tauri-plugin-curia';
-import type { Store } from '@tauri-apps/plugin-store';
-import type { LevelSnapshot } from '../../bindings/LevelSnapshot';
-import { LevelSteps } from '../dashboard/LevelSteps';
-import { LevelFeed } from '../dashboard/LevelFeed';
+import { writable, derived, get, type Writable, type Readable } from "svelte/store";
+import { listen } from "@tauri-apps/api/event";
+import { info, error, warn, debug } from "@charlesportwoodii/tauri-plugin-curia";
+import type { Store } from "@tauri-apps/plugin-store";
+import type { LevelSnapshot } from "../../bindings/LevelSnapshot";
+import { LevelSteps } from "../dashboard/LevelSteps";
+import { LevelFeed } from "../dashboard/LevelFeed";
 
 interface AudioActivityState {
-    activeSpeakers: Record<string, {
-        level: number;
-        lastActive: number;
-        isHighlighted: boolean;
-    }>;
+    activeSpeakers: Record<
+        string,
+        {
+            level: number;
+            lastActive: number;
+            isHighlighted: boolean;
+        }
+    >;
 }
 
 const HIGHLIGHT_DURATION = 1000;
@@ -37,7 +40,7 @@ export class AudioActivityManager {
         this.store = store;
         // Initialize internal store
         this.audioActivityStore = writable<AudioActivityState>({
-            activeSpeakers: {}
+            activeSpeakers: {},
         });
 
         // Create readonly export
@@ -65,7 +68,7 @@ export class AudioActivityManager {
                     activityData[name] = LevelSteps.toLevel(level);
                 }
                 this.applyLevels(activityData);
-            }, 'AudioActivityManager');
+            }, "AudioActivityManager");
         } catch (e) {
             error(`AudioActivityManager: Failed to initialize audio activity listener: ${e}`);
         }
@@ -75,7 +78,7 @@ export class AudioActivityManager {
      * Process incoming audio activity data
      */
     applyLevels(activityData: Record<string, number>, timestamp: number = Date.now()): void {
-        this.audioActivityStore.update(state => {
+        this.audioActivityStore.update((state) => {
             const newState = { ...state };
 
             Object.entries(activityData).forEach(([playerName, level]) => {
@@ -89,7 +92,7 @@ export class AudioActivityManager {
                 newState.activeSpeakers[playerName] = {
                     level,
                     lastActive: timestamp,
-                    isHighlighted: true
+                    isHighlighted: true,
                 };
 
                 // Set timeout to remove highlighting
@@ -109,7 +112,7 @@ export class AudioActivityManager {
      * End a speaker's highlight, if they are still listed.
      */
     fade(playerName: string): void {
-        this.audioActivityStore.update(currentState => {
+        this.audioActivityStore.update((currentState) => {
             const speaker = currentState.activeSpeakers[playerName];
             // Pruned while this timeout was pending. Spreading the missing record would put
             // back an entry with no level and no timestamp, which nothing would ever remove
@@ -121,8 +124,8 @@ export class AudioActivityManager {
                 ...currentState,
                 activeSpeakers: {
                     ...currentState.activeSpeakers,
-                    [playerName]: { ...speaker, isHighlighted: false }
-                }
+                    [playerName]: { ...speaker, isHighlighted: false },
+                },
             };
         });
     }
@@ -136,8 +139,8 @@ export class AudioActivityManager {
      * very next snapshot, and dropping them there would cut their highlight short.
      */
     prune(now: number = Date.now()): void {
-        this.audioActivityStore.update(state => {
-            const activeSpeakers: AudioActivityState['activeSpeakers'] = {};
+        this.audioActivityStore.update((state) => {
+            const activeSpeakers: AudioActivityState["activeSpeakers"] = {};
             for (const [name, speaker] of Object.entries(state.activeSpeakers)) {
                 if (now - speaker.lastActive < HIGHLIGHT_DURATION) {
                     activeSpeakers[name] = speaker;
@@ -174,7 +177,10 @@ export class AudioActivityManager {
     /**
      * Get all currently active speakers
      */
-    getActiveSpeakers(): Record<string, { level: number; lastActive: number; isHighlighted: boolean; }> {
+    getActiveSpeakers(): Record<
+        string,
+        { level: number; lastActive: number; isHighlighted: boolean }
+    > {
         const currentState = get(this.audioActivityStore);
         return currentState.activeSpeakers;
     }
@@ -190,7 +196,7 @@ export class AudioActivityManager {
         }
 
         // Remove from active speakers
-        this.audioActivityStore.update(state => {
+        this.audioActivityStore.update((state) => {
             const newState = { ...state };
             delete newState.activeSpeakers[playerName];
             return newState;
@@ -218,12 +224,12 @@ export class AudioActivityManager {
      */
     clearAllActivity(): void {
         // Clear all timeouts
-        Object.values(this.fadeTimeouts).forEach(timeout => clearTimeout(timeout));
+        Object.values(this.fadeTimeouts).forEach((timeout) => clearTimeout(timeout));
         this.fadeTimeouts = {};
 
         // Reset store
         this.audioActivityStore.set({
-            activeSpeakers: {}
+            activeSpeakers: {},
         });
     }
 
@@ -232,7 +238,7 @@ export class AudioActivityManager {
      */
     destroy(): void {
         // Clear all timeouts
-        Object.values(this.fadeTimeouts).forEach(timeout => clearTimeout(timeout));
+        Object.values(this.fadeTimeouts).forEach((timeout) => clearTimeout(timeout));
         this.fadeTimeouts = {};
 
         // Unlisten from events
@@ -243,7 +249,7 @@ export class AudioActivityManager {
 
         // Reset state
         this.audioActivityStore.set({
-            activeSpeakers: {}
+            activeSpeakers: {},
         });
 
         this.initialized = false;

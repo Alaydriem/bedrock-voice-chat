@@ -1,13 +1,13 @@
 import type { RingSource } from "../ring/RingSource";
 
 export interface Placement {
-  /** Radians, -PI/2 straight up. Bearing relative to where the listener faces. */
-  bearing: number;
-  /** Metres from the listener. */
-  distance: number;
-  hue: string;
-  /** Per-player volume, 0 to 1.5. */
-  gain?: number;
+    /** Radians, -PI/2 straight up. Bearing relative to where the listener faces. */
+    bearing: number;
+    /** Metres from the listener. */
+    distance: number;
+    hue: string;
+    /** Per-player volume, 0 to 1.5. */
+    gain?: number;
 }
 
 /**
@@ -22,26 +22,31 @@ export interface Placement {
  * is what they are for. Pass `distance: 0` or use `inChannel`.
  */
 export class PositionalSource {
-  /** Metres. Matches the server's proximity range. */
-  static readonly RANGE = 80;
+    /** Metres. Matches the server's proximity range. */
+    static readonly RANGE = 80;
 
-  static falloff(distance: number, range = PositionalSource.RANGE): number {
-    if (distance <= 0) return 1;
-    if (distance >= range) return 0;
-    const near = 1 - distance / range;
-    return near * near;
-  }
+    static falloff(distance: number, range = PositionalSource.RANGE): number {
+        if (distance <= 0) return 1;
+        if (distance >= range) return 0;
+        const near = 1 - distance / range;
+        return near * near;
+    }
 
-  /** Null when the player is out of range and has nothing to contribute. */
-  static toRingSource(placement: Placement, level: number, range = PositionalSource.RANGE): RingSource | null {
-    const volume = level * PositionalSource.falloff(placement.distance, range) * (placement.gain ?? 1);
-    if (volume <= 0.03) return null;
-    return { angle: placement.bearing, volume: Math.min(1, volume), hue: placement.hue };
-  }
+    /** Null when the player is out of range and has nothing to contribute. */
+    static toRingSource(
+        placement: Placement,
+        level: number,
+        range = PositionalSource.RANGE,
+    ): RingSource | null {
+        const volume =
+            level * PositionalSource.falloff(placement.distance, range) * (placement.gain ?? 1);
+        if (volume <= 0.03) return null;
+        return { angle: placement.bearing, volume: Math.min(1, volume), hue: placement.hue };
+    }
 
-  static inChannel(bearing: number, hue: string, level: number, gain = 1): RingSource | null {
-    const volume = level * gain;
-    if (volume <= 0.03) return null;
-    return { angle: bearing, volume: Math.min(1, volume), hue };
-  }
+    static inChannel(bearing: number, hue: string, level: number, gain = 1): RingSource | null {
+        const volume = level * gain;
+        if (volume <= 0.03) return null;
+        return { angle: bearing, volume: Math.min(1, volume), hue };
+    }
 }

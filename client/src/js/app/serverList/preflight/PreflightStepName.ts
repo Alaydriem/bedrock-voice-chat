@@ -11,6 +11,6 @@
  * same measurement decides whether voice arrives over QUIC, over the TCP fallback, or not at
  * all, and a row named "QUIC path" could only ever report the first of the three.
  */
-export const PREFLIGHT_STEPS = ['Credentials', 'Handshake', 'Protocol', 'Voice path'] as const;
+export const PREFLIGHT_STEPS = ["Credentials", "Handshake", "Protocol", "Voice path"] as const;
 
 export type PreflightStepName = (typeof PREFLIGHT_STEPS)[number];

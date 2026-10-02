@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import Mark from "$radial/components/Mark.svelte";
     import { PlateView } from "../../js/app/serverList/PlateView";
@@ -49,7 +49,8 @@
                 <Icon name="refresh" spin={isRefreshing} />
             </button>
             <button class="rad-btn" onclick={onadd}>
-                <Icon name="plus" /> {I18n.t("Add a server")}
+                <Icon name="plus" />
+                {I18n.t("Add a server")}
             </button>
         </span>
     </div>

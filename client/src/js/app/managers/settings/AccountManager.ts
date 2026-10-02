@@ -58,12 +58,25 @@ export class AccountManager {
 
             this.activeGameStore.set("minecraft");
 
-            this.gamertagStore.set(await invoke<string>("get_credential", { server: currentServer, key: "gamertag" }).catch(() => ""));
-            this.gamerpicStore.set(await invoke<string>("get_credential", { server: currentServer, key: "gamerpic" }).catch(() => ""));
+            this.gamertagStore.set(
+                await invoke<string>("get_credential", {
+                    server: currentServer,
+                    key: "gamertag",
+                }).catch(() => ""),
+            );
+            this.gamerpicStore.set(
+                await invoke<string>("get_credential", {
+                    server: currentServer,
+                    key: "gamerpic",
+                }).catch(() => ""),
+            );
 
             try {
-                const raw = await invoke<string>("get_credential", { server: currentServer, key: "minecraft_username" });
-                this.minecraftUsernameStore.set((!raw || raw === "null" || raw === "") ? null : raw);
+                const raw = await invoke<string>("get_credential", {
+                    server: currentServer,
+                    key: "minecraft_username",
+                });
+                this.minecraftUsernameStore.set(!raw || raw === "null" || raw === "" ? null : raw);
             } catch {
                 this.minecraftUsernameStore.set(null);
             }
@@ -93,9 +106,9 @@ export class AccountManager {
                 return value;
             });
 
-            const response = await invoke("link_java_identity", {
+            const response = (await invoke("link_java_identity", {
                 gamertag: gamertag,
-            }) as LinkJavaIdentityResponse;
+            })) as LinkJavaIdentityResponse;
 
             if (response.minecraft_username) {
                 this.minecraftUsernameStore.set(response.minecraft_username);
@@ -103,7 +116,7 @@ export class AccountManager {
                 await invoke("set_credential", {
                     server: currentServer,
                     key: "minecraft_username",
-                    value: response.minecraft_username
+                    value: response.minecraft_username,
                 });
 
                 info(`Linked Java identity: ${response.minecraft_username}`);

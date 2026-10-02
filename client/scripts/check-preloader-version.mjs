@@ -8,6 +8,8 @@ const html = readFileSync(fileURLToPath(new URL("../build/index.html", import.me
 const versions = [...html.matchAll(/app-preloader\.(?:js|css)\?v=([^"]*)"/g)].map((m) => m[1]);
 
 if (versions.length !== 2 || versions.some((v) => !/^[0-9a-f]{12}$/.test(v))) {
-  process.stderr.write(`preloader cache-bust missing from build/index.html: ${JSON.stringify(versions)}\n`);
-  process.exit(1);
+    process.stderr.write(
+        `preloader cache-bust missing from build/index.html: ${JSON.stringify(versions)}\n`,
+    );
+    process.exit(1);
 }

@@ -73,9 +73,7 @@
             aria-label={I18n.t("Jukebox volume")}
             aria-valuetext="{gain}%"
             oninput={(e) =>
-                void audio.handleJukeboxGainChange(
-                    Number((e.target as HTMLInputElement).value),
-                )}
+                void audio.handleJukeboxGainChange(Number((e.target as HTMLInputElement).value))}
         />
         <span class="rad-pop__value">{gain}%</span>
     </div>

@@ -4,25 +4,26 @@ import { mockInvoke } from "../tauri";
 
 vi.mock("@tauri-apps/plugin-os", () => ({ platform: () => "windows" }));
 
-const { default: SettingsScreen } = await import(
-    "../../components/settings/SettingsScreen.svelte"
-);
+const { default: SettingsScreen } = await import("../../components/settings/SettingsScreen.svelte");
 
 function mount(pane: string) {
     const frame = document.createElement("div");
     frame.className = "rad-frame rad-frame--fluid";
     document.body.append(frame);
 
-    render(SettingsScreen as never, {
-        target: frame,
-        props: {
-            pane,
-            level: "detail",
-            onnavigate: vi.fn(),
-            onclose: vi.fn(),
-            onback: vi.fn(),
-        },
-    } as never);
+    render(
+        SettingsScreen as never,
+        {
+            target: frame,
+            props: {
+                pane,
+                level: "detail",
+                onnavigate: vi.fn(),
+                onclose: vi.fn(),
+                onback: vi.fn(),
+            },
+        } as never,
+    );
 
     return {
         title: () => frame.querySelector<HTMLElement>(".rad-dash-top__server")?.textContent?.trim(),

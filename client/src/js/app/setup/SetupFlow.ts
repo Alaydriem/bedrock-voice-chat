@@ -1,8 +1,8 @@
-import { Store } from '@tauri-apps/plugin-store';
-import { info } from '@charlesportwoodii/tauri-plugin-curia';
-import Analytics from '../analytics';
-import { AppStore } from '../services/AppStore';
-import type { SetupState } from '../../bindings/SetupState';
+import { Store } from "@tauri-apps/plugin-store";
+import { info } from "@charlesportwoodii/tauri-plugin-curia";
+import Analytics from "../analytics";
+import { AppStore } from "../services/AppStore";
+import type { SetupState } from "../../bindings/SetupState";
 
 /**
  * The device screens that follow sign-in, and their persistence.
@@ -15,12 +15,12 @@ import type { SetupState } from '../../bindings/SetupState';
  * forward from a build predating this key can simply run setup once more.
  */
 export default class SetupFlow {
-    static readonly STORE_KEY = 'setup_state';
+    static readonly STORE_KEY = "setup_state";
 
     private static readonly ORDER: readonly (keyof SetupState)[] = [
-        'microphone',
-        'notifications',
-        'devices',
+        "microphone",
+        "notifications",
+        "devices",
     ];
 
     private store: Store | null = null;
@@ -71,6 +71,6 @@ export default class SetupFlow {
      * orphans every historical event in PostHog.
      */
     reportCompletion(): void {
-        Analytics.track('OnboardingCompleted');
+        Analytics.track("OnboardingCompleted");
     }
 }

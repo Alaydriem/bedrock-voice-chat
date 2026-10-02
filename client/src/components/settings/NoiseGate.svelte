@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "#lib/i18n/index.js";
+    import { I18n } from "#lib/i18n/index.js";
     import { invoke } from "@tauri-apps/api/core";
     import type { Store } from "@tauri-apps/plugin-store";
     import { AppStore } from "../../js/app/services/AppStore";
@@ -8,10 +8,7 @@
     import SettingRow from "$radial/components/SettingRow.svelte";
     import Toggle from "$radial/components/Toggle.svelte";
     import Analytics from "../../js/app/analytics";
-    import {
-        NoiseGateModel,
-        type NoiseGateSettings,
-    } from "../../js/app/settings/NoiseGateModel";
+    import { NoiseGateModel, type NoiseGateSettings } from "../../js/app/settings/NoiseGateModel";
 
     let store = $state<Store | null>(null);
     let enabled = $state(false);
@@ -99,16 +96,14 @@
         {/each}
     </div>
 
-    <SettingRow
-        label={I18n.t("Back to the defaults")}
-        note=""
-    >
+    <SettingRow label={I18n.t("Back to the defaults")} note="">
         {#snippet control()}
             <button
                 class="rad-btn"
                 onclick={() => void persistSettings({ ...NoiseGateModel.DEFAULTS })}
             >
-                <Icon name="reset" /> {I18n.t("Reset")}
+                <Icon name="reset" />
+                {I18n.t("Reset")}
             </button>
         {/snippet}
     </SettingRow>

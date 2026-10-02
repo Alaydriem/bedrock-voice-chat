@@ -8,9 +8,7 @@ const onback = vi.fn();
 let platformName = "windows";
 vi.mock("@tauri-apps/plugin-os", () => ({ platform: () => platformName }));
 
-const { default: SettingsScreen } = await import(
-    "../../components/settings/SettingsScreen.svelte"
-);
+const { default: SettingsScreen } = await import("../../components/settings/SettingsScreen.svelte");
 const { UpdateStatus } = await import("../../js/app/settings/UpdateStatus");
 
 /** An `UpdateStatus` already settled on a verdict, so the badge is not racing a check. */
@@ -83,7 +81,9 @@ describe("SettingsScreen", () => {
     it("navigates to a pane rather than swapping it in place", async () => {
         const view = mount();
         await waitFor(() => expect(view.navItems()).toHaveLength(9));
-        view.navItems().find((el) => el.textContent?.includes("Keybinds"))?.click();
+        view.navItems()
+            .find((el) => el.textContent?.includes("Keybinds"))
+            ?.click();
         expect(onnavigate).toHaveBeenCalledWith("keybinds");
     });
 

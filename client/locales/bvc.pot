@@ -10,7 +10,7 @@ msgstr ""
 msgid "(fallback)"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:103
+#: src/js/app/dashboard/DiagnosticsCopy.ts:106
 msgid "{count} player is muted by you."
 msgid_plural "{count} players are muted by you."
 msgstr[0] ""
@@ -24,11 +24,11 @@ msgstr ""
 msgid "{count} track{plural} written"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:91
+#: src/js/app/dashboard/DiagnosticsCopy.ts:94
 msgid "{percent}% of the worst speaker's audio had to be reconstructed. They will sound rough."
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:71
+#: src/components/dashboard/ChatComposer.svelte:70
 msgid "{reason} — that message was not sent"
 msgstr ""
 
@@ -52,15 +52,15 @@ msgstr ""
 msgid "← your microphone has stopped"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:327
+#: src/components/login/IntroScreen.svelte:413
 msgid "A Bedrock add-on, or the Fabric or Paper mod for Java"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:78
+#: src/components/login/GateScreen.svelte:76
 msgid "A BVC server is running for your world and you have its address. Sign in with the Microsoft account you play Minecraft with."
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:72
+#: src/components/login/NoServerScreen.svelte:92
 msgid "A friend runs the server"
 msgstr ""
 
@@ -72,11 +72,11 @@ msgstr ""
 msgid "A new version of Bedrock Voice Chat is available. This will download and install the update immediately."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:161
+#: src/components/settings/panes/AudioPane.svelte:160
 msgid "A short tone when you mute, deafen, or join and leave a group."
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:74
+#: src/components/login/ConnectErrorScreen.svelte:84
 msgid "A wrong address is the usual cause"
 msgstr ""
 
@@ -88,8 +88,8 @@ msgstr ""
 msgid "Access Denied"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:189
-#: src/components/settings/panes/WebSocketPane.svelte:198
+#: src/components/settings/panes/WebSocketPane.svelte:200
+#: src/components/settings/panes/WebSocketPane.svelte:211
 msgid "Access token"
 msgstr ""
 
@@ -100,7 +100,7 @@ msgstr ""
 msgid "Account"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:61
+#: src/components/login/SignInScreen.svelte:60
 msgid "Acquiring"
 msgstr ""
 
@@ -112,19 +112,19 @@ msgstr ""
 msgid "active now"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:457
+#: src/components/settings/panes/ManagePlayersPane.svelte:460
 msgid "Add"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:227
-#: src/components/settings/panes/ManagePlayersPane.svelte:424
+#: src/components/settings/panes/ManagePlayersPane.svelte:226
+#: src/components/settings/panes/ManagePlayersPane.svelte:427
 msgid "Add a player"
 msgstr ""
 
 #: src/components/dashboard/ServerRail.svelte:46
-#: src/components/serverList/ServerListScreen.svelte:52
-#: src/components/serverList/ServerListScreen.svelte:78
-#: src/components/settings/panes/ConnectPane.svelte:262
+#: src/components/serverList/ServerListScreen.svelte:53
+#: src/components/serverList/ServerListScreen.svelte:79
+#: src/components/settings/panes/ConnectPane.svelte:270
 msgid "Add a server"
 msgstr ""
 
@@ -140,32 +140,32 @@ msgstr ""
 msgid "Add player"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:326
-#: src/components/login/NoServerScreen.svelte:48
+#: src/components/login/IntroScreen.svelte:410
+#: src/components/login/NoServerScreen.svelte:57
 msgid "Add the mod to your world"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:167
+#: src/components/settings/panes/WebSocketPane.svelte:178
 msgid "Add this as a Browser source in OBS, sized 3840 by 2160."
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:194
+#: src/components/settings/panes/LibraryPane.svelte:196
 #: src/components/settings/panes/ManagePlayersPane.svelte:277
 msgid "Added"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:77
+#: src/components/login/SignInScreen.svelte:76
 msgid "ADDR"
 msgstr ""
 
 #: src/components/settings/panes/WebSocketPane.svelte:123
-#: src/components/settings/panes/WebSocketPane.svelte:126
+#: src/components/settings/panes/WebSocketPane.svelte:130
 #: src/components/settings/ProxyServerEditor.svelte:114
 #: src/js/app/error/FaultCatalog.ts:165
 msgid "Address"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:139
+#: src/components/settings/panes/WebSocketPane.svelte:144
 msgid "Addresses"
 msgstr ""
 
@@ -193,22 +193,22 @@ msgstr ""
 msgid "All"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:511
+#: src/components/settings/panes/ManagePlayersPane.svelte:514
 msgid "Allow"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:93
-#: src/components/settings/panes/WebSocketPane.svelte:99
+#: src/components/settings/panes/WebSocketPane.svelte:101
+#: src/components/settings/panes/WebSocketPane.svelte:95
 msgid "Allow external connections"
 msgstr ""
 
-#: src/components/setup/MicrophoneScreen.svelte:69
-#: src/components/setup/MicrophoneScreen.svelte:76
+#: src/components/setup/MicrophoneScreen.svelte:73
+#: src/components/setup/MicrophoneScreen.svelte:81
 msgid "Allow microphone access"
 msgstr ""
 
-#: src/components/setup/NotificationsScreen.svelte:73
-#: src/components/setup/NotificationsScreen.svelte:80
+#: src/components/setup/NotificationsScreen.svelte:79
+#: src/components/setup/NotificationsScreen.svelte:86
 msgid "Allow notifications"
 msgstr ""
 
@@ -216,11 +216,11 @@ msgstr ""
 msgid "Almost there…"
 msgstr ""
 
-#: src/js/app/dashboard.ts:399
+#: src/js/app/dashboard.ts:428
 msgid "already granted"
 msgstr ""
 
-#: src/js/app/dashboard.ts:736
+#: src/js/app/dashboard.ts:766
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
@@ -232,11 +232,11 @@ msgstr ""
 msgid "Android and iOS both require a notification to let an app hold the microphone in the background. Without it your voice cuts out the moment BVC leaves the screen — which is every moment you are actually playing."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:188
+#: src/components/settings/panes/AboutPane.svelte:191
 msgid "Anonymous usage statistics and crash reports help us improve the app. No personal data is sent."
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:212
+#: src/components/login/IntroScreen.svelte:226
 msgid "Aternos — free hosting"
 msgstr ""
 
@@ -254,7 +254,7 @@ msgstr ""
 msgid "Audio output"
 msgstr ""
 
-#: src/js/app/dashboard.ts:327
+#: src/js/app/dashboard.ts:348
 msgid "Audio permission denied"
 msgstr ""
 
@@ -270,7 +270,7 @@ msgstr ""
 msgid "AuthCallbackHandler: Authorization code already exchanged"
 msgstr ""
 
-#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:101
+#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:103
 msgid "Authentication failed. Please try again."
 msgstr ""
 
@@ -282,8 +282,8 @@ msgstr ""
 msgid "Available now"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:363
-#: src/components/settings/SettingsScreen.svelte:170
+#: src/components/login/IntroScreen.svelte:475
+#: src/components/settings/SettingsScreen.svelte:173
 msgid "Back"
 msgstr ""
 
@@ -301,11 +301,11 @@ msgstr ""
 msgid "Back to recordings"
 msgstr ""
 
-#: src/components/login/CodeScreen.svelte:89
+#: src/components/login/CodeScreen.svelte:93
 msgid "Back to sign in"
 msgstr ""
 
-#: src/components/settings/NoiseGate.svelte:103
+#: src/components/settings/NoiseGate.svelte:99
 msgid "Back to the defaults"
 msgstr ""
 
@@ -317,20 +317,20 @@ msgstr ""
 msgid "Background Audio Couldn't Start"
 msgstr ""
 
-#: src/js/app/dashboard.ts:353
+#: src/js/app/dashboard.ts:378
 msgid "background service"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:485
+#: src/components/settings/panes/ManagePlayersPane.svelte:488
 msgid "Ban"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:328
-#: src/components/settings/panes/ManagePlayersPane.svelte:384
+#: src/components/settings/panes/ManagePlayersPane.svelte:331
+#: src/components/settings/panes/ManagePlayersPane.svelte:387
 msgid "Ban {name}"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:467
+#: src/components/settings/panes/ManagePlayersPane.svelte:470
 msgid "Ban this player?"
 msgstr ""
 
@@ -350,7 +350,7 @@ msgstr ""
 msgid "Bedrock Voice Chat needs access to your microphone to enable voice communication. Please grant microphone permissions in your system settings and return to the dashboard."
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:57
+#: src/components/login/GateScreen.svelte:53
 msgid "Before you sign in"
 msgstr ""
 
@@ -358,7 +358,7 @@ msgstr ""
 msgid "Both can be changed later in settings. Talk for a moment and the mark beside this fills out as your voice passes the noise gate."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:139
+#: src/components/settings/panes/AboutPane.svelte:144
 msgid "Build"
 msgstr ""
 
@@ -374,11 +374,11 @@ msgstr ""
 msgid "BVC needs"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:106
+#: src/components/login/GateScreen.svelte:108
 msgid "BVC server + world mod · installed once"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:472
+#: src/components/settings/panes/ManagePlayersPane.svelte:475
 msgid "can sign in again. They are issued a new certificate on their next sign-in; the revoked one stays revoked."
 msgstr ""
 
@@ -400,14 +400,14 @@ msgstr ""
 msgid "Can't start"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:296
-#: src/components/settings/panes/ManagePlayersPane.svelte:451
-#: src/components/settings/panes/ManagePlayersPane.svelte:483
-#: src/components/settings/panes/PlayersPane.svelte:340
-#: src/components/settings/panes/RecordingsPane.svelte:291
-#: src/components/settings/ProxyServerEditor.svelte:154
-#: src/components/settings/XboxSignIn.svelte:96
-#: src/routes/login/+page.svelte:278
+#: src/components/dashboard/GroupRow.svelte:300
+#: src/components/settings/panes/ManagePlayersPane.svelte:454
+#: src/components/settings/panes/ManagePlayersPane.svelte:486
+#: src/components/settings/panes/PlayersPane.svelte:342
+#: src/components/settings/panes/RecordingsPane.svelte:287
+#: src/components/settings/ProxyServerEditor.svelte:153
+#: src/components/settings/XboxSignIn.svelte:103
+#: src/routes/login/+page.svelte:281
 msgid "Cancel"
 msgstr ""
 
@@ -415,7 +415,7 @@ msgstr ""
 msgid "Capturing"
 msgstr ""
 
-#: src/js/app/dashboard.ts:917
+#: src/js/app/dashboard.ts:969
 msgid "certificate rejected"
 msgstr ""
 
@@ -433,34 +433,34 @@ msgstr ""
 msgid "Change your device to 48kHz"
 msgstr ""
 
-#: src/components/setup/DevicesScreen.svelte:68
+#: src/components/setup/DevicesScreen.svelte:70
 msgid "Changeable any time in settings"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:195
+#: src/components/login/IntroScreen.svelte:198
 msgid "Channel"
 msgstr ""
 
-#: src/js/app/managers/ChannelManager.ts:524
+#: src/js/app/managers/ChannelManager.ts:551
 msgid "Channel event received with no payload"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:81
-#: src/components/dashboard/DashboardScreen.svelte:342
+#: src/components/dashboard/ChatComposer.svelte:80
+#: src/components/dashboard/DashboardScreen.svelte:339
 msgid "Chat"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:110
-#: src/js/app/chat/ChatManager.ts:275
+#: src/components/dashboard/ChatDock.svelte:112
+#: src/js/app/chat/ChatManager.ts:273
 msgid "Chat is disabled on this server"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:132
-#: src/components/settings/panes/ConnectPane.svelte:243
+#: src/components/settings/panes/AboutPane.svelte:136
+#: src/components/settings/panes/ConnectPane.svelte:250
 msgid "Check again"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:238
+#: src/components/settings/panes/AboutPane.svelte:243
 msgid "Check for new features and entitlements"
 msgstr ""
 
@@ -468,11 +468,11 @@ msgstr ""
 msgid "Check the name, and that your server is online and running."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:126
+#: src/components/settings/panes/AboutPane.svelte:128
 msgid "Checking"
 msgstr ""
 
-#: src/js/app/dashboard.ts:323
+#: src/js/app/dashboard.ts:342
 msgid "Checking audio permission..."
 msgstr ""
 
@@ -480,7 +480,7 @@ msgstr ""
 msgid "Checking your Microsoft sign-in."
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:243
+#: src/components/settings/panes/ConnectPane.svelte:250
 msgid "Checking…"
 msgstr ""
 
@@ -503,15 +503,15 @@ msgstr ""
 msgid "Chosen by the system"
 msgstr ""
 
-#: src/components/settings/BedrockLog.svelte:120
+#: src/components/settings/BedrockLog.svelte:119
 msgid "Clear"
 msgstr ""
 
-#: src/components/settings/panes/KeybindsPane.svelte:65
+#: src/components/settings/panes/KeybindsPane.svelte:66
 msgid "Click a binding, then press the combination."
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:224
+#: src/components/settings/panes/WebSocketPane.svelte:237
 #: src/js/app/error/FaultCatalog.ts:137
 msgid "Client"
 msgstr ""
@@ -520,33 +520,33 @@ msgstr ""
 msgid "Client Update Required"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:204
+#: src/components/dashboard/GroupRow.svelte:207
 #: src/components/serverList/PreflightPanel.svelte:79
 msgid "Close"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:101
+#: src/components/dashboard/ChatDock.svelte:102
 msgid "Close chat"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:424
+#: src/components/dashboard/DashboardScreen.svelte:421
 msgid "Close groups"
 msgstr ""
 
-#: src/components/settings/SettingsScreen.svelte:145
-#: src/components/settings/SettingsScreen.svelte:163
+#: src/components/settings/SettingsScreen.svelte:144
+#: src/components/settings/SettingsScreen.svelte:165
 msgid "Close settings"
 msgstr ""
 
-#: src/components/dashboard/StatusPanel.svelte:186
+#: src/components/dashboard/StatusPanel.svelte:189
 msgid "Close status"
 msgstr ""
 
-#: src/components/dashboard/PlayerCard.svelte:60
+#: src/components/dashboard/PlayerCard.svelte:62
 msgid "Close this card"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:144
+#: src/components/dashboard/ChatDock.svelte:146
 #: src/components/dashboard/ChatTargetPicker.svelte:41
 msgid "Close world picker"
 msgstr ""
@@ -555,24 +555,24 @@ msgstr ""
 msgid "Closes below"
 msgstr ""
 
-#: src/components/login/CodeScreen.svelte:52
-#: src/components/login/CodeScreen.svelte:64
+#: src/components/login/CodeScreen.svelte:56
+#: src/components/login/CodeScreen.svelte:68
 msgid "Code"
 msgstr ""
 
-#: src/components/login/CodeScreen.svelte:54
+#: src/components/login/CodeScreen.svelte:58
 msgid "CODE"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:105
+#: src/components/login/NoServerScreen.svelte:129
 msgid "Come back any time from the sign-in screen"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:227
+#: src/components/settings/panes/WebSocketPane.svelte:240
 msgid "Commands"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:147
+#: src/components/settings/panes/AboutPane.svelte:152
 msgid "Commit"
 msgstr ""
 
@@ -580,17 +580,17 @@ msgstr ""
 msgid "Community discussions and help"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:55
-#: src/components/login/SignInScreen.svelte:67
-#: src/components/settings/PlateGrid.svelte:99
+#: src/components/login/SignInScreen.svelte:54
+#: src/components/login/SignInScreen.svelte:66
+#: src/components/settings/PlateGrid.svelte:91
 msgid "Connect"
 msgstr ""
 
-#: src/js/app/dashboard.ts:929
+#: src/js/app/dashboard.ts:981
 msgid "connect failed"
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:56
+#: src/components/login/ConnectErrorScreen.svelte:66
 msgid "Connect to a different server"
 msgstr ""
 
@@ -598,17 +598,17 @@ msgstr ""
 msgid "connected"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:316
-#: src/components/settings/panes/WebSocketPane.svelte:226
+#: src/components/settings/panes/ConnectPane.svelte:322
+#: src/components/settings/panes/WebSocketPane.svelte:239
 msgid "Connected"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:217
+#: src/components/settings/panes/WebSocketPane.svelte:230
 msgid "Connected clients"
 msgstr ""
 
-#: src/routes/login/+page.svelte:247
-#: src/routes/login/+page.svelte:269
+#: src/routes/login/+page.svelte:246
+#: src/routes/login/+page.svelte:268
 msgid "Connecting"
 msgstr ""
 
@@ -620,7 +620,7 @@ msgstr ""
 msgid "Connection Refused"
 msgstr ""
 
-#: src/components/dashboard/NearbyRing.svelte:107
+#: src/components/dashboard/NearbyRing.svelte:108
 msgid "Connection status"
 msgstr ""
 
@@ -632,69 +632,69 @@ msgstr ""
 msgid "Contact your server operator."
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:165
+#: src/routes/uireview/+page.svelte:198
 msgid "Container queries, so these are faithful. Scroll each frame — the footbar must stay on screen at every step."
 msgstr ""
 
-#: src/components/setup/MicrophoneScreen.svelte:81
-#: src/components/setup/NotificationsScreen.svelte:85
+#: src/components/setup/MicrophoneScreen.svelte:89
+#: src/components/setup/NotificationsScreen.svelte:93
 msgid "Continue →"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:103
+#: src/components/login/SignInScreen.svelte:102
 msgid "Continue with a code"
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:68
+#: src/components/settings/XboxSignIn.svelte:70
 msgid "Copied."
 msgstr ""
 
-#: src/components/settings/BedrockLog.svelte:114
+#: src/components/settings/BedrockLog.svelte:113
 msgid "Copy"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:131
+#: src/components/settings/panes/WebSocketPane.svelte:136
 msgid "Copy address"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:153
+#: src/components/settings/panes/AboutPane.svelte:158
 msgid "Copy commit"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:231
+#: src/components/settings/panes/LibraryPane.svelte:233
 msgid "Copy id"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:278
+#: src/components/settings/panes/LibraryPane.svelte:282
 msgid "Copy id for {name}"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:77
+#: src/components/login/NoServerScreen.svelte:99
 msgid "Copy message →"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:181
+#: src/components/settings/panes/WebSocketPane.svelte:192
 msgid "Copy overlay URL"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:205
+#: src/components/settings/panes/AboutPane.svelte:210
 msgid "Copy platform ID"
 msgstr ""
 
-#: src/components/dashboard/StatusPanel.svelte:161
-#: src/components/dashboard/StatusPanel.svelte:163
+#: src/components/dashboard/StatusPanel.svelte:162
+#: src/components/dashboard/StatusPanel.svelte:164
 msgid "Copy report"
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:62
+#: src/components/settings/XboxSignIn.svelte:64
 msgid "Copy the code"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:204
+#: src/components/settings/panes/WebSocketPane.svelte:217
 msgid "Copy token"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:151
+#: src/components/settings/panes/WebSocketPane.svelte:158
 msgid "Copy ws://{address}"
 msgstr ""
 
@@ -706,7 +706,7 @@ msgstr ""
 msgid "Could not resolve the server address. Check that the server URL is correct and that your internet connection is working. If you are using a custom DNS provider, ensure it can resolve the server hostname."
 msgstr ""
 
-#: src/js/app/managers/settings/AccountManager.ts:112
+#: src/js/app/managers/settings/AccountManager.ts:125
 msgid "Could not retrieve Java username."
 msgstr ""
 
@@ -722,31 +722,31 @@ msgstr ""
 msgid "Credentials Could Not Be Saved"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:173
-#: src/components/settings/panes/AudioPane.svelte:179
+#: src/components/settings/panes/AudioPane.svelte:172
+#: src/components/settings/panes/AudioPane.svelte:178
 msgid "Crouch to whisper"
 msgstr ""
 
-#: src/components/settings/NoiseGate.svelte:64
+#: src/components/settings/NoiseGate.svelte:61
 msgid "Cut my mic when I am not speaking"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:510
+#: src/components/settings/panes/ManagePlayersPane.svelte:513
 msgid "Default"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:497
+#: src/components/settings/panes/ManagePlayersPane.svelte:500
 msgid "Default follows this server's configuration. Allow and deny override it."
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:340
-#: src/components/settings/panes/RecordingsPane.svelte:310
+#: src/components/settings/panes/LibraryPane.svelte:345
+#: src/components/settings/panes/RecordingsPane.svelte:306
 #: src/components/settings/RecordingDetail.svelte:166
 msgid "Delete"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:240
-#: src/components/settings/panes/LibraryPane.svelte:286
+#: src/components/settings/panes/LibraryPane.svelte:242
+#: src/components/settings/panes/LibraryPane.svelte:290
 msgid "Delete {name}"
 msgstr ""
 
@@ -754,19 +754,19 @@ msgstr ""
 msgid "Delete sounds"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:302
+#: src/components/settings/panes/RecordingsPane.svelte:298
 msgid "Delete this recording?"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:332
+#: src/components/settings/panes/LibraryPane.svelte:336
 msgid "Delete this sound?"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:512
+#: src/components/settings/panes/ManagePlayersPane.svelte:515
 msgid "Deny"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:257
+#: src/components/settings/panes/AboutPane.svelte:262
 msgid "Developer"
 msgstr ""
 
@@ -774,7 +774,7 @@ msgstr ""
 msgid "Device"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:107
+#: src/components/login/GateScreen.svelte:109
 msgid "Device setup continues after sign-in"
 msgstr ""
 
@@ -783,15 +783,15 @@ msgstr ""
 msgid "Devices"
 msgstr ""
 
-#: src/components/setup/NotificationsScreen.svelte:94
+#: src/components/setup/NotificationsScreen.svelte:102
 msgid "Devices come next"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:184
+#: src/components/settings/panes/AboutPane.svelte:187
 msgid "Diagnostics and privacy"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:76
+#: src/components/dashboard/ChatDock.svelte:74
 msgid "Disabled"
 msgstr ""
 
@@ -799,15 +799,15 @@ msgstr ""
 msgid "Discord callback missing token payload"
 msgstr ""
 
-#: src/components/events/Notification.svelte:93
+#: src/components/events/Notification.svelte:96
 msgid "Dismiss"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:165
+#: src/components/settings/panes/AboutPane.svelte:169
 msgid "Display language"
 msgstr ""
 
-#: src/js/app/dashboard.ts:911
+#: src/js/app/dashboard.ts:963
 msgid "DNS lookup failed"
 msgstr ""
 
@@ -815,11 +815,11 @@ msgstr ""
 msgid "DNS Resolution Failed"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:65
+#: src/components/login/NoServerScreen.svelte:83
 msgid "Do both installs yourself. The guide covers the server and the mod, start to finish, in about fifteen minutes."
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:520
+#: src/components/settings/panes/ManagePlayersPane.svelte:523
 msgid "Done"
 msgstr ""
 
@@ -831,15 +831,15 @@ msgstr ""
 msgid "drops"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:198
+#: src/components/dashboard/GroupRow.svelte:200
 msgid "Edit"
 msgstr ""
 
-#: src/components/settings/PlateGrid.svelte:73
+#: src/components/settings/PlateGrid.svelte:65
 msgid "Edit {name}"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:262
+#: src/components/settings/panes/AboutPane.svelte:267
 msgid "Emits one line per logging invariant, from the webview and from Rust."
 msgstr ""
 
@@ -852,7 +852,7 @@ msgstr ""
 msgid "Enable notification permissions in system settings"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:225
+#: src/components/settings/panes/WebSocketPane.svelte:238
 msgid "Endpoint"
 msgstr ""
 
@@ -860,19 +860,19 @@ msgstr ""
 msgid "Enter the code"
 msgstr ""
 
-#: src/components/settings/panes/KeybindsPane.svelte:65
+#: src/components/settings/panes/KeybindsPane.svelte:67
 msgid "Escape cancels, Delete clears it."
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:344
+#: src/components/login/IntroScreen.svelte:439
 msgid "Every voice lands on its own timecoded track, ready to drop straight into the edit — and the controls reach the desk beside your keyboard."
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:334
+#: src/components/login/IntroScreen.svelte:426
 msgid "Everyone signs in with the account they already play on"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:112
+#: src/js/app/dashboard/DiagnosticsCopy.ts:115
 msgid "Everything looks fine."
 msgstr ""
 
@@ -880,15 +880,15 @@ msgstr ""
 msgid "Export {count} track{plural}"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:352
+#: src/components/login/IntroScreen.svelte:460
 msgid "Export to WAV or MP4"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:183
+#: src/components/settings/panes/RecordingsPane.svelte:181
 msgid "Export your sessions to disk to import into your DAW or video editor."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:251
+#: src/components/settings/panes/RecordingsPane.svelte:247
 msgid "Exporting {index}/{total}"
 msgstr ""
 
@@ -896,11 +896,11 @@ msgstr ""
 msgid "Exporting…"
 msgstr ""
 
-#: src/js/app/managers/settings/AccountManager.ts:120
+#: src/js/app/managers/settings/AccountManager.ts:133
 msgid "Failed to link Java identity."
 msgstr ""
 
-#: src/js/app/dashboard.ts:304
+#: src/js/app/dashboard.ts:317
 msgid "Failed to refresh server state, using cached permissions"
 msgstr ""
 
@@ -908,7 +908,7 @@ msgstr ""
 msgid "Falloff"
 msgstr ""
 
-#: src/components/settings/PlateGrid.svelte:65
+#: src/components/settings/PlateGrid.svelte:57
 msgid "Favourite {name}"
 msgstr ""
 
@@ -916,15 +916,15 @@ msgstr ""
 msgid "Feature flags refreshed."
 msgstr ""
 
-#: src/components/setup/DevicesScreen.svelte:70
+#: src/components/setup/DevicesScreen.svelte:72
 msgid "Finish setup"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:222
+#: src/components/settings/panes/AboutPane.svelte:227
 msgid "For a bug report. Written to your Documents folder."
 msgstr ""
 
-#: src/js/app/dashboard.ts:352
+#: src/js/app/dashboard.ts:377
 msgid "Foreground service could not be started."
 msgstr ""
 
@@ -940,11 +940,11 @@ msgstr ""
 msgid "FORMAT UNSUPPORTED"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:284
+#: src/components/settings/panes/ConnectPane.svelte:292
 msgid "From your server"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:196
+#: src/components/login/IntroScreen.svelte:200
 msgid "FULL VOLUME · ANY DISTANCE"
 msgstr ""
 
@@ -953,39 +953,39 @@ msgstr ""
 msgid "Game"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:436
-#: src/components/settings/panes/ManagePlayersPane.svelte:437
+#: src/components/settings/panes/ManagePlayersPane.svelte:439
+#: src/components/settings/panes/ManagePlayersPane.svelte:440
 msgid "Gamertag"
 msgstr ""
 
-#: src/components/audio/AudioDeviceSelector.svelte:91
+#: src/components/audio/AudioDeviceSelector.svelte:93
 msgid "Getting your audio devices."
 msgstr ""
 
-#: src/components/setup/NotificationsScreen.svelte:68
+#: src/components/setup/NotificationsScreen.svelte:72
 msgid "Grant it in your system settings, then come back and try again. Voice cannot survive leaving the screen without it."
 msgstr ""
 
-#: src/components/setup/MicrophoneScreen.svelte:64
+#: src/components/setup/MicrophoneScreen.svelte:66
 msgid "Grant it in your system settings, then come back and try again. Voice chat cannot work without it."
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:287
+#: src/components/dashboard/GroupRow.svelte:290
 msgid "Group id"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:272
-#: src/components/dashboard/GroupRow.svelte:281
+#: src/components/dashboard/GroupRow.svelte:275
+#: src/components/dashboard/GroupRow.svelte:284
 msgid "Group name"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:272
-#: src/components/dashboard/DashboardScreen.svelte:286
-#: src/components/dashboard/DashboardScreen.svelte:427
+#: src/components/dashboard/DashboardScreen.svelte:269
+#: src/components/dashboard/DashboardScreen.svelte:283
+#: src/components/dashboard/DashboardScreen.svelte:424
 msgid "Groups"
 msgstr ""
 
-#: src/js/app/settings/NoiseGateModel.ts:67
+#: src/js/app/settings/NoiseGateModel.ts:69
 msgid "Held open through the gap between two words."
 msgstr ""
 
@@ -993,7 +993,7 @@ msgstr ""
 msgid "Held under the level that opens it, so a steady voice at the edge does not stutter."
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:118
+#: src/components/dashboard/ChatDock.svelte:120
 msgid "History starts when you connect — nothing is stored"
 msgstr ""
 
@@ -1001,15 +1001,15 @@ msgstr ""
 msgid "How do I unlock this?"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:134
+#: src/components/settings/panes/AudioPane.svelte:131
 msgid "How hard voices are pushed left and right by where their speaker is standing. Audio is centered at 0%"
 msgstr ""
 
-#: src/js/app/settings/NoiseGateModel.ts:75
+#: src/js/app/settings/NoiseGateModel.ts:77
 msgid "How long it stays open after you stop talking."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:204
+#: src/components/settings/panes/AudioPane.svelte:203
 msgid "How loud jukebox music plays before distance is applied."
 msgstr ""
 
@@ -1017,15 +1017,15 @@ msgstr ""
 msgid "HTTP connection succeeded but the voice connection (QUIC/UDP) was blocked. This usually means a firewall is blocking UDP traffic on the voice port. Check your firewall settings or contact your server administrator."
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:106
+#: src/components/login/NoServerScreen.svelte:131
 msgid "I have an address — sign in"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:63
+#: src/components/login/NoServerScreen.svelte:81
 msgid "I run the server"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:81
+#: src/components/login/NoServerScreen.svelte:103
 msgid "I'm just looking"
 msgstr ""
 
@@ -1034,30 +1034,30 @@ msgstr ""
 msgid "Identity"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:335
-#: src/routes/dashboard/+layout.svelte:638
+#: src/components/dashboard/DashboardScreen.svelte:332
+#: src/routes/dashboard/+layout.svelte:645
 msgid "In earshot"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:80
+#: src/components/dashboard/ChatDock.svelte:78
 msgid "In game"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:324
+#: src/components/settings/panes/LibraryPane.svelte:327
 msgid "In game, run"
 msgstr ""
 
-#: src/js/app/managers/ChannelManager.ts:313
-#: src/js/app/managers/ChannelManager.ts:354
+#: src/js/app/managers/ChannelManager.ts:332
+#: src/js/app/managers/ChannelManager.ts:373
 msgid "In public group channel"
 msgstr ""
 
-#: src/js/app/dashboard.ts:394
-#: src/js/app/managers/ChannelManager.ts:393
+#: src/js/app/dashboard.ts:423
+#: src/js/app/managers/ChannelManager.ts:412
 msgid "In public voice chat"
 msgstr ""
 
-#: src/components/dashboard/PlayerCard.svelte:71
+#: src/components/dashboard/PlayerCard.svelte:75
 msgid "In range, not on voice — they will not hear you"
 msgstr ""
 
@@ -1070,7 +1070,7 @@ msgstr ""
 msgid "Incompatible Audio Input Device"
 msgstr ""
 
-#: src/js/app/dashboard.ts:850
+#: src/js/app/dashboard.ts:897
 msgid "incompatible device"
 msgstr ""
 
@@ -1078,24 +1078,24 @@ msgstr ""
 msgid "Input"
 msgstr ""
 
-#: src/components/audio/AudioDeviceSelector.svelte:94
-#: src/components/audio/AudioDeviceSelector.svelte:98
+#: src/components/audio/AudioDeviceSelector.svelte:100
+#: src/components/audio/AudioDeviceSelector.svelte:96
 msgid "Input device"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:129
+#: src/components/settings/panes/AboutPane.svelte:132
 msgid "Install"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:68
+#: src/components/login/NoServerScreen.svelte:88
 msgid "Install guide →"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:59
+#: src/components/login/GateScreen.svelte:55
 msgid "Is a BVC server already set up for"
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:68
+#: src/components/settings/XboxSignIn.svelte:70
 msgid "It expires after a few minutes."
 msgstr ""
 
@@ -1103,7 +1103,7 @@ msgstr ""
 msgid "It is either still being written, or it was written by an older build whose format this version cannot read. It can still be renamed or deleted."
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:310
+#: src/components/login/IntroScreen.svelte:389
 msgid "It works with"
 msgstr ""
 
@@ -1115,24 +1115,24 @@ msgstr ""
 msgid "Jitter buffer"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:302
+#: src/components/login/IntroScreen.svelte:372
 msgid "Join from in-game"
 msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:52
 #: src/components/dashboard/JukeboxChip.svelte:73
-#: src/components/settings/panes/AudioPane.svelte:203
-#: src/components/settings/panes/AudioPane.svelte:222
+#: src/components/settings/panes/AudioPane.svelte:202
+#: src/components/settings/panes/AudioPane.svelte:221
 msgid "Jukebox volume"
 msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:64
-#: src/components/settings/panes/AudioPane.svelte:187
+#: src/components/settings/panes/AudioPane.svelte:186
 msgid "Jukeboxes"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:338
-#: src/components/settings/panes/RecordingsPane.svelte:308
+#: src/components/settings/panes/LibraryPane.svelte:342
+#: src/components/settings/panes/RecordingsPane.svelte:303
 msgid "Keep it"
 msgstr ""
 
@@ -1140,7 +1140,7 @@ msgstr ""
 msgid "Keybinds"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:162
+#: src/components/settings/panes/AboutPane.svelte:167
 msgid "Language"
 msgstr ""
 
@@ -1152,13 +1152,13 @@ msgstr ""
 msgid "last seen {n} min ago"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:193
-#: src/routes/dashboard/+layout.svelte:631
+#: src/components/dashboard/GroupRow.svelte:194
+#: src/routes/dashboard/+layout.svelte:638
 msgid "Leave"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:195
-#: src/components/settings/panes/RecordingsPane.svelte:225
+#: src/components/settings/panes/LibraryPane.svelte:197
+#: src/components/settings/panes/RecordingsPane.svelte:221
 msgid "Length"
 msgstr ""
 
@@ -1175,8 +1175,8 @@ msgstr ""
 msgid "Linked Accounts"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:81
-#: src/components/settings/BedrockLog.svelte:84
+#: src/components/dashboard/ChatDock.svelte:79
+#: src/components/settings/BedrockLog.svelte:80
 msgid "Live"
 msgstr ""
 
@@ -1184,20 +1184,20 @@ msgstr ""
 msgid "Locked"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:260
+#: src/components/settings/panes/AboutPane.svelte:265
 msgid "Logging smoke test"
 msgstr ""
 
-#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:107
-#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:142
+#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:110
+#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:157
 msgid "Login failed. Please check your server URL and try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:735
+#: src/js/app/dashboard.ts:765
 msgid "Logout Failed"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:477
+#: src/components/settings/panes/ManagePlayersPane.svelte:480
 msgid "loses voice access now. Their certificate is revoked and their live session is closed, so unbanning them requires them to sign in again."
 msgstr ""
 
@@ -1218,15 +1218,15 @@ msgstr ""
 msgid "Manage Players"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:174
+#: src/components/settings/panes/AboutPane.svelte:177
 msgid "Match my system"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:42
+#: src/components/dashboard/ChatComposer.svelte:41
 msgid "Message {world}…"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:41
+#: src/components/dashboard/ChatComposer.svelte:40
 msgid "Message the server…"
 msgstr ""
 
@@ -1234,11 +1234,11 @@ msgstr ""
 msgid "Microphone"
 msgstr ""
 
-#: src/components/setup/MicrophoneScreen.svelte:62
+#: src/components/setup/MicrophoneScreen.svelte:64
 msgid "Microphone access was refused"
 msgstr ""
 
-#: src/js/app/dashboard.ts:328
+#: src/js/app/dashboard.ts:349
 msgid "microphone denied"
 msgstr ""
 
@@ -1259,22 +1259,22 @@ msgstr ""
 msgid "Mix in the spatial positions"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:305
+#: src/components/login/IntroScreen.svelte:383
 msgid "Moderator controls"
 msgstr ""
 
-#: src/components/dashboard/StatusPanel.svelte:195
-#: src/components/dashboard/StatusPanel.svelte:197
+#: src/components/dashboard/StatusPanel.svelte:200
+#: src/components/dashboard/StatusPanel.svelte:202
 msgid "MS RTT"
 msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:43
-#: src/components/settings/panes/AudioPane.svelte:190
-#: src/components/settings/panes/AudioPane.svelte:196
+#: src/components/settings/panes/AudioPane.svelte:189
+#: src/components/settings/panes/AudioPane.svelte:195
 msgid "Mute jukeboxes"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:209
+#: src/components/settings/panes/AudioPane.svelte:208
 msgid "Muted"
 msgstr ""
 
@@ -1291,7 +1291,7 @@ msgstr ""
 msgid "NEEDS UNLOCKING"
 msgstr ""
 
-#: src/components/dashboard/GroupsPanel.svelte:48
+#: src/components/dashboard/GroupsPanel.svelte:49
 msgid "New group"
 msgstr ""
 
@@ -1319,7 +1319,7 @@ msgstr ""
 msgid "NO ANSWER · CONN01"
 msgstr ""
 
-#: src/js/app/dashboard.ts:874
+#: src/js/app/dashboard.ts:923
 msgid "No current server found in store!"
 msgstr ""
 
@@ -1328,7 +1328,7 @@ msgstr ""
 msgid "NO DEVICE"
 msgstr ""
 
-#: src/js/app/dashboard.ts:856
+#: src/js/app/dashboard.ts:904
 msgid "no input device"
 msgstr ""
 
@@ -1348,11 +1348,11 @@ msgstr ""
 msgid "No microphone was detected on your system. Connect a microphone or headset, verify it appears in your system sound settings, then try again."
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:158
+#: src/components/settings/panes/WebSocketPane.svelte:167
 msgid "No network address yet. Connect to Wi-Fi and reopen this pane."
 msgstr ""
 
-#: src/js/app/dashboard.ts:862
+#: src/js/app/dashboard.ts:910
 msgid "no output device"
 msgstr ""
 
@@ -1368,7 +1368,7 @@ msgstr ""
 msgid "No players yet"
 msgstr ""
 
-#: src/js/app/dashboard.ts:240
+#: src/js/app/dashboard.ts:249
 msgid "no response"
 msgstr ""
 
@@ -1381,7 +1381,7 @@ msgstr ""
 msgid "No speakers or headphones were detected on your system. Connect an audio output device, verify it appears in your system sound settings, then try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:925
+#: src/js/app/dashboard.ts:977
 msgid "no voice transport"
 msgstr ""
 
@@ -1405,13 +1405,13 @@ msgstr ""
 msgid "Nobody you have changed has that name."
 msgstr ""
 
-#: src/components/settings/NoiseGate.svelte:70
-#: src/components/settings/panes/AudioPane.svelte:233
+#: src/components/settings/NoiseGate.svelte:67
+#: src/components/settings/panes/AudioPane.svelte:232
 #: src/js/app/dashboard/DiagnosticsCopy.ts:28
 msgid "Noise gate"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:350
+#: src/components/login/IntroScreen.svelte:454
 msgid "Noise gate & gain"
 msgstr ""
 
@@ -1427,7 +1427,7 @@ msgstr ""
 msgid "not answering right now"
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:161
+#: src/routes/uireview/+page.svelte:193
 msgid "Not available in a release build."
 msgstr ""
 
@@ -1444,11 +1444,11 @@ msgstr ""
 msgid "Not connected"
 msgstr ""
 
-#: src/js/app/managers/settings/AccountManager.ts:85
+#: src/js/app/managers/settings/AccountManager.ts:98
 msgid "Not connected to a server."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:246
+#: src/components/settings/panes/RecordingsPane.svelte:242
 #: src/components/settings/RecordingDetail.svelte:69
 msgid "Not exportable"
 msgstr ""
@@ -1470,7 +1470,7 @@ msgstr ""
 msgid "NOT SAVED"
 msgstr ""
 
-#: src/js/app/managers/settings/KeybindsManager.ts:130
+#: src/js/app/managers/settings/KeybindsManager.ts:225
 msgid "Not set"
 msgstr ""
 
@@ -1491,11 +1491,11 @@ msgstr ""
 msgid "Nothing in range"
 msgstr ""
 
-#: src/components/settings/SettingsScreen.svelte:186
+#: src/components/settings/SettingsScreen.svelte:190
 msgid "Nothing is connected"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:243
+#: src/components/settings/panes/WebSocketPane.svelte:256
 msgid "Nothing is connected yet."
 msgstr ""
 
@@ -1511,15 +1511,15 @@ msgstr ""
 msgid "Nothing matches that"
 msgstr ""
 
-#: src/components/settings/BedrockLog.svelte:106
+#: src/components/settings/BedrockLog.svelte:103
 msgid "Nothing yet. Connect, and this fills in."
 msgstr ""
 
-#: src/components/setup/NotificationsScreen.svelte:66
+#: src/components/setup/NotificationsScreen.svelte:69
 msgid "Notification access was refused"
 msgstr ""
 
-#: src/js/app/dashboard.ts:335
+#: src/js/app/dashboard.ts:359
 msgid "Notification permission denied - notifications may not be visible"
 msgstr ""
 
@@ -1532,23 +1532,23 @@ msgstr ""
 msgid "Notifications"
 msgstr ""
 
-#: src/components/setup/MicrophoneScreen.svelte:90
+#: src/components/setup/MicrophoneScreen.svelte:98
 msgid "Notifications and devices come next"
 msgstr ""
 
-#: src/js/app/dashboard.ts:336
+#: src/js/app/dashboard.ts:361
 msgid "notifications denied"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:166
+#: src/components/settings/panes/WebSocketPane.svelte:177
 msgid "OBS overlay"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:175
+#: src/components/settings/panes/WebSocketPane.svelte:186
 msgid "OBS overlay URL"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:78
+#: src/components/dashboard/ChatDock.svelte:76
 msgid "Off"
 msgstr ""
 
@@ -1560,11 +1560,11 @@ msgstr ""
 msgid "Offline"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:44
+#: src/components/login/NoServerScreen.svelte:48
 msgid "On a machine you control — your PC, a VPS, or a home box"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:341
+#: src/components/login/IntroScreen.svelte:436
 msgid "On separate tracks."
 msgstr ""
 
@@ -1580,7 +1580,7 @@ msgstr ""
 msgid "ONE INSTALL AWAY"
 msgstr ""
 
-#: src/components/setup/NotificationsScreen.svelte:82
+#: src/components/setup/NotificationsScreen.svelte:88
 msgid "One quiet ongoing notification while you are in a session, plus people arriving and channels you are part of."
 msgstr ""
 
@@ -1588,15 +1588,15 @@ msgstr ""
 msgid "Online"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:229
+#: src/components/settings/panes/ManagePlayersPane.svelte:228
 msgid "Only players on this list can sign in to this server."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:279
+#: src/components/settings/panes/RecordingsPane.svelte:275
 msgid "Only the name changes. The recording and its tracks stay where they are."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:236
+#: src/components/settings/panes/RecordingsPane.svelte:232
 msgid "Open {name}"
 msgstr ""
 
@@ -1604,11 +1604,11 @@ msgstr ""
 msgid "Open a bug report on GitHub"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:319
+#: src/components/settings/panes/ConnectPane.svelte:325
 msgid "Open Minecraft, then join it from the Friends tab."
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:98
+#: src/components/settings/XboxSignIn.svelte:107
 msgid "Open the page"
 msgstr ""
 
@@ -1620,7 +1620,7 @@ msgstr ""
 msgid "Open the preflight readout"
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:77
+#: src/components/settings/XboxSignIn.svelte:79
 msgid "Open the sign-in page"
 msgstr ""
 
@@ -1628,8 +1628,8 @@ msgstr ""
 msgid "Opens above"
 msgstr ""
 
-#: src/components/audio/AudioDeviceSelector.svelte:114
-#: src/components/audio/AudioDeviceSelector.svelte:118
+#: src/components/audio/AudioDeviceSelector.svelte:116
+#: src/components/audio/AudioDeviceSelector.svelte:120
 msgid "Output device"
 msgstr ""
 
@@ -1637,7 +1637,7 @@ msgstr ""
 msgid "Packet loss"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:97
+#: src/js/app/dashboard/DiagnosticsCopy.ts:100
 msgid "Packet loss is {percent}%. Audio will break up."
 msgstr ""
 
@@ -1649,20 +1649,20 @@ msgstr ""
 msgid "People appear here once you have been near them on this server."
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:304
+#: src/components/login/IntroScreen.svelte:378
 msgid "Per-player volume 0–150%"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:495
+#: src/components/settings/panes/ManagePlayersPane.svelte:498
 msgid "Permissions for {name}"
 msgstr ""
 
 #: src/components/settings/panes/ManagePlayersPane.svelte:293
-#: src/components/settings/panes/ManagePlayersPane.svelte:360
+#: src/components/settings/panes/ManagePlayersPane.svelte:363
 msgid "Permissions for {name} — {state}"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:301
+#: src/components/login/IntroScreen.svelte:369
 msgid "Persistent groups"
 msgstr ""
 
@@ -1674,7 +1674,7 @@ msgstr ""
 msgid "Places each voice where it was standing and writes every track in stereo. Off writes each track flat and centred, straight from the recording with nothing re-encoded."
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:200
+#: src/components/settings/panes/AboutPane.svelte:205
 msgid "Platform ID"
 msgstr ""
 
@@ -1690,7 +1690,7 @@ msgstr ""
 msgid "Player audio levels"
 msgstr ""
 
-#: src/js/app/components/dashboard/presence.ts:104
+#: src/js/app/components/dashboard/presence.ts:114
 msgid "Player presence event received with no payload"
 msgstr ""
 
@@ -1699,22 +1699,22 @@ msgstr ""
 msgid "players"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:226
+#: src/components/settings/panes/RecordingsPane.svelte:222
 msgid "Players"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:209
+#: src/components/settings/panes/AudioPane.svelte:208
 msgid "Playing"
 msgstr ""
 
-#: src/js/app/login.ts:308
+#: src/js/app/login.ts:318
 msgid "Please enter a server URL"
 msgstr ""
 
-#: src/js/app/login.ts:318
-#: src/js/app/login.ts:321
-#: src/js/app/login.ts:413
-#: src/js/app/login.ts:615
+#: src/js/app/login.ts:328
+#: src/js/app/login.ts:331
+#: src/js/app/login.ts:423
+#: src/js/app/login.ts:629
 msgid "Please enter a valid server URL"
 msgstr ""
 
@@ -1722,12 +1722,12 @@ msgstr ""
 msgid "Point your plugin here."
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:106
+#: src/components/settings/panes/WebSocketPane.svelte:107
 #: src/components/settings/panes/WebSocketPane.svelte:114
 msgid "Port"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:277
+#: src/components/login/IntroScreen.svelte:337
 msgid "Positional audio"
 msgstr ""
 
@@ -1743,7 +1743,7 @@ msgstr ""
 msgid "Previous page"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:119
+#: src/components/login/SignInScreen.svelte:121
 msgid "Privacy notice"
 msgstr ""
 
@@ -1756,7 +1756,7 @@ msgid "Profile and sign-out"
 msgstr ""
 
 #: src/components/serverList/PreflightPanel.svelte:141
-#: src/components/settings/panes/AboutPane.svelte:143
+#: src/components/settings/panes/AboutPane.svelte:148
 #: src/js/app/dashboard/DiagnosticsCopy.ts:41
 msgid "Protocol"
 msgstr ""
@@ -1765,23 +1765,23 @@ msgstr ""
 msgid "Proximity range"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:120
+#: src/components/settings/panes/AboutPane.svelte:121
 msgid "Proximity voice for Minecraft Bedrock. Source available."
 msgstr ""
 
-#: src/components/settings/ProxyServerEditor.svelte:138
+#: src/components/settings/ProxyServerEditor.svelte:137
 msgid "Proxy all events"
 msgstr ""
 
-#: src/js/app/managers/settings/KeybindsManager.ts:80
+#: src/js/app/managers/settings/KeybindsManager.ts:175
 msgid "Push to Talk"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:349
+#: src/components/login/IntroScreen.svelte:451
 msgid "Push-to-talk & hotkeys"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:79
+#: src/js/app/dashboard/DiagnosticsCopy.ts:82
 msgid "Push-to-talk is on. Hold the mic button to speak."
 msgstr ""
 
@@ -1794,12 +1794,12 @@ msgstr ""
 msgid "QUIC port"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:244
+#: src/components/login/IntroScreen.svelte:293
 msgid "Reach"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:227
-#: src/components/login/IntroScreen.svelte:231
+#: src/components/login/IntroScreen.svelte:261
+#: src/components/login/IntroScreen.svelte:271
 msgid "Ready"
 msgstr ""
 
@@ -1815,7 +1815,7 @@ msgstr ""
 msgid "Realm"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:270
+#: src/components/settings/panes/ConnectPane.svelte:278
 msgid "Realms"
 msgstr ""
 
@@ -1827,7 +1827,7 @@ msgstr ""
 msgid "Receiving"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:165
+#: src/components/serverList/PreflightPanel.svelte:164
 msgid "Recheck"
 msgstr ""
 
@@ -1844,15 +1844,15 @@ msgstr ""
 msgid "Reconnecting — attempt {attempt}. Nobody can hear you right now."
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:70
+#: src/js/app/dashboard/DiagnosticsCopy.ts:73
 msgid "Reconnecting. Nobody can hear you right now."
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:341
+#: src/components/login/IntroScreen.svelte:436
 msgid "Record everyone."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:224
+#: src/components/settings/panes/RecordingsPane.svelte:220
 msgid "Recorded"
 msgstr ""
 
@@ -1860,7 +1860,7 @@ msgstr ""
 msgid "Recording is off on this server"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:286
+#: src/components/settings/panes/RecordingsPane.svelte:282
 msgid "Recording name"
 msgstr ""
 
@@ -1868,8 +1868,8 @@ msgstr ""
 msgid "Recordings"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:213
-#: src/components/settings/panes/AboutPane.svelte:249
+#: src/components/settings/panes/AboutPane.svelte:218
+#: src/components/settings/panes/AboutPane.svelte:254
 msgid "Refresh"
 msgstr ""
 
@@ -1877,27 +1877,27 @@ msgstr ""
 msgid "Refused"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:209
+#: src/components/settings/panes/WebSocketPane.svelte:222
 msgid "Regenerate"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:145
+#: src/components/settings/panes/AboutPane.svelte:150
 msgid "Release"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:161
+#: src/components/serverList/PreflightPanel.svelte:159
 msgid "Remove"
 msgstr ""
 
-#: src/components/settings/PlateGrid.svelte:82
+#: src/components/settings/PlateGrid.svelte:74
 msgid "Remove {name}"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:293
+#: src/components/settings/panes/RecordingsPane.svelte:289
 msgid "Rename"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:278
+#: src/components/settings/panes/RecordingsPane.svelte:274
 msgid "Rename this recording"
 msgstr ""
 
@@ -1913,24 +1913,24 @@ msgstr ""
 msgid "Report a Bug"
 msgstr ""
 
-#: src/components/setup/NotificationsScreen.svelte:93
+#: src/components/setup/NotificationsScreen.svelte:101
 msgid "Required · background audio depends on it"
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:190
+#: src/components/settings/panes/WebSocketPane.svelte:201
 msgid "Required on connect. Regenerating disconnects anything using the old one."
 msgstr ""
 
-#: src/components/settings/NoiseGate.svelte:111
-#: src/components/settings/panes/PlayersPane.svelte:341
+#: src/components/settings/NoiseGate.svelte:106
+#: src/components/settings/panes/PlayersPane.svelte:344
 msgid "Reset"
 msgstr ""
 
-#: src/components/settings/panes/KeybindsPane.svelte:74
+#: src/components/settings/panes/KeybindsPane.svelte:78
 msgid "Reset all"
 msgstr ""
 
-#: src/components/settings/panes/KeybindsPane.svelte:70
+#: src/components/settings/panes/KeybindsPane.svelte:73
 msgid "Reset defaults"
 msgstr ""
 
@@ -1938,24 +1938,24 @@ msgstr ""
 msgid "Reset everybody"
 msgstr ""
 
-#: src/components/settings/panes/PlayersPane.svelte:334
+#: src/components/settings/panes/PlayersPane.svelte:336
 msgid "Reset everybody?"
 msgstr ""
 
-#: src/components/settings/panes/PlayersPane.svelte:324
+#: src/components/settings/panes/PlayersPane.svelte:326
 msgid "Reset everybody…"
 msgstr ""
 
-#: src/components/dashboard/StatusPanel.svelte:167
-#: src/components/dashboard/StatusPanel.svelte:172
+#: src/components/dashboard/StatusPanel.svelte:168
+#: src/components/dashboard/StatusPanel.svelte:173
 msgid "Reset stats"
 msgstr ""
 
-#: src/components/dashboard/StatusPanel.svelte:168
+#: src/components/dashboard/StatusPanel.svelte:169
 msgid "Restart every counter from now"
 msgstr ""
 
-#: src/components/settings/panes/KeybindsPane.svelte:71
+#: src/components/settings/panes/KeybindsPane.svelte:74
 msgid "Restores every shortcut above to their default settings"
 msgstr ""
 
@@ -1964,28 +1964,28 @@ msgstr ""
 msgid "Round trip"
 msgstr ""
 
-#: src/components/dashboard/StatusPanel.svelte:199
+#: src/components/dashboard/StatusPanel.svelte:204
 msgid "Round trip · last 72 s"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:267
+#: src/components/settings/panes/AboutPane.svelte:272
 msgid "Run"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:319
-#: src/components/login/NoServerScreen.svelte:43
+#: src/components/login/IntroScreen.svelte:400
+#: src/components/login/NoServerScreen.svelte:46
 msgid "Run the BVC server"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:317
+#: src/components/settings/panes/ConnectPane.svelte:323
 msgid "Running for {clock}"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:298
+#: src/components/login/IntroScreen.svelte:363
 msgid "Running something across the whole map? Drop into a channel and everyone stays at full volume however far apart you get. Proximity keeps running underneath the entire time."
 msgstr ""
 
-#: src/components/settings/NoiseGate.svelte:65
+#: src/components/settings/NoiseGate.svelte:62
 msgid "Runs on this machine. Anything it filters out is never encoded or sent."
 msgstr ""
 
@@ -1993,11 +1993,11 @@ msgstr ""
 msgid "Sample rate"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:297
+#: src/components/dashboard/GroupRow.svelte:303
 msgid "Save"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:221
+#: src/components/settings/panes/AboutPane.svelte:226
 msgid "Save the logs to a file"
 msgstr ""
 
@@ -2008,8 +2008,8 @@ msgstr ""
 msgid "Search players"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:165
-#: src/components/settings/panes/LibraryPane.svelte:166
+#: src/components/settings/panes/LibraryPane.svelte:167
+#: src/components/settings/panes/LibraryPane.svelte:168
 msgid "Search sounds"
 msgstr ""
 
@@ -2018,20 +2018,20 @@ msgstr ""
 msgid "Secure storage"
 msgstr ""
 
-#: src/components/serverList/ServerListScreen.svelte:58
+#: src/components/serverList/ServerListScreen.svelte:59
 msgid "Select a server"
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:102
+#: src/components/dashboard/ChatComposer.svelte:101
 msgid "Send"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:187
-#: src/components/settings/panes/AboutPane.svelte:193
+#: src/components/settings/panes/AboutPane.svelte:190
+#: src/components/settings/panes/AboutPane.svelte:198
 msgid "Send anonymous usage and crash reports"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:267
+#: src/components/settings/panes/AboutPane.svelte:272
 #: src/js/app/dashboard/DiagnosticsCopy.ts:30
 msgid "Sending"
 msgstr ""
@@ -2040,7 +2040,7 @@ msgstr ""
 msgid "sending…"
 msgstr ""
 
-#: src/components/dashboard/ChatMessageRow.svelte:47
+#: src/components/dashboard/ChatMessageRow.svelte:48
 msgid "sent from the app, not in game"
 msgstr ""
 
@@ -2055,12 +2055,12 @@ msgstr ""
 msgid "Server"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:75
-#: src/components/login/SignInScreen.svelte:85
+#: src/components/login/SignInScreen.svelte:74
+#: src/components/login/SignInScreen.svelte:84
 msgid "Server address"
 msgstr ""
 
-#: src/js/app/dashboard.ts:921
+#: src/js/app/dashboard.ts:973
 msgid "server certificate"
 msgstr ""
 
@@ -2072,7 +2072,7 @@ msgstr ""
 msgid "Server Certificate Rejected"
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:70
+#: src/components/dashboard/ChatDock.svelte:68
 msgid "Server chat"
 msgstr ""
 
@@ -2084,19 +2084,19 @@ msgstr ""
 msgid "Server Update Required"
 msgstr ""
 
-#: src/js/app/login.ts:315
+#: src/js/app/login.ts:325
 msgid "Server URL must use HTTPS"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:303
+#: src/components/login/IntroScreen.svelte:375
 msgid "Server-wide broadcast"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:382
+#: src/components/dashboard/DashboardScreen.svelte:379
 msgid "Servers"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:319
+#: src/components/dashboard/DashboardScreen.svelte:316
 msgid "Servers and settings"
 msgstr ""
 
@@ -2104,8 +2104,8 @@ msgstr ""
 msgid "SERVICE STOPPED"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:260
-#: src/components/settings/panes/RecordingsPane.svelte:223
+#: src/components/login/IntroScreen.svelte:317
+#: src/components/settings/panes/RecordingsPane.svelte:219
 #: src/js/app/dashboard/DiagnosticsCopy.ts:24
 msgid "Session"
 msgstr ""
@@ -2115,37 +2115,37 @@ msgid "Set it up once."
 msgstr ""
 
 #: src/components/dashboard/ServerRail.svelte:52
-#: src/components/settings/SettingsScreen.svelte:151
+#: src/components/settings/SettingsScreen.svelte:150
 msgid "Settings"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:311
-#: src/components/settings/panes/ManagePlayersPane.svelte:372
+#: src/components/settings/panes/ManagePlayersPane.svelte:314
+#: src/components/settings/panes/ManagePlayersPane.svelte:375
 msgid "Settings for {name}"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:53
+#: src/components/login/NoServerScreen.svelte:69
 msgid "Share the address — everyone talks"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:333
+#: src/components/login/IntroScreen.svelte:423
 msgid "Share the address and talk"
 msgstr ""
 
-#: src/components/settings/BedrockLog.svelte:118
+#: src/components/settings/BedrockLog.svelte:117
 msgid "Show debug"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:99
+#: src/components/login/GateScreen.svelte:101
 msgid "Show me how →"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:310
+#: src/components/dashboard/DashboardScreen.svelte:307
 msgid "Show status"
 msgstr ""
 
-#: src/components/login/CodeScreen.svelte:81
-#: src/components/settings/panes/ConnectPane.svelte:226
+#: src/components/login/CodeScreen.svelte:85
+#: src/components/settings/panes/ConnectPane.svelte:229
 msgid "Sign in"
 msgstr ""
 
@@ -2162,21 +2162,21 @@ msgstr ""
 msgid "Sign in with a code"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:107
+#: src/components/login/SignInScreen.svelte:106
 #: src/components/settings/panes/ConnectPane.svelte:222
 #: src/components/settings/XboxSignIn.svelte:45
 msgid "Sign in with Microsoft"
 msgstr ""
 
-#: src/components/settings/panes/AccountPane.svelte:142
+#: src/components/settings/panes/AccountPane.svelte:143
 msgid "Sign out"
 msgstr ""
 
-#: src/routes/login/+page.svelte:263
+#: src/routes/login/+page.svelte:262
 msgid "Sign out and start over"
 msgstr ""
 
-#: src/components/settings/panes/AccountPane.svelte:139
+#: src/components/settings/panes/AccountPane.svelte:140
 msgid "Sign out of this server"
 msgstr ""
 
@@ -2196,24 +2196,24 @@ msgstr ""
 msgid "Signed out"
 msgstr ""
 
-#: src/routes/login/+page.svelte:290
+#: src/routes/login/+page.svelte:296
 msgid "Signing in with the account you play on"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:196
-#: src/components/settings/panes/RecordingsPane.svelte:227
+#: src/components/settings/panes/LibraryPane.svelte:198
+#: src/components/settings/panes/RecordingsPane.svelte:223
 msgid "Size"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:361
+#: src/components/login/IntroScreen.svelte:471
 msgid "Skip"
 msgstr ""
 
-#: src/js/app/settings/NoiseGateModel.ts:59
+#: src/js/app/settings/NoiseGateModel.ts:61
 msgid "Slow enough to hear as a fade, fast enough not to clip a word."
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:76
+#: src/components/login/GateScreen.svelte:74
 msgid "Someone already set it up"
 msgstr ""
 
@@ -2221,28 +2221,28 @@ msgstr ""
 msgid "Something Went Wrong"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:192
+#: src/components/settings/panes/LibraryPane.svelte:194
 msgid "Sound"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:133
-#: src/components/settings/panes/AudioPane.svelte:150
+#: src/components/settings/panes/AudioPane.svelte:130
+#: src/components/settings/panes/AudioPane.svelte:149
 msgid "Spatial panning"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:279
+#: src/components/login/IntroScreen.svelte:343
 msgid "Spectator support"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:295
+#: src/components/login/IntroScreen.svelte:360
 msgid "Split off into"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:347
+#: src/components/login/IntroScreen.svelte:445
 msgid "Split-track recording"
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:422
+#: src/routes/uireview/+page.svelte:457
 msgid "Starting up"
 msgstr ""
 
@@ -2250,7 +2250,7 @@ msgstr ""
 msgid "State"
 msgstr ""
 
-#: src/components/dashboard/StatusPanel.svelte:153
+#: src/components/dashboard/StatusPanel.svelte:154
 msgid "Status"
 msgstr ""
 
@@ -2258,17 +2258,17 @@ msgstr ""
 msgid "Stay on This Version"
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:60
-#: src/routes/error/+page.svelte:161
-#: src/routes/uireview/+page.svelte:382
+#: src/components/login/ConnectErrorScreen.svelte:70
+#: src/routes/error/+page.svelte:180
+#: src/routes/uireview/+page.svelte:417
 msgid "Still stuck?"
 msgstr ""
 
-#: src/components/settings/PlateGrid.svelte:91
+#: src/components/settings/PlateGrid.svelte:83
 msgid "Stop"
 msgstr ""
 
-#: src/js/app/dashboard.ts:185
+#: src/js/app/dashboard.ts:188
 msgid "Stopped recording that was active before page refresh"
 msgstr ""
 
@@ -2276,19 +2276,19 @@ msgstr ""
 msgid "Stored in"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:348
-#: src/components/settings/panes/WebSocketPane.svelte:265
+#: src/components/login/IntroScreen.svelte:448
+#: src/components/settings/panes/WebSocketPane.svelte:279
 msgid "Stream Deck plugin"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:208
-#: src/components/login/IntroScreen.svelte:212
-#: src/components/login/IntroScreen.svelte:216
-#: src/components/login/IntroScreen.svelte:220
+#: src/components/login/IntroScreen.svelte:218
+#: src/components/login/IntroScreen.svelte:228
+#: src/components/login/IntroScreen.svelte:238
+#: src/components/login/IntroScreen.svelte:248
 msgid "Supported"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:73
+#: src/components/settings/panes/AudioPane.svelte:75
 msgid "System default"
 msgstr ""
 
@@ -2300,15 +2300,15 @@ msgstr ""
 msgid "Takes about a minute on a normal connection"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:88
+#: src/components/settings/panes/AudioPane.svelte:89
 msgid "Test my microphone"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:99
+#: src/components/settings/panes/AudioPane.svelte:97
 msgid "Test playback"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:85
+#: src/components/settings/panes/AudioPane.svelte:87
 msgid "Test your devices"
 msgstr ""
 
@@ -2328,30 +2328,30 @@ msgstr ""
 msgid "That player is no longer on this server."
 msgstr ""
 
-#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:138
-#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:210
-#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:219
-#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:224
+#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:149
+#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:227
+#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:238
+#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:245
 msgid "That sign-in could not be completed. Please sign in again."
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:239
+#: src/components/login/IntroScreen.svelte:287
 msgid "The BVC server runs separately, on"
 msgstr ""
 
-#: src/components/audio/AudioDeviceSelector.svelte:136
+#: src/components/audio/AudioDeviceSelector.svelte:138
 msgid "The device list is incomplete."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:133
+#: src/components/settings/panes/RecordingsPane.svelte:131
 msgid "The export could not run."
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:194
+#: src/components/settings/panes/RecordingsPane.svelte:190
 msgid "The operator has turned voice recording off, so the record button is unavailable while you are connected here."
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:92
+#: src/components/settings/panes/ManagePlayersPane.svelte:91
 msgid "The server did not answer when we asked for its players."
 msgstr ""
 
@@ -2373,11 +2373,11 @@ msgstr ""
 msgid "The server refused this connection because it could not verify your identity. Your certificate may have been revoked or reissued. Sign in again to get fresh credentials."
 msgstr ""
 
-#: src/routes/error/+page.svelte:157
+#: src/routes/error/+page.svelte:173
 msgid "The update could not be installed. Try again, or download the new version by hand."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:126
+#: src/components/settings/panes/AudioPane.svelte:123
 msgid "The voice mode did not change."
 msgstr ""
 
@@ -2385,7 +2385,7 @@ msgstr ""
 msgid "The websocket server allows remote control of BVC from other devices on your network, such as a Stream Deck, or custom plugin."
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:426
+#: src/components/settings/panes/ManagePlayersPane.svelte:429
 msgid "Their gamertag, spelled as Xbox spells it. Only players on this list can sign in to this server."
 msgstr ""
 
@@ -2393,15 +2393,15 @@ msgstr ""
 msgid "Then everyone just signs in."
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:73
+#: src/components/settings/XboxSignIn.svelte:75
 msgid "Then go to"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:74
+#: src/components/login/NoServerScreen.svelte:94
 msgid "They only have to do it once. Copy a short message with the guide link and send it over."
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:140
+#: src/components/settings/panes/WebSocketPane.svelte:145
 msgid "This device answers on all of them. Use whichever your other device can reach."
 msgstr ""
 
@@ -2409,7 +2409,7 @@ msgstr ""
 msgid "This recording cannot be exported"
 msgstr ""
 
-#: src/components/settings/panes/RecordingsPane.svelte:193
+#: src/components/settings/panes/RecordingsPane.svelte:189
 msgid "This server does not allow recording"
 msgstr ""
 
@@ -2425,15 +2425,15 @@ msgstr ""
 msgid "To use Bedrock Voice Chat, a parent or guardian needs to turn it on for your device. Ask them to help you unlock it -- then you're good to go!"
 msgstr ""
 
-#: src/js/app/managers/settings/KeybindsManager.ts:78
+#: src/js/app/managers/settings/KeybindsManager.ts:173
 msgid "Toggle Deafen"
 msgstr ""
 
-#: src/js/app/managers/settings/KeybindsManager.ts:77
+#: src/js/app/managers/settings/KeybindsManager.ts:172
 msgid "Toggle Mute"
 msgstr ""
 
-#: src/js/app/managers/settings/KeybindsManager.ts:79
+#: src/js/app/managers/settings/KeybindsManager.ts:174
 msgid "Toggle Recording"
 msgstr ""
 
@@ -2441,11 +2441,11 @@ msgstr ""
 msgid "Tracks"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:148
+#: src/components/serverList/PreflightPanel.svelte:147
 msgid "Transport"
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:53
+#: src/components/login/ConnectErrorScreen.svelte:59
 msgid "Try again"
 msgstr ""
 
@@ -2466,11 +2466,11 @@ msgstr ""
 msgid "Try signing out then back in"
 msgstr ""
 
-#: src/components/settings/ProxyServerEditor.svelte:142
+#: src/components/settings/ProxyServerEditor.svelte:141
 msgid "Turn on for Realms, Aternos, or other servers where the no-net addon is installed."
 msgstr ""
 
-#: src/components/settings/panes/WebSocketPane.svelte:94
+#: src/components/settings/panes/WebSocketPane.svelte:96
 msgid "Turn on to drive BVC from another device on your network."
 msgstr ""
 
@@ -2482,16 +2482,16 @@ msgstr ""
 msgid "Unable to establish a voice connection to the server. The server may be offline, unreachable, or your certificates may have expired. Please try again."
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:485
+#: src/components/settings/panes/ManagePlayersPane.svelte:488
 msgid "Unban"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:325
-#: src/components/settings/panes/ManagePlayersPane.svelte:383
+#: src/components/settings/panes/ManagePlayersPane.svelte:328
+#: src/components/settings/panes/ManagePlayersPane.svelte:386
 msgid "Unban {name}"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:467
+#: src/components/settings/panes/ManagePlayersPane.svelte:470
 msgid "Unban this player?"
 msgstr ""
 
@@ -2499,7 +2499,7 @@ msgstr ""
 msgid "UNEXPECTED"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:202
+#: src/components/settings/panes/AboutPane.svelte:207
 msgid "Uniquely identifies your build for experimental features + analytics."
 msgstr ""
 
@@ -2515,7 +2515,7 @@ msgstr ""
 msgid "Unmute jukeboxes"
 msgstr ""
 
-#: src/js/app/chat/WorldLabel.ts:68
+#: src/js/app/chat/WorldLabel.ts:65
 msgid "Unnamed world ({id})"
 msgstr ""
 
@@ -2540,7 +2540,7 @@ msgstr ""
 msgid "Update Now"
 msgstr ""
 
-#: src/routes/error/+page.svelte:87
+#: src/routes/error/+page.svelte:92
 msgid "Updating…"
 msgstr ""
 
@@ -2548,11 +2548,11 @@ msgstr ""
 msgid "Upload sounds"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:193
+#: src/components/settings/panes/LibraryPane.svelte:195
 msgid "Uploaded by"
 msgstr ""
 
-#: src/components/settings/panes/LibraryPane.svelte:140
+#: src/components/settings/panes/LibraryPane.svelte:141
 msgid "Uploaded sounds can be played on a Jukeboxes"
 msgstr ""
 
@@ -2564,11 +2564,11 @@ msgstr ""
 msgid "Verifying the signature…"
 msgstr ""
 
-#: src/components/settings/panes/AboutPane.svelte:141
+#: src/components/settings/panes/AboutPane.svelte:146
 msgid "Version"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:235
+#: src/components/login/IntroScreen.svelte:281
 msgid "Via phone"
 msgstr ""
 
@@ -2580,15 +2580,15 @@ msgstr ""
 msgid "View privacy statement"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:108
+#: src/components/settings/panes/AudioPane.svelte:105
 msgid "Voice"
 msgstr ""
 
-#: src/components/setup/MicrophoneScreen.svelte:89
+#: src/components/setup/MicrophoneScreen.svelte:97
 msgid "Voice chat cannot work without a microphone"
 msgstr ""
 
-#: src/components/dashboard/DashboardScreen.svelte:301
+#: src/components/dashboard/DashboardScreen.svelte:298
 #: src/js/app/settings/SettingsCatalogue.ts:45
 msgid "Voice Chat Connect"
 msgstr ""
@@ -2601,8 +2601,8 @@ msgstr ""
 msgid "Voice chat needs two things: a mod on your world, and a BVC server running somewhere you control. Nothing at all on your players' machines."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:160
-#: src/components/settings/panes/AudioPane.svelte:166
+#: src/components/settings/panes/AudioPane.svelte:159
+#: src/components/settings/panes/AudioPane.svelte:165
 msgid "Voice chat sounds"
 msgstr ""
 
@@ -2614,7 +2614,7 @@ msgstr ""
 msgid "Voice has to keep running"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:110
+#: src/components/settings/panes/AudioPane.svelte:107
 msgid "Voice mode"
 msgstr ""
 
@@ -2628,11 +2628,11 @@ msgstr ""
 msgid "Voice path is blocked"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:274
+#: src/components/login/IntroScreen.svelte:331
 msgid "Voices get louder as players come toward you and fade as they leave. No lobbies, no invites, and nobody shouting over a call from three biomes away."
 msgstr ""
 
-#: src/components/dashboard/PlayerCard.svelte:94
+#: src/components/dashboard/PlayerCard.svelte:98
 msgid "Volume for {gamertag}"
 msgstr ""
 
@@ -2640,27 +2640,27 @@ msgstr ""
 msgid "Volume for {name}"
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:85
+#: src/components/settings/XboxSignIn.svelte:89
 msgid "Waiting"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:271
+#: src/components/login/IntroScreen.svelte:328
 msgid "Walk up to someone."
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:86
+#: src/components/login/NoServerScreen.svelte:110
 msgid "Watch it →"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:83
+#: src/components/login/NoServerScreen.svelte:105
 msgid "Watch the setup walkthrough and see it running before you commit to anything."
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:85
+#: src/components/settings/XboxSignIn.svelte:90
 msgid "Watching for your sign-in."
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:234
+#: src/components/settings/panes/ConnectPane.svelte:238
 msgid "We could not reach this server to ask whether Bedrock support is on."
 msgstr ""
 
@@ -2672,8 +2672,8 @@ msgstr ""
 msgid "We need a grown-ups help to get started"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:351
-#: src/components/settings/panes/WebSocketPane.svelte:258
+#: src/components/login/IntroScreen.svelte:457
+#: src/components/settings/panes/WebSocketPane.svelte:271
 msgid "WebSocket API"
 msgstr ""
 
@@ -2681,7 +2681,7 @@ msgstr ""
 msgid "WebSocket server"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:120
+#: src/components/login/SignInScreen.svelte:124
 msgid "What is this?"
 msgstr ""
 
@@ -2689,31 +2689,31 @@ msgstr ""
 msgid "What you hear"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:38
+#: src/components/login/NoServerScreen.svelte:40
 msgid "What's involved"
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:191
+#: src/components/settings/panes/AudioPane.svelte:190
 msgid "When enabled, you won't hear Jukeboxes in your world."
 msgstr ""
 
-#: src/components/settings/panes/AudioPane.svelte:174
+#: src/components/settings/panes/AudioPane.svelte:173
 msgid "When you crouch or crawl, only players within a few blocks hear you."
 msgstr ""
 
-#: src/components/dashboard/ChatDock.svelte:94
+#: src/components/dashboard/ChatDock.svelte:92
 msgid "Where this message goes"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:204
+#: src/components/login/IntroScreen.svelte:209
 msgid "Where your world can live — the mod goes here"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:49
+#: src/components/login/NoServerScreen.svelte:59
 msgid "Wherever your world is hosted, including Aternos and Realms"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:58
+#: src/components/login/NoServerScreen.svelte:76
 msgid "Which one are you?"
 msgstr ""
 
@@ -2721,23 +2721,23 @@ msgstr ""
 msgid "Which players"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:72
+#: src/components/login/SignInScreen.svelte:71
 msgid "Which server are you joining?"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:278
+#: src/components/login/IntroScreen.svelte:340
 msgid "Whisper & shout"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:224
+#: src/components/login/IntroScreen.svelte:253
 msgid "Who can join"
 msgstr ""
 
-#: src/components/login/ConnectErrorScreen.svelte:64
-#: src/components/login/NoServerScreen.svelte:92
-#: src/components/settings/panes/AboutPane.svelte:284
-#: src/routes/error/+page.svelte:165
-#: src/routes/uireview/+page.svelte:386
+#: src/components/login/ConnectErrorScreen.svelte:74
+#: src/components/login/NoServerScreen.svelte:116
+#: src/components/settings/panes/AboutPane.svelte:290
+#: src/routes/error/+page.svelte:184
+#: src/routes/uireview/+page.svelte:421
 msgid "Wiki"
 msgstr ""
 
@@ -2745,11 +2745,11 @@ msgstr ""
 msgid "WSS port"
 msgstr ""
 
-#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:140
+#: src/js/app/deepLinkHandlers/authCallbackHandler.ts:153
 msgid "Xbox Live could not be reached. Please try again in a moment."
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:75
+#: src/components/login/GateScreen.svelte:73
 msgid "Yes · I have an address"
 msgstr ""
 
@@ -2757,19 +2757,19 @@ msgstr ""
 msgid "you"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:76
+#: src/js/app/dashboard/DiagnosticsCopy.ts:79
 msgid "You are deafened. You cannot hear anyone."
 msgstr ""
 
-#: src/components/settings/SettingsScreen.svelte:186
+#: src/components/settings/SettingsScreen.svelte:189
 msgid "You are in settings on its own."
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:82
+#: src/js/app/dashboard/DiagnosticsCopy.ts:85
 msgid "You are muted. Nobody can hear you."
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:235
+#: src/components/settings/panes/ConnectPane.svelte:242
 msgid "You can connect anyway — if position is refused, this is why."
 msgstr ""
 
@@ -2789,11 +2789,11 @@ msgstr ""
 msgid "You don't have permission to access this server."
 msgstr ""
 
-#: src/components/dashboard/ChatComposer.svelte:67
+#: src/components/dashboard/ChatComposer.svelte:66
 msgid "You moved out of {world} — that message was not sent"
 msgstr ""
 
-#: src/components/settings/panes/ManagePlayersPane.svelte:219
+#: src/components/settings/panes/ManagePlayersPane.svelte:218
 #: src/js/app/settings/ManagePlayersView.ts:193
 #: src/js/app/settings/ManagePlayersView.ts:206
 #: src/js/app/settings/ManagePlayersView.ts:219
@@ -2808,7 +2808,7 @@ msgstr ""
 msgid "You signed in, but this device has no unlocked keyring to store your credentials in, so the sign-in could not be completed. On Linux, open Passwords and Keys, create a password keyring named Login, and set it as the default. If your system signs you in automatically, turning that off and signing in with your password will create the keyring for you."
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:271
+#: src/components/login/IntroScreen.svelte:328
 msgid "You're already talking."
 msgstr ""
 
@@ -2816,7 +2816,7 @@ msgstr ""
 msgid "You're signed in as"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:73
+#: src/js/app/dashboard/DiagnosticsCopy.ts:76
 msgid "Your audio is not reaching the server. Try reconnecting."
 msgstr ""
 
@@ -2824,7 +2824,7 @@ msgstr ""
 msgid "Your client version is outdated. Download the latest BVC client to connect to this server."
 msgstr ""
 
-#: src/components/settings/XboxSignIn.svelte:51
+#: src/components/settings/XboxSignIn.svelte:53
 msgid "Your code"
 msgstr ""
 
@@ -2832,7 +2832,7 @@ msgstr ""
 msgid "Your device's secure storage rejected the write"
 msgstr ""
 
-#: src/js/app/dashboard/DiagnosticsCopy.ts:85
+#: src/js/app/dashboard/DiagnosticsCopy.ts:88
 msgid "Your input device is running at {kHz} kHz. BVC expects 48 kHz."
 msgstr ""
 
@@ -2844,15 +2844,15 @@ msgstr ""
 msgid "Your microphone configuration is not supported. Make sure your input device on Windows is running at 48kHz sample rate, or change to a different input device"
 msgstr ""
 
-#: src/components/setup/MicrophoneScreen.svelte:78
+#: src/components/setup/MicrophoneScreen.svelte:84
 msgid "Your operating system will ask. BVC never listens outside a session."
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:208
+#: src/components/login/IntroScreen.svelte:216
 msgid "Your own server"
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:320
+#: src/components/login/IntroScreen.svelte:402
 msgid "Your PC, a VPS, or a home box"
 msgstr ""
 
@@ -2864,7 +2864,7 @@ msgstr ""
 msgid "Your phone routes voice to whatever you last connected. Plug in a headset and it follows."
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:159
+#: src/components/login/IntroScreen.svelte:160
 msgid "Your range"
 msgstr ""
 
@@ -2876,23 +2876,23 @@ msgstr ""
 msgid "Your sign-in for this server is still valid, but its voice connection presented a certificate this device cannot verify. Only the server operator can fix this. Your saved sign-in has been kept."
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:50
+#: src/components/login/GateScreen.svelte:46
 msgid "Your world"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:62
+#: src/components/login/GateScreen.svelte:58
 msgid "Your world needs a BVC server running somewhere before anyone can talk. If that is already done, all you need is its address."
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:313
+#: src/components/login/IntroScreen.svelte:392
 msgid "Your world stays exactly where it is. The mod goes on it; the BVC server runs on a machine you control."
 msgstr ""
 
-#: src/components/login/IntroScreen.svelte:245
+#: src/components/login/IntroScreen.svelte:295
 msgid "YOUR WORLD STAYS WHERE IT IS"
 msgstr ""
 
-#: src/components/settings/panes/ConnectPane.svelte:297
+#: src/components/settings/panes/ConnectPane.svelte:305
 msgid "Yours"
 msgstr ""
 

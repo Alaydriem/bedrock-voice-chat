@@ -7,9 +7,8 @@ vi.mock("@tauri-apps/api/webviewWindow", () => ({
     getCurrentWebviewWindow: () => ({ listen: async () => () => {} }),
 }));
 
-const { default: DashboardScreen } = await import(
-    "../../components/dashboard/DashboardScreen.svelte"
-);
+const { default: DashboardScreen } =
+    await import("../../components/dashboard/DashboardScreen.svelte");
 const { SelfController } = await import("../../js/app/dashboard/SelfController");
 
 function controller() {
@@ -33,7 +32,14 @@ function mount(props: Record<string, unknown> = {}) {
     const rendered = render(DashboardScreen, {
         target: frame,
         props: {
-            servers: [{ server: "https://a.example.com", host: "a.example.com", player: "Al", isCurrent: true }],
+            servers: [
+                {
+                    server: "https://a.example.com",
+                    host: "a.example.com",
+                    player: "Al",
+                    isCurrent: true,
+                },
+            ],
             serverName: "a.example.com",
             currentHost: "a.example.com",
             player: "Alaydriem",
@@ -168,7 +174,8 @@ describe("DashboardScreen session menu", () => {
 
         expect(chevron.getAttribute("aria-expanded")).toBe("true");
         expect(
-            frame.querySelector<HTMLElement>(".rad-self-capsule .rad-self__id")
+            frame
+                .querySelector<HTMLElement>(".rad-self-capsule .rad-self__id")
                 ?.getAttribute("aria-expanded"),
         ).not.toBe("true");
     });

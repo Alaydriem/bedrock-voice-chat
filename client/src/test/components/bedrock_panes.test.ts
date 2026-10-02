@@ -6,7 +6,8 @@ import type { BedrockManager } from "../../js/app/managers/bedrock/BedrockManage
 import type { BedrockCapabilityStatus } from "../../js/app/managers/bedrock/BedrockCapabilityManager";
 
 const { default: ConnectPane } = await import("../../components/settings/panes/ConnectPane.svelte");
-const { default: ProxyServerEditor } = await import("../../components/settings/ProxyServerEditor.svelte");
+const { default: ProxyServerEditor } =
+    await import("../../components/settings/ProxyServerEditor.svelte");
 
 interface Knobs {
     authed?: boolean;
@@ -34,7 +35,13 @@ function stub({
     ]);
     const servers: Writable<unknown[]> = writable([
         { id: "b1", name: "Alaydriem's SMP", host: "mc.alaydriem.com", port: 19132 },
-        { id: "b2", name: "Hearthhold", host: "play.hearthhold.net", port: 19132, source: "server" },
+        {
+            id: "b2",
+            name: "Hearthhold",
+            host: "play.hearthhold.net",
+            port: 19132,
+            source: "server",
+        },
     ]);
 
     return {
@@ -68,7 +75,12 @@ function stub({
         openLoginUrl: async () => {},
         // The log panel reads these.
         realmsLogs: readable([
-            { timestamp_ms: 1_753_732_440_000n, level: "INFO", target: "proxy", message: "listening" },
+            {
+                timestamp_ms: 1_753_732_440_000n,
+                level: "INFO",
+                target: "proxy",
+                message: "listening",
+            },
         ]),
         logsExpanded: readable(false),
         clearLogs: () => {},
@@ -182,7 +194,9 @@ describe("Connect pane", () => {
         const bare = stub();
         (bare as unknown as { sortedRealms: Writable<unknown[]> }).sortedRealms = writable([]);
         (bare as unknown as { sortedProxyServers: Writable<unknown[]> }).sortedProxyServers =
-            writable([{ id: "b1", name: "Alaydriem's SMP", host: "mc.alaydriem.com", port: 19132 }]);
+            writable([
+                { id: "b1", name: "Alaydriem's SMP", host: "mc.alaydriem.com", port: 19132 },
+            ]);
 
         const view = mount(ConnectPane, bare);
         await waitFor(() => expect(view.text()).toContain("Alaydriem's SMP"));
@@ -298,11 +312,15 @@ describe("Connect pane log", () => {
     it("collapses the log by default on mobile and opens it on desktop", async () => {
         const phone = mount(ConnectPane, stub(), true);
         await waitFor(() => expect(phone.host.querySelector(".rad-disclosure")).not.toBeNull());
-        expect(phone.host.querySelector(".rad-disclosure")?.classList.contains("is-open")).toBe(false);
+        expect(phone.host.querySelector(".rad-disclosure")?.classList.contains("is-open")).toBe(
+            false,
+        );
 
         const desk = mount(ConnectPane, stub());
         await waitFor(() => expect(desk.host.querySelector(".rad-disclosure")).not.toBeNull());
-        expect(desk.host.querySelector(".rad-disclosure")?.classList.contains("is-open")).toBe(true);
+        expect(desk.host.querySelector(".rad-disclosure")?.classList.contains("is-open")).toBe(
+            true,
+        );
     });
 });
 
@@ -310,10 +328,13 @@ describe("Proxy server editor addon mode", () => {
     function mountEditor(entry: unknown) {
         const host = document.createElement("div");
         document.body.append(host);
-        render(ProxyServerEditor as never, {
-            target: host,
-            props: { entry, versions: [], onsave: () => {}, oncancel: () => {} },
-        } as never);
+        render(
+            ProxyServerEditor as never,
+            {
+                target: host,
+                props: { entry, versions: [], onsave: () => {}, oncancel: () => {} },
+            } as never,
+        );
         return host.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
     }
 

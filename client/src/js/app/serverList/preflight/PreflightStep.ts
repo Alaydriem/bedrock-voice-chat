@@ -1,5 +1,5 @@
-import type { PreflightStepName } from './PreflightStepName';
-import type { PreflightStepState } from './PreflightStepState';
+import type { PreflightStepName } from "./PreflightStepName";
+import type { PreflightStepState } from "./PreflightStepState";
 
 /** One check, its result, and how long it took. */
 export interface PreflightStep {

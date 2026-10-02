@@ -20,28 +20,25 @@ const shipped = [];
 const skipped = [];
 
 for (const file of readdirSync(LOCALES).filter((name) => name.endsWith(".po"))) {
-  const locale = basename(file, ".po");
-  const po = gettextParser.po.parse(readFileSync(join(LOCALES, file)));
-  const coverage = PackCompiler.coverage(po);
+    const locale = basename(file, ".po");
+    const po = gettextParser.po.parse(readFileSync(join(LOCALES, file)));
+    const coverage = PackCompiler.coverage(po);
 
-  if (coverage < COVERAGE_THRESHOLD) {
-    skipped.push(`${locale} (${Math.round(coverage * 100)}%)`);
-    continue;
-  }
+    if (coverage < COVERAGE_THRESHOLD) {
+        skipped.push(`${locale} (${Math.round(coverage * 100)}%)`);
+        continue;
+    }
 
-  writeFileSync(join(OUTPUT, `${locale}.json`), JSON.stringify(PackCompiler.compile(locale, po)));
-  shipped.push(`${locale} (${Math.round(coverage * 100)}%)`);
+    writeFileSync(join(OUTPUT, `${locale}.json`), JSON.stringify(PackCompiler.compile(locale, po)));
+    shipped.push(`${locale} (${Math.round(coverage * 100)}%)`);
 }
 
 const pot = gettextParser.po.parse(readFileSync(join(LOCALES, "bvc.pot")));
-writeFileSync(
-  join(OUTPUT, `${PseudoLocale.LOCALE}.json`),
-  JSON.stringify(PseudoLocale.build(pot)),
-);
+writeFileSync(join(OUTPUT, `${PseudoLocale.LOCALE}.json`), JSON.stringify(PseudoLocale.build(pot)));
 
 process.stdout.write(`i18n: shipped ${shipped.join(", ") || "none"}\n`);
 if (skipped.length > 0) {
-  process.stdout.write(
-    `i18n: below ${COVERAGE_THRESHOLD * 100}%, not shipped - ${skipped.join(", ")}\n`,
-  );
+    process.stdout.write(
+        `i18n: below ${COVERAGE_THRESHOLD * 100}%, not shipped - ${skipped.join(", ")}\n`,
+    );
 }
