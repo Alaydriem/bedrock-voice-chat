@@ -384,3 +384,18 @@ jobs:
           name: openapi-json
           path: docs/openapi.json
           retention-days: 30
+
+      # The socket routes are mounted outside the OpenAPI spec, so they get their own document.
+      - name: Generate server AsyncAPI spec
+        working-directory: ./server/server
+        run: |
+          cargo run --example asyncapi_spec > ../../docs/server-websocket-api.json
+          echo "Generated server AsyncAPI spec:"
+          head -20 ../../docs/server-websocket-api.json
+
+      - name: Upload server AsyncAPI spec
+        uses: actions/upload-artifact@v5
+        with:
+          name: server-asyncapi-json
+          path: docs/server-websocket-api.json
+          retention-days: 30

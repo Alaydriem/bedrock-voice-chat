@@ -44,6 +44,9 @@ const METADATA = {
 const BP_MIN_ENGINE = [1, 26, 50];
 const RP_MIN_ENGINE = [1, 26, 12];
 
+// Bedrock disables Vibrant Visuals while any active resource pack lacks `pbr`.
+const RP_CAPABILITIES = ['pbr'];
+
 const SCRIPT_ENTRY = 'scripts/main.js';
 
 const BP_MODULE_DEPENDENCIES = [
@@ -72,6 +75,7 @@ module.exports = {
   METADATA,
   BP_MIN_ENGINE,
   RP_MIN_ENGINE,
+  RP_CAPABILITIES,
   SCRIPT_ENTRY,
   BP_MODULE_DEPENDENCIES,
   VARIANTS,

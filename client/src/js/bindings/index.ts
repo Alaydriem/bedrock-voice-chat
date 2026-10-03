@@ -14,6 +14,7 @@ export type { ApiConfigBedrockServer } from './ApiConfigBedrockServer';
 export type { ApiConfigCapacity } from './ApiConfigCapacity';
 export type { ApiConfigChat } from './ApiConfigChat';
 export type { ApiConfigCheckResponse } from './ApiConfigCheckResponse';
+export type { ApiConfigRadar } from './ApiConfigRadar';
 export type { ApiConfigRecording } from './ApiConfigRecording';
 export type { ApiConfigResponse } from './ApiConfigResponse';
 export type { ApiError } from './ApiError';

@@ -317,4 +317,60 @@ describe("NearbyManager", () => {
         expect(all[0].presence).toBe("game");
         nearby.stop();
     });
+
+    it("leaves the ring empty when the server turns radar off", async () => {
+        const nearby = new NearbyManager();
+        let approaching: readonly { name: string }[] = [];
+        nearby.approaching.subscribe((v) => (approaching = v));
+
+        await nearby.start("https://voice.example.com", 48, false);
+        await deliver(1, [entry("minecraft:Far", 60)]);
+
+        expect(approaching).toEqual([]);
+        nearby.stop();
+    });
+
+    it("hides nobody in earshot when radar is off", async () => {
+        const nearby = new NearbyManager();
+        let inEarshot: readonly { name: string }[] = [];
+        nearby.inEarshot.subscribe((v) => (inEarshot = v));
+
+        await nearby.start("https://voice.example.com", 48, false);
+        await deliver(1, [entry("minecraft:Close", 40), entry("minecraft:Far", 60)]);
+
+        expect(inEarshot.map((p) => p.name)).toEqual(["minecraft:Close"]);
+        nearby.stop();
+    });
+
+    it("does not move a departing player onto the ring when radar is off", async () => {
+        const nearby = new NearbyManager();
+        let inEarshot: readonly { name: string }[] = [];
+        let approaching: readonly { name: string }[] = [];
+        nearby.inEarshot.subscribe((v) => (inEarshot = v));
+        nearby.approaching.subscribe((v) => (approaching = v));
+
+        await nearby.start("https://voice.example.com", 48, false);
+        await deliver(1, [entry("minecraft:Walker", 40)]);
+        await deliver(2, [entry("minecraft:Walker", 70)]);
+
+        expect(inEarshot).toEqual([]);
+        expect(approaching).toEqual([]);
+        nearby.stop();
+    });
+
+    it("restores the ring when a later start turns radar back on", async () => {
+        const nearby = new NearbyManager();
+        let approaching: readonly { name: string }[] = [];
+        nearby.approaching.subscribe((v) => (approaching = v));
+
+        await nearby.start("https://voice.example.com", 48, false);
+        // Unbound so `deliver` waits for the replacement socket rather than the one `start`
+        // just closed.
+        onmessage = null;
+        await nearby.start("https://voice.example.com", 48, true);
+        await deliver(1, [entry("minecraft:Far", 60)]);
+
+        expect(approaching.map((p) => p.name)).toEqual(["minecraft:Far"]);
+        nearby.stop();
+    });
 });

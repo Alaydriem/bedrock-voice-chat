@@ -1,6 +1,7 @@
 mod harness;
 
 mod admin;
+mod asyncapi;
 mod auth;
 mod channel;
 mod clients;

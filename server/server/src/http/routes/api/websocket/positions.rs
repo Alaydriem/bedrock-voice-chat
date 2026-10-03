@@ -14,11 +14,11 @@ use crate::services::{PositionFeedService, PositionService};
 
 // Echoed back at the handshake. The client offers this alongside its ticket so
 // the server has a subprotocol to accept that is not the credential itself.
-const PROTOCOL: &str = "bvc.positions.v1";
+pub const PROTOCOL: &str = "bvc.positions.v1";
 
 // Sockets are recycled rather than living forever, so a stale identity cannot
 // hold an open feed indefinitely.
-const SESSION_MAX: Duration = Duration::from_secs(6 * 60 * 60);
+pub const SESSION_MAX: Duration = Duration::from_secs(6 * 60 * 60);
 
 /// Streams the caller's view of the players around them.
 ///

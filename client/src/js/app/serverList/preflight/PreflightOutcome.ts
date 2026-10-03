@@ -3,9 +3,9 @@ import type { RosterStatus } from "../RosterStatus";
 /** What a completed preflight concluded, beyond the steps themselves. */
 export interface PreflightOutcome {
     readonly status: Exclude<RosterStatus, "checking">;
-    /** The handshake's round trip in milliseconds, which is the only one measured. */
+    /** The voice path's round trip in milliseconds, over whichever transport answered. */
     readonly rtt: number;
-    /** High enough to be worth saying out loud. */
+    /** The send side — half the round trip — is high enough to be worth saying out loud. */
     readonly slow: boolean;
     /** The QUIC port that answered, or the advertised one when none did. */
     readonly quicPort: number;

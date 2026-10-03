@@ -6,7 +6,7 @@ use rocket_okapi::openapi;
 use crate::stream::quic::{CacheManager, TicketIdentity};
 
 // Mirrors the cache's TTL, reported so the client need not hardcode it.
-const TICKET_EXPIRES_IN: u64 = 60;
+pub const TICKET_EXPIRES_IN: u64 = 60;
 
 /// Exchanges the caller's mTLS identity for a single-use WebSocket ticket.
 ///

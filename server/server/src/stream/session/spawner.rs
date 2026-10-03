@@ -200,39 +200,18 @@ impl SessionSpawner {
                 match cache_manager.remove_player(&identity).await {
                     Ok(removed_channels) => {
                         for (channel_id, creator) in removed_channels {
-                            let leave_packet = QuicNetworkPacket {
-                                sender: Some(common::structs::packet::PacketSender::player(
-                                    identity.clone(),
-                                    device,
-                                )),
-                                packet_type: PacketType::ChannelEvent,
-                                data: QuicNetworkPacketData::ChannelEvent(
-                                    common::structs::packet::ChannelEventPacket::new(
-                                        common::structs::channel::ChannelEvents::Leave,
-                                        identity.clone(),
-                                        channel_id.clone(),
-                                        None,
-                                        Some(creator),
-                                    ),
-                                ),
-                                // Not a server fan-out, so this envelope carries no sequence.
-                                ..Default::default()
-                            };
-
-                            if let Err(e) = webhook_receiver.send_packet(leave_packet).await {
-                                curia::error!(
-                                    "Failed to broadcast channel leave event for player {} channel {}: {}",
-                                    identity,
-                                    channel_id,
-                                    e
-                                );
-                            } else {
-                                curia::info!(
-                                    "Broadcast channel leave event: player {} left channel {}",
-                                    identity,
-                                    channel_id
-                                );
-                            }
+                            crate::services::ChannelMembershipService::announce_departure(
+                                &webhook_receiver,
+                                &identity,
+                                &channel_id,
+                                creator,
+                            )
+                            .await;
+                            curia::info!(
+                                "Broadcast channel leave event: player {} left channel {}",
+                                identity,
+                                channel_id
+                            );
                         }
                     }
                     Err(e) => {

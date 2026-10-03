@@ -99,6 +99,8 @@ export default class Dashboard extends BVCApp {
      */
     public voiceRange = 48;
     public feedScope = 120;
+    /** The server's `radar.enabled`. On until `/api/config` says otherwise. */
+    public radar = true;
 
     // Per-server age gate. Fetches the server's declared minimum age from
     // /api/config and asks AgeGateService for a decision. Fail-open: any error,
@@ -117,6 +119,9 @@ export default class Dashboard extends BVCApp {
                 pem: credentials.certificate + credentials.certificate_key,
             });
             const config = await invoke<ApiConfigCheckResponse>("api_get_config", { server });
+            // Read here as well as at stream setup: this is the only `/api/config` fetch a warm
+            // re-entry makes, and a fresh dashboard would otherwise start the ring with radar on.
+            this.radar = config?.config?.radar?.enabled ?? true;
             const ageMinimum = config?.config?.age?.minimum ?? null;
             if (ageMinimum == null) {
                 return false;
@@ -333,7 +338,14 @@ export default class Dashboard extends BVCApp {
             }).then((stopped) => stopped as boolean);
             timeline.mark("is_stopped x2");
 
-            if (isInputStreamStopped || isOutputStreamStopped) {
+            // A rail switch reloads the webview and leaves the backend running, so both streams
+            // can be live while voice is still on the server being left. Running streams only
+            // mean nothing needs rebuilding when voice is on the server this boot is for.
+            const voiceServer = await invoke<string | null>("connected_voice_server");
+            const isVoiceElsewhere = voiceServer !== currentServer;
+            timeline.mark("connected_voice_server");
+
+            if (isInputStreamStopped || isOutputStreamStopped || isVoiceElsewhere) {
                 progress.step("Permissions", "running");
                 await this.shutdown();
                 timeline.mark("shutdown (audio teardown)");
@@ -514,7 +526,7 @@ export default class Dashboard extends BVCApp {
 
         // `start` stops itself first, so re-entering it re-opens the feed on a fresh ticket
         // without stranding the old socket.
-        await this.nearby.start(this.currentServer, this.voiceRange);
+        await this.nearby.start(this.currentServer, this.voiceRange, this.radar);
     }
 
     showPreloader(): void {
@@ -823,12 +835,18 @@ export default class Dashboard extends BVCApp {
                     // empty, so until this runs every mute the user set is inert.
                     await invoke("player_settings_publish");
 
+                    // Reset per connect, so a fetch that fails after a server with radar off
+                    // does not carry that server's answer to this one.
+                    this.radar = true;
+
                     // Fetch server config to get fresh QUIC port and spatial audio settings
                     try {
                         const configResponse = await invoke<ApiConfigCheckResponse>(
                             "api_get_config",
                             { server: currentServer },
                         );
+
+                        this.radar = configResponse?.config?.radar?.enabled ?? true;
 
                         // Update QUIC port from server config
                         if (configResponse?.config?.quic_port && credentials) {

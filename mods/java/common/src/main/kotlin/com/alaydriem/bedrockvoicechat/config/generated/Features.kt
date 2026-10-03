@@ -12,4 +12,7 @@ class Features {
     @SerializedName("chat")
     var chat: Boolean? = null
 
+    @SerializedName("radar")
+    var radar: Boolean? = null
+
 }

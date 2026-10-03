@@ -319,6 +319,7 @@ impl Api {
                             recording: Default::default(),
                             chat: Default::default(),
                             capacity: Default::default(),
+                            radar: Default::default(),
                             // A server old enough to need this fallback predates peering
                             // entirely, so there is no peer endpoint to report.
                             peer_link: None,

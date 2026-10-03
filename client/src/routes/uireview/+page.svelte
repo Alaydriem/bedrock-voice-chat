@@ -81,7 +81,7 @@
      * denies the checks after it — which is what the runner does. A protocol mismatch skips
      * nothing, because the UDP path needs the port list rather than the verdict.
      */
-    function steps(failedAt: number | null, warnHandshake = false, fallbackPath = false) {
+    function steps(failedAt: number | null, slowVoice = false, fallbackPath = false) {
         const denied = failedAt === 0 ? 1 : failedAt === 1 ? 2 : PREFLIGHT_STEPS.length;
 
         return PREFLIGHT_STEPS.map((name, i) => {
@@ -95,20 +95,24 @@
             if (fallbackPath && i === 3) {
                 return { name, state: "warn" as PreflightStepState, note: FALLBACK_NOTE, ms };
             }
-            const state: PreflightStepState = warnHandshake && i === 1 ? "warn" : "ok";
-            return { name, state, note: NOTES[i], ms };
+            if (slowVoice && i === 3) {
+                return { name, state: "warn" as PreflightStepState, note: SLOW_NOTE, ms };
+            }
+            return { name, state: "ok" as PreflightStepState, note: NOTES[i], ms };
         });
     }
 
     const NOTES = [
         "signed in as Alaydriem",
-        "mTLS · TLS 1.3 · 24 ms round trip",
+        "mTLS · TLS 1.3",
         "2.1.0 · server 2.1.0",
-        "udp/443 open · 28 ms",
+        "udp/443 open · ~14 ms send",
     ];
 
+    const SLOW_NOTE = "udp/8443 open · ~130 ms send · fallback port";
+
     // The one check that reports a working path in amber rather than a failure in red.
-    const FALLBACK_NOTE = "udp/443 blocked · tcp/443 fallback · 41 ms";
+    const FALLBACK_NOTE = "udp/443 blocked · tcp/443 fallback · ~21 ms send";
 
     const FAILURES = [
         "no valid sign-in for this server",
@@ -148,7 +152,7 @@
         plate("s4.bedrock-legends.bedrockvc.stream", "connect"),
         plate("voice.copperandcobble.eu", "connect", {
             slow: true,
-            rtt: 186,
+            rtt: 260,
             quicPort: 8443,
             steps: steps(null, true),
         }),

@@ -1,3 +1,4 @@
+pub mod asyncapi;
 pub mod dtos;
 pub mod guards;
 pub mod manager;

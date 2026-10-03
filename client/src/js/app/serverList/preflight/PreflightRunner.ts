@@ -29,8 +29,14 @@ export type PreflightObserver = (steps: readonly PreflightStep[]) => void;
  * need to sign in again.
  */
 export class PreflightRunner {
-    /** Above this, the round trip is worth saying out loud rather than just recording. */
-    static readonly SLOW_MS = 120;
+    /**
+     * Above this, the one-way voice delay is worth saying out loud rather than just recording.
+     *
+     * Voice is judged on the send side only, estimated as half the voice path's round trip.
+     * Jitter buffering and Opus framing add roughly another 50–60 ms mouth to ear, which puts
+     * this threshold near the ITU-T G.114 150 ms budget for conversation that feels natural.
+     */
+    static readonly SLOW_SEND_MS = 100;
 
     private static readonly STANDARD_QUIC_PORT = 443;
 
@@ -91,10 +97,8 @@ export class PreflightRunner {
             return { ...PreflightRunner.blank("reauth"), quicPort: voice.port };
         }
 
-        const { response, rtt } = handshake;
+        const response = handshake;
         const measured = {
-            rtt,
-            slow: rtt > PreflightRunner.SLOW_MS,
             serverVersion: response.config.protocol_version,
             clientVersion: response.client_version,
             clientTooOld: response.client_too_old,
@@ -122,7 +126,18 @@ export class PreflightRunner {
             ? "version_mismatch"
             : PreflightRunner.STATUS_FOR_TRANSPORT[voice.transport];
 
-        return { status, ...measured, quicPort: voice.port };
+        return {
+            status,
+            ...measured,
+            rtt: voice.rtt,
+            slow: PreflightRunner.isSlow(voice.rtt),
+            quicPort: voice.port,
+        };
+    }
+
+    /** Half the round trip is the send side, which is the only half a listener hears. */
+    private static isSlow(rtt: number): boolean {
+        return rtt / 2 > PreflightRunner.SLOW_SEND_MS;
     }
 
     /**
@@ -146,13 +161,15 @@ export class PreflightRunner {
         }
     }
 
-    /** Step two, and the only round trip this screen measures. */
+    /**
+     * Step two. Its duration is TCP, TLS and an HTTP request added together — several round
+     * trips, none of them on the voice path — so it is recorded and never judged.
+     */
     private async handshake(
         server: string,
         credentials: LoginResponse,
-    ): Promise<{ response: ApiConfigCheckResponse; rtt: number } | null> {
+    ): Promise<ApiConfigCheckResponse | null> {
         const done = this.begin(1);
-        const started = performance.now();
         try {
             await invoke("api_pool_client", {
                 endpoint: server,
@@ -160,12 +177,8 @@ export class PreflightRunner {
                 pem: credentials.certificate + credentials.certificate_key,
             });
             const response = await invoke<ApiConfigCheckResponse>("api_get_config", { server });
-            const rtt = Math.max(1, Math.round(performance.now() - started));
-            done(
-                rtt > PreflightRunner.SLOW_MS ? "warn" : "ok",
-                `mTLS · TLS 1.3 · ${rtt} ms round trip`,
-            );
-            return { response, rtt };
+            done("ok", "mTLS · TLS 1.3");
+            return response;
         } catch (e) {
             warn(`Preflight handshake failed for ${server}: ${e}`);
             done("bad", "");
@@ -202,7 +215,7 @@ export class PreflightRunner {
         advertised: number,
         ports: number[],
         voiceWebsocket: boolean,
-    ): Promise<{ transport: VoiceTransport; port: number }> {
+    ): Promise<{ transport: VoiceTransport; port: number; rtt: number }> {
         const done = this.begin(3);
         try {
             const report = await invoke<ServerReachability>("probe_server", {
@@ -218,8 +231,11 @@ export class PreflightRunner {
                 const ms = Math.round((report.best_rtt_micros ?? 0) / 1000);
                 const fallback =
                     resolved === PreflightRunner.STANDARD_QUIC_PORT ? "" : " · fallback port";
-                done("ok", `udp/${resolved} open · ${ms} ms${fallback}`);
-                return { transport: "quic", port: resolved };
+                done(
+                    PreflightRunner.isSlow(ms) ? "warn" : "ok",
+                    `udp/${resolved} open · ~${Math.round(ms / 2)} ms send${fallback}`,
+                );
+                return { transport: "quic", port: resolved, rtt: ms };
             }
 
             /*
@@ -232,8 +248,11 @@ export class PreflightRunner {
                 const port =
                     PreflightRunner.answeringPort(report.ws, report.fallback_rtt_micros) ??
                     PreflightRunner.STANDARD_QUIC_PORT;
-                done("warn", `udp/${advertised} blocked · tcp/${port} fallback · ${ms} ms`);
-                return { transport: "websocket", port: advertised };
+                done(
+                    "warn",
+                    `udp/${advertised} blocked · tcp/${port} fallback · ~${Math.round(ms / 2)} ms send`,
+                );
+                return { transport: "websocket", port: advertised, rtt: ms };
             }
 
             const probes = report.quic.length || 1;
@@ -243,11 +262,11 @@ export class PreflightRunner {
                     ? `no route to udp/${advertised} from this device`
                     : `udp/${advertised} unreachable · ${probes} ${probes === 1 ? "probe" : "probes"}, no response`,
             );
-            return { transport: "none", port: advertised };
+            return { transport: "none", port: advertised, rtt: 0 };
         } catch (e) {
             warn(`Preflight voice path probe failed for ${server}: ${e}`);
             done("bad", `udp/${advertised} could not be probed`);
-            return { transport: "none", port: advertised };
+            return { transport: "none", port: advertised, rtt: 0 };
         }
     }
 

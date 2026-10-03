@@ -12,7 +12,7 @@ export interface ServerRosterEntry {
     readonly status: RosterStatus;
     readonly steps: readonly PreflightStep[];
 
-    /** The handshake's round trip, once one has been measured. */
+    /** The voice path's round trip, once one has been measured. */
     readonly rtt: number;
     readonly slow: boolean;
     readonly quicPort: number;

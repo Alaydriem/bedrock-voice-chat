@@ -11,7 +11,7 @@ use crate::services::ChatService;
 
 // Bounded. Chat that cannot keep up is dropped rather than buffered: a backlog delivered late
 // lands stale lines in a conversation that has already moved on, and nothing here is stored.
-const OUTBOUND_CAPACITY: usize = 64;
+pub const OUTBOUND_CAPACITY: usize = 64;
 
 /// The mod's chat channel — one socket per world, both directions.
 ///
