@@ -69,6 +69,7 @@ class ManifestBuilder {
       },
       modules: [{ type: 'resources', uuid: uuids.rp.resource, version }],
       dependencies: [{ version, uuid: uuids.bp.header }],
+      capabilities: config.RP_CAPABILITIES,
       metadata: config.METADATA,
     };
   }
