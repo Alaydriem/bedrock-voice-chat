@@ -32,6 +32,13 @@ pub(crate) async fn stop_network_stream(
 }
 
 #[tauri::command]
+pub(crate) async fn connected_voice_server(
+    network_stream: State<'_, Mutex<NetworkStreamManager>>,
+) -> Result<Option<String>, String> {
+    Ok(network_stream.lock().await.connected_server())
+}
+
+#[tauri::command]
 #[tracing::instrument(skip(state, network_stream, data, analytics), fields(server = %server))]
 pub(crate) async fn change_network_stream(
     app: tauri::AppHandle,

@@ -51,25 +51,30 @@ pub struct TestServer {
 
 impl TestServer {
     pub async fn start() -> Result<Self> {
-        Self::start_with(true, true, 0).await
+        Self::start_with(true, true, 0, true).await
     }
 
     pub async fn start_with_recording(recording_enabled: bool) -> Result<Self> {
-        Self::start_with(recording_enabled, true, 0).await
+        Self::start_with(recording_enabled, true, 0, true).await
     }
 
     pub async fn start_with_chat(chat_enabled: bool) -> Result<Self> {
-        Self::start_with(true, chat_enabled, 0).await
+        Self::start_with(true, chat_enabled, 0, true).await
     }
 
     pub async fn start_with_capacity(connections: u32) -> Result<Self> {
-        Self::start_with(true, true, connections).await
+        Self::start_with(true, true, connections, true).await
+    }
+
+    pub async fn start_with_radar(radar_enabled: bool) -> Result<Self> {
+        Self::start_with(true, true, 0, radar_enabled).await
     }
 
     async fn start_with(
         recording_enabled: bool,
         chat_enabled: bool,
         connections: u32,
+        radar_enabled: bool,
     ) -> Result<Self> {
         // rustls crypto provider: install once per process; ignore re-install error.
         let _ =
@@ -133,6 +138,7 @@ impl TestServer {
         config.server.minecraft.access_token = "test-mc-token".to_string();
         config.voice.recording.enabled = recording_enabled;
         config.server.features.chat = chat_enabled;
+        config.server.features.radar = radar_enabled;
         config.voice.limits.connections = connections;
 
         let identity_service =

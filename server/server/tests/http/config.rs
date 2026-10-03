@@ -3,6 +3,7 @@
 //! Contract:
 //! - unauthenticated, and the usual way to confirm a server is reachable
 //! - `chat.enabled` mirrors `server.features.chat`, defaulting to true
+//! - `radar.enabled` mirrors `server.features.radar`, defaulting to true
 
 use crate::harness::TestServer;
 
@@ -90,4 +91,34 @@ async fn config_omits_the_peer_link_when_no_peer_plane_is_bound() {
     assert_eq!(resp.status().as_u16(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert!(body["peer_link"].is_null(), "got: {body}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn config_reports_radar_enabled_by_default() {
+    let env = TestServer::start().await.unwrap();
+    let resp = env
+        .noauth_client()
+        .unwrap()
+        .get(format!("{}/api/config", env.base_url))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["radar"]["enabled"], true);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn config_reports_radar_disabled_when_the_operator_turns_it_off() {
+    let env = TestServer::start_with_radar(false).await.unwrap();
+    let resp = env
+        .noauth_client()
+        .unwrap()
+        .get(format!("{}/api/config", env.base_url))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["radar"]["enabled"], false);
 }

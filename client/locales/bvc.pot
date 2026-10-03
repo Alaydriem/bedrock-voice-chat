@@ -216,11 +216,11 @@ msgstr ""
 msgid "Almost there…"
 msgstr ""
 
-#: src/js/app/dashboard.ts:428
+#: src/js/app/dashboard.ts:437
 msgid "already granted"
 msgstr ""
 
-#: src/js/app/dashboard.ts:766
+#: src/js/app/dashboard.ts:775
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
@@ -254,7 +254,7 @@ msgstr ""
 msgid "Audio output"
 msgstr ""
 
-#: src/js/app/dashboard.ts:348
+#: src/js/app/dashboard.ts:357
 msgid "Audio permission denied"
 msgstr ""
 
@@ -317,7 +317,7 @@ msgstr ""
 msgid "Background Audio Couldn't Start"
 msgstr ""
 
-#: src/js/app/dashboard.ts:378
+#: src/js/app/dashboard.ts:387
 msgid "background service"
 msgstr ""
 
@@ -415,7 +415,7 @@ msgstr ""
 msgid "Capturing"
 msgstr ""
 
-#: src/js/app/dashboard.ts:969
+#: src/js/app/dashboard.ts:984
 msgid "certificate rejected"
 msgstr ""
 
@@ -472,7 +472,7 @@ msgstr ""
 msgid "Checking"
 msgstr ""
 
-#: src/js/app/dashboard.ts:342
+#: src/js/app/dashboard.ts:351
 msgid "Checking audio permission..."
 msgstr ""
 
@@ -586,7 +586,7 @@ msgstr ""
 msgid "Connect"
 msgstr ""
 
-#: src/js/app/dashboard.ts:981
+#: src/js/app/dashboard.ts:996
 msgid "connect failed"
 msgstr ""
 
@@ -632,7 +632,7 @@ msgstr ""
 msgid "Contact your server operator."
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:198
+#: src/routes/uireview/+page.svelte:202
 msgid "Container queries, so these are faithful. Scroll each frame — the footbar must stay on screen at every step."
 msgstr ""
 
@@ -807,7 +807,7 @@ msgstr ""
 msgid "Display language"
 msgstr ""
 
-#: src/js/app/dashboard.ts:963
+#: src/js/app/dashboard.ts:978
 msgid "DNS lookup failed"
 msgstr ""
 
@@ -900,7 +900,7 @@ msgstr ""
 msgid "Failed to link Java identity."
 msgstr ""
 
-#: src/js/app/dashboard.ts:317
+#: src/js/app/dashboard.ts:319
 msgid "Failed to refresh server state, using cached permissions"
 msgstr ""
 
@@ -924,7 +924,7 @@ msgstr ""
 msgid "For a bug report. Written to your Documents folder."
 msgstr ""
 
-#: src/js/app/dashboard.ts:377
+#: src/js/app/dashboard.ts:386
 msgid "Foreground service could not be started."
 msgstr ""
 
@@ -1052,7 +1052,7 @@ msgstr ""
 msgid "In public group channel"
 msgstr ""
 
-#: src/js/app/dashboard.ts:423
+#: src/js/app/dashboard.ts:432
 #: src/js/app/managers/ChannelManager.ts:412
 msgid "In public voice chat"
 msgstr ""
@@ -1070,7 +1070,7 @@ msgstr ""
 msgid "Incompatible Audio Input Device"
 msgstr ""
 
-#: src/js/app/dashboard.ts:897
+#: src/js/app/dashboard.ts:912
 msgid "incompatible device"
 msgstr ""
 
@@ -1193,7 +1193,7 @@ msgstr ""
 msgid "Login failed. Please check your server URL and try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:765
+#: src/js/app/dashboard.ts:774
 msgid "Logout Failed"
 msgstr ""
 
@@ -1238,7 +1238,7 @@ msgstr ""
 msgid "Microphone access was refused"
 msgstr ""
 
-#: src/js/app/dashboard.ts:349
+#: src/js/app/dashboard.ts:358
 msgid "microphone denied"
 msgstr ""
 
@@ -1319,7 +1319,7 @@ msgstr ""
 msgid "NO ANSWER · CONN01"
 msgstr ""
 
-#: src/js/app/dashboard.ts:923
+#: src/js/app/dashboard.ts:938
 msgid "No current server found in store!"
 msgstr ""
 
@@ -1328,7 +1328,7 @@ msgstr ""
 msgid "NO DEVICE"
 msgstr ""
 
-#: src/js/app/dashboard.ts:904
+#: src/js/app/dashboard.ts:919
 msgid "no input device"
 msgstr ""
 
@@ -1352,7 +1352,7 @@ msgstr ""
 msgid "No network address yet. Connect to Wi-Fi and reopen this pane."
 msgstr ""
 
-#: src/js/app/dashboard.ts:910
+#: src/js/app/dashboard.ts:925
 msgid "no output device"
 msgstr ""
 
@@ -1368,7 +1368,7 @@ msgstr ""
 msgid "No players yet"
 msgstr ""
 
-#: src/js/app/dashboard.ts:249
+#: src/js/app/dashboard.ts:251
 msgid "no response"
 msgstr ""
 
@@ -1381,7 +1381,7 @@ msgstr ""
 msgid "No speakers or headphones were detected on your system. Connect an audio output device, verify it appears in your system sound settings, then try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:977
+#: src/js/app/dashboard.ts:992
 msgid "no voice transport"
 msgstr ""
 
@@ -1427,7 +1427,7 @@ msgstr ""
 msgid "not answering right now"
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:193
+#: src/routes/uireview/+page.svelte:197
 msgid "Not available in a release build."
 msgstr ""
 
@@ -1519,7 +1519,7 @@ msgstr ""
 msgid "Notification access was refused"
 msgstr ""
 
-#: src/js/app/dashboard.ts:359
+#: src/js/app/dashboard.ts:368
 msgid "Notification permission denied - notifications may not be visible"
 msgstr ""
 
@@ -1536,7 +1536,7 @@ msgstr ""
 msgid "Notifications and devices come next"
 msgstr ""
 
-#: src/js/app/dashboard.ts:361
+#: src/js/app/dashboard.ts:370
 msgid "notifications denied"
 msgstr ""
 
@@ -2060,7 +2060,7 @@ msgstr ""
 msgid "Server address"
 msgstr ""
 
-#: src/js/app/dashboard.ts:973
+#: src/js/app/dashboard.ts:988
 msgid "server certificate"
 msgstr ""
 
@@ -2242,7 +2242,7 @@ msgstr ""
 msgid "Split-track recording"
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:457
+#: src/routes/uireview/+page.svelte:461
 msgid "Starting up"
 msgstr ""
 
@@ -2260,7 +2260,7 @@ msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:70
 #: src/routes/error/+page.svelte:180
-#: src/routes/uireview/+page.svelte:417
+#: src/routes/uireview/+page.svelte:421
 msgid "Still stuck?"
 msgstr ""
 
@@ -2268,7 +2268,7 @@ msgstr ""
 msgid "Stop"
 msgstr ""
 
-#: src/js/app/dashboard.ts:188
+#: src/js/app/dashboard.ts:190
 msgid "Stopped recording that was active before page refresh"
 msgstr ""
 
@@ -2737,7 +2737,7 @@ msgstr ""
 #: src/components/login/NoServerScreen.svelte:116
 #: src/components/settings/panes/AboutPane.svelte:290
 #: src/routes/error/+page.svelte:184
-#: src/routes/uireview/+page.svelte:421
+#: src/routes/uireview/+page.svelte:425
 msgid "Wiki"
 msgstr ""
 

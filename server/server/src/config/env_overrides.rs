@@ -132,6 +132,9 @@ impl EnvOverrides {
         if let Some(chat) = self.get_bool("BVC_CHAT")? {
             config.server.features.chat = chat;
         }
+        if let Some(radar) = self.get_bool("BVC_RADAR")? {
+            config.server.features.radar = radar;
+        }
         Ok(())
     }
 

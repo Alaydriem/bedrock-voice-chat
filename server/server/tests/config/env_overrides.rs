@@ -149,6 +149,26 @@ fn chat_parses_bool_or_errors() {
 }
 
 #[test]
+fn radar_defaults_on() {
+    let config = apply(&[], ApplicationConfig::default());
+    assert!(config.server.features.radar);
+}
+
+#[test]
+fn radar_parses_bool_or_errors() {
+    let config = apply(&[("BVC_RADAR", "false")], ApplicationConfig::default());
+    assert!(!config.server.features.radar);
+
+    let config = apply(&[("BVC_RADAR", "TRUE")], ApplicationConfig::default());
+    assert!(config.server.features.radar);
+
+    let err = EnvOverrides::from_vars(vars(&[("BVC_RADAR", "yes")]))
+        .apply(ApplicationConfig::default())
+        .expect_err("non-bool radar must error");
+    assert!(format!("{err}").contains("BVC_RADAR"));
+}
+
+#[test]
 fn database_fields_override() {
     let config = apply(
         &[

@@ -1,7 +1,8 @@
 use common::consts::version::PROTOCOL_VERSION;
 use common::curia;
 use common::response::{
-    ApiConfigAge, ApiConfigCapacity, ApiConfigChat, ApiConfigRecording, ApiConfigResponse,
+    ApiConfigAge, ApiConfigCapacity, ApiConfigChat, ApiConfigRadar, ApiConfigRecording,
+    ApiConfigResponse,
 };
 use rocket::{State, serde::json::Json};
 use rocket_okapi::openapi;
@@ -84,6 +85,9 @@ pub async fn get_config(
         capacity: ApiConfigCapacity {
             limit: voice.limits.connections,
             in_use,
+        },
+        radar: ApiConfigRadar {
+            enabled: config.features.radar,
         },
         peer_link,
     })

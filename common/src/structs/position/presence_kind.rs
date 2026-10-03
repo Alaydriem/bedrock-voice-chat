@@ -9,11 +9,25 @@ use ts_rs::TS;
 /// from nobody being there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "openapi",
+    schemars(description = "Whether a player is connected to voice chat.")
+)]
 #[ts(export, export_to = "./../../client/src/js/bindings/")]
 #[serde(rename_all = "lowercase")]
 pub enum PresenceKind {
     /// Connected to voice: they can hear you.
+    #[cfg_attr(
+        feature = "openapi",
+        schemars(description = "Connected to voice chat. They can hear you.")
+    )]
     Voice,
     /// In the world with no voice connection.
+    #[cfg_attr(
+        feature = "openapi",
+        schemars(
+            description = "In the game but not connected to voice chat. They cannot hear you."
+        )
+    )]
     Game,
 }

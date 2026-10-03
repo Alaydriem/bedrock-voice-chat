@@ -113,6 +113,30 @@ impl ChannelMembershipService {
         }
     }
 
+    /// Fans a `Leave` for a member the server already removed, as when their connection closed.
+    ///
+    /// Announced as the channel API rather than as the member: the departed connection did not
+    /// send it, and a `ChannelEvent` carrying a player's connection is refused as a client
+    /// trying to rewrite membership.
+    pub async fn announce_departure(
+        webhook: &WebhookReceiver,
+        member: &common::PlayerIdentity,
+        channel_id: &str,
+        creator: common::PlayerIdentity,
+    ) {
+        Self::fan(
+            webhook,
+            ChannelEventPacket::new(
+                ChannelEvents::Leave,
+                member.clone(),
+                channel_id.to_string(),
+                None,
+                Some(creator),
+            ),
+        )
+        .await;
+    }
+
     /// Removes a channel and fans a `Delete` naming `actor`. Returns `false` (no mutation,
     /// no fan) when the channel does not exist.
     ///

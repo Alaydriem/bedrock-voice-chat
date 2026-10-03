@@ -136,17 +136,18 @@ describe("PreflightVerdict.of", () => {
     });
 
     // A warning is not a failure: the server works and the delay is worth knowing about.
-    it("reports a slow link as a warning with the measurement in it", () => {
-        const slow = failedAt(null, "connect", { slow: true, rtt: 186 });
+    // The send side is what a listener hears, so the sentence quotes half the round trip.
+    it("reports a slow link as a warning with the one-way delay in it", () => {
+        const slow = failedAt(null, "connect", { slow: true, rtt: 260 });
         const warned = {
             ...slow,
             steps: slow.steps.map((step) =>
-                step.name === "Handshake" ? { ...step, state: "warn" as PreflightStepState } : step,
+                step.name === "Voice path" ? { ...step, state: "warn" as PreflightStepState } : step,
             ),
         } as ServerRosterEntry;
         const verdict = PreflightVerdict.of(warned);
         expect(verdict.severity).toBe("warn");
-        expect(verdict.sentence).toMatch(/186 ms/);
+        expect(verdict.sentence).toMatch(/About 130 ms/);
     });
 
     it("says everything is fine when nothing failed or warned", () => {

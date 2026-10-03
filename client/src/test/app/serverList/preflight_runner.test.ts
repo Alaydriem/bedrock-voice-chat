@@ -417,7 +417,7 @@ describe("the voice path", () => {
         const { steps } = await run();
         expect(steps[3].note).toMatch(/udp\/443 blocked/);
         expect(steps[3].note).toMatch(/tcp\/8443 fallback/);
-        expect(steps[3].note).toMatch(/41 ms/);
+        expect(steps[3].note).toMatch(/~21 ms send/);
     });
 
     // The server decides whether a fallback exists, so the probe has to be told. Without this
@@ -464,6 +464,45 @@ describe("the voice path", () => {
         });
         const { outcome } = await run();
         expect(outcome.status).toBe("udp_blocked");
+    });
+});
+
+describe("latency", () => {
+    /**
+     * The handshake adds TCP, TLS and an HTTP request together. Judging that sum flagged a
+     * 140 ms setup as slow when the voice path itself was fine.
+     */
+    it("never judges the handshake, however long it took", async () => {
+        ipc();
+        const { steps } = await run();
+        expect(steps[1].state).toBe("ok");
+        expect(steps[1].note).not.toMatch(/round trip/);
+    });
+
+    // 140 ms round trip is ~70 ms each way, which nobody hears.
+    it("does not call a 140 ms voice round trip slow", async () => {
+        ipc({ probe_server: () => reachability("Ready", 443, 140_000) });
+        const { outcome, steps } = await run();
+        expect(outcome.slow).toBe(false);
+        expect(outcome.rtt).toBe(140);
+        expect(steps[3].state).toBe("ok");
+        expect(steps[3].note).toMatch(/~70 ms send/);
+    });
+
+    it("calls the voice path slow when the send side passes the threshold", async () => {
+        const rtt = (PreflightRunner.SLOW_SEND_MS * 2 + 2) * 1000;
+        ipc({ probe_server: () => reachability("Ready", 443, rtt) });
+        const { outcome, steps } = await run();
+        expect(outcome.slow).toBe(true);
+        expect(outcome.status).toBe("connect");
+        expect(steps[3].state).toBe("warn");
+    });
+
+    it("judges the fallback transport by its own round trip", async () => {
+        ipc({ probe_server: () => fallbackReachability(260_000) });
+        const { outcome } = await run();
+        expect(outcome.rtt).toBe(260);
+        expect(outcome.slow).toBe(true);
     });
 });
 

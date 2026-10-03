@@ -634,6 +634,15 @@ impl NetworkStreamManager {
         })
     }
 
+    /// The server URL the voice link is up to, or `None` while no link is connected.
+    ///
+    /// Set only once a transport connects and cleared by `stop`, so it answers which server
+    /// voice is actually on. The store's `current_server` answers which server was asked for,
+    /// and a webview reload changes that without touching this.
+    pub fn connected_server(&self) -> Option<String> {
+        self.link_session.server()
+    }
+
     pub async fn stop(&mut self) -> Result<(), anyhow::Error> {
         self.clear_connection_identity();
         self.health_manager.stop();

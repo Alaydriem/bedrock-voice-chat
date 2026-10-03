@@ -390,6 +390,41 @@ jobs:
           destination_dir: ${{ github.ref_name == 'master' && 'api' || 'api/beta' }}
           keep_files: true
 
+  # Deploy server WebSocket (AsyncAPI) docs to GitHub Pages (branch pushes only)
+  deploy-server-asyncapi-docs:
+    name: Deploy Server WebSocket Docs (${{ github.ref_name }})
+    needs: [changes, build-server, deploy-openapi-docs]
+    if: always() && github.event_name == 'push' && needs.build-server.result == 'success'
+    runs-on: ubuntu-latest
+    concurrency:
+      # Every publisher to the gh-pages root shares this group, including
+      # deploy.yml on the gh-pages-src branch.
+      group: gh-pages-publish
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - name: Download server AsyncAPI JSON
+        uses: actions/download-artifact@v5
+        with:
+          name: server-asyncapi-json
+          path: docs
+
+      - name: Generate HTML from AsyncAPI spec
+        run: npx -y @asyncapi/generator@2 docs/server-websocket-api.json @asyncapi/html-template -o docs/server-websocket-api-html --force-write -p singleFile=true
+
+      # The template draws a literal backtick around every inline code span.
+      - name: Remove backticks around inline code
+        run: sed -i '0,/<\/head>/s//<style>code::before,code::after{content:none !important}<\/style><\/head>/' docs/server-websocket-api-html/index.html
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/server-websocket-api-html
+          destination_dir: ${{ github.ref_name == 'master' && 'websocket/server' || 'websocket/server/beta' }}
+          keep_files: true
+
   # Collect and organize all artifacts
   collect-artifacts:
     name: Collect All Artifacts

@@ -291,6 +291,7 @@ pub fn run() {
             // Stream Information
             crate::commands::network::stop_network_stream,
             crate::commands::network::change_network_stream,
+            crate::commands::network::connected_voice_server,
             crate::commands::network::probe_server,
             crate::commands::network::probe_voice_path,
             crate::commands::network::check_protocol_compatibility,

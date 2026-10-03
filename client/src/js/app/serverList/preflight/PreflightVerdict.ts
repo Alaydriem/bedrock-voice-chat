@@ -39,7 +39,7 @@ export class PreflightVerdict {
         if (entry.steps.some((step) => step.state === "warn")) {
             return {
                 severity: "warn",
-                sentence: `${entry.rtt} ms to this server. Voice works, with delay you will notice.`,
+                sentence: `About ${Math.round(entry.rtt / 2)} ms for your voice to reach this server. Voice works, with delay you will notice.`,
             };
         }
 

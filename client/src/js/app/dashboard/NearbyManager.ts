@@ -47,6 +47,8 @@ export class NearbyManager {
     private static readonly TOUCH_INTERVAL_MS = 60_000;
 
     private readonly playersStore: Writable<readonly NearbyPlayer[]>;
+    /** The server's `radar` switch. Off empties the ring's cast and leaves the roster alone. */
+    private readonly radarStore: Writable<boolean>;
     private feed: PositionFeed | null = null;
     private range = NearbyManager.DEFAULT_RANGE_M;
 
@@ -68,24 +70,30 @@ export class NearbyManager {
     public readonly players: Readable<readonly NearbyPlayer[]>;
     /** Those inside voice range — the roster. */
     public readonly inEarshot: Readable<readonly NearbyPlayer[]>;
-    /** Those beyond it but within feed scope — the ring's cast. */
+    /** Those beyond it but within feed scope — the ring's cast. Empty when radar is off. */
     public readonly approaching: Readable<readonly NearbyPlayer[]>;
 
     constructor() {
         this.playersStore = writable([]);
+        this.radarStore = writable(true);
         this.players = { subscribe: this.playersStore.subscribe };
         this.inEarshot = derived(this.playersStore, ($all) => $all.filter((p) => p.inEarshot));
-        this.approaching = derived(this.playersStore, ($all) => $all.filter((p) => !p.inEarshot));
+        this.approaching = derived([this.playersStore, this.radarStore], ([$all, $radar]) =>
+            $radar ? $all.filter((p) => !p.inEarshot) : [],
+        );
     }
 
     /**
      * @param range The server's `broadcast_range`. Passed in rather than read here because
      *   the dashboard already fetches `/api/config` during boot, and asking twice invites the
      *   two answers to disagree.
+     * @param radar The server's `radar.enabled`. Set on every start, so a reconnect to a
+     *   server with a different answer does not inherit the last one.
      */
-    async start(server: string, range: number | null): Promise<void> {
+    async start(server: string, range: number | null, radar = true): Promise<void> {
         this.stop();
         if (range && range > 0) this.range = range;
+        this.radarStore.set(radar);
 
         this.feed = new PositionFeed(server, (snapshot) => this.receive(snapshot));
         await this.feed.start();
