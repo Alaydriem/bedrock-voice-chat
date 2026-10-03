@@ -78,11 +78,16 @@ Provider-specific fields are validated at startup. A missing one is named in the
 |---|---|---|
 | `chat` | `true` | Relay in-game chat between the game and the app. See [Chat](/wiki/player/chat/). |
 | `openapi_docs` | `false` | Serve `/openapi.json` and the API browser at `/docs`. |
+| `radar` | `true` | Show players beyond voice range on the dashboard ring. |
 | `telemetry` | `true` | Anonymous usage metrics. See [privacy and telemetry](/wiki/server/privacy-and-telemetry/). |
 
 With `chat = false` the server relays nothing in either direction. Lines reported by the Addon are dropped, and messages sent from the app are refused. The Addon's chat socket still connects and then stays idle. No Addon or mod configuration changes.
 
 The app reads this at connect. The chat dock stays on the dashboard, greyed out, and reports `Chat is disabled on this server`.
+
+With `radar = false` the dashboard ring does not show players who are beyond voice range. When nobody is in earshot, the ring reads `Nobody nearby` and the top bar reads `NOBODY IN EARSHOT`. Players in earshot are listed as usual.
+
+The app reads this at connect. This setting changes what the app shows. It does not keep player positions private: the server still sends nearby positions to every connected app.
 
 One-time code login (`POST /api/auth/code`, used by `bvc login`) is always enabled. Earlier releases gated it behind a `code_login` flag. That key no longer exists and is ignored if present.
 

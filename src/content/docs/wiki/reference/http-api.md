@@ -34,3 +34,7 @@ server {
 | **mTLS** | Player and admin endpoints. The client certificate is issued at login. |
 | **`Authorization: Bearer`** | Game server endpoints — the position relay. The shared secret from `server.minecraft.access_token`. |
 | **None** | Health, config, and the login flow itself. |
+
+## WebSocket routes
+
+The position feed and the chat bridge are WebSocket routes on the same port. They are not in the OpenAPI reference. See [Server WebSocket](/wiki/reference/server-websocket/).

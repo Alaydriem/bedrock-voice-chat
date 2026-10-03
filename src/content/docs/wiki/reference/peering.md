@@ -3,7 +3,7 @@ title: Peering
 description: Linking two BVC servers so voice carries across both. Work in progress.
 sidebar:
   label: Peering
-  order: 6
+  order: 7
 ---
 
 :::caution[Work in progress]

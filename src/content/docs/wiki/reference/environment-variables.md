@@ -22,6 +22,7 @@ An unset or empty variable never overrides anything. `FOO=` in a compose file wi
 | `BVC_ACCESS_TOKEN` | `server.minecraft.access_token` |
 | `BVC_TELEMETRY` | `server.features.telemetry`. `true` or `false`. |
 | `BVC_CHAT` | `server.features.chat`. `true` or `false`. |
+| `BVC_RADAR` | `server.features.radar`. `true` or `false`. |
 
 ## Voice
 

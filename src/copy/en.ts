@@ -383,8 +383,9 @@ export const en = {
         'The Bedrock Voice Chat Stream Deck plugin: a Stream Deck with mute, volume and record keys bound to it',
     },
     apisLabel: 'Or build your own',
-    // CI publishes each generated site under /api/<version> and
-    // /websocket/<version>, with an unversioned alias at the directory root.
+    // CI publishes each generated site under /api/<version>,
+    // /websocket/<version> and /websocket/server/<version>, with an
+    // unversioned alias at the directory root.
     apis: [
       {
         name: 'Client WebSocket',
@@ -398,11 +399,8 @@ export const en = {
       },
       {
         name: 'Server WebSocket',
-        what: 'Live server-side events: joins, leaves, channel changes and position feeds.',
-        // No generated docs deployed for this one yet: only docs/openapi.json
-        // and docs/websocket-api.yaml exist in the repo. Repoint once CI
-        // publishes it; APIS marks it pending until then.
-        href: '/websocket',
+        what: 'Live feeds from the server: where nearby players are relative to you, and the chat bridge the game mods use.',
+        href: '/websocket/server',
       },
     ],
     wikiCta: { label: 'Read the wiki', href: '/wiki/' },

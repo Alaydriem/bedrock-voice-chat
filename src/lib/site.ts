@@ -87,8 +87,8 @@ export const LADDER_RUNGS: readonly Rung[] = [
 /* ------------------------------------------------------------------ *
  * APIS
  *
- * Three surfaces, two of which already publish generated reference docs into
- * gh-pages. The name, description and link for each are in
+ * Three surfaces, each publishing generated reference docs into gh-pages.
+ * The name, description and link for each are in
  * copy.integrations.apis; this supplies what is not editorial, in the same
  * order.
  * ------------------------------------------------------------------ */
@@ -105,9 +105,7 @@ export interface ApiSurface {
 export const APIS: readonly ApiSurface[] = [
   { id: 'clientWs', spec: 'AsyncAPI', accent: 'var(--sp-cyan)' },
   { id: 'serverApi', spec: 'OpenAPI', accent: 'var(--sp-green)' },
-  // No generated docs deployed for this one yet: only docs/openapi.json and
-  // docs/websocket-api.yaml exist in the repo.
-  { id: 'serverWs', spec: 'AsyncAPI', accent: 'var(--sp-orange)', pending: true },
+  { id: 'serverWs', spec: 'AsyncAPI', accent: 'var(--sp-orange)' },
 ];
 
 /* ------------------------------------------------------------------ *
