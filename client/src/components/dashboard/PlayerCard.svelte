@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import LevelMeter from "$radial/components/LevelMeter.svelte";
     import ServerGlyph from "$radial/components/ServerGlyph.svelte";
@@ -57,7 +57,11 @@
             <span class="rad-player__name">{player.gamertag}</span>
             <span class="rad-player__distance">{range}</span>
             {#if ondismiss}
-                <button class="rad-player__dismiss" aria-label={I18n.t("Close this card")} onclick={ondismiss}>
+                <button
+                    class="rad-player__dismiss"
+                    aria-label={I18n.t("Close this card")}
+                    onclick={ondismiss}
+                >
                     <Icon name="close" />
                 </button>
             {/if}

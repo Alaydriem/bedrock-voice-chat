@@ -15,9 +15,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
     },
 }));
 
-const { default: AccountPane } = await import(
-    "../../components/settings/panes/AccountPane.svelte"
-);
+const { default: AccountPane } = await import("../../components/settings/panes/AccountPane.svelte");
 const { default: AudioPane } = await import("../../components/settings/panes/AudioPane.svelte");
 
 function mount(component: unknown, props: Record<string, unknown> = {}) {
@@ -101,7 +99,10 @@ describe("AccountPane", () => {
     // An expired link is not the same as one that was never made: the roles it granted
     // are gone, and the fix is to link again rather than to wonder why nothing happened.
     it("distinguishes an expired Discord link from an absent one", async () => {
-        account({ gamertag: "Al", gamerpic: "" }, discord({ configured: true, linked: true, expired: true }));
+        account(
+            { gamertag: "Al", gamerpic: "" },
+            discord({ configured: true, linked: true, expired: true }),
+        );
         const view = mount(AccountPane, { onsignout: () => {} });
         await waitFor(() => expect(view.text()).toContain("LINK EXPIRED"));
     });

@@ -25,9 +25,8 @@ vi.mock("@tauri-apps/plugin-store", () => ({
     },
 }));
 
-const { BedrockCapabilityManager } = await import(
-    "../../../js/app/managers/bedrock/BedrockCapabilityManager"
-);
+const { BedrockCapabilityManager } =
+    await import("../../../js/app/managers/bedrock/BedrockCapabilityManager");
 
 function configWith(servers: unknown[]) {
     return {

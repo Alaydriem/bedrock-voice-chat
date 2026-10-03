@@ -1,4 +1,4 @@
-import type { ChatWorld } from '../../bindings/ChatWorld';
+import type { ChatWorld } from "../../bindings/ChatWorld";
 
 /**
  * Where a composed message goes.
@@ -13,12 +13,12 @@ import type { ChatWorld } from '../../bindings/ChatWorld';
  * closes this one, so holding text the sender may believe is queued would mislead them.
  */
 export type ChatTarget =
-    | { kind: 'in-game'; world: ChatWorld }
-    | { kind: 'only'; world: ChatWorld }
-    | { kind: 'choose'; world: ChatWorld; options: ChatWorld[] }
-    | { kind: 'local' }
-    | { kind: 'unavailable'; reason: string }
-    | { kind: 'disabled'; reason: string };
+    | { kind: "in-game"; world: ChatWorld }
+    | { kind: "only"; world: ChatWorld }
+    | { kind: "choose"; world: ChatWorld; options: ChatWorld[] }
+    | { kind: "local" }
+    | { kind: "unavailable"; reason: string }
+    | { kind: "disabled"; reason: string };
 
 /**
  * A send that did not land, and why.
@@ -28,5 +28,5 @@ export type ChatTarget =
  * Either way the message went nowhere, which has to be said rather than logged.
  */
 export type ChatRejectionState =
-    | { kind: 'moved'; from: string; text: string }
-    | { kind: 'failed'; reason: string; text: string };
+    | { kind: "moved"; from: string; text: string }
+    | { kind: "failed"; reason: string; text: string };

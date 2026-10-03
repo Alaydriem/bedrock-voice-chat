@@ -1,4 +1,4 @@
-import { I18n } from "$lib/i18n";
+import { I18n } from "#lib/i18n/index.js";
 import type { RecordingSession } from "../../bindings/RecordingSession";
 import type { RecordingRow } from "./RecordingRow";
 
@@ -46,7 +46,9 @@ export class RecordingsView {
         const minutes = Math.floor((total % 3600) / 60);
         const seconds = total % 60;
         const pad = (n: number) => String(n).padStart(2, "0");
-        return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`;
+        return hours > 0
+            ? `${hours}:${pad(minutes)}:${pad(seconds)}`
+            : `${minutes}:${pad(seconds)}`;
     }
 
     /** Bytes, then kilobytes, then megabytes until a gigabyte. */

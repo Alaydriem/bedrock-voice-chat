@@ -6,4 +6,4 @@
  * anywhere in the app. The standalone settings route has no dashboard behind it and builds
  * its own, which is correct — that route has no session to outlive.
  */
-export const BEDROCK_MANAGER_KEY = Symbol('bvc:bedrock-manager');
+export const BEDROCK_MANAGER_KEY = Symbol("bvc:bedrock-manager");

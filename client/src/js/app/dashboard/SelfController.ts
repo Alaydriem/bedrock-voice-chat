@@ -1,14 +1,14 @@
-import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { debug, info, warn } from '@charlesportwoodii/tauri-plugin-curia';
-import type { Store } from '@tauri-apps/plugin-store';
-import { writable, type Readable, type Writable } from 'svelte/store';
-import { MeterProbe } from '$radial/core/canvas/MeterProbe';
-import { SelfState } from '$radial/core/controllers/SelfState';
-import type { KeybindConfig } from '../../bindings/KeybindConfig';
-import type { VoiceMode as ConfiguredVoiceMode } from '../../bindings/VoiceMode';
-import type { VoiceRuntimeState } from '../../bindings/VoiceRuntimeState';
-import type { MicActivity, PlayerLevelSources } from './PlayerLevelSources';
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { debug, info, warn } from "@charlesportwoodii/tauri-plugin-curia";
+import type { Store } from "@tauri-apps/plugin-store";
+import { writable, type Readable, type Writable } from "svelte/store";
+import { MeterProbe } from "$radial/core/canvas/MeterProbe";
+import { SelfState } from "$radial/core/controllers/SelfState";
+import type { KeybindConfig } from "../../bindings/KeybindConfig";
+import type { VoiceMode as ConfiguredVoiceMode } from "../../bindings/VoiceMode";
+import type { VoiceRuntimeState } from "../../bindings/VoiceRuntimeState";
+import type { MicActivity, PlayerLevelSources } from "./PlayerLevelSources";
 
 /**
  * Mute, deafen, record and push-to-talk, against the real backend.
@@ -86,11 +86,11 @@ export class SelfController {
 
     private async pollBackend(): Promise<void> {
         try {
-            const backend = await invoke<VoiceRuntimeState>('voice_runtime_state');
+            const backend = await invoke<VoiceRuntimeState>("voice_runtime_state");
             this.diagnosticsStore.set({ backend, mic: this.levels.activity });
             this.state.sync(
                 {
-                    mode: backend.voiceMode === 'pushToTalk' ? 'ptt' : 'activated',
+                    mode: backend.voiceMode === "pushToTalk" ? "ptt" : "activated",
                     muted: backend.inputMuted,
                     deafened: backend.outputMuted,
                     // Reconciled here for the same reason as mute: the events that announce
@@ -110,7 +110,11 @@ export class SelfController {
             // gesture whose pointerup never landed.
             this.state.hold(backend.pttActive);
         } catch (e) {
-            this.diagnosticsStore.set({ backend: null, mic: this.levels.activity, error: String(e) });
+            this.diagnosticsStore.set({
+                backend: null,
+                mic: this.levels.activity,
+                error: String(e),
+            });
         }
     }
 
@@ -142,14 +146,14 @@ export class SelfController {
      */
     private logSelfCheck(): void {
         const mic = this.levels.activity;
-        const meter = MeterProbe.read('self');
+        const meter = MeterProbe.read("self");
         const verdict = !mic.attached
-            ? 'FEED-DETACHED'
+            ? "FEED-DETACHED"
             : mic.events === 0
-              ? 'NO-EVENTS'
+              ? "NO-EVENTS"
               : meter.mounted && meter.levels > 0 && meter.paints === 0
-                ? 'NO-PAINTS'
-                : 'OK';
+                ? "NO-PAINTS"
+                : "OK";
         void debug(
             `meter self-check: ${verdict} — feed attached=${mic.attached} events=${mic.events} ` +
                 `rate=${mic.eventsPerSecond.toFixed(1)}/s ownLevel=${mic.lastRms.toFixed(2)} | ` +
@@ -176,16 +180,16 @@ export class SelfController {
     private async seed(): Promise<void> {
         try {
             const [muted, deafened, recording] = await Promise.all([
-                invoke<boolean>('mute_status', { device: 'InputDevice' }),
-                invoke<boolean>('mute_status', { device: 'OutputDevice' }),
-                invoke<boolean>('is_recording'),
+                invoke<boolean>("mute_status", { device: "InputDevice" }),
+                invoke<boolean>("mute_status", { device: "OutputDevice" }),
+                invoke<boolean>("is_recording"),
             ]);
-            const keybinds = await this.store.get<KeybindConfig>('keybinds');
+            const keybinds = await this.store.get<KeybindConfig>("keybinds");
             this.state.sync({
                 muted,
                 deafened,
                 recording,
-                mode: keybinds?.voiceMode === 'pushToTalk' ? 'ptt' : 'activated',
+                mode: keybinds?.voiceMode === "pushToTalk" ? "ptt" : "activated",
             });
         } catch (e) {
             warn(`SelfController: could not read self state, using defaults: ${e}`);
@@ -216,23 +220,23 @@ export class SelfController {
         // otherwise see: the command's own logging proves the press reached Rust, and this
         // proves the answer came back. A press that logs one and not the other localises the
         // fault immediately.
-        await subscribe<boolean>('mute:input', (muted) => {
+        await subscribe<boolean>("mute:input", (muted) => {
             this.state.sync({ muted });
         });
-        await subscribe<boolean>('mute:output', (deafened) => {
+        await subscribe<boolean>("mute:output", (deafened) => {
             this.state.sync({ deafened });
         });
-        await subscribe<boolean>('ptt:active', (down) => this.state.hold(down));
+        await subscribe<boolean>("ptt:active", (down) => this.state.hold(down));
         // Settings, a Stream Deck and a hotkey all write the same setting, and the mic
         // button is a hold in one mode and a toggle in the other. Read once at start-up it
         // goes stale the first time anything changes it.
-        await subscribe<ConfiguredVoiceMode>('voice-mode:changed', (mode) => {
-            this.state.sync({ mode: mode === 'pushToTalk' ? 'ptt' : 'activated' });
+        await subscribe<ConfiguredVoiceMode>("voice-mode:changed", (mode) => {
+            this.state.sync({ mode: mode === "pushToTalk" ? "ptt" : "activated" });
         });
-        await subscribe<unknown>('recording:started', () =>
+        await subscribe<unknown>("recording:started", () =>
             this.state.sync({ recording: true }, performance.now()),
         );
-        await subscribe<unknown>('recording:stopped', () => this.state.sync({ recording: false }));
+        await subscribe<unknown>("recording:stopped", () => this.state.sync({ recording: false }));
     }
 
     /**
@@ -245,17 +249,17 @@ export class SelfController {
      */
     pressMute(): void {
         const self = this.state.snapshot;
-        if (self.mode === 'ptt') return;
+        if (self.mode === "ptt") return;
         if (self.deafened) {
             this.state.sync({ muted: false, deafened: false });
-            void this.settle('set_deafened', { deafened: false }, (reached) => ({
+            void this.settle("set_deafened", { deafened: false }, (reached) => ({
                 deafened: reached,
                 muted: reached,
             }));
         } else {
             const muted = !self.muted;
             this.state.sync({ muted });
-            void this.settle('set_mute', { device: 'InputDevice', muted }, (reached) => ({
+            void this.settle("set_mute", { device: "InputDevice", muted }, (reached) => ({
                 muted: reached,
             }));
         }
@@ -264,7 +268,7 @@ export class SelfController {
     pressDeafen(): void {
         const deafened = !this.state.snapshot.deafened;
         this.state.sync({ deafened, muted: deafened });
-        void this.settle('set_deafened', { deafened }, (reached) => ({
+        void this.settle("set_deafened", { deafened }, (reached) => ({
             deafened: reached,
             muted: reached,
         }));
@@ -290,7 +294,7 @@ export class SelfController {
             return;
         }
         this.state.sync({ recording: !recording }, performance.now());
-        void this.confirm(recording ? 'stop_recording' : 'start_recording');
+        void this.confirm(recording ? "stop_recording" : "start_recording");
     }
 
     private async confirm(command: string): Promise<void> {
@@ -320,7 +324,7 @@ export class SelfController {
     private async settle(
         command: string,
         args: Record<string, unknown>,
-        apply: (reached: boolean) => Parameters<SelfState['sync']>[0],
+        apply: (reached: boolean) => Parameters<SelfState["sync"]>[0],
     ): Promise<void> {
         try {
             info(`SelfController: invoking ${command} ${JSON.stringify(args)}`);
@@ -346,14 +350,14 @@ export class SelfController {
         // Painted immediately: a hold that waits for a round trip before the meter moves
         // reads as a button that did not take. The poll corrects it if the backend refused.
         this.state.hold(down);
-        void this.send('set_ptt', { down });
+        void this.send("set_ptt", { down });
     }
 
     /** mm:ss since recording was armed. */
     elapsed(now: number): string {
         const seconds = Math.floor(this.state.elapsed(now) / 1000);
-        const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
-        const ss = String(seconds % 60).padStart(2, '0');
+        const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+        const ss = String(seconds % 60).padStart(2, "0");
         return `${mm}:${ss}`;
     }
 

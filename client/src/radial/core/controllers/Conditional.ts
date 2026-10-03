@@ -13,33 +13,33 @@
  * else appears in response to it.
  */
 export class Conditional {
-  readonly frame: HTMLElement;
+    readonly frame: HTMLElement;
 
-  constructor(frame: HTMLElement) {
-    this.frame = frame;
-    this.apply();
-  }
-
-  get state(): string {
-    return this.frame.dataset.radState ?? "";
-  }
-
-  set state(next: string) {
-    this.frame.dataset.radState = next;
-    this.apply();
-  }
-
-  /**
-   * Hide the panes that do not match, and mark the frame resolved. Until this has
-   * run, CSS hides every conditional pane — otherwise the proxy and realm panes both
-   * flash on load.
-   */
-  apply(): void {
-    const active = new Set(this.state.split(/\s+/).filter(Boolean));
-    for (const el of this.frame.querySelectorAll<HTMLElement>("[data-rad-when]")) {
-      const wanted = (el.dataset.radWhen ?? "").split(/\s+/).filter(Boolean);
-      el.hidden = !wanted.some((w) => active.has(w));
+    constructor(frame: HTMLElement) {
+        this.frame = frame;
+        this.apply();
     }
-    this.frame.dataset.radResolved = "true";
-  }
+
+    get state(): string {
+        return this.frame.dataset.radState ?? "";
+    }
+
+    set state(next: string) {
+        this.frame.dataset.radState = next;
+        this.apply();
+    }
+
+    /**
+     * Hide the panes that do not match, and mark the frame resolved. Until this has
+     * run, CSS hides every conditional pane — otherwise the proxy and realm panes both
+     * flash on load.
+     */
+    apply(): void {
+        const active = new Set(this.state.split(/\s+/).filter(Boolean));
+        for (const el of this.frame.querySelectorAll<HTMLElement>("[data-rad-when]")) {
+            const wanted = (el.dataset.radWhen ?? "").split(/\s+/).filter(Boolean);
+            el.hidden = !wanted.some((w) => active.has(w));
+        }
+        this.frame.dataset.radResolved = "true";
+    }
 }

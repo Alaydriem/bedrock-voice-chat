@@ -11,24 +11,24 @@
  * "does BVC hear me", and the answer wants to be unmistakable.
  */
 export class LevelScale {
-  /** Below this reads as silence. Roughly a quiet room once the gate has had its say. */
-  static readonly FLOOR_DB = -55;
+    /** Below this reads as silence. Roughly a quiet room once the gate has had its say. */
+    static readonly FLOOR_DB = -55;
 
-  /** At or above this the meter is full. Well under clipping, deliberately. */
-  static readonly CEILING_DB = -18;
+    /** At or above this the meter is full. Well under clipping, deliberately. */
+    static readonly CEILING_DB = -18;
 
-  /** Post-gate RMS in 0..1, to a display level in 0..1. */
-  static fromRms(rms: number): number {
-    // Guards NaN as well as zero and negatives: log10(0) is -Infinity, and a gated frame
-    // arrives as exactly 0.
-    if (!(rms > 0)) return 0;
+    /** Post-gate RMS in 0..1, to a display level in 0..1. */
+    static fromRms(rms: number): number {
+        // Guards NaN as well as zero and negatives: log10(0) is -Infinity, and a gated frame
+        // arrives as exactly 0.
+        if (!(rms > 0)) return 0;
 
-    const db = 20 * Math.log10(rms);
-    const span = LevelScale.CEILING_DB - LevelScale.FLOOR_DB;
-    return LevelScale.clamp01((db - LevelScale.FLOOR_DB) / span);
-  }
+        const db = 20 * Math.log10(rms);
+        const span = LevelScale.CEILING_DB - LevelScale.FLOOR_DB;
+        return LevelScale.clamp01((db - LevelScale.FLOOR_DB) / span);
+    }
 
-  private static clamp01(value: number): number {
-    return value < 0 ? 0 : value > 1 ? 1 : value;
-  }
+    private static clamp01(value: number): number {
+        return value < 0 ? 0 : value > 1 ? 1 : value;
+    }
 }

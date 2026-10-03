@@ -3,9 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { RecordingRow } from "../../js/app/settings/RecordingRow";
 import type { RecordingTrack } from "../../js/bindings/RecordingTrack";
 
-const { default: RecordingDetail } = await import(
-    "../../components/settings/RecordingDetail.svelte"
-);
+const { default: RecordingDetail } =
+    await import("../../components/settings/RecordingDetail.svelte");
 
 const row: RecordingRow = {
     id: "0191f3c2-0000-7000-8000-000000000000",
@@ -28,25 +27,28 @@ const tracks: readonly RecordingTrack[] = [
 function mount(props: Record<string, unknown> = {}) {
     const host = document.createElement("div");
     document.body.append(host);
-    render(RecordingDetail as never, {
-        target: host,
-        props: {
-            row,
-            tracks,
-            chosen: new Set(tracks.map((track) => track.display)),
-            progress: null,
-            spatial: true,
-            onback: () => {},
-            ontoggle: () => {},
-            onall: () => {},
-            onnone: () => {},
-            onspatial: () => {},
-            onexport: () => {},
-            onrename: () => {},
-            ondelete: () => {},
-            ...props,
-        },
-    } as never);
+    render(
+        RecordingDetail as never,
+        {
+            target: host,
+            props: {
+                row,
+                tracks,
+                chosen: new Set(tracks.map((track) => track.display)),
+                progress: null,
+                spatial: true,
+                onback: () => {},
+                ontoggle: () => {},
+                onall: () => {},
+                onnone: () => {},
+                onspatial: () => {},
+                onexport: () => {},
+                onrename: () => {},
+                ondelete: () => {},
+                ...props,
+            },
+        } as never,
+    );
     return host;
 }
 

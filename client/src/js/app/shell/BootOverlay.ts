@@ -7,12 +7,12 @@
  * underneath, which reads as the app hanging rather than as a missing call.
  */
 export default class BootOverlay {
-    private static readonly SELECTOR = '.app-preloader';
-    private static readonly HOLD_PARAM = 'preloader-hold';
+    private static readonly SELECTOR = ".app-preloader";
+    private static readonly HOLD_PARAM = "preloader-hold";
     /** Long enough that a fast route does not flash the overlay away mid-paint. */
     private static readonly FADE_DELAY_MS = 150;
     /** Defined in static/preloader/app-preloader.css, beside the overlay's own styles. */
-    private static readonly FADE_CLASS = 'app-preloader--leaving';
+    private static readonly FADE_CLASS = "app-preloader--leaving";
     /** Slightly past the 500ms fade: removing earlier cuts the animation short. */
     private static readonly REMOVE_AFTER_MS = 600;
 

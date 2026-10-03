@@ -5,7 +5,7 @@
  * a line nothing has confirmed must not look like one that arrived in the world. A line that
  * came *from* the world is `confirmed` on arrival — it is already there.
  */
-export type ChatDelivery = 'pending' | 'confirmed' | 'failed';
+export type ChatDelivery = "pending" | "confirmed" | "failed";
 
 /** One rendered line of server chat. */
 export interface ChatLine {

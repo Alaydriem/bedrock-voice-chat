@@ -7,10 +7,10 @@
  */
 export const navigations: string[] = [];
 
-export async function goto(url: string | URL): Promise<void> {
+export async function goto(url: string | URL, _opts?: { replace?: boolean }): Promise<void> {
     navigations.push(String(url));
 }
 
-export function invalidateAll(): Promise<void> {
+export function refreshAll(): Promise<void> {
     return Promise.resolve();
 }

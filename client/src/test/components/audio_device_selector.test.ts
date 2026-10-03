@@ -42,8 +42,7 @@ const SPEAKERS = {
 function devices(input: unknown[]) {
     mockInvoke({
         get_devices: () => ({ Asio: input, Wasapi: [SPEAKERS] }),
-        get_audio_device: ({ io }: { io: string }) =>
-            io === "InputDevice" ? input[0] : SPEAKERS,
+        get_audio_device: ({ io }: { io: string }) => (io === "InputDevice" ? input[0] : SPEAKERS),
         set_audio_device: () => null,
         change_audio_device: () => null,
     });
@@ -63,9 +62,7 @@ beforeEach(() => {
 describe("AudioDeviceSelector", () => {
     it("offers the devices the backend reported", async () => {
         const host = mount();
-        await waitFor(() =>
-            expect(host.querySelectorAll("option").length).toBeGreaterThan(0),
-        );
+        await waitFor(() => expect(host.querySelectorAll("option").length).toBeGreaterThan(0));
         expect(host.textContent).toContain("Focusrite USB ASIO Input 1");
     });
 
@@ -95,13 +92,9 @@ describe("AudioDeviceSelector", () => {
 
         const host = mount();
 
-        await waitFor(() =>
-            expect(host.querySelectorAll("option").length).toBeGreaterThan(0),
-        );
+        await waitFor(() => expect(host.querySelectorAll("option").length).toBeGreaterThan(0));
         const inputs = [...(host.querySelectorAll("select")[0]?.options ?? [])];
-        expect(inputs.map((o) => o.textContent?.trim())).toEqual([
-            "Focusrite USB ASIO Input 1",
-        ]);
+        expect(inputs.map((o) => o.textContent?.trim())).toEqual(["Focusrite USB ASIO Input 1"]);
     });
 
     /**
@@ -115,9 +108,7 @@ describe("AudioDeviceSelector", () => {
         devices([underAsio, underWasapi]);
 
         const host = mount();
-        await waitFor(() =>
-            expect(host.querySelectorAll("select")[0]?.options.length).toBe(2),
-        );
+        await waitFor(() => expect(host.querySelectorAll("select")[0]?.options.length).toBe(2));
 
         const select = host.querySelectorAll("select")[0] as HTMLSelectElement;
         select.value = select.options[1].value;

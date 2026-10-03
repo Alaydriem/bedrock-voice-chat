@@ -1,10 +1,10 @@
-import type { PlateAction } from './PlateAction';
-import type { ServerRosterEntry } from './ServerRosterEntry';
-import type { TallyItem } from './TallyItem';
+import type { PlateAction } from "./PlateAction";
+import type { ServerRosterEntry } from "./ServerRosterEntry";
+import type { TallyItem } from "./TallyItem";
 
 export interface PlateViewState {
     /** State in one word. `muted` is a check still running, not a good result. */
-    readonly severity: 'ok' | 'warn' | 'bad' | 'muted';
+    readonly severity: "ok" | "warn" | "bad" | "muted";
     readonly chip: string;
     /** The primary button's label. */
     readonly action: string;
@@ -20,17 +20,17 @@ export interface PlateViewState {
 export class PlateView {
     static of(entry: ServerRosterEntry): PlateViewState {
         switch (entry.status) {
-            case 'connect':
+            case "connect":
                 return entry.slow
-                    ? { chip: 'Ready · slow', severity: 'warn', action: 'Connect', kind: 'connect' }
-                    : { chip: 'Ready', severity: 'ok', action: 'Connect', kind: 'connect' };
+                    ? { chip: "Ready · slow", severity: "warn", action: "Connect", kind: "connect" }
+                    : { chip: "Ready", severity: "ok", action: "Connect", kind: "connect" };
 
-            case 'reauth':
+            case "reauth":
                 return {
-                    chip: 'Sign in needed',
-                    severity: 'bad',
-                    action: 'Sign in',
-                    kind: 'signin',
+                    chip: "Sign in needed",
+                    severity: "bad",
+                    action: "Sign in",
+                    kind: "signin",
                 };
 
             /**
@@ -39,14 +39,14 @@ export class PlateView {
              * whose client is the newer of the two sends them to look for an update that
              * does not exist and would not help.
              */
-            case 'version_mismatch':
+            case "version_mismatch":
                 return entry.clientTooOld
-                    ? { chip: 'Update needed', severity: 'warn', action: 'Update', kind: 'blocked' }
+                    ? { chip: "Update needed", severity: "warn", action: "Update", kind: "blocked" }
                     : {
-                          chip: 'Server is older',
-                          severity: 'warn',
-                          action: 'Blocked',
-                          kind: 'blocked',
+                          chip: "Server is older",
+                          severity: "warn",
+                          action: "Blocked",
+                          kind: "blocked",
                       };
 
             /**
@@ -55,44 +55,44 @@ export class PlateView {
              * about the path would leave somebody wondering why this server sounds worse
              * than the one beside it.
              */
-            case 'ws_fallback':
+            case "ws_fallback":
                 return {
-                    chip: 'Ready · fallback path',
-                    severity: 'warn',
-                    action: 'Connect',
-                    kind: 'connect',
+                    chip: "Ready · fallback path",
+                    severity: "warn",
+                    action: "Connect",
+                    kind: "connect",
                 };
 
             // Connecting would fail, so rechecking is the only thing worth offering.
-            case 'udp_blocked':
+            case "udp_blocked":
                 return {
-                    chip: 'Voice blocked',
-                    severity: 'bad',
-                    action: 'Recheck',
-                    kind: 'recheck',
+                    chip: "Voice blocked",
+                    severity: "bad",
+                    action: "Recheck",
+                    kind: "recheck",
                 };
 
-            case 'unreachable':
+            case "unreachable":
                 return {
-                    chip: 'Not answering',
-                    severity: 'bad',
-                    action: 'Recheck',
-                    kind: 'recheck',
+                    chip: "Not answering",
+                    severity: "bad",
+                    action: "Recheck",
+                    kind: "recheck",
                 };
 
-            case 'checking':
+            case "checking":
                 return {
-                    chip: 'Checking…',
-                    severity: 'muted',
-                    action: 'Connect',
-                    kind: 'blocked',
+                    chip: "Checking…",
+                    severity: "muted",
+                    action: "Connect",
+                    kind: "blocked",
                 };
         }
     }
 
     /** Whether choosing this plate leads to the dashboard rather than anywhere else. */
     static isJoinable(entry: ServerRosterEntry): boolean {
-        return entry.status === 'connect' || entry.status === 'ws_fallback';
+        return entry.status === "connect" || entry.status === "ws_fallback";
     }
 
     /**
@@ -116,36 +116,36 @@ export class PlateView {
 
     private static tallyLabel(entry: ServerRosterEntry): string {
         switch (entry.status) {
-            case 'connect':
-                return entry.slow ? 'slow' : 'ready';
-            case 'reauth':
-                return 'need sign-in';
-            case 'version_mismatch':
-                return 'outdated';
-            case 'ws_fallback':
-                return 'fallback path';
-            case 'udp_blocked':
-                return 'voice blocked';
-            case 'unreachable':
-                return 'not answering';
-            case 'checking':
-                return 'checking';
+            case "connect":
+                return entry.slow ? "slow" : "ready";
+            case "reauth":
+                return "need sign-in";
+            case "version_mismatch":
+                return "outdated";
+            case "ws_fallback":
+                return "fallback path";
+            case "udp_blocked":
+                return "voice blocked";
+            case "unreachable":
+                return "not answering";
+            case "checking":
+                return "checking";
         }
     }
 
-    private static tallySeverity(entry: ServerRosterEntry): TallyItem['severity'] {
+    private static tallySeverity(entry: ServerRosterEntry): TallyItem["severity"] {
         switch (entry.status) {
-            case 'connect':
-                return entry.slow ? 'warn' : 'ok';
-            case 'version_mismatch':
-            case 'ws_fallback':
-                return 'warn';
-            case 'reauth':
-            case 'udp_blocked':
-            case 'unreachable':
-                return 'bad';
-            case 'checking':
-                return 'busy';
+            case "connect":
+                return entry.slow ? "warn" : "ok";
+            case "version_mismatch":
+            case "ws_fallback":
+                return "warn";
+            case "reauth":
+            case "udp_blocked":
+            case "unreachable":
+                return "bad";
+            case "checking":
+                return "busy";
         }
     }
 }

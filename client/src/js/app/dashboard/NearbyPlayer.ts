@@ -1,4 +1,4 @@
-import type { PresenceKind } from '../../bindings/PresenceKind';
+import type { PresenceKind } from "../../bindings/PresenceKind";
 
 /** One player the feed says is near you. */
 export interface NearbyPlayer {

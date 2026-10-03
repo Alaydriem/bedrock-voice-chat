@@ -1,5 +1,5 @@
-import { Handoff, type Point } from '$radial/core/controllers/Handoff';
-import type { NearbyPlayer } from './NearbyPlayer';
+import { Handoff, type Point } from "$radial/core/controllers/Handoff";
+import type { NearbyPlayer } from "./NearbyPlayer";
 
 /** Where a player's bar sits on the ring, or null while the ring has not painted yet. */
 export type RingPointResolver = (player: NearbyPlayer) => Point | null;
@@ -125,6 +125,6 @@ export class RosterHandoff {
      */
     private static avatarOf(roster: HTMLElement, name: string): Element | null {
         const card = roster.querySelector(`[data-card="${CSS.escape(name)}"]`);
-        return card?.querySelector('.rad-player__avatar') ?? null;
+        return card?.querySelector(".rad-player__avatar") ?? null;
     }
 }

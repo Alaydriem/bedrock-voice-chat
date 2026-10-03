@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import type { ChatLine } from "../../js/app/chat/ChatLine";
     import type { ChatRejectionState, ChatTarget } from "../../js/app/chat/ChatTarget";
@@ -64,9 +64,7 @@
     let pickerOpen = $state(false);
 
     let label = $derived(
-        target.kind === "local" ||
-            target.kind === "unavailable" ||
-            target.kind === "disabled"
+        target.kind === "local" || target.kind === "unavailable" || target.kind === "disabled"
             ? I18n.t("Server chat")
             : target.world.world_name,
     );
@@ -98,7 +96,11 @@
             </button>
             <span class="rad-status-chip {status.cls}">{status.text}</span>
             <span class="rad-spacer"></span>
-            <button class="rad-icon-btn" onclick={() => onToggle(false)} aria-label={I18n.t("Close chat")}>
+            <button
+                class="rad-icon-btn"
+                onclick={() => onToggle(false)}
+                aria-label={I18n.t("Close chat")}
+            >
                 <Icon name="close" />
             </button>
         </div>

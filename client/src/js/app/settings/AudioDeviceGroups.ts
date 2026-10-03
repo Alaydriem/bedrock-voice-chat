@@ -15,8 +15,7 @@ export class AudioDeviceGroups {
 
     static of(devices: readonly AudioDevice[]): readonly SelectOption[] {
         const present = this.HOSTS.map(
-            ([host, label]) =>
-                [label, devices.filter((device) => device.host === host)] as const,
+            ([host, label]) => [label, devices.filter((device) => device.host === host)] as const,
         ).filter(([, group]) => group.length > 0);
 
         if (present.length < 2) {

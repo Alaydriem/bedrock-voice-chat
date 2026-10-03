@@ -13,9 +13,7 @@ class FakeProbe implements SchedulerProbe {
     }
 }
 
-function build(
-    over: { settled?: boolean; heartbeatMs?: number; minGapMs?: number } = {},
-) {
+function build(over: { settled?: boolean; heartbeatMs?: number; minGapMs?: number } = {}) {
     const probe = new FakeProbe();
     probe.settled = over.settled ?? true;
     const flush = vi.fn(() => {

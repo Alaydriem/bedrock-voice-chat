@@ -24,9 +24,8 @@ vi.mock("../../../js/app/utils/PlatformDetector", () => ({
     },
 }));
 
-const { WebSocketSettingsManager } = await import(
-    "../../../js/app/managers/settings/WebSocketSettingsManager"
-);
+const { WebSocketSettingsManager } =
+    await import("../../../js/app/managers/settings/WebSocketSettingsManager");
 
 function read<T>(store: { subscribe: (run: (v: T) => void) => () => void }): T {
     let value!: T;

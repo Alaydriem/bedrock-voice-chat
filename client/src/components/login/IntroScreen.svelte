@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import LevelMeter from "$radial/components/LevelMeter.svelte";
     import { AnimationLoop } from "$radial/core/canvas/AnimationLoop";
@@ -97,7 +97,8 @@
         if (step !== 2) return;
         const id = setInterval(() => {
             swapSeed += 1;
-            const i = Math.floor(Math.abs(Math.sin(swapSeed * 12.9898)) * ROSTER.length) % ROSTER.length;
+            const i =
+                Math.floor(Math.abs(Math.sin(swapSeed * 12.9898)) * ROSTER.length) % ROSTER.length;
             const next = [...assignment];
             next[i] = next[i] === 1 ? 0 : 1;
             const inChannel = next.filter((c) => c === 1).length;
@@ -165,7 +166,9 @@
                     <div class="rad-channels">
                         {#each [0, 1] as channel (channel)}
                             <div
-                                class="rad-channel {channel === 1 && members(1).length > 0 ? 'is-active' : ''}"
+                                class="rad-channel {channel === 1 && members(1).length > 0
+                                    ? 'is-active'
+                                    : ''}"
                             >
                                 <div class="rad-channel__head">
                                     <span>{channel === 0 ? "Proximity" : "Raid party"}</span>
@@ -193,7 +196,9 @@
                     </div>
                     <span class="rad-caption">
                         <span class="rad-label">{I18n.t("Channel")}</span>
-                        <span class="rad-caption__value">{I18n.t("FULL VOLUME · ANY DISTANCE")}</span>
+                        <span class="rad-caption__value"
+                            >{I18n.t("FULL VOLUME · ANY DISTANCE")}</span
+                        >
                     </span>
                 </div>
             {:else if step === 3}
@@ -204,57 +209,109 @@
                                 {I18n.t("Where your world can live — the mod goes here")}
                             </div>
                             <div class="rad-matrix__row">
-                                <span class="rad-matrix__blocks"><i style="background:#8239d8"></i><i style="background:#6a50e9"></i><i style="background:#466cf3"></i></span>
-                                <span>{I18n.t("Your own server")}</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Supported")}</span>
+                                <span class="rad-matrix__blocks"
+                                    ><i style="background:#8239d8"></i><i style="background:#6a50e9"
+                                    ></i><i style="background:#466cf3"></i></span
+                                >
+                                <span>{I18n.t("Your own server")}</span><span
+                                    class="rad-matrix__tag rad-matrix__tag--yes"
+                                    >{I18n.t("Supported")}</span
+                                >
                             </div>
                             <div class="rad-matrix__row">
-                                <span class="rad-matrix__blocks"><i style="background:#28bae1"></i><i style="background:#21d8d8"></i><i style="background:#26ddcd"></i></span>
-                                <span>{I18n.t("Aternos — free hosting")}</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Supported")}</span>
+                                <span class="rad-matrix__blocks"
+                                    ><i style="background:#28bae1"></i><i style="background:#21d8d8"
+                                    ></i><i style="background:#26ddcd"></i></span
+                                >
+                                <span>{I18n.t("Aternos — free hosting")}</span><span
+                                    class="rad-matrix__tag rad-matrix__tag--yes"
+                                    >{I18n.t("Supported")}</span
+                                >
                             </div>
                             <div class="rad-matrix__row">
-                                <span class="rad-matrix__blocks"><i style="background:#34d8a0"></i><i style="background:#3bd869"></i><i style="background:#6fd846"></i></span>
-                                <span>Minecraft Realms</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Supported")}</span>
+                                <span class="rad-matrix__blocks"
+                                    ><i style="background:#34d8a0"></i><i style="background:#3bd869"
+                                    ></i><i style="background:#6fd846"></i></span
+                                >
+                                <span>Minecraft Realms</span><span
+                                    class="rad-matrix__tag rad-matrix__tag--yes"
+                                    >{I18n.t("Supported")}</span
+                                >
                             </div>
                             <div class="rad-matrix__row">
-                                <span class="rad-matrix__blocks"><i style="background:#aee236"></i><i style="background:#f8e433"></i><i style="background:#f9bf21"></i></span>
-                                <span>Java + Geyser & Floodgate</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Supported")}</span>
+                                <span class="rad-matrix__blocks"
+                                    ><i style="background:#aee236"></i><i style="background:#f8e433"
+                                    ></i><i style="background:#f9bf21"></i></span
+                                >
+                                <span>Java + Geyser & Floodgate</span><span
+                                    class="rad-matrix__tag rad-matrix__tag--yes"
+                                    >{I18n.t("Supported")}</span
+                                >
                             </div>
                         </div>
                         <div class="rad-matrix__group">
                             <div class="rad-matrix__head">{I18n.t("Who can join")}</div>
                             <div class="rad-matrix__row">
-                                <span class="rad-matrix__blocks"><i style="background:#8239d8"></i><i style="background:#6a50e9"></i><i style="background:#466cf3"></i></span>
-                                <span>Windows · macOS · Linux</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Ready")}</span>
+                                <span class="rad-matrix__blocks"
+                                    ><i style="background:#8239d8"></i><i style="background:#6a50e9"
+                                    ></i><i style="background:#466cf3"></i></span
+                                >
+                                <span>Windows · macOS · Linux</span><span
+                                    class="rad-matrix__tag rad-matrix__tag--yes"
+                                    >{I18n.t("Ready")}</span
+                                >
                             </div>
                             <div class="rad-matrix__row">
-                                <span class="rad-matrix__blocks"><i style="background:#28bae1"></i><i style="background:#21d8d8"></i><i style="background:#26ddcd"></i></span>
-                                <span>Android · iOS</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Ready")}</span>
+                                <span class="rad-matrix__blocks"
+                                    ><i style="background:#28bae1"></i><i style="background:#21d8d8"
+                                    ></i><i style="background:#26ddcd"></i></span
+                                >
+                                <span>Android · iOS</span><span
+                                    class="rad-matrix__tag rad-matrix__tag--yes"
+                                    >{I18n.t("Ready")}</span
+                                >
                             </div>
                             <div class="rad-matrix__row">
-                                <span class="rad-matrix__blocks"><i style="background:#34d8a0"></i><i style="background:#3bd869"></i><i style="background:#6fd846"></i></span>
-                                <span>Xbox · PlayStation · Switch</span><span class="rad-matrix__tag rad-matrix__tag--yes">{I18n.t("Via phone")}</span>
+                                <span class="rad-matrix__blocks"
+                                    ><i style="background:#34d8a0"></i><i style="background:#3bd869"
+                                    ></i><i style="background:#6fd846"></i></span
+                                >
+                                <span>Xbox · PlayStation · Switch</span><span
+                                    class="rad-matrix__tag rad-matrix__tag--yes"
+                                    >{I18n.t("Via phone")}</span
+                                >
                             </div>
                         </div>
                         <p class="rad-matrix__note">
-                            <span>{I18n.t("The BVC server runs separately, on")} <b>any machine you control</b> —
-                                your gaming PC, a VPS, or a home box.</span>
+                            <span
+                                >{I18n.t("The BVC server runs separately, on")}
+                                <b>any machine you control</b> — your gaming PC, a VPS, or a home box.</span
+                            >
                         </p>
                     </div>
                     <span class="rad-caption">
                         <span class="rad-label">{I18n.t("Reach")}</span>
-                        <span class="rad-caption__value">{I18n.t("YOUR WORLD STAYS WHERE IT IS")}</span>
+                        <span class="rad-caption__value"
+                            >{I18n.t("YOUR WORLD STAYS WHERE IT IS")}</span
+                        >
                     </span>
                 </div>
             {:else}
                 <div class="rad-visual">
                     <div class="rad-timeline">
                         <div class="rad-timeline__ruler">
-                            <span class="rad-timeline__rec"><i></i>REC <span class="rad-num">{recTime}</span></span>
+                            <span class="rad-timeline__rec"
+                                ><i></i>REC <span class="rad-num">{recTime}</span></span
+                            >
                             <span class="rad-timeline__marks">
-                                <span>00:00</span><span>01:24</span><span>02:48</span><span>04:12</span>
+                                <span>00:00</span><span>01:24</span><span>02:48</span><span
+                                    >04:12</span
+                                >
                             </span>
                         </div>
-                        <div class="rad-timeline-lanes"><canvas bind:this={timelineCanvas}></canvas></div>
+                        <div class="rad-timeline-lanes">
+                            <canvas bind:this={timelineCanvas}></canvas>
+                        </div>
                     </div>
                     <span class="rad-caption">
                         <span class="rad-label">{I18n.t("Session")}</span>
@@ -271,12 +328,20 @@
                     {I18n.t("Walk up to someone.")}<br /><b>{I18n.t("You're already talking.")}</b>
                 </h2>
                 <p class="rad-body rad-rise" style="--d: 210">
-                    {I18n.t("Voices get louder as players come toward you and fade as they leave. No lobbies, no invites, and nobody shouting over a call from three biomes away.")}
+                    {I18n.t(
+                        "Voices get louder as players come toward you and fade as they leave. No lobbies, no invites, and nobody shouting over a call from three biomes away.",
+                    )}
                 </p>
                 <div class="rad-chips rad-rise" style="--d: 300">
-                    <span class="rad-chip"><i style="background: #21d8d8"></i>{I18n.t("Positional audio")}</span>
-                    <span class="rad-chip"><i style="background: #3bd869"></i>{I18n.t("Whisper & shout")}</span>
-                    <span class="rad-chip"><i style="background: #aee236"></i>{I18n.t("Spectator support")}</span>
+                    <span class="rad-chip"
+                        ><i style="background: #21d8d8"></i>{I18n.t("Positional audio")}</span
+                    >
+                    <span class="rad-chip"
+                        ><i style="background: #3bd869"></i>{I18n.t("Whisper & shout")}</span
+                    >
+                    <span class="rad-chip"
+                        ><i style="background: #aee236"></i>{I18n.t("Spectator support")}</span
+                    >
                 </div>
                 <div class="rad-readout-list rad-rise" style="--d: 380">
                     {#each NEARBY as p, i (p.name)}
@@ -295,14 +360,28 @@
                     {I18n.t("Split off into")}<br /><b>your own channel.</b>
                 </h2>
                 <p class="rad-body rad-rise" style="--d: 210">
-                    {I18n.t("Running something across the whole map? Drop into a channel and everyone stays at full volume however far apart you get. Proximity keeps running underneath the entire time.")}
+                    {I18n.t(
+                        "Running something across the whole map? Drop into a channel and everyone stays at full volume however far apart you get. Proximity keeps running underneath the entire time.",
+                    )}
                 </p>
                 <div class="rad-chips rad-rise" style="--d: 300">
-                    <span class="rad-chip"><i style="background: #8239d8"></i>{I18n.t("Persistent groups")}</span>
-                    <span class="rad-chip"><i style="background: #28bae1"></i>{I18n.t("Join from in-game")}</span>
-                    <span class="rad-chip"><i style="background: #f9bf21"></i>{I18n.t("Server-wide broadcast")}</span>
-                    <span class="rad-chip"><i style="background: #3bd869"></i>{I18n.t("Per-player volume 0–150%")}</span>
-                    <span class="rad-chip"><i style="background: #f67414"></i>{I18n.t("Moderator controls")}</span>
+                    <span class="rad-chip"
+                        ><i style="background: #8239d8"></i>{I18n.t("Persistent groups")}</span
+                    >
+                    <span class="rad-chip"
+                        ><i style="background: #28bae1"></i>{I18n.t("Join from in-game")}</span
+                    >
+                    <span class="rad-chip"
+                        ><i style="background: #f9bf21"></i>{I18n.t("Server-wide broadcast")}</span
+                    >
+                    <span class="rad-chip"
+                        ><i style="background: #3bd869"></i>{I18n.t(
+                            "Per-player volume 0–150%",
+                        )}</span
+                    >
+                    <span class="rad-chip"
+                        ><i style="background: #f67414"></i>{I18n.t("Moderator controls")}</span
+                    >
                 </div>
             {:else if step === 3}
                 <span class="rad-label rad-rise" style="--d: 50">03 · Anywhere you play</span>
@@ -310,28 +389,44 @@
                     {I18n.t("It works with")}<br /><b>the world you already have.</b>
                 </h2>
                 <p class="rad-body rad-rise" style="--d: 210">
-                    {I18n.t("Your world stays exactly where it is. The mod goes on it; the BVC server runs on a machine you control.")}
+                    {I18n.t(
+                        "Your world stays exactly where it is. The mod goes on it; the BVC server runs on a machine you control.",
+                    )}
                 </p>
                 <div class="rad-steps rad-rise" style="--d: 300">
                     <div class="rad-step">
                         <span class="rad-step__n">1</span>
                         <span>
                             <span class="rad-step__title">{I18n.t("Run the BVC server")}</span>
-                            <span class="rad-step__note">{I18n.t("Your PC, a VPS, or a home box")}</span>
+                            <span class="rad-step__note"
+                                >{I18n.t("Your PC, a VPS, or a home box")}</span
+                            >
                         </span>
                     </div>
                     <div class="rad-step">
                         <span class="rad-step__n">2</span>
                         <span>
-                            <span class="rad-step__title">{I18n.t("Add the mod to your world")}</span>
-                            <span class="rad-step__note">{I18n.t("A Bedrock add-on, or the Fabric or Paper mod for Java")}</span>
+                            <span class="rad-step__title"
+                                >{I18n.t("Add the mod to your world")}</span
+                            >
+                            <span class="rad-step__note"
+                                >{I18n.t(
+                                    "A Bedrock add-on, or the Fabric or Paper mod for Java",
+                                )}</span
+                            >
                         </span>
                     </div>
                     <div class="rad-step">
                         <span class="rad-step__n">3</span>
                         <span>
-                            <span class="rad-step__title">{I18n.t("Share the address and talk")}</span>
-                            <span class="rad-step__note">{I18n.t("Everyone signs in with the account they already play on")}</span>
+                            <span class="rad-step__title"
+                                >{I18n.t("Share the address and talk")}</span
+                            >
+                            <span class="rad-step__note"
+                                >{I18n.t(
+                                    "Everyone signs in with the account they already play on",
+                                )}</span
+                            >
                         </span>
                     </div>
                 </div>
@@ -341,15 +436,29 @@
                     {I18n.t("Record everyone.")}<br /><b>{I18n.t("On separate tracks.")}</b>
                 </h2>
                 <p class="rad-body rad-rise" style="--d: 210">
-                    {I18n.t("Every voice lands on its own timecoded track, ready to drop straight into the edit — and the controls reach the desk beside your keyboard.")}
+                    {I18n.t(
+                        "Every voice lands on its own timecoded track, ready to drop straight into the edit — and the controls reach the desk beside your keyboard.",
+                    )}
                 </p>
                 <div class="rad-chips rad-rise" style="--d: 300">
-                    <span class="rad-chip"><i style="background: #21d8d8"></i>{I18n.t("Split-track recording")}</span>
-                    <span class="rad-chip"><i style="background: #aee236"></i>{I18n.t("Stream Deck plugin")}</span>
-                    <span class="rad-chip"><i style="background: #f9bf21"></i>{I18n.t("Push-to-talk & hotkeys")}</span>
-                    <span class="rad-chip"><i style="background: #8239d8"></i>{I18n.t("Noise gate & gain")}</span>
-                    <span class="rad-chip"><i style="background: #f67414"></i>{I18n.t("WebSocket API")}</span>
-                    <span class="rad-chip"><i style="background: #3bd869"></i>{I18n.t("Export to WAV or MP4")}</span>
+                    <span class="rad-chip"
+                        ><i style="background: #21d8d8"></i>{I18n.t("Split-track recording")}</span
+                    >
+                    <span class="rad-chip"
+                        ><i style="background: #aee236"></i>{I18n.t("Stream Deck plugin")}</span
+                    >
+                    <span class="rad-chip"
+                        ><i style="background: #f9bf21"></i>{I18n.t("Push-to-talk & hotkeys")}</span
+                    >
+                    <span class="rad-chip"
+                        ><i style="background: #8239d8"></i>{I18n.t("Noise gate & gain")}</span
+                    >
+                    <span class="rad-chip"
+                        ><i style="background: #f67414"></i>{I18n.t("WebSocket API")}</span
+                    >
+                    <span class="rad-chip"
+                        ><i style="background: #3bd869"></i>{I18n.t("Export to WAV or MP4")}</span
+                    >
                 </div>
             {/if}
         </div>
@@ -358,9 +467,13 @@
     {#snippet footbar()}
         <span class="rad-label">{CAPTIONS[step - 1]}</span>
         <span class="rad-footbar__actions">
-            <button class="rad-btn rad-btn--lg rad-btn--quiet" onclick={onskip}>{I18n.t("Skip")}</button>
+            <button class="rad-btn rad-btn--lg rad-btn--quiet" onclick={onskip}
+                >{I18n.t("Skip")}</button
+            >
             {#if step > 1}
-                <button class="rad-btn rad-btn--lg rad-btn--quiet" onclick={onback}>{I18n.t("Back")}</button>
+                <button class="rad-btn rad-btn--lg rad-btn--quiet" onclick={onback}
+                    >{I18n.t("Back")}</button
+                >
             {/if}
             <button class="rad-btn rad-btn--lg rad-btn--primary" onclick={onnext}>
                 {step === TOTAL ? "Continue" : "Next"}

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onDestroy } from "svelte";
-    import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import type { AudioSettingsManager } from "../../js/app/managers/settings/AudioSettingsManager";
 
@@ -73,9 +73,7 @@
             aria-label={I18n.t("Jukebox volume")}
             aria-valuetext="{gain}%"
             oninput={(e) =>
-                void audio.handleJukeboxGainChange(
-                    Number((e.target as HTMLInputElement).value),
-                )}
+                void audio.handleJukeboxGainChange(Number((e.target as HTMLInputElement).value))}
         />
         <span class="rad-pop__value">{gain}%</span>
     </div>

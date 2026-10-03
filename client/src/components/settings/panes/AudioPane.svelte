@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import { getContext, onDestroy, onMount } from "svelte";
     import { AUDIO_SETTINGS_KEY } from "../../../js/app/shell/AudioSettingsContext";
     import Segmented from "$radial/components/Segmented.svelte";
@@ -67,7 +67,9 @@
                  app-level picker there is a control that either lies or fights the system. -->
             <SettingRow
                 label={I18n.t("Chosen by the system")}
-                note={I18n.t("Your phone routes voice to whatever you last connected. Plug in a headset and it follows — there is nothing to pick here.")}
+                note={I18n.t(
+                    "Your phone routes voice to whatever you last connected. Plug in a headset and it follows — there is nothing to pick here.",
+                )}
             >
                 {#snippet control()}
                     <StatusChip severity="muted">{I18n.t("System default")}</StatusChip>
@@ -84,10 +86,7 @@
     <div class="rad-card">
         <div class="rad-card__head">{I18n.t("Test your devices")}</div>
 
-        <SettingRow
-            label={I18n.t("Test my microphone")}
-            stack
-        >
+        <SettingRow label={I18n.t("Test my microphone")} stack>
             <!-- The mark alone, centred. The row's own label and note already say what this is
                  and what to do with it, so a caption under it said the same thing twice. -->
             <div class="rad-mic-meter">
@@ -95,9 +94,7 @@
             </div>
         </SettingRow>
 
-        <SettingRow
-            label={I18n.t("Test playback")}
-        >
+        <SettingRow label={I18n.t("Test playback")}>
             {#snippet control()}
                 <PlaybackTest ontest={() => speaker.play()} />
             {/snippet}
@@ -131,7 +128,9 @@
 
         <SettingRow
             label={I18n.t("Spatial panning")}
-            note={I18n.t("How hard voices are pushed left and right by where their speaker is standing. Audio is centered at 0%")}
+            note={I18n.t(
+                "How hard voices are pushed left and right by where their speaker is standing. Audio is centered at 0%",
+            )}
             stack
         >
             <div class="rad-knob__head">

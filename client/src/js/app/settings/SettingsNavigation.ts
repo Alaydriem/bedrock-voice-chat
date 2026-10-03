@@ -1,7 +1,7 @@
 import { SettingsRoute } from "./SettingsRoute";
 
-/** A client-side navigation. `replaceState` is what makes a move not deepen the stack. */
-type Navigate = (href: string, opts?: { replaceState?: boolean }) => Promise<void>;
+/** A client-side navigation. `replace` is what makes a move not deepen the stack. */
+type Navigate = (href: string, opts?: { replace?: boolean }) => Promise<void>;
 
 /** A move through session history, by a negative number of entries. */
 type Pop = (delta: number) => void;
@@ -63,7 +63,7 @@ export class SettingsNavigation {
             return;
         }
 
-        await this.navigate(href, { replaceState: true });
+        await this.navigate(href, { replace: true });
     }
 
     /** One screen up from wherever the path says we are. */
@@ -91,7 +91,7 @@ export class SettingsNavigation {
      */
     private async unwind(levels: number, fallback: string): Promise<void> {
         if (!this.entered || levels < 1) {
-            await this.navigate(fallback, { replaceState: true });
+            await this.navigate(fallback, { replace: true });
             return;
         }
 

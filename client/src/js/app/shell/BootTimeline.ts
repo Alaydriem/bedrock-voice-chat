@@ -1,4 +1,4 @@
-import { debug, info } from '@charlesportwoodii/tauri-plugin-curia';
+import { debug, info } from "@charlesportwoodii/tauri-plugin-curia";
 
 interface BootMark {
     readonly name: string;
@@ -52,7 +52,7 @@ export class BootTimeline {
      * own answer to the same question, and it costs nothing when nothing is slow.
      */
     private watchLongTasks(): void {
-        if (typeof PerformanceObserver === 'undefined') return;
+        if (typeof PerformanceObserver === "undefined") return;
         try {
             this.longTaskObserver = new PerformanceObserver((list) => {
                 for (const entry of list.getEntries()) {
@@ -63,7 +63,7 @@ export class BootTimeline {
                     });
                 }
             });
-            this.longTaskObserver.observe({ entryTypes: ['longtask'] });
+            this.longTaskObserver.observe({ entryTypes: ["longtask"] });
         } catch {
             // Not every engine implements the entry type; its absence is not worth a log line
             // on a path that exists to measure other things.
@@ -102,29 +102,30 @@ export class BootTimeline {
         this.reportedThrough = this.marks.length;
 
         const width = this.marks.reduce((w, m) => Math.max(w, m.name.length), 0);
-        const slowest = this.marks.reduce(
-            (worst, m) => (m.delta > worst.delta ? m : worst),
-            { name: '', at: 0, delta: -1 } as BootMark,
-        );
+        const slowest = this.marks.reduce((worst, m) => (m.delta > worst.delta ? m : worst), {
+            name: "",
+            at: 0,
+            delta: -1,
+        } as BootMark);
 
         const lines = this.marks.map((m) => {
-            const flag = m === slowest ? '  <-- slowest' : '';
+            const flag = m === slowest ? "  <-- slowest" : "";
             return `  ${m.name.padEnd(width)}  ${m.delta.toFixed(0).padStart(6)} ms   (t+${m.at.toFixed(0)})${flag}`;
         });
 
         const total = this.marks.length ? this.marks[this.marks.length - 1].at : 0;
         debug(
             [
-                '',
-                '=== BOOT TIMELINE ===',
-                `  ${'phase'.padEnd(width)}  ${'delta'.padStart(6)}      since launch`,
+                "",
+                "=== BOOT TIMELINE ===",
+                `  ${"phase".padEnd(width)}  ${"delta".padStart(6)}      since launch`,
                 ...lines,
-                `  ${'TOTAL'.padEnd(width)}  ${total.toFixed(0).padStart(6)} ms`,
+                `  ${"TOTAL".padEnd(width)}  ${total.toFixed(0).padStart(6)} ms`,
                 ...BootTimeline.markResizeLines(),
                 ...this.longTaskLines(),
                 ...BootTimeline.deliveryLines(),
-                '=====================',
-            ].join('\n'),
+                "=====================",
+            ].join("\n"),
         );
     }
 
@@ -137,16 +138,17 @@ export class BootTimeline {
      * changing size on screen after it has already appeared.
      */
     private static markResizeLines(): string[] {
-        const samples = (window as unknown as { __bvcMarkResizes?: { t: number; w: number; h: number }[] })
-            .__bvcMarkResizes;
+        const samples = (
+            window as unknown as { __bvcMarkResizes?: { t: number; w: number; h: number }[] }
+        ).__bvcMarkResizes;
         if (!samples?.length) return [];
 
         const lines = samples.map((s) => `    t+${String(s.t).padStart(5)} ms   ${s.w} x ${s.h}`);
         const verdict =
             samples.length === 1
-                ? 'sized once, never resized'
+                ? "sized once, never resized"
                 : `RESIZED ${samples.length - 1} time(s) after first layout`;
-        return ['', `  mark box — ${verdict}`, ...lines];
+        return ["", `  mark box — ${verdict}`, ...lines];
     }
 
     /**
@@ -163,10 +165,11 @@ export class BootTimeline {
         const worst = [...this.longTasks].sort((a, b) => b.duration - a.duration).slice(0, 8);
 
         return [
-            '',
+            "",
             `  long tasks — ${this.longTasks.length} over 50ms, ${total.toFixed(0)} ms of JS thread`,
             ...worst.map(
-                (t) => `    t+${t.start.toFixed(0).padStart(5)} ms   ${t.duration.toFixed(0).padStart(4)} ms   ${t.name}`,
+                (t) =>
+                    `    t+${t.start.toFixed(0).padStart(5)} ms   ${t.duration.toFixed(0).padStart(4)} ms   ${t.name}`,
             ),
         ];
     }
@@ -183,15 +186,15 @@ export class BootTimeline {
     private static deliveryLines(): string[] {
         const lines: string[] = [];
 
-        const requests = performance.getEntriesByType('resource').length;
+        const requests = performance.getEntriesByType("resource").length;
         const bundled = !import.meta.env.DEV;
         lines.push(
-            '',
-            `  delivery — ${bundled ? 'bundled build' : 'DEV SERVER (not comparable to a build)'}`,
+            "",
+            `  delivery — ${bundled ? "bundled build" : "DEV SERVER (not comparable to a build)"}`,
             `    document requests      ${requests}`,
         );
 
-        const nav = performance.getEntriesByType('navigation')[0] as
+        const nav = performance.getEntriesByType("navigation")[0] as
             | PerformanceNavigationTiming
             | undefined;
         if (nav) {

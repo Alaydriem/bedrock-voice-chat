@@ -1,6 +1,6 @@
-import { invoke } from '@tauri-apps/api/core';
-import { debug, info, warn } from '@charlesportwoodii/tauri-plugin-curia';
-import type { InternalEndpoint } from '../../bindings/InternalEndpoint';
+import { invoke } from "@tauri-apps/api/core";
+import { debug, info, warn } from "@charlesportwoodii/tauri-plugin-curia";
+import type { InternalEndpoint } from "../../bindings/InternalEndpoint";
 
 export type EventSink<T> = (data: T) => void;
 
@@ -53,7 +53,7 @@ export class EventChannel {
     static readonly UNCLAIMED_LOG_MS = 10_000;
 
     /** The heartbeat the listener sends whether or not anything happened. */
-    static readonly KEEPALIVE_KIND = 'keepalive';
+    static readonly KEEPALIVE_KIND = "keepalive";
 
     #sinks = new Map<string, Set<EventSink<never>>>();
     #socket: WebSocket | null = null;
@@ -144,13 +144,13 @@ export class EventChannel {
      * and the only one that recovers on a user action rather than a timer.
      */
     #watchVisibility(): void {
-        if (this.#visibility !== null || typeof document === 'undefined') return;
+        if (this.#visibility !== null || typeof document === "undefined") return;
         this.#visibility = () => {
-            if (document.visibilityState !== 'visible') return;
+            if (document.visibilityState !== "visible") return;
             if (this.#audience === 0 || this.connected || this.#opening) return;
             void this.#open();
         };
-        document.addEventListener('visibilitychange', this.#visibility);
+        document.addEventListener("visibilitychange", this.#visibility);
     }
 
     /**
@@ -161,12 +161,12 @@ export class EventChannel {
      * user returning to the app to notice.
      */
     #watchLiveness(): void {
-        if (this.#watchdog !== null || typeof setInterval === 'undefined') return;
+        if (this.#watchdog !== null || typeof setInterval === "undefined") return;
         this.#watchdog = setInterval(() => {
             if (this.#audience === 0 || !this.connected) return;
             const since = this.#aliveAt;
             if (since === null || Date.now() - since <= EventChannel.LIVENESS_MS) return;
-            this.#forceReopen('the push channel went silent');
+            this.#forceReopen("the push channel went silent");
         }, EventChannel.WATCHDOG_MS);
     }
 
@@ -176,7 +176,7 @@ export class EventChannel {
 
         let endpoint: InternalEndpoint;
         try {
-            endpoint = await invoke<InternalEndpoint>('websocket_internal_endpoint');
+            endpoint = await invoke<InternalEndpoint>("websocket_internal_endpoint");
         } catch (e) {
             this.#opening = false;
             // Expected while the listener is still binding at startup, so this retries rather
@@ -204,7 +204,7 @@ export class EventChannel {
         socket.onopen = () => {
             this.#attempts = 0;
             this.#aliveAt = Date.now();
-            void debug('EventChannel: push channel open');
+            void debug("EventChannel: push channel open");
         };
         socket.onmessage = (event) => this.#deliver(event.data);
         // A webview exposes no reason for either, so both are treated as a dropped socket and
@@ -224,7 +224,7 @@ export class EventChannel {
             void debug(`EventChannel: could not parse a frame: ${e}`);
             return;
         }
-        if (typeof envelope.type !== 'string') return;
+        if (typeof envelope.type !== "string") return;
 
         const sinks = this.#sinks.get(envelope.type);
         if (!sinks || sinks.size === 0) {
@@ -266,7 +266,7 @@ export class EventChannel {
         if (this.#socket !== socket) return;
         this.#socket = null;
         if (this.#audience === 0) return;
-        this.#scheduleRetry('the push channel closed');
+        this.#scheduleRetry("the push channel closed");
     }
 
     #scheduleRetry(reason: string): void {

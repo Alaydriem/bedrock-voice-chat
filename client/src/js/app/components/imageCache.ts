@@ -1,12 +1,11 @@
-
-import { mkdir, writeFile, exists, readFile, stat } from '@tauri-apps/plugin-fs';
-import { appCacheDir } from '@tauri-apps/api/path';
-import { debug } from '@charlesportwoodii/tauri-plugin-curia';
+import { mkdir, writeFile, exists, readFile, stat } from "@tauri-apps/plugin-fs";
+import { appCacheDir } from "@tauri-apps/api/path";
+import { debug } from "@charlesportwoodii/tauri-plugin-curia";
 import axios from "axios";
 
 // @ts-ignore
 import murmurHash3 from "murmurhash3js";
-import type ImageCacheOptions from './imageCacheOptions';
+import type ImageCacheOptions from "./imageCacheOptions";
 
 export default class ImageCache {
     /**
@@ -17,12 +16,12 @@ export default class ImageCache {
     async getImage(options: ImageCacheOptions): Promise<string> {
         if (!options.url || !options.url.startsWith("http")) return "";
 
-        const cacheDir = await appCacheDir() + "/images";
+        const cacheDir = (await appCacheDir()) + "/images";
         const hash = this.hashImageUrl(options.url);
         const cachedImagePath = `${cacheDir}/${hash}`;
 
         // Ensure the cache directory exists
-        if (!await exists(cacheDir)) {
+        if (!(await exists(cacheDir))) {
             await mkdir(cacheDir, { recursive: true });
         }
 
@@ -76,7 +75,7 @@ export default class ImageCache {
         const bytes = new TextEncoder().encode(url);
         const byteString = Array.from(bytes)
             .map((byte) => String.fromCharCode(byte))
-            .join('');
+            .join("");
         return murmurHash3.x86.hash128(byteString);
     }
 
@@ -86,15 +85,18 @@ export default class ImageCache {
      * @returns
      */
     getMimeType(data: Uint8Array | string): string {
-        const bytes = typeof data === "string" ? new Uint8Array(data.split("").map((char) => char.charCodeAt(0))) : data;
+        const bytes =
+            typeof data === "string"
+                ? new Uint8Array(data.split("").map((char) => char.charCodeAt(0)))
+                : data;
 
         // Check for PNG signature (first 8 bytes: 89 50 4E 47 0D 0A 1A 0A)
-        if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+        if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
             return "image/png";
         }
 
         // Check for JPEG signature (first 3 bytes: FF D8 FF)
-        if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+        if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
             return "image/jpeg";
         }
 
@@ -111,7 +113,7 @@ export default class ImageCache {
         // Assuming 'uint8Array' is your Uint8Array
         return btoa(
             new Uint8Array(blob).reduce(function (data, byte) {
-            return data + String.fromCharCode(byte);
+                return data + String.fromCharCode(byte);
             }, ""),
         );
     }

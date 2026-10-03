@@ -25,10 +25,13 @@ function mount(state: SelfSnapshot, over: Record<string, unknown> = {}) {
     const onmute = vi.fn();
     const onhold = vi.fn();
     const onrecord = vi.fn();
-    render(SelfPill as never, {
-        target: host,
-        props: { name: "Alaydriem", state, onmute, onhold, onrecord, ...over },
-    } as never);
+    render(
+        SelfPill as never,
+        {
+            target: host,
+            props: { name: "Alaydriem", state, onmute, onhold, onrecord, ...over },
+        } as never,
+    );
     // By class, not by label: the label is one of the things under test, and finding the
     // control by the string it is asserted to have makes the assertion circular.
     const mic = host.querySelector<HTMLElement>(

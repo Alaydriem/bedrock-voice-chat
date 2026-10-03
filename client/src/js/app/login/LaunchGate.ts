@@ -1,7 +1,7 @@
-import { Store } from '@tauri-apps/plugin-store';
-import { error as logError } from '@charlesportwoodii/tauri-plugin-curia';
-import { ServerListStore } from '../services/ServerListStore';
-import { AppStore } from '../services/AppStore';
+import { Store } from "@tauri-apps/plugin-store";
+import { error as logError } from "@charlesportwoodii/tauri-plugin-curia";
+import { ServerListStore } from "../services/ServerListStore";
+import { AppStore } from "../services/AppStore";
 
 /**
  * Whether a launch owes the user an explanation before a credential prompt.
@@ -18,7 +18,7 @@ import { AppStore } from '../services/AppStore';
  * It stays reachable from the sign-in screen's "What is this?" for anyone who wants it.
  */
 export default class LaunchGate {
-    static readonly SEEN_KEY = 'onboarding_seen';
+    static readonly SEEN_KEY = "onboarding_seen";
 
     private readonly serverListStore: ServerListStore;
 
@@ -29,10 +29,10 @@ export default class LaunchGate {
     static resolveEntry(seen: boolean, params: URLSearchParams): string {
         // Arriving with a server in hand is never a first-run situation: the
         // dashboard and the server list both land here that way.
-        if (params.has('addserver') || params.has('reauth') || params.has('server')) {
-            return 'login';
+        if (params.has("addserver") || params.has("reauth") || params.has("server")) {
+            return "login";
         }
-        return seen ? 'login' : 'intro';
+        return seen ? "login" : "intro";
     }
 
     /** Whether the introduction has been read, or been made redundant by signing in. */

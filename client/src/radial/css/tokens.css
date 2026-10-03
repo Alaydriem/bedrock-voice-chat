@@ -9,126 +9,126 @@
  */
 
 :root {
-  --font-rad-sans: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
-  --font-rad-mono: ui-monospace, Menlo, Consolas, monospace;
+    --font-rad-sans: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    --font-rad-mono: ui-monospace, Menlo, Consolas, monospace;
 
-  /* ---- ground and surface ---- */
-  /* column 00 at 12% lightness */
-  --color-rad-void: #1c1132;
-  --color-rad-void-2: #251844;
-  --color-rad-panel: #2f2054;
-  --color-rad-line: #432f6c;
-  --color-rad-line-2: #5b4487;
+    /* ---- ground and surface ---- */
+    /* column 00 at 12% lightness */
+    --color-rad-void: #1c1132;
+    --color-rad-void-2: #251844;
+    --color-rad-panel: #2f2054;
+    --color-rad-line: #432f6c;
+    --color-rad-line-2: #5b4487;
 
-  /* ---- ink ---- */
-  --color-rad-tx: #fbf8ff;
-  --color-rad-dim: #d6cbea;
-  --color-rad-faint: #b3a4d0;
+    /* ---- ink ---- */
+    --color-rad-tx: #fbf8ff;
+    --color-rad-dim: #d6cbea;
+    --color-rad-faint: #b3a4d0;
 
-  /* ---- brand ---- */
-  /* column 00 verbatim */
-  --color-rad-brand: #8239d8;
-  --color-rad-brand-lift: #bb8dfa;
+    /* ---- brand ---- */
+    /* column 00 verbatim */
+    --color-rad-brand: #8239d8;
+    --color-rad-brand-lift: #bb8dfa;
 
-  /* ---- semantic ---- */
-  /* lifted off columns 10, 15 and 20 so they hold contrast on the violet ground */
-  --color-rad-ok: #5ce383;
-  --color-rad-warn: #ffcf4d;
-  --color-rad-fault: #ff8266;
+    /* ---- semantic ---- */
+    /* lifted off columns 10, 15 and 20 so they hold contrast on the violet ground */
+    --color-rad-ok: #5ce383;
+    --color-rad-warn: #ffcf4d;
+    --color-rad-fault: #ff8266;
 
-  /* ---- ring and mark paint ---- */
-  --color-rad-ring-base: #6a4f96;
-  --color-rad-ring-empty: #54407c;
-  --color-rad-mortar: #43306e;
-  --color-rad-mortar-dead: #2c1f4d;
-  --color-rad-hairline: rgb(148 131 182 / 0.42);
-  --color-rad-idle-tint: #7a68a0;
-  --color-rad-idle-tint-muted: #8b7ab0;
-  --color-rad-scope-ok: #7bd6b0;
+    /* ---- ring and mark paint ---- */
+    --color-rad-ring-base: #6a4f96;
+    --color-rad-ring-empty: #54407c;
+    --color-rad-mortar: #43306e;
+    --color-rad-mortar-dead: #2c1f4d;
+    --color-rad-hairline: rgb(148 131 182 / 0.42);
+    --color-rad-idle-tint: #7a68a0;
+    --color-rad-idle-tint-muted: #8b7ab0;
+    --color-rad-scope-ok: #7bd6b0;
 
-  /* ---- type ----
+    /* ---- type ----
    * Sized in rem against the app root of 112.5% (18px), so the scale renders at
    * the design's px values and still tracks a change to the root.
    *
    * One knob scales the whole set. It multiplies only `--text-rad-*`, so it moves the
    * design system's type and nothing else.
    */
-  --rad-type-scale: 1.2;
+    --rad-type-scale: 1.2;
 
-  --text-rad-display: calc(2.4444rem * var(--rad-type-scale));
-  --text-rad-display--line-height: 1.06;
-  --text-rad-display--letter-spacing: -0.032em;
-  --text-rad-display--font-weight: 300;
+    --text-rad-display: calc(2.4444rem * var(--rad-type-scale));
+    --text-rad-display--line-height: 1.06;
+    --text-rad-display--letter-spacing: -0.032em;
+    --text-rad-display--font-weight: 300;
 
-  --text-rad-title: calc(1.5556rem * var(--rad-type-scale));
-  --text-rad-title--line-height: 1.14;
-  --text-rad-title--letter-spacing: -0.024em;
+    --text-rad-title: calc(1.5556rem * var(--rad-type-scale));
+    --text-rad-title--line-height: 1.14;
+    --text-rad-title--letter-spacing: -0.024em;
 
-  --text-rad-heading: calc(1.3889rem * var(--rad-type-scale));
-  --text-rad-heading--line-height: 1.2;
-  --text-rad-heading--letter-spacing: -0.018em;
+    --text-rad-heading: calc(1.3889rem * var(--rad-type-scale));
+    --text-rad-heading--line-height: 1.2;
+    --text-rad-heading--letter-spacing: -0.018em;
 
-  --text-rad-subhead: calc(1.1111rem * var(--rad-type-scale));
-  --text-rad-subhead--line-height: 1.3;
-  --text-rad-subhead--letter-spacing: -0.018em;
+    --text-rad-subhead: calc(1.1111rem * var(--rad-type-scale));
+    --text-rad-subhead--line-height: 1.3;
+    --text-rad-subhead--letter-spacing: -0.018em;
 
-  --text-rad-lead: calc(0.9444rem * var(--rad-type-scale));
-  --text-rad-lead--line-height: 1.68;
+    --text-rad-lead: calc(0.9444rem * var(--rad-type-scale));
+    --text-rad-lead--line-height: 1.68;
 
-  --text-rad-base: calc(0.8889rem * var(--rad-type-scale));
-  --text-rad-base--line-height: 1.5;
+    --text-rad-base: calc(0.8889rem * var(--rad-type-scale));
+    --text-rad-base--line-height: 1.5;
 
-  --text-rad-md: calc(0.8333rem * var(--rad-type-scale));
-  --text-rad-md--line-height: 1.45;
+    --text-rad-md: calc(0.8333rem * var(--rad-type-scale));
+    --text-rad-md--line-height: 1.45;
 
-  --text-rad-sm: calc(0.7778rem * var(--rad-type-scale));
-  --text-rad-sm--line-height: 1.55;
+    --text-rad-sm: calc(0.7778rem * var(--rad-type-scale));
+    --text-rad-sm--line-height: 1.55;
 
-  --text-rad-xs: calc(0.75rem * var(--rad-type-scale));
-  --text-rad-xs--line-height: 1.5;
+    --text-rad-xs: calc(0.75rem * var(--rad-type-scale));
+    --text-rad-xs--line-height: 1.5;
 
-  --text-rad-mono: calc(0.6667rem * var(--rad-type-scale));
-  --text-rad-mono--line-height: 1.4;
+    --text-rad-mono: calc(0.6667rem * var(--rad-type-scale));
+    --text-rad-mono--line-height: 1.4;
 
-  --text-rad-mono-sm: calc(0.6389rem * var(--rad-type-scale));
-  --text-rad-mono-sm--line-height: 1.4;
+    --text-rad-mono-sm: calc(0.6389rem * var(--rad-type-scale));
+    --text-rad-mono-sm--line-height: 1.4;
 
-  --text-rad-mono-xs: calc(0.6111rem * var(--rad-type-scale));
-  --text-rad-mono-xs--line-height: 1.4;
+    --text-rad-mono-xs: calc(0.6111rem * var(--rad-type-scale));
+    --text-rad-mono-xs--line-height: 1.4;
 
-  --text-rad-mono-2xs: calc(0.5833rem * var(--rad-type-scale));
-  --text-rad-mono-2xs--line-height: 1.4;
+    --text-rad-mono-2xs: calc(0.5833rem * var(--rad-type-scale));
+    --text-rad-mono-2xs--line-height: 1.4;
 
-  --tracking-rad-label: 0.2em;
-  --tracking-rad-caption: 0.16em;
-  --tracking-rad-tag: 0.12em;
-  --tracking-rad-wide: 0.08em;
+    --tracking-rad-label: 0.2em;
+    --tracking-rad-caption: 0.16em;
+    --tracking-rad-tag: 0.12em;
+    --tracking-rad-wide: 0.08em;
 
-  /* ---- radii ---- */
-  --radius-rad-block: 1px;
-  --radius-rad-xs: 4px;
-  --radius-rad-sm: 6px;
-  --radius-rad-md: 9px;
-  --radius-rad-lg: 12px;
-  --radius-rad-xl: 16px;
-  --radius-rad-rail: 13px;
-  --radius-rad-pill: 999px;
+    /* ---- radii ---- */
+    --radius-rad-block: 1px;
+    --radius-rad-xs: 4px;
+    --radius-rad-sm: 6px;
+    --radius-rad-md: 9px;
+    --radius-rad-lg: 12px;
+    --radius-rad-xl: 16px;
+    --radius-rad-rail: 13px;
+    --radius-rad-pill: 999px;
 
-  /* ---- shadows ---- */
-  --shadow-rad-frame: 0 30px 70px -32px rgb(0 0 0 / 0.75);
-  --shadow-rad-pill: 0 20px 46px -18px rgb(0 0 0 / 0.85);
-  --shadow-rad-sheet: 0 -20px 50px -20px rgb(0 0 0 / 0.8);
-  --shadow-rad-menu: 0 22px 50px -18px rgb(0 0 0 / 0.85);
-  --shadow-rad-modal: 0 30px 70px -22px rgb(0 0 0 / 0.9);
+    /* ---- shadows ---- */
+    --shadow-rad-frame: 0 30px 70px -32px rgb(0 0 0 / 0.75);
+    --shadow-rad-pill: 0 20px 46px -18px rgb(0 0 0 / 0.85);
+    --shadow-rad-sheet: 0 -20px 50px -20px rgb(0 0 0 / 0.8);
+    --shadow-rad-menu: 0 22px 50px -18px rgb(0 0 0 / 0.85);
+    --shadow-rad-modal: 0 30px 70px -22px rgb(0 0 0 / 0.9);
 
-  /* ---- motion ---- */
-  --ease-rad-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-rad-rise: cubic-bezier(0.2, 0.9, 0.25, 1);
-  --ease-rad-fly: cubic-bezier(0.3, 0.9, 0.25, 1);
+    /* ---- motion ---- */
+    --ease-rad-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-rad-rise: cubic-bezier(0.2, 0.9, 0.25, 1);
+    --ease-rad-fly: cubic-bezier(0.3, 0.9, 0.25, 1);
 
-  /* Stagger delay for .rad-rise, in milliseconds. Set per element: style="--d:120" */
-  --d: 0;
+    /* Stagger delay for .rad-rise, in milliseconds. Set per element: style="--d:120" */
+    --d: 0;
 
-  /* Container width at which every component adopts its phone layout. */
-  --rad-phone-at: 560px;
+    /* Container width at which every component adopts its phone layout. */
+    --rad-phone-at: 560px;
 }

@@ -5,4 +5,4 @@
  * server unconnectable. `websocket` is a working path with a cost, so it is neither of the
  * other two.
  */
-export type VoiceTransport = 'quic' | 'websocket' | 'none';
+export type VoiceTransport = "quic" | "websocket" | "none";

@@ -15,68 +15,68 @@
  */
 
 .s-specs {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 20px;
-  width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 20px;
+    width: 100%;
 }
 
 .s-spec {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
 }
 
 /* The identity tile overhangs the art by 20px. In a live plate the body beneath it
    provides that room; a specimen has no body, so it reserves the space itself. */
 .s-spec > .rad-server {
-  padding-bottom: 30px;
-  pointer-events: none;
+    padding-bottom: 30px;
+    pointer-events: none;
 }
 
 .s-spec__caption {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
 }
 
 /* ---- the routing table ---- */
 
 .s-truth {
-  display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
-  gap: 14px;
-  align-items: baseline;
-  padding: 11px 0;
-  border-bottom: 1px solid var(--page-line);
-  font-size: 0.7778rem;
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: 14px;
+    align-items: baseline;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--page-line);
+    font-size: 0.7778rem;
 }
 
 .s-truth:last-child {
-  border-bottom: 0;
+    border-bottom: 0;
 }
 
 .s-truth__when {
-  font-family: var(--font-rad-mono);
-  font-size: 0.6667rem;
-  letter-spacing: 0.08em;
-  color: var(--page-faint);
+    font-family: var(--font-rad-mono);
+    font-size: 0.6667rem;
+    letter-spacing: 0.08em;
+    color: var(--page-faint);
 }
 
 .s-truth__then {
-  color: var(--page-dim);
-  line-height: 1.6;
+    color: var(--page-dim);
+    line-height: 1.6;
 }
 
 .s-truth__then b {
-  color: var(--page-ink);
-  font-weight: 600;
+    color: var(--page-ink);
+    font-weight: 600;
 }
 
 .s-truth__then code {
-  font-family: var(--font-rad-mono);
-  font-size: 0.9em;
-  color: #c7a3ff;
+    font-family: var(--font-rad-mono);
+    font-size: 0.9em;
+    color: #c7a3ff;
 }

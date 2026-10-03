@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import "../../css/app.css";
     import Loader from "$radial/components/Loader.svelte";
     import RadScreen from "../../components/shell/RadScreen.svelte";
@@ -13,14 +13,14 @@
     import NotificationsScreen from "../../components/setup/NotificationsScreen.svelte";
     import DevicesScreen from "../../components/setup/DevicesScreen.svelte";
     import FaultScreen from "../../components/error/FaultScreen.svelte";
-    import ServerListScreen from "../../components/server/ServerListScreen.svelte";
-    import PreflightPanel from "../../components/server/PreflightPanel.svelte";
+    import ServerListScreen from "../../components/serverList/ServerListScreen.svelte";
+    import PreflightPanel from "../../components/serverList/PreflightPanel.svelte";
     import FaultCatalog from "../../js/app/error/FaultCatalog";
     import type { ResolveVerdict } from "../../js/app/login/AddressResolver";
-    import { PREFLIGHT_STEPS } from "../../js/app/server/preflight/PreflightStepName";
-    import type { PreflightStepState } from "../../js/app/server/preflight/PreflightStepState";
-    import type { RosterStatus } from "../../js/app/server/RosterStatus";
-    import type { ServerRosterEntry } from "../../js/app/server/ServerRosterEntry";
+    import { PREFLIGHT_STEPS } from "../../js/app/serverList/preflight/PreflightStepName";
+    import type { PreflightStepState } from "../../js/app/serverList/preflight/PreflightStepState";
+    import type { RosterStatus } from "../../js/app/serverList/RosterStatus";
+    import type { ServerRosterEntry } from "../../js/app/serverList/ServerRosterEntry";
 
     /**
      * Every login and setup screen, at both reference frame sizes, on one page.
@@ -38,10 +38,34 @@
     const noop = () => {};
 
     const VERDICTS: Record<string, ResolveVerdict> = {
-        ok: { state: "ok", ring: "live", line: "✓ Resolved · 41ms", caption: "REACHABLE", busy: false },
-        bad: { state: "bad", ring: "empty", line: "✕ Nothing at that address", caption: "NO RESPONSE", busy: false },
-        editing: { state: "editing", ring: "empty", line: "○ Resolving", caption: "RESOLVING", busy: false },
-        measuring: { state: "editing", ring: "empty", line: "Resolving", caption: "RESOLVING", busy: true },
+        ok: {
+            state: "ok",
+            ring: "live",
+            line: "✓ Resolved · 41ms",
+            caption: "REACHABLE",
+            busy: false,
+        },
+        bad: {
+            state: "bad",
+            ring: "empty",
+            line: "✕ Nothing at that address",
+            caption: "NO RESPONSE",
+            busy: false,
+        },
+        editing: {
+            state: "editing",
+            ring: "empty",
+            line: "○ Resolving",
+            caption: "RESOLVING",
+            busy: false,
+        },
+        measuring: {
+            state: "editing",
+            ring: "empty",
+            line: "Resolving",
+            caption: "RESOLVING",
+            busy: true,
+        },
     };
 
     let introStep = $state(1);
@@ -141,7 +165,14 @@
             serverVersion: "2.0.0",
             steps: steps(2),
         }),
-        plate("checking.example.com", "checking", { steps: steps(null).map((s) => ({ ...s, state: "pending" as PreflightStepState, note: "", ms: 0 })) }),
+        plate("checking.example.com", "checking", {
+            steps: steps(null).map((s) => ({
+                ...s,
+                state: "pending" as PreflightStepState,
+                note: "",
+                ms: 0,
+            })),
+        }),
     ];
 
     let reading = $state<ServerRosterEntry | null>(null);
@@ -158,11 +189,15 @@
 </script>
 
 {#if !DEV}
-    <p style="padding: 2rem; font-family: monospace">{I18n.t("Not available in a release build.")}</p>
+    <p style="padding: 2rem; font-family: monospace">
+        {I18n.t("Not available in a release build.")}
+    </p>
 {:else}
     <div class="gallery">
         <p class="note">
-            {I18n.t("Container queries, so these are faithful. Scroll each frame — the footbar must stay on screen at every step.")}
+            {I18n.t(
+                "Container queries, so these are faithful. Scroll each frame — the footbar must stay on screen at every step.",
+            )}
         </p>
 
         {#snippet pair(title: string, body: import("svelte").Snippet)}

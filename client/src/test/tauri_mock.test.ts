@@ -12,30 +12,32 @@ import { invokeCalls, mockInvoke } from "./tauri";
  * quietly stopped testing the boundary.
  */
 describe("Tauri IPC mock", () => {
-  it("routes a registered command to its handler", async () => {
-    mockInvoke({ probe_server: () => ({ host: "bvc.example.com" }) });
-    await expect(invoke("probe_server", { server: "https://bvc.example.com" })).resolves.toEqual({
-      host: "bvc.example.com",
+    it("routes a registered command to its handler", async () => {
+        mockInvoke({ probe_server: () => ({ host: "bvc.example.com" }) });
+        await expect(
+            invoke("probe_server", { server: "https://bvc.example.com" }),
+        ).resolves.toEqual({
+            host: "bvc.example.com",
+        });
     });
-  });
 
-  it("records what the app asked for", async () => {
-    mockInvoke({ probe_server: () => ({}) });
-    await invoke("probe_server", { server: "https://bvc.example.com" });
-    expect(invokeCalls()).toEqual([
-      { cmd: "probe_server", args: { server: "https://bvc.example.com" } },
-    ]);
-  });
+    it("records what the app asked for", async () => {
+        mockInvoke({ probe_server: () => ({}) });
+        await invoke("probe_server", { server: "https://bvc.example.com" });
+        expect(invokeCalls()).toEqual([
+            { cmd: "probe_server", args: { server: "https://bvc.example.com" } },
+        ]);
+    });
 
-  // A screen that starts calling something new should fail loudly here rather than
-  // silently reading undefined.
-  it("rejects a command nobody registered", async () => {
-    mockInvoke({});
-    await expect(invoke("some_new_command")).rejects.toThrow(/unmocked invoke/);
-  });
+    // A screen that starts calling something new should fail loudly here rather than
+    // silently reading undefined.
+    it("rejects a command nobody registered", async () => {
+        mockInvoke({});
+        await expect(invoke("some_new_command")).rejects.toThrow(/unmocked invoke/);
+    });
 
-  it("silences plugin-log rather than letting it reach a missing backend", () => {
-    expect(() => info("nothing should throw here")).not.toThrow();
-    expect(vi.isMockFunction(info)).toBe(true);
-  });
+    it("silences plugin-log rather than letting it reach a missing backend", () => {
+        expect(() => info("nothing should throw here")).not.toThrow();
+        expect(vi.isMockFunction(info)).toBe(true);
+    });
 });

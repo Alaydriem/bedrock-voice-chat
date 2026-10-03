@@ -63,7 +63,7 @@
 <div class="rad-visual">
     <Ring
         mode={available ? "live" : "empty"}
-        gain={gain}
+        {gain}
         ringStill={true}
         spin={0.12}
         class="rad-ring--fill"

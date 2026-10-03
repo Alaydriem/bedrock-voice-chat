@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
-import type { ApiConfigResponse } from '../../bindings/ApiConfigResponse';
+import { invoke } from "@tauri-apps/api/core";
+import type { ApiConfigResponse } from "../../bindings/ApiConfigResponse";
 
 /**
  * The availability check the sign-in screen gates on.
@@ -11,6 +11,6 @@ import type { ApiConfigResponse } from '../../bindings/ApiConfigResponse';
  */
 export class ServerCheck {
     public static async config(server: string): Promise<ApiConfigResponse> {
-        return await invoke<ApiConfigResponse>('check_server', { server });
+        return await invoke<ApiConfigResponse>("check_server", { server });
     }
 }

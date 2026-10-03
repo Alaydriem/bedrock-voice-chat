@@ -1,4 +1,4 @@
-import { I18n } from "$lib/i18n";
+import { I18n } from "#lib/i18n/index.js";
 import type { PlayerSettingsRow } from "../../bindings/PlayerSettingsRow";
 import GameNameUtils from "../utils/GameNameUtils";
 import type { PlayerRow } from "./PlayerRow";

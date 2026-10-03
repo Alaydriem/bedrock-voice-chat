@@ -10,7 +10,7 @@
     import type LocaleManager from "../../../js/app/managers/settings/LocaleManager";
     import { UpdateStatus, type UpdateState } from "../../../js/app/settings/UpdateStatus";
     import type { AppInfo } from "../../../js/bindings/AppInfo";
-    import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import { LoggingSmokeTest } from "../../../js/app/LoggingSmokeTest";
 
     interface Props {
@@ -117,7 +117,9 @@
 </script>
 
 <div class="rad-section">
-    <div class="rad-section__note">{I18n.t("Proximity voice for Minecraft Bedrock. Source available.")}</div>
+    <div class="rad-section__note">
+        {I18n.t("Proximity voice for Minecraft Bedrock. Source available.")}
+    </div>
 
     <div class="rad-card">
         <SettingRow label={headline} note={detail}>
@@ -126,10 +128,13 @@
                     <StatusChip severity="idle">{I18n.t("Checking")}</StatusChip>
                 {:else if update.kind === "available"}
                     <button class="rad-btn rad-btn--primary">
-                        <Icon name="download" /> {I18n.t("Install")}
+                        <Icon name="download" />
+                        {I18n.t("Install")}
                     </button>
                 {:else if update.kind !== "unavailable"}
-                    <button class="rad-btn" onclick={() => void updates.check()}>{I18n.t("Check again")}</button>
+                    <button class="rad-btn" onclick={() => void updates.check()}
+                        >{I18n.t("Check again")}</button
+                    >
                 {/if}
             {/snippet}
         </SettingRow>
@@ -161,9 +166,7 @@
     <div class="rad-card">
         <div class="rad-card__head">{I18n.t("Language")}</div>
 
-        <SettingRow
-            label={I18n.t("Display language")}
-        >
+        <SettingRow label={I18n.t("Display language")}>
             {#snippet control()}
                 <select
                     class="rad-select"
@@ -185,7 +188,9 @@
 
         <SettingRow
             label={I18n.t("Send anonymous usage and crash reports")}
-            note={I18n.t("Anonymous usage statistics and crash reports help us improve the app. No personal data is sent.")}
+            note={I18n.t(
+                "Anonymous usage statistics and crash reports help us improve the app. No personal data is sent.",
+            )}
         >
             {#snippet control()}
                 <Toggle
@@ -274,14 +279,16 @@
     <div class="rad-link-grid">
         {#each about.links as link (link.url)}
             <button class="rad-link-card" onclick={() => void copy(link.url)}>
-                {link.title} <Icon name="ext" />
+                {link.title}
+                <Icon name="ext" />
             </button>
         {/each}
         <button
             class="rad-link-card"
             onclick={() => void copy("https://www.bedrockvoicechat.com/wiki/")}
         >
-            {I18n.t("Wiki")} <Icon name="ext" />
+            {I18n.t("Wiki")}
+            <Icon name="ext" />
         </button>
     </div>
 </div>

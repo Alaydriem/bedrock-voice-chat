@@ -84,7 +84,17 @@ describe("the voice group", () => {
     it("reports the mode the backend holds", () => {
         expect(row(voice(), "Mode")).toBe("open mic");
         expect(
-            row(voice({ backend: backend({ voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false  }) }), "Mode"),
+            row(
+                voice({
+                    backend: backend({
+                        voiceMode: "pushToTalk",
+                        pttActive: false,
+                        inputMuted: true,
+                        outputMuted: false,
+                    }),
+                }),
+                "Mode",
+            ),
         ).toBe("push-to-talk");
     });
 
@@ -93,7 +103,17 @@ describe("the voice group", () => {
     it("says whether the microphone is open", () => {
         expect(row(voice(), "Microphone")).toBe("open");
         expect(
-            row(voice({ backend: backend({ voiceMode: "openMic", pttActive: false, inputMuted: true, outputMuted: false  }) }), "Microphone"),
+            row(
+                voice({
+                    backend: backend({
+                        voiceMode: "openMic",
+                        pttActive: false,
+                        inputMuted: true,
+                        outputMuted: false,
+                    }),
+                }),
+                "Microphone",
+            ),
         ).toContain("muted");
     });
 
@@ -101,13 +121,27 @@ describe("the voice group", () => {
     // flag means opposite things, so the row says which one this is.
     it("distinguishes a resting mute from a broken one", () => {
         const resting = row(
-            voice({ backend: backend({ voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false  }) }),
+            voice({
+                backend: backend({
+                    voiceMode: "pushToTalk",
+                    pttActive: false,
+                    inputMuted: true,
+                    outputMuted: false,
+                }),
+            }),
             "Microphone",
         );
         expect(resting).toContain("resting state");
 
         const broken = row(
-            voice({ backend: backend({ voiceMode: "openMic", pttActive: false, inputMuted: true, outputMuted: false  }) }),
+            voice({
+                backend: backend({
+                    voiceMode: "openMic",
+                    pttActive: false,
+                    inputMuted: true,
+                    outputMuted: false,
+                }),
+            }),
             "Microphone",
         );
         expect(broken).toContain("nothing is being captured");
@@ -115,12 +149,22 @@ describe("the voice group", () => {
 
     it("shows whether a hold is registered", () => {
         const held = voice({
-            backend: backend({ voiceMode: "pushToTalk", pttActive: true, inputMuted: false, outputMuted: false  }),
+            backend: backend({
+                voiceMode: "pushToTalk",
+                pttActive: true,
+                inputMuted: false,
+                outputMuted: false,
+            }),
         });
         expect(row(held, "Hold")).toBe("held");
 
         const released = voice({
-            backend: backend({ voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false  }),
+            backend: backend({
+                voiceMode: "pushToTalk",
+                pttActive: false,
+                inputMuted: true,
+                outputMuted: false,
+            }),
         });
         expect(row(released, "Hold")).toBe("released");
     });
@@ -133,7 +177,12 @@ describe("the voice group", () => {
 });
 
 describe("the mode the button believes", () => {
-    const backendPtt = backend({ voiceMode: "pushToTalk" as const, pttActive: false, inputMuted: true, outputMuted: false });
+    const backendPtt = backend({
+        voiceMode: "pushToTalk" as const,
+        pttActive: false,
+        inputMuted: true,
+        outputMuted: false,
+    });
 
     /**
      * The mode reaches the button by event, and the button is what turns a tap into a hold.
@@ -166,13 +215,20 @@ describe("the capture stream row", () => {
      */
     it("separates a muted stream from one that is not running", () => {
         const muted = voice({
-            backend: backend({ voiceMode: "pushToTalk", pttActive: false, inputMuted: true, outputMuted: false  }),
+            backend: backend({
+                voiceMode: "pushToTalk",
+                pttActive: false,
+                inputMuted: true,
+                outputMuted: false,
+            }),
             mic: mic({ events: 300, lastRms: 0, silentForMs: 80 }),
         });
         expect(row(muted, "Capture stream")).toContain("10.0/s");
         expect(row(muted, "Capture stream")).not.toContain("not running");
 
-        const dead = voice({ mic: mic({ events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }) });
+        const dead = voice({
+            mic: mic({ events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }),
+        });
         expect(row(dead, "Capture stream")).toContain("not running");
     });
 
@@ -196,7 +252,9 @@ describe("the capture stream row", () => {
      * believed over the audio.
      */
     it("does not blame the capture stream while the backend is capturing", () => {
-        const dead = voice({ mic: mic({ events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }) });
+        const dead = voice({
+            mic: mic({ events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }),
+        });
         const said = row(dead, "Capture stream", undefined, 50);
         expect(said).not.toContain("not running");
         expect(said).toContain("the microphone is fine");
@@ -204,7 +262,9 @@ describe("the capture stream row", () => {
     });
 
     it("still blames the capture stream when nothing is being captured either", () => {
-        const dead = voice({ mic: mic({ events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }) });
+        const dead = voice({
+            mic: mic({ events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }),
+        });
         expect(row(dead, "Capture stream", undefined, 0)).toContain("not running");
     });
 
@@ -227,7 +287,13 @@ describe("the capture stream row", () => {
 
     it("reports a meter that never attached as its own fault", () => {
         const detached = voice({
-            mic: mic({ attached: false, events: 0, eventsPerSecond: 0, lastRms: 0, silentForMs: null }),
+            mic: mic({
+                attached: false,
+                events: 0,
+                eventsPerSecond: 0,
+                lastRms: 0,
+                silentForMs: null,
+            }),
         });
         const said = row(detached, "Capture stream", undefined, 50);
         expect(said).toContain("no registration");
@@ -256,13 +322,24 @@ describe("the self meter row", () => {
 
     it("says the pill is not mounted rather than inventing a state", () => {
         expect(
-            meterRow(meter({ mounted: false, levels: 0, lastLevel: 0, levelAgeMs: null, paints: 0, paintAgeMs: null })),
+            meterRow(
+                meter({
+                    mounted: false,
+                    levels: 0,
+                    lastLevel: 0,
+                    levelAgeMs: null,
+                    paints: 0,
+                    paintAgeMs: null,
+                }),
+            ),
         ).toContain("not mounted");
     });
 
     it("reports a mounted meter that nothing has pushed to", () => {
         expect(
-            meterRow(meter({ levels: 0, lastLevel: 0, levelAgeMs: null, paints: 0, paintAgeMs: null })),
+            meterRow(
+                meter({ levels: 0, lastLevel: 0, levelAgeMs: null, paints: 0, paintAgeMs: null }),
+            ),
         ).toContain("no levels");
     });
 
@@ -366,12 +443,13 @@ describe("figures that can be compared between two captures", () => {
     });
 
     it("reports levels against paints while the meter is working", () => {
-        const said = DiagnosticsView.voiceGroup(
-            voice(),
-            undefined,
-            50,
-            meter({ levels: 412, paints: 388 }),
-        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+        const said =
+            DiagnosticsView.voiceGroup(
+                voice(),
+                undefined,
+                50,
+                meter({ levels: 412, paints: 388 }),
+            ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
 
         expect(said).toContain("412 levels");
         expect(said).toContain("388 paints");
@@ -383,23 +461,19 @@ describe("figures that can be compared between two captures", () => {
      * claim about whichever canvas painted rather than about the one being looked at.
      */
     it("says when more than one binding is behind the numbers", () => {
-        const said = DiagnosticsView.voiceGroup(
-            voice(),
-            undefined,
-            50,
-            meter({ bindings: 2 }),
-        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+        const said =
+            DiagnosticsView.voiceGroup(voice(), undefined, 50, meter({ bindings: 2 })).rows.find(
+                ([name]) => name === "Self meter",
+            )?.[1] ?? "";
 
         expect(said).toContain("2 bindings");
     });
 
     it("says nothing extra when one binding owns the name", () => {
-        const said = DiagnosticsView.voiceGroup(
-            voice(),
-            undefined,
-            50,
-            meter(),
-        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+        const said =
+            DiagnosticsView.voiceGroup(voice(), undefined, 50, meter()).rows.find(
+                ([name]) => name === "Self meter",
+            )?.[1] ?? "";
 
         expect(said).not.toContain("bindings");
     });
@@ -416,12 +490,13 @@ describe("figures that can be compared between two captures", () => {
  */
 describe("the meter's subscription to the live source", () => {
     it("names the fault when bindings exist and none is subscribed", () => {
-        const said = DiagnosticsView.voiceGroup(
-            voice({ mic: mic({ ownListeners: 0 }) }),
-            undefined,
-            50,
-            meter({ bindings: 2 }),
-        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+        const said =
+            DiagnosticsView.voiceGroup(
+                voice({ mic: mic({ ownListeners: 0 }) }),
+                undefined,
+                50,
+                meter({ bindings: 2 }),
+            ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
 
         expect(said).toContain("0 of 2");
     });
@@ -430,23 +505,25 @@ describe("the meter's subscription to the live source", () => {
     // fires at zero stays silent through exactly the case the dashboard produces: the pill is
     // mounted twice, and it is the visible one that can be the orphan.
     it("names the fault when only some of the bindings are subscribed", () => {
-        const said = DiagnosticsView.voiceGroup(
-            voice({ mic: mic({ ownListeners: 1 }) }),
-            undefined,
-            50,
-            meter({ bindings: 2 }),
-        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+        const said =
+            DiagnosticsView.voiceGroup(
+                voice({ mic: mic({ ownListeners: 1 }) }),
+                undefined,
+                50,
+                meter({ bindings: 2 }),
+            ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
 
         expect(said).toContain("1 of 2");
     });
 
     it("says nothing when every binding is subscribed", () => {
-        const said = DiagnosticsView.voiceGroup(
-            voice({ mic: mic({ ownListeners: 2 }) }),
-            undefined,
-            50,
-            meter({ bindings: 2 }),
-        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+        const said =
+            DiagnosticsView.voiceGroup(
+                voice({ mic: mic({ ownListeners: 2 }) }),
+                undefined,
+                50,
+                meter({ bindings: 2 }),
+            ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
 
         expect(said).not.toContain("subscribed to the live source");
     });
@@ -454,12 +531,13 @@ describe("the meter's subscription to the live source", () => {
     // No bindings at all is "not mounted", which the row already says in its own words. An
     // unsubscribed-source warning there would blame a wiring fault for an absent pill.
     it("does not raise it when no binding is mounted", () => {
-        const said = DiagnosticsView.voiceGroup(
-            voice({ mic: mic({ ownListeners: 0 }) }),
-            undefined,
-            50,
-            meter({ mounted: false, bindings: 0, levels: 0, paints: 0 }),
-        ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
+        const said =
+            DiagnosticsView.voiceGroup(
+                voice({ mic: mic({ ownListeners: 0 }) }),
+                undefined,
+                50,
+                meter({ mounted: false, bindings: 0, levels: 0, paints: 0 }),
+            ).rows.find(([name]) => name === "Self meter")?.[1] ?? "";
 
         expect(said).toContain("not mounted");
         expect(said).not.toContain("subscribed to the live source");
@@ -478,7 +556,15 @@ describe("the meter's subscription to the live source", () => {
 describe("telling a lost registration from a lost audience", () => {
     it("names the feed when the fan-out is still asking", () => {
         const said = row(
-            voice({ mic: mic({ attached: false, sinkHeld: true, events: 0, eventsPerSecond: 0, silentForMs: null }) }),
+            voice({
+                mic: mic({
+                    attached: false,
+                    sinkHeld: true,
+                    events: 0,
+                    eventsPerSecond: 0,
+                    silentForMs: null,
+                }),
+            }),
             "Capture stream",
         );
         expect(said).toContain("no registration");
@@ -486,7 +572,15 @@ describe("telling a lost registration from a lost audience", () => {
 
     it("names the fan-out when nothing is asking", () => {
         const said = row(
-            voice({ mic: mic({ attached: false, sinkHeld: false, events: 0, eventsPerSecond: 0, silentForMs: null }) }),
+            voice({
+                mic: mic({
+                    attached: false,
+                    sinkHeld: false,
+                    events: 0,
+                    eventsPerSecond: 0,
+                    silentForMs: null,
+                }),
+            }),
             "Capture stream",
         );
         expect(said).toContain("not subscribed");

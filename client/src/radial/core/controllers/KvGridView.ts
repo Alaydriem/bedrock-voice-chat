@@ -9,53 +9,53 @@ import type { KvGroup } from "./Diagnostics";
  * changes, which it does not during a session.
  */
 export class KvGridView {
-  readonly host: HTMLElement;
+    readonly host: HTMLElement;
 
-  #shape = "";
-  #keys: HTMLElement[] = [];
-  #values: HTMLElement[] = [];
+    #shape = "";
+    #keys: HTMLElement[] = [];
+    #values: HTMLElement[] = [];
 
-  constructor(host: HTMLElement) {
-    this.host = host;
-  }
-
-  update(groups: readonly KvGroup[]): void {
-    const shape = groups.map((g) => `${g.title}:${g.rows.length}`).join("|");
-    if (shape !== this.#shape) this.#build(groups, shape);
-
-    let i = 0;
-    for (const group of groups) {
-      for (const [key, value] of group.rows) {
-        if (this.#keys[i].textContent !== key) this.#keys[i].textContent = key;
-        if (this.#values[i].textContent !== value) this.#values[i].textContent = value;
-        i++;
-      }
+    constructor(host: HTMLElement) {
+        this.host = host;
     }
-  }
 
-  #build(groups: readonly KvGroup[], shape: string): void {
-    this.host.innerHTML = groups
-      .map(
-        (group) =>
-          '<div class="rad-kv-group">' +
-          `<div class="rad-kv-group__head">${KvGridView.#escape(group.title)}</div>` +
-          group.rows
+    update(groups: readonly KvGroup[]): void {
+        const shape = groups.map((g) => `${g.title}:${g.rows.length}`).join("|");
+        if (shape !== this.#shape) this.#build(groups, shape);
+
+        let i = 0;
+        for (const group of groups) {
+            for (const [key, value] of group.rows) {
+                if (this.#keys[i].textContent !== key) this.#keys[i].textContent = key;
+                if (this.#values[i].textContent !== value) this.#values[i].textContent = value;
+                i++;
+            }
+        }
+    }
+
+    #build(groups: readonly KvGroup[], shape: string): void {
+        this.host.innerHTML = groups
             .map(
-              () =>
-                '<div class="rad-kv"><span class="rad-kv__key"></span><span class="rad-kv__value"></span></div>',
+                (group) =>
+                    '<div class="rad-kv-group">' +
+                    `<div class="rad-kv-group__head">${KvGridView.#escape(group.title)}</div>` +
+                    group.rows
+                        .map(
+                            () =>
+                                '<div class="rad-kv"><span class="rad-kv__key"></span><span class="rad-kv__value"></span></div>',
+                        )
+                        .join("") +
+                    "</div>",
             )
-            .join("") +
-          "</div>",
-      )
-      .join("");
-    this.#keys = [...this.host.querySelectorAll<HTMLElement>(".rad-kv__key")];
-    this.#values = [...this.host.querySelectorAll<HTMLElement>(".rad-kv__value")];
-    this.#shape = shape;
-  }
+            .join("");
+        this.#keys = [...this.host.querySelectorAll<HTMLElement>(".rad-kv__key")];
+        this.#values = [...this.host.querySelectorAll<HTMLElement>(".rad-kv__value")];
+        this.#shape = shape;
+    }
 
-  static #escape(text: string): string {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
-  }
+    static #escape(text: string): string {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+    }
 }

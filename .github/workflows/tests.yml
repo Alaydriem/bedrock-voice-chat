@@ -462,7 +462,7 @@ jobs:
 
       - name: Install JavaScript dependencies
         working-directory: ./client
-        # `prepare` runs svelte-kit sync, which generates .svelte-kit/tsconfig.json.
+        # `prepare` runs svelte-kit sync, which generates node_modules/$app/tsconfig.json.
         # client/tsconfig.json extends it, so skipping this fails later and obscurely.
         run: yarn install --frozen-lockfile
 

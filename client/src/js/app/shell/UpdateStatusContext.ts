@@ -5,4 +5,4 @@
  * dashboard, so the layout that owns the poller can hand the same object down without it
  * becoming reachable from anywhere in the app.
  */
-export const UPDATE_STATUS_KEY = Symbol('bvc:update-status');
+export const UPDATE_STATUS_KEY = Symbol("bvc:update-status");

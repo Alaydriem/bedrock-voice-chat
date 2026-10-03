@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import Loader from "$radial/components/Loader.svelte";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import type { PermissionFlowState } from "../../js/app/PermissionRequestManager";
@@ -58,14 +58,20 @@
               cut the moment someone starts playing.
             -->
             <p class="rad-body rad-rise" style="--d: 210">
-                {I18n.t("Android and iOS both require a notification to let an app hold the microphone in the background. Without it your voice cuts out the moment BVC leaves the screen — which is every moment you are actually playing.")}
+                {I18n.t(
+                    "Android and iOS both require a notification to let an app hold the microphone in the background. Without it your voice cuts out the moment BVC leaves the screen — which is every moment you are actually playing.",
+                )}
             </p>
 
             {#if state === "denied"}
                 <div class="rad-callout rad-rise" style="--d: 280; margin-top: 22px">
-                    <span class="rad-choice__title">{I18n.t("Notification access was refused")}</span>
+                    <span class="rad-choice__title"
+                        >{I18n.t("Notification access was refused")}</span
+                    >
                     <span class="rad-choice__note">
-                        {I18n.t("Grant it in your system settings, then come back and try again. Voice cannot survive leaving the screen without it.")}
+                        {I18n.t(
+                            "Grant it in your system settings, then come back and try again. Voice cannot survive leaving the screen without it.",
+                        )}
                     </span>
                 </div>
                 <div class="rad-rise" style="--d: 340; margin-top: 18px">
@@ -79,7 +85,9 @@
                         <span>
                             <span class="rad-choice__title">{I18n.t("Allow notifications")}</span>
                             <span class="rad-choice__note">
-                                {I18n.t("One quiet ongoing notification while you are in a session, plus people arriving and channels you are part of.")}
+                                {I18n.t(
+                                    "One quiet ongoing notification while you are in a session, plus people arriving and channels you are part of.",
+                                )}
                             </span>
                         </span>
                         <span class="rad-choice__action">{I18n.t("Continue →")}</span>

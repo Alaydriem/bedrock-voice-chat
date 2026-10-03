@@ -1,21 +1,21 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { info, warn, error as logError } from '@charlesportwoodii/tauri-plugin-curia';
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { info, warn, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
 import { invoke } from "@tauri-apps/api/core";
-import { Store } from '@tauri-apps/plugin-store';
-import { DeepLinkRouter } from './deepLinkRouter.ts';
-import { AppStore } from './services/AppStore';
-import LocaleManager from './managers/settings/LocaleManager';
-import BootOverlay from './shell/BootOverlay';
-import { BootTimeline } from './shell/BootTimeline';
-import type { DeepLink } from '../bindings/DeepLink';
-import type { ConnectionHealth } from '../bindings/ConnectionHealth';
-import { EventChannel } from './events/EventChannel';
+import { Store } from "@tauri-apps/plugin-store";
+import { DeepLinkRouter } from "./deepLinkRouter.ts";
+import { AppStore } from "./services/AppStore";
+import LocaleManager from "./managers/settings/LocaleManager";
+import BootOverlay from "./shell/BootOverlay";
+import { BootTimeline } from "./shell/BootTimeline";
+import type { DeepLink } from "../bindings/DeepLink";
+import type { ConnectionHealth } from "../bindings/ConnectionHealth";
+import { EventChannel } from "./events/EventChannel";
 
 /**
  * Audio stream recovery event payload from the Rust backend
  */
 interface AudioStreamRecoveryPayload {
-    device_type: 'InputDevice' | 'OutputDevice';
+    device_type: "InputDevice" | "OutputDevice";
     error: string;
 }
 
@@ -81,9 +81,9 @@ export default class BVCApp {
      */
     private registerCleanupEvents(): void {
         const cleanup = () => this.safeCleanup();
-        window.addEventListener('beforeunload', cleanup);
-        window.addEventListener('pagehide', cleanup);
-        window.addEventListener('unload', cleanup);
+        window.addEventListener("beforeunload", cleanup);
+        window.addEventListener("pagehide", cleanup);
+        window.addEventListener("unload", cleanup);
     }
 
     private safeCleanup(): void {
@@ -124,41 +124,55 @@ export default class BVCApp {
         if (BVCApp.deepLinkRegistered) return;
         BVCApp.deepLinkRegistered = true;
 
-        listen<DeepLink>('deep-link-received', (event) => {
-            info(`BVCApp: Received deep-link-received event: ${event.payload.url.split(/[?#]/)[0]}`);
+        listen<DeepLink>("deep-link-received", (event) => {
+            info(
+                `BVCApp: Received deep-link-received event: ${event.payload.url.split(/[?#]/)[0]}`,
+            );
             this.handleDeepLinkEvent(event.payload.url).catch((err) => {
                 logError(`BVCApp: Failed to handle deep link event: ${err}`);
             });
-        }).then((unlisten) => {
-            this.deepLinkUnlisten = unlisten;
-            info('BVCApp: deep-link-received listener registered');
-        }).catch((err) => {
-            // Registration is claimed before the await, so a failure has to release the
-            // claim or nothing would ever listen for deep links again.
-            BVCApp.deepLinkRegistered = false;
-            logError(`BVCApp: Failed to register deep link listener: ${err}`);
-        });
+        })
+            .then((unlisten) => {
+                this.deepLinkUnlisten = unlisten;
+                info("BVCApp: deep-link-received listener registered");
+            })
+            .catch((err) => {
+                // Registration is claimed before the await, so a failure has to release the
+                // claim or nothing would ever listen for deep links again.
+                BVCApp.deepLinkRegistered = false;
+                logError(`BVCApp: Failed to register deep link listener: ${err}`);
+            });
     }
 
     /**
      * Synchronously register the connection health listener for version mismatch handling
      */
     private setupConnectionHealthListener(): void {
-        this.connectionHealthUnlisten = EventChannel.shared().subscribe<ConnectionHealth>('health', (health) => {
-            if (health.status === 'VersionMismatch') {
-                const payload = health as { status: 'VersionMismatch', client_version: string, server_version: string, client_too_old: boolean };
-                const errorCode = payload.client_too_old ? 'VER01' : 'VER02';
-                warn(`BVCApp: Version mismatch detected: client=${payload.client_version}, server=${payload.server_version}, redirecting to ${errorCode}`);
-                // Replaced, not pushed: the screen this leaves is a dashboard on a link
-                // that has already failed, so back must not return to it.
-                window.location.replace(`/error?code=${errorCode}`);
-            }
-            if (health.status === 'Unauthorized') {
-                const payload = health as { status: 'Unauthorized', reason: string };
-                warn(`BVCApp: Server refused the connection identity: ${payload.reason}`);
-                window.location.replace('/error?code=AUTH01');
-            }
-        });
+        this.connectionHealthUnlisten = EventChannel.shared().subscribe<ConnectionHealth>(
+            "health",
+            (health) => {
+                if (health.status === "VersionMismatch") {
+                    const payload = health as {
+                        status: "VersionMismatch";
+                        client_version: string;
+                        server_version: string;
+                        client_too_old: boolean;
+                    };
+                    const errorCode = payload.client_too_old ? "VER01" : "VER02";
+                    warn(
+                        `BVCApp: Version mismatch detected: client=${payload.client_version}, server=${payload.server_version}, redirecting to ${errorCode}`,
+                    );
+                    // Replaced, not pushed: the screen this leaves is a dashboard on a link
+                    // that has already failed, so back must not return to it.
+                    window.location.replace(`/error?code=${errorCode}`);
+                }
+                if (health.status === "Unauthorized") {
+                    const payload = health as { status: "Unauthorized"; reason: string };
+                    warn(`BVCApp: Server refused the connection identity: ${payload.reason}`);
+                    window.location.replace("/error?code=AUTH01");
+                }
+            },
+        );
     }
 
     /**
@@ -171,15 +185,17 @@ export default class BVCApp {
      * `restart_audio_stream` every 500 ms for as long as the device kept refusing to open.
      */
     private setupAudioRecoveryListener(): void {
-        listen<AudioStreamRecoveryPayload>('audio-stream-recovery', (event) => {
+        listen<AudioStreamRecoveryPayload>("audio-stream-recovery", (event) => {
             const { device_type, error: streamError } = event.payload;
             warn(`BVCApp: Audio stream error on ${device_type}: ${streamError}`);
-        }).then((unlisten) => {
-            this.audioRecoveryUnlisten = unlisten;
-            info('BVCApp: audio-stream-recovery listener registered');
-        }).catch((err) => {
-            logError(`BVCApp: Failed to register audio recovery listener: ${err}`);
-        });
+        })
+            .then((unlisten) => {
+                this.audioRecoveryUnlisten = unlisten;
+                info("BVCApp: audio-stream-recovery listener registered");
+            })
+            .catch((err) => {
+                logError(`BVCApp: Failed to register audio recovery listener: ${err}`);
+            });
     }
 
     /**
@@ -222,12 +238,12 @@ export default class BVCApp {
      */
     async initializeDeepLinks(): Promise<boolean> {
         if (this.initialized) {
-            info('BVCApp: Deep links already initialized');
+            info("BVCApp: Deep links already initialized");
             return false;
         }
         this.initialized = true;
 
-        info('BVCApp: Initializing deep links, checking for pending');
+        info("BVCApp: Initializing deep links, checking for pending");
 
         // Ahead of any navigation: a pack adopted after first paint repaints every
         // translated string, which reads as a flash of the wrong language.
@@ -238,7 +254,7 @@ export default class BVCApp {
             // The first `Store.load` of the launch, and the first IPC of any kind. Marked apart
             // from the routing that follows because the two have nothing to do with each other,
             // and only one of them is likely to be worth attacking.
-            BootTimeline.shared().mark('first Store.load (plugin init)');
+            BootTimeline.shared().mark("first Store.load (plugin init)");
             return await router.processPending();
         } catch (err) {
             logError(`BVCApp: Error processing pending deep link: ${err}`);

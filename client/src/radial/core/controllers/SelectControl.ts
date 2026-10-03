@@ -21,64 +21,68 @@ export type SelectOption = string | MenuSection;
  *   data-rad-select="~WASAPI|Realtek High Definition Audio|~ASIO|Focusrite USB"
  */
 export class SelectControl {
-  readonly element: HTMLElement;
+    readonly element: HTMLElement;
 
-  #menu: Menu;
-  #options: SelectOption[];
-  #onPick: ((value: string) => void) | null;
+    #menu: Menu;
+    #options: SelectOption[];
+    #onPick: ((value: string) => void) | null;
 
-  constructor(
-    element: HTMLElement,
-    menu: Menu,
-    options?: SelectOption[],
-    onPick?: (value: string) => void,
-  ) {
-    this.element = element;
-    this.#menu = menu;
-    this.#options = options ?? SelectControl.parse(element.dataset.radSelect ?? "");
-    this.#onPick = onPick ?? null;
+    constructor(
+        element: HTMLElement,
+        menu: Menu,
+        options?: SelectOption[],
+        onPick?: (value: string) => void,
+    ) {
+        this.element = element;
+        this.#menu = menu;
+        this.#options = options ?? SelectControl.parse(element.dataset.radSelect ?? "");
+        this.#onPick = onPick ?? null;
 
-    element.setAttribute("aria-haspopup", "listbox");
-    element.setAttribute("aria-expanded", "false");
-    element.addEventListener("click", () => this.open());
-  }
+        element.setAttribute("aria-haspopup", "listbox");
+        element.setAttribute("aria-expanded", "false");
+        element.addEventListener("click", () => this.open());
+    }
 
-  get value(): string {
-    return this.#valueEl()?.textContent?.trim() ?? "";
-  }
+    get value(): string {
+        return this.#valueEl()?.textContent?.trim() ?? "";
+    }
 
-  set value(next: string) {
-    const el = this.#valueEl();
-    if (el) el.textContent = next;
-  }
+    set value(next: string) {
+        const el = this.#valueEl();
+        if (el) el.textContent = next;
+    }
 
-  open(): void {
-    const current = this.value;
-    const entries: MenuEntry[] = this.#options.map((option) =>
-      typeof option === "string" ? { label: option, on: option === current } : option,
-    );
-    this.#menu.open(this.element, entries, (item) => {
-      this.value = item.label;
-      this.#onPick?.(item.label);
-    });
-  }
+    open(): void {
+        const current = this.value;
+        const entries: MenuEntry[] = this.#options.map((option) =>
+            typeof option === "string" ? { label: option, on: option === current } : option,
+        );
+        this.#menu.open(this.element, entries, (item) => {
+            this.value = item.label;
+            this.#onPick?.(item.label);
+        });
+    }
 
-  /** `a|~Group|b` into options, where a leading `~` marks a heading. */
-  static parse(spec: string): SelectOption[] {
-    return spec
-      .split("|")
-      .filter(Boolean)
-      .map((part) => (part.startsWith("~") ? { section: part.slice(1) } : part));
-  }
+    /** `a|~Group|b` into options, where a leading `~` marks a heading. */
+    static parse(spec: string): SelectOption[] {
+        return spec
+            .split("|")
+            .filter(Boolean)
+            .map((part) => (part.startsWith("~") ? { section: part.slice(1) } : part));
+    }
 
-  /** Wire every `[data-rad-select]` under a root. */
-  static bindAll(root: ParentNode, menu: Menu, onPick?: (value: string, el: HTMLElement) => void): SelectControl[] {
-    return [...root.querySelectorAll<HTMLElement>("[data-rad-select]")].map(
-      (el) => new SelectControl(el, menu, undefined, (value) => onPick?.(value, el)),
-    );
-  }
+    /** Wire every `[data-rad-select]` under a root. */
+    static bindAll(
+        root: ParentNode,
+        menu: Menu,
+        onPick?: (value: string, el: HTMLElement) => void,
+    ): SelectControl[] {
+        return [...root.querySelectorAll<HTMLElement>("[data-rad-select]")].map(
+            (el) => new SelectControl(el, menu, undefined, (value) => onPick?.(value, el)),
+        );
+    }
 
-  #valueEl(): HTMLElement | null {
-    return this.element.querySelector<HTMLElement>(".rad-select__value");
-  }
+    #valueEl(): HTMLElement | null {
+        return this.element.querySelector<HTMLElement>(".rad-select__value");
+    }
 }

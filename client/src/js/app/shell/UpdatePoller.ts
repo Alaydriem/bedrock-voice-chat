@@ -1,5 +1,5 @@
-import { warn } from '@charlesportwoodii/tauri-plugin-curia';
-import type { UpdateStatus } from '../settings/UpdateStatus';
+import { warn } from "@charlesportwoodii/tauri-plugin-curia";
+import type { UpdateStatus } from "../settings/UpdateStatus";
 
 interface UpdatePollerOptions {
     readonly firstDelayMs?: number;

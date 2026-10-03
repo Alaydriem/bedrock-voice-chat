@@ -124,7 +124,12 @@ describe("Bedrock capability manager keeps the last good server list", () => {
         mockInvoke({
             api_get_config: () =>
                 configWith([
-                    { name: "Truly Bedrock SMP", host: "tbs7.nodecraft.gg", port: 19132, addon_mode: "net" },
+                    {
+                        name: "Truly Bedrock SMP",
+                        host: "tbs7.nodecraft.gg",
+                        port: 19132,
+                        addon_mode: "net",
+                    },
                 ]),
         });
         const manager = new BedrockCapabilityManager();

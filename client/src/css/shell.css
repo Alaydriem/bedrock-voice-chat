@@ -8,7 +8,7 @@
 *,
 *::before,
 *::after {
-  box-sizing: border-box;
+    box-sizing: border-box;
 }
 
 /* The window's own edges, as four tokens rather than four `env()` calls at the point of
@@ -24,24 +24,24 @@
  * on `:root` and nowhere else. Declared on `.rad-frame` they would win over the inline
  * style for everything inside the frame, and the native path would silently do nothing. */
 :root {
-  --rad-inset-top: env(safe-area-inset-top, 0px);
-  --rad-inset-bottom: env(safe-area-inset-bottom, 0px);
-  --rad-inset-left: env(safe-area-inset-left, 0px);
-  --rad-inset-right: env(safe-area-inset-right, 0px);
+    --rad-inset-top: env(safe-area-inset-top, 0px);
+    --rad-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --rad-inset-left: env(safe-area-inset-left, 0px);
+    --rad-inset-right: env(safe-area-inset-right, 0px);
 }
 
 html {
-  height: 100%;
-  overflow-x: hidden;
-  overscroll-behavior: none;
-  color-scheme: dark;
-  text-rendering: optimizeLegibility;
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-  -webkit-tap-highlight-color: transparent;
-  /* Global type scale. 100% = 16px. Every rem in the design system is measured
+    height: 100%;
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    color-scheme: dark;
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    /* Global type scale. 100% = 16px. Every rem in the design system is measured
      against this, so a change here rescales the whole product. */
-  font-size: 112.5%;
+    font-size: 112.5%;
 }
 
 /* Fixed and non-scrolling, because the frame scrolls its own panes. A scrollable
@@ -52,19 +52,19 @@ html {
    this element's padding box — so padding here reaches nothing and only reads as though
    the insets were handled. The components consume the tokens above instead. */
 body {
-  margin: 0;
-  position: fixed;
-  width: 100%;
-  height: 100dvh;
-  overflow: hidden;
-  overscroll-behavior: none;
-  background-color: var(--color-rad-void);
-  color: var(--color-rad-tx);
-  font-family: var(--font-rad-sans);
-  /* `.rad-frame` sets a family but no size, so anything inside it that does not size
+    margin: 0;
+    position: fixed;
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background-color: var(--color-rad-void);
+    color: var(--color-rad-tx);
+    font-family: var(--font-rad-sans);
+    /* `.rad-frame` sets a family but no size, so anything inside it that does not size
      itself inherits from here. Carried over unchanged from the theme this replaced. */
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
 }

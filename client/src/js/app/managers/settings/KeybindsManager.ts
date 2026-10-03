@@ -1,4 +1,4 @@
-import { I18n } from "$lib/i18n";
+import { I18n } from "#lib/i18n/index.js";
 import { writable, type Readable, type Writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import { Store } from "@tauri-apps/plugin-store";
@@ -19,58 +19,153 @@ export class KeybindsManager {
     // Maps KeyboardEvent.code to our canonical key name (matching rdev mapping)
     private readonly CODE_MAP: Record<string, string> = {
         // Letters
-        KeyA: "KeyA", KeyB: "KeyB", KeyC: "KeyC", KeyD: "KeyD", KeyE: "KeyE",
-        KeyF: "KeyF", KeyG: "KeyG", KeyH: "KeyH", KeyI: "KeyI", KeyJ: "KeyJ",
-        KeyK: "KeyK", KeyL: "KeyL", KeyM: "KeyM", KeyN: "KeyN", KeyO: "KeyO",
-        KeyP: "KeyP", KeyQ: "KeyQ", KeyR: "KeyR", KeyS: "KeyS", KeyT: "KeyT",
-        KeyU: "KeyU", KeyV: "KeyV", KeyW: "KeyW", KeyX: "KeyX", KeyY: "KeyY",
+        KeyA: "KeyA",
+        KeyB: "KeyB",
+        KeyC: "KeyC",
+        KeyD: "KeyD",
+        KeyE: "KeyE",
+        KeyF: "KeyF",
+        KeyG: "KeyG",
+        KeyH: "KeyH",
+        KeyI: "KeyI",
+        KeyJ: "KeyJ",
+        KeyK: "KeyK",
+        KeyL: "KeyL",
+        KeyM: "KeyM",
+        KeyN: "KeyN",
+        KeyO: "KeyO",
+        KeyP: "KeyP",
+        KeyQ: "KeyQ",
+        KeyR: "KeyR",
+        KeyS: "KeyS",
+        KeyT: "KeyT",
+        KeyU: "KeyU",
+        KeyV: "KeyV",
+        KeyW: "KeyW",
+        KeyX: "KeyX",
+        KeyY: "KeyY",
         KeyZ: "KeyZ",
         // Digits
-        Digit0: "Digit0", Digit1: "Digit1", Digit2: "Digit2", Digit3: "Digit3",
-        Digit4: "Digit4", Digit5: "Digit5", Digit6: "Digit6", Digit7: "Digit7",
-        Digit8: "Digit8", Digit9: "Digit9",
+        Digit0: "Digit0",
+        Digit1: "Digit1",
+        Digit2: "Digit2",
+        Digit3: "Digit3",
+        Digit4: "Digit4",
+        Digit5: "Digit5",
+        Digit6: "Digit6",
+        Digit7: "Digit7",
+        Digit8: "Digit8",
+        Digit9: "Digit9",
         // Function keys
-        F1: "F1", F2: "F2", F3: "F3", F4: "F4", F5: "F5", F6: "F6",
-        F7: "F7", F8: "F8", F9: "F9", F10: "F10", F11: "F11", F12: "F12",
+        F1: "F1",
+        F2: "F2",
+        F3: "F3",
+        F4: "F4",
+        F5: "F5",
+        F6: "F6",
+        F7: "F7",
+        F8: "F8",
+        F9: "F9",
+        F10: "F10",
+        F11: "F11",
+        F12: "F12",
         // Punctuation
-        Backquote: "Backquote", Minus: "Minus", Equal: "Equal",
-        BracketLeft: "BracketLeft", BracketRight: "BracketRight",
-        Backslash: "Backslash", Semicolon: "Semicolon", Quote: "Quote",
-        Comma: "Comma", Period: "Period", Slash: "Slash",
+        Backquote: "Backquote",
+        Minus: "Minus",
+        Equal: "Equal",
+        BracketLeft: "BracketLeft",
+        BracketRight: "BracketRight",
+        Backslash: "Backslash",
+        Semicolon: "Semicolon",
+        Quote: "Quote",
+        Comma: "Comma",
+        Period: "Period",
+        Slash: "Slash",
         // Special
-        Space: "Space", Tab: "Tab", CapsLock: "CapsLock", Enter: "Enter",
-        Escape: "Escape", Backspace: "Backspace", Delete: "Delete",
-        Insert: "Insert", Home: "Home", End: "End",
-        PageUp: "PageUp", PageDown: "PageDown",
-        ArrowUp: "ArrowUp", ArrowDown: "ArrowDown",
-        ArrowLeft: "ArrowLeft", ArrowRight: "ArrowRight",
-        PrintScreen: "PrintScreen", ScrollLock: "ScrollLock", Pause: "Pause",
+        Space: "Space",
+        Tab: "Tab",
+        CapsLock: "CapsLock",
+        Enter: "Enter",
+        Escape: "Escape",
+        Backspace: "Backspace",
+        Delete: "Delete",
+        Insert: "Insert",
+        Home: "Home",
+        End: "End",
+        PageUp: "PageUp",
+        PageDown: "PageDown",
+        ArrowUp: "ArrowUp",
+        ArrowDown: "ArrowDown",
+        ArrowLeft: "ArrowLeft",
+        ArrowRight: "ArrowRight",
+        PrintScreen: "PrintScreen",
+        ScrollLock: "ScrollLock",
+        Pause: "Pause",
         NumLock: "NumLock",
         // Numpad
-        Numpad0: "Numpad0", Numpad1: "Numpad1", Numpad2: "Numpad2",
-        Numpad3: "Numpad3", Numpad4: "Numpad4", Numpad5: "Numpad5",
-        Numpad6: "Numpad6", Numpad7: "Numpad7", Numpad8: "Numpad8",
+        Numpad0: "Numpad0",
+        Numpad1: "Numpad1",
+        Numpad2: "Numpad2",
+        Numpad3: "Numpad3",
+        Numpad4: "Numpad4",
+        Numpad5: "Numpad5",
+        Numpad6: "Numpad6",
+        Numpad7: "Numpad7",
+        Numpad8: "Numpad8",
         Numpad9: "Numpad9",
-        NumpadMultiply: "NumpadMultiply", NumpadAdd: "NumpadAdd",
-        NumpadSubtract: "NumpadSubtract", NumpadDecimal: "NumpadDecimal",
-        NumpadDivide: "NumpadDivide", NumpadEnter: "NumpadEnter",
+        NumpadMultiply: "NumpadMultiply",
+        NumpadAdd: "NumpadAdd",
+        NumpadSubtract: "NumpadSubtract",
+        NumpadDecimal: "NumpadDecimal",
+        NumpadDivide: "NumpadDivide",
+        NumpadEnter: "NumpadEnter",
     };
 
     // Display-friendly labels for key names
     private readonly DISPLAY_MAP: Record<string, string> = {
-        ShiftLeft: "Shift", ControlLeft: "Ctrl", Alt: "Alt", MetaLeft: "Meta",
-        BracketLeft: "[", BracketRight: "]", Backslash: "\\", Backquote: "`",
-        Minus: "-", Equal: "=", Semicolon: ";", Quote: "'", Comma: ",",
-        Period: ".", Slash: "/", Space: "Space", Tab: "Tab", Enter: "Enter",
-        Escape: "Esc", Backspace: "Backspace", Delete: "Del", Insert: "Ins",
-        ArrowUp: "Up", ArrowDown: "Down", ArrowLeft: "Left", ArrowRight: "Right",
-        NumpadMultiply: "Num *", NumpadAdd: "Num +", NumpadSubtract: "Num -",
-        NumpadDecimal: "Num .", NumpadDivide: "Num /", NumpadEnter: "Num Enter",
+        ShiftLeft: "Shift",
+        ControlLeft: "Ctrl",
+        Alt: "Alt",
+        MetaLeft: "Meta",
+        BracketLeft: "[",
+        BracketRight: "]",
+        Backslash: "\\",
+        Backquote: "`",
+        Minus: "-",
+        Equal: "=",
+        Semicolon: ";",
+        Quote: "'",
+        Comma: ",",
+        Period: ".",
+        Slash: "/",
+        Space: "Space",
+        Tab: "Tab",
+        Enter: "Enter",
+        Escape: "Esc",
+        Backspace: "Backspace",
+        Delete: "Del",
+        Insert: "Ins",
+        ArrowUp: "Up",
+        ArrowDown: "Down",
+        ArrowLeft: "Left",
+        ArrowRight: "Right",
+        NumpadMultiply: "Num *",
+        NumpadAdd: "Num +",
+        NumpadSubtract: "Num -",
+        NumpadDecimal: "Num .",
+        NumpadDivide: "Num /",
+        NumpadEnter: "Num Enter",
     };
 
     private readonly MODIFIER_CODES = new Set([
-        "ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight",
-        "AltLeft", "AltRight", "MetaLeft", "MetaRight",
+        "ShiftLeft",
+        "ShiftRight",
+        "ControlLeft",
+        "ControlRight",
+        "AltLeft",
+        "AltRight",
+        "MetaLeft",
+        "MetaRight",
     ]);
 
     public readonly rows: KeybindRow[] = [
@@ -128,17 +223,20 @@ export class KeybindsManager {
 
     displayCombo(combo: string): string {
         if (!combo) return I18n.t("Not set");
-        return combo.split("+").map(part => {
-            // Strip "Key" prefix for letters
-            if (part.startsWith("Key") && part.length === 4) return part.charAt(3);
-            // Strip "Digit" prefix
-            if (part.startsWith("Digit") && part.length === 6) return part.charAt(5);
-            // Strip "Numpad" prefix for numbers
-            if (part.startsWith("Numpad") && part.length === 7) return "Num " + part.charAt(6);
-            // F-keys as-is
-            if (/^F\d+$/.test(part)) return part;
-            return this.DISPLAY_MAP[part] || part;
-        }).join(" + ");
+        return combo
+            .split("+")
+            .map((part) => {
+                // Strip "Key" prefix for letters
+                if (part.startsWith("Key") && part.length === 4) return part.charAt(3);
+                // Strip "Digit" prefix
+                if (part.startsWith("Digit") && part.length === 6) return part.charAt(5);
+                // Strip "Numpad" prefix for numbers
+                if (part.startsWith("Numpad") && part.length === 7) return "Num " + part.charAt(6);
+                // F-keys as-is
+                if (/^F\d+$/.test(part)) return part;
+                return this.DISPLAY_MAP[part] || part;
+            })
+            .join(" + ");
     }
 
     private checkConflict(newCombo: string, excludeId: keyof KeybindConfig): string {

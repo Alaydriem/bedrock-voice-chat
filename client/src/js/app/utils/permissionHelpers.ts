@@ -1,5 +1,10 @@
-import { checkPermission, requestPermission, PermissionType, type PermissionResponse } from 'tauri-plugin-audio-permissions';
-import { error as logError } from '@charlesportwoodii/tauri-plugin-curia';
+import {
+    checkPermission,
+    requestPermission,
+    PermissionType,
+    type PermissionResponse,
+} from "tauri-plugin-audio-permissions";
+import { error as logError } from "@charlesportwoodii/tauri-plugin-curia";
 
 /**
  * Wraps a promise with a timeout
@@ -11,8 +16,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
     return Promise.race([
         promise,
         new Promise<T>((_, reject) =>
-            setTimeout(() => reject(new Error('Permission request timeout')), ms)
-        )
+            setTimeout(() => reject(new Error("Permission request timeout")), ms),
+        ),
     ]);
 }
 
@@ -22,13 +27,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  * @returns Promise with permission response
  */
 export async function checkPermissionStatus(
-    permissionType: PermissionType
+    permissionType: PermissionType,
 ): Promise<PermissionResponse> {
     try {
         const response = await checkPermission({ permissionType });
         return response;
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
         await logError(`Permission check failed: ${errorMessage}`);
         throw error;
     }
@@ -42,16 +47,13 @@ export async function checkPermissionStatus(
  */
 export async function requestPermissionWithTimeout(
     permissionType: PermissionType,
-    timeoutMs: number = 10000
+    timeoutMs: number = 10000,
 ): Promise<PermissionResponse> {
     try {
-        const response = await withTimeout(
-            requestPermission({ permissionType }),
-            timeoutMs
-        );
+        const response = await withTimeout(requestPermission({ permissionType }), timeoutMs);
         return response;
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
         await logError(`Permission request failed: ${errorMessage}`);
         throw error;
     }

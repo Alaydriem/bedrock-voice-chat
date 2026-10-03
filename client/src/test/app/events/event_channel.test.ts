@@ -79,7 +79,10 @@ describe("EventChannel", () => {
 
         const socket = FakeSocket.instances[0];
         socket.open();
-        socket.deliver({ type: "levels", data: { own: { speaking: true, loudness: 4 }, peers: {} } });
+        socket.deliver({
+            type: "levels",
+            data: { own: { speaking: true, loudness: 4 }, peers: {} },
+        });
 
         expect(levels).toHaveLength(1);
         expect(health).toHaveLength(0);

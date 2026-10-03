@@ -17,9 +17,8 @@ vi.mock("@tauri-apps/plugin-store", () => ({
     },
 }));
 
-const { AudioSettingsManager } = await import(
-    "../../../js/app/managers/settings/AudioSettingsManager"
-);
+const { AudioSettingsManager } =
+    await import("../../../js/app/managers/settings/AudioSettingsManager");
 
 function read<T>(store: { subscribe: (run: (v: T) => void) => () => void }): T {
     let value!: T;

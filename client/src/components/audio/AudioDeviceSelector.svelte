@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import { onMount } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { info, error } from "@charlesportwoodii/tauri-plugin-curia";
@@ -83,7 +83,9 @@
 {#if isMobile}
     <SettingRow
         label={I18n.t("Chosen by the system")}
-        note={I18n.t("Your phone routes voice to whatever you last connected. Plug in a headset and it follows.")}
+        note={I18n.t(
+            "Your phone routes voice to whatever you last connected. Plug in a headset and it follows.",
+        )}
     />
 {:else if isLoading}
     <div class="rad-empty" style="padding: 34px 20px">

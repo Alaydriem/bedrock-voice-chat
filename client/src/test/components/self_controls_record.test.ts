@@ -8,9 +8,7 @@ import type { SelfController } from "../../js/app/dashboard/SelfController";
 let platformName = "windows";
 vi.mock("@tauri-apps/plugin-os", () => ({ platform: () => platformName }));
 
-const { default: SelfControls } = await import(
-    "../../components/dashboard/SelfControls.svelte"
-);
+const { default: SelfControls } = await import("../../components/dashboard/SelfControls.svelte");
 
 const state: SelfSnapshot = {
     muted: false,
@@ -32,17 +30,20 @@ function mount() {
         pressRecord: vi.fn(),
         hold: vi.fn(),
     } as unknown as SelfController;
-    render(SelfControls as never, {
-        target: host,
-        props: {
-            controller,
-            selfState: state,
-            name: "Alaydriem",
-            onmute: vi.fn(),
-            ondeafen: vi.fn(),
-            onidentity: vi.fn(),
-        },
-    } as never);
+    render(
+        SelfControls as never,
+        {
+            target: host,
+            props: {
+                controller,
+                selfState: state,
+                name: "Alaydriem",
+                onmute: vi.fn(),
+                ondeafen: vi.fn(),
+                onidentity: vi.fn(),
+            },
+        } as never,
+    );
     return host;
 }
 

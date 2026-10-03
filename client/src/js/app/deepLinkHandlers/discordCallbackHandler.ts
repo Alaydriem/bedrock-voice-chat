@@ -1,4 +1,4 @@
-import { I18n } from "$lib/i18n";
+import { I18n } from "#lib/i18n/index.js";
 import { invoke } from "@tauri-apps/api/core";
 import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
 import type { DeepLinkOutcome } from "../deepLinkRouter.ts";
@@ -8,11 +8,11 @@ export class DiscordCallbackHandler {
     // form used by the iOS fragment-trampoline fallback.
     private readonly PREFIXES = [
         "https://www.bedrockvoicechat.com/discord/callback",
-        "bedrock-voice-chat://discord-callback"
+        "bedrock-voice-chat://discord-callback",
     ];
 
     canHandle(url: string): boolean {
-        return this.PREFIXES.some(prefix => url.startsWith(prefix));
+        return this.PREFIXES.some((prefix) => url.startsWith(prefix));
     }
 
     async handle(url: string): Promise<DeepLinkOutcome> {

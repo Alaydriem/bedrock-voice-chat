@@ -8,6 +8,6 @@
  * Returned rather than performed, so the decision is assertable without a browser.
  */
 export type ScreenLanding =
-    | { kind: 'navigate'; href: string }
-    | { kind: 'show' }
-    | { kind: 'handoff' };
+    | { kind: "navigate"; href: string }
+    | { kind: "show" }
+    | { kind: "handoff" };

@@ -12,35 +12,37 @@ const SERVER = "https://example.invalid";
  * available" in front of a player whose sign-in then failed.
  */
 describe("ServerCheck", () => {
-  beforeEach(() => {
-    mockInvoke({});
-  });
-
-  it("asks Rust rather than fetching from the webview", async () => {
-    mockInvoke({ check_server: () => ({ client_id: "abc", status: "ok" }) });
-
-    await ServerCheck.config(SERVER);
-
-    expect(invokeCalls()).toEqual([{ cmd: "check_server", args: { server: SERVER } }]);
-  });
-
-  it("returns the configuration the command answered with", async () => {
-    mockInvoke({ check_server: () => ({ client_id: "abc", status: "ok" }) });
-
-    const config = await ServerCheck.config(SERVER);
-
-    expect(config.client_id).toBe("abc");
-  });
-
-  // The screen's error view is driven by the rejection. Swallowing it here would put the
-  // player back on a form that looks like it worked.
-  it("propagates a failure from the command", async () => {
-    mockInvoke({
-      check_server: () => {
-        throw new Error("Login request to https://example.invalid/api/config failed: operation timed out");
-      },
+    beforeEach(() => {
+        mockInvoke({});
     });
 
-    await expect(ServerCheck.config(SERVER)).rejects.toThrow("operation timed out");
-  });
+    it("asks Rust rather than fetching from the webview", async () => {
+        mockInvoke({ check_server: () => ({ client_id: "abc", status: "ok" }) });
+
+        await ServerCheck.config(SERVER);
+
+        expect(invokeCalls()).toEqual([{ cmd: "check_server", args: { server: SERVER } }]);
+    });
+
+    it("returns the configuration the command answered with", async () => {
+        mockInvoke({ check_server: () => ({ client_id: "abc", status: "ok" }) });
+
+        const config = await ServerCheck.config(SERVER);
+
+        expect(config.client_id).toBe("abc");
+    });
+
+    // The screen's error view is driven by the rejection. Swallowing it here would put the
+    // player back on a form that looks like it worked.
+    it("propagates a failure from the command", async () => {
+        mockInvoke({
+            check_server: () => {
+                throw new Error(
+                    "Login request to https://example.invalid/api/config failed: operation timed out",
+                );
+            },
+        });
+
+        await expect(ServerCheck.config(SERVER)).rejects.toThrow("operation timed out");
+    });
 });

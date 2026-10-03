@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import ProximityRing from "$radial/components/ProximityRing.svelte";
     import type { RingMode } from "$radial/bindings/RingBinding";
     import RadScreen from "../shell/RadScreen.svelte";
@@ -41,11 +41,7 @@
     <div class="rad-split">
         <div class="rad-visual-pane">
             <div class="rad-visual">
-                <ProximityRing
-                    {mode}
-                    onaudible={(n) => (audible = n)}
-                    class="rad-ring--fill"
-                />
+                <ProximityRing {mode} onaudible={(n) => (audible = n)} class="rad-ring--fill" />
                 <span class="rad-caption">
                     <span class="rad-label">{I18n.t("Your world")}</span>
                     <span class="rad-caption__value">{caption}</span>
@@ -59,7 +55,9 @@
                 {I18n.t("Is a BVC server already set up for")} <b>your world?</b>
             </h2>
             <p class="rad-body rad-rise" style="--d: 200">
-                {I18n.t("Your world needs a BVC server running somewhere before anyone can talk. If that is already done, all you need is its address.")}
+                {I18n.t(
+                    "Your world needs a BVC server running somewhere before anyone can talk. If that is already done, all you need is its address.",
+                )}
             </p>
 
             <div class="rad-choices rad-rise" style="--d: 290">
@@ -75,7 +73,9 @@
                         <span class="rad-label">{I18n.t("Yes · I have an address")}</span>
                         <span class="rad-choice__title">{I18n.t("Someone already set it up")}</span>
                         <span class="rad-choice__note">
-                            {I18n.t("A BVC server is running for your world and you have its address. Sign in with the Microsoft account you play Minecraft with.")}
+                            {I18n.t(
+                                "A BVC server is running for your world and you have its address. Sign in with the Microsoft account you play Minecraft with.",
+                            )}
                         </span>
                     </span>
                     <span class="rad-choice__action">{I18n.t("Sign in →")}</span>
@@ -93,7 +93,9 @@
                         <span class="rad-label">{I18n.t("No · or I am not sure")}</span>
                         <span class="rad-choice__title">{I18n.t("Nobody has set it up yet")}</span>
                         <span class="rad-choice__note">
-                            {I18n.t("Voice chat needs a BVC server plus a mod on the world. It's a one-time install — see what's involved.")}
+                            {I18n.t(
+                                "Voice chat needs a BVC server plus a mod on the world. It's a one-time install — see what's involved.",
+                            )}
                         </span>
                     </span>
                     <span class="rad-choice__action">{I18n.t("Show me how →")}</span>

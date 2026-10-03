@@ -12,7 +12,7 @@
  */
 export class AddServerRoute {
     /** The roster, and the only `return` target this app honours. */
-    static readonly RETURN_TO = '/';
+    static readonly RETURN_TO = "/";
 
     static readonly HREF = `/login?addserver=true&return=${AddServerRoute.RETURN_TO}`;
 
@@ -25,9 +25,9 @@ export class AddServerRoute {
      * people never see.
      */
     static backFrom(params: URLSearchParams): { href: string; label: string } {
-        if (params.has('addserver') && params.get('return') === AddServerRoute.RETURN_TO) {
-            return { href: AddServerRoute.RETURN_TO, label: 'Cancel' };
+        if (params.has("addserver") && params.get("return") === AddServerRoute.RETURN_TO) {
+            return { href: AddServerRoute.RETURN_TO, label: "Cancel" };
         }
-        return { href: '/dashboard', label: 'Back to Dashboard' };
+        return { href: "/dashboard", label: "Back to Dashboard" };
     }
 }

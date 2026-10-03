@@ -1,11 +1,11 @@
-import { get, writable, type Writable, type Readable } from 'svelte/store';
-import { invoke } from '@tauri-apps/api/core';
-import { error as logError } from '@charlesportwoodii/tauri-plugin-curia';
-import type { ApiConfigCheckResponse } from '../../../bindings/ApiConfigCheckResponse';
-import type { ProxyServerEntry } from './ProxyServerEntry';
+import { get, writable, type Writable, type Readable } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import { error as logError } from "@charlesportwoodii/tauri-plugin-curia";
+import type { ApiConfigCheckResponse } from "../../../bindings/ApiConfigCheckResponse";
+import type { ProxyServerEntry } from "./ProxyServerEntry";
 import { AppStore } from "../../services/AppStore";
 
-export type BedrockCapabilityStatus = 'enabled' | 'disabled' | 'unknown';
+export type BedrockCapabilityStatus = "enabled" | "disabled" | "unknown";
 
 // How long to wait before automatically re-checking after a failed capability
 // fetch. Failures are usually transient (server restart, breaker open), so the
@@ -19,7 +19,7 @@ const FOCUS_REFRESH_MIN_INTERVAL_MS = 5_000;
 // Where the last good advertised list is kept. One slot, stamped with the BVC server it
 // came from: restoring one server's worlds onto another would offer worlds that server
 // never named, and only the current server's list is ever read.
-const SERVER_PROVIDED_KEY = 'bedrock_server_provided';
+const SERVER_PROVIDED_KEY = "bedrock_server_provided";
 
 interface CachedServerList {
     host: string;
@@ -65,7 +65,7 @@ export class BedrockCapabilityManager {
         this.status = { subscribe: this.statusStore.subscribe };
         this.serverProvidedStore = writable([]);
         this.serverProvidedServers = { subscribe: this.serverProvidedStore.subscribe };
-        this.serverHostStore = writable('');
+        this.serverHostStore = writable("");
         this.serverHost = { subscribe: this.serverHostStore.subscribe };
         this.checkingStore = writable(false);
         this.isChecking = { subscribe: this.checkingStore.subscribe };
@@ -86,9 +86,9 @@ export class BedrockCapabilityManager {
         await this.loadServerHost();
         await this.restoreServerProvided();
         try {
-            const check = await invoke<ApiConfigCheckResponse>('api_get_config');
+            const check = await invoke<ApiConfigCheckResponse>("api_get_config");
             const bedrock = check.config.bedrock;
-            this.statusStore.set(bedrock.enabled ? 'enabled' : 'disabled');
+            this.statusStore.set(bedrock.enabled ? "enabled" : "disabled");
             const entries = bedrock.servers.map((s) => ({
                 // Deterministic id so favorites persist across restarts and
                 // config refreshes.
@@ -98,7 +98,7 @@ export class BedrockCapabilityManager {
                 port: s.port,
                 ...(s.protocol_version != null ? { protocolVersion: s.protocol_version } : {}),
                 addonMode: s.addon_mode,
-                source: 'server' as const,
+                source: "server" as const,
             }));
             this.answered = true;
             this.serverProvidedStore.set(entries);
@@ -110,7 +110,7 @@ export class BedrockCapabilityManager {
             // own — which closes a modal, which raises a focus — erase the advertised
             // ones. Only a successful response replaces it.
             logError(`Bedrock capability check failed: ${e}`);
-            this.statusStore.set('unknown');
+            this.statusStore.set("unknown");
             this.scheduleRetry();
         } finally {
             this.checkingStore.set(false);
@@ -164,10 +164,10 @@ export class BedrockCapabilityManager {
         }
         return entries.filter(
             (entry): entry is ProxyServerEntry =>
-                typeof entry?.id === 'string' &&
-                typeof entry?.host === 'string' &&
-                typeof entry?.port === 'number' &&
-                entry?.source === 'server',
+                typeof entry?.id === "string" &&
+                typeof entry?.host === "string" &&
+                typeof entry?.port === "number" &&
+                entry?.source === "server",
         );
     }
 
@@ -182,7 +182,10 @@ export class BedrockCapabilityManager {
             // The advertised list changes approximately never, and this runs on every
             // window focus. `save()` serialises the whole of `store.json`, which §20
             // documents as a round trip Android runs on the UI thread.
-            if (cached?.host === host && JSON.stringify(cached.entries) === JSON.stringify(entries)) {
+            if (
+                cached?.host === host &&
+                JSON.stringify(cached.entries) === JSON.stringify(entries)
+            ) {
                 return;
             }
             await store.set(SERVER_PROVIDED_KEY, { host, entries } satisfies CachedServerList);
@@ -195,10 +198,10 @@ export class BedrockCapabilityManager {
     private async loadServerHost(): Promise<void> {
         try {
             const store = await AppStore.load();
-            const url = await store.get<string>('current_server');
-            this.serverHostStore.set(url ? url.replace(/^https?:\/\//, '') : '');
+            const url = await store.get<string>("current_server");
+            this.serverHostStore.set(url ? url.replace(/^https?:\/\//, "") : "");
         } catch {
-            this.serverHostStore.set('');
+            this.serverHostStore.set("");
         }
     }
 
@@ -216,7 +219,7 @@ export class BedrockCapabilityManager {
             }
             void this.refresh();
         };
-        window.addEventListener('focus', this.focusHandler);
+        window.addEventListener("focus", this.focusHandler);
     }
 
     private scheduleRetry(): void {
@@ -240,7 +243,7 @@ export class BedrockCapabilityManager {
         this.destroyed = true;
         this.clearRetry();
         if (this.focusHandler !== null) {
-            window.removeEventListener('focus', this.focusHandler);
+            window.removeEventListener("focus", this.focusHandler);
             this.focusHandler = null;
         }
     }

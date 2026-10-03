@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import { onDestroy, onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
     import StatusChip from "$radial/components/StatusChip.svelte";
@@ -74,11 +74,7 @@
 </script>
 
 <div class="rad-disclosure" class:is-open={open}>
-    <button
-        class="rad-disclosure__head"
-        aria-expanded={open}
-        onclick={() => (open = !open)}
-    >
+    <button class="rad-disclosure__head" aria-expanded={open} onclick={() => (open = !open)}>
         <Icon name="terminal" /> Connection log
         {#if live}
             <StatusChip severity="ok">{I18n.t("Live")}</StatusChip>
@@ -103,7 +99,9 @@
                 </div>
             {:else}
                 <div class="rad-log__line">
-                    <span class="rad-log__msg">{I18n.t("Nothing yet. Connect, and this fills in.")}</span>
+                    <span class="rad-log__msg"
+                        >{I18n.t("Nothing yet. Connect, and this fills in.")}</span
+                    >
                 </div>
             {/each}
         </div>
@@ -111,7 +109,8 @@
         <div class="rad-log-bar">
             <span class="rad-spacer"></span>
             <button class="rad-btn" onclick={() => void copy()}>
-                <Icon name="copy" /> {I18n.t("Copy")}
+                <Icon name="copy" />
+                {I18n.t("Copy")}
             </button>
             <label class="rad-log__toggle">
                 <input type="checkbox" bind:checked={showDebug} />

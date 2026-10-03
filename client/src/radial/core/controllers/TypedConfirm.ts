@@ -9,40 +9,40 @@
  * adds no safety, only irritation.
  */
 export class TypedConfirm {
-  readonly input: HTMLInputElement;
-  readonly confirmButton: HTMLButtonElement;
-  readonly phrase: string;
+    readonly input: HTMLInputElement;
+    readonly confirmButton: HTMLButtonElement;
+    readonly phrase: string;
 
-  #onInput: () => void;
+    #onInput: () => void;
 
-  constructor(input: HTMLInputElement, confirmButton: HTMLButtonElement, phrase: string) {
-    this.input = input;
-    this.confirmButton = confirmButton;
-    this.phrase = phrase.trim().toLowerCase();
-    this.#onInput = () => this.sync();
-    input.addEventListener("input", this.#onInput);
-    this.reset();
-  }
+    constructor(input: HTMLInputElement, confirmButton: HTMLButtonElement, phrase: string) {
+        this.input = input;
+        this.confirmButton = confirmButton;
+        this.phrase = phrase.trim().toLowerCase();
+        this.#onInput = () => this.sync();
+        input.addEventListener("input", this.#onInput);
+        this.reset();
+    }
 
-  get matches(): boolean {
-    return this.input.value.trim().toLowerCase() === this.phrase;
-  }
+    get matches(): boolean {
+        return this.input.value.trim().toLowerCase() === this.phrase;
+    }
 
-  sync(): void {
-    this.confirmButton.disabled = !this.matches;
-  }
+    sync(): void {
+        this.confirmButton.disabled = !this.matches;
+    }
 
-  reset(): void {
-    this.input.value = "";
-    this.sync();
-  }
+    reset(): void {
+        this.input.value = "";
+        this.sync();
+    }
 
-  focus(): void {
-    // Deferred past the modal's own opening focus, which would otherwise win.
-    setTimeout(() => this.input.focus(), 120);
-  }
+    focus(): void {
+        // Deferred past the modal's own opening focus, which would otherwise win.
+        setTimeout(() => this.input.focus(), 120);
+    }
 
-  destroy(): void {
-    this.input.removeEventListener("input", this.#onInput);
-  }
+    destroy(): void {
+        this.input.removeEventListener("input", this.#onInput);
+    }
 }

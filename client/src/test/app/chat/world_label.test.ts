@@ -69,8 +69,6 @@ describe("WorldLabel.resolve", () => {
 
     test("two unknown worlds do not render identically", () => {
         const other = "99887766-5544-3322-1100-aabbccddeeff";
-        expect(WorldLabel.resolve(uuid, uuid, {})).not.toBe(
-            WorldLabel.resolve(other, other, {}),
-        );
+        expect(WorldLabel.resolve(uuid, uuid, {})).not.toBe(WorldLabel.resolve(other, other, {}));
     });
 });

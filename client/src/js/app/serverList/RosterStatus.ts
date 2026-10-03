@@ -20,10 +20,10 @@
  * different failures of that check and cannot share a verdict.
  */
 export type RosterStatus =
-    | 'checking'
-    | 'connect'
-    | 'reauth'
-    | 'version_mismatch'
-    | 'ws_fallback'
-    | 'udp_blocked'
-    | 'unreachable';
+    | "checking"
+    | "connect"
+    | "reauth"
+    | "version_mismatch"
+    | "ws_fallback"
+    | "udp_blocked"
+    | "unreachable";

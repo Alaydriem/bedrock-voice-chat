@@ -11,7 +11,13 @@ function mount(props: Record<string, unknown> = {}) {
 
     const rendered = render(Cover, {
         target: frame,
-        props: { open: false, ondismiss: () => {}, under: undefined, children: undefined, ...props },
+        props: {
+            open: false,
+            ondismiss: () => {},
+            under: undefined,
+            children: undefined,
+            ...props,
+        },
     });
 
     return {

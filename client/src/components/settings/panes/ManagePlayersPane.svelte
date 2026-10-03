@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import { invoke } from "@tauri-apps/api/core";
     import { onMount } from "svelte";
     import Icon from "$radial/components/Icon.svelte";
@@ -88,8 +88,7 @@
             }
             const detail = e instanceof Error ? e.message : String(e);
             failure =
-                detail.trim() ||
-                I18n.t("The server did not answer when we asked for its players.");
+                detail.trim() || I18n.t("The server did not answer when we asked for its players.");
             listState = "failed";
         }
     }
@@ -231,7 +230,8 @@
                 </span>
                 <span class="rad-row__control">
                     <button class="rad-btn rad-btn--primary" onclick={openAdd}>
-                        <Icon name="plus" /> {I18n.t("Add player")}
+                        <Icon name="plus" />
+                        {I18n.t("Add player")}
                     </button>
                 </span>
             </div>
@@ -290,10 +290,13 @@
                                         <button
                                             class="rad-matrix__blocks"
                                             onclick={() => void openRow(row)}
-                                            aria-label={I18n.tf("Permissions for {name} — {state}", {
-                                                name: row.gamertag,
-                                                state: ManagePlayersView.blocksLabel(row),
-                                            })}
+                                            aria-label={I18n.tf(
+                                                "Permissions for {name} — {state}",
+                                                {
+                                                    name: row.gamertag,
+                                                    state: ManagePlayersView.blocksLabel(row),
+                                                },
+                                            )}
                                         >
                                             {#each ManagePlayersView.blocks(row) as block (block.label)}
                                                 <i style="background:{block.color}"></i>

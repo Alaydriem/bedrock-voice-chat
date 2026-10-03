@@ -6,6 +6,6 @@
  * somewhere — the update installs itself.
  */
 export default interface FaultAction {
-  label: string;
-  url: string;
+    label: string;
+    url: string;
 }

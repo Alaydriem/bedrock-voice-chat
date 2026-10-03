@@ -1,5 +1,5 @@
-import type { PreflightStep } from './preflight/PreflightStep';
-import type { RosterStatus } from './RosterStatus';
+import type { PreflightStep } from "./preflight/PreflightStep";
+import type { RosterStatus } from "./RosterStatus";
 
 /** One saved server, as a plate draws it. */
 export interface ServerRosterEntry {

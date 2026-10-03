@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import ServerGlyph from "$radial/components/ServerGlyph.svelte";
     import StatusChip from "$radial/components/StatusChip.svelte";
@@ -17,16 +17,8 @@
         onremove?: (id: string) => void;
         onadd?: () => void;
     }
-    let {
-        plates,
-        addLabel,
-        onconnect,
-        onstop,
-        onfavourite,
-        onedit,
-        onremove,
-        onadd,
-    }: Props = $props();
+    let { plates, addLabel, onconnect, onstop, onfavourite, onedit, onremove, onadd }: Props =
+        $props();
 
     function hue(key: string): string {
         return Glyph.of(key).hue;

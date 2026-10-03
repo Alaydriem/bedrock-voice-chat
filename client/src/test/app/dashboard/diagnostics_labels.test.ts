@@ -21,7 +21,9 @@ beforeEach(() => {
  * whichever label the app forgot.
  */
 test("the app supplies exactly the labels the kit declares", () => {
-    expect(Object.keys(DiagnosticsCopy.labels()).sort()).toEqual(Object.keys(DIAGNOSTICS_EN).sort());
+    expect(Object.keys(DiagnosticsCopy.labels()).sort()).toEqual(
+        Object.keys(DIAGNOSTICS_EN).sort(),
+    );
 });
 
 test("untranslated, the app's labels read identically to the kit's defaults", () => {
@@ -56,12 +58,30 @@ test("with no labels supplied the kit still renders English on its own", () => {
 
 function input() {
     return {
-        rtt: 30, lossPercent: 0, jitterMs: 20, jitterDrops: 0, datagramsIn: 50,
-        datagramsOut: 50, capturing: 50, inputDevice: "Mic", inputRate: 48000,
-        outputDevice: "Speakers", outputRate: 48000, port: 443,
-        transport: "Quic" as const, protocol: "3.0.0",
-        rangeMetres: 48, falloff: "linear", server: "bvc.example.com", uptimeSeconds: 60,
-        reconnecting: false, muted: false, noiseGate: "Open" as const, deafened: false,
-        pttIdle: false, mutedOthers: 0, visiblePlayers: 4,
+        rtt: 30,
+        lossPercent: 0,
+        jitterMs: 20,
+        jitterDrops: 0,
+        datagramsIn: 50,
+        datagramsOut: 50,
+        capturing: 50,
+        inputDevice: "Mic",
+        inputRate: 48000,
+        outputDevice: "Speakers",
+        outputRate: 48000,
+        port: 443,
+        transport: "Quic" as const,
+        protocol: "3.0.0",
+        rangeMetres: 48,
+        falloff: "linear",
+        server: "bvc.example.com",
+        uptimeSeconds: 60,
+        reconnecting: false,
+        muted: false,
+        noiseGate: "Open" as const,
+        deafened: false,
+        pttIdle: false,
+        mutedOthers: 0,
+        visiblePlayers: 4,
     };
 }

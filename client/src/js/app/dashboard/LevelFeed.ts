@@ -1,6 +1,6 @@
-import { debug, info, warn } from '@charlesportwoodii/tauri-plugin-curia';
-import type { LevelSnapshot } from '../../bindings/LevelSnapshot';
-import { EventChannel } from '../events/EventChannel';
+import { debug, info, warn } from "@charlesportwoodii/tauri-plugin-curia";
+import type { LevelSnapshot } from "../../bindings/LevelSnapshot";
+import { EventChannel } from "../events/EventChannel";
 
 export type LevelSink = (snapshot: LevelSnapshot) => void;
 
@@ -53,10 +53,10 @@ export class LevelFeed {
      * The channel subscription opens on the first sink and closes after the last one leaves, so
      * a screen that is gone stops costing a delivery.
      */
-    subscribe(sink: LevelSink, owner = 'unknown'): () => void {
+    subscribe(sink: LevelSink, owner = "unknown"): () => void {
         this.#sinks.add(sink);
         this.#owners.set(sink, owner);
-        this.#off ??= EventChannel.shared().subscribe<LevelSnapshot>('levels', (snapshot) =>
+        this.#off ??= EventChannel.shared().subscribe<LevelSnapshot>("levels", (snapshot) =>
             this.#deliver(snapshot),
         );
         void debug(`LevelFeed: ${owner} subscribed (${this.#sinks.size} holding)`);
@@ -69,14 +69,16 @@ export class LevelFeed {
             this.#owners.delete(sink);
             if (this.#sinks.size > 0) {
                 void debug(
-                    `LevelFeed: ${owner} released; still held by ${[...this.#owners.values()].join(', ')}`,
+                    `LevelFeed: ${owner} released; still held by ${[...this.#owners.values()].join(", ")}`,
                 );
                 return;
             }
             // The moment every meter in the window goes still. Logged as a fault because the
             // feed cannot tell a screen that meant to leave from one that lost its subscription
             // and is still on screen expecting levels.
-            void debug(`LevelFeed: ${owner} released the last sink; the channel subscription is gone`);
+            void debug(
+                `LevelFeed: ${owner} released the last sink; the channel subscription is gone`,
+            );
             this.#off?.();
             this.#off = null;
             this.#received = 0;

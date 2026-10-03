@@ -1,9 +1,9 @@
-import { invoke } from '@tauri-apps/api/core';
-import { warn } from '@charlesportwoodii/tauri-plugin-curia';
-import { type Readable, type Writable, writable } from 'svelte/store';
-import type { ConnectionHealth } from '../../bindings/ConnectionHealth';
-import type { LinkDiagnosticsSnapshot } from '../../bindings/LinkDiagnosticsSnapshot';
-import { EventChannel } from '../events/EventChannel';
+import { invoke } from "@tauri-apps/api/core";
+import { warn } from "@charlesportwoodii/tauri-plugin-curia";
+import { type Readable, type Writable, writable } from "svelte/store";
+import type { ConnectionHealth } from "../../bindings/ConnectionHealth";
+import type { LinkDiagnosticsSnapshot } from "../../bindings/LinkDiagnosticsSnapshot";
+import { EventChannel } from "../events/EventChannel";
 
 /** What the link is doing, as far as the dashboard is concerned. */
 export interface LinkHealth {
@@ -60,7 +60,7 @@ export class DiagnosticsManager {
         // report — so a dashboard that came up over a dead link showed a full roster of people
         // who could not hear a word, which is the one thing this screen is not allowed to say.
         try {
-            const initial = await invoke<LinkDiagnosticsSnapshot | null>('get_link_diagnostics');
+            const initial = await invoke<LinkDiagnosticsSnapshot | null>("get_link_diagnostics");
             if (initial) this.snapshotStore.set(initial);
             else this.healthStore.set({ connected: false, reconnecting: false });
         } catch (e) {
@@ -68,12 +68,12 @@ export class DiagnosticsManager {
         }
 
         this.unlisteners.push(
-            EventChannel.shared().subscribe<LinkDiagnosticsSnapshot>('metrics', (snapshot) =>
+            EventChannel.shared().subscribe<LinkDiagnosticsSnapshot>("metrics", (snapshot) =>
                 this.snapshotStore.set(snapshot),
             ),
         );
         this.unlisteners.push(
-            EventChannel.shared().subscribe<ConnectionHealth>('health', (health) =>
+            EventChannel.shared().subscribe<ConnectionHealth>("health", (health) =>
                 this.healthStore.set(DiagnosticsManager.toHealth(health)),
             ),
         );
@@ -90,21 +90,21 @@ export class DiagnosticsManager {
      */
     private static toHealth(health: ConnectionHealth): LinkHealth {
         switch (health?.status) {
-            case 'Connected':
+            case "Connected":
                 return { connected: true, reconnecting: false };
-            case 'Reconnecting':
+            case "Reconnecting":
                 // Attempts count from zero on the wire; a verdict that says "attempt 0" reads as
                 // a bug rather than as a first try.
                 return { connected: false, reconnecting: true, attempt: health.attempt + 1 };
-            case 'Disconnected':
+            case "Disconnected":
                 return { connected: false, reconnecting: false };
-            case 'Failed':
+            case "Failed":
                 return {
                     connected: false,
                     reconnecting: false,
-                    fatal: 'The connection failed and will not retry on its own.',
+                    fatal: "The connection failed and will not retry on its own.",
                 };
-            case 'VersionMismatch':
+            case "VersionMismatch":
                 return {
                     connected: false,
                     reconnecting: false,
@@ -112,16 +112,18 @@ export class DiagnosticsManager {
                         ? `This client (${health.client_version}) is too old for the server (${health.server_version}).`
                         : `The server (${health.server_version}) is older than this client (${health.client_version}).`,
                 };
-            case 'Unauthorized':
+            case "Unauthorized":
                 return { connected: false, reconnecting: false, fatal: health.reason };
-            case 'AtCapacity':
+            case "AtCapacity":
                 // Not fatal: the link recovers on its own as soon as somebody leaves, so the
                 // roster clears but the panel must not claim the connection is finished.
                 return { connected: false, reconnecting: true };
             default:
                 // An unrecognised status is not evidence of a broken link, and blanking the
                 // roster on one would be a worse failure than ignoring it.
-                warn(`DiagnosticsManager: unrecognised connection health ${JSON.stringify(health)}`);
+                warn(
+                    `DiagnosticsManager: unrecognised connection health ${JSON.stringify(health)}`,
+                );
                 return { connected: true, reconnecting: false };
         }
     }
@@ -136,8 +138,8 @@ export class DiagnosticsManager {
      */
     async reset(): Promise<void> {
         try {
-            await invoke('reset_link_diagnostics');
-            const fresh = await invoke<LinkDiagnosticsSnapshot | null>('get_link_diagnostics');
+            await invoke("reset_link_diagnostics");
+            const fresh = await invoke<LinkDiagnosticsSnapshot | null>("get_link_diagnostics");
             this.snapshotStore.set(fresh ?? null);
         } catch (e) {
             warn(`DiagnosticsManager: could not reset the counters: ${e}`);
@@ -147,10 +149,10 @@ export class DiagnosticsManager {
     /** The copyable text a support conversation is answered from. */
     async report(): Promise<string> {
         try {
-            return await invoke<string>('get_diagnostics_report');
+            return await invoke<string>("get_diagnostics_report");
         } catch (e) {
             warn(`DiagnosticsManager: could not render the report: ${e}`);
-            return '';
+            return "";
         }
     }
 

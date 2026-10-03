@@ -1,4 +1,4 @@
-import type { ParticipantLevel } from '../../bindings/ParticipantLevel';
+import type { ParticipantLevel } from "../../bindings/ParticipantLevel";
 
 /**
  * A quantised loudness step turned back into a meter level.

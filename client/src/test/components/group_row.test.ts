@@ -23,10 +23,13 @@ function mount(group: GroupRowView = view()) {
     document.body.append(host);
     const onjoin = vi.fn();
     const onopen = vi.fn();
-    render(GroupRow as never, {
-        target: host,
-        props: { group, now: Date.now(), onjoin, onopen },
-    } as never);
+    render(
+        GroupRow as never,
+        {
+            target: host,
+            props: { group, now: Date.now(), onjoin, onopen },
+        } as never,
+    );
     const row = host.querySelector<HTMLElement>(".rad-group-row") as HTMLElement;
     const track = host.querySelector<HTMLElement>(".rad-swipe__track") as HTMLElement;
     return { host, row, track, onjoin, onopen };

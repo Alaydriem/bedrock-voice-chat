@@ -1,14 +1,14 @@
-import { invoke } from '@tauri-apps/api/core';
-import { warn } from '@charlesportwoodii/tauri-plugin-curia';
-import type { ApiConfigCheckResponse } from '../../../bindings/ApiConfigCheckResponse';
-import type { LoginResponse } from '../../../bindings/LoginResponse';
-import type { ServerReachability } from '../../../bindings/ServerReachability';
-import { PublicServerConfig } from '../../services/PublicServerConfig';
-import type { PreflightOutcome } from './PreflightOutcome';
-import type { PreflightStep } from './PreflightStep';
-import { PREFLIGHT_STEPS } from './PreflightStepName';
-import type { PreflightStepState } from './PreflightStepState';
-import type { VoiceTransport } from './VoiceTransport';
+import { invoke } from "@tauri-apps/api/core";
+import { warn } from "@charlesportwoodii/tauri-plugin-curia";
+import type { ApiConfigCheckResponse } from "../../../bindings/ApiConfigCheckResponse";
+import type { LoginResponse } from "../../../bindings/LoginResponse";
+import type { ServerReachability } from "../../../bindings/ServerReachability";
+import { PublicServerConfig } from "../../services/PublicServerConfig";
+import type { PreflightOutcome } from "./PreflightOutcome";
+import type { PreflightStep } from "./PreflightStep";
+import { PREFLIGHT_STEPS } from "./PreflightStepName";
+import type { PreflightStepState } from "./PreflightStepState";
+import type { VoiceTransport } from "./VoiceTransport";
 
 /** Called after every change to the step list, so a plate can resolve as it goes. */
 export type PreflightObserver = (steps: readonly PreflightStep[]) => void;
@@ -37,11 +37,11 @@ export class PreflightRunner {
     /** What each measured transport means for the plate. */
     private static readonly STATUS_FOR_TRANSPORT: Record<
         VoiceTransport,
-        PreflightOutcome['status']
+        PreflightOutcome["status"]
     > = {
-        quic: 'connect',
-        websocket: 'ws_fallback',
-        none: 'udp_blocked',
+        quic: "connect",
+        websocket: "ws_fallback",
+        none: "udp_blocked",
     };
 
     private readonly steps: PreflightStep[];
@@ -53,7 +53,7 @@ export class PreflightRunner {
     }
 
     static pending(): PreflightStep[] {
-        return PREFLIGHT_STEPS.map((name) => ({ name, state: 'pending', note: '', ms: 0 }));
+        return PREFLIGHT_STEPS.map((name) => ({ name, state: "pending", note: "", ms: 0 }));
     }
 
     async run(server: string): Promise<PreflightOutcome> {
@@ -62,7 +62,7 @@ export class PreflightRunner {
         const credentials = await this.credentials(server);
         if (!credentials) {
             this.skipFrom(1);
-            return PreflightRunner.blank('reauth');
+            return PreflightRunner.blank("reauth");
         }
 
         const handshake = await this.handshake(server, credentials);
@@ -72,14 +72,14 @@ export class PreflightRunner {
             // runs it. Asking the one question a server answers to anybody settles it —
             // and the answer carries the port list, so the UDP path is still measurable.
             const answered = await PublicServerConfig.read(server).catch(() => null);
-            this.note(1, answered ? 'server refused these credentials' : 'no response');
+            this.note(1, answered ? "server refused these credentials" : "no response");
 
             // Protocol needs the authenticated response. Nothing produced one.
             this.skipFrom(2, 2);
 
             if (!answered) {
                 this.skipFrom(3);
-                return PreflightRunner.blank('unreachable');
+                return PreflightRunner.blank("unreachable");
             }
 
             const voice = await this.voicePath(
@@ -88,7 +88,7 @@ export class PreflightRunner {
                 answered.quic_ports,
                 answered.voice_websocket,
             );
-            return { ...PreflightRunner.blank('reauth'), quicPort: voice.port };
+            return { ...PreflightRunner.blank("reauth"), quicPort: voice.port };
         }
 
         const { response, rtt } = handshake;
@@ -119,7 +119,7 @@ export class PreflightRunner {
 
         // First failing check wins, and the protocol check runs before this one.
         const status = !compatible
-            ? 'version_mismatch'
+            ? "version_mismatch"
             : PreflightRunner.STATUS_FOR_TRANSPORT[voice.transport];
 
         return { status, ...measured, quicPort: voice.port };
@@ -132,16 +132,16 @@ export class PreflightRunner {
     private async credentials(server: string): Promise<LoginResponse | null> {
         const done = this.begin(0);
         try {
-            const credentials = await invoke<LoginResponse>('get_credentials', { server });
-            if (await invoke<boolean>('is_certificate_expired', { server })) {
-                done('bad', 'no valid sign-in for this server');
+            const credentials = await invoke<LoginResponse>("get_credentials", { server });
+            if (await invoke<boolean>("is_certificate_expired", { server })) {
+                done("bad", "no valid sign-in for this server");
                 return null;
             }
-            done('ok', `signed in as ${credentials.gamertag}`);
+            done("ok", `signed in as ${credentials.gamertag}`);
             return credentials;
         } catch (e) {
             warn(`Preflight credentials failed for ${server}: ${e}`);
-            done('bad', 'no valid sign-in for this server');
+            done("bad", "no valid sign-in for this server");
             return null;
         }
     }
@@ -154,21 +154,21 @@ export class PreflightRunner {
         const done = this.begin(1);
         const started = performance.now();
         try {
-            await invoke('api_pool_client', {
+            await invoke("api_pool_client", {
                 endpoint: server,
                 cert: credentials.certificate_ca,
                 pem: credentials.certificate + credentials.certificate_key,
             });
-            const response = await invoke<ApiConfigCheckResponse>('api_get_config', { server });
+            const response = await invoke<ApiConfigCheckResponse>("api_get_config", { server });
             const rtt = Math.max(1, Math.round(performance.now() - started));
             done(
-                rtt > PreflightRunner.SLOW_MS ? 'warn' : 'ok',
+                rtt > PreflightRunner.SLOW_MS ? "warn" : "ok",
                 `mTLS · TLS 1.3 · ${rtt} ms round trip`,
             );
             return { response, rtt };
         } catch (e) {
             warn(`Preflight handshake failed for ${server}: ${e}`);
-            done('bad', '');
+            done("bad", "");
             return null;
         }
     }
@@ -180,12 +180,12 @@ export class PreflightRunner {
         const server = response.config.protocol_version;
 
         if (!response.compatible) {
-            const which = response.client_too_old ? 'client is too old' : 'server is too old';
-            done('bad', `client ${client} · server ${server} — ${which}`);
+            const which = response.client_too_old ? "client is too old" : "server is too old";
+            done("bad", `client ${client} · server ${server} — ${which}`);
             return false;
         }
 
-        done('ok', `${client} · server ${server}`);
+        done("ok", `${client} · server ${server}`);
         return true;
     }
 
@@ -205,21 +205,21 @@ export class PreflightRunner {
     ): Promise<{ transport: VoiceTransport; port: number }> {
         const done = this.begin(3);
         try {
-            const report = await invoke<ServerReachability>('probe_server', {
+            const report = await invoke<ServerReachability>("probe_server", {
                 server,
                 quicPorts: ports,
                 quicPort: advertised,
                 voiceWebsocket,
             });
 
-            if (report.verdict === 'Ready') {
+            if (report.verdict === "Ready") {
                 const port = PreflightRunner.answeringPort(report.quic, report.best_rtt_micros);
                 const resolved = port ?? advertised;
                 const ms = Math.round((report.best_rtt_micros ?? 0) / 1000);
                 const fallback =
-                    resolved === PreflightRunner.STANDARD_QUIC_PORT ? '' : ' · fallback port';
-                done('ok', `udp/${resolved} open · ${ms} ms${fallback}`);
-                return { transport: 'quic', port: resolved };
+                    resolved === PreflightRunner.STANDARD_QUIC_PORT ? "" : " · fallback port";
+                done("ok", `udp/${resolved} open · ${ms} ms${fallback}`);
+                return { transport: "quic", port: resolved };
             }
 
             /*
@@ -227,38 +227,38 @@ export class PreflightRunner {
              * plate offers a connect — and it found it on the transport that costs latency
              * under loss, which is why the row is not green.
              */
-            if (report.verdict === 'VoiceFallback') {
+            if (report.verdict === "VoiceFallback") {
                 const ms = Math.round((report.fallback_rtt_micros ?? 0) / 1000);
                 const port =
                     PreflightRunner.answeringPort(report.ws, report.fallback_rtt_micros) ??
                     PreflightRunner.STANDARD_QUIC_PORT;
-                done('warn', `udp/${advertised} blocked · tcp/${port} fallback · ${ms} ms`);
-                return { transport: 'websocket', port: advertised };
+                done("warn", `udp/${advertised} blocked · tcp/${port} fallback · ${ms} ms`);
+                return { transport: "websocket", port: advertised };
             }
 
             const probes = report.quic.length || 1;
             done(
-                'bad',
-                report.verdict === 'NoRoute'
+                "bad",
+                report.verdict === "NoRoute"
                     ? `no route to udp/${advertised} from this device`
-                    : `udp/${advertised} unreachable · ${probes} ${probes === 1 ? 'probe' : 'probes'}, no response`,
+                    : `udp/${advertised} unreachable · ${probes} ${probes === 1 ? "probe" : "probes"}, no response`,
             );
-            return { transport: 'none', port: advertised };
+            return { transport: "none", port: advertised };
         } catch (e) {
             warn(`Preflight voice path probe failed for ${server}: ${e}`);
-            done('bad', `udp/${advertised} could not be probed`);
-            return { transport: 'none', port: advertised };
+            done("bad", `udp/${advertised} could not be probed`);
+            return { transport: "none", port: advertised };
         }
     }
 
     /** Which endpoint in a leg produced that leg's winning measurement. */
     private static answeringPort(
-        endpoints: ServerReachability['quic'],
+        endpoints: ServerReachability["quic"],
         best: number | null,
     ): number | null {
         for (const endpoint of endpoints) {
             const outcome = endpoint.outcome;
-            if (outcome.state === 'answered' && outcome.rtt_micros === best) {
+            if (outcome.state === "answered" && outcome.rtt_micros === best) {
                 return endpoint.port;
             }
         }
@@ -272,9 +272,13 @@ export class PreflightRunner {
      */
     private begin(index: number): (state: PreflightStepState, note: string) => void {
         const started = performance.now();
-        this.set(index, { state: 'running', note: '', ms: 0 });
+        this.set(index, { state: "running", note: "", ms: 0 });
         return (state, note) => {
-            this.set(index, { state, note, ms: Math.max(1, Math.round(performance.now() - started)) });
+            this.set(index, {
+                state,
+                note,
+                ms: Math.max(1, Math.round(performance.now() - started)),
+            });
         };
     }
 
@@ -291,19 +295,19 @@ export class PreflightRunner {
      */
     private skipFrom(from: number, to: number = this.steps.length - 1): void {
         for (let i = from; i <= to; i++) {
-            this.set(i, { state: 'skipped', note: 'not run', ms: 0 });
+            this.set(i, { state: "skipped", note: "not run", ms: 0 });
         }
     }
 
     /** An outcome with nothing measured, for a preflight that never reached the server. */
-    private static blank(status: PreflightOutcome['status']): PreflightOutcome {
+    private static blank(status: PreflightOutcome["status"]): PreflightOutcome {
         return {
             status,
             rtt: 0,
             slow: false,
             quicPort: PreflightRunner.STANDARD_QUIC_PORT,
-            serverVersion: '',
-            clientVersion: '',
+            serverVersion: "",
+            clientVersion: "",
             clientTooOld: false,
         };
     }

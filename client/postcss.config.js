@@ -1,6 +1,6 @@
 export default {
-  plugins: {
-    "postcss-import": {},
-    autoprefixer: {}
-  },
+    plugins: {
+        "postcss-import": {},
+        autoprefixer: {},
+    },
 };

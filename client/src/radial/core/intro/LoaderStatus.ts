@@ -1,16 +1,16 @@
 export interface LoaderStatusFrame {
-  visible: boolean;
-  glyph: string;
-  phrase: string;
+    visible: boolean;
+    glyph: string;
+    phrase: string;
 }
 
 export interface LoaderStatusOptions {
-  /** Cycled beneath the mark. Empty means the loader says nothing. */
-  phrases: readonly string[];
-  /** How long a wait has to run before it is worth explaining. */
-  slowAfterSeconds?: number;
-  phraseSeconds?: number;
-  frameSeconds?: number;
+    /** Cycled beneath the mark. Empty means the loader says nothing. */
+    phrases: readonly string[];
+    /** How long a wait has to run before it is worth explaining. */
+    slowAfterSeconds?: number;
+    phraseSeconds?: number;
+    frameSeconds?: number;
 }
 
 /**
@@ -24,44 +24,44 @@ export interface LoaderStatusOptions {
  * Pure in `elapsed`: no timers, no DOM, no canvas.
  */
 export class LoaderStatus {
-  /** The indicator CLI tools render when they are working. */
-  static readonly BRAILLE_FRAMES: readonly string[] = [
-    "⠋",
-    "⠙",
-    "⠹",
-    "⠸",
-    "⠼",
-    "⠴",
-    "⠦",
-    "⠧",
-    "⠇",
-    "⠏",
-  ];
+    /** The indicator CLI tools render when they are working. */
+    static readonly BRAILLE_FRAMES: readonly string[] = [
+        "⠋",
+        "⠙",
+        "⠹",
+        "⠸",
+        "⠼",
+        "⠴",
+        "⠦",
+        "⠧",
+        "⠇",
+        "⠏",
+    ];
 
-  readonly phrases: readonly string[];
-  readonly slowAfterSeconds: number;
-  readonly phraseSeconds: number;
-  readonly frameSeconds: number;
+    readonly phrases: readonly string[];
+    readonly slowAfterSeconds: number;
+    readonly phraseSeconds: number;
+    readonly frameSeconds: number;
 
-  constructor(options: LoaderStatusOptions) {
-    this.phrases = options.phrases;
-    this.slowAfterSeconds = options.slowAfterSeconds ?? 4;
-    this.phraseSeconds = options.phraseSeconds ?? 1.6;
-    this.frameSeconds = options.frameSeconds ?? 0.12;
-  }
-
-  at(elapsedSeconds: number): LoaderStatusFrame {
-    if (this.phrases.length === 0 || elapsedSeconds < this.slowAfterSeconds) {
-      return { visible: false, glyph: "", phrase: "" };
+    constructor(options: LoaderStatusOptions) {
+        this.phrases = options.phrases;
+        this.slowAfterSeconds = options.slowAfterSeconds ?? 4;
+        this.phraseSeconds = options.phraseSeconds ?? 1.6;
+        this.frameSeconds = options.frameSeconds ?? 0.12;
     }
 
-    const since = elapsedSeconds - this.slowAfterSeconds;
-    const glyphs = LoaderStatus.BRAILLE_FRAMES;
+    at(elapsedSeconds: number): LoaderStatusFrame {
+        if (this.phrases.length === 0 || elapsedSeconds < this.slowAfterSeconds) {
+            return { visible: false, glyph: "", phrase: "" };
+        }
 
-    return {
-      visible: true,
-      glyph: glyphs[Math.floor(since / this.frameSeconds) % glyphs.length],
-      phrase: this.phrases[Math.floor(since / this.phraseSeconds) % this.phrases.length],
-    };
-  }
+        const since = elapsedSeconds - this.slowAfterSeconds;
+        const glyphs = LoaderStatus.BRAILLE_FRAMES;
+
+        return {
+            visible: true,
+            glyph: glyphs[Math.floor(since / this.frameSeconds) % glyphs.length],
+            phrase: this.phrases[Math.floor(since / this.phraseSeconds) % this.phrases.length],
+        };
+    }
 }

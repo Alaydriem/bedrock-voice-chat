@@ -100,7 +100,9 @@ describe("PlateGrid", () => {
     // there where adding is a thing you can do.
     it("shows the add tile only where one was given", () => {
         expect(mount([plate()]).add()).toBeNull();
-        expect(mount([plate()], { addLabel: "Add a server", onadd: () => {} }).add()).not.toBeNull();
+        expect(
+            mount([plate()], { addLabel: "Add a server", onadd: () => {} }).add(),
+        ).not.toBeNull();
     });
 
     it("renders every chip a plate carries", () => {

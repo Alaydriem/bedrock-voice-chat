@@ -1,13 +1,13 @@
-import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
-import { invoke } from '@tauri-apps/api/core';
-import { Store } from '@tauri-apps/plugin-store';
-import { info, error as logError } from '@charlesportwoodii/tauri-plugin-curia';
-import type { NetworkInterface } from '../../../../bindings/NetworkInterface';
-import type { AddonMode } from '../../../../bindings/AddonMode';
-import type { ProtocolVersionOption } from '../../../../bindings/ProtocolVersionOption';
-import type { ProxyServerEntry } from '../ProxyServerEntry';
-import type { BedrockProxyManagerCallbacks } from './BedrockProxyManagerCallbacks';
-import type { ProxyStatusSnapshot } from './ProxyStatusSnapshot';
+import { writable, derived, get, type Writable, type Readable } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import { Store } from "@tauri-apps/plugin-store";
+import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
+import type { NetworkInterface } from "../../../../bindings/NetworkInterface";
+import type { AddonMode } from "../../../../bindings/AddonMode";
+import type { ProtocolVersionOption } from "../../../../bindings/ProtocolVersionOption";
+import type { ProxyServerEntry } from "../ProxyServerEntry";
+import type { BedrockProxyManagerCallbacks } from "./BedrockProxyManagerCallbacks";
+import type { ProxyStatusSnapshot } from "./ProxyStatusSnapshot";
 
 export class BedrockProxyManager {
     private proxyRunningStore: Writable<boolean>;
@@ -45,9 +45,9 @@ export class BedrockProxyManager {
 
         this.proxyRunningStore = writable(false);
         this.interfacesStore = writable([]);
-        this.selectedInterfaceStore = writable('');
+        this.selectedInterfaceStore = writable("");
         this.isProxyLoadingStore = writable(false);
-        this.serverHostStore = writable('');
+        this.serverHostStore = writable("");
         this.serverPortStore = writable(19132);
         this.listenPortStore = writable(28282);
         this.proxyServersStore = writable([]);
@@ -103,11 +103,11 @@ export class BedrockProxyManager {
 
     async initialize(store: Store): Promise<void> {
         this.store = store;
-        const savedProxies = await store.get<ProxyServerEntry[]>('bedrock_proxy_servers');
+        const savedProxies = await store.get<ProxyServerEntry[]>("bedrock_proxy_servers");
         if (savedProxies) {
             this.proxyServersStore.set(savedProxies);
         }
-        const savedProxyFavs = await store.get<string[]>('bedrock_proxy_favorites');
+        const savedProxyFavs = await store.get<string[]>("bedrock_proxy_favorites");
         if (savedProxyFavs) {
             this.proxyFavoritesStore.set(new Set(savedProxyFavs));
         }
@@ -156,7 +156,7 @@ export class BedrockProxyManager {
 
     async loadInterfaces(): Promise<void> {
         try {
-            const ifaces = await invoke<NetworkInterface[]>('bedrock_list_interfaces');
+            const ifaces = await invoke<NetworkInterface[]>("bedrock_list_interfaces");
             this.interfacesStore.set(ifaces);
             if (ifaces.length > 0 && !get(this.selectedInterfaceStore)) {
                 const defaultIface = ifaces.find((i) => i.is_ipv4) ?? ifaces[0];
@@ -169,7 +169,7 @@ export class BedrockProxyManager {
 
     async listProtocolVersions(): Promise<ProtocolVersionOption[]> {
         try {
-            return await invoke<ProtocolVersionOption[]>('bedrock_list_protocol_versions');
+            return await invoke<ProtocolVersionOption[]>("bedrock_list_protocol_versions");
         } catch (e) {
             logError(`Failed to load protocol versions: ${e}`);
             return [];
@@ -184,7 +184,7 @@ export class BedrockProxyManager {
         try {
             const targetHost = get(this.serverHostStore);
             const targetPort = get(this.serverPortStore);
-            await invoke('bedrock_start_proxy', {
+            await invoke("bedrock_start_proxy", {
                 targetHost,
                 targetPort,
                 listenPort: get(this.listenPortStore),
@@ -203,10 +203,10 @@ export class BedrockProxyManager {
 
     async stopProxy(): Promise<void> {
         try {
-            await invoke('bedrock_stop_proxy');
+            await invoke("bedrock_stop_proxy");
             this.proxyRunningStore.set(false);
             this.activeProxyIdStore.set(null);
-            this.callbacks.setStatus('Proxy stopped');
+            this.callbacks.setStatus("Proxy stopped");
         } catch (e) {
             this.callbacks.setStatus(`Error stopping: ${e}`);
         }
@@ -217,7 +217,7 @@ export class BedrockProxyManager {
         host: string,
         port: number,
         protocolVersion?: number,
-        addonMode: AddonMode = 'net',
+        addonMode: AddonMode = "net",
     ): Promise<ProxyServerEntry> {
         const entry: ProxyServerEntry = {
             id: crypto.randomUUID(),
@@ -232,7 +232,10 @@ export class BedrockProxyManager {
         return entry;
     }
 
-    async updateProxyServer(id: string, patch: Partial<Omit<ProxyServerEntry, 'id'>>): Promise<void> {
+    async updateProxyServer(
+        id: string,
+        patch: Partial<Omit<ProxyServerEntry, "id">>,
+    ): Promise<void> {
         if (get(this.serverProvidedStore).some((s) => s.id === id)) {
             return;
         }
@@ -244,12 +247,10 @@ export class BedrockProxyManager {
                           ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
                           ...(patch.host !== undefined ? { host: patch.host.trim() } : {}),
                           ...(patch.port !== undefined ? { port: patch.port } : {}),
-                          ...('protocolVersion' in patch
+                          ...("protocolVersion" in patch
                               ? { protocolVersion: patch.protocolVersion }
                               : {}),
-                          ...(patch.addonMode !== undefined
-                              ? { addonMode: patch.addonMode }
-                              : {}),
+                          ...(patch.addonMode !== undefined ? { addonMode: patch.addonMode } : {}),
                       }
                     : s,
             ),
@@ -301,7 +302,7 @@ export class BedrockProxyManager {
         if (!this.store) {
             return;
         }
-        await this.store.set('bedrock_proxy_servers', get(this.proxyServersStore));
+        await this.store.set("bedrock_proxy_servers", get(this.proxyServersStore));
         await this.store.save();
     }
 
@@ -309,7 +310,7 @@ export class BedrockProxyManager {
         if (!this.store) {
             return;
         }
-        await this.store.set('bedrock_proxy_favorites', [...get(this.proxyFavoritesStore)]);
+        await this.store.set("bedrock_proxy_favorites", [...get(this.proxyFavoritesStore)]);
         await this.store.save();
     }
 }

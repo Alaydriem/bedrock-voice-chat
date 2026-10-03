@@ -23,9 +23,7 @@ function logListenerAttached(): boolean {
     return attached.has("bedrock-log");
 }
 
-const { BedrockManagerHolder } = await import(
-    "../../../js/app/shell/BedrockManagerHolder"
-);
+const { BedrockManagerHolder } = await import("../../../js/app/shell/BedrockManagerHolder");
 
 function config() {
     return {

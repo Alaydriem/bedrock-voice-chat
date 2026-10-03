@@ -1,15 +1,15 @@
-import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
-import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { warn } from '@charlesportwoodii/tauri-plugin-curia';
-import { I18n } from '$lib/i18n';
-import type { BedrockStatus } from '../../bindings/BedrockStatus';
-import { AppStore } from '../services/AppStore';
-import type { ChatTransport } from '../../bindings/ChatTransport';
-import type { ChatWorld } from '../../bindings/ChatWorld';
-import type { BedrockChatPayload, ChatDelivery, ChatLine } from './ChatLine';
-import type { ChatRejectionState, ChatTarget } from './ChatTarget';
-import type { WorldAssociations } from './WorldLabel';
+import { writable, derived, get, type Writable, type Readable } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { warn } from "@charlesportwoodii/tauri-plugin-curia";
+import { I18n } from "#lib/i18n/index.js";
+import type { BedrockStatus } from "../../bindings/BedrockStatus";
+import { AppStore } from "../services/AppStore";
+import type { ChatTransport } from "../../bindings/ChatTransport";
+import type { ChatWorld } from "../../bindings/ChatWorld";
+import type { BedrockChatPayload, ChatDelivery, ChatLine } from "./ChatLine";
+import type { ChatRejectionState, ChatTarget } from "./ChatTarget";
+import type { WorldAssociations } from "./WorldLabel";
 
 /**
  * Server chat, relayed live.
@@ -70,7 +70,7 @@ export class ChatManager {
     static readonly ANSWER_WINDOW_MS = 8_000;
 
     /** Where remembered world names live, so a label survives a restart. */
-    private static readonly ASSOCIATIONS_KEY = 'bedrock_world_names';
+    private static readonly ASSOCIATIONS_KEY = "bedrock_world_names";
 
     private lastLineId = 0;
     private readonly answerTimers = new Map<number, ReturnType<typeof setTimeout>>();
@@ -78,7 +78,7 @@ export class ChatManager {
     constructor(private readonly selfName: string) {
         this.linesStore = writable([]);
         this.unreadStore = writable(0);
-        this.targetStore = writable({ kind: 'unavailable', reason: 'Not connected' });
+        this.targetStore = writable({ kind: "unavailable", reason: "Not connected" });
         this.rejectionStore = writable(null);
         this.associationsStore = writable({});
         this.enabledStore = writable(true);
@@ -91,7 +91,7 @@ export class ChatManager {
         this.enabled = { subscribe: this.enabledStore.subscribe };
         this.canSend = derived(
             this.targetStore,
-            ($t) => $t.kind !== 'unavailable' && $t.kind !== 'disabled',
+            ($t) => $t.kind !== "unavailable" && $t.kind !== "disabled",
         );
     }
 
@@ -113,41 +113,41 @@ export class ChatManager {
         if (liveWorldUuid) {
             const here = worlds.find((w) => w.world_uuid === liveWorldUuid);
             if (here) {
-                return { kind: 'in-game', world: here };
+                return { kind: "in-game", world: here };
             }
             // Standing somewhere the list does not know — a first join, before any history
             // row exists. Falling through to another world would name one the player is not
             // in: the server would reject the send, but only after the composer had spent the
             // whole time claiming it would land there.
-            return { kind: 'unavailable', reason: 'This world is not known to the server yet' };
+            return { kind: "unavailable", reason: "This world is not known to the server yet" };
         }
 
         if (worlds.length === 0) {
-            return { kind: 'unavailable', reason: 'No world to send to yet' };
+            return { kind: "unavailable", reason: "No world to send to yet" };
         }
         if (worlds.length === 1) {
-            return { kind: 'only', world: worlds[0] };
+            return { kind: "only", world: worlds[0] };
         }
-        return { kind: 'choose', world: worlds[0], options: worlds };
+        return { kind: "choose", world: worlds[0], options: worlds };
     }
 
     /** No-net Bedrock: the local proxy is both the source and the destination. */
     async startLocal(): Promise<void> {
         await this.stop();
-        this.unlisten = await listen<BedrockChatPayload>('bedrock-chat', (event) => {
+        this.unlisten = await listen<BedrockChatPayload>("bedrock-chat", (event) => {
             this.acceptLine(event.payload);
         });
 
         // The server refusing a line this client sent. Its own event rather than a chat line:
         // it settles the pending line already on screen instead of adding one.
         this.unlistenRejected = await listen<{ reason: string; text: string }>(
-            'bedrock-chat-rejected',
+            "bedrock-chat-rejected",
             (event) => this.handleRejection(event.payload),
         );
 
         // The player's live world, pulsed by the server on every position frame. Nothing else
         // surfaces it, and a mid-session transfer re-targets chat off the back of it.
-        this.unlistenWorld = await listen<string | null>('chat-world', (event) => {
+        this.unlistenWorld = await listen<string | null>("chat-world", (event) => {
             const next = event.payload ?? null;
             if (next === this.liveWorld) return;
             this.liveWorld = next;
@@ -178,7 +178,7 @@ export class ChatManager {
             return;
         }
         try {
-            const status = await invoke<BedrockStatus>('bedrock_get_status');
+            const status = await invoke<BedrockStatus>("bedrock_get_status");
             const name = status.active_connection_name ?? status.active_realm_name;
             if (name && name.trim().length > 0) {
                 await this.rememberWorld(world, name.trim());
@@ -205,9 +205,7 @@ export class ChatManager {
     private async loadAssociations(): Promise<void> {
         try {
             const store = await AppStore.load();
-            const saved = await store.get<Record<string, string>>(
-                ChatManager.ASSOCIATIONS_KEY,
-            );
+            const saved = await store.get<Record<string, string>>(ChatManager.ASSOCIATIONS_KEY);
             if (saved) {
                 this.associationsStore.set(saved);
             }
@@ -231,7 +229,7 @@ export class ChatManager {
         // Every known world stays on offer. Filtering by a registered chat channel would drop
         // a world from the picker the moment its addon blinked, mid-conversation.
         this.targetStore.set({
-            kind: 'choose',
+            kind: "choose",
             world,
             options: this.worlds,
         });
@@ -265,14 +263,14 @@ export class ChatManager {
      */
     private async refreshAvailability(): Promise<void> {
         try {
-            const enabled = await invoke<boolean>('chat_enabled').catch(() => true);
+            const enabled = await invoke<boolean>("chat_enabled").catch(() => true);
             this.enabledStore.set(enabled);
             if (!enabled) {
                 // Returned before transport and worlds are consulted. Neither can change the
                 // answer, and `chat_worlds` reaches the network to be told nothing.
                 this.targetStore.set({
-                    kind: 'disabled',
-                    reason: I18n.t('Chat is disabled on this server'),
+                    kind: "disabled",
+                    reason: I18n.t("Chat is disabled on this server"),
                 });
                 return;
             }
@@ -280,14 +278,14 @@ export class ChatManager {
             // The declared addon mode is the signal, not the world list. A world only carries
             // `available` while its chat socket happens to be up, and treating that as the
             // net-mode answer routed a net world down the no-net path the moment BDS blinked.
-            this.worlds = await invoke<ChatWorld[]>('chat_worlds').catch(() => []);
-            const transport = await invoke<ChatTransport>('chat_transport');
+            this.worlds = await invoke<ChatWorld[]>("chat_worlds").catch(() => []);
+            const transport = await invoke<ChatTransport>("chat_transport");
 
             // The proxy owns chat only on a no-net world, and there it is both source and
             // destination — so there is nothing to name.
-            if (transport === 'proxy_injection') {
+            if (transport === "proxy_injection") {
                 this.serverMode = false;
-                this.targetStore.set({ kind: 'local' });
+                this.targetStore.set({ kind: "local" });
                 return;
             }
 
@@ -295,7 +293,7 @@ export class ChatManager {
             this.applyTarget();
         } catch (e) {
             await warn(`chat availability check failed: ${e}`);
-            this.targetStore.set({ kind: 'unavailable', reason: 'Chat is unavailable' });
+            this.targetStore.set({ kind: "unavailable", reason: "Chat is unavailable" });
         }
     }
 
@@ -312,7 +310,7 @@ export class ChatManager {
         }
 
         if (!this.serverMode) {
-            this.targetStore.set({ kind: 'local' });
+            this.targetStore.set({ kind: "local" });
             return;
         }
 
@@ -320,7 +318,7 @@ export class ChatManager {
         // channel here dragged the picker back to the default mid-conversation.
         const current = get(this.targetStore);
         const chosenStillValid =
-            current.kind === 'choose' &&
+            current.kind === "choose" &&
             !this.liveWorld &&
             this.worlds.some((w) => w.world_uuid === current.world.world_uuid);
 
@@ -356,7 +354,7 @@ export class ChatManager {
         // The one target that refuses. Everywhere else a line is rendered unconfirmed so the
         // sender can read it back, which is right while a target may yet appear; here nothing
         // will ever carry it, and an unconfirmed line would say otherwise.
-        if (target.kind === 'disabled') {
+        if (target.kind === "disabled") {
             return;
         }
 
@@ -368,20 +366,21 @@ export class ChatManager {
         const id = this.appendPending(trimmed);
 
         try {
-            if (target.kind === 'local') {
-                await invoke('bedrock_send_chat', { text: trimmed });
+            if (target.kind === "local") {
+                await invoke("bedrock_send_chat", { text: trimmed });
             } else {
                 // Undefined where no world is known. The server answers `NoWorld` rather than
                 // this guessing on its behalf.
-                const worldUuid = target.kind === 'unavailable' ? undefined : target.world.world_uuid;
-                await invoke('chat_send', { worldUuid, text: trimmed });
+                const worldUuid =
+                    target.kind === "unavailable" ? undefined : target.world.world_uuid;
+                await invoke("chat_send", { worldUuid, text: trimmed });
             }
         } catch (e) {
             // Surfaced, not just logged. A composer that accepts a line and drops it teaches
             // the sender nothing, and they will assume it landed.
             await warn(`chat send failed: ${e}`);
-            this.settle(id, 'failed');
-            this.rejectionStore.set({ kind: 'failed', reason: String(e), text: trimmed });
+            this.settle(id, "failed");
+            this.rejectionStore.set({ kind: "failed", reason: String(e), text: trimmed });
             return;
         }
 
@@ -389,7 +388,7 @@ export class ChatManager {
         // inside the window stops claiming to be in flight.
         const timer = setTimeout(() => {
             this.answerTimers.delete(id);
-            this.settle(id, 'failed');
+            this.settle(id, "failed");
         }, ChatManager.ANSWER_WINDOW_MS);
         this.answerTimers.set(id, timer);
     }
@@ -404,10 +403,10 @@ export class ChatManager {
     handleRejection(payload: { reason: string; text: string }): void {
         const id = this.newestPendingId(payload.text);
         if (id !== null) {
-            this.settle(id, 'failed');
+            this.settle(id, "failed");
         }
         this.rejectionStore.set({
-            kind: 'failed',
+            kind: "failed",
             reason: payload.reason,
             text: payload.text,
         });
@@ -416,7 +415,7 @@ export class ChatManager {
     /** The most recent unsettled send carrying this text, if the sender still has one. */
     private newestPendingId(text: string): number | null {
         const pending = get(this.linesStore).filter(
-            (line) => line.delivery === 'pending' && line.text === text,
+            (line) => line.delivery === "pending" && line.text === text,
         );
         return pending.length === 0 ? null : pending[pending.length - 1].id;
     }
@@ -445,7 +444,7 @@ export class ChatManager {
             fromApp: true,
             mention: false,
             timestamp: ChatManager.stamp(),
-            delivery: 'pending',
+            delivery: "pending",
         };
 
         this.linesStore.update(($lines) => {
@@ -470,12 +469,12 @@ export class ChatManager {
         let promoted = false;
         this.linesStore.update(($lines) =>
             $lines.map((line) => {
-                if (promoted || line.delivery !== 'pending' || line.text !== payload.text) {
+                if (promoted || line.delivery !== "pending" || line.text !== payload.text) {
                     return line;
                 }
                 promoted = true;
                 this.clearAnswerTimer(line.id);
-                return { ...line, delivery: 'confirmed' as const };
+                return { ...line, delivery: "confirmed" as const };
             }),
         );
 
@@ -511,7 +510,7 @@ export class ChatManager {
             mention: this.isMention(payload),
             timestamp: ChatManager.stamp(),
             // Reported by the world, so it is already there.
-            delivery: 'confirmed',
+            delivery: "confirmed",
         };
 
         this.linesStore.update(($lines) => {
@@ -536,8 +535,8 @@ export class ChatManager {
     }
 
     private static stamp(now = new Date()): string {
-        const h = String(now.getHours()).padStart(2, '0');
-        const m = String(now.getMinutes()).padStart(2, '0');
+        const h = String(now.getHours()).padStart(2, "0");
+        const m = String(now.getMinutes()).padStart(2, "0");
         return `${h}:${m}`;
     }
 }

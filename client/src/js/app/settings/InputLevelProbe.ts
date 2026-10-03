@@ -47,7 +47,7 @@ export class InputLevelProbe {
 
         this.lastLevelAt = performance.now();
         this.unlisteners.push(
-            LevelFeed.shared().subscribe((snapshot) => this.receive(snapshot), 'InputLevelProbe'),
+            LevelFeed.shared().subscribe((snapshot) => this.receive(snapshot), "InputLevelProbe"),
         );
 
         this.watchdog = setInterval(() => this.judge(), InputLevelProbe.SILENCE_MS);

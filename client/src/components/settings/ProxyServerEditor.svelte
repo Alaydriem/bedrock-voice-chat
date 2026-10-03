@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import { onMount } from "svelte";
     import type { ProxyServerEntry } from "../../js/app/managers/bedrock/ProxyServerEntry";
     import type { AddonMode } from "../../js/bindings/AddonMode";
@@ -92,8 +92,8 @@
         <h5 class="rad-modal__title">{entry ? "Edit this server" : "Add a server"}</h5>
 
         <p>
-            Give it a name you will recognise, and the address Minecraft would have connected
-            to. The port defaults to {DEFAULT_PORT}, and Auto reports whatever the backend does.
+            Give it a name you will recognise, and the address Minecraft would have connected to.
+            The port defaults to {DEFAULT_PORT}, and Auto reports whatever the backend does.
         </p>
 
         <span class="rad-input" style="margin-top: 14px; width: 100%">
@@ -132,8 +132,7 @@
                 type="checkbox"
                 checked={addonMode === "no_net"}
                 disabled={modeLocked}
-                onchange={(e) =>
-                    (addonMode = e.currentTarget.checked ? "no_net" : "net")}
+                onchange={(e) => (addonMode = e.currentTarget.checked ? "no_net" : "net")}
             />
             <span>{I18n.t("Proxy all events")}</span>
         </label>

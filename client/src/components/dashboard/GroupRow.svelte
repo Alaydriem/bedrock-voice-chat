@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
     import { SwipeActions } from "$radial/core/controllers/SwipeActions";
     import { GroupsView } from "../../js/app/dashboard/GroupsView";
@@ -190,18 +190,21 @@
         <div class="rad-swipe__tray" bind:clientWidth={trayWidth}>
             {#if canLeave}
                 <button class="rad-swipe__action" onclick={() => onleave?.(group.id)}>
-                    <Icon name="unlink" /> {I18n.t("Leave")}
+                    <Icon name="unlink" />
+                    {I18n.t("Leave")}
                 </button>
             {/if}
             {#if canAdmin}
                 <button class="rad-swipe__action" onclick={startEdit}>
-                    <Icon name="gear" /> {I18n.t("Edit")}
+                    <Icon name="gear" />
+                    {I18n.t("Edit")}
                 </button>
                 <button
                     class="rad-swipe__action rad-swipe__action--danger"
                     onclick={() => onclosegroup?.(group.id)}
                 >
-                    <Icon name="trash" /> {I18n.t("Close")}
+                    <Icon name="trash" />
+                    {I18n.t("Close")}
                 </button>
             {/if}
         </div>
@@ -293,8 +296,12 @@
         </button>
 
         <div class="rad-group-edit__foot">
-            <button class="rad-btn rad-btn--quiet" onclick={() => onedit?.(null)}>{I18n.t("Cancel")}</button>
-            <button class="rad-btn" onclick={save} disabled={draft.trim() === ""}>{I18n.t("Save")}</button>
+            <button class="rad-btn rad-btn--quiet" onclick={() => onedit?.(null)}
+                >{I18n.t("Cancel")}</button
+            >
+            <button class="rad-btn" onclick={save} disabled={draft.trim() === ""}
+                >{I18n.t("Save")}</button
+            >
         </div>
     </div>
 {/if}

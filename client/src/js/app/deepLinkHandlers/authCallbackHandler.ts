@@ -1,19 +1,19 @@
-import { I18n } from "$lib/i18n";
-import { Store } from '@tauri-apps/plugin-store';
+import { I18n } from "#lib/i18n/index.js";
+import { Store } from "@tauri-apps/plugin-store";
 import { invoke } from "@tauri-apps/api/core";
-import { info, error as logError } from '@charlesportwoodii/tauri-plugin-curia';
-import Analytics from '../analytics';
+import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
+import Analytics from "../analytics";
 import { type LoginResponse } from "../../bindings/LoginResponse";
 import { type ServerListEntry } from "../../bindings/ServerListEntry";
-import { ServerListStore } from '../services/ServerListStore';
-import MinecraftRedirect from '../auth/MinecraftRedirect';
-import type { DeepLinkOutcome } from '../deepLinkRouter.ts';
+import { ServerListStore } from "../services/ServerListStore";
+import MinecraftRedirect from "../auth/MinecraftRedirect";
+import type { DeepLinkOutcome } from "../deepLinkRouter.ts";
 
 export class AuthCallbackHandler {
     private readonly AUTH_PREFIXES = [
-        'bedrock-voice-chat://auth',
-        'https://bvc.alaydriem.com/auth',
-        'https://www.bedrockvoicechat.com/auth'
+        "bedrock-voice-chat://auth",
+        "https://bvc.alaydriem.com/auth",
+        "https://www.bedrockvoicechat.com/auth",
     ];
     // Must match Login.LOGIN_ERROR_KEY. Duplicated rather than imported to avoid
     // a Login -> BVCApp -> deepLinkRouter -> authCallbackHandler -> Login cycle.
@@ -42,7 +42,7 @@ export class AuthCallbackHandler {
     }
 
     canHandle(url: string): boolean {
-        return this.AUTH_PREFIXES.some(prefix => url.startsWith(prefix));
+        return this.AUTH_PREFIXES.some((prefix) => url.startsWith(prefix));
     }
 
     async handle(url: string): Promise<DeepLinkOutcome> {
@@ -62,7 +62,7 @@ export class AuthCallbackHandler {
         // callback when the landing page (splash, server list) navigates away
         // before a deferred /login redirect can take effect.
         await this.processAuthCallback(code, state);
-        return 'handled';
+        return "handled";
     }
 
     private async processAuthCallback(code: string, state: string): Promise<void> {
@@ -97,14 +97,18 @@ export class AuthCallbackHandler {
         const authStateEndpoint = await this.store.get<string>("auth_state_endpoint");
 
         if (state !== authStateToken) {
-            logError(`AuthCallbackHandler: Auth state mismatch - Expected: ${authStateToken}, Got: ${state}`);
+            logError(
+                `AuthCallbackHandler: Auth state mismatch - Expected: ${authStateToken}, Got: ${state}`,
+            );
             await this.failLogin(I18n.t("Authentication failed. Please try again."));
             return;
         }
 
         if (!authStateEndpoint) {
             logError("AuthCallbackHandler: auth_state_endpoint is undefined");
-            await this.failLogin(I18n.t("Login failed. Please check your server URL and try again."));
+            await this.failLogin(
+                I18n.t("Login failed. Please check your server URL and try again."),
+            );
             return;
         }
 
@@ -113,11 +117,11 @@ export class AuthCallbackHandler {
         const redirectUri = this.getRedirectUrl();
 
         try {
-            const response = await invoke("server_login", {
+            const response = (await invoke("server_login", {
                 code: code,
                 server: authStateEndpoint,
-                redirect: redirectUri
-            }) as LoginResponse;
+                redirect: redirectUri,
+            })) as LoginResponse;
 
             await this.establishSession(authStateEndpoint, response);
         } catch (e) {
@@ -130,16 +134,28 @@ export class AuthCallbackHandler {
                 await this.failStorage("AUTH04");
             } else if (errorStr.includes("auth03")) {
                 await this.failStorage("AUTH03");
-            } else if (errorStr.includes("403") || errorStr.includes("forbidden") || errorStr.includes("denied") || errorStr.includes("banned") || errorStr.includes("whitelist")) {
+            } else if (
+                errorStr.includes("403") ||
+                errorStr.includes("forbidden") ||
+                errorStr.includes("denied") ||
+                errorStr.includes("banned") ||
+                errorStr.includes("whitelist")
+            ) {
                 await this.denyLogin();
             } else if (errorStr.includes("401")) {
                 // The sign-in did not complete. Sending someone to check their server URL
                 // for this points them at the one thing that was working.
-                await this.failLogin(I18n.t("That sign-in could not be completed. Please sign in again."));
+                await this.failLogin(
+                    I18n.t("That sign-in could not be completed. Please sign in again."),
+                );
             } else if (errorStr.includes("502")) {
-                await this.failLogin(I18n.t("Xbox Live could not be reached. Please try again in a moment."));
+                await this.failLogin(
+                    I18n.t("Xbox Live could not be reached. Please try again in a moment."),
+                );
             } else {
-                await this.failLogin(I18n.t("Login failed. Please check your server URL and try again."));
+                await this.failLogin(
+                    I18n.t("Login failed. Please check your server URL and try again."),
+                );
             }
         }
     }
@@ -207,7 +223,9 @@ export class AuthCallbackHandler {
             (await this.store.get<string>("current_server"));
 
         if (!endpoint) {
-            await this.failLogin(I18n.t("That sign-in could not be completed. Please sign in again."));
+            await this.failLogin(
+                I18n.t("That sign-in could not be completed. Please sign in again."),
+            );
             return;
         }
 
@@ -216,12 +234,16 @@ export class AuthCallbackHandler {
             credentials = await invoke<LoginResponse>("get_credentials", { server: endpoint });
         } catch (e) {
             logError(`AuthCallbackHandler: no session for ${endpoint} after a spent code: ${e}`);
-            await this.failLogin(I18n.t("That sign-in could not be completed. Please sign in again."));
+            await this.failLogin(
+                I18n.t("That sign-in could not be completed. Please sign in again."),
+            );
             return;
         }
 
         if (!credentials?.certificate) {
-            await this.failLogin(I18n.t("That sign-in could not be completed. Please sign in again."));
+            await this.failLogin(
+                I18n.t("That sign-in could not be completed. Please sign in again."),
+            );
             return;
         }
 

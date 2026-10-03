@@ -1,8 +1,8 @@
 <script lang="ts">
     import StatusChip from "$radial/components/StatusChip.svelte";
     import { ServerGlyph } from "$radial/core/glyph/ServerGlyph";
-    import { PlateView } from "../../js/app/server/PlateView";
-    import type { ServerRosterEntry } from "../../js/app/server/ServerRosterEntry";
+    import { PlateView } from "../../js/app/serverList/PlateView";
+    import type { ServerRosterEntry } from "../../js/app/serverList/ServerRosterEntry";
     import PreflightStrip from "./PreflightStrip.svelte";
     import ServerIdentity from "./ServerIdentity.svelte";
 

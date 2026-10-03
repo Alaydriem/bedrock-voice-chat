@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { I18n } from "$lib/i18n";
+    import { I18n } from "#lib/i18n/index.js";
     import { invoke } from "@tauri-apps/api/core";
     import type { UnlistenFn } from "@tauri-apps/api/event";
     import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -312,7 +312,9 @@
             <span class="rad-row__text">
                 <span class="rad-row__label">{I18n.t("Reset everybody")}</span>
                 <span class="rad-row__note">
-                    {I18n.t("Puts every player back to full volume and unmutes them all. Use this if somebody is silent and you do not remember why.")}
+                    {I18n.t(
+                        "Puts every player back to full volume and unmutes them all. Use this if somebody is silent and you do not remember why.",
+                    )}
                 </span>
             </span>
             <span class="rad-row__control">
@@ -333,12 +335,14 @@
     <div class="rad-modal is-open">
         <h5 class="rad-modal__title">{I18n.t("Reset everybody?")}</h5>
         <p>
-            <b>{adjustedCount} player{adjustedCount === 1 ? "" : "s"}</b> on this server go back
-            to full volume, unmuted. Other servers are not affected, and nobody leaves the list.
+            <b>{adjustedCount} player{adjustedCount === 1 ? "" : "s"}</b> on this server go back to full
+            volume, unmuted. Other servers are not affected, and nobody leaves the list.
         </p>
         <div class="rad-modal__actions">
             <button class="rad-btn" onclick={() => (resetting = false)}>{I18n.t("Cancel")}</button>
-            <button class="rad-btn rad-btn--danger" onclick={() => void resetAll()}>{I18n.t("Reset")}</button>
+            <button class="rad-btn rad-btn--danger" onclick={() => void resetAll()}
+                >{I18n.t("Reset")}</button
+            >
         </div>
     </div>
 {/if}

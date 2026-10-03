@@ -21,7 +21,7 @@
      * Desktop shows the section nav beside the pane, so there is no list-only screen for
      * this path to be there. It stands in for the landing pane instead, redirected
      * client-side because with `ssr = false` a `load` redirect would be a route
-     * adapter-static emits and nothing ever serves. `replaceState` keeps it out of the
+     * adapter-static emits and nothing ever serves. `replace` keeps it out of the
      * history, or climbing out of a pane would land here and bounce forward again.
      */
     const mobile = new PlatformDetector().mobile();
@@ -34,7 +34,7 @@
 
     onMount(() => {
         if (mobile) return;
-        void goto(SettingsRoute.href(SettingsCatalogue.fallback), { replaceState: true });
+        void goto(SettingsRoute.href(SettingsCatalogue.fallback), { replace: true });
     });
 </script>
 

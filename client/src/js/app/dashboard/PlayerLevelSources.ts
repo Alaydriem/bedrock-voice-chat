@@ -1,9 +1,9 @@
-import { LevelFeed } from './LevelFeed';
-import type { LevelSource } from '$radial/core/sources/LevelSource';
-import { PushLevelSource } from '$radial/core/sources/LevelSource';
-import type { LevelSnapshot } from '../../bindings/LevelSnapshot';
-import { LevelSteps } from './LevelSteps';
-import GameNameUtils from '../utils/GameNameUtils';
+import { LevelFeed } from "./LevelFeed";
+import type { LevelSource } from "$radial/core/sources/LevelSource";
+import { PushLevelSource } from "$radial/core/sources/LevelSource";
+import type { LevelSnapshot } from "../../bindings/LevelSnapshot";
+import { LevelSteps } from "./LevelSteps";
+import GameNameUtils from "../utils/GameNameUtils";
 
 /** Whether levels are reaching this window, and what your own last measured. */
 export interface MicActivity {
@@ -77,7 +77,7 @@ export class PlayerLevelSources {
         this.startedAt = performance.now();
         this.unlisten = LevelFeed.shared().subscribe(
             (snapshot) => this.receive(snapshot),
-            'PlayerLevelSources',
+            "PlayerLevelSources",
         );
 
         this.sweep = setInterval(() => this.decay(), PlayerLevelSources.SWEEP_MS);

@@ -1,12 +1,12 @@
-import { writable, get, type Writable, type Readable } from 'svelte/store';
-import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { error as logError } from '@charlesportwoodii/tauri-plugin-curia';
-import type { BedrockConnectError } from '../../../../bindings/BedrockConnectError';
-import type { BedrockConnectionInfo } from '../../../../bindings/BedrockConnectionInfo';
-import { BedrockConnectErrorMapper } from './BedrockConnectErrorMapper';
-import type { RealmsConnectionError } from './RealmsConnectionError';
-import type { RealmsLifecycle } from '../realms/RealmsLifecycle';
+import { writable, get, type Writable, type Readable } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { error as logError } from "@charlesportwoodii/tauri-plugin-curia";
+import type { BedrockConnectError } from "../../../../bindings/BedrockConnectError";
+import type { BedrockConnectionInfo } from "../../../../bindings/BedrockConnectionInfo";
+import { BedrockConnectErrorMapper } from "./BedrockConnectErrorMapper";
+import type { RealmsConnectionError } from "./RealmsConnectionError";
+import type { RealmsLifecycle } from "../realms/RealmsLifecycle";
 
 export class BedrockConnectionManager {
     private connectionErrorStore: Writable<RealmsConnectionError | null>;
@@ -48,7 +48,7 @@ export class BedrockConnectionManager {
         }
         const appWebview = getCurrentWebviewWindow();
         this.connectErrorUnlisten = await appWebview.listen<BedrockConnectError>(
-            'bedrock-connect-error',
+            "bedrock-connect-error",
             (event) => {
                 if (get(this.connectionErrorStore)) {
                     return;
@@ -58,7 +58,7 @@ export class BedrockConnectionManager {
                 // A rejected credential cannot be repaired by the teardown's refresh, and
                 // running one would spend the player's next sign-in attempt on a token that
                 // is already dead.
-                if (event.payload.kind === 'reauth_required') {
+                if (event.payload.kind === "reauth_required") {
                     this.onReauthRequired?.();
                     return;
                 }
@@ -74,7 +74,7 @@ export class BedrockConnectionManager {
         }
         const appWebview = getCurrentWebviewWindow();
         this.connectionInfoUnlisten = await appWebview.listen<BedrockConnectionInfo>(
-            'bedrock_connection_info',
+            "bedrock_connection_info",
             (event) => {
                 this.connectionInfoStore.set(event.payload);
             },
@@ -86,7 +86,7 @@ export class BedrockConnectionManager {
             return;
         }
         this.connectionErrorStore.set(
-            BedrockConnectErrorMapper.describe({ kind: 'other', message: raw }),
+            BedrockConnectErrorMapper.describe({ kind: "other", message: raw }),
         );
         void this.autoTeardownAfterError();
     }
