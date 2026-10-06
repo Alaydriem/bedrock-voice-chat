@@ -1,5 +1,6 @@
 package com.alaydriem.bedrockvoicechat.native
 
+import com.alaydriem.bedrockvoicechat.admin.AdminAction
 import com.alaydriem.bedrockvoicechat.control.ControlSendResult
 import com.sun.jna.Library
 import com.sun.jna.Native
@@ -27,6 +28,7 @@ object BvcNative {
         fun bvc_audio_play(handle: Pointer, playJson: String): Pointer?
         fun bvc_audio_stop(handle: Pointer, eventId: String): Int
         fun bvc_client_action(handle: Pointer, actionJson: String, groupCodeOut: PointerByReference?): Int
+        fun bvc_admin(handle: Pointer, gamertag: String, game: String, action: String): Int
         fun bvc_chat_register(handle: Pointer, helloJson: String): Int
         fun bvc_chat_report(handle: Pointer, chatJson: String): Int
         fun bvc_host_capability(handle: Pointer, reportJson: String): Int
@@ -199,6 +201,19 @@ object BvcNative {
         } finally {
             getLib().bvc_free_string(ptr)
         }
+    }
+
+    /**
+     * Grant, revoke or deny the `admin` permission for a gamertag via FFI.
+     *
+     * @return 0 applied, 1 nothing to revoke, 2 not a BVC player, -1 error (see [getLastError])
+     */
+    fun admin(handle: Pointer, gamertag: String, action: AdminAction): Int {
+        val result = getLib().bvc_admin(handle, gamertag, "minecraft", action.wire)
+        if (result == -1) {
+            logger.warn("Admin {} for {} failed: {}", action.wire, gamertag, getLastError())
+        }
+        return result
     }
 
     /**

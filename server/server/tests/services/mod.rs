@@ -12,6 +12,7 @@ mod interaction_tracker;
 mod meridian_service;
 mod metrics_service;
 mod pairing_service;
+mod player_registrar_service;
 mod position_feed;
 mod relay_enrollment;
 mod position_service;

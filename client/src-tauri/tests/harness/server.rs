@@ -356,6 +356,27 @@ impl EmbeddedServer {
         code
     }
 
+    /// Grant, revoke or deny the `admin` permission through `bvc_admin`.
+    ///
+    /// Returns the export's code, with the library's last error when the code is -1.
+    pub fn admin(&self, gamertag: &str, game: &str, action: &str) -> (i32, Option<String>) {
+        let c_gamertag = CString::new(gamertag).expect("gamertag contains no nul byte");
+        let c_game = CString::new(game).expect("game contains no nul byte");
+        let c_action = CString::new(action).expect("action contains no nul byte");
+
+        let code = unsafe {
+            (self.lib.admin)(
+                self.handle.0,
+                c_gamertag.as_ptr(),
+                c_game.as_ptr(),
+                c_action.as_ptr(),
+            )
+        };
+
+        let error = (code == -1).then(|| Self::last_error(&self.lib));
+        (code, error)
+    }
+
     /// Mint a single-use WebSocket ticket for a gamertag.
     ///
     /// Provisioned rather than fetched: the HTTP route trades an mTLS identity for a ticket

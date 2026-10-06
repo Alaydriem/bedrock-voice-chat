@@ -116,7 +116,7 @@ impl PlayerRegistrarService {
                 // Create new player records
                 for player_name in new_players {
                     let uuid = uuid_map.get(&player_name).map(|s| s.as_str());
-                    let _ = self.create_player(&player_name, &game_type, uuid).await;
+                    let _ = self.create(&player_name, Some(&game_type), uuid).await;
                 }
             }
             Err(e) => {
@@ -125,13 +125,37 @@ impl PlayerRegistrarService {
         }
     }
 
-    /// Create a new player record in the database.
-    pub async fn create_player(
+    /// Idempotent create: returns the existing player for (gamertag, game) when one exists,
+    /// otherwise mints the certificate and keypairs and inserts a new row.
+    ///
+    /// `game` defaults to Minecraft when None. A `player_uuid` is recorded for an existing
+    /// player as well as for a new one.
+    ///
+    /// Idempotent for sequential calls only: `idx_player_gamertag_game` is not unique, so two
+    /// concurrent calls for the same new gamertag can both insert.
+    pub async fn create(
         &self,
         player_name: &str,
-        game_type: &Game,
+        game: Option<&Game>,
         player_uuid: Option<&str>,
     ) -> Result<player::Model, anyhow::Error> {
+        let game_type = game.cloned().unwrap_or(Game::Minecraft);
+
+        let existing = player::Entity::find()
+            .filter(player::Column::Gamertag.eq(player_name))
+            .filter(player::Column::Game.eq(game_type.clone()))
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| anyhow::anyhow!("failed to look up player: {}", e))?;
+
+        if let Some(existing) = existing {
+            self.cache.insert(player_name.to_string());
+            if let Some(uuid) = player_uuid {
+                self.store_platform_uuid(existing.id, uuid, &game_type).await;
+            }
+            return Ok(existing);
+        }
+
         let kp = ncryptf::Keypair::new();
         let signature = ncryptf::Signature::new();
 
@@ -144,7 +168,7 @@ impl PlayerRegistrarService {
 
         let (cert, key) = self
             .cert_service
-            .sign_player_cert(player_name, game_type)
+            .sign_player_cert(player_name, &game_type)
             .map_err(|e| {
                 curia::error!(
                     "Failed to sign certificate for {}: {}",
@@ -184,7 +208,7 @@ impl PlayerRegistrarService {
 
         // Store platform UUID identity if provided
         if let Some(uuid) = player_uuid {
-            self.store_platform_uuid(inserted.id, uuid, game_type).await;
+            self.store_platform_uuid(inserted.id, uuid, &game_type).await;
         }
 
         Ok(inserted)

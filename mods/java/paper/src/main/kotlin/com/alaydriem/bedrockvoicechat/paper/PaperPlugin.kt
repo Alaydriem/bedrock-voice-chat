@@ -22,6 +22,8 @@ import com.alaydriem.bedrockvoicechat.native.PositionSender
 import com.alaydriem.bedrockvoicechat.paper.svc.PaperSvcChannelFactory
 import com.alaydriem.bedrockvoicechat.paper.svc.PaperSvcWiring
 import com.alaydriem.bedrockvoicechat.svc.BridgePeering
+import com.alaydriem.bedrockvoicechat.admin.AdminConsole
+import com.alaydriem.bedrockvoicechat.paper.commands.AdminCommand
 import com.alaydriem.bedrockvoicechat.paper.commands.PeerCommand
 import com.alaydriem.bedrockvoicechat.svc.EmbeddedGrant
 import com.alaydriem.bedrockvoicechat.svc.PairingRequest
@@ -317,11 +319,13 @@ class PaperPlugin : JavaPlugin(), Listener {
         val discCommands = DiscCommand(this)
         val ctlCommands =
             controlSender?.let { ControlCommands(it, playerDataProvider::resolveCanonicalName) }
+        val adminCommand = AdminCommand(AdminConsole { embeddedServer })
         lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
             val bvc = Commands.literal("bvc")
             discCommands.addTo(bvc)
             ctlCommands?.addTo(bvc)
             PeerCommand(::svcPairingRequest).addTo(bvc)
+            adminCommand.addTo(bvc)
             event.registrar().register(bvc.build(), "Bedrock Voice Chat commands")
         }
 
