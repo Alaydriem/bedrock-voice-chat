@@ -40,6 +40,16 @@ bvc whoami
 
 It prints the active identity, server URL, certificate expiry, and effective permissions. `admin` should be in the list.
 
+### On an embedded Java server
+
+A Fabric or PaperMC server running the [embedded server](/wiki/server/java-mod/#integrated-or-external-bvc-server) has no `bvc` executable. Run this from the game server console instead:
+
+```
+/bvc admin grant <Gamertag>
+```
+
+Use the Xbox gamertag the player signs in with. The command creates the player record if it does not exist, so the player can sign in immediately. See [Java commands](/wiki/player/in-game-commands/java/#admin).
+
 ## Adding players
 
 Once you have an admin identity, the rest goes over HTTPS with mTLS and can be run from anywhere.
@@ -108,6 +118,8 @@ bvc permission list  -p Bob -g minecraft
 Empty output from `list` means the player has no overrides and is governed entirely by the defaults.
 
 **Manage Players** sets the same three overrides from the settings icon on a player's row. **Default** clears the override.
+
+On an embedded Java server, the console sets the `admin` override with `/bvc admin grant`, `revoke`, and `deny`. `revoke` is the console form of `clear`. See [Java commands](/wiki/player/in-game-commands/java/#admin).
 
 <div class="window"><img src="/assets/wiki/settings-manage-permissions.jpg" alt="Permissions dialog for a player with Default, Allow, and Deny for Administrator, Upload sounds, and Delete sounds" /></div>
 
