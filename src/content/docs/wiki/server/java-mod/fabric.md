@@ -6,131 +6,71 @@ sidebar:
   order: 2
 ---
 
-The Bedrock Voice Chat Fabric mod runs on your Java server in external or embedded mode, configured through a JSON file.
+The Bedrock Voice Chat Fabric mod reads its configuration from `config/bedrock-voice-chat.json`.
 
 ## Install
 
-1. Put [fabric-api](https://modrinth.com/mod/fabric-api) in your server's `mods` folder.
-2. Put `bedrock-voice-chat.jar` in `mods` as well.
-3. Create `config/bedrock-voice-chat.json`.
-4. Start the server.
+1. Put [fabric-api](https://modrinth.com/mod/fabric-api) in the server's `mods` directory.
+2. Put `bedrock-voice-chat.jar` in `mods`.
+3. Start the server once. The mod writes `config/bedrock-voice-chat.json`.
+4. Stop the server, edit the file, and start the server again.
 
 ## External mode
 
-Points at a standalone [BVC server](/wiki/server/installation/). Use this unless you have a reason not to.
+The mod sends player positions to a standalone [BVC server](/wiki/server/installation/).
 
 ```json
 {
-  "bvc-server": "https://example.bedrockvc.stream",
-  "access-token": "<MUST MATCH server.minecraft.access_token>",
-  "minimum-players": 1,
-  "use-embedded-server": false
+  "bvc-server": "https://bvc.example.com",
+  "access-token": "<server.minecraft.access_token from config.hcl>"
 }
 ```
 
-`access-token` has to match `server.minecraft.access_token` in the BVC server's `config.hcl`. A mismatch is rejected on every position update, which looks like the mod silently not working.
+Both keys are required. `access-token` must be the same as `server.minecraft.access_token` in the BVC server's `config.hcl`. If the values are different, the BVC server rejects each position update.
 
 ## Embedded mode
 
-Runs BVC inside the game server's JVM.
-
-`embedded-config` takes the same keys as the BVC server's own `config.hcl`, nested the same way. Anything you leave out takes the server's default.
+The mod runs the BVC server inside the Minecraft server's JVM.
 
 ```json
 {
-  "bvc-server": "https://example.bedrockvc.stream",
-  "access-token": "<GENERATE A SECURE TOKEN>",
-  "minimum-players": 1,
   "use-embedded-server": true,
   "embedded-config": {
     "server": {
       "port": 8444,
       "quic_port": 8443,
       "tls": {
-        "certificate": "/etc/letsencrypt/live/example.bedrockvc.stream/fullchain.pem",
-        "key": "/etc/letsencrypt/live/example.bedrockvc.stream/privkey.pem",
-        "names": ["example.bedrockvc.stream"],
-        "ips": ["203.0.113.1"]
-      },
-      "bedrock": {
-        "enabled": true
+        "names": ["bvc.example.com"],
+        "acme": {
+          "email": "you@example.com",
+          "provider": "cloudflare",
+          "api_token": "<Cloudflare API token>"
+        }
       }
-    },
-    "voice": {
-      "spatial_audio": { "broadcast_range": 32.0 }
-    },
-    "log": { "level": "info" },
-    "permissions": {
-      "defaults": { "audio_upload": false, "audio_delete": false }
     }
   }
 }
 ```
 
-Set `server.port` and `server.quic_port` explicitly. Both default to 443. Binding 443 needs root on Linux.
+Replace `bvc.example.com` with your domain, and give it a Cloudflare API token scoped to that zone with DNS edit permission. BVC will automatically issue and renew the TLS certificate to secure voice communication between players. See [TLS](/wiki/server/tls/) to make the token, or to use acme-dns or your own certificate files.
 
-`bvc-server` is still what players type into the app. Set it to the public address even though nothing separate runs there.
+`embedded-config` uses the keys of the BVC server's `config.hcl`, with the same nesting. A key that is not set uses the server default. See the [configuration reference](/wiki/reference/configuration/) for all keys.
 
-On Windows, use forward slashes or doubled backslashes in paths: `C:/certs/fullchain.pem` or `C:\\certs\\fullchain.pem`.
+The mod keeps its mTLS CA in `config/bedrock-voice-chat/`. Back up this directory. If you delete it, all client certificates that the server issued become invalid.
 
-The mTLS CA lands in `config/bedrock-voice-chat/`. Back it up.
-
-## Migrating from the old flat keys
-
-If your `embedded-config` still has `http-port`, `quic-port`, `tls-certificate` and the rest, the mod will refuse to start and log each key with its replacement. Before:
-
-```json
-{
-  "use-embedded-server": true,
-  "embedded-config": {
-    "http-port": 8444,
-    "quic-port": 8443,
-    "broadcast-range": 32.0,
-    "tls-certificate": "/etc/bvc/fullchain.pem",
-    "tls-key": "/etc/bvc/privkey.pem",
-    "tls-names": ["bvc.example.com"],
-    "log-level": "info"
-  }
-}
-```
-
-After:
-
-```json
-{
-  "use-embedded-server": true,
-  "embedded-config": {
-    "server": {
-      "port": 8444,
-      "quic_port": 8443,
-      "tls": {
-        "certificate": "/etc/bvc/fullchain.pem",
-        "key": "/etc/bvc/privkey.pem",
-        "names": ["bvc.example.com"]
-      }
-    },
-    "voice": { "spatial_audio": { "broadcast_range": 32.0 } },
-    "log": { "level": "info" }
-  }
-}
-```
-
-The full mapping table is on the [Java mod overview](/wiki/server/java-mod/#migration).
+The [Java mod overview](/wiki/server/java-mod/#migration) has the full table of old keys and new paths.
 
 ## Chat sync
 
-Set this in `server.properties`:
+Chat sync needs this line in `server.properties`:
 
 ```properties
 enforce-secure-profile=false
 ```
 
-Chat sync does not work with it enabled. Restart the server after changing it.
+Restart the server after you change it. See [chat](/wiki/player/chat/).
 
-Everything else is automatic in both external and embedded mode. See [chat](/wiki/player/chat/).
+## Next steps
 
-## Then
-
-[Whitelist your players](/wiki/server/players-and-permissions/). BVC is deny-by-default. Then send them to [Downloads](/wiki/start/downloads/).
-
-Full key reference is on the [Java mod overview](/wiki/server/java-mod/).
+1. [Add your players to the whitelist](/wiki/server/players-and-permissions/). BVC denies all players that are not on it.
+2. Send your players to [Downloads](/wiki/start/downloads/).

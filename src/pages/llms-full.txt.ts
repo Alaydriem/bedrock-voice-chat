@@ -7,7 +7,7 @@ const SITE = 'https://www.bedrockvoicechat.com';
 const ORDER = ['start', 'player', 'server', 'platforms', 'creator', 'reference'];
 
 export const GET: APIRoute = async () => {
-  const docs = (await getCollection('docs')).filter((e) => e.id.startsWith('wiki/'));
+  const docs = (await getCollection('docs')).filter((e) => e.id.startsWith('wiki/') && !e.data.draft);
 
   const rank = (id: string) => {
     const rest = id.replace(/^wiki\//, '');
