@@ -12,7 +12,8 @@ import { getCollection } from 'astro:content';
 export const getStaticPaths: GetStaticPaths = async () => {
   const docs = await getCollection('docs');
   return docs
-    .filter((entry) => entry.id.startsWith('wiki/'))
+    // Starlight leaves drafts out of the HTML build; the markdown twin must too.
+    .filter((entry) => entry.id.startsWith('wiki/') && !entry.data.draft)
     .map((entry) => ({
       // The route already contains `/wiki/`, so the prefix is stripped here.
       params: { slug: entry.id.replace(/^wiki\//, '').replace(/\/?index$/, '') || undefined },

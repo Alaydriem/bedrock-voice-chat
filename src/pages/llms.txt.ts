@@ -24,7 +24,7 @@ function urlFor(id: string): string {
 }
 
 export const GET: APIRoute = async () => {
-  const docs = (await getCollection('docs')).filter((e) => e.id.startsWith('wiki/'));
+  const docs = (await getCollection('docs')).filter((e) => e.id.startsWith('wiki/') && !e.data.draft);
   const byGroup = new Map<string, typeof docs>();
   let root: (typeof docs)[number] | undefined;
 

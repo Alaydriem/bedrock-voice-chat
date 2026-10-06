@@ -137,7 +137,28 @@ export default defineConfig({
             'wiki/upgrading/beta-21',
           ],
         },
-        { label: 'Where BVC works', items: [{ autogenerate: { directory: 'wiki/platforms' } }] },
+        // Listed explicitly for the same reason as `server`: autogenerate would
+        // put the Nodecraft directory above Compatibility. Each provider's group
+        // autogenerates, so its guides can sit behind `draft: true`
+        // until they are proven; an explicit entry would point at a page the
+        // production build leaves out.
+        {
+          label: 'Where BVC works',
+          items: [
+            'wiki/platforms',
+            'wiki/platforms/version-support',
+            'wiki/platforms/realms',
+            'wiki/platforms/aternos',
+            {
+              label: 'Hosting providers',
+              items: [
+                { label: 'Nodecraft', items: [{ autogenerate: { directory: 'wiki/platforms/nodecraft' } }] },
+              ],
+            },
+            'wiki/platforms/console-and-mobile',
+            'wiki/platforms/lan-and-local-worlds',
+          ],
+        },
         { label: 'Streaming & recording', items: [{ autogenerate: { directory: 'wiki/creator' } }] },
         // Listed explicitly so peering can sit in the work-in-progress group
         // instead. Autogenerate takes the whole directory or none of it.
