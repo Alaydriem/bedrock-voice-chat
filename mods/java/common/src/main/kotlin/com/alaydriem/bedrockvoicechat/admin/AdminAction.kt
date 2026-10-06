@@ -1,8 +1,15 @@
 package com.alaydriem.bedrockvoicechat.admin
 
-/** What `/bvc admin` does to a player's `admin` permission; [wire] is the FFI action name. */
-enum class AdminAction(val wire: String) {
+import com.google.gson.annotations.SerializedName
+
+/** Mirrors common's `AdminAction`; [value] is also the `/bvc admin` subcommand. */
+enum class AdminAction(val value: String) {
+    @SerializedName("grant")
     GRANT("grant"),
+
+    @SerializedName("revoke")
     REVOKE("revoke"),
+
+    @SerializedName("deny")
     DENY("deny"),
 }

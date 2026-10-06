@@ -1,6 +1,6 @@
 package com.alaydriem.bedrockvoicechat.server
 
-import com.alaydriem.bedrockvoicechat.admin.AdminAction
+import com.alaydriem.bedrockvoicechat.admin.AdminRequest
 import com.alaydriem.bedrockvoicechat.admin.AdminResult
 import com.alaydriem.bedrockvoicechat.admin.AdminTarget
 import com.alaydriem.bedrockvoicechat.api.ConfigProvider
@@ -240,14 +240,10 @@ class BvcServerManager(
         return BvcNative.clientAction(h, json)
     }
 
-    /**
-     * Grant, revoke or deny the `admin` permission for a gamertag.
-     * @return [AdminResult.NOT_EMBEDDED] when the server is not running
-     */
     @Synchronized
-    override fun admin(gamertag: String, action: AdminAction): AdminResult {
+    override fun admin(request: AdminRequest): AdminResult {
         val h = handle ?: return AdminResult.NOT_EMBEDDED
-        return AdminResult.fromCode(BvcNative.admin(h, gamertag, action))
+        return AdminResult.fromCode(BvcNative.admin(h, GSON.toJson(request)))
     }
 
     override fun lastError(): String? = BvcNative.getLastError()

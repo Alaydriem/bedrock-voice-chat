@@ -1,8 +1,8 @@
 package com.alaydriem.bedrockvoicechat.admin
 
 /**
- * The outcome of a `bvc_admin` call, [NOT_EMBEDDED] when there was no server to call, or
- * [NATIVE_OUTDATED] when the loaded native library has no `bvc_admin` export.
+ * The `bvc_admin` return codes, plus two outcomes the mod decides without calling it:
+ * [NOT_EMBEDDED] and [NATIVE_OUTDATED].
  */
 enum class AdminResult {
     APPLIED,

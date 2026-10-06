@@ -319,7 +319,7 @@ class PaperPlugin : JavaPlugin(), Listener {
         val discCommands = DiscCommand(this)
         val ctlCommands =
             controlSender?.let { ControlCommands(it, playerDataProvider::resolveCanonicalName) }
-        val adminCommand = AdminCommand(AdminConsole { embeddedServer })
+        val adminCommand = AdminCommand(AdminConsole(playerDataProvider.getGameType()) { embeddedServer })
         lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
             val bvc = Commands.literal("bvc")
             discCommands.addTo(bvc)

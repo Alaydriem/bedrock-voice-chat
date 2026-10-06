@@ -300,7 +300,7 @@ class FabricMod : ModInitializer {
         DiscCommand.register()
         ControlCommands.register(controlSender, playerDataProvider::resolveCanonicalName)
         PeerCommand.register(::svcPairingRequest)
-        AdminCommand.register(AdminConsole { embeddedServer })
+        AdminCommand.register(AdminConsole(playerDataProvider.getGameType()) { embeddedServer })
 
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             playerDataProvider.addPlayer(handler.player)

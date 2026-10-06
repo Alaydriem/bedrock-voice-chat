@@ -356,23 +356,10 @@ impl EmbeddedServer {
         code
     }
 
-    /// Grant, revoke or deny the `admin` permission through `bvc_admin`.
-    ///
-    /// Returns the export's code, with the library's last error when the code is -1.
-    pub fn admin(&self, gamertag: &str, game: &str, action: &str) -> (i32, Option<String>) {
-        let c_gamertag = CString::new(gamertag).expect("gamertag contains no nul byte");
-        let c_game = CString::new(game).expect("game contains no nul byte");
-        let c_action = CString::new(action).expect("action contains no nul byte");
-
-        let code = unsafe {
-            (self.lib.admin)(
-                self.handle.0,
-                c_gamertag.as_ptr(),
-                c_game.as_ptr(),
-                c_action.as_ptr(),
-            )
-        };
-
+    /// Returns the `bvc_admin` code, with the library's last error when the code is -1.
+    pub fn admin(&self, request_json: &str) -> (i32, Option<String>) {
+        let c_request = CString::new(request_json).expect("request contains no nul byte");
+        let code = unsafe { (self.lib.admin)(self.handle.0, c_request.as_ptr()) };
         let error = (code == -1).then(|| Self::last_error(&self.lib));
         (code, error)
     }

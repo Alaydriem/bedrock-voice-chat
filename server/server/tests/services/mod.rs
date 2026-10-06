@@ -1,5 +1,6 @@
 mod access_token_service;
 mod acme;
+mod admin_permission_service;
 mod admin_user_service;
 mod audio_file_service;
 mod audio_playback_service;

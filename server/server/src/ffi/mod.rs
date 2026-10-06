@@ -24,16 +24,15 @@ use error::FfiError;
 use crate::config::ApplicationConfig;
 use crate::runtime::{ServerRuntime, position_updater};
 use crate::services::{
-    AudioPlaybackService, AuthCodeService, PermissionService, PlayerIdentityService,
+    AdminPermissionService, AudioPlaybackService, AuthCodeService, PlayerIdentityService,
     PlayerRegistrarService,
 };
 use crate::stream::quic::WebhookReceiver;
 
 use common::Game;
-use common::structs::permission::{Permission, PermissionEffect};
+use common::request::admin::AdminPermissionRequest;
 use common::traits::player_data::PlayerData;
-use entity::player;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::DatabaseConnection;
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -52,6 +51,7 @@ pub struct RuntimeHandle {
     cache_manager: Arc<RwLock<Option<crate::stream::quic::CacheManager>>>,
     /// Player registrar for player registration - accessible without locking runtime mutex
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
+    admin_permission_service: Arc<RwLock<Option<AdminPermissionService>>>,
     /// Player identity service for cross-platform name resolution - accessible without locking runtime mutex
     identity_service: Arc<RwLock<Option<PlayerIdentityService>>>,
     /// Audio playback service - accessible without locking runtime mutex
@@ -169,6 +169,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let webhook_receiver = runtime.get_webhook_receiver();
     let cache_manager = runtime.get_cache_manager();
     let player_registrar = runtime.get_player_registrar();
+    let admin_permission_service = runtime.get_admin_permission_service();
     let identity_service = runtime.get_identity_service();
     let audio_playback_service = runtime.get_audio_playback_service();
     let db_conn = runtime.get_db_conn();
@@ -209,6 +210,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         webhook_receiver,
         cache_manager,
         player_registrar,
+        admin_permission_service,
         identity_service,
         audio_playback_service,
         db_conn,
@@ -1024,7 +1026,7 @@ pub unsafe extern "C" fn bvc_provision_login_code(
 
     let result = tokio_rt.block_on(async {
         let player = registrar
-            .create(gamertag_str, Some(&game_type), None)
+            .create(gamertag_str, &game_type, None)
             .await?;
         // FFI-minted codes are single-use (ephemeral), matching prior behavior.
         AuthCodeService::generate_code(db_conn.as_ref(), player.id, ttl_secs as u64, true).await
@@ -1046,86 +1048,50 @@ pub unsafe extern "C" fn bvc_provision_login_code(
     })
 }
 
-/// Grant, revoke or deny the `admin` permission for a player.
-///
-/// Grant creates the player first when no row exists. Deny and revoke apply only to an
-/// existing player and never create one. Revoke removes the override, so the player falls
-/// back to the configured permission defaults.
+/// Grant, revoke or deny a player's `admin` permission.
 ///
 /// # Arguments
 /// * `handle` - Handle from `bvc_server_create()`
-/// * `gamertag` - BVC gamertag, used verbatim
-/// * `game` - Game type (e.g. "minecraft")
-/// * `action` - "grant", "revoke" or "deny"
+/// * `request_json` - An `AdminPermissionRequest`:
+///   `{"gamertag": "Alice", "game": "minecraft", "action": "grant" | "revoke" | "deny"}`
 ///
 /// # Returns
 /// * `0` - applied
 /// * `1` - revoke found no override to remove
-/// * `2` - deny or revoke named a gamertag that is not a BVC player
+/// * `2` - deny or revoke named a gamertag that is not a player; nothing was created
 /// * `-1` - error (call `bvc_get_last_error()` for details)
 ///
 /// # Safety
 /// * `handle` must be a valid pointer from `bvc_server_create()`
-/// * `gamertag`, `game` and `action` must be valid null-terminated UTF-8 strings
+/// * `request_json` must be a valid null-terminated UTF-8 string
 /// * Server must be running (after `bvc_server_start()` has been called)
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bvc_admin(
     handle: *mut RuntimeHandle,
-    gamertag: *const c_char,
-    game: *const c_char,
-    action: *const c_char,
+    request_json: *const c_char,
 ) -> c_int {
     ffi_guard!("bvc_admin", -1, {
     if handle.is_null() {
         FfiError::set_last_error("handle is null");
         return -1;
     }
-
-    if gamertag.is_null() || game.is_null() || action.is_null() {
-        FfiError::set_last_error("gamertag, game and action must not be null");
+    if request_json.is_null() {
+        FfiError::set_last_error("request_json is null");
         return -1;
     }
 
-    let gamertag_str = match unsafe { CStr::from_ptr(gamertag) }.to_str() {
+    let json = match unsafe { CStr::from_ptr(request_json) }.to_str() {
         Ok(s) => s,
         Err(e) => {
-            FfiError::set_last_error(&format!("Invalid UTF-8 in gamertag: {}", e));
+            FfiError::set_last_error(&format!("Invalid UTF-8 in request_json: {}", e));
             return -1;
         }
     };
 
-    let trimmed = gamertag_str.trim();
-    if trimmed.is_empty() || trimmed.len() > 64 {
-        FfiError::set_last_error("gamertag must be 1-64 characters");
-        return -1;
-    }
-
-    let game_type = match unsafe { CStr::from_ptr(game) }.to_str() {
-        Ok("minecraft") => Game::Minecraft,
-        Ok(other) => {
-            FfiError::set_last_error(&format!("Invalid game '{}'", other));
-            return -1;
-        }
+    let request: AdminPermissionRequest = match serde_json::from_str(json) {
+        Ok(r) => r,
         Err(e) => {
-            FfiError::set_last_error(&format!("Invalid UTF-8 in game: {}", e));
-            return -1;
-        }
-    };
-
-    // None is a revoke; Some carries the override a grant or deny records.
-    let effect = match unsafe { CStr::from_ptr(action) }.to_str() {
-        Ok("grant") => Some(PermissionEffect::Allow),
-        Ok("deny") => Some(PermissionEffect::Deny),
-        Ok("revoke") => None,
-        Ok(other) => {
-            FfiError::set_last_error(&format!(
-                "Invalid action '{}'; expected grant, revoke or deny",
-                other
-            ));
-            return -1;
-        }
-        Err(e) => {
-            FfiError::set_last_error(&format!("Invalid UTF-8 in action: {}", e));
+            FfiError::set_last_error(&format!("Invalid AdminPermissionRequest JSON: {}", e));
             return -1;
         }
     };
@@ -1140,76 +1106,26 @@ pub unsafe extern "C" fn bvc_admin(
         }
     };
 
-    let registrar = match handle_ref.player_registrar.read() {
+    let service = match handle_ref.admin_permission_service.read() {
         Ok(guard) => match guard.as_ref() {
-            Some(r) => r.clone(),
+            Some(s) => s.clone(),
             None => {
-                FfiError::set_last_error("Server not started - player_registrar not available");
+                FfiError::set_last_error(
+                    "Server not started - admin_permission_service not available",
+                );
                 return -1;
             }
         },
         Err(e) => {
-            FfiError::set_last_error(&format!("Failed to read player_registrar: {}", e));
+            FfiError::set_last_error(&format!("Failed to read admin_permission_service: {}", e));
             return -1;
         }
     };
 
-    let db_conn = match handle_ref.db_conn.read() {
-        Ok(guard) => match guard.as_ref() {
-            Some(c) => c.clone(),
-            None => {
-                FfiError::set_last_error("Server not started - db_conn not available");
-                return -1;
-            }
-        },
+    match tokio_rt.block_on(service.apply(&request)) {
+        Ok(outcome) => outcome as c_int,
         Err(e) => {
-            FfiError::set_last_error(&format!("Failed to read db_conn: {}", e));
-            return -1;
-        }
-    };
-
-    let result: Result<c_int, anyhow::Error> = tokio_rt.block_on(async {
-        let admin = Permission::Admin.as_str();
-
-        if let Some(PermissionEffect::Allow) = effect {
-            let player = registrar
-                .create(gamertag_str, Some(&game_type), None)
-                .await?;
-            PermissionService::set_override(db_conn.as_ref(), player.id, admin, PermissionEffect::Allow)
-                .await?;
-            return Ok(0);
-        }
-
-        // Deny and revoke never create: a player row is what lets a gamertag sign in, so
-        // creating one here would grant a login while restricting admin.
-        let existing = player::Entity::find()
-            .filter(player::Column::Gamertag.eq(gamertag_str))
-            .filter(player::Column::Game.eq(game_type.clone()))
-            .one(db_conn.as_ref())
-            .await?;
-        let Some(player) = existing else {
-            return Ok(2);
-        };
-
-        match effect {
-            Some(effect) => {
-                PermissionService::set_override(db_conn.as_ref(), player.id, admin, effect)
-                    .await?;
-                Ok(0)
-            }
-            None => {
-                let removed =
-                    PermissionService::clear_override(db_conn.as_ref(), player.id, admin)
-                        .await?;
-                Ok(if removed { 0 } else { 1 })
-            }
-        }
-    });
-
-    match result {
-        Ok(code) => code,
-        Err(e) => {
-            curia::error!("bvc_admin: {} for {} failed: {}", gamertag_str, game_type.as_str(), e);
+            curia::error!("bvc_admin: {:?} for {} failed: {}", request.action, request.gamertag, e);
             FfiError::set_last_error(&format!("Admin change failed: {}", e));
             -1
         }

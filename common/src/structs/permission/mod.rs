@@ -1,5 +1,7 @@
+pub mod admin_action;
 pub mod effect;
 pub mod server_permissions;
+pub use admin_action::AdminAction;
 pub use effect::PermissionEffect;
 use serde::{Deserialize, Serialize};
 pub use server_permissions::ServerPermissions;

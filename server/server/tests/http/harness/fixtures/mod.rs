@@ -1,6 +1,6 @@
 //! DB-direct insert helpers, used to seed the fixture before each test.
 //!
-//! These mirror the production paths (`PlayerRegistrarService::create_player`,
+//! These mirror the production paths (`PlayerRegistrarService::create`,
 //! `PermissionService::set_override`) but bypass the HTTP layer because the tests
 //! are exercising the routes themselves and need a known starting state.
 
