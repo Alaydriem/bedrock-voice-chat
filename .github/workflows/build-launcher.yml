@@ -3,6 +3,7 @@ name: Build Launcher
 # The BDS launcher: a static musl binary that replaces `bedrock_server` on hosts that run
 # BDS by that name. It shares the server workspace (and its Cargo.lock) but not its build:
 # the server does not depend on it, so neither workflow waits on or fails with the other.
+# Its tests run in tests.yml ("Launcher tests (Linux)").
 
 on:
   workflow_call:
@@ -62,11 +63,6 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
-
       # The launcher compiles no private crate, but cargo resolves the whole workspace,
       # and the server's private git dependencies are part of it.
       - name: Setup private cargo deps auth
@@ -85,12 +81,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools musl-dev
-
-      # nextest runs every test in its own process. The supervisor tests need that: the
-      # reaper collects every child of the process with waitpid(-1).
-      - name: Launcher tests
-        working-directory: ./server
-        run: cargo nextest run -p bvc-launcher --no-fail-fast
 
       - name: Build launcher
         working-directory: ./server

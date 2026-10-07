@@ -35,7 +35,7 @@ impl ReleaseSources {
 impl Default for ReleaseSources {
     fn default() -> Self {
         Self::new(
-            "https://alaydriem.github.io/bedrock-voice-chat/updater".to_string(),
+            "https://www.bedrockvoicechat.com/updater".to_string(),
             "https://github.com/Alaydriem/bedrock-voice-chat/releases/download".to_string(),
             Duration::from_secs(15),
             ReleaseChannel::built(),

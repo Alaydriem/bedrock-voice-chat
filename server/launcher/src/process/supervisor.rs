@@ -20,6 +20,9 @@ pub struct Supervisor {
     bds: Option<i32>,
     bvc: Option<i32>,
     bds_exit: Option<i32>,
+    // Set once the launcher sends BVC its stop signal, so the exit that follows is expected.
+    stopping_bvc: bool,
+    bvc_failed: bool,
 }
 
 enum Wait {
@@ -45,11 +48,18 @@ impl Supervisor {
             bds: None,
             bvc: None,
             bds_exit: None,
+            stopping_bvc: false,
+            bvc_failed: false,
         }
     }
 
     pub fn has_children(&self) -> bool {
         self.bds.is_some() || self.bvc.is_some()
+    }
+
+    /// Whether BVC exited without the launcher stopping it.
+    pub fn bvc_failed(&self) -> bool {
+        self.bvc_failed
     }
 
     pub fn spawn_bvc(&mut self, binary: &Path, workdir: &Path) -> anyhow::Result<()> {
@@ -64,6 +74,8 @@ impl Supervisor {
             .spawn()
             .with_context(|| format!("starting {}", binary.display()))?;
         self.bvc = Some(child.id() as i32);
+        self.stopping_bvc = false;
+        self.bvc_failed = false;
         Ok(())
     }
 
@@ -152,6 +164,7 @@ impl Supervisor {
     /// second signal kills at once.
     pub fn shutdown(&mut self) -> i32 {
         self.bds_input.send_stop();
+        self.stopping_bvc = true;
         Self::send(self.bvc, Signal::SIGTERM);
         let started = Instant::now();
 
@@ -178,6 +191,7 @@ impl Supervisor {
 
     /// SIGTERM to BVC, SIGKILL after its timeout or on a signal.
     pub fn stop_bvc(&mut self) {
+        self.stopping_bvc = true;
         Self::send(self.bvc, Signal::SIGTERM);
         let deadline = Instant::now() + Self::BVC_STOP_TIMEOUT;
         if !matches!(self.wait_until(deadline, |s| s.bvc.is_none()), Wait::Done) {
@@ -212,7 +226,15 @@ impl Supervisor {
             Console::info(&format!("BDS exited with code {code}"));
         } else if self.bvc == Some(pid) {
             self.bvc = None;
-            Console::warn(&format!("BVC exited with code {code}. BDS keeps running."));
+            if self.stopping_bvc {
+                Console::info(&format!("BVC stopped with code {code}"));
+            } else if self.bds.is_some() {
+                self.bvc_failed = true;
+                Console::warn(&format!("BVC exited with code {code}. BDS keeps running."));
+            } else {
+                self.bvc_failed = true;
+                Console::warn(&format!("BVC exited with code {code}"));
+            }
         }
     }
 

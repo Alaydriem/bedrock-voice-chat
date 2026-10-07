@@ -100,9 +100,30 @@ fn bvc_exiting_leaves_bds_running() {
 
     assert_eq!(supervisor.idle(Duration::from_millis(500)), IdleOutcome::Elapsed);
     assert!(supervisor.has_children());
+    assert!(supervisor.bvc_failed());
 
     events.send(SupervisorEvent::Signal(libc::SIGTERM)).unwrap();
     assert_eq!(supervisor.run(), 0);
+}
+
+#[test]
+fn a_bvc_stopped_by_a_signal_is_not_a_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut supervisor, events) = Harness::start(dir.path(), STOPS_ON_STOP);
+
+    events.send(SupervisorEvent::Signal(libc::SIGTERM)).unwrap();
+
+    assert_eq!(supervisor.run(), 0);
+    assert!(!supervisor.bvc_failed());
+}
+
+#[test]
+fn a_bvc_stopped_after_bds_exits_is_not_a_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut supervisor, _events) = Harness::start(dir.path(), "sleep 0.2; exit 0");
+
+    assert_eq!(supervisor.run(), 0);
+    assert!(!supervisor.bvc_failed());
 }
 
 #[test]
