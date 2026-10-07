@@ -1,0 +1,36 @@
+[package]
+name = "bvc-launcher"
+description = "Replacement bedrock_server that runs BVC alongside Bedrock Dedicated Server"
+version = "0.1.0"
+edition = "2024"
+publish = false
+autotests = false
+
+[lib]
+name = "bvc_launcher"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bvc-launcher"
+path = "src/main.rs"
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+
+[dependencies]
+anyhow = { version = "^1.0" }
+serde = { version = "^1", features = ["derive"] }
+serde_json = { version = "^1", features = ["preserve_order"] }
+hcl-rs = { version = "^0.19" }
+reqwest = { version = "^0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+zip = { version = "^4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zuri_nbt = { version = "^0.5" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = { version = "^0.2" }
+nix = { version = "^0.29", features = ["signal", "process"] }
+signal-hook = { version = "^0.3" }
+
+[dev-dependencies]
+tempfile = { version = "^3" }

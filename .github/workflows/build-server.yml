@@ -231,6 +231,30 @@ jobs:
           path: bvc-server-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}${{ runner.os == 'Windows' && '.exe' || '' }}
           retention-days: 30
 
+      - name: Build launcher
+        if: matrix.build_server && contains(matrix.target, 'musl')
+        working-directory: ./server
+        shell: bash
+        run: |
+          BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}"
+          if [ "$BUILD_MODE" = "release" ]; then
+            cargo build --release -p bvc-launcher --target ${{ matrix.target }}
+            BUILD_DIR="target/${{ matrix.target }}/release"
+          else
+            cargo build -p bvc-launcher --target ${{ matrix.target }}
+            BUILD_DIR="target/${{ matrix.target }}/debug"
+          fi
+          cp "${BUILD_DIR}/bvc-launcher" "../bvc-launcher-${{ matrix.target }}-${BUILD_MODE}"
+          ls -la "../bvc-launcher-${{ matrix.target }}-${BUILD_MODE}"
+
+      - name: Upload launcher
+        if: matrix.build_server && contains(matrix.target, 'musl')
+        uses: actions/upload-artifact@v5
+        with:
+          name: bvc-launcher-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}
+          path: bvc-launcher-${{ matrix.target }}-${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}
+          retention-days: 30
+
       - name: Output artifact information
         if: matrix.build_server
         shell: bash

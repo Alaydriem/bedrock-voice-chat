@@ -459,6 +459,18 @@ description = "Run tests for the relay registry service"
 shell = "pwsh -NoLogo -Command"
 run = "cargo test -p bvc-relay-service"
 
+[tasks.build-launcher]
+description = "Build the BDS launcher"
+dir = "server/launcher"
+shell = "pwsh -NoLogo -Command"
+run = "cargo build"
+
+[tasks.test-launcher]
+description = "Run BDS launcher tests. nextest is mandatory: the Reaper calls waitpid(-1), which collects other tests' children inside one cargo test process. Process tests run on Linux only."
+dir = "server/launcher"
+shell = "pwsh -NoLogo -Command"
+run = "cargo nextest run"
+
 [tasks.build-relay]
 description = "Build the relay registry service"
 shell = "pwsh -NoLogo -Command"

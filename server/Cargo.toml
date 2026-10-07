@@ -1,5 +1,5 @@
 [workspace]
-members = ["server", "entity", "migration"]
+members = ["server", "entity", "migration", "launcher"]
 resolver = "2"
 
 [profile.release]
