@@ -9,7 +9,8 @@ use crate::Console;
 use crate::LauncherPaths;
 use crate::fs_util::AtomicWrite;
 
-/// Downloads the newest BVC server and BDS pack when the installed copy is older.
+/// Downloads the current BVC server and BDS pack of the launcher's channel when the installed
+/// copy differs.
 pub struct ReleaseDownloader {
     client: Client,
     paths: LauncherPaths,
@@ -35,14 +36,10 @@ impl ReleaseDownloader {
     /// Both assets are downloaded before either replaces the installed copy, so a failed download
     /// leaves the installed pair as it was. `VERSION` is written last.
     pub fn update(&self) -> anyhow::Result<()> {
-        let manifests = self
-            .sources
-            .manifest_urls
-            .iter()
-            .filter_map(|url| self.fetch_manifest(url).ok())
-            .collect();
-        let manifest = UpdaterManifest::newest(manifests)
-            .ok_or_else(|| anyhow!("no updater manifest could be read"))?;
+        let manifest_url = self.sources.manifest_url();
+        let manifest = self
+            .fetch_manifest(&manifest_url)
+            .with_context(|| format!("reading {manifest_url}"))?;
         let tag = manifest
             .tag()
             .ok_or_else(|| anyhow!("the updater manifest names no release"))?;

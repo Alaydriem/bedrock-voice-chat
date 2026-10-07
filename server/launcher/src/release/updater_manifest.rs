@@ -8,7 +8,6 @@ use super::PlatformEntry;
 /// The Tauri updater manifest `release.yml` publishes for each channel.
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdaterManifest {
-    pub pub_date: String,
     #[serde(default)]
     pub platforms: BTreeMap<String, PlatformEntry>,
 }
@@ -32,13 +31,5 @@ impl UpdaterManifest {
                 .filter(|tag| !tag.is_empty())
                 .map(str::to_string)
         })
-    }
-
-    /// Both manifests come from the same generator, so their RFC 3339 `pub_date` strings share a
-    /// format and compare correctly as text.
-    pub fn newest(manifests: Vec<UpdaterManifest>) -> Option<UpdaterManifest> {
-        manifests
-            .into_iter()
-            .max_by(|a, b| a.pub_date.cmp(&b.pub_date))
     }
 }

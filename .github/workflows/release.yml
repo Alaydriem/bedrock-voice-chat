@@ -234,6 +234,7 @@ jobs:
     with:
       build_mode: release
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
+      version: ${{ needs.prepare-release.outputs.new_version }}
     secrets: inherit
 
   # Workspace tests (common + client + server) at the release ref. Advisory only:

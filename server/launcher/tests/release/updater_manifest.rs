@@ -41,21 +41,3 @@ fn a_manifest_without_platforms_has_no_tag() {
 
     assert_eq!(manifest.tag(), None);
 }
-
-#[test]
-fn the_newer_pub_date_wins() {
-    let beta = UpdaterManifest::parse(&Manifests::with(
-        "2026-09-17T01:40:15.722Z",
-        "https://github.com/Alaydriem/bedrock-voice-chat/releases/download/v1.0.0-beta.21/a",
-    ))
-    .unwrap();
-    let stable = UpdaterManifest::parse(&Manifests::with(
-        "2026-11-02T08:00:00.000Z",
-        "https://github.com/Alaydriem/bedrock-voice-chat/releases/download/v1.0.0/a",
-    ))
-    .unwrap();
-
-    let newest = UpdaterManifest::newest(vec![beta, stable]).unwrap();
-
-    assert_eq!(newest.tag().as_deref(), Some("v1.0.0"));
-}

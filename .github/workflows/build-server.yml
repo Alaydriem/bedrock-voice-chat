@@ -12,6 +12,10 @@ on:
         description: 'Git ref to checkout (tag, branch, or SHA)'
         required: false
         type: string
+      version:
+        description: 'Release version; one that contains - builds a beta-channel launcher'
+        required: false
+        type: string
   workflow_dispatch:
     inputs:
       build_mode:
@@ -237,6 +241,14 @@ jobs:
         shell: bash
         run: |
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || startsWith(github.ref, 'refs/tags/') && 'release' || inputs.build_mode || 'debug' }}"
+          # Same rule as release.yml: a version with - is published to beta.json.
+          VERSION="${{ inputs.version }}"
+          if [[ "$VERSION" == *-* ]]; then
+            export BVC_CHANNEL=beta
+          else
+            export BVC_CHANNEL=stable
+          fi
+          echo "Launcher channel: ${BVC_CHANNEL}"
           if [ "$BUILD_MODE" = "release" ]; then
             cargo build --release -p bvc-launcher --target ${{ matrix.target }}
             BUILD_DIR="target/${{ matrix.target }}/release"

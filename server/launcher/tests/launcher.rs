@@ -20,7 +20,7 @@ mod linux {
     use std::path::{Path, PathBuf};
     use std::time::{Duration, Instant};
 
-    use bvc_launcher::release::ReleaseSources;
+    use bvc_launcher::release::{ReleaseChannel, ReleaseSources};
     use bvc_launcher::setup::WorldPatcher;
     use bvc_launcher::{Launcher, LauncherPaths};
     use serde_json::{Value, json};
@@ -62,9 +62,10 @@ mod linux {
 
         fn sources(&self) -> ReleaseSources {
             ReleaseSources::new(
-                vec![self.http.url("/latest.json")],
+                self.http.url("/updater"),
                 self.http.url("/releases/download"),
                 Duration::from_secs(2),
+                ReleaseChannel::Stable,
             )
         }
 
