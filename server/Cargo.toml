@@ -1,5 +1,8 @@
 [workspace]
 members = ["server", "entity", "migration", "launcher"]
+# The server does not depend on the launcher. A bare `cargo build` here builds the server
+# only; the launcher builds with `-p bvc-launcher` in build-launcher.yml.
+default-members = ["server", "entity", "migration"]
 resolver = "2"
 
 [profile.release]

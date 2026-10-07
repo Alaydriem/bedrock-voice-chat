@@ -281,8 +281,10 @@ jobs:
         #
         # cargo-llvm-cov reads build.rustflags from .cargo/config.toml and
         # appends its own, so `--cfg s2n_quic_unstable` survives instrumentation.
+        #
+        # The launcher is tested in build-launcher.yml; the server does not depend on it.
         run: >
-          cargo llvm-cov nextest --workspace -j 1 --no-fail-fast
+          cargo llvm-cov nextest --workspace --exclude bvc-launcher -j 1 --no-fail-fast
           --remap-path-prefix
           --lcov --output-path lcov-server.info
 

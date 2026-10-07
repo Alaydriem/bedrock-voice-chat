@@ -234,6 +234,18 @@ jobs:
     with:
       build_mode: release
       ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
+    secrets: inherit
+
+  # The BDS launcher. The version sets its release channel, by the same rule that picks
+  # beta.json or latest.json below.
+  build-launcher:
+    name: Build Launcher (release)
+    needs: prepare-release
+    if: needs.prepare-release.outputs.new_release == 'true'
+    uses: ./.github/workflows/build-launcher.yml
+    with:
+      build_mode: release
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
       version: ${{ needs.prepare-release.outputs.new_version }}
     secrets: inherit
 
@@ -371,8 +383,8 @@ jobs:
   # Job 12: Upload client/server release assets to GitHub
   upload-assets:
     name: Upload Release Assets
-    needs: [prepare-release, build-server, build-android, build-ios, build-client, build-macos-client, build-linux-client]
-    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success' || needs.build-linux-client.result == 'success')
+    needs: [prepare-release, build-server, build-launcher, build-android, build-ios, build-client, build-macos-client, build-linux-client]
+    if: always() && needs.prepare-release.outputs.new_release == 'true' && inputs.dry_run == false && (needs.build-server.result == 'success' || needs.build-launcher.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success' || needs.build-linux-client.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token
