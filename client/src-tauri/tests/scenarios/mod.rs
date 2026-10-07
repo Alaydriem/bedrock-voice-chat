@@ -1,3 +1,4 @@
+mod admin;
 mod audio_flow;
 mod audio_routing;
 mod boot;

@@ -45,7 +45,7 @@ pub async fn create_user(
     let registrar =
         PlayerRegistrarService::new(Arc::new(conn.clone()), cert_service.inner().clone());
     registrar
-        .create_player(&req.gamertag, &req.game, None)
+        .create(&req.gamertag, &req.game, None)
         .await
         .map_err(|e| {
             curia::error!("create_user: failed to create player: {}", e);

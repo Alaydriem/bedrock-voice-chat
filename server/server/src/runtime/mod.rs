@@ -11,7 +11,7 @@ pub mod state;
 use crate::config::ApplicationConfig;
 use crate::http::manager::RocketManager;
 use crate::services::{
-    AudioPlaybackService, BedrockEventService, CertificateService, ChannelReaperService,
+    AdminPermissionService, AudioPlaybackService, BedrockEventService, CertificateService, ChannelReaperService,
     EjectScheduler, MeridianService, PlayerIdentityService, PlayerRegistrarService,
 };
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
@@ -52,6 +52,7 @@ pub struct ServerRuntime {
     metrics: Arc<RwLock<Option<Arc<crate::services::MetricsService>>>>,
     /// Player registrar for handling player registration (populated after start)
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
+    admin_permission_service: Arc<RwLock<Option<AdminPermissionService>>>,
     /// Player identity service for cross-platform name resolution (populated after start)
     identity_service: Arc<RwLock<Option<PlayerIdentityService>>>,
     audio_playback_service: Arc<RwLock<Option<Arc<AudioPlaybackService>>>>,
@@ -75,6 +76,7 @@ impl ServerRuntime {
             chat_service: Arc::new(RwLock::new(None)),
             metrics: Arc::new(RwLock::new(None)),
             player_registrar: Arc::new(RwLock::new(None)),
+            admin_permission_service: Arc::new(RwLock::new(None)),
             identity_service: Arc::new(RwLock::new(None)),
             audio_playback_service: Arc::new(RwLock::new(None)),
             db_conn: Arc::new(RwLock::new(None)),
@@ -350,6 +352,17 @@ impl ServerRuntime {
                 .write()
                 .map_err(|_| anyhow!("player_registrar lock poisoned"))?;
             *pr = Some(player_registrar.clone());
+        }
+
+        {
+            let mut aps = self
+                .admin_permission_service
+                .write()
+                .map_err(|_| anyhow!("admin_permission_service lock poisoned"))?;
+            *aps = Some(AdminPermissionService::new(
+                db_conn.clone(),
+                player_registrar.clone(),
+            ));
         }
 
         // Store identity_service for FFI access
@@ -889,6 +902,10 @@ impl ServerRuntime {
     /// Get a clone of the player registrar Arc for external use (FFI)
     pub fn get_player_registrar(&self) -> Arc<RwLock<Option<PlayerRegistrarService>>> {
         self.player_registrar.clone()
+    }
+
+    pub fn get_admin_permission_service(&self) -> Arc<RwLock<Option<AdminPermissionService>>> {
+        self.admin_permission_service.clone()
     }
 
     /// Get a clone of the identity service Arc for external use (FFI)

@@ -323,6 +323,15 @@ impl AlpnDemux {
                 .map_err(|source| DemuxError::NotDualStack { addr, source })?;
         }
 
+        // A connection this server closed holds the port in TIME_WAIT for about a minute, and
+        // without SO_REUSEADDR a restart in that window cannot bind it. tokio's
+        // `TcpListener::bind` sets this on Unix; a socket2 socket does not. Not on Windows,
+        // where SO_REUSEADDR lets another process bind a port that is in use.
+        #[cfg(unix)]
+        socket
+            .set_reuse_address(true)
+            .map_err(|source| DemuxError::Bind { addr, source })?;
+
         socket
             .bind(&addr.into())
             .map_err(|source| DemuxError::Bind { addr, source })?;

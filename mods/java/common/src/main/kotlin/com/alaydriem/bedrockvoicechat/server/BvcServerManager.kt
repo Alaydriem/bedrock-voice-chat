@@ -1,5 +1,8 @@
 package com.alaydriem.bedrockvoicechat.server
 
+import com.alaydriem.bedrockvoicechat.admin.AdminRequest
+import com.alaydriem.bedrockvoicechat.admin.AdminResult
+import com.alaydriem.bedrockvoicechat.admin.AdminTarget
 import com.alaydriem.bedrockvoicechat.api.ConfigProvider
 import com.alaydriem.bedrockvoicechat.config.ModConfig
 import com.alaydriem.bedrockvoicechat.config.generated.EmbeddedServerConfig
@@ -19,7 +22,7 @@ import java.util.UUID
 class BvcServerManager(
     private val config: ModConfig,
     private val configProvider: ConfigProvider
-) : ChatFfi {
+) : ChatFfi, AdminTarget {
     companion object {
         private val logger = LoggerFactory.getLogger("BVC Server")
         private val GSON = Gson()
@@ -236,6 +239,14 @@ class BvcServerManager(
         val h = handle ?: return ControlSendResult(false)
         return BvcNative.clientAction(h, json)
     }
+
+    @Synchronized
+    override fun admin(request: AdminRequest): AdminResult {
+        val h = handle ?: return AdminResult.NOT_EMBEDDED
+        return AdminResult.fromCode(BvcNative.admin(h, GSON.toJson(request)))
+    }
+
+    override fun lastError(): String? = BvcNative.getLastError()
 
     /**
      * Stop the embedded BVC server gracefully.

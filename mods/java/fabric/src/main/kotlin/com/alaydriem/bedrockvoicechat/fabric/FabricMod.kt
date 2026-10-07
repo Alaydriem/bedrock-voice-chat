@@ -13,6 +13,8 @@ import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.fabric.audio.FabricAudioPlayerManager
 import com.alaydriem.bedrockvoicechat.fabric.audio.JukeboxListener
+import com.alaydriem.bedrockvoicechat.admin.AdminConsole
+import com.alaydriem.bedrockvoicechat.fabric.commands.AdminCommand
 import com.alaydriem.bedrockvoicechat.fabric.commands.ControlCommands
 import com.alaydriem.bedrockvoicechat.fabric.commands.DiscCommand
 import com.alaydriem.bedrockvoicechat.config.ModConfig
@@ -298,6 +300,7 @@ class FabricMod : ModInitializer {
         DiscCommand.register()
         ControlCommands.register(controlSender, playerDataProvider::resolveCanonicalName)
         PeerCommand.register(::svcPairingRequest)
+        AdminCommand.register(AdminConsole(playerDataProvider.getGameType()) { embeddedServer })
 
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             playerDataProvider.addPlayer(handler.player)

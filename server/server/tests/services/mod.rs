@@ -1,5 +1,6 @@
 mod access_token_service;
 mod acme;
+mod admin_permission_service;
 mod admin_user_service;
 mod audio_file_service;
 mod audio_playback_service;
@@ -12,6 +13,7 @@ mod interaction_tracker;
 mod meridian_service;
 mod metrics_service;
 mod pairing_service;
+mod player_registrar_service;
 mod position_feed;
 mod relay_enrollment;
 mod position_service;

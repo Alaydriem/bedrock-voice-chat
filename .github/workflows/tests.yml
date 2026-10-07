@@ -281,8 +281,10 @@ jobs:
         #
         # cargo-llvm-cov reads build.rustflags from .cargo/config.toml and
         # appends its own, so `--cfg s2n_quic_unstable` survives instrumentation.
+        #
+        # The launcher is tested in build-launcher.yml; the server does not depend on it.
         run: >
-          cargo llvm-cov nextest --workspace -j 1 --no-fail-fast
+          cargo llvm-cov nextest --workspace --exclude bvc-launcher -j 1 --no-fail-fast
           --remap-path-prefix
           --lcov --output-path lcov-server.info
 
@@ -301,6 +303,64 @@ jobs:
         with:
           files: ./server/server/lcov-server.info
           flags: server
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  launcher:
+    name: Launcher tests (Linux)
+    runs-on: ubuntu-latest
+    # The BDS launcher is a server-workspace member that the server does not depend on,
+    # so the server job excludes it and it is tested here on its own. Linux only: the
+    # supervisor and its tests use Linux process APIs. nextest runs each test in its own
+    # process, which the reaper's waitpid(-1) needs.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-llvm-cov
+
+      # The launcher compiles no private crate, but cargo resolves the whole workspace,
+      # and the server's private git dependencies are part of it.
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./server"
+          shared-key: test-launcher-cov
+
+      - name: Launcher tests (instrumented)
+        working-directory: ./server
+        run: >
+          cargo llvm-cov nextest -p bvc-launcher --no-fail-fast
+          --remap-path-prefix
+          --lcov --output-path lcov-launcher.info
+
+      - name: Rebase launcher paths onto the repo root
+        working-directory: ./server
+        # Same as the server job: paths are relative to the server workspace, which is
+        # nested one level below the repo root, so `launcher/src/...` lacks `server/`.
+        run: sed -i -E 's|^SF:|SF:server/|' lcov-launcher.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./server/lcov-launcher.info
+          flags: launcher
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
