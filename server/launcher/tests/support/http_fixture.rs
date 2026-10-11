@@ -1,15 +1,17 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use super::HttpReply;
+use super::{HttpReply, RecordedRequest};
 
-/// A local HTTP server with fixed replies per path. Unknown paths get 404.
+/// A local HTTP server with fixed replies per path. Unknown paths get 404. Every request is
+/// recorded, body included.
 pub struct HttpFixture {
     port: u16,
     routes: Arc<Mutex<HashMap<String, HttpReply>>>,
+    requests: Arc<Mutex<Vec<RecordedRequest>>>,
 }
 
 impl HttpFixture {
@@ -17,14 +19,17 @@ impl HttpFixture {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         let routes: Arc<Mutex<HashMap<String, HttpReply>>> = Arc::default();
+        let requests: Arc<Mutex<Vec<RecordedRequest>>> = Arc::default();
         let served = routes.clone();
+        let recorded = requests.clone();
         thread::spawn(move || {
             let mut stalled = Vec::new();
             for stream in listener.incoming().flatten() {
-                let Some(path) = Self::request_path(&stream) else {
+                let Some(request) = Self::read_request(&stream) else {
                     continue;
                 };
-                let reply = served.lock().unwrap().get(&path).cloned();
+                let reply = served.lock().unwrap().get(&request.path).cloned();
+                recorded.lock().unwrap().push(request);
                 match reply {
                     Some(HttpReply::Body(body)) => Self::respond(stream, 200, &body),
                     Some(HttpReply::Status(code)) => Self::respond(stream, code, &[]),
@@ -33,7 +38,11 @@ impl HttpFixture {
                 }
             }
         });
-        Self { port, routes }
+        Self {
+            port,
+            routes,
+            requests,
+        }
     }
 
     pub fn route(&self, path: &str, reply: HttpReply) {
@@ -44,18 +53,43 @@ impl HttpFixture {
         format!("http://127.0.0.1:{}{path}", self.port)
     }
 
-    // The path of the request line; the headers are read and discarded.
-    fn request_path(stream: &TcpStream) -> Option<String> {
+    pub fn requests(&self) -> Vec<RecordedRequest> {
+        self.requests.lock().unwrap().clone()
+    }
+
+    fn read_request(stream: &TcpStream) -> Option<RecordedRequest> {
         let mut reader = BufReader::new(stream.try_clone().ok()?);
         let mut request_line = String::new();
         reader.read_line(&mut request_line).ok()?;
+        let mut parts = request_line.split_whitespace();
+        let method = parts.next()?.to_string();
+        let path = parts.next()?.to_string();
+
+        let mut headers = Vec::new();
         loop {
             let mut header = String::new();
             if reader.read_line(&mut header).unwrap_or(0) <= 2 {
                 break;
             }
+            if let Some((name, value)) = header.trim_end().split_once(':') {
+                headers.push((name.trim().to_string(), value.trim().to_string()));
+            }
         }
-        request_line.split_whitespace().nth(1).map(str::to_string)
+
+        let length = headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+            .and_then(|(_, value)| value.parse::<usize>().ok())
+            .unwrap_or(0);
+        let mut body = vec![0u8; length];
+        reader.read_exact(&mut body).ok()?;
+
+        Some(RecordedRequest {
+            method,
+            path,
+            headers,
+            body,
+        })
     }
 
     fn respond(mut stream: TcpStream, code: u16, body: &[u8]) {

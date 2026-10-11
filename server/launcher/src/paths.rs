@@ -20,7 +20,7 @@ impl LauncherPaths {
     }
 
     pub fn config_file(&self) -> PathBuf {
-        self.bvc_dir().join("config.hcl")
+        self.root.join("config").join("bvc.hcl")
     }
 
     pub fn bvc_binary(&self) -> PathBuf {
@@ -57,6 +57,10 @@ impl LauncherPaths {
 
     pub fn bds_binary(&self) -> PathBuf {
         self.root.join("bedrock_server_vanilla")
+    }
+
+    pub fn allowlist_file(&self) -> PathBuf {
+        self.root.join("allowlist.json")
     }
 
     pub fn level_dat(&self, level_name: &str) -> PathBuf {

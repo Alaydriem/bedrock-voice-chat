@@ -44,6 +44,7 @@ mod linux {
             let paths = LauncherPaths::new(root.to_path_buf());
             fs::create_dir_all(paths.bvc_binary().parent().unwrap()).unwrap();
             fs::create_dir_all(paths.pack_file().parent().unwrap()).unwrap();
+            fs::create_dir_all(paths.config_file().parent().unwrap()).unwrap();
             fs::write(
                 paths.config_file(),
                 "server {\n  tls {\n    names = [\"voice.example.com\"]\n  }\n}\n",

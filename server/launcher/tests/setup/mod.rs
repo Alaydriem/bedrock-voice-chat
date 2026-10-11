@@ -1,3 +1,4 @@
+mod allowlist_file;
 mod pack_installer;
 mod permissions_file;
 mod server_properties;

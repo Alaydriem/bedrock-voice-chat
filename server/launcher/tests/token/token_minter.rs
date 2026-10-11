@@ -14,6 +14,16 @@ impl FakeBvc {
         fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
         path
     }
+
+    fn minter(binary: PathBuf, dir: &Path, attempts: u32, delay: Duration) -> TokenMinter {
+        TokenMinter::new(
+            binary,
+            dir.to_path_buf(),
+            dir.join("config").join("bvc.hcl"),
+            attempts,
+            delay,
+        )
+    }
 }
 
 #[test]
@@ -26,7 +36,7 @@ if [ $n -lt 3 ]; then echo "no such table: game_access_token" >&2; exit 1; fi
 echo "  bvc_abcdefgh_secret  ""#,
     );
 
-    let token = TokenMinter::new(binary, dir.path().to_path_buf(), 5, Duration::from_millis(10))
+    let token = FakeBvc::minter(binary, dir.path(), 5, Duration::from_millis(10))
         .mint()
         .unwrap();
 
@@ -34,16 +44,20 @@ echo "  bvc_abcdefgh_secret  ""#,
 }
 
 #[test]
-fn passes_the_local_mint_arguments_from_the_bvc_directory() {
+fn passes_the_config_and_local_mint_arguments_from_the_bvc_directory() {
     let dir = tempfile::tempdir().unwrap();
     let binary = FakeBvc::script(dir.path(), r#"[ -f marker ] && echo "$@""#);
     fs::write(dir.path().join("marker"), "").unwrap();
 
-    let output = TokenMinter::new(binary, dir.path().to_path_buf(), 1, Duration::ZERO)
+    let output = FakeBvc::minter(binary, dir.path(), 1, Duration::ZERO)
         .mint()
         .unwrap();
 
-    assert_eq!(output, "-c config.hcl admin token mint --local");
+    let config = dir.path().join("config").join("bvc.hcl");
+    assert_eq!(
+        output,
+        format!("-c {} admin token mint --local", config.display())
+    );
 }
 
 #[test]
@@ -51,7 +65,7 @@ fn gives_up_after_the_last_attempt_with_its_error() {
     let dir = tempfile::tempdir().unwrap();
     let binary = FakeBvc::script(dir.path(), r#"echo "database is locked" >&2; exit 1"#);
 
-    let error = TokenMinter::new(binary, dir.path().to_path_buf(), 3, Duration::from_millis(1))
+    let error = FakeBvc::minter(binary, dir.path(), 3, Duration::from_millis(1))
         .mint()
         .unwrap_err();
 
@@ -64,7 +78,7 @@ fn empty_output_is_not_a_token() {
     let binary = FakeBvc::script(dir.path(), "exit 0");
 
     assert!(
-        TokenMinter::new(binary, dir.path().to_path_buf(), 2, Duration::ZERO)
+        FakeBvc::minter(binary, dir.path(), 2, Duration::ZERO)
             .mint()
             .is_err()
     );

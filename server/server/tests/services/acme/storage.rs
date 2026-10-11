@@ -153,6 +153,83 @@ async fn loading_from_an_empty_directory_materialises_both_files() {
     );
 }
 
+// The renewal loop reloads the stored certificate on its first tick, while Rocket may be
+// opening the same file. Rewriting identical content gives that reader nothing but a window
+// in which the file is empty.
+#[tokio::test]
+async fn reloading_an_unchanged_certificate_leaves_the_files_untouched() {
+    let db = DatabaseFixture::create().await.expect("fixture");
+    let dir = TempDir::new().unwrap();
+    let storage = storage(&dir, &db, names());
+    storage.store_account_credentials("{}").await.unwrap();
+    storage
+        .store_certificate(&mint_cert(60), "key-pem")
+        .await
+        .unwrap();
+    let marker = std::time::UNIX_EPOCH + Duration::from_secs(1_000_000);
+    for path in [storage.certificate_path(), storage.key_path()] {
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(marker)
+            .unwrap();
+    }
+
+    storage
+        .load_certificate_valid_for(Duration::from_secs(30 * 86400))
+        .await
+        .unwrap();
+
+    for path in [storage.certificate_path(), storage.key_path()] {
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().modified().unwrap(),
+            marker,
+            "{} was rewritten with the content it already held",
+            path.display()
+        );
+    }
+}
+
+// Rocket reads tls.certs once at launch and silently serves an empty chain from an empty file.
+// A replacement must therefore never be observable half-written.
+#[tokio::test]
+async fn a_reader_never_sees_a_partially_written_certificate() {
+    let db = DatabaseFixture::create().await.expect("fixture");
+    let dir = TempDir::new().unwrap();
+    let storage = storage(&dir, &db, names());
+    storage.store_account_credentials("{}").await.unwrap();
+    let certs = [mint_cert(60), mint_cert(61)];
+    storage.store_certificate(&certs[0], "key-pem").await.unwrap();
+
+    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let reader = {
+        let path = storage.certificate_path();
+        let stop = Arc::clone(&stop);
+        let certs = certs.clone();
+        std::thread::spawn(move || {
+            let mut torn = 0usize;
+            while !stop.load(std::sync::atomic::Ordering::SeqCst) {
+                let content = std::fs::read_to_string(&path).unwrap_or_default();
+                if !certs.contains(&content) {
+                    torn += 1;
+                }
+            }
+            torn
+        })
+    };
+
+    for round in 0..300 {
+        storage
+            .store_certificate(&certs[round % 2], "key-pem")
+            .await
+            .unwrap();
+    }
+    stop.store(true, std::sync::atomic::Ordering::SeqCst);
+
+    assert_eq!(reader.join().unwrap(), 0, "a reader saw a partially written cert.pem");
+}
+
 // A domain change must invalidate the stored certificate, or the server serves one issued for
 // the wrong names. Reported as absent so the existing issuance path re-issues.
 #[tokio::test]

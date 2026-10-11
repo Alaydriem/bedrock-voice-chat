@@ -23,7 +23,7 @@ anyhow = { version = "^1.0" }
 serde = { version = "^1", features = ["derive"] }
 serde_json = { version = "^1", features = ["preserve_order"] }
 hcl-rs = { version = "^0.19" }
-reqwest = { version = "^0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+reqwest = { version = "^0.12", default-features = false, features = ["blocking", "rustls-tls", "json"] }
 zip = { version = "^4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 zuri_nbt = { version = "^0.5" }
 

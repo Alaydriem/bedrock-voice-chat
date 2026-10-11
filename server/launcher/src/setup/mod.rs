@@ -1,3 +1,4 @@
+mod allowlist_file;
 mod bvc_pack_ids;
 mod installed_packs;
 mod pack_identity;
@@ -8,6 +9,7 @@ mod variables_file;
 mod world_packs_file;
 mod world_patcher;
 
+pub use allowlist_file::AllowlistFile;
 pub use bvc_pack_ids::BvcPackIds;
 pub use installed_packs::InstalledPacks;
 pub use pack_identity::PackIdentity;

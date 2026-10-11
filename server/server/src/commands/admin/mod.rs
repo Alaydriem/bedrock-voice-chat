@@ -1,9 +1,13 @@
+mod admin_change;
 mod api_client;
 mod api_error;
 pub mod bootstrap;
 pub mod generate_code;
+pub mod grant;
+pub mod revoke;
 pub mod token;
 
+use admin_change::AdminChange;
 pub use api_client::AdminApiClient;
 pub use api_error::AdminApiError;
 
@@ -17,6 +21,10 @@ pub enum SubCommand {
     Bootstrap(bootstrap::Config),
     /// Generate a one-time login code for a player. DB-direct; creates the player if missing.
     GenerateCode(generate_code::Config),
+    /// Grant the `admin` permission to a player. DB-direct, runs only on the server host.
+    Grant(grant::Config),
+    /// Remove a player's `admin` grant. DB-direct, runs only on the server host.
+    Revoke(revoke::Config),
     /// Manage game server access tokens
     Token(token::Config),
 }
@@ -33,6 +41,8 @@ impl Config {
         match &self.cmd {
             SubCommand::Bootstrap(command) => command.run(cfg).await,
             SubCommand::GenerateCode(command) => command.run(cfg).await,
+            SubCommand::Grant(command) => command.run(cfg).await,
+            SubCommand::Revoke(command) => command.run(cfg).await,
             SubCommand::Token(command) => command.run(cfg).await,
         }
     }

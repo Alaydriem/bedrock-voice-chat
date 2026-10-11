@@ -37,7 +37,7 @@ export interface ResolveVerdict {
  * the server selector cannot reach different conclusions from the same measurement.
  */
 export default class AddressResolver {
-    static readonly HOSTNAME = /^[a-z0-9.-]+\.[a-z]{2,}$/i;
+    static readonly HOSTNAME = /^[a-z0-9.-]+\.[a-z]{2,}(:\d{1,5})?$/i;
     static readonly DEBOUNCE_MS = 700;
     private static readonly STANDARD_QUIC_PORT = 443;
 

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -8,21 +9,27 @@ use anyhow::{Context, anyhow};
 use nix::sys::signal::{Signal, kill};
 use nix::unistd::Pid;
 
-use super::{BdsInput, ChildLock, IdleOutcome, ParentDeathSignal, SupervisorEvent};
+use super::{
+    AdminCli, AdminCommand, BdsInput, ChildLock, IdleOutcome, ParentDeathSignal, SupervisorEvent,
+};
 use crate::Console;
 
-/// Owns the BVC and BDS child processes. Must live on the main thread, which spawns every child
-/// (see `ParentDeathSignal`).
+/// Owns the BVC and BDS child processes and any console commands. Must live on the main
+/// thread, which spawns every child (see `ParentDeathSignal`).
 pub struct Supervisor {
     events: Receiver<SupervisorEvent>,
     bds_input: BdsInput,
     child_lock: ChildLock,
+    admin: AdminCli,
     bds: Option<i32>,
     bvc: Option<i32>,
     bds_exit: Option<i32>,
+    commands: HashMap<i32, AdminCommand>,
     // Set once the launcher sends BVC its stop signal, so the exit that follows is expected.
     stopping_bvc: bool,
     bvc_failed: bool,
+    // Set when shutdown begins; console commands are no longer run.
+    stopping: bool,
 }
 
 enum Wait {
@@ -40,21 +47,25 @@ impl Supervisor {
         events: Receiver<SupervisorEvent>,
         bds_input: BdsInput,
         child_lock: ChildLock,
+        admin: AdminCli,
     ) -> Self {
         Self {
             events,
             bds_input,
             child_lock,
+            admin,
             bds: None,
             bvc: None,
             bds_exit: None,
+            commands: HashMap::new(),
             stopping_bvc: false,
             bvc_failed: false,
+            stopping: false,
         }
     }
 
     pub fn has_children(&self) -> bool {
-        self.bds.is_some() || self.bvc.is_some()
+        self.bds.is_some() || self.bvc.is_some() || !self.commands.is_empty()
     }
 
     /// Whether BVC exited without the launcher stopping it.
@@ -62,10 +73,12 @@ impl Supervisor {
         self.bvc_failed
     }
 
-    pub fn spawn_bvc(&mut self, binary: &Path, workdir: &Path) -> anyhow::Result<()> {
+    pub fn spawn_bvc(&mut self, binary: &Path, workdir: &Path, config: &Path) -> anyhow::Result<()> {
         let mut command = Command::new(binary);
         command
-            .args(["-c", "config.hcl", "server"])
+            .arg("-c")
+            .arg(config)
+            .arg("server")
             .current_dir(workdir)
             .stdin(Stdio::null());
         ParentDeathSignal::apply(&mut command);
@@ -115,6 +128,7 @@ impl Supervisor {
                         return code;
                     }
                 }
+                Ok(SupervisorEvent::Command(command)) => self.run_command(command),
             }
         }
     }
@@ -127,6 +141,7 @@ impl Supervisor {
             match event {
                 SupervisorEvent::Signal(_) => return true,
                 SupervisorEvent::Exited { pid, code } => self.record_exit(pid, code),
+                SupervisorEvent::Command(command) => self.run_command(command),
             }
         }
         false
@@ -163,6 +178,7 @@ impl Supervisor {
     /// `stop` to BDS and SIGTERM to BVC at once, SIGKILL to whatever outlives its timeout. A
     /// second signal kills at once.
     pub fn shutdown(&mut self) -> i32 {
+        self.stopping = true;
         self.bds_input.send_stop();
         self.stopping_bvc = true;
         Self::send(self.bvc, Signal::SIGTERM);
@@ -185,6 +201,9 @@ impl Supervisor {
 
         Self::send(self.bds, Signal::SIGKILL);
         Self::send(self.bvc, Signal::SIGKILL);
+        for pid in self.commands.keys() {
+            Self::send(Some(*pid), Signal::SIGKILL);
+        }
         let _ = self.wait_until(Instant::now() + Self::KILL_WAIT, |s| !s.has_children());
         self.bds_exit.unwrap_or(128 + Signal::SIGKILL as i32)
     }
@@ -212,6 +231,7 @@ impl Supervisor {
             match self.events.recv_timeout(remaining) {
                 Ok(SupervisorEvent::Signal(_)) => return Wait::Signalled,
                 Ok(SupervisorEvent::Exited { pid, code }) => self.record_exit(pid, code),
+                Ok(SupervisorEvent::Command(command)) => self.run_command(command),
                 Err(RecvTimeoutError::Timeout) | Err(RecvTimeoutError::Disconnected) => {
                     return Wait::TimedOut;
                 }
@@ -219,7 +239,39 @@ impl Supervisor {
         }
     }
 
+    /// Spawned here because children must come from the main thread (`ParentDeathSignal`).
+    /// Never waited on: the Reaper reports the exit like any other child's.
+    fn run_command(&mut self, command: AdminCommand) {
+        if self.stopping {
+            Console::info(&format!(
+                "{} ignored: the server is stopping",
+                command.label()
+            ));
+            return;
+        }
+        if !self.admin.is_installed() {
+            Console::warn(&format!(
+                "{} not run: no BVC server on disk",
+                command.label()
+            ));
+            return;
+        }
+        let mut child = self.admin.command(&command);
+        ParentDeathSignal::apply(&mut child);
+        let _guard = self.child_lock.hold();
+        match child.spawn() {
+            Ok(spawned) => {
+                self.commands.insert(spawned.id() as i32, command);
+            }
+            Err(e) => Console::warn(&format!("{} not run: {e}", command.label())),
+        }
+    }
+
     fn record_exit(&mut self, pid: i32, code: i32) {
+        if let Some(command) = self.commands.remove(&pid) {
+            Console::info(&format!("{} exited with code {code}", command.label()));
+            return;
+        }
         if self.bds == Some(pid) {
             self.bds = None;
             self.bds_exit = Some(code);

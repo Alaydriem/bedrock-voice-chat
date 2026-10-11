@@ -10,7 +10,7 @@ use crate::commands::Cli;
 use bvc_server_lib::services::{CertificateService, PermissionService, PlayerRegistrarService};
 
 #[derive(Debug, Parser, Clone)]
-#[clap(author, version, about = "Grant the `admin` permission to a player. Runs locally against the DB; the only non-server CLI command that does.", long_about = None)]
+#[clap(author, version, about = "Grant the `admin` permission to a player. Runs locally against the DB, like `admin grant`.", long_about = None)]
 pub struct Config {
     /// Player gamertag
     #[clap(short = 'p', long)]

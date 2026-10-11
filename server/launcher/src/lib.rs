@@ -6,6 +6,7 @@ pub mod paths;
 #[cfg(target_os = "linux")]
 pub mod process;
 pub mod release;
+pub mod roster;
 pub mod setup;
 pub mod token;
 

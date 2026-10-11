@@ -190,6 +190,13 @@ describe("AddressResolver busy", () => {
 
     // No probe is spent on a value that cannot be a hostname, so a spinner there would be
     // claiming work that is never done.
+    it("starts working for an address with a port", () => {
+        const resolver = new AddressResolver();
+        resolver.input("https://alaydriem.bedrockvc.stream:28280/");
+        expect(read(resolver).busy).toBe(true);
+        resolver.destroy();
+    });
+
     it("is idle for a value no probe will be spent on", () => {
         const resolver = new AddressResolver();
         resolver.input("bvc");
@@ -278,5 +285,16 @@ describe("AddressResolver.HOSTNAME", () => {
 
     it("accepts a short top-level domain", () => {
         expect(AddressResolver.HOSTNAME.test("bvc.io")).toBe(true);
+    });
+
+    // Sign-in accepts a server on a non-standard HTTPS port, so the probe has to as well.
+    // Rejecting it left the field on an idle "Resolving" that never settled.
+    it("accepts a host with an explicit port", () => {
+        expect(AddressResolver.HOSTNAME.test("alaydriem.bedrockvc.stream:28280")).toBe(true);
+    });
+
+    it("rejects a port with nothing after the colon", () => {
+        expect(AddressResolver.HOSTNAME.test("bvc.example.com:")).toBe(false);
+        expect(AddressResolver.HOSTNAME.test("bvc.example.com:abc")).toBe(false);
     });
 });
