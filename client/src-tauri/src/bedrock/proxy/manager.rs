@@ -3,15 +3,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use bytes::BytesMut;
 use common::bedrock_protocol::{
-    AdvertisedVersion, AuthInfo, AuthManager, Bytes, DisconnectPacket, Proxy, ProxyConfig,
-    RealmConfig, Session, SpliceFailure,
+    AdvertisedVersion, AuthInfo, AuthManager, DisconnectPacket, Proxy, ProxyConfig, RealmConfig,
+    Session, SpliceFailure,
     config::FrontendProtocol,
-    protocol::batch::BatchCodec,
-    protocol::codec::PacketEncode,
     protocol::packets::generated::misc::text::TextPacket,
-    protocol::packets::{PacketHeader, ids},
     protocol::types::generated::{AuthorAndMessage, TextPacketBody, TextPacketType},
     proxy::{WarmPool, WarmTarget},
 };
@@ -784,7 +780,6 @@ impl BedrockProxyManager {
         }
 
         let writer = session.writer().clone();
-        let version = session.protocol_version();
         let player_xuid = session.player.xuid.clone();
         let chat_sender_name = session.player.name.clone();
         let player_name_owned = player_name.to_string();
@@ -809,39 +804,12 @@ impl BedrockProxyManager {
                 eject.block_pos.z.floor() as i32,
             );
 
-            let text = TextPacket {
-                localize: false,
-                body: TextPacketBody::AuthorAndMessage(AuthorAndMessage {
-                    message_type: TextPacketType::Chat,
-                    player_name: chat_sender_name,
-                    message: message.clone(),
-                }),
-                sender_s_xuid: player_xuid,
-                platform_id: String::new(),
-                filtered_message: None,
-            };
+            let text = Self::chat_packet(message.clone(), chat_sender_name, player_xuid);
 
-            let mut pkt_buf = BytesMut::new();
-            PacketHeader::write(&mut pkt_buf, ids::TEXT);
-            text.encode_for(version, &mut pkt_buf);
-
-            let batch: Bytes = match BatchCodec::encode(&[pkt_buf.freeze()], true, 1) {
-                Ok(b) => b,
-                Err(e) => {
-                    warn!(
-                        "Bedrock: failed to batch-encode chat for jukebox eject event_id={}: {:?}",
-                        event_id, e
-                    );
-                    return;
-                }
-            };
-
-            let batch_len = batch.len();
-            let batch_preview: Vec<u8> = batch.iter().take(32).copied().collect();
-            match writer.send_raw_to_server(batch) {
+            match writer.send_to_server(&text) {
                 Ok(()) => debug!(
-                    "Bedrock: injected silent chat '{}' event_id={} (stagger {}ms, batch_len={}, head={:02X?})",
-                    message, event_id, stagger_ms, batch_len, batch_preview
+                    "Bedrock: injected silent chat '{}' event_id={} (stagger {}ms)",
+                    message, event_id, stagger_ms
                 ),
                 Err(e) => warn!(
                     "Bedrock: failed to inject silent chat for jukebox eject (player {}) event_id={}: {:?}",
@@ -851,13 +819,10 @@ impl BedrockProxyManager {
         });
     }
 
-    fn build_chat_batch(
-        version: common::bedrock_protocol::ProtocolVersion,
-        message: String,
-        chat_sender_name: String,
-        player_xuid: String,
-    ) -> Result<Bytes, anyhow::Error> {
-        let text = TextPacket {
+    // The session writer batches what it is given, so it takes this typed packet;
+    // a pre-built batch would be wrapped twice and arrive undecodable.
+    fn chat_packet(message: String, chat_sender_name: String, player_xuid: String) -> TextPacket {
+        TextPacket {
             localize: false,
             body: TextPacketBody::AuthorAndMessage(AuthorAndMessage {
                 message_type: TextPacketType::Chat,
@@ -867,14 +832,7 @@ impl BedrockProxyManager {
             sender_s_xuid: player_xuid,
             platform_id: String::new(),
             filtered_message: None,
-        };
-
-        let mut pkt_buf = BytesMut::new();
-        PacketHeader::write(&mut pkt_buf, ids::TEXT);
-        text.encode_for(version, &mut pkt_buf);
-
-        BatchCodec::encode(&[pkt_buf.freeze()], true, 1)
-            .map_err(|e| anyhow::anyhow!("failed to batch-encode chat: {:?}", e))
+        }
     }
 
     // Sends an app-composed line into the realm as ordinary chat, under the
@@ -891,25 +849,13 @@ impl BedrockProxyManager {
             return;
         }
 
-        let writer = session.writer().clone();
-        let version = session.protocol_version();
-        let player_xuid = session.player.xuid.clone();
-        let chat_sender_name = session.player.name.clone();
+        let text = Self::chat_packet(
+            send.text.clone(),
+            session.player.name.clone(),
+            session.player.xuid.clone(),
+        );
 
-        let batch =
-            match Self::build_chat_batch(version, send.text.clone(), chat_sender_name, player_xuid)
-            {
-                Ok(b) => b,
-                Err(e) => {
-                    warn!(
-                        "Bedrock: failed to encode chat for {}: {:?}",
-                        player_name, e
-                    );
-                    return;
-                }
-            };
-
-        match writer.send_raw_to_server(batch) {
+        match session.writer().send_to_server(&text) {
             Ok(()) => debug!("Bedrock: injected chat for {}", player_name),
             Err(e) => warn!(
                 "Bedrock: failed to inject chat (player {}): {:?}",
@@ -930,28 +876,13 @@ impl BedrockProxyManager {
             return;
         }
 
-        let writer = session.writer().clone();
-        let version = session.protocol_version();
-        let player_xuid = session.player.xuid.clone();
-        let chat_sender_name = session.player.name.clone();
-
-        let batch = match Self::build_chat_batch(
-            version,
+        let text = Self::chat_packet(
             ride.message.clone(),
-            chat_sender_name,
-            player_xuid,
-        ) {
-            Ok(b) => b,
-            Err(e) => {
-                warn!(
-                    "Bedrock: failed to encode bvcs chat for {}: {:?}",
-                    player_name, e
-                );
-                return;
-            }
-        };
+            session.player.name.clone(),
+            session.player.xuid.clone(),
+        );
 
-        match writer.send_raw_to_server(batch) {
+        match session.writer().send_to_server(&text) {
             Ok(()) => debug!(
                 "Bedrock: injected bvcs ride for {}: {}",
                 player_name, ride.message
@@ -971,22 +902,7 @@ impl BedrockProxyManager {
             filtered_message: String::new(),
         };
 
-        let mut pkt_buf = BytesMut::new();
-        PacketHeader::write(&mut pkt_buf, ids::DISCONNECT);
-        pkt.encode(&mut pkt_buf);
-
-        let batch: Bytes = match BatchCodec::encode(&[pkt_buf.freeze()], true, u16::MAX) {
-            Ok(b) => b,
-            Err(e) => {
-                warn!(
-                    "Bedrock: failed to encode Disconnect for {}: {}",
-                    player_name, e
-                );
-                return;
-            }
-        };
-
-        if let Err(e) = session.writer().send_raw_to_client(batch) {
+        if let Err(e) = session.writer().send_to_client(&pkt) {
             warn!(
                 "Bedrock: failed to inject Disconnect for {} (client may have already left): {}",
                 player_name, e
