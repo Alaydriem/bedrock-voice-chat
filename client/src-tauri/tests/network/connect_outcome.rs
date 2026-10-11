@@ -138,3 +138,37 @@ fn a_websocket_first_choice_that_fell_to_quic_names_that_direction() {
     assert_eq!(property(&outcome, "fallback"), "websocket_failed");
     assert_eq!(property(&outcome, "transport"), "quic");
 }
+
+#[test]
+fn the_chosen_transport_is_reported_apart_from_the_carrying_transport() {
+    // The choice is what the app decided for this network; the carrier is what it got. A
+    // WebSocket choice rescued by QUIC has to keep both, or the choice is lost to the rescue.
+    let mut outcome = ConnectOutcome::new();
+    outcome.chose(TransportKind::WebSocket);
+    outcome.fell_back(FallbackReason::WebSocketFailed);
+    outcome.record(candidate(443, AddressFamily::Ipv4), AttemptResult::Connected);
+    outcome.carried(TransportKind::Quic);
+
+    assert_eq!(property(&outcome, "transport_type"), "websocket");
+    assert_eq!(property(&outcome, "transport"), "quic");
+}
+
+#[test]
+fn a_demoted_host_reports_websocket_as_the_choice() {
+    // The probe measured QUIC as reachable, and the app dialled WebSocket anyway. The choice
+    // reported is the one the app acted on, not the probe's measurement.
+    let mut outcome = ConnectOutcome::new();
+    outcome.chose(TransportKind::WebSocket);
+    outcome.fell_back(FallbackReason::Demoted);
+    outcome.carried(TransportKind::WebSocket);
+
+    assert_eq!(property(&outcome, "transport_type"), "websocket");
+    assert_eq!(property(&outcome, "fallback"), "demoted");
+}
+
+#[test]
+fn a_probe_that_chose_nothing_reports_no_transport_type() {
+    let outcome = ConnectOutcome::new();
+
+    assert_eq!(property(&outcome, "transport_type"), "none");
+}

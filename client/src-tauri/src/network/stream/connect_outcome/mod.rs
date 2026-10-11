@@ -20,6 +20,7 @@ pub use fallback_reason::FallbackReason;
 /// exists for.
 pub struct ConnectOutcome {
     attempts: Vec<(ConnectCandidate, AttemptResult)>,
+    choice: Option<TransportKind>,
     transport: Option<TransportKind>,
     fallback: FallbackReason,
 }
@@ -28,6 +29,7 @@ impl ConnectOutcome {
     pub fn new() -> Self {
         Self {
             attempts: Vec::new(),
+            choice: None,
             transport: None,
             fallback: FallbackReason::None,
         }
@@ -35,6 +37,11 @@ impl ConnectOutcome {
 
     pub fn record(&mut self, candidate: ConnectCandidate, result: AttemptResult) {
         self.attempts.push((candidate, result));
+    }
+
+    /// Names the transport the app dialled first. Unset means the probe left nothing to dial.
+    pub fn chose(&mut self, transport: TransportKind) {
+        self.choice = Some(transport);
     }
 
     /// Names the transport the session is running on. Unset means nothing carried.
@@ -59,6 +66,10 @@ impl ConnectOutcome {
             .insert(
                 "transport",
                 self.transport.map(|t| t.as_str()).unwrap_or("none"),
+            )
+            .insert(
+                "transport_type",
+                self.choice.map(|t| t.as_str()).unwrap_or("none"),
             )
             .insert("fallback", self.fallback.as_str())
             .insert("connected", self.transport.is_some())

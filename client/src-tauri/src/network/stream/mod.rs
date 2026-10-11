@@ -19,6 +19,7 @@ use common::net::ConnectCandidate;
 use common::s2n_quic::Client;
 use common::s2n_quic::Connection;
 use common::s2n_quic::client::Connect;
+use common::structs::metrics::TransportKind;
 use common::structs::reachability::VoiceChoice;
 use std::error::Error;
 use std::sync::Arc;
@@ -319,11 +320,13 @@ impl NetworkStreamManager {
                 if voice_websocket && self.transport_verdict.is_demoted(server_fqdn) =>
             {
                 log::info!("QUIC is demoted for {server_fqdn}; connecting over WebSocket");
+                outcome.chose(TransportKind::WebSocket);
                 outcome.fell_back(FallbackReason::Demoted);
                 self.connect_websocket(server_url, ca_cert, cert, key).await
             }
 
             VoiceChoice::Quic => {
+                outcome.chose(TransportKind::Quic);
                 match self
                     .connect_quic(client, plan, server_fqdn, server_url, ca_cert, outcome)
                     .await
@@ -348,6 +351,7 @@ impl NetworkStreamManager {
             }
 
             VoiceChoice::WebSocket => {
+                outcome.chose(TransportKind::WebSocket);
                 match self.connect_websocket(server_url, ca_cert, cert, key).await {
                     Ok(link) => Ok(link),
                     Err(failure) if failure.is_certificate() => Err(failure),

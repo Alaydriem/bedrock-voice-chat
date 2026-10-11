@@ -1144,8 +1144,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-client"
-version = "26.50.22"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.50.22#4858d6225b994f3c1eb29ba2d963943ff278e893"
+version = "26.50.24"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.50.24#3bc6fa696f3e1583acfb032552cf40eadc80f5b2"
 dependencies = [
  "base64 0.22.1",
  "bedrock-network",
@@ -1162,8 +1162,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-network"
-version = "26.50.22"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.50.22#4858d6225b994f3c1eb29ba2d963943ff278e893"
+version = "26.50.24"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.50.24#3bc6fa696f3e1583acfb032552cf40eadc80f5b2"
 dependencies = [
  "aes 0.9.3",
  "base64 0.23.1",
@@ -1189,8 +1189,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-protocol"
-version = "26.50.22"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.50.22#4858d6225b994f3c1eb29ba2d963943ff278e893"
+version = "26.50.24"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.50.24#3bc6fa696f3e1583acfb032552cf40eadc80f5b2"
 dependencies = [
  "aes 0.9.3",
  "aes-gcm 0.11.1",
@@ -1229,10 +1229,11 @@ dependencies = [
 
 [[package]]
 name = "bedrock-server"
-version = "26.50.22"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.50.22#4858d6225b994f3c1eb29ba2d963943ff278e893"
+version = "26.50.24"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.50.24#3bc6fa696f3e1583acfb032552cf40eadc80f5b2"
 dependencies = [
  "base64 0.22.1",
+ "bedrock-network",
  "bedrock-protocol",
  "bytes",
  "rand 0.10.2",
@@ -2812,7 +2813,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c54e03a951783e8b327515db3f2a2fd0e3bed362a96b066f341ce66ed49b4ead"
 dependencies = [
  "data-encoding",
- "syn 3.0.6",
+ "syn 1.0.109",
 ]
 
 [[package]]

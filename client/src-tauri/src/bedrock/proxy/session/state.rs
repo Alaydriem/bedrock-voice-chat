@@ -1,5 +1,6 @@
 use common::bedrock_protocol::PlayerAuthInputPacket;
 use common::bedrock_protocol::StartGamePacket;
+use common::bedrock_protocol::protocol::types::generated::PlayerAuthInputData;
 use common::bedrock_protocol::protocol::packets::generated::misc::change_dimension::ChangeDimensionPacket;
 use common::game_data::Dimension;
 use common::players::PlayerEnum;
@@ -27,10 +28,6 @@ pub struct BedrockSessionState {
 }
 
 impl BedrockSessionState {
-    const SNEAKING_BIT: u128 = 1u128 << 8;
-    const START_CRAWLING_BIT: u128 = 1u128 << 40;
-    const STOP_CRAWLING_BIT: u128 = 1u128 << 41;
-
     pub fn new(name: String, player_uuid: Option<String>) -> Self {
         Self {
             name,
@@ -66,13 +63,15 @@ impl BedrockSessionState {
             y: p.position.y,
             z: p.position.z,
         };
+        // Vec2 carries pitch in `x` and yaw in `z`.
         self.orientation = Orientation {
-            x: p.pitch,
-            y: p.yaw,
+            x: p.player_rotation.x,
+            y: p.player_rotation.z,
         };
-        let flags = p.input_data.0;
-        let crawl_start = flags & Self::START_CRAWLING_BIT != 0;
-        let crawl_stop = flags & Self::STOP_CRAWLING_BIT != 0;
+        let flags = &p.input_data;
+        let crawl_start = flags.contains(&PlayerAuthInputData::StartCrawling);
+        let crawl_stop = flags.contains(&PlayerAuthInputData::StopCrawling);
+        let sneak_flag = flags.contains(&PlayerAuthInputData::Sneaking);
         if crawl_start {
             self.crawling = true;
         }
@@ -80,16 +79,11 @@ impl BedrockSessionState {
             self.crawling = false;
         }
         let prev = self.sneaking;
-        self.sneaking = self.crawling || flags & Self::SNEAKING_BIT != 0;
+        self.sneaking = self.crawling || sneak_flag;
         if crawl_start || crawl_stop || prev != self.sneaking {
             debug!(
-                "Bedrock state: sneak/crawl input_data=0x{:x} start_crawl={} stop_crawl={} sneak_bit={} crawling={} sneaking={}",
-                flags,
-                crawl_start,
-                crawl_stop,
-                flags & Self::SNEAKING_BIT != 0,
-                self.crawling,
-                self.sneaking,
+                "Bedrock state: sneak/crawl input_data={:?} start_crawl={} stop_crawl={} sneak_flag={} crawling={} sneaking={}",
+                flags, crawl_start, crawl_stop, sneak_flag, self.crawling, self.sneaking,
             );
         }
     }
