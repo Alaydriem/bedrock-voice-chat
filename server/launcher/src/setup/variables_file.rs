@@ -30,6 +30,14 @@ impl VariablesFile {
         }
     }
 
+    /// The value when it is a non-blank string.
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.values
+            .get(key)?
+            .as_str()
+            .filter(|value| !value.trim().is_empty())
+    }
+
     pub fn set(&mut self, key: &str, value: &str) {
         self.values
             .insert(key.to_string(), Value::String(value.to_string()));

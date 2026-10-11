@@ -1,6 +1,11 @@
+mod admin_cli;
+mod admin_command;
+mod admin_verb;
 mod bds_input;
 mod child_lock;
+mod console_line;
 mod idle_outcome;
+mod line_splitter;
 mod parent_death_signal;
 mod reaper;
 mod signal_listener;
@@ -8,9 +13,14 @@ mod stdin_forwarder;
 mod supervisor;
 mod supervisor_event;
 
+pub use admin_cli::AdminCli;
+pub use admin_command::AdminCommand;
+pub use admin_verb::AdminVerb;
 pub use bds_input::BdsInput;
 pub use child_lock::ChildLock;
+pub use console_line::ConsoleLine;
 pub use idle_outcome::IdleOutcome;
+pub use line_splitter::LineSplitter;
 pub use parent_death_signal::ParentDeathSignal;
 pub use reaper::Reaper;
 pub use signal_listener::SignalListener;

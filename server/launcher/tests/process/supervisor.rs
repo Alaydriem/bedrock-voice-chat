@@ -6,13 +6,21 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use bvc_launcher::process::{
-    BdsInput, ChildLock, IdleOutcome, Reaper, Supervisor, SupervisorEvent,
+    AdminCli, AdminCommand, AdminVerb, BdsInput, ChildLock, IdleOutcome, Reaper, Supervisor,
+    SupervisorEvent,
 };
 
 struct Harness;
 
 impl Harness {
     const BVC_BODY: &'static str = "trap 'exit 0' TERM\nwhile true; do sleep 0.1; done";
+    // Records the arguments of each console command it is run for.
+    const FAKE_CLI: &'static str = r#"echo "$@" >> "$(dirname "$0")/cli.log""#;
+
+    fn admin_cli(dir: &Path) -> AdminCli {
+        let binary = Self::script(dir, "bvc-server", Self::FAKE_CLI);
+        AdminCli::new(binary, dir.to_path_buf(), dir.join("bvc.hcl"))
+    }
 
     fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
         let path = dir.join(name);
@@ -27,8 +35,15 @@ impl Harness {
         let (events, receiver) = mpsc::channel();
         let child_lock = ChildLock::new();
         let input = BdsInput::new();
-        let mut supervisor = Supervisor::new(receiver, input.clone(), child_lock.clone());
-        supervisor.spawn_bvc(&bvc, dir).unwrap();
+        let mut supervisor = Supervisor::new(
+            receiver,
+            input.clone(),
+            child_lock.clone(),
+            Self::admin_cli(dir),
+        );
+        supervisor
+            .spawn_bvc(&bvc, dir, &dir.join("bvc.hcl"))
+            .unwrap();
         Reaper::spawn(events.clone(), child_lock);
         (supervisor, events, input)
     }
@@ -185,4 +200,54 @@ fn a_restart_stop_leaves_bvc_running_and_bds_can_start_again() {
     events.send(SupervisorEvent::Signal(libc::SIGTERM)).unwrap();
     assert_eq!(supervisor.run(), 0);
     assert!(!supervisor.has_children());
+}
+
+fn grant(player: &str) -> SupervisorEvent {
+    SupervisorEvent::Command(AdminCommand {
+        verb: AdminVerb::Grant,
+        player: player.to_string(),
+    })
+}
+
+fn cli_log(dir: &Path) -> String {
+    fs::read_to_string(dir.join("cli.log")).unwrap_or_default()
+}
+
+#[test]
+fn a_console_command_runs_the_cli_and_its_exit_is_not_a_bds_exit() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut supervisor, events) = Harness::start(dir.path(), STOPS_ON_STOP);
+
+    events.send(grant("Some Player")).unwrap();
+    assert_eq!(
+        supervisor.idle(Duration::from_millis(500)),
+        IdleOutcome::Elapsed
+    );
+
+    assert_eq!(
+        cli_log(dir.path()).trim(),
+        format!(
+            "-c {} admin grant -p Some Player",
+            dir.path().join("bvc.hcl").display()
+        )
+    );
+    assert!(!supervisor.bvc_failed());
+
+    events.send(SupervisorEvent::Signal(libc::SIGTERM)).unwrap();
+    assert_eq!(supervisor.run(), 0);
+}
+
+#[test]
+fn a_console_command_during_shutdown_is_not_run() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut supervisor, events) = Harness::start(
+        dir.path(),
+        "trap '' TERM\nwhile read line; do [ \"$line\" = \"stop\" ] && sleep 0.3 && exit 0; done",
+    );
+
+    events.send(SupervisorEvent::Signal(libc::SIGTERM)).unwrap();
+    events.send(grant("Late")).unwrap();
+
+    assert_eq!(supervisor.run(), 0);
+    assert_eq!(cli_log(dir.path()), "");
 }

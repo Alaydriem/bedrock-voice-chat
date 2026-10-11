@@ -141,7 +141,7 @@ impl Launcher {
                     changed = true;
                 }
                 Ok(None) => Console::warn(
-                    "config.hcl names no server.tls.acme.domains or server.tls.names; bvc_server not set",
+                    "config/bvc.hcl names no server.tls.acme.domains or server.tls.names; bvc_server not set",
                 ),
                 Err(e) => Console::warn(&format!("bvc_server not set: {e:#}")),
             }
@@ -151,6 +151,7 @@ impl Launcher {
             let minter = TokenMinter::new(
                 self.paths.bvc_binary(),
                 self.paths.bvc_dir(),
+                self.paths.config_file(),
                 Self::MINT_ATTEMPTS,
                 Self::MINT_DELAY,
             );
@@ -173,8 +174,10 @@ impl Launcher {
         use std::sync::mpsc;
 
         use crate::process::{
-            BdsInput, ChildLock, IdleOutcome, Reaper, SignalListener, StdinForwarder, Supervisor,
+            AdminCli, BdsInput, ChildLock, IdleOutcome, Reaper, SignalListener, StdinForwarder,
+            Supervisor,
         };
+        use crate::roster::RosterSync;
 
         let (events, receiver) = mpsc::channel();
         if let Err(e) = SignalListener::spawn(events.clone()) {
@@ -182,14 +185,22 @@ impl Launcher {
         }
         let bds_input = BdsInput::new();
         let child_lock = ChildLock::new();
-        let mut supervisor = Supervisor::new(receiver, bds_input.clone(), child_lock.clone());
+        let admin = AdminCli::new(
+            self.paths.bvc_binary(),
+            self.paths.bvc_dir(),
+            self.paths.config_file(),
+        );
+        let mut supervisor =
+            Supervisor::new(receiver, bds_input.clone(), child_lock.clone(), admin);
 
         let bvc_running = if !self.paths.bvc_binary().exists() {
             Console::warn("No BVC server on disk; starting BDS without voice");
             false
-        } else if let Err(e) =
-            supervisor.spawn_bvc(&self.paths.bvc_binary(), &self.paths.bvc_dir())
-        {
+        } else if let Err(e) = supervisor.spawn_bvc(
+            &self.paths.bvc_binary(),
+            &self.paths.bvc_dir(),
+            &self.paths.config_file(),
+        ) {
             Console::warn(&format!("BVC not started: {e:#}"));
             false
         } else {
@@ -199,8 +210,16 @@ impl Launcher {
         // The minter waits on its own child, so it must finish before the Reaper's waitpid(-1)
         // starts collecting every child.
         self.write_variables(bvc_running);
-        Reaper::spawn(events, child_lock);
-        StdinForwarder::spawn(bds_input);
+        Reaper::spawn(events.clone(), child_lock);
+        StdinForwarder::spawn(bds_input, events);
+        if bvc_running {
+            RosterSync::new(
+                self.paths.variables_file(),
+                self.paths.allowlist_file(),
+                RosterSync::INTERVAL,
+            )
+            .spawn();
+        }
 
         if let Some(code) = self.start_bds(&mut supervisor) {
             return code;

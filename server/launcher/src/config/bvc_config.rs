@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use super::ServerSection;
 
-/// The values of BVC's config.hcl that the launcher needs. Every other key is ignored.
+/// The values of BVC's config (`config/bvc.hcl`) that the launcher needs. Every other key is ignored.
 #[derive(Debug, Default, Deserialize)]
 pub struct BvcConfig {
     #[serde(default)]
@@ -27,7 +27,7 @@ impl BvcConfig {
             .map(|(key, value)| (key, hcl::Value::String(value)))
             .collect();
         context.declare_var("env", hcl::Value::Object(env));
-        hcl::eval::from_str(content, &context).map_err(|e| anyhow!("parsing config.hcl: {e}"))
+        hcl::eval::from_str(content, &context).map_err(|e| anyhow!("parsing bvc.hcl: {e}"))
     }
 
     /// The HTTPS address the BDS add-on posts to.

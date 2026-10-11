@@ -9,17 +9,25 @@ use anyhow::bail;
 pub struct TokenMinter {
     binary: PathBuf,
     workdir: PathBuf,
+    config: PathBuf,
     attempts: u32,
     delay: Duration,
 }
 
 impl TokenMinter {
-    const ARGS: [&'static str; 6] = ["-c", "config.hcl", "admin", "token", "mint", "--local"];
+    const ARGS: [&'static str; 4] = ["admin", "token", "mint", "--local"];
 
-    pub fn new(binary: PathBuf, workdir: PathBuf, attempts: u32, delay: Duration) -> Self {
+    pub fn new(
+        binary: PathBuf,
+        workdir: PathBuf,
+        config: PathBuf,
+        attempts: u32,
+        delay: Duration,
+    ) -> Self {
         Self {
             binary,
             workdir,
+            config,
             attempts,
             delay,
         }
@@ -45,6 +53,8 @@ impl TokenMinter {
 
     fn attempt(&self) -> Result<String, String> {
         let output = Command::new(&self.binary)
+            .arg("-c")
+            .arg(&self.config)
             .args(Self::ARGS)
             .current_dir(&self.workdir)
             .output()

@@ -72,3 +72,17 @@ fn invalid_json_is_an_error() {
 
     assert!(VariablesFile::load(&path).is_err());
 }
+
+#[test]
+fn get_returns_set_strings_and_nothing_for_missing_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("variables.json");
+    fs::write(&path, r#"{"bvc_server":"https://a:1","blank":" ","number":3}"#).unwrap();
+
+    let variables = VariablesFile::load(&path).unwrap();
+
+    assert_eq!(variables.get("bvc_server"), Some("https://a:1"));
+    assert_eq!(variables.get("blank"), None);
+    assert_eq!(variables.get("number"), None);
+    assert_eq!(variables.get("absent"), None);
+}

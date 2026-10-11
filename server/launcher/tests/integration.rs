@@ -3,6 +3,7 @@ mod launcher;
 #[cfg(target_os = "linux")]
 mod process;
 mod release;
+mod roster;
 mod setup;
 mod support;
 #[cfg(unix)]

@@ -201,30 +201,47 @@ impl AcmeStorage {
         Ok(())
     }
 
+    /// Rocket reads these files at launch while the renewal loop may be reloading them, and it
+    /// serves an empty chain from an empty file without complaint. Each file is therefore
+    /// replaced whole by a rename, and left alone when it already holds the content.
     fn materialise(&self, cert_pem: &str, key_pem: &str) -> Result<()> {
         fs::create_dir_all(&self.dir)
             .with_context(|| format!("creating {}", self.dir.display()))?;
-        fs::write(self.certificate_path(), cert_pem)
-            .with_context(|| format!("writing {}", self.certificate_path().display()))?;
-        Self::write_restricted(&self.key_path(), key_pem)
+        Self::replace(&self.certificate_path(), cert_pem, false)?;
+        Self::replace(&self.key_path(), key_pem, true)
     }
 
     fn now() -> i64 {
         common::ncryptflib::rocket::Utc::now().timestamp()
     }
 
-    /// Owner-only permissions on Unix; Windows ACLs inherit from the certs directory, the
-    /// same contract as ca.key. Renewal overwrites in place.
-    fn write_restricted(path: &Path, content: &str) -> Result<()> {
+    fn replace(path: &Path, content: &str, restricted: bool) -> Result<()> {
+        if fs::read_to_string(path).is_ok_and(|current| current == content) {
+            return Ok(());
+        }
+        let staged = {
+            let mut name = path.as_os_str().to_owned();
+            name.push(".tmp");
+            PathBuf::from(name)
+        };
+        Self::write_new(&staged, content, restricted)?;
+        fs::rename(&staged, path)
+            .with_context(|| format!("renaming {} -> {}", staged.display(), path.display()))
+    }
+
+    /// Owner-only permissions on Unix when `restricted`; Windows ACLs inherit from the certs
+    /// directory, the same contract as ca.key.
+    fn write_new(path: &Path, content: &str, restricted: bool) -> Result<()> {
         #[cfg(unix)]
         {
             use std::io::Write;
             use std::os::unix::fs::OpenOptionsExt;
-            let mut file = fs::OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .mode(0o600)
+            let mut options = fs::OpenOptions::new();
+            options.write(true).create(true).truncate(true);
+            if restricted {
+                options.mode(0o600);
+            }
+            let mut file = options
                 .open(path)
                 .with_context(|| format!("creating {}", path.display()))?;
             file.write_all(content.as_bytes())
@@ -232,6 +249,7 @@ impl AcmeStorage {
         }
         #[cfg(not(unix))]
         {
+            let _ = restricted;
             fs::write(path, content).with_context(|| format!("writing {}", path.display()))?;
         }
         Ok(())
