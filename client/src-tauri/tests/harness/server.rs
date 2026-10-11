@@ -356,6 +356,14 @@ impl EmbeddedServer {
         code
     }
 
+    /// Returns the `bvc_admin` code, with the library's last error when the code is -1.
+    pub fn admin(&self, request_json: &str) -> (i32, Option<String>) {
+        let c_request = CString::new(request_json).expect("request contains no nul byte");
+        let code = unsafe { (self.lib.admin)(self.handle.0, c_request.as_ptr()) };
+        let error = (code == -1).then(|| Self::last_error(&self.lib));
+        (code, error)
+    }
+
     /// Mint a single-use WebSocket ticket for a gamertag.
     ///
     /// Provisioned rather than fetched: the HTTP route trades an mTLS identity for a ticket

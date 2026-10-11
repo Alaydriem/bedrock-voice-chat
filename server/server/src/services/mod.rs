@@ -2,6 +2,7 @@
 
 pub mod access_token_service;
 pub mod acme;
+pub mod admin_permission_service;
 pub mod admin_user_service;
 pub mod audio_file_service;
 pub mod audio_playback_service;
@@ -29,6 +30,7 @@ pub mod position_feed;
 pub mod position_service;
 
 pub use access_token_service::{AccessTokenError, AccessTokenService, CachedToken, TokenFormat};
+pub use admin_permission_service::{AdminPermissionOutcome, AdminPermissionService};
 pub use admin_user_service::AdminUserService;
 pub use audio_file_service::{AudioFileError, AudioFileService};
 pub use audio_playback_service::{AudioPlaybackService, EjectScheduler};

@@ -24,11 +24,13 @@ use error::FfiError;
 use crate::config::ApplicationConfig;
 use crate::runtime::{ServerRuntime, position_updater};
 use crate::services::{
-    AudioPlaybackService, AuthCodeService, PlayerIdentityService, PlayerRegistrarService,
+    AdminPermissionService, AudioPlaybackService, AuthCodeService, PlayerIdentityService,
+    PlayerRegistrarService,
 };
 use crate::stream::quic::WebhookReceiver;
 
 use common::Game;
+use common::request::admin::AdminPermissionRequest;
 use common::traits::player_data::PlayerData;
 use sea_orm::DatabaseConnection;
 use std::ffi::{CStr, CString, c_char, c_int};
@@ -49,6 +51,7 @@ pub struct RuntimeHandle {
     cache_manager: Arc<RwLock<Option<crate::stream::quic::CacheManager>>>,
     /// Player registrar for player registration - accessible without locking runtime mutex
     player_registrar: Arc<RwLock<Option<PlayerRegistrarService>>>,
+    admin_permission_service: Arc<RwLock<Option<AdminPermissionService>>>,
     /// Player identity service for cross-platform name resolution - accessible without locking runtime mutex
     identity_service: Arc<RwLock<Option<PlayerIdentityService>>>,
     /// Audio playback service - accessible without locking runtime mutex
@@ -166,6 +169,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
     let webhook_receiver = runtime.get_webhook_receiver();
     let cache_manager = runtime.get_cache_manager();
     let player_registrar = runtime.get_player_registrar();
+    let admin_permission_service = runtime.get_admin_permission_service();
     let identity_service = runtime.get_identity_service();
     let audio_playback_service = runtime.get_audio_playback_service();
     let db_conn = runtime.get_db_conn();
@@ -206,6 +210,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         webhook_receiver,
         cache_manager,
         player_registrar,
+        admin_permission_service,
         identity_service,
         audio_playback_service,
         db_conn,
@@ -1021,7 +1026,7 @@ pub unsafe extern "C" fn bvc_provision_login_code(
 
     let result = tokio_rt.block_on(async {
         let player = registrar
-            .create_player(gamertag_str, &game_type, None)
+            .create(gamertag_str, &game_type, None)
             .await?;
         // FFI-minted codes are single-use (ephemeral), matching prior behavior.
         AuthCodeService::generate_code(db_conn.as_ref(), player.id, ttl_secs as u64, true).await
@@ -1038,6 +1043,91 @@ pub unsafe extern "C" fn bvc_provision_login_code(
         Err(e) => {
             FfiError::set_last_error(&format!("Provision login code failed: {}", e));
             ptr::null_mut()
+        }
+    }
+    })
+}
+
+/// Grant, revoke or deny a player's `admin` permission.
+///
+/// # Arguments
+/// * `handle` - Handle from `bvc_server_create()`
+/// * `request_json` - An `AdminPermissionRequest`:
+///   `{"gamertag": "Alice", "game": "minecraft", "action": "grant" | "revoke" | "deny"}`
+///
+/// # Returns
+/// * `0` - applied
+/// * `1` - revoke found no override to remove
+/// * `2` - deny or revoke named a gamertag that is not a player; nothing was created
+/// * `-1` - error (call `bvc_get_last_error()` for details)
+///
+/// # Safety
+/// * `handle` must be a valid pointer from `bvc_server_create()`
+/// * `request_json` must be a valid null-terminated UTF-8 string
+/// * Server must be running (after `bvc_server_start()` has been called)
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_admin(
+    handle: *mut RuntimeHandle,
+    request_json: *const c_char,
+) -> c_int {
+    ffi_guard!("bvc_admin", -1, {
+    if handle.is_null() {
+        FfiError::set_last_error("handle is null");
+        return -1;
+    }
+    if request_json.is_null() {
+        FfiError::set_last_error("request_json is null");
+        return -1;
+    }
+
+    let json = match unsafe { CStr::from_ptr(request_json) }.to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            FfiError::set_last_error(&format!("Invalid UTF-8 in request_json: {}", e));
+            return -1;
+        }
+    };
+
+    let request: AdminPermissionRequest = match serde_json::from_str(json) {
+        Ok(r) => r,
+        Err(e) => {
+            FfiError::set_last_error(&format!("Invalid AdminPermissionRequest JSON: {}", e));
+            return -1;
+        }
+    };
+
+    let handle_ref = unsafe { &*handle };
+
+    let tokio_rt = match &handle_ref.tokio_runtime {
+        Some(rt) => rt,
+        None => {
+            FfiError::set_last_error("Tokio runtime not available");
+            return -1;
+        }
+    };
+
+    let service = match handle_ref.admin_permission_service.read() {
+        Ok(guard) => match guard.as_ref() {
+            Some(s) => s.clone(),
+            None => {
+                FfiError::set_last_error(
+                    "Server not started - admin_permission_service not available",
+                );
+                return -1;
+            }
+        },
+        Err(e) => {
+            FfiError::set_last_error(&format!("Failed to read admin_permission_service: {}", e));
+            return -1;
+        }
+    };
+
+    match tokio_rt.block_on(service.apply(&request)) {
+        Ok(outcome) => outcome as c_int,
+        Err(e) => {
+            curia::error!("bvc_admin: {:?} for {} failed: {}", request.action, request.gamertag, e);
+            FfiError::set_last_error(&format!("Admin change failed: {}", e));
+            -1
         }
     }
     })

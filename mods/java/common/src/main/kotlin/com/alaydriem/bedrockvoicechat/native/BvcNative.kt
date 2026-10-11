@@ -27,6 +27,7 @@ object BvcNative {
         fun bvc_audio_play(handle: Pointer, playJson: String): Pointer?
         fun bvc_audio_stop(handle: Pointer, eventId: String): Int
         fun bvc_client_action(handle: Pointer, actionJson: String, groupCodeOut: PointerByReference?): Int
+        fun bvc_admin(handle: Pointer, requestJson: String): Int
         fun bvc_chat_register(handle: Pointer, helloJson: String): Int
         fun bvc_chat_report(handle: Pointer, chatJson: String): Int
         fun bvc_host_capability(handle: Pointer, reportJson: String): Int
@@ -200,6 +201,9 @@ object BvcNative {
             getLib().bvc_free_string(ptr)
         }
     }
+
+    /** @param requestJson an [com.alaydriem.bedrockvoicechat.admin.AdminRequest] */
+    fun admin(handle: Pointer, requestJson: String): Int = getLib().bvc_admin(handle, requestJson)
 
     /**
      * Get the last error message from the native library.

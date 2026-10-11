@@ -1,0 +1,123 @@
+name: Build Launcher
+
+# The BDS launcher: a static musl binary that replaces `bedrock_server` on hosts that run
+# BDS by that name. It shares the server workspace (and its Cargo.lock) but not its build:
+# the server does not depend on it, so neither workflow waits on or fails with the other.
+# Its tests run in tests.yml ("Launcher tests (Linux)").
+
+on:
+  workflow_call:
+    inputs:
+      build_mode:
+        description: 'Build mode (debug or release)'
+        required: false
+        default: 'debug'
+        type: string
+      ref:
+        description: 'Git ref to checkout (tag, branch, or SHA)'
+        required: false
+        type: string
+      version:
+        description: 'Release version; one that contains - builds a beta-channel launcher'
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+      version:
+        description: 'Release version; one that contains - builds a beta-channel launcher'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-launcher:
+    name: Build Launcher (${{ matrix.target }} - ${{ inputs.build_mode || 'debug' }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: ${{ matrix.target }}
+
+      # The launcher compiles no private crate, but cargo resolves the whole workspace,
+      # and the server's private git dependencies are part of it.
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./server"
+          shared-key: launcher-${{ matrix.target }}
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools musl-dev
+
+      - name: Build launcher
+        working-directory: ./server
+        shell: bash
+        run: |
+          BUILD_MODE="${{ inputs.build_mode || 'debug' }}"
+          # Same rule as release.yml: a version with - is published to beta.json.
+          VERSION="${{ inputs.version }}"
+          if [[ "$VERSION" == *-* ]]; then
+            export BVC_CHANNEL=beta
+          else
+            export BVC_CHANNEL=stable
+          fi
+          echo "Launcher channel: ${BVC_CHANNEL}"
+          if [ "$BUILD_MODE" = "release" ]; then
+            cargo build --release -p bvc-launcher --target ${{ matrix.target }}
+            BUILD_DIR="target/${{ matrix.target }}/release"
+          else
+            cargo build -p bvc-launcher --target ${{ matrix.target }}
+            BUILD_DIR="target/${{ matrix.target }}/debug"
+          fi
+          cp "${BUILD_DIR}/bvc-launcher" "../bvc-launcher-${{ matrix.target }}-${BUILD_MODE}"
+          ls -la "../bvc-launcher-${{ matrix.target }}-${BUILD_MODE}"
+          {
+            echo "## Launcher Build Complete"
+            echo ""
+            echo "| Name | Value |"
+            echo "| ---- | ----- |"
+            echo "| Target | ${{ matrix.target }} |"
+            echo "| Build Mode | ${BUILD_MODE} |"
+            echo "| Channel | ${BVC_CHANNEL} |"
+            echo "| Artifact | bvc-launcher-${{ matrix.target }}-${BUILD_MODE} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload launcher
+        uses: actions/upload-artifact@v5
+        with:
+          name: bvc-launcher-${{ matrix.target }}-${{ inputs.build_mode || 'debug' }}
+          path: bvc-launcher-${{ matrix.target }}-${{ inputs.build_mode || 'debug' }}
+          retention-days: 30

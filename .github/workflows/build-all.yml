@@ -36,6 +36,7 @@ jobs:
       fabric-mod: ${{ steps.changes.outputs.fabric-mod }}
       paper-mod: ${{ steps.changes.outputs.paper-mod }}
       bds-pack: ${{ steps.changes.outputs.bds-pack }}
+      launcher: ${{ steps.changes.outputs.launcher }}
       build_mode: ${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
       is_release_branch: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta') }}
       build_number: ${{ steps.build-number.outputs.build_number }}
@@ -114,6 +115,15 @@ jobs:
               - 'mods/bds/**'
               - '.github/workflows/build-mod-bds.yml'
               - '.github/workflows/build-all.yml'
+            # Cargo.toml and Cargo.lock are the workspace the launcher shares with the
+            # server: a dependency bump there can change what the launcher compiles.
+            launcher:
+              - 'server/launcher/**'
+              - 'server/Cargo.toml'
+              - 'server/Cargo.lock'
+              - 'rust-toolchain.toml'
+              - '.github/workflows/build-launcher.yml'
+              - '.github/workflows/build-all.yml'
             common:
               - 'common/**'
 
@@ -129,6 +139,7 @@ jobs:
           echo "Fabric Mod: ${{ steps.changes.outputs.fabric-mod }}"
           echo "Paper Mod: ${{ steps.changes.outputs.paper-mod }}"
           echo "BDS Pack: ${{ steps.changes.outputs.bds-pack }}"
+          echo "Launcher: ${{ steps.changes.outputs.launcher }}"
           echo "Common: ${{ steps.changes.outputs.common }}"
 
           # Determine build mode
@@ -156,6 +167,17 @@ jobs:
     name: Build Server (${{ needs.changes.outputs.build_mode }})
     needs: changes
     uses: ./.github/workflows/build-server.yml
+    with:
+      build_mode: ${{ needs.changes.outputs.build_mode }}
+    secrets: inherit
+
+  # The BDS launcher, with its own tests. The server does not depend on it, so it does
+  # not wait on build-server and a failure here does not fail the server.
+  build-launcher:
+    name: Build Launcher (${{ needs.changes.outputs.build_mode }})
+    needs: changes
+    if: needs.changes.outputs.launcher == 'true' || needs.changes.outputs.is_release_branch == 'true'
+    uses: ./.github/workflows/build-launcher.yml
     with:
       build_mode: ${{ needs.changes.outputs.build_mode }}
     secrets: inherit

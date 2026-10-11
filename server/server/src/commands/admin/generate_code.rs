@@ -66,7 +66,7 @@ impl Config {
 
                 let registrar = PlayerRegistrarService::new(Arc::new(db.clone()), cert_service);
                 match registrar
-                    .create_player(&self.player, &self.game, None)
+                    .create(&self.player, &self.game, None)
                     .await
                 {
                     Ok(p) => {

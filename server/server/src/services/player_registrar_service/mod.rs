@@ -11,7 +11,8 @@ use common::traits::player_data::PlayerData;
 use entity::{player, player_identity};
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
+    QueryFilter,
 };
 
 use crate::services::CertificateService;
@@ -116,7 +117,7 @@ impl PlayerRegistrarService {
                 // Create new player records
                 for player_name in new_players {
                     let uuid = uuid_map.get(&player_name).map(|s| s.as_str());
-                    let _ = self.create_player(&player_name, &game_type, uuid).await;
+                    let _ = self.create(&player_name, &game_type, uuid).await;
                 }
             }
             Err(e) => {
@@ -125,13 +126,39 @@ impl PlayerRegistrarService {
         }
     }
 
-    /// Create a new player record in the database.
-    pub async fn create_player(
+    /// The player registered under this exact gamertag for `game`.
+    pub async fn find(&self, gamertag: &str, game: &Game) -> Result<Option<player::Model>, DbErr> {
+        player::Entity::find()
+            .filter(player::Column::Gamertag.eq(gamertag))
+            .filter(player::Column::Game.eq(game.clone()))
+            .one(self.db.as_ref())
+            .await
+    }
+
+    /// Returns the existing player for (gamertag, game), or mints its certificate and
+    /// keypairs and inserts it. A `player_uuid` is recorded either way.
+    ///
+    /// `idx_player_gamertag_game` is not unique, so two concurrent calls for the same new
+    /// gamertag can both insert.
+    pub async fn create(
         &self,
         player_name: &str,
         game_type: &Game,
         player_uuid: Option<&str>,
     ) -> Result<player::Model, anyhow::Error> {
+        let existing = self
+            .find(player_name, game_type)
+            .await
+            .map_err(|e| anyhow::anyhow!("failed to look up player: {}", e))?;
+
+        if let Some(existing) = existing {
+            self.cache.insert(player_name.to_string());
+            if let Some(uuid) = player_uuid {
+                self.store_platform_uuid(existing.id, uuid, game_type).await;
+            }
+            return Ok(existing);
+        }
+
         let kp = ncryptf::Keypair::new();
         let signature = ncryptf::Signature::new();
 

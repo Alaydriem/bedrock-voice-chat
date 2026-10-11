@@ -31,6 +31,7 @@ pub struct ServerLibrary {
         unsafe extern "C" fn(RuntimeHandlePtr, *const c_char, *const c_char, u32) -> *mut c_char,
     pub provision_websocket_ticket:
         unsafe extern "C" fn(RuntimeHandlePtr, *const c_char, *const c_char) -> *mut c_char,
+    pub admin: unsafe extern "C" fn(RuntimeHandlePtr, *const c_char) -> c_int,
     pub free_string: unsafe extern "C" fn(*mut c_char),
 }
 
@@ -121,6 +122,10 @@ impl ServerLibrary {
             let provision_websocket_ticket = Self::sym::<
                 unsafe extern "C" fn(RuntimeHandlePtr, *const c_char, *const c_char) -> *mut c_char,
             >(&lib, b"bvc_provision_websocket_ticket")?;
+            let admin = Self::sym::<unsafe extern "C" fn(RuntimeHandlePtr, *const c_char) -> c_int>(
+                &lib,
+                b"bvc_admin",
+            )?;
             let free_string =
                 Self::sym::<unsafe extern "C" fn(*mut c_char)>(&lib, b"bvc_free_string")?;
 
@@ -137,6 +142,7 @@ impl ServerLibrary {
                 audio_stop,
                 provision_login_code,
                 provision_websocket_ticket,
+                admin,
                 free_string,
             }))
         }
