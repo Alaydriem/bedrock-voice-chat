@@ -6,7 +6,7 @@ sidebar:
   order: 2
 ---
 
-This guide installs the Bedrock Voice Chat Fabric mod on a Nodecraft server, in embedded mode. The BVC server runs inside the Minecraft server. For the full list of mod settings, see [Fabric](/wiki/server/java-mod/fabric/).
+This guide details how to install Bedrock Voice Chat on Fabric on a Nodecraft Pro server. The BVC server runs inside the Minecraft server, in embedded mode. For the full list of mod settings, see [Fabric](/wiki/server/java-mod/fabric/).
 
 ## Before you start
 

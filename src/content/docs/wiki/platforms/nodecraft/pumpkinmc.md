@@ -10,7 +10,7 @@ sidebar:
   order: 4
 ---
 
-This guide installs Bedrock Voice Chat on a Nodecraft [PumpkinMC](https://pumpkinmc.org/) server.
+This guide details how to install Bedrock Voice Chat on [PumpkinMC](https://pumpkinmc.org/) on a Nodecraft Pro server.
 
 ## Before you start
 

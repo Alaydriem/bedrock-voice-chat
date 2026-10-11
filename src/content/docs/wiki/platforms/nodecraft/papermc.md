@@ -6,7 +6,7 @@ sidebar:
   order: 3
 ---
 
-This guide installs the Bedrock Voice Chat PaperMC plugin on a Nodecraft server, in embedded mode. The BVC server runs inside the Minecraft server. For the full list of plugin settings, see [PaperMC](/wiki/server/java-mod/papermc/).
+This guide details how to install Bedrock Voice Chat on PaperMC on a Nodecraft Pro server. The BVC server runs inside the Minecraft server, in embedded mode. For the full list of plugin settings, see [PaperMC](/wiki/server/java-mod/papermc/).
 
 ## Before you start
 
