@@ -1,3 +1,19 @@
+# [1.0.0-beta.22](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.21...v1.0.0-beta.22) (2026-10-12)
+
+
+### Bug Fixes
+
+* analytics improvements + proxy updates ([#268](https://github.com/Alaydriem/bedrock-voice-chat/issues/268)) ([37e1b00](https://github.com/Alaydriem/bedrock-voice-chat/commit/37e1b001055219fd79acb187205f138dadfb03d2))
+* login error page offers no way to logout during a connection error ([#260](https://github.com/Alaydriem/bedrock-voice-chat/issues/260)) ([7029a36](https://github.com/Alaydriem/bedrock-voice-chat/commit/7029a36b269e4cfdeddac4aa0dddbb3081a20b35))
+* relay build packaging and pipelines ([#259](https://github.com/Alaydriem/bedrock-voice-chat/issues/259)) ([eb5d4c6](https://github.com/Alaydriem/bedrock-voice-chat/commit/eb5d4c60c5270a4810ae70a239c6e9fb40a44c96))
+
+
+### Features
+
+* bvc admin grant command for java ([#266](https://github.com/Alaydriem/bedrock-voice-chat/issues/266)) ([38afdab](https://github.com/Alaydriem/bedrock-voice-chat/commit/38afdabdd42c0740950ef0cbb12464762473b6db))
+* launcher improvements ([#269](https://github.com/Alaydriem/bedrock-voice-chat/issues/269)) ([5d70b77](https://github.com/Alaydriem/bedrock-voice-chat/commit/5d70b77b824b211e0ea271655d3c7ac929d9f468))
+* radar feature flag, server WebSocket reference, voice path latency ([#265](https://github.com/Alaydriem/bedrock-voice-chat/issues/265)) ([dce93ea](https://github.com/Alaydriem/bedrock-voice-chat/commit/dce93ea2040ba1905e35ed91f70e96c4ebcfb252))
+
 # [1.0.0-beta.21](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.20...v1.0.0-beta.21) (2026-09-16)
 
 
