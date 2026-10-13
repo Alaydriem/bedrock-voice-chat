@@ -1,3 +1,10 @@
+# [1.0.0-beta.23](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.22...v1.0.0-beta.23) (2026-10-13)
+
+
+### Bug Fixes
+
+* curia performance degredation ([4f3cf1f](https://github.com/Alaydriem/bedrock-voice-chat/commit/4f3cf1f51027f265de2eee509b38af7e543a2b5e))
+
 # [1.0.0-beta.22](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.21...v1.0.0-beta.22) (2026-10-12)
 
 
