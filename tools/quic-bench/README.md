@@ -388,3 +388,75 @@ there; they must always be changed together.
 Run-to-run spread on one binary at 10p/10s has been 29.6–32.1% over a 60 s
 window, so single runs are not comparable. Alternate the two binaries in one
 sitting and compare the means; that is what the rows above do.
+
+## Shared-CPU capacity
+
+`capacity_drive.py` finds the largest room one pinned, contended CPU carries with
+**p99 transit delay < 40 ms and loss < 1%**. Three containers:
+
+| Container | CPU | Runs |
+| --- | --- | --- |
+| `bvcsut` | `PIN_CPU`, 2 GB | `bvc-server` |
+| `bvcnoise` | `PIN_CPU` (shared) | `stress-ng --cpu-load NOISE` |
+| `bvcload` | `LOAD_CPUS` | every `broadcast` client, with `--stats` |
+
+Delay is receive time minus the sender's frame timestamp. Senders and receivers
+share `bvcload`'s clock, so a negative delay marks the cell INVALID.
+
+```bash
+LXD_CERTS=tools/swarm SMOKE=1 python3 tools/quic-bench/capacity_drive.py   # smoke + control only
+LXD_CERTS=tools/swarm python3 tools/quic-bench/capacity_drive.py           # full search
+```
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PIN_CPU` | `1` | Host CPU for `bvcsut` and `bvcnoise` |
+| `LOAD_CPUS` | `2-7` | Host CPUs for `bvcload`; must not contain `PIN_CPU` |
+| `NOISE` | `0 50 80` | `stress-ng` load levels on the pinned CPU |
+| `N_START` | `10` | First room size |
+| `N_CEILING` | `64` | Largest room size tried |
+| `WINDOW` | `60` | Measurement window per cell, in seconds |
+| `SMOKE` | unset | Run only the smoke and control cells |
+| `KEEP` | unset | Keep the containers after the run |
+
+A cell is INVALID, not FAIL, when a client dies, a stats file is missing, a delay
+is negative, or `bvcload` uses more than half its cores. The control cell
+(10p/10s, no noise) runs first and last; more than 20% drift between the two
+invalidates the run.
+
+Steal is simulated and there is no physical NIC. Treat the result as a ceiling
+for a real shared droplet.
+
+### Result (2026-10-12, host kernel 5.15.0-139-generic, build 90c75c75 + curia 0.2.2)
+
+One room, 20 ms frames, `send_batch_wait_micros` 7500. "≥ 64" means the cell at
+the `N_CEILING` of 64 passed; the real edge is higher.
+
+| Noise | All talking | 60% talking |
+| --- | --- | --- |
+| 0% | ≥ 64 | ≥ 64 |
+| 50% | 58 | ≥ 64 |
+| 80% | ≥ 64 | ≥ 64 |
+
+Control cell server CPU: 10.55% before, 10.91% after.
+
+At 64p/64s with no noise the server used 50.2% of the core, with p99 24 ms and
+0% loss. Server RSS stays near 36 MiB, so memory does not limit a 1 vCPU host.
+
+The 50% all-talking edge is a cliff, not a slope: p99 was 25 ms at 58p, 45 ms
+at 59p and 203 ms with 1.75% loss at 62p. The core is out of time at that point.
+
+**Do not read the noise rows as a trend.** 80% noise passed 64p where 50% failed
+at 59p. `stress-ng --cpu-load` throttles itself when it competes for the core,
+so it does not act like a real co-tenant. Size on the lowest row: **58 players
+per core**, all in one room and all talking. Proximity groups split the N² cost,
+so real servers carry more.
+
+`bvcload` used 210% of its 300% limit at 64p/64s. Above about 90 players the
+load generator becomes the bottleneck and its cells read INVALID; add CPUs to
+`LOAD_CPUS` before raising `N_CEILING`.
+
+Before curia 0.2.2, 10p/10s used 28.2–28.8% in the single-container loopback
+bench; 0.2.2 brought it to 15.1–15.2% there. Curia 0.2.1's
+`TracingBridge` gave no callsite interest, so every `s2n-quic` per-packet DEBUG
+event was built and then dropped. 0.2.2 refuses those callsites at registration.

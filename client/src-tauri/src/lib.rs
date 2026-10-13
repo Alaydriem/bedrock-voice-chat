@@ -522,10 +522,7 @@ pub fn run() {
                     "trace" => Some(curia::Level::Trace),
                     _ => None,
                 })
-                // TEMPORARY (nethernet debugging): LOG_LEVEL cannot be set on this
-                // device (the OEM build ignores `wrap.<pkg>`), so default to Debug
-                // rather than Info. Revert to Info before shipping.
-                .unwrap_or(curia::Level::Debug);
+                .unwrap_or(curia::Level::Info);
 
             let bridge = curia::TracingBridge::to_global()
                 .with_max_level(max_level)

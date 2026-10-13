@@ -77,6 +77,17 @@ struct Args {
     /// needs the proxy's port named here.
     #[clap(long)]
     quic_port: Option<u16>,
+
+    /// Write a transit-delay histogram as JSON to this path one second after the
+    /// stats window closes. Delay is receive time minus the sender's frame
+    /// timestamp, so the figure is only valid when sender and receiver share a clock.
+    #[clap(long, requires = "stats_window")]
+    stats: Option<String>,
+
+    /// Unix-millisecond start and end of the stats window. Only frames received
+    /// inside it are counted.
+    #[clap(long, num_args = 2, value_names = ["START_MS", "END_MS"], requires = "stats")]
+    stats_window: Option<Vec<i64>>,
 }
 
 struct Spiral {
@@ -100,6 +111,58 @@ impl Iterator for Spiral {
         let y = radius * radians.sin();
         self.theta += self.step;
         Some((x, y))
+    }
+}
+
+const DELAY_BUCKETS: usize = 1000;
+
+struct DelayHistogram {
+    start_ms: i64,
+    end_ms: i64,
+    buckets: Vec<u64>,
+    overflow: u64,
+    negative: u64,
+}
+
+impl DelayHistogram {
+    fn new(start_ms: i64, end_ms: i64) -> Self {
+        Self {
+            start_ms,
+            end_ms,
+            buckets: vec![0; DELAY_BUCKETS],
+            overflow: 0,
+            negative: 0,
+        }
+    }
+
+    fn now_ms() -> i64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0)
+    }
+
+    fn record(&mut self, sent_ms: i64, received_ms: i64) {
+        if received_ms < self.start_ms || received_ms >= self.end_ms {
+            return;
+        }
+        let delay = received_ms - sent_ms;
+        if delay < 0 {
+            self.negative += 1;
+        } else if (delay as usize) < DELAY_BUCKETS {
+            self.buckets[delay as usize] += 1;
+        } else {
+            self.overflow += 1;
+        }
+    }
+
+    fn write(&self, path: &str) -> std::io::Result<()> {
+        let body = serde_json::json!({
+            "buckets": self.buckets,
+            "overflow": self.overflow,
+            "negative": self.negative,
+        });
+        std::fs::write(path, body.to_string())
     }
 }
 
@@ -266,14 +329,38 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
         }
     });
 
+    let stats = match (&args.stats, &args.stats_window) {
+        (Some(path), Some(window)) => Some((
+            path.clone(),
+            Arc::new(std::sync::Mutex::new(DelayHistogram::new(window[0], window[1]))),
+        )),
+        _ => None,
+    };
+
+    if let Some((path, histogram)) = stats.clone() {
+        tokio::spawn(async move {
+            let end_ms = histogram.lock().unwrap().end_ms;
+            let wait_ms = (end_ms + 1000 - DelayHistogram::now_ms()).max(0) as u64;
+            tokio::time::sleep(Duration::from_millis(wait_ms)).await;
+            let result = histogram.lock().unwrap().write(&path);
+            if let Err(e) = result {
+                println!("Stats write error: {:?}", e);
+            }
+        });
+    }
+
     let mut tasks = Vec::new();
 
     tasks.push(tokio::spawn({
         let connection = connection.clone();
         let shutdown = shutdown.clone();
         let record = args.record.clone();
+        let histogram = stats.as_ref().map(|(_, h)| h.clone());
         async move {
             let mut count = 0;
+            // Decoding every frame costs the load container far more than the server
+            // spends routing it. A stats-only run counts arrivals and skips the decode.
+            let decode = record.is_some() || histogram.is_none();
             let mut decoder = opus2::Decoder::new(48000, opus2::Channels::Mono).unwrap();
 
             let spec = hound::WavSpec {
@@ -307,6 +394,12 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
                             let data: Result<AudioFramePacket, ()> =
                                 packet.data.to_owned().try_into();
                             if let Ok(frame) = data {
+                                if let Some(h) = histogram.as_ref() {
+                                    h.lock().unwrap().record(frame.timestamp(), DelayHistogram::now_ms());
+                                }
+                                if !decode {
+                                    continue;
+                                }
                                 let packet_timestamp = frame.timestamp();
 
                                 if let Some(last_ts) = last_packet_timestamp {

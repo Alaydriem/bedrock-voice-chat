@@ -18,7 +18,8 @@ PORT=21443
 QPORT=21444
 MPORT=21500
 MAPIPORT=21501
-HOST=localhost
+HOST=${HOST:-localhost}
+LISTEN=${LISTEN:-127.0.0.1}
 BIN=$BINDIR/bvc-server
 BCAST=$BINDIR/broadcast
 MERBIN=$BINDIR/meridian
@@ -125,7 +126,7 @@ VEOF
 
   cat > "$SRV/config.hcl" <<EOF
 server {
-  listen    = "127.0.0.1"
+  listen    = "$LISTEN"
   port      = $PORT
   quic_port = $QPORT
 $mblock
@@ -134,6 +135,7 @@ $mblock
     certificate = "$SRV/certs/server.crt"
     key         = "$SRV/certs/server.key"
     certs_path  = "$SRV/certs"
+    names       = ["$HOST"]
   }
 
   features {
@@ -150,7 +152,7 @@ EOF
 }
 
 boot_server() {
-  ( cd "$SRV" && exec "$BIN" server -c "$SRV/config.hcl" ) > "$SRV/server.log" 2>&1 &
+  ( cd "$SRV" && exec "$BIN" server -c "$SRV/config.hcl" ) > "$SRV/server.log" 2>&1 < /dev/null &
   echo $! > "$SRV/pid"
 
   local code=""
@@ -479,18 +481,22 @@ mode_perf() {
   stop_all "$P"
 }
 
-echo "host: $(nproc) cores visible, $(awk '/MemTotal/{printf "%.1f", $2/1048576}' /proc/meminfo) GiB"
-echo "kernel: $(uname -r)"
-echo "mode: $MODE"
-echo
+# Sourced by capacity-server.sh and capacity-load.sh for its functions; only an
+# executed run measures anything.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  echo "host: $(nproc) cores visible, $(awk '/MemTotal/{printf "%.1f", $2/1048576}' /proc/meminfo) GiB"
+  echo "kernel: $(uname -r)"
+  echo "mode: $MODE"
+  echo
 
-gen_wav || exit 1
+  gen_wav || exit 1
 
-case "$MODE" in
-  cells) mode_cells ;;
-  strace) mode_strace ;;
-  perf) mode_perf ;;
-  *) echo "FATAL: unknown MODE '$MODE' (cells|strace|perf)"; exit 1 ;;
-esac
+  case "$MODE" in
+    cells) mode_cells ;;
+    strace) mode_strace ;;
+    perf) mode_perf ;;
+    *) echo "FATAL: unknown MODE '$MODE' (cells|strace|perf)"; exit 1 ;;
+  esac
 
-echo "DONE"
+  echo "DONE"
+fi
