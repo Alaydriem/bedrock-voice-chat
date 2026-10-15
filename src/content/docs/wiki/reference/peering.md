@@ -55,7 +55,7 @@ A peer link carries the paths to reach its server. Two servers on one host, or t
 
 Across the internet the two servers connect **directly**. Nothing forwards the traffic on their behalf, and no voice or position data passes through Bedrock Voice Chat infrastructure.
 
-That means a reachable path has to exist. Where both ends sit behind NAT, forward [`server.peer_port`](/wiki/reference/configuration/#serverpeer_port) (UDP `28284` by default) on at least one of them. Where neither can be reached — carrier-grade NAT on both sides is the usual case — the pair does not connect, and no configuration changes that.
+That means a reachable path has to exist. Where both ends sit behind NAT, forward [`server.peer_port`](/wiki/reference/configuration/#serverpeering-and-serverpeer_port) (UDP `28284` by default) on at least one of them. Where neither can be reached — carrier-grade NAT on both sides is the usual case — the pair does not connect, and no configuration changes that.
 
 ## Diagnostics
 

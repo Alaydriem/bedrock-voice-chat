@@ -8,7 +8,7 @@ sidebar:
 
 Every block and key Bedrock Voice Chat server accepts in `config.hcl`, with defaults. Almost nothing here is required. For a working starting point see [Installing the BVC server](/wiki/server/installation/).
 
-Every key also has an environment override; see [environment variables](/wiki/reference/environment-variables/). Precedence is **environment > config file > default**.
+Most keys also have an environment override; see [environment variables](/wiki/reference/environment-variables/). Precedence is **environment > config file > default**.
 
 `config.hcl` is read once at startup. Restart the server after editing it.
 
@@ -30,8 +30,8 @@ An unset referenced variable is a hard startup error. The server stops instead o
 |---|---|---|
 | `listen` | `::` | Bind address. The IPv6 wildcard also serves IPv4 peers. |
 | `port` | `443` | HTTP/REST and login. The public port. The API listener binds a loopback port behind the TLS demultiplexer. |
-| `quic_port` | `443` | UDP/QUIC voice transport. |
-| `advertised_quic_ports` | `[443, 28280]` | Public UDP ports clients should try, in preference order. The list replaces `quic_port` as the published set; it does not extend it. Set it explicitly when a proxy fronts the server on a different port, or when `quic_port` is moved — the default does not follow the bind port. An explicitly empty list publishes `quic_port` alone. |
+| `quic_port` | `28280` | UDP/QUIC voice transport. |
+| `advertised_quic_ports` | `[28280]` | Public UDP ports clients should try, in preference order. The list replaces `quic_port` as the published set; it does not extend it. Set it explicitly when a proxy fronts the server on a different port, or when `quic_port` is moved — the default does not follow the bind port. An explicitly empty list publishes `quic_port` alone. |
 | `assets_path` | `./assets` | Static asset directory served by the API. |
 
 The default `::` gives QUIC a dual-stack socket on every platform. On Linux this follows `net.ipv6.bindv6only`, which defaults to `0`.
@@ -78,11 +78,22 @@ Provider-specific fields are validated at startup. A missing one is named in the
 |---|---|---|
 | `chat` | `true` | Relay in-game chat between the game and the app. See [Chat](/wiki/player/chat/). |
 | `openapi_docs` | `false` | Serve `/openapi.json` and the API browser at `/docs`. |
+| `radar` | `true` | Show players beyond voice range on the dashboard ring. See [radar](#radar). |
 | `telemetry` | `true` | Anonymous usage metrics. See [privacy and telemetry](/wiki/server/privacy-and-telemetry/). |
 
 With `chat = false` the server relays nothing in either direction. Lines reported by the Addon are dropped, and messages sent from the app are refused. The Addon's chat socket still connects and then stays idle. No Addon or mod configuration changes.
 
 The app reads this at connect. The chat dock stays on the dashboard, greyed out, and reports `Chat is disabled on this server`.
+
+### `radar`
+
+The dashboard ring shows players who are beyond voice range but still in the position feed. With `radar = false` the ring stays empty. The player roster does not change.
+
+This is a display setting, not a privacy boundary. The position feed still carries those players, so a modified client can still see them.
+
+Advertised on `/api/config` as `radar.enabled`. A client that cannot read the config keeps the ring on, the same as with an older server.
+
+### Code login
 
 One-time code login (`POST /api/auth/code`, used by `bvc login`) is always enabled. Earlier releases gated it behind a `code_login` flag. That key no longer exists and is ignored if present.
 
@@ -154,11 +165,14 @@ Setting `token` alongside `tls.acme`, `tls.certificate` or `tls.key` stops start
 
 Where a server reaches the BVC registry is compiled into the binary. It is not a config key and not a runtime environment variable, so a released build cannot be pointed at a different registry — that takes a rebuild. Nothing an operator writes changes it.
 
-## `server.peer_port`
+## `server.peering` and `server.peer_port`
 
 | Key | Default | Description |
 |---|---|---|
+| `peering` | `true` | Bind the peer endpoint before any peer is declared, so the server can be paired. |
 | `peer_port` | `28284` | UDP port the peer endpoint binds. `0` requests an ephemeral port. |
+
+With `peering = false` the peer endpoint binds only when `server.peers` declares at least one peer.
 
 The peer link carries this port. An ephemeral port changes on every restart, which invalidates a link the far side has already been given, so the port is fixed by default. Open or forward it wherever peers reach this server directly.
 
@@ -264,6 +278,9 @@ The console is not configurable. The server always writes human-readable output 
 |---|---|---|
 | `datagram_send_capacity` | `1024` | Outbound QUIC datagram queue per connection. |
 | `datagram_recv_capacity` | `1024` | Inbound QUIC datagram queue per connection. |
+| `send_batch_wait_micros` | `7500` | Microseconds the sender waits after the first queued datagram before it sends the batch. `0` sends each datagram immediately. |
+
+A non-zero `send_batch_wait_micros` adds up to that much latency and sends fewer, fuller UDP packets, which lowers server CPU. The client jitter buffer absorbs the default.
 
 ### `voice.recording`
 
