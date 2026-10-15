@@ -16,6 +16,8 @@ Bedrock Voice Chat is a free addon for Minecraft. However, software development 
 
 Supporters get **early access to builds and packs**. On Realms and Aternos, supporters typically have a working build before general release. See [version support](/wiki/platforms/version-support/) for the gap.
 
+Sign up with **[Nodecraft](https://nodecraft.com/r/alaydriem)** to get the best available discount Nodecraft offers for Minecraft servers that run Bedrock Voice Chat.
+
 ## For free
 
 **Watch and comment on [YouTube](https://youtube.com/@alaydriem).** All major BVC announcements go there first.

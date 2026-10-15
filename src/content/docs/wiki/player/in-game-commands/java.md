@@ -63,3 +63,23 @@ A player has to run it. From the console, use the give form:
 ```
 /bvc give <player> <audio_id>
 ```
+
+## Admin
+
+Server console only. Players and command blocks cannot run these commands, and do not see them.
+
+Requires the [embedded server](/wiki/server/java-mod/#integrated-or-external-bvc-server). With an external server, run [`admin bootstrap`](/wiki/server/players-and-permissions/#bootstrapping-the-first-admin) on the BVC host instead.
+
+| Command | Does |
+|---|---|
+| `/bvc admin grant <gamertag>` | Give the player the `admin` permission. Creates the player if BVC does not know them. |
+| `/bvc admin revoke <gamertag>` | Remove the player's `admin` override. The [server-wide default](/wiki/server/players-and-permissions/#server-wide-defaults) applies again. |
+| `/bvc admin deny <gamertag>` | Refuse the player `admin`, even when the default allows it. |
+
+`<gamertag>` is the Xbox gamertag the player signs in to BVC with. It can differ from their name in game. It is case-sensitive. Put it in quotes if it contains a space:
+
+```
+/bvc admin grant "Some Name"
+```
+
+`grant` creates the player record, so the player can also sign in. `revoke` and `deny` change only existing players. For a gamertag BVC does not know, they reply `<gamertag> is not a BVC player; nothing was changed.`
