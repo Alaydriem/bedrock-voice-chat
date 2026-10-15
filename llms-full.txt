@@ -206,6 +206,8 @@ Bedrock Voice Chat is a free addon for Minecraft. However, software development 
 
 Supporters get **early access to builds and packs**. On Realms and Aternos, supporters typically have a working build before general release. See [version support](/wiki/platforms/version-support/) for the gap.
 
+Sign up with **[Nodecraft](https://nodecraft.com/r/alaydriem)** to get the best available discount Nodecraft offers for Minecraft servers that run Bedrock Voice Chat.
+
 ## For free
 
 **Watch and comment on [YouTube](https://youtube.com/@alaydriem).** All major BVC announcements go there first.
@@ -589,6 +591,26 @@ A player has to run it. From the console, use the give form:
 ```
 /bvc give <player> <audio_id>
 ```
+
+## Admin
+
+Server console only. Players and command blocks cannot run these commands, and do not see them.
+
+Requires the [embedded server](/wiki/server/java-mod/#integrated-or-external-bvc-server). With an external server, run [`admin bootstrap`](/wiki/server/players-and-permissions/#bootstrapping-the-first-admin) on the BVC host instead.
+
+| Command | Does |
+|---|---|
+| `/bvc admin grant <gamertag>` | Give the player the `admin` permission. Creates the player if BVC does not know them. |
+| `/bvc admin revoke <gamertag>` | Remove the player's `admin` override. The [server-wide default](/wiki/server/players-and-permissions/#server-wide-defaults) applies again. |
+| `/bvc admin deny <gamertag>` | Refuse the player `admin`, even when the default allows it. |
+
+`<gamertag>` is the Xbox gamertag the player signs in to BVC with. It can differ from their name in game. It is case-sensitive. Put it in quotes if it contains a space:
+
+```
+/bvc admin grant "Some Name"
+```
+
+`grant` creates the player record, so the player can also sign in. `revoke` and `deny` change only existing players. For a gamertag BVC does not know, they reply `<gamertag> is not a BVC player; nothing was changed.`
 
 ---
 
@@ -1648,132 +1670,26 @@ If you're running a Geyser server with PaperMC or Fabric, Bedrock Voice Chat can
 
 Source: https://www.bedrockvoicechat.com/wiki/server/java-mod
 
-Bedrock Voice Chat runs on Minecraft Java servers through a mod published on [Modrinth](https://modrinth.com/mod/bedrock-voice-chat) for both Fabric and PaperMC. Geyser servers are supported. See [Geyser and Floodgate](/wiki/server/java-mod/integrations/geyser-and-floodgate/).
+Bedrock Voice Chat runs on Minecraft Java servers through a mod published on [Modrinth](https://modrinth.com/mod/bedrock-voice-chat) for both Fabric and PaperMC with crossplay through [Geyser and Floodgate](/wiki/server/java-mod/integrations/geyser-and-floodgate/).
 
 ## Pick your loader
 
 - **[Fabric](/wiki/server/java-mod/fabric/)** — `mods/` directory, JSON config.
 - **[PaperMC](/wiki/server/java-mod/papermc/)** — `plugins/` directory, YAML config.
 
-The settings are identical. Only the file format and location differ.
-
 ## Integrations
 
 The mod detects other plugins and mods at startup. See [Integrations](/wiki/server/java-mod/integrations/) for [Geyser and Floodgate](/wiki/server/java-mod/integrations/geyser-and-floodgate/) and [Simple Voice Chat](/wiki/server/java-mod/integrations/simple-voice-chat/).
 
-## Pick your mode
+## Integrated or External BVC Server?
 
-**External** points at a standalone BVC server. Use it for production, for more than about 15 players, or when one BVC server serves several game servers.
+Bedrock Voice Chat can run either with an embedded voice chat server, or an external one. For most Minecraft hosts, you'll want to use an **external** server for performance, however certain Minecraft hosts such as [Nodecraft](/wiki/platforms/nodecraft/) support the embedded server.
 
-**Embedded** runs BVC inside the game server's JVM. No separate service. Suits small servers and local development.
+**External** points at a standalone BVC server. This should _always_ be your go-to default choice.
+
+**Embedded** runs BVC inside the game server's JVM. No separate service. Suitable for small servers and local development.
 
 Embedded needs an always-on host with adequate RAM. Low-end hosts, and anything that suspends when idle, produce audio quality and performance problems that are hard to attribute. Move BVC to its own machine if you hit them.
-
-## Shared settings
-
-| Key | Default | Description |
-|---|---|---|
-| `bvc-server` | — | URL of the BVC server. Required in external mode. |
-| `access-token` | — | Must match `server.minecraft.access_token` on the BVC server. Required in external mode. |
-| `minimum-players` | `1` | Players online before positions are relayed. |
-| `use-embedded-server` | `false` | Run BVC inside this JVM. |
-| `embedded-config` | — | Required when `use-embedded-server` is true. |
-
-Keys accept both `hyphen-case` and `camelCase`.
-
-## Embedded configuration
-
-:::caution[This changed]
-`embedded-config` used to take a short list of flat keys of its own. Those keys are gone.
-The mod refuses to start in embedded mode if it finds them. See [Migration](#migration).
-:::
-
-`embedded-config` takes the **same keys as the BVC server's own `config.hcl`**, in the same nesting, under the same names. Anything you leave out takes the server's default.
-
-The Kotlin classes are generated from the server's Rust configuration types. A key the server accepts is a key the mod accepts. Use the [configuration reference](/wiki/reference/configuration/) as the key list for this block.
-
-Four sections are unavailable: `server.meridian`, `server.cors`, `server.features.openapi_docs`, and `server.bedrock.servers`.
-
-Peering works in embedded mode. Declare peers under [`server.peers`](/wiki/reference/configuration/#serverpeers) like any other key.
-
-### Defaults to set explicitly
-
-Three defaults come from the standalone server and are wrong for most Java hosts.
-
-| Key | Default | Set it to |
-|---|---|---|
-| `server.port` | `443` | `8444`. Binding 443 needs root on Linux, and a failed HTTP bind stops startup. |
-| `server.quic_port` | `443` | `8443`. |
-| `voice.spatial_audio.broadcast_range` | `48.0` | Whatever range you want, in blocks. |
-
-Set `server.bedrock.enabled: false` to turn the relay off instead.
-
-`server.bedrock.transfer_port` defaults to `28283` and does not collide with Geyser. Leave it alone.
-
-### TLS
-
-Set `server.tls.certificate` and `server.tls.key`, **or** a `server.tls.acme` block. The mod refuses to start with neither. The server refuses both at once.
-
-Embedded mode supports ACME DNS-01:
-
-```yaml
-embedded-config:
-  server:
-    tls:
-      names:
-        - "bvc.example.com"
-      acme:
-        email: "ops@example.com"
-        provider: "cloudflare"
-        api_token: "..."
-```
-
-Providers: `cloudflare` and `acme-dns`. See [TLS](/wiki/server/tls/).
-
-### Environment overrides
-
-`BVC_*` variables apply to an embedded server and outrank the config file. Precedence is **environment > config file > default**. A malformed value stops startup and names the variable.
-
-See [environment variables](/wiki/reference/environment-variables/). `BVC_SERVER`, `BVC_BEDROCK_SERVERS`, and the `BVC_MERIDIAN_*` set do not apply here.
-
-## Migration
-
-The flat keys no longer work. The mod refuses to start in embedded mode and logs each one it found alongside its replacement path.
-
-| Old key | New path |
-|---|---|
-| `http-port` | `server.port` |
-| `quic-port` | `server.quic_port` |
-| `broadcast-range` | `voice.spatial_audio.broadcast_range` |
-| `tls-certificate` | `server.tls.certificate` |
-| `tls-key` | `server.tls.key` |
-| `tls-names` | `server.tls.names` |
-| `tls-ips` | `server.tls.ips` |
-| `log-level` | `log.level` |
-| `assets-path` | `server.assets_path` |
-| `allow-audio-upload` | `permissions.defaults.audio_upload` |
-| `allow-audio-delete` | `permissions.defaults.audio_delete` |
-
-Expect one behaviour change. **`broadcast-range` never worked.** The mod sent it at a path no server field matched. It was discarded, and every embedded server ran at 48 whatever you set. Under `voice.spatial_audio.broadcast_range` it now applies, and a config that set 32 will sound different.
-
-Per-format before and after examples are on the [Fabric](/wiki/server/java-mod/fabric/) and [PaperMC](/wiki/server/java-mod/papermc/) pages.
-
-## Chat sync
-
-Set `enforce-secure-profile=false` in `server.properties`. Chat sync does not work with it enabled.
-
-Everything else is automatic in both modes. See [chat](/wiki/player/chat/).
-
-## Certificates in embedded mode
-
-Two systems. One is yours.
-
-| | Purpose | Managed by |
-|---|---|---|
-| HTTPS TLS | Clients trusting the server | You. `server.tls.certificate` and `server.tls.key` from a public CA, or `server.tls.acme` |
-| QUIC mTLS CA | Server authenticating clients | The mod, automatically |
-
-The mTLS CA is generated into the mod's data directory: `config/bedrock-voice-chat/` on Fabric, `plugins/BedrockVoiceChat/` on Paper. Leave it alone and back it up. Deleting it invalidates every client certificate already issued.
 
 ## Support
 
@@ -1787,134 +1703,74 @@ Issues with the mod go to [GitHub](https://github.com/Alaydriem/bedrock-voice-ch
 
 Source: https://www.bedrockvoicechat.com/wiki/server/java-mod/fabric
 
-The Bedrock Voice Chat Fabric mod runs on your Java server in external or embedded mode, configured through a JSON file.
+The Bedrock Voice Chat Fabric mod reads its configuration from `config/bedrock-voice-chat.json`.
 
 ## Install
 
-1. Put [fabric-api](https://modrinth.com/mod/fabric-api) in your server's `mods` folder.
-2. Put `bedrock-voice-chat.jar` in `mods` as well.
-3. Create `config/bedrock-voice-chat.json`.
-4. Start the server.
+1. Put [fabric-api](https://modrinth.com/mod/fabric-api) in the server's `mods` directory.
+2. Put `bedrock-voice-chat.jar` in `mods`.
+3. Start the server once. The mod writes `config/bedrock-voice-chat.json`.
+4. Stop the server, edit the file, and start the server again.
 
 ## External mode
 
-Points at a standalone [BVC server](/wiki/server/installation/). Use this unless you have a reason not to.
+The mod sends player positions to a standalone [BVC server](/wiki/server/installation/).
 
 ```json
 {
-  "bvc-server": "https://example.bedrockvc.stream",
-  "access-token": "<MUST MATCH server.minecraft.access_token>",
-  "minimum-players": 1,
-  "use-embedded-server": false
+  "bvc-server": "https://bvc.example.com",
+  "access-token": "<server.minecraft.access_token from config.hcl>"
 }
 ```
 
-`access-token` has to match `server.minecraft.access_token` in the BVC server's `config.hcl`. A mismatch is rejected on every position update, which looks like the mod silently not working.
+Both keys are required. `access-token` must be the same as `server.minecraft.access_token` in the BVC server's `config.hcl`. If the values are different, the BVC server rejects each position update.
 
 ## Embedded mode
 
-Runs BVC inside the game server's JVM.
-
-`embedded-config` takes the same keys as the BVC server's own `config.hcl`, nested the same way. Anything you leave out takes the server's default.
+The mod runs the BVC server inside the Minecraft server's JVM.
 
 ```json
 {
-  "bvc-server": "https://example.bedrockvc.stream",
-  "access-token": "<GENERATE A SECURE TOKEN>",
-  "minimum-players": 1,
   "use-embedded-server": true,
   "embedded-config": {
     "server": {
       "port": 8444,
       "quic_port": 8443,
       "tls": {
-        "certificate": "/etc/letsencrypt/live/example.bedrockvc.stream/fullchain.pem",
-        "key": "/etc/letsencrypt/live/example.bedrockvc.stream/privkey.pem",
-        "names": ["example.bedrockvc.stream"],
-        "ips": ["203.0.113.1"]
-      },
-      "bedrock": {
-        "enabled": true
+        "names": ["bvc.example.com"],
+        "acme": {
+          "email": "you@example.com",
+          "provider": "cloudflare",
+          "api_token": "<Cloudflare API token>"
+        }
       }
-    },
-    "voice": {
-      "spatial_audio": { "broadcast_range": 32.0 }
-    },
-    "log": { "level": "info" },
-    "permissions": {
-      "defaults": { "audio_upload": false, "audio_delete": false }
     }
   }
 }
 ```
 
-Set `server.port` and `server.quic_port` explicitly. Both default to 443. Binding 443 needs root on Linux.
+Replace `bvc.example.com` with your domain, and give it a Cloudflare API token scoped to that zone with DNS edit permission. BVC will automatically issue and renew the TLS certificate to secure voice communication between players. See [TLS](/wiki/server/tls/) to make the token, or to use acme-dns or your own certificate files.
 
-`bvc-server` is still what players type into the app. Set it to the public address even though nothing separate runs there.
+`embedded-config` uses the keys of the BVC server's `config.hcl`, with the same nesting. A key that is not set uses the server default. See the [configuration reference](/wiki/reference/configuration/) for all keys.
 
-On Windows, use forward slashes or doubled backslashes in paths: `C:/certs/fullchain.pem` or `C:\\certs\\fullchain.pem`.
+The mod keeps its mTLS CA in `config/bedrock-voice-chat/`. Back up this directory. If you delete it, all client certificates that the server issued become invalid.
 
-The mTLS CA lands in `config/bedrock-voice-chat/`. Back it up.
-
-## Migrating from the old flat keys
-
-If your `embedded-config` still has `http-port`, `quic-port`, `tls-certificate` and the rest, the mod will refuse to start and log each key with its replacement. Before:
-
-```json
-{
-  "use-embedded-server": true,
-  "embedded-config": {
-    "http-port": 8444,
-    "quic-port": 8443,
-    "broadcast-range": 32.0,
-    "tls-certificate": "/etc/bvc/fullchain.pem",
-    "tls-key": "/etc/bvc/privkey.pem",
-    "tls-names": ["bvc.example.com"],
-    "log-level": "info"
-  }
-}
-```
-
-After:
-
-```json
-{
-  "use-embedded-server": true,
-  "embedded-config": {
-    "server": {
-      "port": 8444,
-      "quic_port": 8443,
-      "tls": {
-        "certificate": "/etc/bvc/fullchain.pem",
-        "key": "/etc/bvc/privkey.pem",
-        "names": ["bvc.example.com"]
-      }
-    },
-    "voice": { "spatial_audio": { "broadcast_range": 32.0 } },
-    "log": { "level": "info" }
-  }
-}
-```
-
-The full mapping table is on the [Java mod overview](/wiki/server/java-mod/#migration).
+The [Java mod overview](/wiki/server/java-mod/#migration) has the full table of old keys and new paths.
 
 ## Chat sync
 
-Set this in `server.properties`:
+Chat sync needs this line in `server.properties`:
 
 ```properties
 enforce-secure-profile=false
 ```
 
-Chat sync does not work with it enabled. Restart the server after changing it.
+Restart the server after you change it. See [chat](/wiki/player/chat/).
 
-Everything else is automatic in both external and embedded mode. See [chat](/wiki/player/chat/).
+## Next steps
 
-## Then
-
-[Whitelist your players](/wiki/server/players-and-permissions/). BVC is deny-by-default. Then send them to [Downloads](/wiki/start/downloads/).
-
-Full key reference is on the [Java mod overview](/wiki/server/java-mod/).
+1. [Add your players to the whitelist](/wiki/server/players-and-permissions/). BVC denies all players that are not on it.
+2. Send your players to [Downloads](/wiki/start/downloads/).
 
 ---
 
@@ -2061,90 +1917,28 @@ If you're using an external Bedrock Voice Chat server, you'll need to run one se
 
 Source: https://www.bedrockvoicechat.com/wiki/server/java-mod/papermc
 
-The Bedrock Voice Chat PaperMC plugin runs on your Java server in external or embedded mode, configured through a YAML file.
+The Bedrock Voice Chat PaperMC plugin reads its configuration from `plugins/BedrockVoiceChat/config.yml`.
 
 ## Install
 
-1. Put the plugin JAR in your server's `plugins` directory.
-2. Start the server once. The plugin writes a commented `plugins/BedrockVoiceChat/config.yml`.
-3. Edit that file.
-4. Restart the server.
+1. Put the plugin JAR in the server's `plugins` directory.
+2. Start the server once. The plugin writes `plugins/BedrockVoiceChat/config.yml`, with comments.
+3. Stop the server, edit the file, and start the server again.
 
 ## External mode
 
-Points at a standalone [BVC server](/wiki/server/installation/). Use this unless you have a reason not to.
+The plugin sends player positions to a standalone [BVC server](/wiki/server/installation/).
 
 ```yaml
-bvc-server: "https://example.bedrockvc.stream"
-access-token: "<MUST MATCH server.minecraft.access_token>"
-minimum-players: 1
-use-embedded-server: false
+bvc-server: "https://bvc.example.com"
+access-token: "<server.minecraft.access_token from config.hcl>"
 ```
 
-`access-token` has to match `server.minecraft.access_token` in the BVC server's `config.hcl`. A mismatch is rejected on every position update, which looks like the plugin silently not working.
+Both keys are required. `access-token` must be the same as `server.minecraft.access_token` in the BVC server's `config.hcl`. If the values are different, the BVC server rejects each position update.
 
 ## Embedded mode
 
-Runs BVC inside the game server's JVM.
-
-`embedded-config` takes the same keys as the BVC server's own `config.hcl`, nested the same way. Anything you leave out takes the server's default.
-
-```yaml
-bvc-server: "https://example.bedrockvc.stream"
-access-token: "<GENERATE A SECURE TOKEN>"
-minimum-players: 1
-use-embedded-server: true
-
-embedded-config:
-  server:
-    port: 8444
-    quic_port: 8443
-    tls:
-      certificate: "/etc/letsencrypt/live/example.bedrockvc.stream/fullchain.pem"
-      key: "/etc/letsencrypt/live/example.bedrockvc.stream/privkey.pem"
-      names:
-        - example.bedrockvc.stream
-      ips:
-        - 203.0.113.1
-    bedrock:
-      enabled: true
-  voice:
-    spatial_audio:
-      broadcast_range: 32.0
-  log:
-    level: info
-  permissions:
-    defaults:
-      audio_upload: false
-      audio_delete: false
-```
-
-The block is `embedded-config` on both Paper and Fabric. Earlier Paper releases called it `embedded:`. That name no longer works.
-
-Set `server.port` and `server.quic_port` explicitly. Both default to 443. Binding 443 needs root on Linux.
-
-`bvc-server` is still what players type into the app. Set it to the public address even though nothing separate runs there.
-
-The mTLS CA lands in `plugins/BedrockVoiceChat/`. Back it up.
-
-## Migrating from the old flat keys
-
-If your embedded block still has `http-port`, `quic-port`, `tls-certificate` and the rest, the plugin will refuse to start and log each key with its replacement. Before:
-
-```yaml
-use-embedded-server: true
-embedded:
-  http-port: 8444
-  quic-port: 8443
-  broadcast-range: 32.0
-  tls-certificate: "/etc/bvc/fullchain.pem"
-  tls-key: "/etc/bvc/privkey.pem"
-  tls-names:
-    - bvc.example.com
-  log-level: info
-```
-
-After:
+The plugin runs the BVC server inside the Minecraft server's JVM.
 
 ```yaml
 use-embedded-server: true
@@ -2153,36 +1947,38 @@ embedded-config:
     port: 8444
     quic_port: 8443
     tls:
-      certificate: "/etc/bvc/fullchain.pem"
-      key: "/etc/bvc/privkey.pem"
       names:
-        - bvc.example.com
-  voice:
-    spatial_audio:
-      broadcast_range: 32.0
-  log:
-    level: info
+        - "bvc.example.com"
+      acme:
+        email: "you@example.com"
+        provider: "cloudflare"
+        api_token: "<Cloudflare API token>"
 ```
 
-The full mapping table is on the [Java mod overview](/wiki/server/java-mod/#migration).
+Replace `bvc.example.com` with your domain, and give it a Cloudflare API token scoped to that zone with DNS edit permission. BVC will automatically issue and renew the TLS certificate to secure voice communication between players. See [TLS](/wiki/server/tls/) to make the token, or to use acme-dns or your own certificate files.
+
+`embedded-config` uses the keys of the BVC server's `config.hcl`, with the same nesting. A key that is not set uses the server default. See the [configuration reference](/wiki/reference/configuration/) for all keys.
+
+Earlier Paper releases used the name `embedded:` for this block. The plugin does not read `embedded:` now. Use `embedded-config:`.
+
+The plugin keeps its mTLS CA in `plugins/BedrockVoiceChat/`. Back up this directory. If you delete it, all client certificates that the server issued become invalid.
+
+The [Java mod overview](/wiki/server/java-mod/#migration) has the full table of old keys and new paths.
 
 ## Chat sync
 
-Set this in `server.properties`:
+Chat sync needs this line in `server.properties`:
 
 ```properties
 enforce-secure-profile=false
 ```
 
-Chat sync does not work with it enabled. Restart the server after changing it.
+Restart the server after you change it. See [chat](/wiki/player/chat/).
 
-Everything else is automatic in both external and embedded mode. See [chat](/wiki/player/chat/).
+## Next steps
 
-## Then
-
-[Whitelist your players](/wiki/server/players-and-permissions/). BVC is deny-by-default. Then send them to [Downloads](/wiki/start/downloads/).
-
-Full key reference is on the [Java mod overview](/wiki/server/java-mod/).
+1. [Add your players to the whitelist](/wiki/server/players-and-permissions/). BVC denies all players that are not on it.
+2. Send your players to [Downloads](/wiki/start/downloads/).
 
 ---
 
@@ -2387,6 +2183,16 @@ bvc whoami
 
 It prints the active identity, server URL, certificate expiry, and effective permissions. `admin` should be in the list.
 
+### On an embedded Java server
+
+A Fabric or PaperMC server running the [embedded server](/wiki/server/java-mod/#integrated-or-external-bvc-server) has no `bvc` executable. Run this from the game server console instead:
+
+```
+/bvc admin grant <Gamertag>
+```
+
+Use the Xbox gamertag the player signs in with. The command creates the player record if it does not exist, so the player can sign in immediately. See [Java commands](/wiki/player/in-game-commands/java/#admin).
+
 ## Adding players
 
 Once you have an admin identity, the rest goes over HTTPS with mTLS and can be run from anywhere.
@@ -2455,6 +2261,8 @@ bvc permission list  -p Bob -g minecraft
 Empty output from `list` means the player has no overrides and is governed entirely by the defaults.
 
 **Manage Players** sets the same three overrides from the settings icon on a player's row. **Default** clears the override.
+
+On an embedded Java server, the console sets the `admin` override with `/bvc admin grant`, `revoke`, and `deny`. `revoke` is the console form of `clear`. See [Java commands](/wiki/player/in-game-commands/java/#admin).
 
 <div class="window"><img src="/assets/wiki/settings-manage-permissions.jpg" alt="Permissions dialog for a player with Default, Allow, and Deny for Administrator, Upload sounds, and Delete sounds" /></div>
 
@@ -2744,6 +2552,7 @@ Worlds hosted by the Minecraft game client are **not** supported. That covers LA
 | **Java — Fabric or Paper** | Yes | The [Java mod](/wiki/server/java-mod/), external or embedded. |
 | **Geyser / Floodgate** | Yes | The Java mod. Floodgate is auto-detected; nothing BVC-specific to configure. [Details](/wiki/server/java-mod/integrations/geyser-and-floodgate/). |
 | **Realms** | Yes | The [no-net Addon](/wiki/server/nonet-addon/) plus Bedrock Voice Chat Connect in the app. [Details](/wiki/platforms/realms/). |
+| **Nodecraft** | Yes | A Pro server with the Java mod in embedded mode. [Details](/wiki/platforms/nodecraft/). |
 | **Aternos and other no-net hosts** | Yes | The no-net Addon plus Bedrock Voice Chat Connect. [Details](/wiki/platforms/aternos/). |
 | **Consoles** | Yes | The mobile app on the same network. The session appears under Worlds. [Details](/wiki/platforms/console-and-mobile/). |
 | **LAN worlds** | No | Nothing to install an Addon into. [Why](/wiki/platforms/lan-and-local-worlds/). |
@@ -2924,6 +2733,254 @@ Running BDS locally also removes every caveat that applies to Realms and Aternos
 We would like to solve it. There is no approach today that does not require code running on the world host, and the game client does not allow that.
 
 If it matters to you, [supporting the project](/wiki/start/supporting-bvc/) is what funds time spent on problems like this.
+
+---
+
+# Nodecraft
+
+> Run Bedrock Voice Chat on a Nodecraft game server, for Fabric, PaperMC, and Bedrock.
+
+Source: https://www.bedrockvoicechat.com/wiki/platforms/nodecraft
+
+[Nodecraft](https://nodecraft.com/r/alaydriem) provides profesional Minecraft server hosting that works with Bedrock Voice Chat for both Java and Bedrock servers.
+
+:::tip[Nodecraft discount]
+Sign up through [nodecraft.com/r/alaydriem](https://nodecraft.com/r/alaydriem) to get the best available discount. The link also supports Bedrock Voice Chat development.
+:::
+
+## Requirements
+
+- A Nodecraft server.
+- A domain name. Bedrock Voice Chat does not work with an IP address or with the Nodecraft host name. See [TLS certificates](/wiki/server/tls/).
+- A DNS provider that BVC can use to issue a certificate. Cloudflare is the simplest. See [TLS certificates](/wiki/server/tls/).
+
+## Pick your server type
+
+| Server type | BVC server | Guide |
+|---|---|---|
+| **Fabric** | Embedded in the mod | [Fabric on Nodecraft](/wiki/platforms/nodecraft/fabric/) |
+| **PaperMC** | Embedded in the plugin | [PaperMC on Nodecraft](/wiki/platforms/nodecraft/papermc/) |
+
+The Java guides use the mod's [embedded mode](/wiki/server/java-mod/#integrated-or-external-bvc-server). The BVC server runs in the Minecraft server's JVM and uses the Nodecraft server's ports.
+
+## Support
+
+For problems with the Nodecraft panel, billing, or the server itself, contact [Nodecraft support](https://nodecraft.com/support). For problems with Bedrock Voice Chat, see [server troubleshooting](/wiki/server/troubleshooting/) or [report an issue](/wiki/start/report-an-issue/).
+
+---
+
+# Fabric on Nodecraft
+
+> Run Bedrock Voice Chat on a Nodecraft Fabric server with the embedded BVC server.
+
+Source: https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/fabric
+
+This guide details how to install Bedrock Voice Chat on Fabric on a Nodecraft Pro server. The BVC server runs inside the Minecraft server, in embedded mode. For the full list of mod settings, see [Fabric](/wiki/server/java-mod/fabric/).
+
+## Before you start
+
+You need:
+
+- A Nodecraft Pro server. See [Nodecraft](/wiki/platforms/nodecraft/).
+- A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/).
+- A Cloudflare API token for that zone, with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
+
+:::tip
+You **must** use a Pro server. Lite servers suspend themselves after a period of inactivity, which causes problems with Bedrock Voice Chat.
+:::
+
+## Install Fabric
+
+1. Create a new **Pro** game server.
+2. During server setup, add a mod for **Fabric**.
+3. Select **Create and Deploy**. Wait for the installation to complete.
+
+   <div class="window"><img src="/assets/wiki/nodecraft-install-fabric.jpg" alt="Nodecraft Browse Mod to Install dialog filtered to Fabric" /></div>
+
+## Upload the mods
+
+1. Download [fabric-api](https://modrinth.com/mod/fabric-api) and [Bedrock Voice Chat](https://modrinth.com/mod/bedrock-voice-chat) from Modrinth. Select the Fabric versions that match your Minecraft version. For crossplay, also download the Fabric versions of Simple Voice Chat, Geyser, and Floodgate.
+2. In **Server Files** > **File Manager**, open the `mods` directory.
+3. Select **Upload**, and upload all the `.jar` files.
+
+   <div class="shot"><span>Nodecraft File Manager, mods directory with the BVC jar</span></div>
+
+4. Create `config/bedrock-voice-chat.json` with this base configuration:
+
+   ```json
+   {
+     "minimum-players": 1,
+     "use-embedded-server": true,
+     "embedded-config": {
+       "server": {
+         "port": 28280,
+         "quic_port": 28280,
+         "tls": {
+           "names": ["bvc.example.com"],
+           "ips": [],
+           "acme": {
+             "email": "your-cloudflare-email@example.com",
+             "provider": "cloudflare",
+             "api_token": "cfut_api-token"
+           }
+         }
+       }
+     }
+   }
+   ```
+
+5. Replace `bvc.example.com`, the email, and the API token with your values.
+
+:::tip
+1. Use Cloudflare or another ACME provider. BVC then issues and renews the TLS certificate automatically.
+2. Do not use your Nodecraft hostname. At this time, BVC cannot get a TLS certificate for the hostname that Nodecraft gives a Pro server.
+3. Leave both ports at 28280. Do not change them.
+:::
+
+## Point your domain at the server
+
+1. In the Pro Panel, select **Overview**. Copy the **Dedicated IP**.
+2. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
+3. In Cloudflare, set the record's proxy status to **DNS only**.
+
+The first start issues the TLS certificate. Bedrock Voice Chat can take a minute to start fully while it gets the certificate. Wait before you sign in for the first time. You may need to restart the Java server _after_ the first certificate is issued.
+
+:::caution
+The mod keeps its mTLS CA in `config/bedrock-voice-chat/`. Download a copy of this directory from **Server Files** and keep it. If you delete it, all client certificates that the server issued become invalid, and all players must sign in again.
+:::
+
+## Chat sync
+
+Chat sync needs this line in `server.properties`:
+
+```properties
+enforce-secure-profile=false
+```
+
+Edit `server.properties` in **Server Files**, then restart the server. See [chat](/wiki/player/chat/).
+
+## Connect
+
+Your players sign in with `https://bvc.example.com:28280`. Use your domain. See [signing in](/wiki/player/signing-in/).
+
+<div class="window"><img src="/assets/wiki/nodecraft-login.jpg" alt="BVC login window with bvc.example.com:28280 in the server address field" /></div>
+
+## Next steps
+
+1. Make yourself an admin from the server console:
+
+   ```
+   /bvc admin grant <Gamertag>
+   ```
+
+   Use your Xbox gamertag. Put it in quotes if it contains a space. See [Java commands](/wiki/player/in-game-commands/java/#admin).
+
+2. Send your players to [Downloads](/wiki/start/downloads/). They can then sign in.
+
+---
+
+# PaperMC on Nodecraft
+
+> Run Bedrock Voice Chat on a Nodecraft PaperMC server with the embedded BVC server.
+
+Source: https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/papermc
+
+This guide details how to install Bedrock Voice Chat on PaperMC on a Nodecraft Pro server. The BVC server runs inside the Minecraft server, in embedded mode. For the full list of plugin settings, see [PaperMC](/wiki/server/java-mod/papermc/).
+
+## Before you start
+
+You need:
+
+- A Nodecraft Pro server. See [Nodecraft](/wiki/platforms/nodecraft/).
+- A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/).
+- A Cloudflare API token for that zone, with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
+
+:::tip
+You **must** use a Pro server. Lite servers suspend themselves after a period of inactivity, which causes problems with Bedrock Voice Chat.
+:::
+
+## Install Paper
+
+1. Create a new **Pro** game server.
+2. During server setup, add a mod for **Paper**.
+3. Select **Create and Deploy**. Wait for the installation to complete.
+
+   <div class="window"><img src="/assets/wiki/nodecraft-install-paper.jpg" alt="Nodecraft Browse Mod to Install dialog filtered to Paper" /></div>
+
+## Upload the plugin
+
+1. Download [Bedrock Voice Chat](https://modrinth.com/mod/bedrock-voice-chat) from Modrinth. Select the Paper version that matches your Minecraft version. For crossplay, also download Simple Voice Chat, Geyser, and Floodgate.
+2. In **Server Files** > **File Manager**, open the `plugins` directory.
+3. Select **Upload**, and upload all four `.jar` files.
+
+   <div class="window"><img src="/assets/wiki/nodecraft-paper-plugins.jpg" alt="Nodecraft File Manager showing the plugins directory with the Bedrock Voice Chat, Geyser, Floodgate, and Simple Voice Chat jars" /></div>
+
+4. Create `plugins/BedrockVoiceChat/config.yml` with this base configuration:
+
+   ```yaml
+   minimum-players: 1
+   use-embedded-server: true
+   embedded-config:
+     server:
+       port: 28280
+       quic_port: 28280
+       tls:
+         names:
+           - "bvc.example.com"
+         ips: []
+         acme:
+           email: "your-cloudflare-email@example.com"
+           provider: "cloudflare"
+           api_token: "cfut_api-token"
+   ```
+
+5. Replace `bvc.example.com`, the email, and the API token with your values.
+
+:::tip
+1. Use Cloudflare or another ACME provider. BVC then issues and renews the TLS certificate automatically.
+2. Do not use your Nodecraft hostname. At this time, BVC cannot get a TLS certificate for the hostname that Nodecraft gives a Pro server.
+3. Leave both ports at 28280. Do not change them.
+:::
+
+## Point your domain at the server
+
+1. In the Pro Panel, select **Overview**. Copy the **Dedicated IP**.
+2. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
+3. In Cloudflare, set the record's proxy status to **DNS only**.
+
+The first start issues the TLS certificate. Bedrock Voice Chat can take a minute to start fully while it gets the certificate. Wait before you sign in for the first time. You may need to restart the Java server _after_ the first certificate is issued.
+
+:::caution
+The plugin keeps its mTLS CA in `plugins/BedrockVoiceChat/`. Download a copy of this directory from **Server Files** and keep it. If you delete it, all client certificates that the server issued become invalid, and all players must sign in again.
+:::
+
+## Chat sync
+
+Chat sync needs this line in `server.properties`:
+
+```properties
+enforce-secure-profile=false
+```
+
+Edit `server.properties` in **Server Files**, then restart the server. See [chat](/wiki/player/chat/).
+
+## Connect
+
+Your players sign in with `https://bvc.example.com:28280`. Use your domain. See [signing in](/wiki/player/signing-in/).
+
+<div class="window"><img src="/assets/wiki/nodecraft-login.jpg" alt="BVC login window with bvc.example.com:28280 in the server address field" /></div>
+
+## Next steps
+
+1. Make yourself an admin from the server console:
+
+   ```
+   /bvc admin grant <Gamertag>
+   ```
+
+   Use your Xbox gamertag. Put it in quotes if it contains a space. See [Java commands](/wiki/player/in-game-commands/java/#admin).
+
+2. Send your players to [Downloads](/wiki/start/downloads/). They can then sign in.
 
 ---
 

@@ -57,6 +57,9 @@ URL. `/llms-full.txt` contains the entire wiki in one document.
 - [Aternos and no-net hosts](https://www.bedrockvoicechat.com/wiki/platforms/aternos.md): Run BVC on Aternos and other hosts that cannot enable @minecraft/server-net.
 - [Console and mobile](https://www.bedrockvoicechat.com/wiki/platforms/console-and-mobile.md): Using BVC on Xbox, PlayStation, Switch, and mobile devices.
 - [LAN and local worlds](https://www.bedrockvoicechat.com/wiki/platforms/lan-and-local-worlds.md): Why BVC does not work on LAN, locally hosted, or single-player worlds.
+- [Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft.md): Run Bedrock Voice Chat on a Nodecraft game server, for Fabric, PaperMC, and Bedrock.
+- [Fabric on Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/fabric.md): Run Bedrock Voice Chat on a Nodecraft Fabric server with the embedded BVC server.
+- [PaperMC on Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/papermc.md): Run Bedrock Voice Chat on a Nodecraft PaperMC server with the embedded BVC server.
 - [Realms](https://www.bedrockvoicechat.com/wiki/platforms/realms.md): Run BVC on a Minecraft Realm using the no-net Addon and Bedrock Voice Chat Connect.
 - [Bedrock version support](https://www.bedrockvoicechat.com/wiki/platforms/version-support.md): Which Minecraft Bedrock versions BVC can speak, and why support lags each release.
 
