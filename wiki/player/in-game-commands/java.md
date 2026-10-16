@@ -3,47 +3,47 @@ title: "Java commands"
 description: "The /bvc commands on Fabric and PaperMC servers."
 source: https://www.bedrockvoicechat.com/wiki/player/in-game-commands/java/
 ---
-Java commands nest under a single `/bvc` root. Type `/bvc ` and tab-complete the rest.
+On Java, all BVC commands start with `/bvc` and a space. Type `/bvc ` and press Tab to complete the rest.
 
-Requires a server running the [Java mod](/wiki/server/java-mod/) on Fabric or PaperMC, and the BVC app running and signed in. The commands are identical on both loaders.
+These commands need the [Java mod](/wiki/server/java-mod/) on a Fabric or PaperMC server. The BVC app must be open and signed in. The commands are the same on Fabric and PaperMC.
 
 ## Your own audio
 
-| Command | Does |
+| Command | Result |
 |---|---|
-| `/bvc mute <on\|off>` | Mute or unmute your microphone. |
-| `/bvc deafen <on\|off>` | Deafen or undeafen. Mutes everyone. |
-| `/bvc record <on\|off>` | Start or stop recording. Desktop only. |
+| `/bvc mute <true\|false>` | Mutes or unmutes your microphone. |
+| `/bvc deafen <true\|false>` | Deafens or undeafens you. When you are deafened, you hear no one. |
+| `/bvc record <true\|false>` | Starts or stops recording. Desktop only. |
 
 ## Other players
 
-| Command | Does |
+| Command | Result |
 |---|---|
-| `/bvc volume <player> <0-150>` | Set your local volume for one player. |
-| `/bvc hear <player> <on\|off>` | Choose whether you hear them at all. |
+| `/bvc volume <player> <0-150>` | Sets the volume of one player for you. |
+| `/bvc hear <player> <true\|false>` | Sets whether you hear that player. |
 
-Both are local to you. Turning someone down does not change what anyone else hears, and does not stop them hearing you.
+These settings change only what you hear. When you make a player quieter, other players hear no change, and that player can still hear you.
 
-100 leaves a player untouched. Above that boosts a quiet one, to 150 at most. The app's per-player slider covers the same range.
+At 100, a player plays at normal volume. To make a quiet player louder, set a value above 100. The maximum is 150. The volume slider for each player in the app has the same range.
 
 ## Jukebox music
 
-| Command | Does |
+| Command | Result |
 |---|---|
-| `/bvc jukebox mute <on\|off>` | Mute or unmute jukebox music. |
-| `/bvc jukebox volume <0-150>` | Set how loud jukebox music plays. |
+| `/bvc jukebox mute <true\|false>` | Mutes or unmutes jukebox music. |
+| `/bvc jukebox volume <0-150>` | Sets the volume of jukebox music. |
 
-One setting for every jukebox at once, and only for you. Voices are unaffected.
+This setting applies to all jukeboxes at the same time. It changes only what you hear. It does not change the volume of voices.
 
-These are the same two controls as **Settings → Audio** in the app. See [using the jukebox](/wiki/player/using-the-jukebox/).
+These are the same two controls as **Settings → Audio settings** in the app. See [using the jukebox](/wiki/player/using-the-jukebox/).
 
 ## Groups
 
-| Command | Does |
+| Command | Result |
 |---|---|
-| `/bvc group create` | Create a group and print its share code. |
-| `/bvc group join <code>` | Join a group with its code. |
-| `/bvc group leave` | Leave the group you are in. |
+| `/bvc group create` | Creates a group and shows its share code. |
+| `/bvc group join <code>` | Joins a group with its code. |
+| `/bvc group leave` | Leaves your current group. |
 
 See [Groups](/wiki/player/groups/).
 
@@ -53,9 +53,9 @@ See [Groups](/wiki/player/groups/).
 /bvc disc <audio_id>
 ```
 
-Gives you a disc bound to a clip from the [audio library](/wiki/player/audio-library/). See [using the jukebox](/wiki/player/using-the-jukebox/).
+This command gives you a disc that plays a clip from the [audio library](/wiki/player/audio-library/). See [using the jukebox](/wiki/player/using-the-jukebox/).
 
-A player has to run it. From the console, use the give form:
+Only a player can run `/bvc disc`. To give a disc from the server console, use this command:
 
 ```
 /bvc give <player> <audio_id>
@@ -63,20 +63,20 @@ A player has to run it. From the console, use the give form:
 
 ## Admin
 
-Server console only. Players and command blocks cannot run these commands, and do not see them.
+These commands are for server operators. You can run them only from the server console. Players and command blocks cannot run or see them.
 
-Requires the [embedded server](/wiki/server/java-mod/#integrated-or-external-bvc-server). With an external server, run [`admin bootstrap`](/wiki/server/players-and-permissions/#bootstrapping-the-first-admin) on the BVC host instead.
+They need the [embedded server](/wiki/server/java-mod/#external-or-embedded-server). With an external server, run [`admin bootstrap`](/wiki/server/players-and-permissions/#bootstrapping-the-first-admin) on the BVC host.
 
-| Command | Does |
+| Command | Result |
 |---|---|
-| `/bvc admin grant <gamertag>` | Give the player the `admin` permission. Creates the player if BVC does not know them. |
-| `/bvc admin revoke <gamertag>` | Remove the player's `admin` override. The [server-wide default](/wiki/server/players-and-permissions/#server-wide-defaults) applies again. |
-| `/bvc admin deny <gamertag>` | Refuse the player `admin`, even when the default allows it. |
+| `/bvc admin grant <gamertag>` | Gives the player the `admin` permission. Creates the player if BVC does not know them. |
+| `/bvc admin revoke <gamertag>` | Removes the `admin` setting for this player. The [server-wide default](/wiki/server/players-and-permissions/#server-wide-defaults) then applies. |
+| `/bvc admin deny <gamertag>` | Refuses `admin` to the player, even when the default allows it. |
 
-`<gamertag>` is the Xbox gamertag the player signs in to BVC with. It can differ from their name in game. It is case-sensitive. Put it in quotes if it contains a space:
+`<gamertag>` is the Xbox gamertag that the player uses to sign in to BVC. It can be different from their name in game. It is case-sensitive. If it contains a space, put it in quotes:
 
 ```
 /bvc admin grant "Some Name"
 ```
 
-`grant` creates the player record, so the player can also sign in. `revoke` and `deny` change only existing players. For a gamertag BVC does not know, they reply `<gamertag> is not a BVC player; nothing was changed.`
+`grant` creates the player record. After this, the player can also sign in to BVC. `revoke` and `deny` change only existing players. If BVC does not know the gamertag, the command shows `<gamertag> is not a BVC player; nothing was changed.`

@@ -3,15 +3,15 @@ title: "Privacy and telemetry"
 description: "What BVC collects, how to turn it off, and setting a minimum age for your community."
 source: https://www.bedrockvoicechat.com/wiki/server/privacy-and-telemetry/
 ---
-Bedrock Voice Chat collects a small amount of anonymous operational telemetry. You can turn it off entirely.
+Bedrock Voice Chat collects a small amount of anonymous telemetry. You can turn it off.
 
 ## Telemetry
 
-Bedrock Voice Chat collects anonymous operational metrics: connection counts, session lifecycle events, and error rates.
+Bedrock Voice Chat collects anonymous operational metrics: connection counts, session start and end events, and error rates.
 
 It does not collect gamertags, message content, audio, or position data.
 
-**It is enabled by default.** To turn it off:
+Telemetry is on by default. To turn it off:
 
 ```hcl
 server {
@@ -21,19 +21,19 @@ server {
 }
 ```
 
-Or set `BVC_TELEMETRY=false`.
+You can also set `BVC_TELEMETRY=false`.
 
-Turning it off costs you nothing functionally. It costs the project visibility into crashes and regressions across real deployments. Your server, your call.
+Turning telemetry off does not change how BVC works. The BVC developers then cannot see crashes and regressions on your server.
 
 ## Your own metrics
 
-`/metrics` always serves Prometheus-format metrics regardless of the `telemetry` flag, and the health endpoints are always available. Those are local to your deployment and go nowhere.
+`/metrics` always serves Prometheus metrics, whatever the value of the `telemetry` flag. The health endpoints are always available. BVC does not send these metrics to anyone. Only your own deployment can read them.
 
 See [monitoring](/wiki/server/monitoring/).
 
 ## Minimum age
 
-Set a minimum age for your community and the client apps will present Age Signals (Android) or Declared Age Ranges (iOS) prompts to players in regions where those are required.
+Set a minimum age with `server.age.minimum`. In regions that require age checks, the client app then asks the player to confirm their age. Android uses Age Signals. iOS uses Declared Age Ranges.
 
 ```hcl
 server {
@@ -45,24 +45,24 @@ server {
 
 | Value | Effect |
 |---|---|
-| `0` | Enforcement off. |
-| `13`–`18` | Enforced at that age. |
-| Anything else | Clamped into 13–18. |
-| Unset | Defaults to 13. |
+| `0` | No age check. |
+| `13` to `18` | Players must be at least this age. |
+| Any other value | Changed to the nearest value from 13 to 18. |
+| Not set | 13. |
 
-The prompt only appears when both are true: you have set a minimum, and the player's device and account are in a region where the platform requires it. Setting a minimum does nothing visible to players elsewhere.
+The prompt appears only if the minimum is not `0` and the platform requires age checks in the player's region. Players in other regions see no change.
 
-BVC only asks the platform whether the signed-in user clears your minimum. It does not receive, store, or transmit anyone's age.
+BVC asks the platform only if the signed-in player is at or above your minimum age. BVC does not receive, store, or send any player's age.
 
-Parent-facing explanation: [parents and age settings](/wiki/player/parents-and-age/). Worth linking from your own rules page if you run a server with younger players.
+[Parents and age settings](/wiki/player/parents-and-age/) explains these settings for parents. If your server has younger players, link that page from your server rules.
 
 ## Player-to-player controls
 
-Players can mute each other locally. Muting is one-directional. It stops you hearing them, not them hearing you.
+Players can mute each other on their own device. When you mute a player, you do not hear them. They can still hear you.
 
-There is no server-side moderation tooling for voice. You can banish a player entirely with `bvc user banish`, and that is the extent of it. Anything more nuanced is a matter for your own community rules and moderators.
+BVC has no server-side moderation tools for voice. To remove a player from voice chat, use `bvc user banish`. For other moderation, use your community rules and moderators.
 
-Groups are not private from their members. Everyone in a group hears everything, and any member can be recording locally.
+Group members can hear everything in the group. Any member can record the group on their own device.
 
 ## Full privacy policy
 

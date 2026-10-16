@@ -1,116 +1,109 @@
 ---
 title: "Installing Bedrock Voice Chat Server"
-description: "Stand up the standalone BVC server with Docker, a config file, and automatic TLS."
+description: "Install the standalone BVC server with Docker, a configuration file, and automatic TLS."
 source: https://www.bedrockvoicechat.com/wiki/server/installation/
 ---
-Bedrock Voice Chat Server is the heart of Bedrock Voice Chat, and is the core component that allows Bedrock and Java players to chat with each other on every platform. Before you install the addon and connct to Bedrock Voice Chat, you'll need to first setup the server.
+Bedrock Voice Chat Server is the central part of Bedrock Voice Chat. Bedrock and Java players connect to it to talk to each other. Set up the server before you install the Addon.
 
 ## Requirements
 
-Before you can run Bedrock Voice Chat Server, there's a few dependencies you'll need to acquire.
+1. A Linux server, a Windows computer, or a hosting platform that runs Docker containers.
+2. A domain name.
+3. A TLS certificate.
 
-1. A linux server, windows computer, or app platform that allows you to run Docker containers
-:::tip[These providers work well, and the links support development]
-A single core, 512M server can support ~ 5 concurrent players. If you experience hiccups, consider adding more cores, or changing to a dedicated affinity rather than shared.
-- [DigitalOcean](https://m.do.co/c/15e066af535c) — Eligible referral credit after $25 spend
-- [Hetzner](https://hetzner.cloud/?ref=StImwLqshuwn) — $25 signup credit.
+:::tip[Hosting providers]
+A server with 1 CPU core and 512 MB of memory supports about 5 players at the same time. If audio stutters, add CPU cores, or change to a plan with dedicated CPU cores.
+
+These links support development:
+
+- [DigitalOcean](https://m.do.co/c/15e066af535c): referral credit after you spend $25.
+- [Hetzner](https://hetzner.cloud/?ref=StImwLqshuwn): $25 credit when you sign up.
 :::
 
-2. A domain name
-:::tip[Recommended Providers]
-A few recommended providers are listed here.
-- [Namecheap](https://https://www.namecheap.com/)
+:::tip[Domain registrars]
+- [Namecheap](https://www.namecheap.com/)
 - [Cloudflare](https://www.cloudflare.com/products/registrar/)
-- [TailScale ts.net](https://tailscale.com/)
+- [Tailscale](https://tailscale.com/) (`ts.net` names)
 :::
 
-:::caution[A domain name is REQUIRED for Bedrock Voice Chat to work]
-Bedrock Voice Chat does not work with direct IP access. A fully qualified domain name is required.
+:::caution[A domain name is REQUIRED]
+Bedrock Voice Chat does not work with a bare IP address. You **MUST** use a fully qualified domain name.
 :::
 
-3. A TLS Certificate
+BVC gets and renews its TLS certificate through ACME DNS-01 with Let's Encrypt. It supports two DNS providers: Cloudflare and acme-dns. You can also use your own certificate files. See [TLS certificates](/wiki/server/tls/).
 
-You can either use any valid ACME-DNS provider (Lets Encrypt), or Cloudflare DNS
-
-:::tip[Cloudflare DNS has first class support]
-Bedrock Voice Chat can automatically provision a TLS certificate for you if you use an ACME-DNS provider, or Cloudflare. Cloudflare is recommended because it is free, and easy to use and setup if you purchased your domain through Cloudflare or transfered your domain to Cloudflare.
+:::tip[Cloudflare DNS]
+Use Cloudflare if your domain is registered with Cloudflare or moved to Cloudflare. Cloudflare DNS is free.
 :::
 
-## Firewall Configuration
+## Firewall configuration
 
-Your Bedrock Voice Chat server needs the following firewall ports opened to work
+Open these ports in the firewall.
 
 | Port | Protocol | Purpose |
 |------|----------|---------|
-| 443 | tcp | Enables API, Websockets, and fallback voice traffic |
-| 443 | udp | Primary voice traffic ingress |
-| 28280 | udp | Fallback voice traffic ingress, if 443/udp is blocked |
-| 28284 | udp | Iroh endpoint for SVC Peering. Only open if needed |
+| 443 | TCP | HTTP API, WebSocket, and WebSocket voice when UDP is blocked. |
+| 28280 | UDP | Voice traffic (QUIC). |
+| 28284 | UDP | Peering with other BVC servers. Open it only if you use [peering](/wiki/reference/peering/). |
 
 ## Running Bedrock Voice Chat with Docker
 
-Once you have your server setup and domain provisioned, setup with BVC can be done in seconds with Docker.
+Docker is the recommended method. You can also run the native server binary from [GitHub](https://github.com/Alaydriem/bedrock-voice-chat/releases).
 
-:::note
-You can also install and BVC using the natively provided server binaries over on Github, however Docker remains the preferred and recommended way to run BVC Server.
-:::
+1. Create `config.hcl`. This is the minimum configuration:
 
-1. Create your configuration file. A minimum example configuration is as shown
+   ```hcl
+   server {
+       tls {
+           names = ["replace.with.your.domain.name.tld"]
 
-```hcl
-server {
-    tls {
-        names = ["replace.with.your.domain.name.tld"]
+           acme {
+               email    = "you@example.com"
+               provider = "cloudflare"
+               api_token = "${env.CF_API_TOKEN}"
+           }
+       }
+   }
+   ```
 
-        acme {
-            email    = "you@example.com"
-            provider = "cloudflare"
-            api_token = "${env.CF_API_TOKEN}"
-        }
-    }
-}
-```
+   All configuration keys are in the [configuration reference](/wiki/reference/configuration/).
 
-:::tip[Bedrock Voice Chat is highly configurable!]
-Review the full [configuration reference](/wiki/reference/configuration/) to see all the ways you can tune and tailor your
-:::
+2. Start the server with Docker:
 
-2. Start your server with Docker
-
-```bash
-docker run -d --restart=always \
-  -p 443:443/tcp -p 443:443/udp -p 28280:28280/udp -p 28283:28283/udp \
-  -e CF_API_TOKEN="your_cloudflare_api_token"
-  -v ${PWD}:/data \
-  ghcr.io/alaydriem/bedrock-voice-chat/server:1.0.0-beta.21
-```
+   ```bash
+   docker run -d --restart=always --name bvc \
+     -p 443:443/tcp -p 28280:28280/udp -p 28284:28284/udp \
+     -e CF_API_TOKEN="your_cloudflare_api_token" \
+     -v ${PWD}:/data \
+     ghcr.io/alaydriem/bedrock-voice-chat/server:1.0.0-beta.21
+   ```
 
 3. Get your access token:
 
-```bash
-docker exec -it bvc bvc-server admin token mint --local -c /data/config.hcl
-```
+   ```bash
+   docker exec -it bvc bvc-server admin token mint --local -c /data/config.hcl
+   ```
 
-:::caution[Save this Token!]
-You'll need it for configuring either your BDS or Java mod
-:::
+   :::caution[Save this token]
+   The Bedrock Addon and the Java mod need this token.
+   :::
 
-4. Bootstrap your first user
+4. Make yourself the first admin. The command creates your player record if it does not exist.
 
-```bash
-docker exec -it bvc bvc-server admin bootstrap -p <YourPlayerName>
-```
+   ```bash
+   docker exec -it bvc bvc-server admin bootstrap -p <YourGamertag>
+   ```
 
-And you're done! Login to Bedrock Voice Chat to get started!
+5. Sign in to the Bedrock Voice Chat app.
 
-## Then
+## Next steps
 
-1. Install the Addon: [Bedrock](/wiki/server/bedrock-addon/) or [Java](/wiki/server/java-mod/).
-2. Bedrock Voice Chat requires that you either [whitelist your players](/wiki/server/players-and-permissions/) or have them log into your Bedrock Dedicated Server at least once before using the app.
-3. Point players at [Downloads](/wiki/start/downloads/).
+1. Install the [Bedrock Addon](/wiki/server/bedrock-addon/) or the [Java mod](/wiki/server/java-mod/).
+2. Let your players in. A player can sign in after they join your game server once, or after you [add them](/wiki/server/players-and-permissions/).
+3. Send your players to [Downloads](/wiki/start/downloads/).
 
-Realms, Aternos, and consoles need extra setup. See [Where BVC works](/wiki/platforms/).
+Realms, Aternos and consoles need more setup. See [Where BVC works](/wiki/platforms/).
 
-## Running BVC in the Java mods
+## Embedded server in the Java mod
 
-If you're running a Geyser server with PaperMC or Fabric, Bedrock Voice Chat can also be installed there directly. See the [Java installation guide](wiki/server/java-mod/) for more details.
+If you run a Geyser server with PaperMC or Fabric, the Java mod can run the BVC server inside the game server. See the [Java mod guide](/wiki/server/java-mod/).

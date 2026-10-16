@@ -3,39 +3,38 @@ title: "No-net Addon"
 description: "Build and install the Addon for Realms, Aternos, and hosts without @minecraft/server-net."
 source: https://www.bedrockvoicechat.com/wiki/server/nonet-addon/
 ---
-The no-net Addon lets Bedrock Voice Chat run on hosts that do not permit `@minecraft/server-net`, such as Realms and Aternos. Without that module the standard Addon cannot make HTTP requests, and cannot report positions the normal way.
+The no-net Addon lets Bedrock Voice Chat run on hosts that do not allow `@minecraft/server-net`, such as Realms and Aternos. Without that module, the standard Addon cannot send HTTP requests. It cannot send positions to the BVC server.
 
-The no-net Addon works differently. Your BVC client becomes the Bedrock server your game connects to, proxies packets through to the real host, and reads positions off the wire.
+With the no-net Addon, the BVC app runs a local Bedrock server. Minecraft connects to this local server. The app sends all game traffic to the real host, and reads player positions from that traffic.
 
-The steps below are the same for every such host. Host-specific steps are in [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/).
+For host-specific steps, see [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/).
 
 ## Before you start
 
 Install and configure the [BVC server](/wiki/server/installation/) first.
 
 :::caution
-Bedrock Voice Chat Server is _not_ an optional component. The no-net path still needs this.
+The no-net Addon needs a Bedrock Voice Chat server.
 :::
 
-Install the [client app](/wiki/start/downloads/). Part of this happens there.
+Install the [BVC app](/wiki/start/downloads/). You use the app to connect to the host.
 
-## Read the limitations first
+## Limitations
 
-Bedrock's Addon system constrains this approach:
+- The Addon is **locked to one protocol version**. An Addon for one Bedrock version does not work with a different version.
+- Support for each Minecraft release comes after the release. Mojang does not document the packet protocol and changes it in each update. The BVC developers cannot update the Addon until the Minecraft update is released.
+- If your host updates Minecraft automatically, voice chat stops on the day of the update.
+- Your host's Minecraft version must match the version that the Addon supports. If the versions do not match, voice chat does not work. Check [version support](/wiki/platforms/version-support/) before you choose a server version.
 
-- The Addon is **locked to a protocol version**. One built for a given Bedrock version will not work against another.
-- Support **lags every Minecraft release**. Mojang does not document the packet protocol and changes it each update. The work cannot start until the update ships. There is no day-one support.
-- A host that auto-updates Minecraft **will break voice** on update day.
-
-Running your own Bedrock Dedicated Server avoids all of it. See [version support](/wiki/platforms/version-support/).
+These limits do not apply to your own Bedrock Dedicated Server with the [full Addon](/wiki/server/bedrock-addon/).
 
 ## Build the world
 
-1. Download the `no-net.mcaddon` package from GitHub Releases under the `mods-` tag, or from CurseForge. It must be the `no-net` variant. The full Addon does not work here.
+1. Download `no-net.mcaddon` from [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) (releases with a tag that starts with `mods-`), or from CurseForge. Use the `no-net` variant. The full Addon does not work on these hosts.
 
-2. Double-click it to install into your local Minecraft Bedrock client.
+2. Double-click the file to install it in your Minecraft Bedrock client.
 
-3. Create a new world. Under **Behavior Packs**, enable the Bedrock Voice Chat Realms + No-Net pack.
+3. Create a new world. Under **Behavior Packs**, enable the **Bedrock Voice Chat (Realms + No-Net Servers)** pack.
 
    <div class="window"><img src="/assets/wiki/mc-packs-active.jpg" alt="Pack list with the Bedrock Voice Chat (Realms + No-Net Servers) pack active" /></div>
 
@@ -45,31 +44,23 @@ Running your own Bedrock Dedicated Server avoids all of it. See [version support
 
 5. Create the world, then exit it immediately.
 
-6. Open the world's settings and export it.
+6. Open the world's settings and export the world. Save the `.mcworld` file where you can find it again.
 
    <div class="window"><img src="/assets/wiki/mc-export-world.jpg" alt="World settings with the Export World option at the bottom" /></div>
 
-Save it somewhere you can find.
+## Upload and connect
 
-## Chat
+Upload the world to your host. Then connect the BVC app to the host with Bedrock Voice Chat Connect. The upload step is different for each host:
 
-[Chat](/wiki/player/chat/) needs no configuration on a no-net host. The proxy session reads chat off the wire the same way it reads positions. The app can read and send in-game chat as soon as you connect.
-
-The `bvc_world_name` variable on the [full Addon](/wiki/server/bedrock-addon/) does not apply here.
-
-## Then
-
-Upload the world to your host, then point the client at it with Bedrock Voice Chat Connect. The upload step differs per host:
-
-- **[Realms](/wiki/platforms/realms/)** — upload the world to the Realm.
-- **[Aternos and other no-net hosts](/wiki/platforms/aternos/)** — rename to `.zip`, then upload.
-
-## Match the versions
-
-Your host's Minecraft version must match the one the Addon supports. These Addons are not backwards compatible. A mismatch fails outright.
-
-Check [version support](/wiki/platforms/version-support/) before picking a server version.
+- **[Realms](/wiki/platforms/realms/)**: upload the world to the Realm.
+- **[Aternos and other no-net hosts](/wiki/platforms/aternos/)**: rename the file to `.zip`, then upload it.
 
 ## Console players
 
-Nothing extra. The app hosts the session on your network, and it appears in Minecraft under **Worlds**. See [console and mobile](/wiki/platforms/console-and-mobile/).
+Console players need no extra steps. The BVC app shows the world on your local network, and Minecraft lists it under **Worlds**. See [console and mobile](/wiki/platforms/console-and-mobile/).
+
+## Chat
+
+[Chat](/wiki/player/chat/) needs no configuration on a no-net host. The BVC app reads chat from the game traffic, in the same way as positions. The app can read and send in-game chat after you connect.
+
+The `bvc_world_name` variable of the [full Addon](/wiki/server/bedrock-addon/) does not apply to the no-net Addon.

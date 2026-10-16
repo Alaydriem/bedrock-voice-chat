@@ -4,29 +4,30 @@ description: "Linking two BVC servers so voice carries across both. Work in prog
 source: https://www.bedrockvoicechat.com/wiki/reference/peering/
 ---
 :::caution[Work in progress]
-Peering is under active development. The configuration shape, the CLI, and the wire protocol all change between releases. Peering protocol is subject to change until the spec is finalized
+Peering is in development. The configuration, the CLI, and the protocol change between releases. Do not use peering on a production community.
+:::
 
-Peering links two Bedrock Voice Chat servers together, letting players whose worlds overlap hear each other across both.
+Peering links two Bedrock Voice Chat servers. Players whose worlds overlap can then hear each other across both servers.
 
-Not for production communities.
+## Peer declaration
 
-## Model
+Servers do not find each other automatically. Each operator adds the other server's peer link to their own `config.hcl`. A server refuses a connection from any server that is not in that list.
 
-Peering is declared. There is no discovery, no broker, and no announce cycle. Each operator writes the other's peer link into their own `config.hcl`. A node absent from that list is refused at connect.
-
-The declaration is the authorization. There is no peering permission.
+A server that is listed in `server.peers` can connect. No player permission controls peering.
 
 ## Link two servers
 
-Run on server A:
+On server A, run:
 
 ```bash
-bvc relay peerlink --label server-b
+bvc relay peerlink --label server-a
 ```
 
-It prints the peer link, the node id, and a block to paste. Put that block in server B's `config.hcl`. Then run the same command on server B and paste its block into server A's.
+The command prints the peer link, the server's node ID, and a `peers` block. Paste the block into server B's `config.hcl`. Then run the same command on server B with `--label server-b`, and paste its block into server A's `config.hcl`.
 
-Restart both.
+Restart both servers.
+
+Server A's `config.hcl`:
 
 ```hcl
 server {
@@ -40,33 +41,31 @@ server {
 
 | Key | Default | Description |
 |---|---|---|
-| `peerlink` | — | The link the far side printed. **Required.** |
-| `worlds` | `[]` | Narrowing filter over the worlds the peer declares. |
-| `capabilities` | `["carry_speakers"]` | What the peer may do on the link. |
+| `peerlink` | None | The peer link that the other server printed. **Required.** |
+| `worlds` | `[]` | Limits the link to some of the worlds that the peer declares. |
+| `capabilities` | `["carry_speakers"]` | The actions that the peer can do on the link. |
 
-Full descriptions in the [configuration reference](/wiki/reference/configuration/#serverpeers).
+See the [configuration reference](/wiki/reference/configuration/#serverpeers) for full descriptions.
 
-## Reaching a peer
+## Network access
 
-A peer link carries the paths to reach its server. Two servers on one host, or two hosts on one local network, need nothing else.
+A peer link contains the addresses of its server. Two servers on one host, or two hosts on one local network, need nothing more.
 
-Across the internet the two servers connect **directly**. Nothing forwards the traffic on their behalf, and no voice or position data passes through Bedrock Voice Chat infrastructure.
+Over the internet, the two servers connect directly. No relay forwards the traffic. No voice or position data goes through Bedrock Voice Chat infrastructure.
 
-That means a reachable path has to exist. Where both ends sit behind NAT, forward [`server.peer_port`](/wiki/reference/configuration/#serverpeering-and-serverpeer_port) (UDP `28284` by default) on at least one of them. Where neither can be reached — carrier-grade NAT on both sides is the usual case — the pair does not connect, and no configuration changes that.
+At least one server must accept incoming connections. If both servers are behind NAT, forward [`server.peer_port`](/wiki/reference/configuration/#serverpeering-and-serverpeer_port) (UDP `28284` by default) on one of them. If neither server can accept connections, peering does not work. This usually happens when both servers are behind carrier-grade NAT.
 
 ## Diagnostics
 
-| Command | Does |
+| Command | Result |
 |---|---|
-| `bvc relay peerlink` | Print this server's peer link and node id. |
-| `bvc relay worlds` | List the relay worlds this server hosts, with player counts. |
+| `bvc relay peerlink` | Prints this server's peer link and node ID. |
+| `bvc relay worlds` | Lists the relay worlds that this server hosts, with player counts. |
 
 `bvc relay worlds` lists nothing until a player joins a relay world.
 
-Both read the admin API over mTLS and need an active admin identity. See the [CLI reference](/wiki/reference/cli/).
+Both commands use the admin API over mTLS and need an active admin identity. See the [CLI reference](/wiki/reference/cli/).
 
-## Before you turn it on
+## Moderation
 
-Peering means players on another operator's server hear yours, and yours hear theirs. Their moderation becomes your problem, and yours becomes theirs.
-
-Declare a peer deliberately.
+Players on the peer server hear your players, and your players hear them. The moderation of each operator affects both communities. Declare a peer only when you trust the other operator's moderation.

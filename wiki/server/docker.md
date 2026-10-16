@@ -14,9 +14,8 @@ services:
     restart: always
     ports:
       - "443:443/tcp"
-      - "443:443/udp"
       - "28280:28280/udp"
-      - "28283:28283/udp"
+      - "28284:28284/udp"
     user: "100:101"
     cap_add:
       - NET_BIND_SERVICE
@@ -39,27 +38,27 @@ Mount `/data` and keep it. It holds:
 
 The database holds the mTLS certificate authority. Losing it invalidates every client certificate already issued and forces everyone to sign in again.
 
-`certificates/` does not have to survive a restart. The server writes the CA there at startup from the database, and repopulates an empty directory. Point `server.tls.certs_path` at a temporary directory where a persistent volume is inconvenient.
+The certificates directory (`server.tls.certs_path`) can be temporary. At startup, the server writes the CA into it from the database. If the directory is empty, the server fills it again. Set `server.tls.certs_path` to a temporary directory if a persistent volume is not practical.
 
 :::caution
-Serving certificates are separate. A certificate and key given through `server.tls.certificate` and `server.tls.key` are read from the path you mount them at, and are not stored in the database.
+Your server's own TLS certificate is different from the mTLS CA. The server reads `server.tls.certificate` and `server.tls.key` from the path where you mount them. They are not stored in the database.
 :::
 
 ## Running without a config file
 
-Every setting has a `BVC_*` override, which makes the file optional. With no `config.hcl` the server starts from defaults plus the environment and logs that it did.
+Most settings have a `BVC_*` environment variable. You do not need a `config.hcl` file. When there is no `config.hcl`, the server starts with the defaults and the environment variables, and writes a log line that says so.
 
-That is usually the right approach for Kubernetes: no ConfigMap for the file, secrets as secrets, everything else as env. See [environment variables](/wiki/reference/environment-variables/).
+On Kubernetes, configure BVC with environment variables. Put secret values in Kubernetes Secrets. You do not need a ConfigMap. See [environment variables](/wiki/reference/environment-variables/).
 
-An unset or empty variable never overrides anything. `FOO=` in a compose file will not blank out a configured value. A malformed one is a hard startup error.
+A variable that is not set, or that is empty, does not change a value. `FOO=` in a compose file does not clear a configured value. If a variable has an invalid value, the server does not start.
 
 ## Health checks
 
 | Endpoint | Use |
 |---|---|
-| `/health/liveness` | Process is up. Restart on failure. |
-| `/health/readiness` | Ready for traffic. Gate the load balancer on it. |
-| `/api/ping` | Cheap reachability probe. |
+| `/health/liveness` | The process is running. Restart the container if this fails. |
+| `/health/readiness` | The server can accept traffic. Use it for the load balancer check. |
+| `/api/ping` | A light check that the server is reachable. |
 
 Kubernetes:
 
@@ -74,10 +73,10 @@ readinessProbe:
 
 ## Graceful shutdown
 
-The server handles SIGTERM. `docker stop` and pod eviction close connections cleanly.
+The server handles SIGTERM. `docker stop` and pod eviction close connections correctly.
 
 ## Scaling
 
-BVC is CPU-bound and stateful per connection. Scale a single instance up with more cores before reaching for more replicas.
+BVC is limited by CPU, and each connection keeps state on one instance. Add CPU cores to one instance before you add instances.
 
-Do not put several instances behind an ordinary load balancer. QUIC connections are long-lived and must stay pinned to the instance that established them. Round-robin breaks voice. Sharing one address across instances needs routing by connection ID, which our managed hosting handles.
+Do not put several instances behind an ordinary load balancer. A QUIC connection stays open for a long time and must stay on the instance that opened it. Round-robin routing breaks voice. To share one address between instances, the load balancer must route by QUIC connection ID.

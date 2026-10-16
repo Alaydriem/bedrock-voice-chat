@@ -3,49 +3,51 @@ title: "Realms"
 description: "Run BVC on a Minecraft Realm using the no-net Addon and Bedrock Voice Chat Connect."
 source: https://www.bedrockvoicechat.com/wiki/platforms/realms/
 ---
-Bedrock Voice Chat supports Minecraft Realms through the no-net Addon and Bedrock Voice Chat Connect, letting you run proximity voice chat on a Realm you do not control. Supported as of 1.0.0-beta.15 through the no-net addon.
+Bedrock Voice Chat supports Minecraft Realms with the no-net Addon and Bedrock Voice Chat Connect. You can use proximity voice chat on a Realm that you do not control. Supported since 1.0.0-beta.15.
 
 :::caution
-Realms auto-update. A Minecraft update **will break** voice on your Realm until a matching Bedrock Voice Chat build ships. Check [version support](/wiki/platforms/version-support/) before committing your community to a Realm.
+Realms update automatically. After a Minecraft update, voice chat on your Realm **stops** until a matching Bedrock Voice Chat version is available. Check [version support](/wiki/platforms/version-support/) before you move your server to a Realm.
 :::
 
 ## Before you start
 
-1. Install and configure the [BVC server](/wiki/server/installation/). Not optional — the no-net path still needs one.
-2. Install the [client app](/wiki/start/downloads/).
-3. Build the no-net world following the [no-net Addon](/wiki/server/nonet-addon/) guide.
-4. Ensure your realms players are manually whitelisted on BVC Server.
+1. Install and configure the [BVC server](/wiki/server/installation/). Realms also need a BVC server.
+2. Install the [BVC app](/wiki/start/downloads/).
+3. Build the no-net world with the [no-net Addon](/wiki/server/nonet-addon/) guide.
+4. Add each Realm player on the BVC server. See [players and permissions](/wiki/server/players-and-permissions/).
 
 ## Upload to the Realm
 
-Create your world on the Realm from the world you built, then exit the Realm once it has saved.
+1. In Minecraft, open the settings of your Realm.
+2. Replace the Realm world with the world that you built.
+3. When the Realm has saved the world, leave the Realm.
 
 ## Connect
 
 :::note
-Realms use Nethernet, which has a connect cooldown. If you disconnect from Bedrock Voice Chat Connect, expect to wait around five minutes before reconnecting while the Realm is idle.
+If you disconnect from Bedrock Voice Chat Connect, wait about five minutes before you connect again. Realms use NetherNet, and NetherNet does not accept a new connection during this time.
 :::
 
-1. Sign into the BVC client against the server from step 1.
-2. Settings cog, bottom left. Then **Voice Chat Connect** in the sidebar. First visit asks you to sign in again.
+1. Sign in to the BVC app with the BVC server from [Before you start](#before-you-start).
+2. Select the Settings cog at the bottom left. Then select **Voice Chat Connect** in the sidebar. The first time, the app asks you to sign in again.
 3. Select your Realm.
 
 <div class="window"><img src="/assets/wiki/settings-connect.jpg" alt="Voice Chat Connect page with a Realm selected" /></div>
 
 ## Open Minecraft
 
-The app hosts the session on your network. It appears in Minecraft under **Worlds**.
+The BVC app shows the session on your local network. Minecraft lists it under **Worlds**.
 
-1. Open Minecraft on the same network as the device running BVC.
+1. Open Minecraft on the same network as the device that runs BVC.
 2. Go to **Worlds**.
-3. Pick the entry named after your Realm. The second line shows your gamertag and **Bedrock Voice Chat**.
+3. Select the entry with the name of your Realm. The second line shows your gamertag and **Bedrock Voice Chat**.
 
 Desktop, mobile and console all connect this way. Consoles need no extra setup. See [console and mobile](/wiki/platforms/console-and-mobile/).
 
-:::caution
-Bedrock Voice Chat only works when you join the world through the Worlds tab. Connecting to your Realm directly prevents Bedrock Voice Chat from working.
+:::danger
+Join the world from the **Worlds** tab. If you connect to your Realm directly, Minecraft works but voice chat does not.
 :::
 
 :::note
-On Desktop and Mobile devices, if the LAN server does not appear, you can connect to `127.0.0.1:28282` instead from the `Servers` tab.
+On desktop and mobile, if the session is not in **Worlds**, open the **Servers** tab and add `127.0.0.1` with port `28282`.
 :::

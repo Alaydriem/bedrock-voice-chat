@@ -3,30 +3,31 @@ title: "For players"
 description: "Install BVC, sign in, and use proximity voice chat on a server that already has it."
 source: https://www.bedrockvoicechat.com/wiki/player/
 ---
-This page is for players who are on a server that already has BVC installed and configured that you want to join and play on.
+This page is for players who want to join a server that already has Bedrock Voice Chat (BVC) set up.
 
 ## Getting Started
 
-1. [Install the app](/wiki/start/downloads/) for your device.
-2. [Sign in](/wiki/player/signing-in/) with the Xbox account you play on, using the server URL your operator gave you.
-3. Put headphones on and play.
+1. [Install the app](/wiki/start/downloads/) on your device.
+2. Join the Minecraft server in game one time.
+3. [Sign in](/wiki/player/signing-in/) with the Xbox account that you play on. Use the server URL that your server operator gave you.
+4. Put on your headphones and play.
 
 :::caution
-BVC is deny-by-default. If sign-in refuses you, you have not been whitelisted by your server operator. Ask your operator to add you.
+Bedrock Voice Chat lets you sign in only after the server knows you. If you cannot sign in, join the Minecraft server in game one time, then try again. If you still cannot sign in, ask your server operator to add you.
 :::
 
-If nothing works at all, the server may not have BVC set up. Point your operator at [Running a server](/wiki/server/).
+If nothing works, the server may not have BVC set up. Send your server operator the [Running a server](/wiki/server/) page.
 
-## Using it
+## Player guides
 
-| Page | What it covers |
+| Page | Contents |
 |---|---|
-| [Using voice chat](/wiki/player/using-voice-chat/) | Proximity ranges, mute and deafen, per-player volume. |
-| [Groups](/wiki/player/groups/) | Talk to your party regardless of distance. |
+| [Using voice chat](/wiki/player/using-voice-chat/) | Voice range, mute and deafen, volume for each player. |
+| [Groups](/wiki/player/groups/) | Talk to your friends at any distance. |
 | [Chat](/wiki/player/chat/) | Read and send in-game chat from the app. |
-| [In-game commands](/wiki/player/in-game-commands/) | Control BVC from inside Minecraft with `/bvc:*`. |
-| [Using the jukebox](/wiki/player/using-the-jukebox/) | Play audio clips out of a block, positioned in the world. |
-| [Audio library](/wiki/player/audio-library/) | Upload and manage the clips discs play. |
+| [In-game commands](/wiki/player/in-game-commands/) | Control BVC from inside Minecraft with `/bvc` commands. |
+| [Using the jukebox](/wiki/player/using-the-jukebox/) | Play audio clips from a block in the world. |
+| [Audio library](/wiki/player/audio-library/) | Upload and manage the clips that discs play. |
 | [Settings](/wiki/player/settings/) | Devices, noise gate, keybinds, push-to-talk. |
-| [Parents and age settings](/wiki/player/parents-and-age/) | Age Signals and Declared Age Ranges. |
+| [Parents and age settings](/wiki/player/parents-and-age/) | Age checks on Android and iOS. |
 | [Troubleshooting](/wiki/player/troubleshooting/) | "I cannot hear anyone." |

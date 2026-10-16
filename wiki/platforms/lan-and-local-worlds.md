@@ -3,40 +3,40 @@ title: "LAN and local worlds"
 description: "Why BVC does not work on LAN, locally hosted, or single-player worlds."
 source: https://www.bedrockvoicechat.com/wiki/platforms/lan-and-local-worlds/
 ---
-**BVC does not work on LAN worlds, locally hosted worlds, or single-player worlds.** That covers any world where one player hosts from their own device and others join — sometimes described as a world where "the host must be online for friends to join".
+Bedrock Voice Chat does not work on LAN worlds, locally hosted worlds or single-player worlds. These are worlds that one player hosts on their own device. Friends can join only while the host is online.
 
 :::note[Two different things called LAN]
-A **LAN world** is a world hosted by a game client. BVC does not support it.
+A **LAN world** is a world that a game client hosts. BVC does not support it.
 
-Minecraft's **Worlds** tab also lists sessions found on your network. Bedrock Voice Chat Connect sessions appear there. Those work. See [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/).
+Minecraft's **Worlds** tab also lists sessions that it finds on your network. Bedrock Voice Chat Connect sessions show in this list. These sessions work with BVC. See [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/).
 :::
 
-## Why
+## Reason
 
-Bedrock Voice Chat needs a server-side Addon to report where players are. Proximity chat is impossible without position data, and the Addon is the only thing that produces it.
+Bedrock Voice Chat needs an Addon on the server to send player positions. Proximity chat cannot work without positions, and only the Addon sends them.
 
-A world hosted from the Minecraft game client cannot load server-side Addons. There is nowhere to install one, on any platform.
+A world that the Minecraft game client hosts cannot load server Addons. On all platforms, there is no place to install one.
 
 ### Bedrock Voice Chat Connect
 
-Realms and Aternos work through Bedrock Voice Chat Connect, which intercepts Bedrock's network protocol. It does not help here.
+Realms and Aternos use Bedrock Voice Chat Connect. Connect does not work with LAN worlds.
 
-A Realm and an Aternos instance are real servers you can **upload a world to, Addon included**. Bedrock Voice Chat Connect carries the position data that Addon produces. A LAN world has no upload path, leaving no Addon and nothing to carry.
+You can upload a world with the Addon to a Realm or an Aternos server. Connect then sends the data from that Addon to BVC. You cannot upload a world to a LAN host. No Addon runs on a LAN world.
 
-## The alternative
+## Use Bedrock Dedicated Server
 
-Run Bedrock Dedicated Server. It is a download and a run command, and you can run it on the same machine you were hosting the LAN world from.
+Download Bedrock Dedicated Server (BDS) and start it. It can run on the computer that hosted the LAN world.
 
 You need:
 
-1. A **Bedrock Dedicated Server** or a **Java server** — see [Running a server](/wiki/server/).
-2. The **BVC server**, on a reachable host.
-3. The **BVC app** on each player's device.
+1. A **Bedrock Dedicated Server** or a **Java server**. See [Running a server](/wiki/server/).
+2. The **BVC server**, on a host that players can reach.
+3. The **BVC app** on the device of each player.
 
-Running BDS locally also removes every caveat that applies to Realms and Aternos: no protocol lag, no version-locked Addon, no breakage on Minecraft update day.
+A local Bedrock Dedicated Server does not stop working after a Minecraft update. You choose when to update it.
 
-## Will this be supported?
+## Future support
 
-We would like to solve it. There is no approach today that does not require code running on the world host, and the game client does not allow that.
+Every known solution needs code that runs on the world host. The Minecraft game client does not allow this.
 
-If it matters to you, [supporting the project](/wiki/start/supporting-bvc/) is what funds time spent on problems like this.
+To fund work on this problem, [support the project](/wiki/start/supporting-bvc/).

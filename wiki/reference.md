@@ -3,22 +3,22 @@ title: "Reference"
 description: "Configuration, environment variables, CLI, and the HTTP API."
 source: https://www.bedrockvoicechat.com/wiki/reference/
 ---
-Lookup material for the Bedrock Voice Chat server: every configuration key, environment override, CLI command, and HTTP endpoint.
+Reference pages for the Bedrock Voice Chat server: every configuration key, environment variable, CLI command, and the HTTP API.
 
 :::tip
-Setting up for the first time? Use [Installing the BVC server](/wiki/server/installation/) instead. It covers the same ground in the order you need it.
+For a first installation, use [Installing the BVC server](/wiki/server/installation/). It gives the same information in setup order.
 :::
 
-| Page | What it covers |
+| Page | Contents |
 |---|---|
 | [config.hcl](/wiki/reference/configuration/) | Every configuration block and key, with defaults. |
-| [Environment variables](/wiki/reference/environment-variables/) | Every `BVC_*` override. Precedence is environment > file > default. |
+| [Environment variables](/wiki/reference/environment-variables/) | The `BVC_*` overrides. Precedence: environment, then file, then default. |
 | [CLI](/wiki/reference/cli/) | The server executable's command line: identities, users, permissions, bootstrapping. |
-| [HTTP API](/wiki/reference/http-api/) | Endpoint index. Enable `openapi_docs` to browse the live spec at `/docs`. |
+| [HTTP API](/wiki/reference/http-api/) | A link to the API reference, and the authentication schemes. Enable `openapi_docs` to browse the spec at `/docs`. |
 
-Under **Work in progress**:
+These pages describe features that are still in development:
 
-| Page | What it covers |
+| Page | Contents |
 |---|---|
-| [Peering](/wiki/reference/peering/) | Cross-server voice links. |
-| [Assigned hostnames](/wiki/server/enrollment/) | A hostname and a certificate for a server with no domain. Select members only. |
+| [Peering](/wiki/reference/peering/) | Voice links between servers. |
+| [Assigned hostnames](/wiki/server/enrollment/) | A hostname and a certificate for a server with no domain. Available only to some Patreon and YouTube members. |

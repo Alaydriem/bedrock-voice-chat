@@ -3,27 +3,27 @@ title: "Assigned hostnames"
 description: "Getting a hostname and a certificate for a server that has no domain."
 source: https://www.bedrockvoicechat.com/wiki/server/enrollment/
 ---
-:::caution[Work in progress — limited availability]
-Assigned hostnames are under active development and are **not in a release yet**. The configuration shape may still change.
+:::caution[Work in progress. Limited availability.]
+Assigned hostnames are in development and are **not in a release yet**. The configuration can change.
 
-Availability is limited to **select Patreon supporters and YouTube members**. Holding a membership does not by itself qualify — eligibility is granted per tier, and the qualifying tiers may change while this is in development.
+Only **some Patreon supporters and YouTube members** can use this feature. A membership alone does not qualify. Only some membership tiers qualify, and these tiers can change during development.
 :::
 
-A Bedrock Voice Chat server needs a hostname and a valid certificate. Buying a domain, pointing DNS at your host and configuring an ACME provider is the ordinary way to get both, and it is the step most people give up on.
+A Bedrock Voice Chat server needs a hostname and a valid certificate. The usual method is to buy a domain, point its DNS at your host, and configure an ACME provider.
 
-Enrollment is the other way. Bedrock Voice Chat gives you a name under `bedrockvc.stream` and keeps a certificate for it renewed. You never own a domain, never touch DNS, and never configure ACME.
+Enrollment gives you a hostname without a domain. Bedrock Voice Chat gives you a name under `bedrockvc.stream` and renews a certificate for it. You do not need a domain, DNS settings, or an ACME provider.
 
-You get one name, it is chosen for you, and it stays with your server for as long as your membership does.
+You get one name. BVC chooses the name. The name stays with your server while your membership is active and the server keeps its key.
 
-## What you need
+## Requirements
 
-A qualifying Patreon or YouTube membership, held on the Discord account you sign in with. Each syncs into a Discord role, and the role is what the check reads — a membership that has not synced yet does not qualify.
+You need a qualifying Patreon or YouTube membership on the Discord account that you sign in with. Patreon and YouTube memberships sync to a Discord role, and BVC checks for that role. A membership that has not synced yet does not qualify.
 
-## Enrol
+## Enroll
 
-1. Sign in with Discord, from the enrollment link shared with eligible members. You are handed an enrollment token.
+1. Open the enrollment link that eligible members receive, and sign in with Discord. You get an enrollment token.
 
-2. Put it in `config.hcl`:
+2. Put the token in `config.hcl`:
 
    ```hcl
    server {
@@ -33,25 +33,25 @@ A qualifying Patreon or YouTube membership, held on the Discord account you sign
    }
    ```
 
-3. Start the server. It logs the name you were given:
+3. Start the server. The log shows the name that you got:
 
    ```
    this server is reachable at its assigned name  url=https://cobblestone-thicket-savanna.bedrockvc.stream
    ```
 
-That is the whole configuration. Do not write a `tls` block — the server appends the assigned name to its own SANs and configures its own certificate. Writing one is an error, not an override; see [conflicts](#conflicts).
+Do not add a `tls` block. The server adds the assigned name to its certificate and manages the certificate itself. If you add a `tls` block, the server does not start. See [Conflicts](#conflicts).
 
-The token is spent on first boot. Afterwards the server proves who it is with a key it generated itself, so the token can stay in the file or be deleted, whichever you prefer.
+The server uses the token one time, at first start. After that, the server identifies itself with a key that it makes. You can keep the token in the file or delete it.
 
-:::caution[The name follows the key, not the config file]
-Your server generates a key on first start and that key is what owns the name. Losing it means enrolling again and being given a **different** name. Back up the server's data directory, and keep it on a volume that survives a container being replaced.
+:::caution[Back up the server key]
+Your server makes a key at first start. The name is linked to that key. If you lose the key, you must enroll again and you get a **different** name. Back up the server's data directory. Keep the directory on a volume that is kept when the container is replaced.
 :::
 
-## Publishing an address
+## Address
 
-You have to declare the address. Without it the assigned name has no DNS record, and a name that resolves to nothing is a name nobody can connect to — your certificate is valid and every client still fails in DNS.
+Set `address` to the IP address that clients connect to. If you do not set it, BVC does not publish a DNS record for your name. Clients then cannot find the server, even though the certificate is valid.
 
-The server warns at startup when it has a name and no address.
+If the server has a name and no address, it writes a warning at startup.
 
 ```hcl
 server {
@@ -62,32 +62,32 @@ server {
 }
 ```
 
-Declared rather than detected. Behind NAT, behind CGNAT, or on a LAN, no address observed from the outside would be the right one, and a guess is correct for a port-forwarded deployment and silently wrong for every other.
+BVC does not detect the address. Behind NAT, behind CGNAT, or on a LAN, the address that outside servers see is not the address that clients use. A detected address is correct only for a server with port forwarding.
 
-A private address (`192.168.x.x`, `10.x.x.x`) is published and resolves only on the network that declared it. A public address is re-checked daily against the server that answers there.
+BVC publishes a private address (`192.168.x.x`, `10.x.x.x`). The name then resolves only on the network that set it. BVC checks a public address every day.
 
 ## Conflicts
 
-An assigned name and a certificate you configure yourself are mutually exclusive. The server refuses to start with both, naming which pair collided:
+You cannot use an assigned name and your own certificate configuration together. If you set both, the server does not start. The error names the two settings:
 
 ```
 server.enrollment.token and tls.acme are mutually exclusive; remove one
 ```
 
-Pick one of the three:
+Use one of these:
 
-| | When |
+| Setting | When |
 |---|---|
 | `server.enrollment` | You have no domain. |
 | `tls.acme` | You have a domain and a supported DNS provider. See [TLS certificates](/wiki/server/tls/). |
-| `tls.certificate` / `tls.key` | You already hold a certificate. |
+| `tls.certificate` / `tls.key` | You already have a certificate. |
 
-## When it fails
+## Errors
 
 | Symptom | Cause |
 |---|---|
-| `not entitled` | The Discord account you signed in with holds no qualifying role. Check that your Patreon or YouTube membership has synced. |
-| `already registered` | That Discord account already has a name. One is issued per member. |
-| `unknown token` or `already redeemed` | The token was used, mistyped, or older than a day. Sign in again for another. |
-| A different name after a rebuild | The server's key was lost. Restore the data directory, or accept the new name. |
-| The name does not resolve | No `address` was declared, so no A record was published. Set it and restart. |
+| `not entitled` | The Discord account that you signed in with does not have a qualifying role. Make sure that your Patreon or YouTube membership has synced. |
+| `already registered` | That Discord account already has a name. Each member gets one name. |
+| `unknown token` or `already redeemed` | The token was used, typed incorrectly, or is more than one day old. Sign in again to get a new token. |
+| A different name after a rebuild | The server's key was lost. Restore the data directory, or use the new name. |
+| The name does not resolve | No `address` is set, and BVC did not publish a DNS record. Set `address` and restart the server. |

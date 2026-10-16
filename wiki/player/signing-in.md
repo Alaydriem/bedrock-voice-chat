@@ -3,40 +3,40 @@ title: "Signing in"
 description: "Connect the BVC app to a server with your Xbox account."
 source: https://www.bedrockvoicechat.com/wiki/player/signing-in/
 ---
-Because Bedrock Voice Chat can perform actions on your behalf and represent you on your server, you must first sign-in to Bedrock Voice Chat using your Microsoft/Xbox Live credentials.
+Sign in to Bedrock Voice Chat with your Microsoft (Xbox) account. BVC uses this account to identify you on your server.
 
 :::tip
-Bedrock Voice Chat only stores your gamertag and profile picture on servers that you connect to. No other data is collected, and no data is centrally collected.
+The servers that you connect to store your gamertag and profile picture. Bedrock Voice Chat itself collects only anonymous analytics (diagnostic logs, error logs and event tracking) to improve the app. See [What information is collected](/wiki/player/parents-and-age/#what-information-is-collected).
 :::
 
 ## Join the Minecraft server first
 
-Make sure before you sign into Bedrock Voice Chat, you login to your Minecraft instance _first_. Bedrock Voice Chat works on your servers allow-list, and builds its permissions list from your Minecraft server.
+Join your Minecraft server in game before you sign in to Bedrock Voice Chat. BVC lets you sign in after the Minecraft server sends you to BVC.
 
 :::caution
-If you are a Realms or Aternos player using the no-net addon, you server operator **MUST** manually whitelist you on Bedrock Voice Chat Server **FIRST** before you can login.
+If you play on a Realm, or on Aternos with the no-net Addon, your server operator **MUST** add you on the BVC server **FIRST**. Then you can sign in.
 :::
 
-## Your login URL
+## Your server URL
 
-The login URL is the address of the **BVC server**. Not your Minecraft server, not your Aternos address, not your Realm, not the IP you type into Minecraft.
+The server URL is the address of the **BVC server**. It is not the address of your Minecraft server, your Aternos server, or your Realm. It is not the IP address that you type in Minecraft.
 
-It includes `https://` and the full hostname:
+The URL starts with `https://`, followed by the full server name:
 
 ```
 https://example.bedrockvc.stream
 ```
 
-Your operator gives you this address.
+Your server operator gives you this address.
 
 <div class="window"><img src="/assets/wiki/signing-in-login.jpg" alt="BVC login window with the server URL field filled in" /></div>
 
 ## Sign in
 
 1. Enter the URL.
-2. Sign in on the Microsoft page that opens. Use the account tied to the gamertag you play as on that server.
-3. Wait while BVC validates the session and connects.
+2. Sign in on the Microsoft page that opens. Use the account of the gamertag that you play with on that server.
+3. Wait while BVC checks your sign-in and connects.
 
-You land on the dashboard. Headphones on, go play.
+BVC shows the dashboard. Put on your headphones and play.
 
 <div class="window"><img src="/assets/wiki/signing-in-dashboard.jpg" alt="BVC dashboard immediately after a successful sign-in" /></div>

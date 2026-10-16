@@ -3,82 +3,82 @@ title: "WebSocket API"
 description: "Drive mute, deafen, recording, jukebox music, and groups from your own tooling."
 source: https://www.bedrockvoicechat.com/wiki/creator/websocket-api/
 ---
-Bedrock Voice Chat runs a local WebSocket server that lets your own tooling toggle mute, deafen and recording, set jukebox music levels, manage groups, hold push-to-talk, and start or stop a Bedrock Voice Chat Connect session. The [Stream Deck plugin](/wiki/creator/stream-deck/) uses it.
+Bedrock Voice Chat runs a local WebSocket server. Your own tools can use it to toggle mute, deafen and recording, set the jukebox music level, manage groups, hold push-to-talk, and start or stop a Bedrock Voice Chat Connect session. The [Stream Deck plugin](/wiki/creator/stream-deck/) uses this server.
 
 ## Reference
 
-**[bedrockvoicechat.com/websocket](https://www.bedrockvoicechat.com/websocket)**
+The full reference is at [bedrockvoicechat.com/websocket](https://www.bedrockvoicechat.com/websocket).
 
-## Turn it on
+## Enable the server
 
-Open **Settings → WebSocket server**. Off by default.
+The WebSocket server is off by default. Open **Settings → WebSocket server** and turn it on.
 
-Note the port and the authentication key. Every message carries the key. Messages without a valid one are rejected.
+Write down the port and the authentication key. Every message must contain the key. The server rejects a message without a valid key.
 
 <div class="window"><img src="/assets/wiki/settings-websocket.jpg" alt="WebSocket settings page with the server enabled, showing port and key" /></div>
 
 ## Routes
 
-Two endpoints on the same port.
+The server has two endpoints on the same port.
 
 | Path | Direction | Authentication |
 |---|---|---|
 | Any path except `/metrics` | Request and response | Per message, as `key` |
 | `/metrics` | Push only | At the upgrade, as `?key=` |
 
-Only the exact path `/metrics` is routed to the diagnostics stream. Everything else reaches the command protocol, including `/` and `/ws`. An integration that connects on an arbitrary path keeps working.
+Only the exact path `/metrics` goes to the diagnostics stream. All other paths, including `/` and `/ws`, go to the command protocol. An integration that connects on any other path continues to work.
 
-## Message shape
+## Message format
 
-JSON, one object per message, with an `action` field:
+Each message is one JSON object with an `action` field:
 
 ```json
 { "action": "mute", "device": "input", "key": "<your key>" }
 ```
 
-Thirteen actions: `ping`, `mute`, `record`, `jukebox`, `jukeboxvolume`, `state`, `ptt`, `targets`, `connect`, `disconnect`, `creategroup`, `joingroup`, `leavegroup`.
+There are thirteen actions: `ping`, `mute`, `record`, `jukebox`, `jukeboxvolume`, `state`, `ptt`, `targets`, `connect`, `disconnect`, `creategroup`, `joingroup`, `leavegroup`.
 
-**Deafen is not its own action.** It is `mute` with `device: "output"`. `input` is your microphone, `output` is everything incoming.
+**Deafen is not a separate action.** To deafen, send `mute` with `device: "output"`. `input` is your microphone. `output` is all incoming audio.
 
 ## State
 
-`mute`, `record`, `jukebox`, `jukeboxvolume`, `ptt`, `connect`, `disconnect`, and the three group actions push the new state to every connected client, not only the sender. A Stream Deck and your own tool stay in sync without polling.
+`mute`, `record`, `jukebox`, `jukeboxvolume`, `ptt`, `connect`, `disconnect`, and the three group actions send the new state to every connected client. A Stream Deck and your own tool stay in sync without polling.
 
-Send `state` on connect for the current picture. It reports `muted`, `deafened`, `recording`, `voice_mode`, `ptt_active`, `jukebox_muted`, `jukebox_gain`, and `connection`.
+Send `state` after you connect to get the current state. It reports `muted`, `deafened`, `recording`, `voice_mode`, `ptt_active`, `jukebox_muted`, `jukebox_gain`, and `connection`.
 
 ## Voice mode
 
-`state` carries `voice_mode`, either `openMic` or `pushToTalk`. **Read it before you draw a microphone button.**
+`state` contains `voice_mode`, either `openMic` or `pushToTalk`. **Read it before you draw a microphone button.**
 
 | Mode | Input mute | `ptt` |
 |---|---|---|
 | `openMic` | Works | Refused |
 | `pushToTalk` | Refused | Controls the microphone |
 
-Both refusals return an error naming the reason. An input mute in `pushToTalk` is told to send `ptt` instead.
+Both refusals return an error that gives the reason. If you send an input mute in `pushToTalk`, the error tells you to send `ptt`.
 
 Output mute always works.
 
 ### Push-to-talk
 
-`ptt` takes `down`: `true` on the press, `false` on the release.
+`ptt` takes `down`: `true` when the button is pressed, `false` when it is released.
 
-Send the release. A dropped connection does not close the microphone, and a button that latches leaves it open.
+Always send the release. A lost connection does not close the microphone. A button that stays down keeps the microphone open.
 
 ## Jukebox music
 
-One setting covers every jukebox the client is playing. Voices are unaffected.
+One setting controls all jukeboxes that the client plays. Voices are not affected.
 
 | Action | Takes | Does |
 |---|---|---|
 | `jukebox` | nothing | Toggles mute. |
 | `jukeboxvolume` | `level`, 0–150 | Sets the level. |
 
-`jukebox` is a toggle. A button cannot read the current state before it is pressed.
+`jukebox` toggles mute. To get the current state before you draw a button, send `state` and read `jukebox_muted`.
 
-Both reply with `muted` and `gain`. **`level` goes in as a percent. `gain` comes back as a fraction.** Send 150, read back 1.5.
+Both actions reply with `muted` and `gain`. **Send `level` as a percentage. `gain` comes back as a fraction.** If you send 150, you get 1.5.
 
-Mute and level are independent. A level set while muted returns on unmute.
+Mute and level are separate. A level that you set while muted applies when you unmute.
 
 ## Groups
 
@@ -88,48 +88,48 @@ Mute and level are independent. A level set while muted returns on unmute.
 | `joingroup` | `name` | Joins an existing group. |
 | `leavegroup` | nothing | Leaves the current group. |
 
-All three reply with `in_group`, plus `id` and `name` when in one.
+All three reply with `in_group`. If the client is in a group, the reply also has `id` and `name`.
 
-Creating and joining are moves. The client leaves its current group first.
+`creategroup` and `joingroup` first remove the client from its current group.
 
-`joingroup` is refused when the name matches no group, and when it matches more than one. Matching ignores case.
+`joingroup` is refused if the name matches no group, or more than one group. The match ignores case.
 
 ## Connect to a world
 
-`targets` lists the worlds this client can join: saved servers, servers the BVC server advertises, and your Realms. Each entry has an opaque `id`, a `name`, and a `kind` of `proxy` or `realm`.
+`targets` lists the worlds that this client can join: saved servers, servers that the BVC server advertises, and your Realms. Each entry has an opaque `id`, a `name`, and a `kind` of `proxy` or `realm`.
 
-`connect` takes an `id` from that list. **Quote the id back, never the list position.** Listing and connecting are two calls, and an entry added between them shifts the positions.
+`connect` takes an `id` from that list. **Send the `id`, not the list position.** The list can change between `targets` and `connect`.
 
-`disconnect` stops the live session. It names no target. Idempotent, and safe to send when nothing is connected.
+`disconnect` stops the live session. It takes no target. Idempotent; safe to send when nothing is connected.
 
-Both reply with `connected`, plus `id` and `name` when there was a session. `state.connection` carries the same on every push.
+Both reply with `connected`. If there was a session, the reply also has `id` and `name`. Every `state` message has the same values in `state.connection`.
 
 ## Metrics stream
 
-A push-only diagnostics feed. There is no request. Connect and read.
+The metrics stream sends diagnostics only. You do not send requests. Connect and read.
 
 ```
 ws://127.0.0.1:<port>/metrics?key=<your key>
 ```
 
-The key goes on the query string. There is no inbound message to carry it. A missing or wrong key is refused at the upgrade.
+Put the key in the query string. You send no messages on this stream. If the key is missing or wrong, the connection is refused.
 
-A client with no key configured accepts the connection without one.
+If no key is set in BVC, `/metrics` accepts connections without a key.
 
-Each push carries microphone, playback, link quality, session and transport diagnostics, with round-trip time and loss thresholds. The payload shape is on the [reference](https://www.bedrockvoicechat.com/websocket).
+Each message contains microphone, playback, connection quality, session and transport diagnostics, with round-trip time and packet-loss values. The message format is in the [reference](https://www.bedrockvoicechat.com/websocket).
 
-The command protocol is unaffected. It still authenticates per message.
+The command protocol does not change. Each command message still needs the key.
 
 ## Security
 
 :::danger
-The key is the only thing protecting the socket. Anyone who can reach the port and has the key can mute you, start a recording, or read your diagnostics stream.
+Only the key protects the WebSocket server. Anyone who can reach the port and has the key can mute you, start a recording, or read your diagnostics stream.
 
-Keep it on your LAN. Do **not** port-forward it.
+Keep the port on your LAN. Do **not** forward it on your router.
 :::
 
 ## Recording availability
 
-`record` does nothing on a client that cannot record. Recording is desktop only.
+`record` does nothing on a client that cannot record. Recording is available only on desktop.
 
-It also does nothing when the connected server sets `voice.recording.enabled = false`. The client refuses to arm and returns the unchanged state. See [recording](/wiki/creator/recording/).
+`record` also does nothing when the connected server sets `voice.recording.enabled = false`. The client does not start a recording, and returns the current state. See [recording](/wiki/creator/recording/).

@@ -23,7 +23,7 @@ URL. `/llms-full.txt` contains the entire wiki in one document.
 - [In-game commands](https://www.bedrockvoicechat.com/wiki/player/in-game-commands.md): Control BVC from inside Minecraft without alt-tabbing.
 - [Bedrock commands](https://www.bedrockvoicechat.com/wiki/player/in-game-commands/bedrock.md): The /bvc: commands and the in-game control panel on Bedrock.
 - [Java commands](https://www.bedrockvoicechat.com/wiki/player/in-game-commands/java.md): The /bvc commands on Fabric and PaperMC servers.
-- [Parents and age settings](https://www.bedrockvoicechat.com/wiki/player/parents-and-age.md): Age Signals on Android and Declared Age Ranges on iOS — what they do and how to change them.
+- [Parents and age settings](https://www.bedrockvoicechat.com/wiki/player/parents-and-age.md): How Age Signals on Android and Declared Age Ranges on iOS work, and how to change them.
 - [Settings](https://www.bedrockvoicechat.com/wiki/player/settings.md): Audio devices, noise gate, keybinds, and the rest of the settings panes.
 - [Signing in](https://www.bedrockvoicechat.com/wiki/player/signing-in.md): Connect the BVC app to a server with your Xbox account.
 - [Troubleshooting](https://www.bedrockvoicechat.com/wiki/player/troubleshooting.md): What to check when BVC is not working.
@@ -37,7 +37,7 @@ URL. `/llms-full.txt` contains the entire wiki in one document.
 - [Enabling Beta APIs](https://www.bedrockvoicechat.com/wiki/server/beta-apis.md): Turning on the Beta APIs experiment for a Bedrock server world.
 - [Docker and Kubernetes](https://www.bedrockvoicechat.com/wiki/server/docker.md): Compose, volumes, health checks, and running BVC entirely from environment variables.
 - [Assigned hostnames](https://www.bedrockvoicechat.com/wiki/server/enrollment.md): Getting a hostname and a certificate for a server that has no domain.
-- [Installing Bedrock Voice Chat Server](https://www.bedrockvoicechat.com/wiki/server/installation.md): Stand up the standalone BVC server with Docker, a config file, and automatic TLS.
+- [Installing Bedrock Voice Chat Server](https://www.bedrockvoicechat.com/wiki/server/installation.md): Install the standalone BVC server with Docker, a configuration file, and automatic TLS.
 - [Java mod](https://www.bedrockvoicechat.com/wiki/server/java-mod.md): BVC on Fabric and PaperMC, in external or embedded mode.
 - [Fabric](https://www.bedrockvoicechat.com/wiki/server/java-mod/fabric.md): Install and configure the BVC mod on a Fabric server.
 - [Integrations](https://www.bedrockvoicechat.com/wiki/server/java-mod/integrations.md): Other mods and plugins the BVC Java mod works with.
@@ -58,10 +58,11 @@ URL. `/llms-full.txt` contains the entire wiki in one document.
 - [Console and mobile](https://www.bedrockvoicechat.com/wiki/platforms/console-and-mobile.md): Using BVC on Xbox, PlayStation, Switch, and mobile devices.
 - [LAN and local worlds](https://www.bedrockvoicechat.com/wiki/platforms/lan-and-local-worlds.md): Why BVC does not work on LAN, locally hosted, or single-player worlds.
 - [Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft.md): Run Bedrock Voice Chat on a Nodecraft game server, for Fabric, PaperMC, and Bedrock.
+- [Bedrock on Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/bedrock.md): Run Bedrock Voice Chat and Bedrock Dedicated Server together on Nodecraft with the BVC launcher.
 - [Fabric on Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/fabric.md): Run Bedrock Voice Chat on a Nodecraft Fabric server with the embedded BVC server.
 - [PaperMC on Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/papermc.md): Run Bedrock Voice Chat on a Nodecraft PaperMC server with the embedded BVC server.
 - [Realms](https://www.bedrockvoicechat.com/wiki/platforms/realms.md): Run BVC on a Minecraft Realm using the no-net Addon and Bedrock Voice Chat Connect.
-- [Bedrock version support](https://www.bedrockvoicechat.com/wiki/platforms/version-support.md): Which Minecraft Bedrock versions BVC can speak, and why support lags each release.
+- [Bedrock version support](https://www.bedrockvoicechat.com/wiki/platforms/version-support.md): The Bedrock versions that Bedrock Voice Chat Connect supports, and why support comes after each release.
 
 ## Streaming and recording
 
@@ -74,10 +75,10 @@ URL. `/llms-full.txt` contains the entire wiki in one document.
 ## Reference
 
 - [Reference](https://www.bedrockvoicechat.com/wiki/reference.md): Configuration, environment variables, CLI, and the HTTP API.
-- [CLI](https://www.bedrockvoicechat.com/wiki/reference/cli.md): The server executable's command line — identities, users, permissions, bootstrapping.
+- [CLI](https://www.bedrockvoicechat.com/wiki/reference/cli.md): Command-line reference for the server executable: identities, users, permissions, and bootstrapping.
 - [Configuration reference](https://www.bedrockvoicechat.com/wiki/reference/configuration.md): Every block and key in config.hcl, with defaults.
 - [Environment variables](https://www.bedrockvoicechat.com/wiki/reference/environment-variables.md): Every BVC_* override, and how precedence works.
-- [HTTP API](https://www.bedrockvoicechat.com/wiki/reference/http-api.md): Where the BVC server's API reference lives, and how it is organised.
+- [HTTP API](https://www.bedrockvoicechat.com/wiki/reference/http-api.md): Location of the BVC server API reference, and its authentication schemes.
 - [Peering](https://www.bedrockvoicechat.com/wiki/reference/peering.md): Linking two BVC servers so voice carries across both. Work in progress.
 
 ## Other resources
