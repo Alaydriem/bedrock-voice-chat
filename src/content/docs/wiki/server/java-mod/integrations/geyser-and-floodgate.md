@@ -6,38 +6,37 @@ sidebar:
   order: 2
 ---
 
-Bedrock Voice Chat supports Geyser servers, letting your Bedrock and Java players hear each other in the same world. Install the [Java mod](/wiki/server/java-mod/) on Fabric or PaperMC and configure it as you would on any Java server.
+Bedrock Voice Chat supports Geyser servers. Your Bedrock and Java players can hear each other in the same world. Install the [Java mod](/wiki/server/java-mod/) on Fabric or PaperMC, and configure it the same as on any Java server.
 
 :::note
-Nothing here is Geyser-specific. Geyser presents Bedrock players to a Java server, and the Java mod reports positions the same way for all of them.
+BVC needs no Geyser settings. Geyser shows Bedrock players to the Java server as Java players. The Java mod sends positions for all players in the same way.
 :::
 
 ## Floodgate
 
-When [Floodgate](https://geysermc.org/wiki/floodgate/) is on the classpath, Bedrock Voice Chat detects it at runtime. There is nothing to configure.
+When [Floodgate](https://geysermc.org/wiki/floodgate/) is on the classpath, Bedrock Voice Chat detects it at startup. You do not configure anything.
 
-Bedrock players authenticated through Floodgate are matched to their raw Xbox gamertag. Floodgate's prefix character is stripped automatically. They sign into the BVC app with the same gamertag they use in game.
+The mod matches each Floodgate player to their Xbox gamertag. It removes the Floodgate prefix character from the name. Bedrock players sign in to the BVC app with the gamertag that they use in game.
 
 :::caution
-Without Floodgate, the mod falls back to the Java-side username and logs:
+Without Floodgate, the mod uses the Java username and logs:
 
 ```
 Floodgate API not found on classpath — prefix-strip path disabled
 ```
 
-Your Bedrock players then need to know their Java username to sign in, which is **not** what they expect. Install Floodgate.
+Bedrock players must then sign in with their Java username, not their gamertag. Install Floodgate.
 :::
 
 ## Setup
 
-1. Install the [Java mod](/wiki/server/java-mod/) — [Fabric](/wiki/server/java-mod/fabric/) or [PaperMC](/wiki/server/java-mod/papermc/).
-2. Have Floodgate installed alongside Geyser, which is the standard cross-play setup anyway.
-3. Nothing else.
+1. Install the Java mod for [Fabric](/wiki/server/java-mod/fabric/) or [PaperMC](/wiki/server/java-mod/papermc/).
+2. Install Floodgate with Geyser.
 
-## Which mode
+## Server mode
 
-Both external and embedded work. Use external on a Geyser server. Cross-play servers tend to have more players, and embedded mode competes with the game server for CPU. See [Java mod](/wiki/server/java-mod/) for the tradeoff.
+External and embedded mode both work. Use external mode on a Geyser server. Crossplay servers often have more players, and embedded mode uses the same CPU as the game server. See [Java mod](/wiki/server/java-mod/#external-or-embedded-server) for the two modes.
 
 ## Players
 
-Everyone needs the BVC app, Java and Bedrock alike. Bedrock players on console use the mobile app on their personal device. See [console and mobile](/wiki/platforms/console-and-mobile/).
+All players need the BVC app, on Java and on Bedrock. Bedrock players on a console use the mobile app on their own phone or tablet. See [console and mobile](/wiki/platforms/console-and-mobile/).

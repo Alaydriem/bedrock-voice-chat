@@ -44,27 +44,29 @@ embedded-config:
         api_token: "<Cloudflare API token>"
 ```
 
-Replace `bvc.example.com` with your domain, and give it a Cloudflare API token scoped to that zone with DNS edit permission. BVC will automatically issue and renew the TLS certificate to secure voice communication between players. See [TLS](/wiki/server/tls/) to make the token, or to use acme-dns or your own certificate files.
+Replace `bvc.example.com` with your domain. Set `api_token` to a Cloudflare API token with DNS edit permission on that zone. BVC gets and renews the TLS certificate automatically. See [TLS](/wiki/server/tls/) to make the token, or to use acme-dns or your own certificate files.
 
-`embedded-config` uses the keys of the BVC server's `config.hcl`, with the same nesting. A key that is not set uses the server default. See the [configuration reference](/wiki/reference/configuration/) for all keys.
+`embedded-config` uses the same keys and the same nesting as the BVC server's `config.hcl`. A key that is not set uses the server default. See the [configuration reference](/wiki/reference/configuration/) for all keys.
 
-Earlier Paper releases used the name `embedded:` for this block. The plugin does not read `embedded:` now. Use `embedded-config:`.
+The plugin keeps its certificate authority (the key that signs player certificates) in `plugins/BedrockVoiceChat/`. Back up this directory. If you delete it, all client certificates that the server issued become invalid.
 
-The plugin keeps its mTLS CA in `plugins/BedrockVoiceChat/`. Back up this directory. If you delete it, all client certificates that the server issued become invalid.
+:::caution
+Earlier Paper releases used `embedded:` for this block. The plugin ignores `embedded:`. Rename it to `embedded-config:`.
 
-The [Java mod overview](/wiki/server/java-mod/#migration) has the full table of old keys and new paths.
+Releases before 1.0.0-beta.21 used flat keys in this block. [Upgrading to beta.21](/wiki/upgrading/beta-21/#java-mod) has the table of old keys and new keys.
+:::
 
 ## Chat sync
 
-Chat sync needs this line in `server.properties`:
+To read and send in-game [chat](/wiki/player/chat/) from the BVC app, set this line in `server.properties`:
 
 ```properties
 enforce-secure-profile=false
 ```
 
-Restart the server after you change it. See [chat](/wiki/player/chat/).
+Restart the server after you change it.
 
 ## Next steps
 
-1. [Add your players to the whitelist](/wiki/server/players-and-permissions/). BVC denies all players that are not on it.
+1. Let your players in. A player can sign in after they join your game server once, or after you [add them](/wiki/server/players-and-permissions/).
 2. Send your players to [Downloads](/wiki/start/downloads/).

@@ -6,72 +6,58 @@ sidebar:
   order: 5
 ---
 
-Bedrock Voice Chat mirrors your server's in-game chat into the app, letting you read and reply without leaving what you are doing. What you type goes back into the game as an ordinary chat message.
+Bedrock Voice Chat shows the in-game chat of your server in the app. You can read and reply to chat without leaving what you are doing. The messages that you type go into the game as normal chat messages.
 
 ## Send a message
 
-1. Open the chat dock on the dashboard.
-2. Type.
-3. Press enter.
+1. Open the chat panel on the dashboard.
+2. Type your message.
+3. Press Enter.
 
-Your message appears in game as `<yourname> your message`.
+Your message shows in game as `<yourname> your message`.
 
 <div class="window"><img src="/assets/wiki/chat-open.jpg" alt="BVC Chat Window" /></div>
 
 ## Where your message goes
 
-If you are standing in a world, Bedrock Voice Chat sends your message there and does not ask.
+If you are in a Minecraft world, Bedrock Voice Chat sends your message to that world.
 
-You get a picker when you are signed in, not in game, and the server carries more than one world you have been in. Each world in the list shows two labels:
+If you are signed in to BVC but you are not in a Minecraft world, BVC can show a list of worlds. The list shows when the server has more than one world that you were in before. Select a world from the list. Each world has two labels:
 
 | Label | Meaning |
 |---|---|
-| **Active** | People are in it right now |
-| **Available** | Its chat relay is up |
+| **Active** | Players are in the world now. |
+| **Available** | Chat to this world works now. |
 
 :::caution
-A world can be **Active** without being **Available**. The game server is running, but its chat link to Bedrock Voice Chat is down, and your message **will not send** there.
+A world can be **Active** but not **Available**. The game server is running, but its chat connection to Bedrock Voice Chat does not work. Your message **will not send** to that world.
 :::
 
-## If a message does not send
+## A message does not send
 
-**You moved.** You changed worlds while the app still held the old one. Send it again.
+**You changed worlds.** You went to a different world, but the app still had the old world selected. Send the message again.
 
-**It failed.** No session, a dead link, or a full queue. Send it again once the dock shows chat as available.
+**The message did not send.** You are not connected, the chat connection does not work, or too many messages are waiting. When the chat panel shows chat as available, send the message again.
 
 ## History
 
-Chat history starts when you connect and ends when you close the app. Nothing is stored on the server or on your device.
+Chat history starts when you connect and ends when you close the app. The server and your device do not save it.
 
-## If chat is not available
+## Chat is not available
 
-The composer says why.
+The message box shows the reason:
 
 - **Not connected.** Sign in to a server first.
-- **The server has no BVC Addon or mod.** Server mode needs one. Proxy and Realms sessions do not.
-- **The chat relay is down.** The mod reconnects on its own.
-- **Chat is disabled on this server.** The server owner turned chat off. The dock stays on your dashboard, greyed out, and you cannot type in it. Nothing you do in the app turns it back on.
+- **The server has no BVC Addon or mod.** If you connect directly to a Minecraft server, that server needs the BVC Addon or mod. If you connect to a Realm or with Bedrock Voice Chat Connect, it does not.
+- **The chat connection is down.** Wait. The mod connects again automatically.
+- **Chat is disabled on this server.** The server owner turned chat off. The chat panel stays on your dashboard, greyed out, and you cannot type in it. You cannot turn it on from the app.
 
 ## For server operators
 
-Nothing to enable on the BVC server. Chat works wherever position relay does.
-
-To turn chat off, set `chat = false` in the `server.features` block of `config.hcl`, or set `BVC_CHAT=false`. Restart the server to apply it. See [config.hcl](/wiki/reference/configuration/).
-
-**Fabric and PaperMC** — set `enforce-secure-profile=false` in `server.properties`. Chat sync does not work with it enabled. Everything else is automatic in both external and embedded mode. The app shows your primary world's name.
-
-**Bedrock Dedicated Server** — add `bvc_world_name` to `config/default/variables.json`. BDS scripting cannot read your level name.
-
-```json
-{
-    "bvc_world_name": "My SMP"
-}
-```
-
-Without it, the world is listed as "Minecraft world". See the [Bedrock Addon](/wiki/server/bedrock-addon/).
+Chat needs no setup on the BVC server. To turn chat off, see [`server.features`](/wiki/reference/configuration/#serverfeatures). For the game server setup, see the [Bedrock Addon](/wiki/server/bedrock-addon/), [Fabric](/wiki/server/java-mod/fabric/#chat-sync) or [PaperMC](/wiki/server/java-mod/papermc/#chat-sync) page.
 
 ## Privacy
 
-The BVC server relays messages and never stores them. It records which worlds each player has been seen in, to populate the picker. That is a player, a world, and a timestamp.
+The BVC server sends chat messages and does not store them. It stores a list of the worlds where it saw each player. Each entry has the player, the world, and the time. BVC uses this list to show the world list.
 
-Anyone in the world reads what you send.
+All players in the world can read your messages.

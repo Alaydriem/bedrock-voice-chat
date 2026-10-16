@@ -1,18 +1,14 @@
 ---
 title: Bedrock on Nodecraft
 description: Run Bedrock Voice Chat and Bedrock Dedicated Server together on Nodecraft with the BVC launcher.
-# Draft until the BVC launcher is in a release. Drafts are left out of
-# production builds and the sidebar. When this goes live, remove `draft` and add
-# a Bedrock row to the table in platforms/nodecraft/index.md.
-draft: true
 sidebar:
   label: Bedrock
   order: 5
 ---
 
-This guide details how to install Bedrock Voice Chat on Bedrock on a Nodecraft Pro server.
+Install Bedrock Voice Chat on a Nodecraft Pro server that runs Minecraft: Bedrock Edition.
 
-With Nodecraft, the Bedrock Voice Chat server runs alongside your BDS instance through a custom launcher. When your Nodecraft Pro server starts, the launcher installs the Bedrock Voice Chat server and the BDS Addon, enables Beta APIs for your world, and sets up your BDS instance. It could not be simpler.
+On Nodecraft, a custom launcher runs the Bedrock Voice Chat server next to your Bedrock Dedicated Server (BDS). When your Nodecraft Pro server starts, the launcher installs the Bedrock Voice Chat server and the BDS Addon, enables Beta APIs for your world, and sets up BDS.
 
 ## Before you start
 
@@ -22,8 +18,8 @@ You need:
 - A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/).
 - A Cloudflare API token for that zone, with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
 
-:::tip
-You **must** use a Pro server. Lite servers suspend themselves after a period of inactivity, which causes problems with Bedrock Voice Chat.
+:::caution
+You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voice Chat then stops too.
 :::
 
 ## Install Bedrock
@@ -63,10 +59,10 @@ You **must** use a Pro server. Lite servers suspend themselves after a period of
 
 5. Replace `bvc.example.com`, the email, and the API token with your values.
 
-:::tip
-1. Use Cloudflare or another ACME provider. BVC then issues and renews the TLS certificate automatically.
+:::caution
+1. Use Cloudflare or another supported DNS provider. BVC then gets and renews the TLS certificate automatically.
 2. Do not use your Nodecraft hostname. At this time, BVC cannot get a TLS certificate for the hostname that Nodecraft gives a Pro server.
-3. Leave both ports at 28280. Do not change them.
+3. Keep both ports at 28280. Do not change them.
 :::
 
 ## Point your domain at the server
@@ -75,15 +71,15 @@ You **must** use a Pro server. Lite servers suspend themselves after a period of
 2. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
 3. In Cloudflare, set the record's proxy status to **DNS only**.
 
-The first start issues the TLS certificate. Bedrock Voice Chat can take a minute to start fully while it gets the certificate. Wait before you sign in for the first time.
+BVC gets the TLS certificate the first time it starts. This can take one minute. Wait, then sign in for the first time.
 
 :::caution
-The launcher keeps its mTLS CA in `bvc/`. Download a copy of this directory from **Server Files** and keep it. If you delete it, all client certificates that the server issued become invalid, and all players must sign in again.
+The launcher stores its certificate authority (the key that signs player certificates) in `bvc/`. Download a copy of this directory from **Server Files** and keep it. If you delete it, all client certificates that the server issued become invalid, and all players must sign in again.
 :::
 
 ## Allowlist
 
-Players in `allowlist.json` can sign in before they join the world for the first time. Removing a player from the allowlist does not remove them from Bedrock Voice Chat.
+Players in `allowlist.json` can sign in to Bedrock Voice Chat before they join the world for the first time. Other players can sign in after they join the world one time. If you remove a player from `allowlist.json`, they can still sign in to Bedrock Voice Chat.
 
 ## Connect
 
@@ -99,6 +95,6 @@ Your players sign in with `https://bvc.example.com:28280`. Use your domain. See 
    bvc admin grant <Gamertag>
    ```
 
-   Use your Xbox gamertag, without quotes. `bvc admin revoke <Gamertag>` removes it.
+   Use your Xbox gamertag, without quotes. To remove admin, run `bvc admin revoke <Gamertag>`.
 
 2. Send your players to [Downloads](/wiki/start/downloads/). They can then sign in.

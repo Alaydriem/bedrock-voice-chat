@@ -1,12 +1,12 @@
 ---
 title: CLI
-description: The server executable's command line — identities, users, permissions, bootstrapping.
+description: "Command-line reference for the server executable: identities, users, permissions, and bootstrapping."
 sidebar:
   label: CLI
   order: 4
 ---
 
-The Bedrock Voice Chat server executable is also a CLI, letting you manage identities, users, and permissions either locally or against a remote server.
+The Bedrock Voice Chat server executable is also a command-line tool. Use it to manage identities, users and permissions on the local server or on a remote server.
 
 Available since beta.11.
 
@@ -14,90 +14,86 @@ Available since beta.11.
 
 | Flag | Env | Default | Notes |
 |---|---|---|---|
-| `-c, --config-file <path>` | — | `config.hcl` | Used by `server` and `admin *` only. |
-| `--server-url <url>` | `BVC_SERVER` | `https://127.0.0.1:3000` | Target for `login`. Other commands read it from the stored identity. |
-| `--identity <gamertag:game>` | `BVC_IDENTITY` | — | Which stored identity to act as, when more than one exists. |
+| `-c, --config-file <path>` | None | `config.hcl` | Used only by `server` and `admin *`. |
+| `--server-url <url>` | `BVC_SERVER` | `https://127.0.0.1:3000` | The server that `login` connects to. Set it to your server's URL. Other commands read the URL from the stored identity. |
+| `--identity <gamertag:game>` | `BVC_IDENTITY` | None | The stored identity to use when there is more than one. |
 
 ## Identity
 
-| Command | Auth | Transport | Does |
+| Command | Auth | Transport | Result |
 |---|---|---|---|
-| `login` | none | `POST /api/auth/code` | Redeem a one-time code for an mTLS certificate bundle and store it. |
-| `logout` | mTLS | local | Delete the active stored identity. |
-| `whoami` | mTLS | `GET /api/auth/introspect` | Print identity, server URL, certificate expiry, and effective permissions. |
+| `login` | None | `POST /api/auth/code` | Exchanges a one-time code for an mTLS certificate bundle and stores it. |
+| `logout` | mTLS | Local | Deletes the active stored identity. |
+| `whoami` | mTLS | `GET /api/auth/introspect` | Prints the identity, server URL, certificate expiry, and effective permissions. |
 
-`login` takes one flag: `--code <code>`, prompted on stdin if omitted.
+`login` takes one flag, `--code <code>`. If you do not give the flag, `login` asks for the code on stdin.
 
-The code is the whole credential. It identifies the player it was issued for, and the server returns the gamertag and the game.
+`login` needs only the code. The server finds the player from the code and returns the gamertag and the game.
 
 ## Server
 
-| Command | Does |
+| Command | Result |
 |---|---|
-| `server` | Start the BVC server, HTTP and QUIC. Reads `--config-file`. |
+| `server` | Starts the BVC server (HTTP and QUIC). Reads `--config-file`. |
 
 ## Bootstrap
 
-These talk to the database directly. Run them on the server host with `config.hcl` available. A fresh deployment has no admin, and there is nobody to authenticate as.
+These commands connect directly to the database. Run them on the server host, with `config.hcl` available. Use them when no admin exists yet.
 
-| Command | Flags | Does |
+| Command | Flags | Result |
 |---|---|---|
-| `admin bootstrap` | `-p, --player <name>`; `-g, --game <minecraft>` | Grant `admin` to an existing player. |
-| `admin generate-code` | `-p, --player <name>`; `-g, --game <minecraft>`; `-d, --duration <secs>`; `--ephemeral <true\|false>` | Generate a one-time login code, creating the player record if needed. |
+| `admin bootstrap` | `-p, --player <name>`; `-g, --game <minecraft>` | Gives `admin` to the player. Creates the player record if it does not exist. |
+| `admin generate-code` | `-p, --player <name>`; `-g, --game <minecraft>`; `-d, --duration <secs>`; `--ephemeral <true\|false>` | Makes a one-time login code. Creates the player record if it does not exist. |
 
-`-d` defaults to 3600.
+`-d` has a default of 3600.
 
-`--ephemeral` defaults to `true`, meaning the code is consumed when it is redeemed. Pass `--ephemeral false` to mint a code that stays valid until it expires and can be redeemed more than once.
-
-`admin generate-code` creates the player if missing. `admin bootstrap` requires the player to exist.
+`--ephemeral` has a default of `true`: the code is used up when it is redeemed. Pass `--ephemeral false` to make a code that stays valid until it expires and can be used more than one time.
 
 ## Users
 
-Over HTTPS with mTLS. Requires an active admin identity. `whoami` should list `admin`.
+These commands use HTTPS with mTLS. They need an active admin identity (`whoami` shows `admin`).
 
-| Command | Endpoint | Does |
+| Command | Endpoint | Result |
 |---|---|---|
-| `user add` | `POST /api/admin/user` | Create a player with certificate and keypair. 409 if they exist. |
-| `user banish` | `PATCH /api/admin/user/banish` | Toggle the banished flag. |
-| `user generate-code` | `POST /api/admin/user/code` | Generate a login code for an existing player. 404 if they do not exist. |
+| `user add` | `POST /api/admin/user` | Creates a player with a certificate and a keypair. Returns 409 if the player exists. |
+| `user banish` | `PATCH /api/admin/user/banish` | Sets or clears the banished flag. |
+| `user generate-code` | `POST /api/admin/user/code` | Makes a login code for an existing player. Returns 404 if the player does not exist. |
 
-Flags: `-p, --player <name>`, `-g, --game <minecraft>`. `user banish` also takes `-b, --banish <true|false>` (default `true`). `user generate-code` also takes `-d, --duration <secs>` (default 3600) and `--ephemeral <true|false>` (default `true`).
+Flags: `-p, --player <name>` and `-g, --game <minecraft>`. `user banish` also takes `-b, --banish <true|false>` (default `true`). `user generate-code` also takes `-d, --duration <secs>` (default 3600) and `--ephemeral <true|false>` (default `true`).
 
 ## Permissions
 
-Requires an active admin identity. Valid strings: `audio_upload`, `audio_delete`, `admin`.
+These commands need an active admin identity. Valid permission names: `audio_upload`, `audio_delete`, `admin`.
 
-| Command | Endpoint | Does |
+| Command | Endpoint | Result |
 |---|---|---|
-| `permission allow` | `PUT /api/admin/permission` | Record an explicit allow. |
-| `permission deny` | `PUT /api/admin/permission` | Record an explicit deny. |
-| `permission clear` | `DELETE /api/admin/permission` | Remove the override. The config default applies again. |
-| `permission list` | `GET /api/admin/permission/{game}` | List explicit overrides. |
+| `permission allow` | `PUT /api/admin/permission` | Sets an allow override. |
+| `permission deny` | `PUT /api/admin/permission` | Sets a deny override. |
+| `permission clear` | `DELETE /api/admin/permission` | Removes the override. The config default then applies. |
+| `permission list` | `GET /api/admin/permission/{game}` | Lists the overrides. |
 
-Flags: `-p, --player <name>`, `-g, --game <minecraft>`, and `--permission <name>` for all but `list`.
+Flags: `-p, --player <name>` and `-g, --game <minecraft>`. All commands except `list` also take `--permission <name>`.
 
-`clear` is not `deny`. It removes the override.
-
-Empty output from `list` means no overrides. The defaults govern that player entirely.
+If `list` prints nothing, the player has no overrides. Only the config defaults apply.
 
 ## Peering
 
-Over HTTPS with mTLS. Requires an active admin identity.
+These commands use HTTPS with mTLS. They need an active admin identity.
 
-| Command | Endpoint | Does |
+| Command | Endpoint | Result |
 |---|---|---|
-| `relay peerlink` | `GET /api/admin/relay/peerlink` | Print this server's peer link, its node id, and a `peers` block to paste into the other server's `config.hcl`. |
-| `relay worlds` | `GET /api/admin/relay/worlds` | List relay worlds with player counts. |
+| `relay peerlink` | `GET /api/admin/relay/peerlink` | Prints this server's peer link, its node ID, and a `peers` block to paste into the other server's `config.hcl`. |
+| `relay worlds` | `GET /api/admin/relay/worlds` | Lists relay worlds with player counts. |
 
-`relay peerlink` takes `-l, --label <label>`, the block label rendered in the printed example. Default `bvc-server`. Use what the far side will call this server.
+`relay peerlink` takes `-l, --label <label>`. This is the block label in the printed example. The default is `bvc-server`. Set the label to the name that the other server uses for this server.
 
-`relay peerlink` exits non-zero on a server with no `peers` block in `config.hcl`. The peer endpoint binds only when one exists.
+`relay peerlink` exits with a non-zero code on a server that has no `peers` block in `config.hcl`. The peer endpoint binds only when a `peers` block exists.
 
 `relay worlds` prints nothing until a player joins a relay world.
 
 See [peering](/wiki/reference/peering/).
 
-## Bootstrapping a fresh deployment
+## Bootstrapping a new deployment
 
 ```bash
 # Server host, config.hcl available

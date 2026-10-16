@@ -6,11 +6,11 @@ sidebar:
   order: 1
 ---
 
-The Bedrock Voice Chat Java mod detects other mods and plugins on the server at startup and adapts to them. None of them are required, and none need configuring on the BVC side beyond what each page lists.
+The Bedrock Voice Chat Java mod finds the mods and plugins below when the server starts. They are optional. Each page lists the BVC settings that the integration needs.
 
-| Integration | What it gives you | Configuration |
+| Integration | Result | Configuration |
 |---|---|---|
-| [Geyser and Floodgate](/wiki/server/java-mod/integrations/geyser-and-floodgate/) | Bedrock players on a Java server, matched to their Xbox gamertag | None |
-| [Simple Voice Chat](/wiki/server/java-mod/integrations/simple-voice-chat/) | Java players on Simple Voice Chat hear BVC players, and the reverse | One peer link each way |
+| [Geyser and Floodgate](/wiki/server/java-mod/integrations/geyser-and-floodgate/) | Bedrock players can join a Java server. BVC matches them to their Xbox gamertag. | None |
+| [Simple Voice Chat](/wiki/server/java-mod/integrations/simple-voice-chat/) | Java players on Simple Voice Chat and BVC players hear each other. | Embedded mode: none. External mode: a peer link on each server. |
 
-Detection happens once at startup. Adding one of these later means restarting the game server.
+The mod looks for these integrations only at startup. If you add one later, restart the game server.

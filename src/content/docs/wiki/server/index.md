@@ -6,33 +6,33 @@ sidebar:
   order: 1
 ---
 
-Adding Bedrock Voice Chat to your server means running one extra service and installing one Addon. The order you do them in matters more than either.
+To add Bedrock Voice Chat to your Minecraft server, run the BVC server and install one Addon or mod.
 
-## What is Bedrock Voice Chat Server?
+## BVC server
 
-The BVC server is a standalone Rust executable, run in a Docker container. It is not a Minecraft plugin and does not run inside your game server. Most commercial Minecraft hosts will not let you run it alongside one. Plan on a VPS, a dedicated box, or a cluster.
+The BVC server is a standalone Rust program. Run it in Docker, or run the native binary. It is not a Minecraft plugin and does not run inside your game server. Most commercial Minecraft hosts do not let you run it next to the game server. Run it on a VPS, a dedicated server, or a cluster.
 
-On Bedrock the server side is an Addon. On Java it is a Fabric or Paper mod. Either way it reports player positions to the BVC server over HTTP.
+On Bedrock, the game server side is an Addon. On Java, it is a Fabric or Paper mod. The Addon or the mod sends player positions to the BVC server over HTTP.
 
-The Java mod can also run BVC embedded in the game server's JVM, which removes the separate service. That suits small always-on servers. It does not suit low-end hosts or anything that suspends when idle.
+The Java mod can also run BVC inside the game server's JVM. You then do not need a separate BVC service. Use this for small servers that run all the time. Do not use it on low-end hosts or on hosts that suspend idle servers.
 
-## Installation Order
+## Installation order
 
-Build from the bottom up. The Addon needs the BVC server's address, and running these out of order is the most common reason a fresh install appears to do nothing.
+Do these steps in order. If you do them out of order, a new installation can appear to do nothing.
 
-1. **[Install the BVC server](/wiki/server/installation/)** — needs a reachable host and a certificate. BVC can obtain and renew the certificate itself; see [TLS](/wiki/server/tls/).
-2. **Install the Addon** — [Bedrock](/wiki/server/bedrock-addon/) or [Java](/wiki/server/java-mod/) — pointed at that address.
-3. **[Whitelist your players](/wiki/server/players-and-permissions/)** — BVC is deny-by-default and nobody can sign in until you add them.
-4. Send everyone to [Downloads](/wiki/start/downloads/).
+1. [Install the BVC server](/wiki/server/installation/). You need a host that clients can reach, and a TLS certificate. BVC can get and renew the certificate itself. See [TLS](/wiki/server/tls/).
+2. Install the [Bedrock Addon](/wiki/server/bedrock-addon/) or the [Java mod](/wiki/server/java-mod/). Set it to the address of the BVC server.
+3. Let your players in. A player can sign in after they join your game server once, or after you [add them](/wiki/server/players-and-permissions/).
+4. Send your players to [Downloads](/wiki/start/downloads/).
 
 ## References
 
-| Page | What it covers |
+| Page | Contents |
 |---|---|
-| [BDS Addon](/wiki/server/bedrock-addon/) | The pack for Bedrock Dedicated Servers |
+| [BDS Addon](/wiki/server/bedrock-addon/) | The pack for Bedrock Dedicated Servers. |
 | [No-net Addon](/wiki/server/nonet-addon/) | The pack for Realms, Aternos, and hosts without `@minecraft/server-net`. |
-| [Docker](/wiki/server/docker/) | Compose, volumes, health checks, env-driven config. |
+| [Docker](/wiki/server/docker/) | Compose, volumes, health checks, configuration from environment variables. |
 | [Monitoring](/wiki/server/monitoring/) | Prometheus metrics, health endpoints, logs. |
-| [Troubleshooting](/wiki/server/troubleshooting/) | Diagnosing it from the operator side. |
+| [Troubleshooting](/wiki/server/troubleshooting/) | Problems seen from the operator side. |
 
-Realms, Aternos, and consoles take extra setup on top of this. Start at [Where BVC works](/wiki/platforms/).
+Realms, Aternos and consoles need more setup. Start at [Where BVC works](/wiki/platforms/).

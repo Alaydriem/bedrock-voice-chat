@@ -6,11 +6,10 @@ sidebar:
   order: 3
 ---
 
-For support related questions, join **[Discord](https://discord.gg/CdtchD5zxr)**
-
+For help, join our **[Discord](https://discord.gg/CdtchD5zxr)**.
 
 :::tip[Check the troubleshooting page first]
-Most reports resolve there in under a minute.
+The troubleshooting pages have fixes for the most common problems.
 
 [Players](/wiki/player/troubleshooting/) · [Operators](/wiki/server/troubleshooting/)
 :::
@@ -19,30 +18,30 @@ Most reports resolve there in under a minute.
 
 **If you are a player:**
 
-- Your platform. Windows, macOS, Linux, Android, iOS, or console plus which phone
-- The error code, if the app showed one
-- The server you are on, and whether anyone else there has it working
-- What you already tried
+- Your platform: Windows, macOS, Linux, Android or iOS. If you play on a console, give the console and the phone or tablet that runs the app.
+- The error code, if the app showed one.
+- The server that you play on, and if other players on that server can use voice chat.
+- The fixes that you already tried.
 
 **If you run a server:**
 
-- Output of `curl https://<your-server>/api/config`
-- Whether **UDP** is open, not just TCP. This is the most common cause
-- Whether `curl -H "Authorization: Bearer <token>" https://<your-server>/api/position` returns data
-- How you are deployed. Docker, bare metal, or embedded in the Java mod
+- The output of `curl https://<your-server>/api/config`.
+- If the UDP voice port is open, as well as TCP/443. A closed UDP port is the most common cause of missing audio.
+- If `curl -H "Authorization: Bearer <token>" https://<your-server>/api/position` returns data. `<token>` is the value of `server.minecraft.access_token`.
+- How you run the BVC server: Docker, directly on the host, or inside the Java mod.
 
-**For a crash:** what you were doing, whether it reproduces, and the log if you have it.
+**If the app crashed:** tell us what you were doing, and if the crash happens again. Attach the log file if you have it.
 
-## Where things go
+## Where to report
 
-| | Where |
+| Report | Where |
 |---|---|
-| Anything at all | [Discord](https://discord.gg/CdtchD5zxr) |
-| Confirmed bugs | [GitHub Issues](https://github.com/Alaydriem/bedrock-voice-chat/issues), usually opened during triage |
+| Any question or problem | [Discord](https://discord.gg/CdtchD5zxr) |
+| Confirmed bugs | [GitHub Issues](https://github.com/Alaydriem/bedrock-voice-chat/issues). The maintainers usually open these from Discord reports. |
 | Feature requests | Discord or GitHub Issues |
-| Longer technical discussion | [GitHub Discussions](https://github.com/Alaydriem/bedrock-voice-chat/discussions) |
+| Long technical discussion | [GitHub Discussions](https://github.com/Alaydriem/bedrock-voice-chat/discussions) |
 
-Search before posting.
+Search for your problem before you post.
 
 ## Security issues
 
@@ -50,8 +49,8 @@ Search before posting.
 Use GitHub's [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability) under the Security tab.
 :::
 
-There is no bug bounty. Legitimate reports are credited in `SECURITY.md`.
+There is no bug bounty. We credit valid reports in `SECURITY.md`.
 
 ## Helping others
 
-Answer a question on Discord when you know the answer. See [supporting BVC](/wiki/start/supporting-bvc/).
+If you know the answer to a question on Discord, answer it. See [supporting BVC](/wiki/start/supporting-bvc/).

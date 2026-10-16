@@ -6,7 +6,7 @@ sidebar:
   order: 2
 ---
 
-This guide details how to install Bedrock Voice Chat on Fabric on a Nodecraft Pro server. The BVC server runs inside the Minecraft server, in embedded mode. For the full list of mod settings, see [Fabric](/wiki/server/java-mod/fabric/).
+Install Bedrock Voice Chat on a Nodecraft Pro server that runs Fabric. The BVC server runs inside the Minecraft server (embedded mode). For the full list of mod settings, see [Fabric](/wiki/server/java-mod/fabric/).
 
 ## Before you start
 
@@ -16,8 +16,8 @@ You need:
 - A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/).
 - A Cloudflare API token for that zone, with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
 
-:::tip
-You **must** use a Pro server. Lite servers suspend themselves after a period of inactivity, which causes problems with Bedrock Voice Chat.
+:::caution
+You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voice Chat then stops too.
 :::
 
 ## Install Fabric
@@ -30,7 +30,7 @@ You **must** use a Pro server. Lite servers suspend themselves after a period of
 
 ## Upload the mods
 
-1. Download [fabric-api](https://modrinth.com/mod/fabric-api) and [Bedrock Voice Chat](https://modrinth.com/mod/bedrock-voice-chat) from Modrinth. Select the Fabric versions that match your Minecraft version. For crossplay, also download the Fabric versions of Simple Voice Chat, Geyser, and Floodgate.
+1. Download [fabric-api](https://modrinth.com/mod/fabric-api) and [Bedrock Voice Chat](https://modrinth.com/mod/bedrock-voice-chat) from Modrinth. Select the Fabric versions that match your Minecraft version. To let Bedrock players join, also download the Fabric versions of Geyser and Floodgate. To connect players who use Simple Voice Chat, also download Simple Voice Chat.
 2. In **Server Files** > **File Manager**, open the `mods` directory.
 3. Select **Upload**, and upload all the `.jar` files.
 
@@ -62,10 +62,10 @@ You **must** use a Pro server. Lite servers suspend themselves after a period of
 
 5. Replace `bvc.example.com`, the email, and the API token with your values.
 
-:::tip
-1. Use Cloudflare or another ACME provider. BVC then issues and renews the TLS certificate automatically.
+:::caution
+1. Use Cloudflare or another supported DNS provider. BVC then gets and renews the TLS certificate automatically.
 2. Do not use your Nodecraft hostname. At this time, BVC cannot get a TLS certificate for the hostname that Nodecraft gives a Pro server.
-3. Leave both ports at 28280. Do not change them.
+3. Keep both ports at 28280. Do not change them.
 :::
 
 ## Point your domain at the server
@@ -74,15 +74,15 @@ You **must** use a Pro server. Lite servers suspend themselves after a period of
 2. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
 3. In Cloudflare, set the record's proxy status to **DNS only**.
 
-The first start issues the TLS certificate. Bedrock Voice Chat can take a minute to start fully while it gets the certificate. Wait before you sign in for the first time. You may need to restart the Java server _after_ the first certificate is issued.
+BVC gets the TLS certificate the first time it starts. This can take one minute. Wait, then sign in for the first time. If players cannot sign in after BVC gets its first certificate, restart the Java server.
 
 :::caution
-The mod keeps its mTLS CA in `config/bedrock-voice-chat/`. Download a copy of this directory from **Server Files** and keep it. If you delete it, all client certificates that the server issued become invalid, and all players must sign in again.
+The mod stores its certificate authority (the key that signs player certificates) in `config/bedrock-voice-chat/`. Download a copy of this directory from **Server Files** and keep it. If you delete it, all client certificates that the server issued become invalid, and all players must sign in again.
 :::
 
 ## Chat sync
 
-Chat sync needs this line in `server.properties`:
+To read and send in-game chat from the BVC app, set this line in `server.properties`:
 
 ```properties
 enforce-secure-profile=false

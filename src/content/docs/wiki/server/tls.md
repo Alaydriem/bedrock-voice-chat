@@ -6,29 +6,25 @@ sidebar:
   order: 3
 ---
 
-Bedrock Voice Chat requires a valid TLS certificate. Client apps validate it the way a browser does.
+Bedrock Voice Chat requires a valid TLS certificate. The client apps check it the same way a browser does.
 
 :::danger
-Self-signed certificates **will not work**. The app refuses the connection and there is no override.
+Self-signed certificates **will not work**. The app refuses the connection, and you cannot turn this check off.
 :::
 
-Three options. They are mutually exclusive, and the server refuses to start with more than one configured.
+There are three options. Use only one. If you configure more than one, the server does not start.
 
-| | Use when |
+| Option | When to use |
 |---|---|
-| **An assigned hostname** | You have no domain. BVC gives you a name and keeps its certificate renewed. Work in progress, and limited to select Patreon and YouTube members. |
-| **ACME** | You have a domain and a supported DNS provider. BVC issues and renews for you. |
+| **An assigned hostname** | You have no domain. BVC gives you a name and renews its certificate. In development, and available only to some Patreon and YouTube members. See [assigned hostnames](/wiki/server/enrollment/). |
+| **ACME** | You have a domain and a supported DNS provider. BVC gets and renews the certificate. |
 | **Your own PEM files** | You already have a certificate, or your DNS provider is not supported. |
-
-The server appends the name it is given to its own SANs and configures its own certificate. See [assigned hostnames](/wiki/server/enrollment/).
-
-The rest of this page is for the two options where you bring the name.
 
 ## ACME
 
-BVC proves domain control with a DNS record, not an HTTP request. **Port 80 never has to be open**, and the host does not need to answer HTTP at all. Renewal is automatic.
+BVC uses a DNS record to prove that you control the domain (ACME DNS-01). You do not need to open port 80 or run an HTTP service. Renewal is automatic.
 
-Two providers are supported.
+BVC supports two DNS providers.
 
 ### Cloudflare
 
@@ -46,15 +42,15 @@ server {
 }
 ```
 
-:::caution[Use a scoped token, not your global key]
-Create an API token under Cloudflare's **API Tokens** page, scoped to the single zone, with **DNS edit** permission. A global API key would give BVC control of your entire Cloudflare account.
+:::caution[Use a scoped API token]
+Create an API token on Cloudflare's **API Tokens** page. Limit it to one zone, with **DNS edit** permission. Do not use the global API key. It gives BVC control of your whole Cloudflare account.
 :::
 
 ### acme-dns
 
-Use this when your DNS provider has no supported API, or when you would rather not hand BVC credentials to your real zone at all.
+Use acme-dns when your DNS provider has no supported API, or when you do not want to give BVC credentials for your main DNS zone.
 
-You delegate one `_acme-challenge` record to an acme-dns server with a CNAME. BVC only ever writes there, never to your zone.
+Add a CNAME that points your `_acme-challenge` record to the acme-dns server. BVC writes only to the acme-dns server. It does not change your DNS zone.
 
 ```hcl
 server {
@@ -73,9 +69,9 @@ server {
 }
 ```
 
-Register with the acme-dns server first. It returns the username, password, subdomain, and the CNAME to add.
+Register with the acme-dns server first. Registration gives you the username, the password, the subdomain, and the CNAME to add.
 
-## Bring your own certificate
+## Your own certificate
 
 ```hcl
 server {
@@ -87,8 +83,8 @@ server {
 }
 ```
 
-:::caution[Fullchain, not the leaf]
-A leaf-only certificate validates on a machine that already has the intermediate cached and fails on a fresh phone. It works when you test it and breaks for your users, which is a miserable bug to chase.
+:::caution[Use the full chain]
+Use `fullchain.pem`. A certificate without the intermediate certificate works on a computer that already has the intermediate cached. It fails on a new phone.
 :::
 
-With BYOC you are responsible for rotation.
+If you use your own certificate files, replace them before they expire.

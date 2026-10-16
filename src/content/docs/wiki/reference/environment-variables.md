@@ -6,17 +6,17 @@ sidebar:
   order: 3
 ---
 
-Every Bedrock Voice Chat configuration value has a `BVC_*` environment override, letting you run a server without a config file at all. Precedence is **environment > config file > default**.
+Most Bedrock Voice Chat configuration values have a `BVC_*` environment variable. With these variables, you can run a server without a config file. Precedence: **environment, then config file, then default**.
 
-An unset or empty variable never overrides anything. `FOO=` in a compose file will not blank out a configured value. A malformed value is a hard startup error.
+A variable that is not set, or that is empty, does not change a value. `FOO=` in a compose file does not clear a configured value. If a variable has an invalid value, the server does not start.
 
-`config.hcl` is therefore optional. With no file, the server starts from defaults plus the environment and logs that it did. This is the usual arrangement under Kubernetes. See [Docker](/wiki/server/docker/).
+`config.hcl` is optional. With no file, the server uses the defaults and the environment variables, and writes a log line that says so. Kubernetes deployments usually work this way. See [Docker](/wiki/server/docker/).
 
 ## Server
 
 | Variable | Sets |
 |---|---|
-| `BVC_SERVER` | `server.listen` and `server.port`, from a `host:port` value. URL forms (`https://…`) are ignored here — those are the CLI's `--server-url`. |
+| `BVC_SERVER` | `server.listen` and `server.port`, from a `host:port` value. The server ignores a URL value (`https://…`). The CLI reads a URL value as `--server-url`. |
 | `BVC_QUIC_PORT` | `server.quic_port` |
 | `BVC_ADVERTISED_QUIC_PORTS` | `server.advertised_quic_ports`. Comma-separated. |
 | `BVC_ACCESS_TOKEN` | `server.minecraft.access_token` |
@@ -29,17 +29,17 @@ An unset or empty variable never overrides anything. `FOO=` in a compose file wi
 | Variable | Sets |
 |---|---|
 | `BVC_RECORDING` | `voice.recording.enabled`. `true` or `false`. |
-| `BVC_MAX_CONNECTIONS` | `voice.limits.connections`. Maximum concurrent voice sessions. `0` admits everyone. |
-| `BVC_RECONNECT_GRACE` | `voice.limits.reconnect_grace`. Seconds a disconnected player keeps their slot. |
+| `BVC_MAX_CONNECTIONS` | `voice.limits.connections`. The maximum number of voice sessions at the same time. `0` means no limit. |
+| `BVC_RECONNECT_GRACE` | `voice.limits.reconnect_grace`. The number of seconds that a disconnected player keeps their slot. |
 
 ## Runtime
 
-Read by a server started in-process over FFI, which is the Java mod's embedded mode. A standalone server ignores them.
+Only the Java mod's embedded server reads these variables. A standalone server ignores them.
 
 | Variable | Sets |
 |---|---|
-| `BVC_RUNTIME_WORKER_THREADS` | Tokio worker thread count. Defaults to the host's core count. |
-| `BVC_RUNTIME_MAX_BLOCKING_THREADS` | Ceiling on the blocking pool. |
+| `BVC_RUNTIME_WORKER_THREADS` | Number of Tokio worker threads. The default is the number of CPU cores on the host. |
+| `BVC_RUNTIME_MAX_BLOCKING_THREADS` | Maximum number of threads in the blocking pool. |
 
 ## TLS
 
@@ -53,32 +53,32 @@ Read by a server started in-process over FFI, which is the Java mod's embedded m
 
 ## Enrollment
 
-Where most enrollment tokens actually arrive: a container is configured by environment, not by editing a file inside it. See [assigned hostnames](/wiki/server/enrollment/).
+In a container, set the enrollment token with these variables. See [assigned hostnames](/wiki/server/enrollment/).
 
 | Variable | Sets |
 |---|---|
 | `BVC_ENROLLMENT_TOKEN` | `server.enrollment.token` |
 | `BVC_ENROLLMENT_ADDRESS` | `server.enrollment.address` |
 
-Setting `BVC_ENROLLMENT_TOKEN` alongside any ACME or TLS certificate setting stops startup. The three certificate sources are mutually exclusive.
+Use only one certificate source: an enrollment token, ACME, or a TLS certificate and key. If you set more than one, the server does not start.
 
-`BVC_REGISTRY_PEERLINK` is **not** in this list. It is read when the binary is compiled, not when it runs, and setting it in a running server's environment does nothing.
+`BVC_REGISTRY_PEERLINK` has no effect on a running server. It is read only when the binary is compiled.
 
 ## ACME
 
-Setting any of these creates the `acme` block if the config file does not already have one. When creating it from scratch, `BVC_ACME_EMAIL` and `BVC_ACME_PROVIDER` are both required. Startup fails naming whichever is missing.
+If the config file has no `acme` block, setting any of these variables creates one. A new `acme` block needs both `BVC_ACME_EMAIL` and `BVC_ACME_PROVIDER`. If one is missing, the server does not start, and the error names the missing variable.
 
 | Variable | Sets |
 |---|---|
-| `BVC_ACME_EMAIL` | Account contact |
-| `BVC_ACME_PROVIDER` | `cloudflare` or `acme-dns` |
-| `BVC_ACME_API_TOKEN` | Cloudflare token |
-| `BVC_ACME_DIRECTORY` | ACME directory URL |
+| `BVC_ACME_EMAIL` | Account contact email. |
+| `BVC_ACME_PROVIDER` | `cloudflare` or `acme-dns`. |
+| `BVC_ACME_API_TOKEN` | Cloudflare API token. |
+| `BVC_ACME_DIRECTORY` | ACME directory URL. |
 | `BVC_ACME_DOMAINS` | Certificate domains. Comma-separated. |
-| `BVC_ACME_DNS_URL` | acme-dns server URL |
-| `BVC_ACME_DNS_USERNAME` | acme-dns username |
-| `BVC_ACME_DNS_PASSWORD` | acme-dns password |
-| `BVC_ACME_DNS_SUBDOMAIN` | acme-dns delegated subdomain |
+| `BVC_ACME_DNS_URL` | acme-dns server URL. |
+| `BVC_ACME_DNS_USERNAME` | acme-dns username. |
+| `BVC_ACME_DNS_PASSWORD` | acme-dns password. |
+| `BVC_ACME_DNS_SUBDOMAIN` | acme-dns subdomain. |
 
 See [TLS](/wiki/server/tls/).
 
@@ -97,13 +97,13 @@ See [TLS](/wiki/server/tls/).
 | `BVC_DATABASE_SSL_CERT` | `database.ssl_cert` |
 | `BVC_DATABASE_SSL_KEY` | `database.ssl_key` |
 
-TLS combinations are validated at startup. See the [database section](/wiki/reference/configuration/#database) for which are rejected.
+The server checks the TLS settings at startup. See the [database section](/wiki/reference/configuration/#database) for the combinations that it rejects.
 
 ## Bedrock
 
 | Variable | Sets |
 |---|---|
-| `BVC_BEDROCK_SERVERS` | Replaces the curated list entirely. |
+| `BVC_BEDROCK_SERVERS` | Replaces the whole server list. |
 
 `BVC_BEDROCK_SERVERS` takes comma-separated `Name@host[:port][@protocol][@mode]` entries:
 
@@ -111,32 +111,29 @@ TLS combinations are validated at startup. See the [database section](/wiki/refe
 BVC_BEDROCK_SERVERS="My SMP@play.example.com:19132@1001@net,Other@mc.example.net@no_net"
 ```
 
-`mode` is `net` or `no_net`. See [`server.bedrock.servers`](/wiki/reference/configuration/#serverbedrockservers).
+`protocol` is a protocol version number. `mode` is `net` or `no_net`. If you omit `mode`, it is `net`. You can omit `protocol`, `mode`, or both, and you can write them in either order. If a value is not a number, `net` or `no_net`, the server does not start, and the error names the value. See [`server.bedrock.servers`](/wiki/reference/configuration/#serverbedrockservers).
 
-The two trailing tokens are classified by shape. Either may be omitted, and their order does not matter. An unrecognised token stops startup and names the token.
-
-Hostnames only. An IPv6 literal's colons parse as a port separator.
+Use a hostname. Do not use an IPv6 address. The parser reads its colons as a port separator.
 
 ## Meridian
 
-`BVC_MERIDIAN_*` configures registration with Meridian, the proxy behind our
-managed hosting. Not applicable to a self-hosted server.
+`BVC_MERIDIAN_*` configures registration with Meridian, the proxy for BVC managed hosting. A self-hosted server does not use these variables.
 
 ## CLI variables
 
-These are read by the CLI, not the server:
+The CLI reads these variables. The server does not.
 
 | Variable | Used by |
 |---|---|
-| `BVC_SERVER` | `--server-url` for `login`. Doubles as the listen override above, distinguished by whether the value is a URL. |
-| `BVC_IDENTITY` | `--identity`, as `<gamertag>:<game>` |
-| `BVC_IDENTITY_DIR` | Directory holding stored CLI identities. |
+| `BVC_SERVER` | `--server-url` for `login`. The server also reads `BVC_SERVER` (see [Server](#server)). A URL value is for the CLI. A `host:port` value is for the server. |
+| `BVC_IDENTITY` | `--identity`, as `<gamertag>:<game>`. |
+| `BVC_IDENTITY_DIR` | The directory for stored CLI identities. |
 
 See [CLI](/wiki/reference/cli/).
 
-## Interpolation instead
+## Environment interpolation
 
-`${env.VAR}` works anywhere inside `config.hcl`, which is often clearer than an override:
+You can use `${env.VAR}` anywhere in `config.hcl`:
 
 ```hcl
 minecraft {
@@ -144,4 +141,4 @@ minecraft {
 }
 ```
 
-A referenced variable that is unset is a hard startup error, never an empty string.
+If a referenced variable is not set, the server does not start.

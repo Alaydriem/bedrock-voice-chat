@@ -1,16 +1,16 @@
 ---
 title: HTTP API
-description: Where the BVC server's API reference lives, and how it is organised.
+description: Location of the BVC server API reference, and its authentication schemes.
 sidebar:
   label: HTTP API
   order: 5
 ---
 
-Bedrock Voice Chat server exposes an HTTP API for authentication, configuration, position relay, and administration.
+The Bedrock Voice Chat server has an HTTP API for authentication, configuration, player positions, and administration.
 
 ## Reference
 
-**[bedrockvoicechat.com/api](https://www.bedrockvoicechat.com/api)**
+The full API reference is at [bedrockvoicechat.com/api](https://www.bedrockvoicechat.com/api).
 
 ## Serving the spec from your own server
 
@@ -24,13 +24,15 @@ server {
 }
 ```
 
-- `/openapi.json` — the spec
-- `/docs` — browsable UI
+| Path | Content |
+|---|---|
+| `/openapi.json` | The OpenAPI spec. |
+| `/docs` | A browsable UI for the spec. |
 
 ## Authentication
 
 | Scheme | Used by |
 |---|---|
-| **mTLS** | Player and admin endpoints. The client certificate is issued at login. |
-| **`Authorization: Bearer`** | Game server endpoints — the position relay. The shared secret from `server.minecraft.access_token`. |
-| **None** | Health, config, and the login flow itself. |
+| **mTLS** | Player and admin endpoints. The server issues the client certificate at login. |
+| **`Authorization: Bearer`** | Endpoints that the Addon or the Java mod calls to send player positions. The token is the value of `server.minecraft.access_token`. |
+| **None** | Health, config, and the login endpoints. |

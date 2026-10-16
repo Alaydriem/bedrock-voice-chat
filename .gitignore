@@ -5,3 +5,4 @@ slides/out/
 # Built from screenshots/wiki/ by scripts/images.mjs.
 public/assets/wiki/
 src/data/wiki-images.json
+docs/

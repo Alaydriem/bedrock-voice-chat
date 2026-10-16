@@ -6,52 +6,52 @@ sidebar:
   order: 3
 ---
 
-Bedrock Voice Chat lets you hear people nearby you in the world, and in groups you create or join.
+Bedrock Voice Chat lets you hear people near you in the world, and people in groups that you create or join.
 
 <div class="window"><img src="/assets/wiki/dashboard-group.jpg" alt="BVC dashboard showing the player list with proximity and group members" /></div>
 
 ## Proximity
 
-BVC places each player's voice in 3D space using your position and facing against theirs. Someone to your left sounds like they are on your left.
+BVC uses your position, the direction you face, and the position of each player to put their voice around you. A player on your left sounds like they are on your left.
 
-With default settings:
+With the default settings:
 
 | Distance | What you hear |
 |---|---|
-| 0–24 blocks | Full volume |
-| 24–48 blocks | Fading, down to 40 dB quieter at the edge |
-| Beyond 48 blocks | Nothing |
+| 0 to 24 blocks | Full volume. |
+| 24 to 48 blocks | The voice gets quieter. At 48 blocks, it is very quiet. |
+| More than 48 blocks | Nothing. |
 
-Stereo panning fades in between 8 and 24 blocks. Someone standing on top of you sounds centred.
+Left-right positioning starts at 8 blocks and increases up to 24 blocks. A player very close to you sounds like they are in front of you.
 
-Operators can change all of these. See the `voice.spatial_audio` block in the [configuration reference](/wiki/reference/configuration/#voicespatial_audio).
+Server operators can change all of these values. See the `voice.spatial_audio` block in the [configuration reference](/wiki/reference/configuration/#voicespatial_audio).
 
 ## Groups
 
-In a group you hear everyone at full volume with no spatial positioning, wherever they are. Groups are not exclusive. You still hear nearby players and they still hear you. See [Groups](/wiki/player/groups/).
+In a group, you hear all group members at full volume, wherever they are. Their voices do not move left or right. You also still hear nearby players, and they still hear you. See [Groups](/wiki/player/groups/).
 
 ## Mute and deafen yourself
 
-Both controls are at the bottom left of the secondary sidebar.
+Both buttons are at the bottom of the sidebar on the left.
 
-**Mute** stops your microphone reaching the server. **Deafen** mutes everything incoming.
+**Mute** stops BVC from sending your voice. **Deafen** stops all sound from other players.
 
-Both can be bound to a key, along with push-to-talk. See [Settings](/wiki/player/settings/).
+You can set a key for each button, and for push-to-talk. See [Settings](/wiki/player/settings/).
 
 <div class="window"><img src="/assets/wiki/mute-deafen.jpg" alt="The Mute and Deafen buttons within the app." /></div>
 
 ## Adjust another player
 
-BVC enables you to adjust the volume of any player you come in range with. You can mute them entirely, or adjust their volume up or down for comfort.
+You can change the volume of any player who comes near you. You can mute them, or make them louder or quieter.
 
 <div class="window"><img src="/assets/wiki/dashboard-earshot.jpg" alt="Adjusting player volume" /></div>
 
 :::tip
-When adjusting player volume, be sure to do it while they are within 24 blocks of you, as this is their baseline level.
+Be sure to change a player's volume while they are within 24 blocks of you. At this distance, you hear them at full volume.
 :::
 
 :::caution
-Muting someone affects only what **you** hear. They can still hear you.
+When you mute a player, only **you** stop hearing them. They can still hear you.
 :::
 
-Adjustments stay after the player walks away or logs off. To find someone no longer on screen, or to undo a mute, open **Settings → Players**. It lists everyone you have heard and has a reset for all of them.
+Your changes stay after the player walks away or leaves the game. To find a player who is not on the screen, or to undo a mute, open **Settings → Player audio levels**. It lists every player you have heard, and has a button to reset all of them.

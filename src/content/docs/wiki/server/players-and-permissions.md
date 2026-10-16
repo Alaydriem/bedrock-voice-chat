@@ -6,17 +6,20 @@ sidebar:
   order: 9
 ---
 
-Bedrock Voice Chat is deny-by-default. Players appear automatically once your game server relays them.
+Bedrock Voice Chat lets a player sign in only when the server knows that player. The server knows a player in one of two ways:
+
+1. The player joins your game server. The Bedrock Addon or the Java mod sends the player to BVC.
+2. An admin adds the player in the app or with the CLI.
 
 :::caution
-No player can sign in until you whitelist them. A player who has never been added is refused with `AUTH02`.
+A player who has not joined your game server and has not been added cannot sign in. The app shows `AUTH02`.
 :::
 
-Everything here uses the server executable, which doubles as a CLI. Full reference: [CLI](/wiki/reference/cli/).
+The `bvc` commands below are the server executable, run as a command-line tool. See the [CLI reference](/wiki/reference/cli/).
 
 ## Bootstrapping the first admin
 
-A fresh deployment has no admin. The commands that create one talk to the database directly, not over the API. Run them on the server host, where `config.hcl` is.
+A new deployment has no admin. The commands that create the first admin write to the database directly. They do not use the HTTP API. Run them on the server host, in the directory that contains `config.hcl`.
 
 ```bash
 # On the server host
@@ -30,40 +33,40 @@ bvc login --code ABCD1234
 bvc admin bootstrap -p Alice -g minecraft
 ```
 
-`admin generate-code` creates the player record if it does not exist, which is what makes it usable before anyone exists. `admin bootstrap` grants admin to a player who already exists.
+`admin generate-code` and `admin bootstrap` both create the player record if it does not exist. You can use them on an empty database. `admin bootstrap` gives the player admin.
 
-Confirm:
+To check the result, run:
 
 ```bash
 bvc whoami
 ```
 
-It prints the active identity, server URL, certificate expiry, and effective permissions. `admin` should be in the list.
+The output shows the active identity, the server URL, the certificate expiry, and the effective permissions. `admin` must be in the list.
 
 ### On an embedded Java server
 
-A Fabric or PaperMC server running the [embedded server](/wiki/server/java-mod/#integrated-or-external-bvc-server) has no `bvc` executable. Run this from the game server console instead:
+A Fabric or PaperMC server that runs the [embedded server](/wiki/server/java-mod/#external-or-embedded-server) has no `bvc` executable. Run this command from the game server console:
 
 ```
 /bvc admin grant <Gamertag>
 ```
 
-Use the Xbox gamertag the player signs in with. The command creates the player record if it does not exist, so the player can sign in immediately. See [Java commands](/wiki/player/in-game-commands/java/#admin).
+Use the Xbox gamertag that the player signs in with. The command creates the player record if it does not exist. The player can then sign in. See [Java commands](/wiki/player/in-game-commands/java/#admin).
 
 ## Adding players
 
-Once you have an admin identity, the rest goes over HTTPS with mTLS and can be run from anywhere.
+After you have an admin identity, you can run the remaining commands from any computer. They connect to the server's HTTPS API with your client certificate (mTLS).
 
 ```bash
 bvc user add -p Bob -g minecraft
 bvc user generate-code -p Bob -g minecraft
 ```
 
-Give Bob the code. He redeems it with `bvc login`, or just signs in through the app.
+Give Bob the code. Bob uses the code with `bvc login`, or signs in through the app.
 
-`user add` returns 409 if the player already exists. `user generate-code` returns 404 if they do not. Run `user add` first.
+`user add` returns 409 if the player already exists. `user generate-code` returns 404 if the player does not exist. Run `user add` first.
 
-Codes default to one hour and cap at 24.
+A code expires after one hour by default. The maximum is 24 hours.
 
 An admin can also add players from **Settings → Manage Players** in the app.
 
@@ -76,11 +79,11 @@ bvc user banish -p Bob -g minecraft
 bvc user banish -p Bob -g minecraft --banish false
 ```
 
-Banishing revokes the player's certificate and closes their voice session. They are removed while connected.
+Banishing revokes the player's certificate and closes their voice session. If the player is connected, BVC disconnects them immediately.
 
-Banishing is reversible and keeps the record. There is no hard delete from the CLI.
+You can reverse a banish. The player record stays. The CLI cannot delete a player record.
 
-Unbanishing does not restore the revoked certificate. The player signs in and is issued a new one.
+Unbanishing does not restore the revoked certificate. The player signs in again and gets a new certificate.
 
 ## Permissions
 
@@ -88,9 +91,9 @@ Unbanishing does not restore the revoked certificate. The player signs in and is
 |---|---|
 | `audio_upload` | Upload clips to the [audio library](/wiki/player/audio-library/). |
 | `audio_delete` | Delete clips. |
-| `admin` | User and permission management. |
+| `admin` | Manage players and permissions. |
 
-Peering is not a player permission. A peer is declared in [`server.peers`](/wiki/reference/configuration/#serverpeers). See [peering](/wiki/reference/peering/).
+Peering is not a player permission. You declare a peer in [`server.peers`](/wiki/reference/configuration/#serverpeers). See [peering](/wiki/reference/peering/).
 
 ### Server-wide defaults
 
@@ -113,18 +116,18 @@ bvc permission clear -p Bob -g minecraft --permission audio_upload
 bvc permission list  -p Bob -g minecraft
 ```
 
-`allow` and `deny` are explicit overrides. `clear` removes the override, and the config default applies again. `clear` is not `deny`.
+`allow` and `deny` set an override for one player. `clear` removes the override. The default from `config.hcl` then applies again.
 
-Empty output from `list` means the player has no overrides and is governed entirely by the defaults.
+If `list` prints nothing, the player has no overrides. Only the defaults apply.
 
-**Manage Players** sets the same three overrides from the settings icon on a player's row. **Default** clears the override.
+In the app, **Manage Players** sets the same three overrides. Click the settings icon on the player's row. **Default** removes the override.
 
-On an embedded Java server, the console sets the `admin` override with `/bvc admin grant`, `revoke`, and `deny`. `revoke` is the console form of `clear`. See [Java commands](/wiki/player/in-game-commands/java/#admin).
+On an embedded Java server, use `/bvc admin grant`, `revoke` and `deny` in the console to set the `admin` override. `revoke` does the same as `clear`. See [Java commands](/wiki/player/in-game-commands/java/#admin).
 
 <div class="window"><img src="/assets/wiki/settings-manage-permissions.jpg" alt="Permissions dialog for a player with Default, Allow, and Deny for Administrator, Upload sounds, and Delete sounds" /></div>
 
-## A reasonable starting policy
+## Recommended defaults
 
-On a public server, default `audio_upload` to false and grant it to people you trust. Storage is your disk and there is no per-player quota.
+On a public server, set `audio_upload` to `false` by default. Give it to players you trust. Uploaded clips use disk space on your server, and there is no limit for each player.
 
-On a friends-and-family server the defaults are fine as they are.
+On a private server, keep the defaults.

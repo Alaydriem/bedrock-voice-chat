@@ -1,17 +1,17 @@
 ---
 title: Bedrock version support
-description: Which Minecraft Bedrock versions BVC can speak, and why support lags each release.
+description: The Bedrock versions that Bedrock Voice Chat Connect supports, and why support comes after each release.
 sidebar:
   label: Version support
   order: 2
 ---
 
-Bedrock Voice Chat Connect speaks Bedrock's own network protocol. Bedrock Voice Chat therefore has to understand the exact protocol version your server runs. Below is every version it supports.
+Bedrock Voice Chat Connect uses the Bedrock network protocol. Connect works only with the protocol versions in the table below.
 
-This matters for Realms, Aternos, and any other host using the no-net Addon.
+This applies to Realms, Aternos and other hosts that use the no-net Addon.
 
 :::note
-None of this applies to a Bedrock Dedicated Server or a Java server. The Addon reports positions over HTTP, and the Bedrock protocol version is irrelevant there.
+This does not apply to a Bedrock Dedicated Server or a Java server. On these servers, the Addon or the mod sends positions over HTTP, and the Bedrock protocol version has no effect.
 :::
 
 <!-- generated:version-table start -->
@@ -47,25 +47,19 @@ no-net Addon and Bedrock Voice Chat Connect will not work against a server runni
 
 <!-- generated:version-table end -->
 
-## Why Bedrock Voice Chat Connect Support Lags Minecraft Releases
+## Release delay
 
-Mojang does not publish the Bedrock packet protocol specification on a consistent schedule. Nearly every Berock release changes it, and each change needs to be reverse-engineered from the protocol and re-generated before Bedrock Voice Chat can speak the new version, followed by an update to the apps through their respective stores.
+Mojang does not document the Bedrock packet protocol. Nearly every Bedrock release changes the protocol. For each change, the BVC developers reverse-engineer the new protocol and update BVC. Then they release new apps through each app store.
 
-Two things follow from that:
-
-- The no-net Addon is locked to a protocol. An Addon built for one Bedrock version will not work against another. Match your server version to the Addon you installed.
-- If your host auto-updates Minecraft, expect voice to stop working on update day until a matching Bedrock Voice Chat build ships.
+- The no-net Addon is locked to one protocol version. An Addon for one Bedrock version does not work with a different version. Use the server version that matches the Addon that you installed.
+- If your host updates Minecraft automatically, voice chat stops on the day of the update. It works again when a matching Bedrock Voice Chat version is available.
 
 :::tip
-Running your own Bedrock Dedicated Server avoids both. BDS lets you choose when to update, and the position relay does not depend on the packet protocol.
+On your own Bedrock Dedicated Server, these limits do not apply. You choose when to update, and the Addon sends positions over HTTP. A protocol change does not affect it.
 
-Patreon supporters and YouTube members get early access to builds and packs, which usually means working against a new Bedrock version before general release. See [supporting BVC](/wiki/start/supporting-bvc/).
+Patreon supporters and YouTube members get early access to builds and packs. They usually get support for a new Bedrock version before the general release. See [supporting BVC](/wiki/start/supporting-bvc/).
 :::
 
 ## Advertised version
 
-When connecting through Bedrock Voice Chat Connect you can pin the protocol BVC advertises, per server, in the client's server list. Auto mirrors whatever the real backend reports and is correct in almost every case. Leave it there unless you have a reason not to.
-
----
-
-<small>Generated from the protocol matrix emitted by <code>bedrock-protocol-rs</code>. </small>
+Each server in the app's server list has an advertised version setting. It sets the protocol version that Bedrock Voice Chat Connect reports to Minecraft. The default, Auto, uses the version that the Realm or host reports. Keep Auto unless a server does not connect with it.

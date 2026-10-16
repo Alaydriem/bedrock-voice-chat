@@ -6,57 +6,57 @@ sidebar:
   order: 6
 ---
 
-Bedrock Voice Chat supports Xbox, PlayStation, and Switch players through the mobile app. Your phone or tablet is your microphone and speaker, running alongside the console.
+Bedrock Voice Chat supports Xbox, PlayStation and Switch players with the mobile app. Your phone or tablet is your microphone and speaker. Use it next to the console.
 
-Your position comes from the game server. The console does nothing special, and the app knows where you are without being installed on it.
+You do not install anything on the console. BVC gets your position from the Minecraft server.
 
 :::note
-There is no on-console Bedrock Voice Chat client. Consoles do not allow installable applications of this kind.
+There is no Bedrock Voice Chat app for consoles. Consoles do not allow this type of app.
 
-If you would like this feature, consider supporting Bedrock Voice Chat on Patreon, or by becoming a YouTube Member.
+To help fund a console app, support Bedrock Voice Chat on Patreon or as a YouTube member.
 :::
 
 ## Get the app
 
-- **Android** — [Google Play](https://play.google.com/store/apps/details?id=com.alaydriem.bvc.client), open beta
-- **iOS / iPadOS** — [TestFlight](https://testflight.apple.com/join/JSG7bVqC)
+- **Android**: [Google Play](https://play.google.com/store/apps/details?id=com.alaydriem.bvc.client), open beta.
+- **iOS / iPadOS**: [TestFlight](https://testflight.apple.com/join/JSG7bVqC).
 
-Sign in with the same Xbox account you play on.
+Sign in with the Xbox account that you play on.
 
 ## On a Bedrock Dedicated Server
 
-Nothing console-specific. Join the server as usual, sign into the app, done.
+No extra steps. Join the server in Minecraft and sign in to the app.
 
 ## On Realms or Aternos
 
-These go through Bedrock Voice Chat Connect. The app hosts the session on your network, and it appears in Minecraft under **Worlds**.
+Realms and Aternos use Bedrock Voice Chat Connect. The BVC app shows the session on your local network, and Minecraft lists it under **Worlds**.
 
 ### Operator
 
-Nothing to configure. The relay defaults handle it.
+Operators do not need to change any settings.
 
 ### Player
 
-1. Put the console and the phone running BVC on the same network.
-2. Open BVC. Open Settings, then **Voice Chat Connect**.
-3. Pick your Realm or server. Wait for the connection details.
+1. Connect the console and the phone that runs BVC to the same network.
+2. Open BVC. Open **Settings**, then **Voice Chat Connect**.
+3. Select your Realm or server. Wait for the connection details.
 4. Open Minecraft on the console. Go to **Worlds**.
-5. Pick the entry named after your world. The second line shows your gamertag and **Bedrock Voice Chat**.
+5. Select the entry with the name of your world. The second line shows your gamertag and **Bedrock Voice Chat**.
 
 <div class="window"><img src="/assets/wiki/mc-worlds.jpg" alt="Minecraft's Worlds tab showing a BVC session, world name on the first line and gamertag on the second" /></div>
 
-If two people on the network run BVC in the same world, both entries appear. The gamertag on the second line tells them apart.
+If two people on the network run BVC in the same world, two entries show. Use the gamertag on the second line to find your entry.
 
-:::caution
-Do **not** enter your Realm or Aternos address directly. That bypasses Bedrock Voice Chat entirely. Minecraft works and nobody hears anyone.
+:::danger
+Do **not** enter your Realm or Aternos address directly. If you do, Minecraft works but voice chat does not.
 :::
 
 ## Playing on mobile
 
-A phone or tablet playing Minecraft can enter a custom server address. Follow the desktop instructions on the [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/) pages.
+If you play Minecraft on a phone or tablet, follow the steps on the [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/) pages. They are the same as on desktop.
 
 ## Recording
 
 :::note
-Recording is not available on mobile. Phones and tablets lack the disk throughput for multi-track capture. Record on a desktop instead. See [Recording](/wiki/creator/recording/).
+Recording is not available on mobile. Record on a desktop computer. See [Recording](/wiki/creator/recording/).
 :::

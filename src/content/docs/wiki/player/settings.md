@@ -6,58 +6,61 @@ sidebar:
   order: 8
 ---
 
-Bedrock Voice Chat has a variety of different settings that enable you to customize and tailor your experience.
+Bedrock Voice Chat has settings for audio devices, voice mode, the noise gate, keybinds, and more.
 
-## Audio
+## Audio settings
 
 <div class="window"><img src="/assets/wiki/settings-audio.jpg" alt="Audio settings page showing input and output device selection" /></div>
 
 ### Devices
 
-BVC defaults to using your platforms default communication device and speaker, with dropdowns so that you can use a specific input and output device.
+By default, BVC uses the default communication device and speaker of your computer or phone. To use a different microphone or speaker, select it from the list.
 
-Windows supports both the standard Windows audio drivers and ASIO devices.
+On Windows, BVC works with standard audio devices and with ASIO devices (professional audio interfaces).
 
 ### Test your devices
 
-- **Test my microphone.** Speak for a few seconds. The mark fills as BVC hears you. If it stays flat, select a different input device.
-- **Test playback.** Plays a chime through the output device BVC uses.
+- **Test my microphone.** Speak for a few seconds. The bar fills when BVC hears you. If the bar does not move, select a different input device.
+- **Test playback.** BVC plays a chime through the output device.
 
 ### Voice mode
 
-BVC has two voice modes: **Open mic** transmits whenever the noise gate opens. **Push to talk** transmits only while your key is held. Bind the key under Keybinds.
+BVC has two voice modes:
+
+- **Open mic** sends your voice when you speak loudly enough to open the noise gate.
+- **Push to talk** sends your voice only while you hold the push-to-talk key. Set the key under [Keybinds](#keybinds).
 
 ### Mute cues
 
-BVC plays a short tone when you mute or deafen, and another when you turn either off. On by default.
+BVC plays a short tone when you mute or deafen, and a different tone when you unmute or undeafen. This setting is on by default.
 
 ### Spatial panning
 
-How hard voices are pushed left and right by where the speaker stands. At 0% everyone is centred. Distance still governs volume.
+Spatial panning sets how much BVC moves a voice to the left or right, based on where the player stands. At 0%, all voices are in the centre. The volume still changes with distance.
 
 ### Jukeboxes
 
-One volume and one mute for every jukebox in the world. Voices are unaffected. See [using the jukebox](/wiki/player/using-the-jukebox/).
+This setting has one volume control and one mute for all jukeboxes in the world. It does not change the volume of voices. See [using the jukebox](/wiki/player/using-the-jukebox/).
 
 <div class="window"><img src="/assets/wiki/settings-audio-more.jpg" alt="Audio settings page showing voice chat sounds, jukebox volume, and the noise gate toggle" /></div>
 
 ### Noise gate
 
-BVC has a built-in noise gate that behaves like OBS's. The defaults handle fans, keyboards, and mouse clicks.
+BVC has a noise gate that works like the noise gate in OBS. The default settings block the noise from fans, keyboards, and mouse clicks.
 
-Skip it if you already run a VST chain or system-level noise suppression. Two gates fighting each other sound worse than either alone.
+If you already use other noise suppression (for example, VST plug-ins or the noise suppression of your operating system), turn off this noise gate. Two noise gates together make your voice sound worse.
 
-| Control | What it does |
+| Control | Effect |
 |---|---|
-| Open Threshold | Level your voice has to exceed for the gate to open. |
-| Close Threshold | Level it has to fall below for the gate to close. Set below the open threshold. |
-| Attack Rate | How fast the gate opens once you cross the threshold. |
-| Hold Time | How long it stays open after you drop below. Stops it chopping between words. |
-| Release Rate | How fast it closes after the hold expires. |
+| Open Threshold | The level that your voice must go above to open the gate. |
+| Close Threshold | The level that your voice must go below to close the gate. Set it below the open threshold. |
+| Attack Rate | How fast the gate opens after your voice goes above the threshold. |
+| Hold Time | How long the gate stays open after your voice goes below the threshold. This stops the gate from cutting off your voice between words. |
+| Release Rate | How fast the gate closes after the hold time ends. |
 
 ## Keybinds
 
-Global shortcuts that work while Minecraft has focus.
+Keybinds are keyboard shortcuts. They work while Minecraft is the active window.
 
 <div class="window"><img src="/assets/wiki/settings-keybinds.jpg" alt="Keybinds settings page listing mute, deafen, recording, and push to talk" /></div>
 
@@ -66,45 +69,43 @@ Global shortcuts that work while Minecraft has focus.
 | Toggle Mute | |
 | Toggle Deafen | |
 | Toggle Recording | Desktop only. |
-| Push to Talk | Transmits only while held. |
+| Push to Talk | Sends your voice only while you hold the key. |
 
-## Players
+## Player audio levels
 
-Everyone you have heard, with a volume and a mute for each. Changes stick after they walk away, and only you hear the difference.
+**Player audio levels** lists all players that you have heard. Each player has a volume control and a mute. Your changes stay after a player walks away. Only you hear the changes.
 
-Search when the list gets long. **Reset everybody** returns every player to full volume and unmutes them all.
+Use the search box to find a player in a long list. **Reset everybody** sets all players back to full volume and unmutes them.
 
 <div class="window"><img src="/assets/wiki/settings-players.jpg" alt="Player audio levels page listing players with a volume slider and mute for each" /></div>
 
 ## Recordings
 
-Review past sessions, rename them, and export players to separate files as BWAV or MP4/Opus. See [Recording](/wiki/creator/recording/).
+See your recorded sessions, rename them, and export the audio of each player to a separate file (BWAV or MP4/Opus). See [Recording](/wiki/creator/recording/).
 
 <div class="window"><img src="/assets/wiki/settings-recordings.jpg" alt="Recordings settings page listing recent sessions" /></div>
 
 ## Language
 
-Under About. Pick a language, or **Match my system**. Untranslated text stays in English.
+The language setting is on the **About** page. Select a language, or **Match my system**. Text that is not translated stays in English.
 
 <div class="window"><img src="/assets/wiki/settings-about.jpg" alt="About page showing build information, display language, and diagnostics" /></div>
 
-## The rest
+## Other settings
 
 <div class="window"><img src="/assets/wiki/settings-account.jpg" alt="Account page showing the signed-in identity and linked accounts" /></div>
 
-| Pane | What it does |
+| Page | Contents |
 |---|---|
 | Account | Your signed-in identity and connected servers. |
 | Audio library | Upload and manage audio clips. Needs the `audio_upload` permission. See [audio library](/wiki/player/audio-library/). |
-| WebSocket server | Local control API, used by the [Stream Deck plugin](/wiki/creator/stream-deck/). |
+| WebSocket server | Lets other apps on your computer control BVC. The [Stream Deck plugin](/wiki/creator/stream-deck/) uses it. |
 | About | Version, build information, language, and diagnostics. |
 
 Under **Minecraft Bedrock**:
 
-| Pane | What it does |
+| Page | Contents |
 |---|---|
-| Voice Chat Connect | Connect to a Realm, or through Aternos and other no-net hosts. See [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/). |
+| Voice Chat Connect | Connect to a Realm, or to Aternos and other hosts that use the no-net Addon. Select the world from the list. See [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/). |
 
-Realms and no-net hosts share one pane. Pick the world from the list.
-
-Recordings and Keybinds are desktop only.
+Recordings and Keybinds are available only on desktop.

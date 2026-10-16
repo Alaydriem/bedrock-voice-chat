@@ -6,28 +6,28 @@ sidebar:
   order: 4
 ---
 
-Bedrock Voice Chat is a free addon for Minecraft. However, software development is not free. If you wish to support Bedrock Voice Chat, there are several ways to do this that help cover development costs, app store fees, test devices, server hosting, and more.
+Bedrock Voice Chat is free. If you want to support Bedrock Voice Chat, you can help pay for development, app store fees, test devices and server hosting.
 
-## Financially
+## Financial support
 
-**[Patreon](https://www.patreon.com/c/Alaydriem)** funds ongoing development, app store maintenance, and new features.
+**[Patreon](https://www.patreon.com/c/Alaydriem)** pays for development, app store fees, and new features.
 
-**[YouTube](https://youtube.com/@alaydriem)** and **[Twitch](https://twitch.tv/alaydriem)** memberships get exclusive updates, early feature previews, and a view of development as it happens.
+**[YouTube](https://youtube.com/@alaydriem)** and **[Twitch](https://twitch.tv/alaydriem)** members get exclusive updates and previews of new features, and can follow development live.
 
-Supporters get **early access to builds and packs**. On Realms and Aternos, supporters typically have a working build before general release. See [version support](/wiki/platforms/version-support/) for the gap.
+Supporters get **early access to builds and packs**. On Realms and Aternos, supporters usually get a working build before the general release. To see how long support usually takes after a Minecraft update, see [version support](/wiki/platforms/version-support/).
 
-Sign up with **[Nodecraft](https://nodecraft.com/r/alaydriem)** to get the best available discount Nodecraft offers for Minecraft servers that run Bedrock Voice Chat.
+Sign up with **[Nodecraft](https://nodecraft.com/r/alaydriem)** to get the best Nodecraft discount for Minecraft servers that run Bedrock Voice Chat.
 
-## For free
+## Free support
 
 **Watch and comment on [YouTube](https://youtube.com/@alaydriem).** All major BVC announcements go there first.
 
-**Watch, follow, and subscribe the [Twitch](https://www.twitch.tv/alaydriem) streams.** Twice weekly on a regular schedule.
+**Watch, follow and subscribe to the [Twitch](https://www.twitch.tv/alaydriem) streams.** Streams are twice a week, on a regular schedule.
 
-**Tell people about BVC, and send feedback.** Bug reports and feature requests on GitHub or Discord shape what gets built.
+**Tell people about BVC, and send feedback.** We use bug reports and feature requests from GitHub and Discord to plan new work.
 
-**Answer questions.** On [Discord](https://discord.gg/CdtchD5zxr) and [GitHub](https://github.com/Alaydriem/bedrock-voice-chat/discussions).
+**Answer questions** on [Discord](https://discord.gg/CdtchD5zxr) and [GitHub](https://github.com/Alaydriem/bedrock-voice-chat/discussions).
 
-## Where it goes
+## How we use the money
 
-Server costs, client improvements, platform releases, and the reverse-engineering work that keeps Realms and Aternos working across Minecraft updates.
+Your support pays for server costs, app improvements and new platform releases. It also pays for the reverse-engineering work that updates BVC for each Minecraft release. This work keeps BVC working on Realms and Aternos.

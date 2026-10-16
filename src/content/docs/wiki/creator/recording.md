@@ -6,23 +6,23 @@ sidebar:
   order: 2
 ---
 
-The recording feature of Bedrock Voice Chat captures a session with each player on their own track, letting you mix and edit every voice separately in post.
+The recording feature of Bedrock Voice Chat records a session with each player on a separate track. You can mix and edit each voice separately.
 
 :::note
-Recording is available on Windows, macOS, and Linux only. Mobile devices lack the disk throughput for multi-track capture.
+Recording is available only on Windows, macOS and Linux. Mobile devices cannot write multi-track audio to storage fast enough.
 :::
 
 ## Start a recording
 
-Press **REC** at the bottom of the sub-sidebar. The indicator turns red.
+Press **REC** at the bottom of the secondary sidebar. The indicator turns red.
 
-Sessions capture position and group data alongside audio. Export can place each voice where it stood.
+A session records player positions and group data with the audio. The export can put each voice at the position where the player stood.
 
-Start and stop also work from [in-game](/wiki/player/in-game-commands/) with `/bvc:record <on|off>`, and from a [Stream Deck](/wiki/creator/stream-deck/).
+You can also start and stop a recording [in game](/wiki/player/in-game-commands/) with `/bvc:record <on|off>`, or from a [Stream Deck](/wiki/creator/stream-deck/).
 
 ## Server policy
 
-An operator can forbid recording for everyone connected to their server:
+An operator can stop all players on their server from recording:
 
 ```hcl
 voice {
@@ -32,12 +32,12 @@ voice {
 }
 ```
 
-Recording is permitted by default. A server that predates this setting reads as permitted.
+Recording is allowed by default. On a server older than 1.0.0-beta.21, recording is allowed.
 
 :::caution
-This is a client policy, **not** a server boundary. Recordings are written on the player's own machine and never reach the server.
+The client applies this setting. The server cannot enforce it. Recordings are saved on the player's own computer and never go to the server.
 
-Turning it off stops the REC button, `/bvc:record`, and the WebSocket `record` action in the stock client. It does **not** stop a modified client or a screen recorder.
+When `enabled = false`, the standard client disables the REC button, `/bvc:record`, and the WebSocket `record` action. A modified client or a screen recorder can still record.
 :::
 
 See [configuration](/wiki/reference/configuration/#voicerecording).
@@ -48,71 +48,73 @@ Open **Settings → Recordings**.
 
 <div class="window"><img src="/assets/wiki/settings-recordings.jpg" alt="Recordings page listing sessions with their participants" /></div>
 
-Review sessions, see participants, rename, delete, and export.
+**Recordings** lists your sessions and their participants. You can rename, delete and export each session.
 
-Sessions are listed by timestamp until you name one. Clearing a name restores the timestamp.
+The list shows each session by its timestamp until you give it a name. If you clear the name, the list shows the timestamp again.
 
-Export writes every track as a separate file. Expand the track dropdown to pick a subset.
+The export writes each track to a separate file. To export only some tracks, expand the track list and select them.
 
 | Track | Contents |
 |---|---|
 | Your own | Your microphone. |
-| Player | One other player's voice. |
-| Jukebox | Music played through a jukebox. |
+| Player | The voice of one other player. |
+| Jukebox | Music from a jukebox. |
 
-Each player track is named for the player. Somebody signed in on two devices records as two tracks.
+Each player track has the player's name. A player who is signed in on two devices records as two tracks.
 
-BVC opens the output folder when an export finishes:
+When an export is complete, BVC opens the output folder:
 
-```
-%localappdata%/com.alaydriem.bvc.client/recordings/<session_uuid>/renders
-```
+| System | Folder |
+|---|---|
+| Windows | `%localappdata%/com.alaydriem.bvc.client/recordings/<session_uuid>/renders` |
+| macOS | `~/Library/Application Support/com.alaydriem.bvc.client/recordings/<session_uuid>/renders` |
+| Linux | `~/.local/share/com.alaydriem.bvc.client/recordings/<session_uuid>/renders` |
 
 ## Spatial export
 
-**Mix in the spatial positions** places each voice where it was standing and writes every track in stereo. On by default.
+**Mix in the spatial positions** puts each voice at the position where the player stood, and writes each track in stereo. It is on by default.
 
-Turn it off to write each track flat and centred, straight from the recording with nothing re-encoded. Do that when you intend to place the voices yourself.
+Turn it off to write each track in mono at the centre, directly from the recording, with no re-encoding. Use this if you want to position the voices yourself.
 
-A spatial render needs two values the recording does not carry: the server's spatial audio settings and your panning intensity. BVC takes them from the live session, falling back to the last known values, then to defaults. The export log names which it used.
+A spatial export needs two values that are not in the recording: the server's spatial audio settings and your panning intensity. BVC uses the values from the live session. If there is no live session, it uses the last known values, and then the defaults. The export log shows which values it used.
 
-A render that falls back to defaults against a server that changed its `broadcast_range` produces a different curve. Nothing in the audio shows it. Check the log line when an export sounds wrong.
+If the export uses the defaults, and the server uses a different `broadcast_range`, the volume of each voice over distance is wrong in the export. You cannot hear this error easily. If an export sounds wrong, read the export log.
 
 See [`voice.spatial_audio`](/wiki/reference/configuration/#voicespatial_audio).
 
 ## Format version
 
-A session records the format version it was written with. Export requires an exact match with the version your app is running.
+Each session stores the format version that it was recorded with. To export a session, this version must be the same as the version of your app.
 
 :::caution
-**A BVC update can make older sessions unexportable.** They stay on disk and stay listed. Export is refused, and downgrading the app is the only way back.
+**A BVC update can stop you from exporting older sessions.** The sessions stay on disk and stay in the list, but the export is refused. To export them, install the earlier version of the app.
 
-Export what you want before you update. The format version changed in this release. Every session recorded before it is affected.
+Export the sessions that you want to keep before you update.
 :::
 
 ## Export formats
 
 | Format | Notes |
 |---|---|
-| **BWAV** (`.wav`) | Broadcast WAV with timecode. Raw PCM. Large, lossless, accepted by every editor. |
+| **BWAV** (`.wav`) | Broadcast WAV with timecode. Uncompressed PCM. Large and lossless. All editors accept it. |
 | **MP4 / Opus** | Opus in an MP4 container, with timecode. Much smaller. |
 
-Both carry timecode. Tracks line up on an editor timeline without manual syncing.
+Both formats have timecode. The tracks align on an editor timeline with no manual synchronisation.
 
-## Disk
+## Disk space
 
-BWAV is raw PCM. Roughly 5–15 MB per player per 30 seconds. A two-hour session with six participants renders 7–21 GB.
+BWAV is uncompressed PCM. It uses approximately 5–15 MB for each player for each 30 seconds. A two-hour session with six players makes 7–21 GB.
 
-To manage it:
+To use less disk space:
 
-- Export to MP4/Opus unless your editor needs PCM.
-- Break long sessions into shorter recordings.
-- Delete old renders. Nothing cleans them up automatically.
+- Export to MP4/Opus, unless your editor needs PCM.
+- Split long sessions into shorter recordings.
+- Delete old exports. BVC does not delete them automatically.
 
 ## Consent
 
 :::danger
-Anyone in a group can record everyone in that group, and nobody is notified. Proximity audio is the same.
+Any member of a group can record all members of that group, and BVC does not notify them. A player can also record nearby players, and BVC does not notify them.
 
-Tell people you are recording. Whether that is a courtesy or a legal requirement depends on where you and they are. Bedrock Voice Chat enforces neither.
+Tell people when you record. The law where you and the other players live can require their consent. Bedrock Voice Chat does not ask for consent and does not notify players.
 :::

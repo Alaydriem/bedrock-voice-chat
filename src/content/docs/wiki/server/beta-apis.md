@@ -6,60 +6,58 @@ sidebar:
   order: 8
 ---
 
-The Bedrock Voice Chat Addon uses beta script modules. The world it runs in must have the **Beta APIs** experiment enabled.
+The Bedrock Voice Chat Addon uses beta script modules. You **MUST** enable the **Beta APIs** experiment on the world that runs the Addon.
 
 :::danger
-Without Beta APIs the Addon loads and does nothing. There is no error, no console line, and no positions. This is the most common reason a working install reports nothing.
+Without Beta APIs, the Addon loads but does nothing. It shows no error and no console line, and it sends no positions.
 :::
 
-This is the single most common reason a correct-looking Bedrock install produces silence.
-
-:::caution[There is no server.properties setting for this]
-Experiments are stored per-world in `level.dat`, not in server configuration. You cannot enable them by editing a config file on the server, and a fresh world created by BDS on first boot does not have them.
+:::caution[No server.properties setting]
+Each world stores its experiments in its own `level.dat` file. A server configuration file cannot enable them. A new world that BDS creates at first start does not have them.
 :::
 
-## The reliable way: build the world in the client
+## Create the world in the client
 
-Enable the experiment where there is a UI for it, then move the world to the server.
+Enable the experiment in the Minecraft client, then move the world to the server.
 
 1. In the Minecraft Bedrock **client**, create a new world.
-2. Under **Settings → Experiments**, turn on **Beta APIs**.
-3. Add the BVC Addon to the world's behavior and resource packs while you are here.
+2. Open **Settings → Experiments** and turn on **Beta APIs**.
+3. Add the BVC Addon to the world's behavior packs and resource packs.
 4. Create the world, then leave it immediately.
-5. **Settings → Export World**, and save the `.mcworld`.
-6. Put it on your server:
-   - **BDS** — rename to `.zip`, extract into `worlds/<your world name>/`, and set `level-name` in `server.properties` to match.
-   - **A host with a panel** — upload the `.mcworld` or `.zip` through their world upload.
+5. Open **Settings**, then select **Export World**. Save the `.mcworld` file.
+6. Put the world on your server:
+   - **BDS**: rename the file to `.zip`. Extract it into `worlds/<your world name>/`. Set `level-name` in `server.properties` to the same name.
+   - **A host with a control panel**: upload the `.mcworld` or `.zip` file with the host's world upload feature.
 
-The [no-net Addon](/wiki/server/nonet-addon/) guide walks the same sequence. Realms and Aternos need it too.
+The [no-net Addon](/wiki/server/nonet-addon/) guide uses the same steps. Realms and Aternos worlds also need Beta APIs.
 
 ## Existing worlds
 
-You cannot turn the experiment on for a world that is already running by changing anything on the server. The flag lives in that world's `level.dat`.
+Server settings cannot enable the experiment on an existing world. The setting is in the world's `level.dat`.
 
-Three options, in order of how much they can go wrong:
+There are three methods. The first has the lowest risk.
 
-**Open it in the client.** Copy the world off the server, open it in the Bedrock client, enable Beta APIs under Experiments, exit, and copy it back. Straightforward, and it uses the supported UI.
+**Open the world in the client.** Copy the world from the server and open it in the Bedrock client. Enable Beta APIs under Experiments, exit, and copy the world back.
 
-**Use your host's panel.** Aternos and some other hosts expose experiment toggles directly. If yours does, use it.
+**Use your host's control panel.** Aternos and some other hosts have experiment switches in their control panel. If your host has one, use it.
 
-**Edit `level.dat` with an NBT editor.** The experiment flags live in an `experiments` compound. The one you want corresponds to the Beta APIs toggle, and the world also has to be marked as having used experiments at all.
+**Edit `level.dat` with an NBT editor.** The experiment flags are in an `experiments` compound. Set the flag for Beta APIs. Also set the flag that marks the world as a world that uses experiments.
 
 :::caution
-The exact NBT key names have changed across Bedrock versions. Do not trust a key name from any guide. Create a throwaway world in the client with Beta APIs enabled, open both `level.dat` files side by side, and copy whatever differs.
+The NBT key names change between Bedrock versions. Do not copy a key name from a guide. Create a test world in the client with Beta APIs enabled. Open both `level.dat` files side by side, and copy the differences.
 :::
 
-Back up the world first. A malformed `level.dat` will not load.
+Back up the world before you edit it. A world with a damaged `level.dat` does not load.
 
-## What enabling it costs
+## Side effects
 
-**Achievements are permanently disabled** for that world. This is Mojang's behaviour for any experiment, not something BVC controls.
+**Achievements are permanently disabled** for that world. This applies to every experiment in Minecraft.
 
-**The world is permanently marked as having used experiments.** Turning the experiment back off later does not clear the marking.
+**The world is permanently marked as a world that used experiments.** If you turn the experiment off later, the mark stays.
 
-**Experimental features can change between Minecraft versions.** This is part of why BVC's Bedrock support tracks releases instead of leading them.
+**Experimental features can change between Minecraft versions.**
 
-## Checking it worked
+## Verification
 
 Set this in `server.properties`:
 
@@ -67,19 +65,19 @@ Set this in `server.properties`:
 content-log-console-output-enabled=true
 ```
 
-On world load you should see:
+When the world loads, this line shows in the console:
 
 ```
 [BVC] Connecting to: <your server>
 ```
 
-No line means the Addon is not running. In order of likelihood:
+If the line does not show, the Addon is not running. Check these causes, most likely first:
 
-1. Beta APIs are not actually enabled on **the world the server is loading** — check `level-name` matches the world you edited.
+1. Beta APIs are not enabled on **the world that the server loads**. Check that `level-name` is the world you edited.
 2. The Addon is not in the world's pack list.
-3. `config/default/permissions.json` is missing a module — see [Bedrock Addon](/wiki/server/bedrock-addon/).
-4. `bvc_server` is unset in `variables.json`.
+3. A module is missing from `config/default/permissions.json`. See [Bedrock Addon](/wiki/server/bedrock-addon/).
+4. `bvc_server` is not set in `variables.json`.
 
 ## Java servers
 
-Not applicable. Experiments are a Bedrock concept, and the Fabric and Paper mods have no equivalent requirement. See [Java mod](/wiki/server/java-mod/).
+Java servers do not need Beta APIs. Experiments exist only in Bedrock. See [Java mod](/wiki/server/java-mod/).

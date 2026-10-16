@@ -6,21 +6,21 @@ sidebar:
   order: 11
 ---
 
-Bedrock Voice Chat server exposes health endpoints, Prometheus metrics, and structured logs so you can monitor a deployment.
+Bedrock Voice Chat server has health endpoints, Prometheus metrics, and structured logs for monitoring a deployment.
 
 ## Health endpoints
 
-| Endpoint | Answers |
+| Endpoint | Use |
 |---|---|
-| `/health/liveness` | Is the process up? Restart on failure. |
-| `/health/readiness` | Can it take traffic? Gate the load balancer on this. |
-| `/api/ping` | Cheap reachability probe. |
+| `/health/liveness` | The process is running. Restart the container if this fails. |
+| `/health/readiness` | The server can accept traffic. Use it for the load balancer check. |
+| `/api/ping` | A light check that the server is reachable. |
 
-None require authentication. They work as container health checks without credentials. See [Docker](/wiki/server/docker/) for probe configuration.
+These endpoints need no authentication. See [Docker](/wiki/server/docker/) for probe configuration.
 
 ## Metrics
 
-`/metrics` serves Prometheus format. It is always on, independent of the `telemetry` feature flag. That flag controls what BVC sends to us, not what you can scrape.
+`/metrics` serves Prometheus format. It is always on. The `telemetry` feature flag controls only the data that BVC sends to the BVC developers. It does not change `/metrics`.
 
 ```yaml
 scrape_configs:
@@ -39,24 +39,24 @@ log {
 }
 ```
 
-`level` is `trace`, `debug`, `info`, `warn`, or `error`. Default `info`.
+`level` is `trace`, `debug`, `info`, `warn`, or `error`. The default is `info`.
 
-Use `debug` when connections establish and then fail. It logs the QUIC path and handshake detail. It is loud. Do not leave it on.
+Use `debug` when connections open and then fail. At `debug`, the server logs QUIC path and handshake details. It writes many log lines. Set the level back to `info` when you are done.
 
-The server writes to both destinations at all times:
+The server always writes to both outputs:
 
-- **stderr**, human-readable and coloured. Colour turns off automatically when stderr is not a terminal.
-- **`log.path`**, one JSON object per line, rotating at 50 MB with ten archives kept.
+- **stderr**: human-readable text with colour. Colour turns off when stderr is not a terminal.
+- **`log.path`**: one JSON object per line. The file rotates at 50 MB, and the server keeps ten old files.
 
-Ship the JSON file, not the console. Every line carries `ts`, `level`, `target`, `msg`, `instance_id`, `name`, and `boot_id`, plus any fields the call site added as top-level keys.
+Send the JSON log file to your log system. Do not use the console output. Every line has `ts`, `level`, `target`, `msg`, `instance_id`, `name`, and `boot_id`. Some lines have more fields, as top-level keys.
 
 ```bash
 jq -r 'select(.level=="warn" or .level=="error") | "\(.ts) \(.target) \(.msg)"' logs/bvc-server.log
 ```
 
-`boot_id` changes on every process start, which is how you separate one run from the next inside a single file.
+`boot_id` changes each time the server starts. Use it to find the lines from one run in a file.
 
-`RUST_LOG` overrides `level` and the per-crate defaults together, for the server's own output and its dependencies':
+`RUST_LOG` overrides `level` and the default level of each module. It applies to the server and to its libraries:
 
 ```bash
 RUST_LOG=info,bvc_server_lib::stream=debug,hyper=off
@@ -64,18 +64,18 @@ RUST_LOG=info,bvc_server_lib::stream=debug,hyper=off
 
 ## What to watch
 
-**Voice failing while HTTP works.** This is the characteristic BVC failure. The two use different transports on the same port. A player signs in fine and hears nothing. Alert on QUIC connection counts. An HTTP-only check reports green through the entire outage.
+**Voice fails while HTTP works.** HTTP uses TCP/443. Voice uses QUIC on UDP/28280. If UDP is blocked, players can sign in but hear nothing, and HTTP checks still pass. Alert on the QUIC connection count.
 
-**UDP reachability.** Most broken deployments have UDP/443 closed. Use an external probe. Do not trust the firewall config.
+**UDP reachability.** In most broken deployments, the UDP port is closed. Test it with a probe from outside your network. Do not rely on the firewall configuration.
 
-**Certificate expiry**, if you supply your own certificates. ACME renews itself. Manual PEM files do not.
+**Certificate expiry**, if you supply your own certificates. BVC renews ACME certificates. It does not renew PEM files that you supply.
 
-**Disk**, if `audio_upload` is broadly granted. The audio library has no per-player quota. Client-side recordings are separate and also unbounded.
+**Disk space**, if many players have `audio_upload`. The audio library has no limit for each player.
 
-## Confirming a deployment from outside
+## Checking a deployment from outside
 
 ```bash
 curl https://example.bedrockvc.stream/api/config
 ```
 
-JSON means HTTP, TLS, and the port are fine. It does not prove voice works. QUIC over UDP is a separate path and the most common thing to be broken. Test with a real client.
+A JSON response shows that HTTP, TLS and TCP/443 work. It does not show that voice works. Voice uses QUIC over UDP, and a closed UDP port is the most common fault. Test voice with a real client.
