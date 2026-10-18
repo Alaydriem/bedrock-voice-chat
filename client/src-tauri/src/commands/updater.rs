@@ -26,9 +26,9 @@ impl UpdaterHelper {
             version.contains("-beta") || version.contains("-alpha") || version.contains("-rc");
 
         let endpoint = option_env!("BVC_UPDATER_ENDPOINT").unwrap_or(if is_prerelease {
-            "https://alaydriem.github.io/bedrock-voice-chat/updater/beta.json"
+            "https://www.bedrockvoicechat.com/updater/beta.json"
         } else {
-            "https://alaydriem.github.io/bedrock-voice-chat/updater/latest.json"
+            "https://www.bedrockvoicechat.com/updater/latest.json"
         });
 
         log::info!(
@@ -62,6 +62,17 @@ impl UpdaterHelper {
 
         updater.check().await.map_err(|e| e.to_string())
     }
+
+    // `version` is the encoded form the updater compares (1.0.523). Manifests published
+    // since display_version was added also carry the release's own name (1.0.0-beta.23).
+    fn display_version(update: &tauri_plugin_updater::Update) -> String {
+        update
+            .raw_json
+            .get("display_version")
+            .and_then(|v| v.as_str())
+            .unwrap_or(&update.version)
+            .to_string()
+    }
 }
 
 #[tauri::command]
@@ -75,8 +86,9 @@ pub(crate) async fn check_for_updates(app: tauri::AppHandle) -> Result<Option<St
 
     match update {
         Some(update) => {
-            log::info!("Update available: v{}", update.version);
-            Ok(Some(update.version.clone()))
+            let display = UpdaterHelper::display_version(&update);
+            log::info!("Update available: v{} ({})", display, update.version);
+            Ok(Some(display))
         }
         None => {
             log::info!("No updates available");
@@ -97,7 +109,11 @@ pub(crate) async fn install_update(app: tauri::AppHandle) -> Result<(), String> 
 
     match update {
         Some(update) => {
-            log::info!("Installing update v{}...", update.version);
+            log::info!(
+                "Installing update v{} ({})...",
+                UpdaterHelper::display_version(&update),
+                update.version
+            );
 
             update
                 .download_and_install(

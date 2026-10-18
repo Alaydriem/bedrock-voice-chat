@@ -935,7 +935,7 @@ jobs:
             echo "| Name | Value |"
             echo "| ---- | ----- |"
             echo "| Version | ${VERSION} |"
-            echo "| Manifest | [\`${FILENAME}\`](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/updater/${FILENAME}) |"
+            echo "| Manifest | [\`${FILENAME}\`](https://www.bedrockvoicechat.com/updater/${FILENAME}) |"
             echo "| Channel | $([ "$IS_PRERELEASE" = "true" ] && echo "prerelease" || echo "stable") |"
           } >> $GITHUB_STEP_SUMMARY
 

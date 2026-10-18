@@ -41,7 +41,7 @@ export class PlateView {
              */
             case "version_mismatch":
                 return entry.clientTooOld
-                    ? { chip: "Update needed", severity: "warn", action: "Update", kind: "blocked" }
+                    ? { chip: "Update needed", severity: "warn", action: "Update", kind: "update" }
                     : {
                           chip: "Server is older",
                           severity: "warn",

@@ -4,6 +4,7 @@ import type { LoginResponse } from "../../bindings/LoginResponse";
 import { get, writable, type Readable, type Writable } from "svelte/store";
 import ImageCache from "../components/imageCache";
 import ImageCacheOptions from "../components/imageCacheOptions";
+import FaultCatalog from "../error/FaultCatalog";
 import { AppStore } from "../services/AppStore";
 import { ServerListStore } from "../services/ServerListStore";
 import SetupFlow from "../setup/SetupFlow";
@@ -167,10 +168,11 @@ export class ServerRosterManager {
                 await this.recheck(server);
                 return { kind: "none" };
 
+            case "update":
+                return this.offerUpdate(server);
+
             case "blocked":
-                return entry.status === "version_mismatch" && entry.clientTooOld
-                    ? this.offerUpdate(server)
-                    : { kind: "none" };
+                return { kind: "none" };
         }
     }
 
@@ -300,7 +302,7 @@ export class ServerRosterManager {
             if (version) {
                 return {
                     kind: "navigate",
-                    href: `/error?code=UPD01&version=${encodeURIComponent(version)}`,
+                    href: FaultCatalog.updateHref(version),
                 };
             }
             this.patch(server, {

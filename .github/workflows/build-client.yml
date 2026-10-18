@@ -414,9 +414,11 @@ jobs:
         working-directory: ./client
         run: yarn asyncapi-docs
 
+      # release.yml downloads this after the publish approval, which can come days
+      # after the build. A short retention expires it before the docs deploy.
       - name: Upload AsyncAPI YAML
         uses: actions/upload-artifact@v5
         with:
           name: asyncapi-yaml
           path: docs/websocket-api.yaml
-          retention-days: 1
+          retention-days: 30

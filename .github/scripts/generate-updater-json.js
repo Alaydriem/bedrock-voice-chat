@@ -105,8 +105,10 @@ if (Object.keys(platforms).length === 0) {
   process.exit(1);
 }
 
+// `version` is what the updater compares; `display_version` is what the client shows.
 const manifest = {
   version: encodedVersion,
+  display_version: semverVersion,
   notes: `Release ${semverVersion}`,
   pub_date: new Date().toISOString(),
   platforms

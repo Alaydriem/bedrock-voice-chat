@@ -13,7 +13,11 @@
 
 <script lang="ts">
     import { flushSync, onMount } from "svelte";
+    import { goto } from "$app/navigation";
+    import { page } from "$app/state";
     import { warn } from "@charlesportwoodii/tauri-plugin-curia";
+    import UpdateOfferDialog from "../components/shell/UpdateOfferDialog.svelte";
+    import { UpdateOffer } from "../js/app/shell/UpdateOffer";
     import { SentryManager } from "../js/sentry";
     import Analytics from "../js/app/analytics";
     import { ReactivityProbe } from "../js/app/services/ReactivityProbe.svelte";
@@ -24,7 +28,22 @@
     }
     let { children }: Props = $props();
 
+    // Rooted here so the offer reaches every screen a launch can land on: sign-in, the
+    // server list and the dashboard. The fault screens are left alone, and one of them is
+    // the install itself.
+    const updateOffer = new UpdateOffer();
+    let offeredVersion = $state<string | null>(null);
+    const offerOpen = $derived(offeredVersion !== null && !page.url.pathname.startsWith("/error"));
+
+    function acceptUpdate(): void {
+        const href = updateOffer.accept();
+        if (href) void goto(href);
+    }
+
     onMount(() => {
+        const unsubscribeOffer = updateOffer.offer.subscribe((v) => (offeredVersion = v));
+        void updateOffer.check();
+
         // Svelte mounts children before their parents, so the root layout's `onMount` is the
         // last one to run. This marks the whole tree being up, not the layout alone.
         BootTimeline.shared().mark("svelte tree mounted");
@@ -56,6 +75,7 @@
         watchdog.start();
 
         return () => {
+            unsubscribeOffer();
             watchdog.cleanup();
             probe.cleanup();
         };
@@ -63,3 +83,9 @@
 </script>
 
 {@render children?.()}
+
+<UpdateOfferDialog
+    open={offerOpen}
+    onaccept={acceptUpdate}
+    ondismiss={() => updateOffer.dismiss()}
+/>

@@ -71,6 +71,25 @@ describe("ServerListScreen", () => {
     });
 
     // The strip is the way into the readout, and the readout is where removal lives.
+    // The plate said "Update needed" over a disabled Update button, so the one fix it named
+    // could only be reached by opening the readout first.
+    it("offers the update from the plate of a server this client is too old for", async () => {
+        const onchoose = vi.fn();
+        const outdated = entry("bvc.alaydriem.com", "version_mismatch", { clientTooOld: true });
+        render(ServerListScreen, { props: props({ entries: [outdated], onchoose }) });
+
+        const update = screen.getByRole("button", { name: "Update" });
+        expect(update).toBeEnabled();
+        await userEvent.click(update);
+        expect(onchoose).toHaveBeenCalledWith("https://bvc.alaydriem.com");
+    });
+
+    it("offers nothing on a server older than this client", () => {
+        const older = entry("bvc.alaydriem.com", "version_mismatch", { clientTooOld: false });
+        render(ServerListScreen, { props: props({ entries: [older] }) });
+        expect(screen.getByRole("button", { name: "Blocked" })).toBeDisabled();
+    });
+
     it("opens the preflight readout from the strip", async () => {
         const onopen = vi.fn();
         const { container } = render(ServerListScreen, { props: props({ onopen }) });

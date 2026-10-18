@@ -13,6 +13,7 @@ import type FaultDefinition from "./FaultDefinition";
 export default class FaultCatalog {
     /** The one code that is not a failure, and the only screen that installs something. */
     static readonly UPDATE = "UPD01";
+    static readonly CLIENT_TOO_OLD = "VER01";
 
     /**
      * Shown under the mark while the update runs. Named states rather than a percentage: the
@@ -345,6 +346,11 @@ export default class FaultCatalog {
 
     static isUpdate(code: string | null): boolean {
         return code === FaultCatalog.UPDATE;
+    }
+
+    /** The screen that installs `version`. */
+    static updateHref(version: string): string {
+        return `/error?code=${FaultCatalog.UPDATE}&version=${encodeURIComponent(version)}`;
     }
 
     /**

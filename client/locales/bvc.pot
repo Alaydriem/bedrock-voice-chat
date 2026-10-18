@@ -64,12 +64,16 @@ msgstr ""
 msgid "A friend runs the server"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:369
+#: src/js/app/error/FaultCatalog.ts:375
 msgid "A new version (v{version}) of Bedrock Voice Chat is available. This will download and install the update immediately."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:297
+#: src/js/app/error/FaultCatalog.ts:298
 msgid "A new version of Bedrock Voice Chat is available. This will download and install the update immediately."
+msgstr ""
+
+#: src/components/shell/UpdateOfferDialog.svelte:27
+msgid "A new version of Bedrock Voice Chat is ready to install. The app restarts when it is done."
 msgstr ""
 
 #: src/components/settings/panes/AudioPane.svelte:160
@@ -84,7 +88,7 @@ msgstr ""
 msgid "About"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:219
+#: src/js/app/error/FaultCatalog.ts:220
 msgid "Access Denied"
 msgstr ""
 
@@ -94,8 +98,8 @@ msgid "Access token"
 msgstr ""
 
 #: src/components/serverList/PreflightPanel.svelte:114
-#: src/js/app/error/FaultCatalog.ts:225
-#: src/js/app/error/FaultCatalog.ts:318
+#: src/js/app/error/FaultCatalog.ts:226
+#: src/js/app/error/FaultCatalog.ts:319
 #: src/js/app/settings/SettingsCatalogue.ts:28
 msgid "Account"
 msgstr ""
@@ -104,7 +108,7 @@ msgstr ""
 msgid "Acquiring"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:257
+#: src/js/app/error/FaultCatalog.ts:258
 msgid "Action needed"
 msgstr ""
 
@@ -161,7 +165,7 @@ msgstr ""
 #: src/components/settings/panes/WebSocketPane.svelte:123
 #: src/components/settings/panes/WebSocketPane.svelte:130
 #: src/components/settings/ProxyServerEditor.svelte:114
-#: src/js/app/error/FaultCatalog.ts:165
+#: src/js/app/error/FaultCatalog.ts:166
 msgid "Address"
 msgstr ""
 
@@ -212,7 +216,7 @@ msgstr ""
 msgid "Allow notifications"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:25
+#: src/js/app/error/FaultCatalog.ts:26
 msgid "Almost there…"
 msgstr ""
 
@@ -224,7 +228,7 @@ msgstr ""
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:332
+#: src/js/app/error/FaultCatalog.ts:333
 msgid "An unexpected error occurred. Please try again or contact support if the problem persists."
 msgstr ""
 
@@ -240,9 +244,9 @@ msgstr ""
 msgid "Aternos — free hosting"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:107
-#: src/js/app/error/FaultCatalog.ts:47
-#: src/js/app/error/FaultCatalog.ts:89
+#: src/js/app/error/FaultCatalog.ts:108
+#: src/js/app/error/FaultCatalog.ts:48
+#: src/js/app/error/FaultCatalog.ts:90
 msgid "Audio input"
 msgstr ""
 
@@ -250,7 +254,7 @@ msgstr ""
 msgid "Audio library"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:122
+#: src/js/app/error/FaultCatalog.ts:123
 msgid "Audio output"
 msgstr ""
 
@@ -278,7 +282,7 @@ msgstr ""
 msgid "Auto — mirror the backend"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:303
+#: src/js/app/error/FaultCatalog.ts:304
 msgid "Available now"
 msgstr ""
 
@@ -287,13 +291,13 @@ msgstr ""
 msgid "Back"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:141
-#: src/js/app/error/FaultCatalog.ts:51
-#: src/js/app/error/FaultCatalog.ts:65
+#: src/js/app/error/FaultCatalog.ts:142
+#: src/js/app/error/FaultCatalog.ts:52
+#: src/js/app/error/FaultCatalog.ts:66
 msgid "Back to Dashboard"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:341
+#: src/js/app/error/FaultCatalog.ts:342
 msgid "Back to Home"
 msgstr ""
 
@@ -309,11 +313,11 @@ msgstr ""
 msgid "Back to the defaults"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:75
+#: src/js/app/error/FaultCatalog.ts:76
 msgid "Background audio"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:69
+#: src/js/app/error/FaultCatalog.ts:70
 msgid "Background Audio Couldn't Start"
 msgstr ""
 
@@ -338,15 +342,15 @@ msgstr ""
 msgid "Banned"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:70
+#: src/js/app/error/FaultCatalog.ts:71
 msgid "Bedrock Voice Chat could not start the service that keeps your microphone live while the app is not in front. Check that your system is not restricting the app in the background, then try again."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:56
+#: src/js/app/error/FaultCatalog.ts:57
 msgid "Bedrock Voice Chat needs access to send you notifications on your platform to allow for background audio recording. Please grant notification permissions in your system settings and then return to the dashboard."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:42
+#: src/js/app/error/FaultCatalog.ts:43
 msgid "Bedrock Voice Chat needs access to your microphone to enable voice communication. Please grant microphone permissions in your system settings and return to the dashboard."
 msgstr ""
 
@@ -382,21 +386,21 @@ msgstr ""
 msgid "can sign in again. They are issued a new certificate on their next sign-in; the revoked one stays revoked."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:339
+#: src/js/app/error/FaultCatalog.ts:340
 msgid "Can't continue"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:243
-#: src/js/app/error/FaultCatalog.ts:259
+#: src/js/app/error/FaultCatalog.ts:244
+#: src/js/app/error/FaultCatalog.ts:260
 msgid "Can't save"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:109
-#: src/js/app/error/FaultCatalog.ts:124
-#: src/js/app/error/FaultCatalog.ts:49
-#: src/js/app/error/FaultCatalog.ts:63
-#: src/js/app/error/FaultCatalog.ts:77
-#: src/js/app/error/FaultCatalog.ts:91
+#: src/js/app/error/FaultCatalog.ts:110
+#: src/js/app/error/FaultCatalog.ts:125
+#: src/js/app/error/FaultCatalog.ts:50
+#: src/js/app/error/FaultCatalog.ts:64
+#: src/js/app/error/FaultCatalog.ts:78
+#: src/js/app/error/FaultCatalog.ts:92
 msgid "Can't start"
 msgstr ""
 
@@ -419,9 +423,9 @@ msgstr ""
 msgid "certificate rejected"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:112
-#: src/js/app/error/FaultCatalog.ts:127
-#: src/js/app/error/FaultCatalog.ts:93
+#: src/js/app/error/FaultCatalog.ts:113
+#: src/js/app/error/FaultCatalog.ts:128
+#: src/js/app/error/FaultCatalog.ts:94
 msgid "Change Audio Devices"
 msgstr ""
 
@@ -429,7 +433,7 @@ msgstr ""
 msgid "Change someone's volume on the dashboard and they show up here."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:92
+#: src/js/app/error/FaultCatalog.ts:93
 msgid "Change your device to 48kHz"
 msgstr ""
 
@@ -464,7 +468,7 @@ msgstr ""
 msgid "Check for new features and entitlements"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:168
+#: src/js/app/error/FaultCatalog.ts:169
 msgid "Check the name, and that your server is online and running."
 msgstr ""
 
@@ -484,17 +488,17 @@ msgstr ""
 msgid "Checking…"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:155
-#: src/js/app/error/FaultCatalog.ts:170
-#: src/js/app/error/FaultCatalog.ts:185
-#: src/js/app/error/FaultCatalog.ts:200
-#: src/js/app/error/FaultCatalog.ts:215
-#: src/js/app/error/FaultCatalog.ts:231
-#: src/js/app/error/FaultCatalog.ts:246
-#: src/js/app/error/FaultCatalog.ts:262
-#: src/js/app/error/FaultCatalog.ts:277
-#: src/js/app/error/FaultCatalog.ts:292
-#: src/js/app/error/FaultCatalog.ts:323
+#: src/js/app/error/FaultCatalog.ts:156
+#: src/js/app/error/FaultCatalog.ts:171
+#: src/js/app/error/FaultCatalog.ts:186
+#: src/js/app/error/FaultCatalog.ts:201
+#: src/js/app/error/FaultCatalog.ts:216
+#: src/js/app/error/FaultCatalog.ts:232
+#: src/js/app/error/FaultCatalog.ts:247
+#: src/js/app/error/FaultCatalog.ts:263
+#: src/js/app/error/FaultCatalog.ts:278
+#: src/js/app/error/FaultCatalog.ts:293
+#: src/js/app/error/FaultCatalog.ts:324
 msgid "Choose Different Server"
 msgstr ""
 
@@ -512,11 +516,11 @@ msgid "Click a binding, then press the combination."
 msgstr ""
 
 #: src/components/settings/panes/WebSocketPane.svelte:237
-#: src/js/app/error/FaultCatalog.ts:137
+#: src/js/app/error/FaultCatalog.ts:138
 msgid "Client"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:131
+#: src/js/app/error/FaultCatalog.ts:132
 msgid "Client Update Required"
 msgstr ""
 
@@ -612,11 +616,11 @@ msgstr ""
 msgid "Connecting"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:189
+#: src/js/app/error/FaultCatalog.ts:190
 msgid "Connection Failed"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:204
+#: src/js/app/error/FaultCatalog.ts:205
 msgid "Connection Refused"
 msgstr ""
 
@@ -628,7 +632,7 @@ msgstr ""
 msgid "Connection type"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:290
+#: src/js/app/error/FaultCatalog.ts:291
 msgid "Contact your server operator."
 msgstr ""
 
@@ -702,7 +706,7 @@ msgstr ""
 msgid "Could not play through that device. Try another one."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:160
+#: src/js/app/error/FaultCatalog.ts:161
 msgid "Could not resolve the server address. Check that the server URL is correct and that your internet connection is working. If you are using a custom DNS provider, ensure it can resolve the server hostname."
 msgstr ""
 
@@ -714,11 +718,11 @@ msgstr ""
 msgid "Couldn't load the players"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:260
+#: src/js/app/error/FaultCatalog.ts:261
 msgid "Create a Login keyring, then sign in again"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:235
+#: src/js/app/error/FaultCatalog.ts:236
 msgid "Credentials Could Not Be Saved"
 msgstr ""
 
@@ -811,7 +815,7 @@ msgstr ""
 msgid "DNS lookup failed"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:159
+#: src/js/app/error/FaultCatalog.ts:160
 msgid "DNS Resolution Failed"
 msgstr ""
 
@@ -823,7 +827,7 @@ msgstr ""
 msgid "Done"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:23
+#: src/js/app/error/FaultCatalog.ts:24
 msgid "Downloading the update…"
 msgstr ""
 
@@ -843,12 +847,12 @@ msgstr ""
 msgid "Emits one line per logging invariant, from the webview and from Rust."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:50
+#: src/js/app/error/FaultCatalog.ts:51
 msgid "Enable microphone permissions in system settings"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:64
-#: src/js/app/error/FaultCatalog.ts:78
+#: src/js/app/error/FaultCatalog.ts:65
+#: src/js/app/error/FaultCatalog.ts:79
 msgid "Enable notification permissions in system settings"
 msgstr ""
 
@@ -936,7 +940,7 @@ msgstr ""
 msgid "Forget this server?"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:90
+#: src/js/app/error/FaultCatalog.ts:91
 msgid "FORMAT UNSUPPORTED"
 msgstr ""
 
@@ -997,7 +1001,7 @@ msgstr ""
 msgid "History starts when you connect — nothing is stored"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:325
+#: src/js/app/error/FaultCatalog.ts:326
 msgid "How do I unlock this?"
 msgstr ""
 
@@ -1013,7 +1017,7 @@ msgstr ""
 msgid "How loud jukebox music plays before distance is applied."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:175
+#: src/js/app/error/FaultCatalog.ts:176
 msgid "HTTP connection succeeded but the voice connection (QUIC/UDP) was blocked. This usually means a firewall is blocking UDP traffic on the voice port. Check your firewall settings or contact your server administrator."
 msgstr ""
 
@@ -1029,8 +1033,8 @@ msgstr ""
 msgid "I'm just looking"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:210
-#: src/js/app/error/FaultCatalog.ts:272
+#: src/js/app/error/FaultCatalog.ts:211
+#: src/js/app/error/FaultCatalog.ts:273
 msgid "Identity"
 msgstr ""
 
@@ -1061,12 +1065,12 @@ msgstr ""
 msgid "In range, not on voice — they will not hear you"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:139
-#: src/js/app/error/FaultCatalog.ts:153
+#: src/js/app/error/FaultCatalog.ts:140
+#: src/js/app/error/FaultCatalog.ts:154
 msgid "Incompatible"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:83
+#: src/js/app/error/FaultCatalog.ts:84
 msgid "Incompatible Audio Input Device"
 msgstr ""
 
@@ -1180,7 +1184,7 @@ msgstr ""
 msgid "Live"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:321
+#: src/js/app/error/FaultCatalog.ts:322
 msgid "Locked"
 msgstr ""
 
@@ -1209,8 +1213,8 @@ msgstr ""
 msgid "Make sure your BVC server is running, and that your account has permission to use it."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:110
-#: src/js/app/error/FaultCatalog.ts:125
+#: src/js/app/error/FaultCatalog.ts:111
+#: src/js/app/error/FaultCatalog.ts:126
 msgid "Make sure your headphones or DAC is connected"
 msgstr ""
 
@@ -1242,7 +1246,7 @@ msgstr ""
 msgid "microphone denied"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:41
+#: src/js/app/error/FaultCatalog.ts:42
 msgid "Microphone Permission Required"
 msgstr ""
 
@@ -1287,7 +1291,7 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:320
+#: src/js/app/error/FaultCatalog.ts:321
 msgid "NEEDS UNLOCKING"
 msgstr ""
 
@@ -1295,7 +1299,7 @@ msgstr ""
 msgid "New group"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:302
+#: src/js/app/error/FaultCatalog.ts:303
 msgid "New version"
 msgstr ""
 
@@ -1307,11 +1311,11 @@ msgstr ""
 msgid "No · or I am not sure"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:228
+#: src/js/app/error/FaultCatalog.ts:229
 msgid "No access"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:196
+#: src/js/app/error/FaultCatalog.ts:197
 msgid "NO ANSWER"
 msgstr ""
 
@@ -1323,8 +1327,8 @@ msgstr ""
 msgid "No current server found in store!"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:108
-#: src/js/app/error/FaultCatalog.ts:123
+#: src/js/app/error/FaultCatalog.ts:109
+#: src/js/app/error/FaultCatalog.ts:124
 msgid "NO DEVICE"
 msgstr ""
 
@@ -1332,19 +1336,19 @@ msgstr ""
 msgid "no input device"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:101
+#: src/js/app/error/FaultCatalog.ts:102
 msgid "No Input Device Found"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:258
+#: src/js/app/error/FaultCatalog.ts:259
 msgid "NO KEYRING"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:250
+#: src/js/app/error/FaultCatalog.ts:251
 msgid "No Keyring Available"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:102
+#: src/js/app/error/FaultCatalog.ts:103
 msgid "No microphone was detected on your system. Connect a microphone or headset, verify it appears in your system sound settings, then try again."
 msgstr ""
 
@@ -1356,7 +1360,7 @@ msgstr ""
 msgid "no output device"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:116
+#: src/js/app/error/FaultCatalog.ts:117
 msgid "No Output Device Found"
 msgstr ""
 
@@ -1377,7 +1381,7 @@ msgstr ""
 msgid "No server yet"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:117
+#: src/js/app/error/FaultCatalog.ts:118
 msgid "No speakers or headphones were detected on your system. Connect an audio output device, verify it appears in your system sound settings, then try again."
 msgstr ""
 
@@ -1437,10 +1441,10 @@ msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:32
 #: src/components/login/ConnectErrorScreen.svelte:44
-#: src/js/app/error/FaultCatalog.ts:167
-#: src/js/app/error/FaultCatalog.ts:182
-#: src/js/app/error/FaultCatalog.ts:197
-#: src/js/app/error/FaultCatalog.ts:289
+#: src/js/app/error/FaultCatalog.ts:168
+#: src/js/app/error/FaultCatalog.ts:183
+#: src/js/app/error/FaultCatalog.ts:198
+#: src/js/app/error/FaultCatalog.ts:290
 msgid "Not connected"
 msgstr ""
 
@@ -1457,16 +1461,20 @@ msgstr ""
 msgid "not measured yet"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:48
-#: src/js/app/error/FaultCatalog.ts:62
+#: src/components/shell/UpdateOfferDialog.svelte:22
+msgid "Not now"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:49
+#: src/js/app/error/FaultCatalog.ts:63
 msgid "NOT PERMITTED"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:227
+#: src/js/app/error/FaultCatalog.ts:228
 msgid "NOT REGISTERED"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:242
+#: src/js/app/error/FaultCatalog.ts:243
 msgid "NOT SAVED"
 msgstr ""
 
@@ -1474,12 +1482,12 @@ msgstr ""
 msgid "Not set"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:211
+#: src/js/app/error/FaultCatalog.ts:212
 msgid "NOT VERIFIED"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:226
-#: src/js/app/error/FaultCatalog.ts:319
+#: src/js/app/error/FaultCatalog.ts:227
+#: src/js/app/error/FaultCatalog.ts:320
 msgid "Not yet"
 msgstr ""
 
@@ -1503,7 +1511,7 @@ msgstr ""
 msgid "Nothing is recorded or sent anywhere until you are in a voice session, and the noise gate keeps silence off the wire entirely."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:322
+#: src/js/app/error/FaultCatalog.ts:323
 msgid "Nothing is wrong with your setup"
 msgstr ""
 
@@ -1523,12 +1531,12 @@ msgstr ""
 msgid "Notification permission denied - notifications may not be visible"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:55
+#: src/js/app/error/FaultCatalog.ts:56
 msgid "Notification Permission Required"
 msgstr ""
 
 #: src/components/setup/NotificationsScreen.svelte:25
-#: src/js/app/error/FaultCatalog.ts:61
+#: src/js/app/error/FaultCatalog.ts:62
 msgid "Notifications"
 msgstr ""
 
@@ -1798,16 +1806,20 @@ msgstr ""
 msgid "Reach"
 msgstr ""
 
+#: src/routes/login/+page.svelte:276
+msgid "Reaching"
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:261
 #: src/components/login/IntroScreen.svelte:271
 msgid "Ready"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:304
+#: src/js/app/error/FaultCatalog.ts:305
 msgid "READY"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:305
+#: src/js/app/error/FaultCatalog.ts:306
 msgid "Ready to install"
 msgstr ""
 
@@ -1873,7 +1885,7 @@ msgstr ""
 msgid "Refresh"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:212
+#: src/js/app/error/FaultCatalog.ts:213
 msgid "Refused"
 msgstr ""
 
@@ -2013,8 +2025,8 @@ msgstr ""
 msgid "Search sounds"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:241
-#: src/js/app/error/FaultCatalog.ts:256
+#: src/js/app/error/FaultCatalog.ts:242
+#: src/js/app/error/FaultCatalog.ts:257
 msgid "Secure storage"
 msgstr ""
 
@@ -2049,8 +2061,8 @@ msgid "Sent. Check Sentry and the log file."
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:40
-#: src/js/app/error/FaultCatalog.ts:151
-#: src/js/app/error/FaultCatalog.ts:287
+#: src/js/app/error/FaultCatalog.ts:152
+#: src/js/app/error/FaultCatalog.ts:288
 #: src/js/app/settings/SettingsCatalogue.ts:39
 msgid "Server"
 msgstr ""
@@ -2064,11 +2076,11 @@ msgstr ""
 msgid "server certificate"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:281
+#: src/js/app/error/FaultCatalog.ts:282
 msgid "Server Certificate Misconfigured"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:266
+#: src/js/app/error/FaultCatalog.ts:267
 msgid "Server Certificate Rejected"
 msgstr ""
 
@@ -2080,7 +2092,7 @@ msgstr ""
 msgid "Server check"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:145
+#: src/js/app/error/FaultCatalog.ts:146
 msgid "Server Update Required"
 msgstr ""
 
@@ -2100,7 +2112,7 @@ msgstr ""
 msgid "Servers and settings"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:76
+#: src/js/app/error/FaultCatalog.ts:77
 msgid "SERVICE STOPPED"
 msgstr ""
 
@@ -2153,9 +2165,13 @@ msgstr ""
 msgid "Sign in →"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:214
-#: src/js/app/error/FaultCatalog.ts:276
+#: src/js/app/error/FaultCatalog.ts:215
+#: src/js/app/error/FaultCatalog.ts:277
 msgid "Sign In Again"
+msgstr ""
+
+#: src/routes/login/+page.svelte:274
+msgid "Sign in using your browser"
 msgstr ""
 
 #: src/components/login/CodeScreen.svelte:39
@@ -2192,7 +2208,7 @@ msgstr ""
 msgid "SIGNED IN WITH XBOX LIVE"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:274
+#: src/js/app/error/FaultCatalog.ts:275
 msgid "Signed out"
 msgstr ""
 
@@ -2217,7 +2233,7 @@ msgstr ""
 msgid "Someone already set it up"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:331
+#: src/js/app/error/FaultCatalog.ts:332
 msgid "Something Went Wrong"
 msgstr ""
 
@@ -2254,12 +2270,12 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:308
+#: src/js/app/error/FaultCatalog.ts:309
 msgid "Stay on This Version"
 msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:70
-#: src/routes/error/+page.svelte:180
+#: src/routes/error/+page.svelte:185
 #: src/routes/uireview/+page.svelte:421
 msgid "Still stuck?"
 msgstr ""
@@ -2292,11 +2308,11 @@ msgstr ""
 msgid "System default"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:340
+#: src/js/app/error/FaultCatalog.ts:341
 msgid "Take a screenshot of this page and report a issue in Discord"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:306
+#: src/js/app/error/FaultCatalog.ts:307
 msgid "Takes about a minute on a normal connection"
 msgstr ""
 
@@ -2355,11 +2371,11 @@ msgstr ""
 msgid "The server did not answer when we asked for its players."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:146
+#: src/js/app/error/FaultCatalog.ts:147
 msgid "The server is running an older version of BVC that this client cannot connect to. Contact your server owner to have them update to the latest version."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:198
+#: src/js/app/error/FaultCatalog.ts:199
 msgid "The server isn't responding"
 msgstr ""
 
@@ -2369,11 +2385,11 @@ msgstr ""
 msgid "The server refused that change."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:205
+#: src/js/app/error/FaultCatalog.ts:206
 msgid "The server refused this connection because it could not verify your identity. Your certificate may have been revoked or reissued. Sign in again to get fresh credentials."
 msgstr ""
 
-#: src/routes/error/+page.svelte:173
+#: src/routes/error/+page.svelte:178
 msgid "The update could not be installed. Try again, or download the new version by hand."
 msgstr ""
 
@@ -2413,15 +2429,15 @@ msgstr ""
 msgid "This server does not allow recording"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:220
+#: src/js/app/error/FaultCatalog.ts:221
 msgid "This server has not granted you account access. Join the Minecraft server in-game at least once so it can register you, or ask the server operator to add you."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:267
+#: src/js/app/error/FaultCatalog.ts:268
 msgid "This server's security certificate does not match the one this device was issued. Your saved sign-in for it has been removed. Sign in again to get fresh credentials. If it keeps happening, the server operator needs to fix their certificate configuration."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:313
+#: src/js/app/error/FaultCatalog.ts:314
 msgid "To use Bedrock Voice Chat, a parent or guardian needs to turn it on for your device. Ask them to help you unlock it -- then you're good to go!"
 msgstr ""
 
@@ -2449,20 +2465,20 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:111
-#: src/js/app/error/FaultCatalog.ts:126
-#: src/js/app/error/FaultCatalog.ts:169
-#: src/js/app/error/FaultCatalog.ts:184
-#: src/js/app/error/FaultCatalog.ts:199
-#: src/js/app/error/FaultCatalog.ts:230
-#: src/js/app/error/FaultCatalog.ts:245
-#: src/js/app/error/FaultCatalog.ts:261
-#: src/js/app/error/FaultCatalog.ts:291
-#: src/js/app/error/FaultCatalog.ts:79
+#: src/js/app/error/FaultCatalog.ts:112
+#: src/js/app/error/FaultCatalog.ts:127
+#: src/js/app/error/FaultCatalog.ts:170
+#: src/js/app/error/FaultCatalog.ts:185
+#: src/js/app/error/FaultCatalog.ts:200
+#: src/js/app/error/FaultCatalog.ts:231
+#: src/js/app/error/FaultCatalog.ts:246
+#: src/js/app/error/FaultCatalog.ts:262
+#: src/js/app/error/FaultCatalog.ts:292
+#: src/js/app/error/FaultCatalog.ts:80
 msgid "Try Again"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:213
+#: src/js/app/error/FaultCatalog.ts:214
 msgid "Try signing out then back in"
 msgstr ""
 
@@ -2474,11 +2490,11 @@ msgstr ""
 msgid "Turn on to drive BVC from another device on your network."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:181
+#: src/js/app/error/FaultCatalog.ts:182
 msgid "UDP BLOCKED"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:190
+#: src/js/app/error/FaultCatalog.ts:191
 msgid "Unable to establish a voice connection to the server. The server may be offline, unreachable, or your certificates may have expired. Please try again."
 msgstr ""
 
@@ -2495,7 +2511,7 @@ msgstr ""
 msgid "Unban this player?"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:338
+#: src/js/app/error/FaultCatalog.ts:339
 msgid "UNEXPECTED"
 msgstr ""
 
@@ -2503,7 +2519,7 @@ msgstr ""
 msgid "Uniquely identifies your build for experimental features + analytics."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:337
+#: src/js/app/error/FaultCatalog.ts:338
 msgid "Unknown"
 msgstr ""
 
@@ -2519,28 +2535,36 @@ msgstr ""
 msgid "Unnamed world ({id})"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:166
+#: src/js/app/error/FaultCatalog.ts:167
 msgid "UNRESOLVED"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:273
-#: src/js/app/error/FaultCatalog.ts:288
+#: src/js/app/error/FaultCatalog.ts:274
+#: src/js/app/error/FaultCatalog.ts:289
 msgid "UNTRUSTED"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:296
+#: src/components/shell/UpdateOfferDialog.svelte:20
+msgid "Update available"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:297
 msgid "Update Available"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:140
+#: src/js/app/error/FaultCatalog.ts:141
 msgid "Update Bedrock Voice Chat to the latest version"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:307
+#: src/components/shell/UpdateOfferDialog.svelte:21
+msgid "Update now"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:308
 msgid "Update Now"
 msgstr ""
 
-#: src/routes/error/+page.svelte:92
+#: src/routes/error/+page.svelte:93
 msgid "Updating…"
 msgstr ""
 
@@ -2556,11 +2580,11 @@ msgstr ""
 msgid "Uploaded sounds can be played on a Jukeboxes"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:373
+#: src/js/app/error/FaultCatalog.ts:379
 msgid "v{version}"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:24
+#: src/js/app/error/FaultCatalog.ts:25
 msgid "Verifying the signature…"
 msgstr ""
 
@@ -2572,7 +2596,7 @@ msgstr ""
 msgid "Via phone"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:95
+#: src/js/app/error/FaultCatalog.ts:96
 msgid "View FAQ"
 msgstr ""
 
@@ -2606,7 +2630,7 @@ msgstr ""
 msgid "Voice chat sounds"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:174
+#: src/js/app/error/FaultCatalog.ts:175
 msgid "Voice Connection Blocked"
 msgstr ""
 
@@ -2619,12 +2643,12 @@ msgid "Voice mode"
 msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:38
-#: src/js/app/error/FaultCatalog.ts:180
-#: src/js/app/error/FaultCatalog.ts:195
+#: src/js/app/error/FaultCatalog.ts:181
+#: src/js/app/error/FaultCatalog.ts:196
 msgid "Voice path"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:183
+#: src/js/app/error/FaultCatalog.ts:184
 msgid "Voice path is blocked"
 msgstr ""
 
@@ -2668,7 +2692,7 @@ msgstr ""
 msgid "We couldn't reach"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:312
+#: src/js/app/error/FaultCatalog.ts:313
 msgid "We need a grown-ups help to get started"
 msgstr ""
 
@@ -2736,7 +2760,7 @@ msgstr ""
 #: src/components/login/ConnectErrorScreen.svelte:74
 #: src/components/login/NoServerScreen.svelte:116
 #: src/components/settings/panes/AboutPane.svelte:290
-#: src/routes/error/+page.svelte:184
+#: src/routes/error/+page.svelte:189
 #: src/routes/uireview/+page.svelte:425
 msgid "Wiki"
 msgstr ""
@@ -2781,11 +2805,11 @@ msgstr ""
 msgid "You cannot remove your own admin permission."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:229
+#: src/js/app/error/FaultCatalog.ts:230
 msgid "You don't have permission to access this server"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:275
+#: src/js/app/error/FaultCatalog.ts:276
 msgid "You don't have permission to access this server."
 msgstr ""
 
@@ -2800,11 +2824,11 @@ msgstr ""
 msgid "You no longer hold the admin permission."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:236
+#: src/js/app/error/FaultCatalog.ts:237
 msgid "You signed in, but this device could not save your credentials to its secure storage, so the sign-in could not be completed. This is usually temporary. Try again, and if it keeps happening, restart your device."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:251
+#: src/js/app/error/FaultCatalog.ts:252
 msgid "You signed in, but this device has no unlocked keyring to store your credentials in, so the sign-in could not be completed. On Linux, open Passwords and Keys, create a password keyring named Login, and set it as the default. If your system signs you in automatically, turning that off and signing in with your password will create the keyring for you."
 msgstr ""
 
@@ -2820,7 +2844,7 @@ msgstr ""
 msgid "Your audio is not reaching the server. Try reconnecting."
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:132
+#: src/js/app/error/FaultCatalog.ts:133
 msgid "Your client version is outdated. Download the latest BVC client to connect to this server."
 msgstr ""
 
@@ -2828,7 +2852,7 @@ msgstr ""
 msgid "Your code"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:244
+#: src/js/app/error/FaultCatalog.ts:245
 msgid "Your device's secure storage rejected the write"
 msgstr ""
 
@@ -2840,7 +2864,7 @@ msgstr ""
 msgid "Your mic"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:84
+#: src/js/app/error/FaultCatalog.ts:85
 msgid "Your microphone configuration is not supported. Make sure your input device on Windows is running at 48kHz sample rate, or change to a different input device"
 msgstr ""
 
@@ -2868,11 +2892,11 @@ msgstr ""
 msgid "Your range"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:154
+#: src/js/app/error/FaultCatalog.ts:155
 msgid "Your server operator needs to update BVC"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:282
+#: src/js/app/error/FaultCatalog.ts:283
 msgid "Your sign-in for this server is still valid, but its voice connection presented a certificate this device cannot verify. Only the server operator can fix this. Your saved sign-in has been kept."
 msgstr ""
 
@@ -2896,12 +2920,12 @@ msgstr ""
 msgid "Yours"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:138
+#: src/js/app/error/FaultCatalog.ts:139
 msgctxt "client"
 msgid "TOO OLD"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:152
+#: src/js/app/error/FaultCatalog.ts:153
 msgctxt "server"
 msgid "TOO OLD"
 msgstr ""

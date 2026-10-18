@@ -271,9 +271,9 @@
                         style="--d: 120; margin-top: 12px; font-size: 2rem"
                     >
                         {#if isHandoff && !isFinishing}
-                            Continue in the window<br /><b>that just opened.</b>
+                            {I18n.t("Sign in using your browser")}
                         {:else}
-                            Reaching<br /><b>{attemptServer}</b>
+                            {I18n.t("Reaching")}<br /><b>{attemptServer}</b>
                         {/if}
                     </h2>
                     <div class="rad-rise" style="--d: 260; margin-top: 22px">
