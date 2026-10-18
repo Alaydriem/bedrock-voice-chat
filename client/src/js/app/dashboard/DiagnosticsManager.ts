@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { warn } from "@charlesportwoodii/tauri-plugin-curia";
 import { type Readable, type Writable, writable } from "svelte/store";
+import { I18n } from "#lib/i18n/index.js";
 import type { ConnectionHealth } from "../../bindings/ConnectionHealth";
 import type { LinkDiagnosticsSnapshot } from "../../bindings/LinkDiagnosticsSnapshot";
 import { EventChannel } from "../events/EventChannel";
@@ -102,16 +103,24 @@ export class DiagnosticsManager {
                 return {
                     connected: false,
                     reconnecting: false,
-                    fatal: "The connection failed and will not retry on its own.",
+                    fatal: I18n.t("The connection failed and will not retry on its own."),
                 };
-            case "VersionMismatch":
+            case "VersionMismatch": {
+                const versions = { client: health.client_version, server: health.server_version };
                 return {
                     connected: false,
                     reconnecting: false,
                     fatal: health.client_too_old
-                        ? `This client (${health.client_version}) is too old for the server (${health.server_version}).`
-                        : `The server (${health.server_version}) is older than this client (${health.client_version}).`,
+                        ? I18n.tf(
+                              "This client ({client}) is too old for the server ({server}).",
+                              versions,
+                          )
+                        : I18n.tf(
+                              "The server ({server}) is older than this client ({client}).",
+                              versions,
+                          ),
                 };
+            }
             case "Unauthorized":
                 return { connected: false, reconnecting: false, fatal: health.reason };
             case "AtCapacity":

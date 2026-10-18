@@ -131,7 +131,7 @@ export default class ChannelManager {
 
     private handleError(error: any): void {
         logError(`Channel manager error: ${error}`);
-        this.errorStore.set(error.message || "An unknown error occurred");
+        this.errorStore.set(error.message || I18n.t("An unknown error occurred"));
     }
 
     public clearError(): void {

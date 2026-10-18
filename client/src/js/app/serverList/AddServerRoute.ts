@@ -1,3 +1,5 @@
+import { I18n } from "#lib/i18n/index.js";
+
 /**
  * Where adding a server leads, and the way back out of it.
  *
@@ -26,8 +28,8 @@ export class AddServerRoute {
      */
     static backFrom(params: URLSearchParams): { href: string; label: string } {
         if (params.has("addserver") && params.get("return") === AddServerRoute.RETURN_TO) {
-            return { href: AddServerRoute.RETURN_TO, label: "Cancel" };
+            return { href: AddServerRoute.RETURN_TO, label: I18n.t("Cancel") };
         }
-        return { href: "/dashboard", label: "Back to Dashboard" };
+        return { href: "/dashboard", label: I18n.t("Back to Dashboard") };
     }
 }

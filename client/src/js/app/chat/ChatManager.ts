@@ -78,7 +78,7 @@ export class ChatManager {
     constructor(private readonly selfName: string) {
         this.linesStore = writable([]);
         this.unreadStore = writable(0);
-        this.targetStore = writable({ kind: "unavailable", reason: "Not connected" });
+        this.targetStore = writable({ kind: "unavailable", reason: I18n.t("Not connected") });
         this.rejectionStore = writable(null);
         this.associationsStore = writable({});
         this.enabledStore = writable(true);
@@ -119,11 +119,14 @@ export class ChatManager {
             // row exists. Falling through to another world would name one the player is not
             // in: the server would reject the send, but only after the composer had spent the
             // whole time claiming it would land there.
-            return { kind: "unavailable", reason: "This world is not known to the server yet" };
+            return {
+                kind: "unavailable",
+                reason: I18n.t("This world is not known to the server yet"),
+            };
         }
 
         if (worlds.length === 0) {
-            return { kind: "unavailable", reason: "No world to send to yet" };
+            return { kind: "unavailable", reason: I18n.t("No world to send to yet") };
         }
         if (worlds.length === 1) {
             return { kind: "only", world: worlds[0] };
@@ -293,7 +296,7 @@ export class ChatManager {
             this.applyTarget();
         } catch (e) {
             await warn(`chat availability check failed: ${e}`);
-            this.targetStore.set({ kind: "unavailable", reason: "Chat is unavailable" });
+            this.targetStore.set({ kind: "unavailable", reason: I18n.t("Chat is unavailable") });
         }
     }
 

@@ -10,7 +10,9 @@
  * carry it. A blocked UDP path is a verdict about the transport, not about the product: the
  * same measurement decides whether voice arrives over QUIC, over the TCP fallback, or not at
  * all, and a row named "QUIC path" could only ever report the first of the three.
+ *
+ * Ids, not labels. `PreflightStepLabel` holds the words a reader sees.
  */
-export const PREFLIGHT_STEPS = ["Credentials", "Handshake", "Protocol", "Voice path"] as const;
+export const PREFLIGHT_STEPS = ["credentials", "handshake", "protocol", "voicePath"] as const;
 
 export type PreflightStepName = (typeof PREFLIGHT_STEPS)[number];

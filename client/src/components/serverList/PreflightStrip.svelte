@@ -32,5 +32,5 @@
             <i class={BLOCK[step.state] ?? ""}></i>
         {/each}
     </span>
-    <span class="rad-preflight__total">{checking ? "checking" : `${total} ms`}</span>
+    <span class="rad-preflight__total">{checking ? I18n.t("checking") : `${total} ms`}</span>
 </button>

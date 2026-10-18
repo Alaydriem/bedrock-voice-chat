@@ -47,7 +47,7 @@ describe("PreflightVerdict.of", () => {
      * leave somebody with a problem to find the one line that is not.
      */
     it("leads with the check that failed, not the ones that passed", () => {
-        const verdict = PreflightVerdict.of(failedAt("Voice path", "udp_blocked"));
+        const verdict = PreflightVerdict.of(failedAt("voicePath", "udp_blocked"));
         expect(verdict.severity).toBe("bad");
         expect(verdict.sentence).toMatch(/UDP 443/);
     });
@@ -59,7 +59,7 @@ describe("PreflightVerdict.of", () => {
         const warned = {
             ...fallback,
             steps: fallback.steps.map((step) =>
-                step.name === "Voice path"
+                step.name === "voicePath"
                     ? { ...step, state: "warn" as PreflightStepState }
                     : step,
             ),
@@ -79,7 +79,7 @@ describe("PreflightVerdict.of", () => {
         const warned = {
             ...fallback,
             steps: fallback.steps.map((step) =>
-                step.name === "Handshake" || step.name === "Voice path"
+                step.name === "handshake" || step.name === "voicePath"
                     ? { ...step, state: "warn" as PreflightStepState }
                     : step,
             ),
@@ -97,14 +97,14 @@ describe("PreflightVerdict.of", () => {
     });
 
     it("tells someone with no sign-in to sign in again", () => {
-        const verdict = PreflightVerdict.of(failedAt("Credentials", "reauth"));
+        const verdict = PreflightVerdict.of(failedAt("credentials", "reauth"));
         expect(verdict.sentence).toMatch(/sign in again/i);
     });
 
     // The same check fails for both, and the two answers send someone to different places.
     it("separates a refused sign-in from a server that is not there", () => {
-        const refused = PreflightVerdict.of(failedAt("Handshake", "reauth"));
-        const absent = PreflightVerdict.of(failedAt("Handshake", "unreachable"));
+        const refused = PreflightVerdict.of(failedAt("handshake", "reauth"));
+        const absent = PreflightVerdict.of(failedAt("handshake", "unreachable"));
         expect(refused.sentence).toMatch(/sign in again/i);
         expect(absent.sentence).toMatch(/ask whoever runs it/i);
         expect(absent.sentence).not.toMatch(/sign in/i);
@@ -112,7 +112,7 @@ describe("PreflightVerdict.of", () => {
 
     it("names both protocols and points the update at the right side", () => {
         const behind = PreflightVerdict.of(
-            failedAt("Protocol", "version_mismatch", {
+            failedAt("protocol", "version_mismatch", {
                 clientTooOld: true,
                 serverVersion: "2.2.0",
                 clientVersion: "2.1.0",
@@ -125,7 +125,7 @@ describe("PreflightVerdict.of", () => {
 
     it("does not tell someone to update when their client is the newer one", () => {
         const ahead = PreflightVerdict.of(
-            failedAt("Protocol", "version_mismatch", {
+            failedAt("protocol", "version_mismatch", {
                 clientTooOld: false,
                 serverVersion: "2.0.0",
                 clientVersion: "2.1.0",
@@ -142,7 +142,7 @@ describe("PreflightVerdict.of", () => {
         const warned = {
             ...slow,
             steps: slow.steps.map((step) =>
-                step.name === "Voice path" ? { ...step, state: "warn" as PreflightStepState } : step,
+                step.name === "voicePath" ? { ...step, state: "warn" as PreflightStepState } : step,
             ),
         } as ServerRosterEntry;
         const verdict = PreflightVerdict.of(warned);

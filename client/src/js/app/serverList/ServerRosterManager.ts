@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { error as logError, info, warn } from "@charlesportwoodii/tauri-plugin-curia";
 import type { LoginResponse } from "../../bindings/LoginResponse";
 import { get, writable, type Readable, type Writable } from "svelte/store";
+import { I18n } from "#lib/i18n/index.js";
 import ImageCache from "../components/imageCache";
 import ImageCacheOptions from "../components/imageCacheOptions";
 import FaultCatalog from "../error/FaultCatalog";
@@ -198,7 +199,7 @@ export class ServerRosterManager {
             return { kind: "none" };
         } catch (e) {
             logError(`Failed to remove ${server}: ${e}`);
-            this.patch(server, { note: "That server could not be removed. Try again." });
+            this.patch(server, { note: I18n.t("That server could not be removed. Try again.") });
             return { kind: "none" };
         }
     }
@@ -306,12 +307,14 @@ export class ServerRosterManager {
                 };
             }
             this.patch(server, {
-                note: "No update has been published yet. That server is ahead of every build of the app.",
+                note: I18n.t(
+                    "No update has been published yet. That server is ahead of every build of the app.",
+                ),
             });
         } catch (e) {
             info(`No updater available: ${e}`);
             this.patch(server, {
-                note: "Updates are installed from wherever you got the app.",
+                note: I18n.t("Updates are installed from wherever you got the app."),
             });
         }
         return { kind: "none" };

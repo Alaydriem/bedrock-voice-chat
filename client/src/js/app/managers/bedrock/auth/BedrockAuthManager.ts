@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
+import { I18n } from "#lib/i18n/index.js";
 import type { BedrockAuthManagerCallbacks } from "./BedrockAuthManagerCallbacks";
 
 export class BedrockAuthManager {
@@ -94,7 +95,7 @@ export class BedrockAuthManager {
             await invoke("bedrock_xbox_login");
             info("Xbox login succeeded");
             this.isAuthenticatedStore.set(true);
-            this.callbacks.setStatus("Signed in to Xbox Live");
+            this.callbacks.setStatus(I18n.t("Signed in to Xbox Live"));
             this.showLoginModalStore.set(false);
             this.cleanupLoginListener();
             await this.callbacks.onLoginSuccess();
@@ -126,7 +127,7 @@ export class BedrockAuthManager {
             this.isAuthenticatedStore.set(false);
             this.callbacks.setStatus("");
         } catch (e) {
-            this.callbacks.setStatus(`Error: ${e}`);
+            this.callbacks.setStatus(I18n.tf("Error: {error}", { error: String(e) }));
         }
     }
 

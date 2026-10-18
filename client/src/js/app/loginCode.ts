@@ -1,6 +1,7 @@
 import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
 import { invoke } from "@tauri-apps/api/core";
 import { writable, type Readable, type Writable } from "svelte/store";
+import { I18n } from "#lib/i18n/index.js";
 import BVCApp from "./BVCApp.ts";
 import type { LoginResponse } from "../bindings/LoginResponse";
 import type { Game } from "../bindings/Game";
@@ -46,7 +47,7 @@ export default class LoginCode extends BVCApp {
 
         const code = input.code.trim().toUpperCase();
         if (!code) {
-            this.errorStore.set("Please enter your code.");
+            this.errorStore.set(I18n.t("Please enter your code."));
             return;
         }
 
@@ -90,7 +91,7 @@ export default class LoginCode extends BVCApp {
             window.location.replace("/setup");
         } catch (e) {
             logError(`Code login failed: ${String(e)}`);
-            this.errorStore.set("That code was not accepted. Check it and try again.");
+            this.errorStore.set(I18n.t("That code was not accepted. Check it and try again."));
             this.isSubmittingStore.set(false);
         }
     }

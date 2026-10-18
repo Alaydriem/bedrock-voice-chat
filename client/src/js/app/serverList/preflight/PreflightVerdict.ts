@@ -1,3 +1,4 @@
+import { I18n } from "#lib/i18n/index.js";
 import type { ServerRosterEntry } from "../ServerRosterEntry";
 import type { PreflightStep } from "./PreflightStep";
 
@@ -18,7 +19,7 @@ export interface Verdict {
 export class PreflightVerdict {
     static of(entry: ServerRosterEntry): Verdict {
         if (entry.status === "checking") {
-            return { severity: "ok", sentence: "Checking…" };
+            return { severity: "ok", sentence: I18n.t("Checking…") };
         }
 
         const failed = entry.steps.find((step) => step.state === "bad");
@@ -30,55 +31,72 @@ export class PreflightVerdict {
         if (entry.status === "ws_fallback") {
             return {
                 severity: "warn",
-                sentence:
-                    `UDP ${entry.quicPort} to this server is blocked, so voice will use the slower ` +
-                    "fallback path over TCP. It works — expect more delay when the network is busy.",
+                sentence: I18n.tf(
+                    "UDP {port} to this server is blocked, so voice will use the slower fallback path over TCP. It works — expect more delay when the network is busy.",
+                    { port: entry.quicPort },
+                ),
             };
         }
 
         if (entry.steps.some((step) => step.state === "warn")) {
             return {
                 severity: "warn",
-                sentence: `About ${Math.round(entry.rtt / 2)} ms for your voice to reach this server. Voice works, with delay you will notice.`,
+                sentence: I18n.tf(
+                    "About {ms} ms for your voice to reach this server. Voice works, with delay you will notice.",
+                    { ms: Math.round(entry.rtt / 2) },
+                ),
             };
         }
 
-        return { severity: "ok", sentence: "Everything looks fine." };
+        return { severity: "ok", sentence: I18n.t("Everything looks fine.") };
     }
 
     private static forFailure(failed: PreflightStep, entry: ServerRosterEntry): Verdict {
         switch (failed.name) {
-            case "Credentials":
+            case "credentials":
                 return {
                     severity: "bad",
-                    sentence:
+                    sentence: I18n.t(
                         "You are not signed in to this server any more. Sign in again to connect.",
+                    ),
                 };
 
-            case "Handshake":
+            case "handshake":
                 return {
                     severity: "bad",
                     sentence:
                         entry.status === "reauth"
-                            ? "This server refused your saved sign-in. Sign in again to connect."
-                            : "This server is not answering. Nothing is wrong on this device — ask whoever runs it.",
+                            ? I18n.t(
+                                  "This server refused your saved sign-in. Sign in again to connect.",
+                              )
+                            : I18n.t(
+                                  "This server is not answering. Nothing is wrong on this device — ask whoever runs it.",
+                              ),
                 };
 
-            case "Protocol":
+            case "protocol": {
+                const versions = { server: entry.serverVersion, client: entry.clientVersion };
                 return {
                     severity: "bad",
                     sentence: entry.clientTooOld
-                        ? `This server speaks protocol ${entry.serverVersion} and your client speaks ${entry.clientVersion}. Update the client to connect.`
-                        : `This server speaks protocol ${entry.serverVersion} and your client speaks ${entry.clientVersion}. Whoever runs it has to update it.`,
+                        ? I18n.tf(
+                              "This server speaks protocol {server} and your client speaks {client}. Update the client to connect.",
+                              versions,
+                          )
+                        : I18n.tf(
+                              "This server speaks protocol {server} and your client speaks {client}. Whoever runs it has to update it.",
+                              versions,
+                          ),
                 };
+            }
 
-            case "Voice path":
+            case "voicePath":
                 return {
                     severity: "bad",
-                    sentence:
-                        `UDP ${entry.quicPort} to this server is blocked and it offers no fallback path, ` +
-                        "so voice cannot connect at all. Check the network or firewall you are behind, " +
-                        "then recheck.",
+                    sentence: I18n.tf(
+                        "UDP {port} to this server is blocked and it offers no fallback path, so voice cannot connect at all. Check the network or firewall you are behind, then recheck.",
+                        { port: entry.quicPort },
+                    ),
                 };
         }
     }

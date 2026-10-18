@@ -2,6 +2,7 @@ import { writable, derived, get, type Writable, type Readable } from "svelte/sto
 import { invoke } from "@tauri-apps/api/core";
 import { Store } from "@tauri-apps/plugin-store";
 import { info, error as logError } from "@charlesportwoodii/tauri-plugin-curia";
+import { I18n } from "#lib/i18n/index.js";
 import type { NetworkInterface } from "../../../../bindings/NetworkInterface";
 import type { AddonMode } from "../../../../bindings/AddonMode";
 import type { ProtocolVersionOption } from "../../../../bindings/ProtocolVersionOption";
@@ -195,7 +196,7 @@ export class BedrockProxyManager {
             this.proxyRunningStore.set(true);
             info(`Bedrock proxy started: ${targetHost}:${targetPort}`);
         } catch (e) {
-            this.callbacks.setStatus(`Error: ${e}`);
+            this.callbacks.setStatus(I18n.tf("Error: {error}", { error: String(e) }));
             logError(`Proxy start failed: ${e}`);
         }
         this.isProxyLoadingStore.set(false);
@@ -206,9 +207,9 @@ export class BedrockProxyManager {
             await invoke("bedrock_stop_proxy");
             this.proxyRunningStore.set(false);
             this.activeProxyIdStore.set(null);
-            this.callbacks.setStatus("Proxy stopped");
+            this.callbacks.setStatus(I18n.t("Proxy stopped"));
         } catch (e) {
-            this.callbacks.setStatus(`Error stopping: ${e}`);
+            this.callbacks.setStatus(I18n.tf("Error stopping: {error}", { error: String(e) }));
         }
     }
 
