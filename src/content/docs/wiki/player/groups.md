@@ -27,7 +27,11 @@ You can join a group in these ways:
 - In game, type `/bvc:groupjoin <code>`.
 
 :::caution
-Groups are not private. Any player on the server can join any group at any time.
+Groups without a password are not private. Any player on the server can join them at any time.
+:::
+
+:::note
+Password protected groups are end-to-end encrypted.
 :::
 
 ## Leave or close a group
