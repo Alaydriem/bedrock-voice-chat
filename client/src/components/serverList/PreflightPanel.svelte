@@ -163,19 +163,12 @@
                     <Icon name="refresh" />
                     {I18n.t("Recheck")}
                 </button>
-                <!--
-                  A blocked server still leads somewhere from here: the update, not the
-                  connection that would fail.
-                -->
                 <button
                     class="rad-btn rad-btn--primary"
                     onclick={() => onchoose(entry.server)}
-                    disabled={entry.status === "checking" ||
-                        (view.kind === "blocked" && !entry.clientTooOld)}
+                    disabled={view.kind === "blocked"}
                 >
-                    {view.kind === "blocked" && entry.clientTooOld
-                        ? "Update the client"
-                        : view.action}
+                    {view.kind === "update" ? "Update the client" : view.action}
                 </button>
             </span>
         </div>

@@ -11,6 +11,7 @@
     import { stopForegroundService, isServiceRunning } from "tauri-plugin-audio-permissions";
     import { Store } from "@tauri-apps/plugin-store";
     import FaultCatalog from "../../js/app/error/FaultCatalog";
+    import { ClientUpdateRoute } from "../../js/app/error/ClientUpdateRoute";
     import HelpLinks from "../../js/app/HelpLinks";
     import PlatformDetector from "../../js/app/utils/PlatformDetector";
     import { AppStore } from "../../js/app/services/AppStore";
@@ -125,10 +126,14 @@
         updateVersion = urlParams.get("version");
         const isUpdate = FaultCatalog.isUpdate(errorCode);
 
-        // Nothing is streaming when the splash routes here, and the update is the one screen
-        // reached before a session exists.
-        if (!isUpdate) {
-            await teardown();
+        // The update is offered over the dashboard too, so the install can begin with voice
+        // still running.
+        await teardown();
+
+        const replacement = await new ClientUpdateRoute().replacementFor(errorCode);
+        if (replacement) {
+            window.location.replace(replacement);
+            return;
         }
 
         // "Stay on This Version" is not a server switch, so the update keeps both of its

@@ -83,6 +83,7 @@ describe("PlateView.of", () => {
         const view = PlateView.of(entry("version_mismatch", { clientTooOld: true }));
         expect(view.chip).toBe("Update needed");
         expect(view.action).toBe("Update");
+        expect(view.kind).toBe("update");
     });
 
     /**

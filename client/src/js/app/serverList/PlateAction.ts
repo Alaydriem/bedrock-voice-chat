@@ -3,6 +3,7 @@
  *
  * `recheck` exists so a blocked server is never offered a doomed connect: a "connect
  * anyway" button on a server with no UDP path would only sell a failure as a choice.
- * `blocked` leads somewhere too — an update, not a connection that would fail.
+ * `update` is the one mismatch this client can fix: it leads to the install, not a connection
+ * that would fail. `blocked` leads nowhere.
  */
-export type PlateAction = "connect" | "signin" | "recheck" | "blocked";
+export type PlateAction = "connect" | "signin" | "recheck" | "update" | "blocked";

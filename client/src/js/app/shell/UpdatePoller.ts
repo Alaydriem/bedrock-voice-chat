@@ -7,13 +7,10 @@ interface UpdatePollerOptions {
 }
 
 /**
- * When the app asks whether a newer build exists.
+ * Keeps the About pane's update row current through a long dashboard session.
  *
- * Deferred rather than immediate: this used to run before the first screen, where it was an
- * uncapped network call between launch and anything the user could look at. Nothing about an
- * available update is urgent enough to be paid for there. The blocking case — a client too
- * old for the server it is joining — is caught by the preflight on the server list, which
- * offers the update from the plate.
+ * The launch offer is `UpdateOffer`'s. This only refreshes the row and its badge, so it
+ * starts late and repeats slowly.
  */
 export class UpdatePoller {
     /** Clear of first paint and of the connect that follows it. */
