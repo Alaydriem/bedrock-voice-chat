@@ -1,6 +1,16 @@
 {
   "builds": [
     {
+      "build_number": 1001183,
+      "sha": "bd75691fc7dc4a04bbd8942f397c07ed2b69c32c",
+      "branch": "beta",
+      "ref": "refs/heads/beta",
+      "version": "1.0.0-beta.23",
+      "track": "alpha",
+      "run": "https://github.com/Alaydriem/bedrock-voice-chat/actions/runs/39186871971",
+      "ts": "2026-10-19T01:50:25Z"
+    },
+    {
       "build_number": 1001182,
       "sha": "4f3cf1f51027f265de2eee509b38af7e543a2b5e",
       "branch": "beta",
