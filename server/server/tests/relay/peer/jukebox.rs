@@ -126,6 +126,7 @@ fn ingest_rebuilds_the_jukebox_metadata_from_the_speaker() {
         .iter()
         .find_map(|meta| match meta {
             AudioFrameMetadata::Jukebox(jb) => Some(jb),
+            AudioFrameMetadata::Sealed => None,
         })
         .expect("jukebox metadata rebuilt");
 

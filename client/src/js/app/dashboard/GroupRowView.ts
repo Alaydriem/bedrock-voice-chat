@@ -35,4 +35,6 @@ export interface GroupRowView {
     activeAt: number | null;
     /** True while a join or leave is recent enough to be worth animating. */
     stirring: boolean;
+    /** End-to-end encrypted: joining takes the group's password. */
+    locked: boolean;
 }

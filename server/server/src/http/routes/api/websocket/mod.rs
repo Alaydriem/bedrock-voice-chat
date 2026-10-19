@@ -1,4 +1,5 @@
 pub mod chat;
+pub mod group;
 pub mod positions;
 pub mod protocol_channel;
 pub mod ticket;

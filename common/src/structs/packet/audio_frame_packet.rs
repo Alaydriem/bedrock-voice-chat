@@ -63,4 +63,22 @@ impl AudioFramePacket {
     pub fn timestamp(&self) -> i64 {
         self.timestamp
     }
+
+    pub fn is_sealed(&self) -> bool {
+        self.metadata
+            .iter()
+            .any(|meta| matches!(meta, AudioFrameMetadata::Sealed))
+    }
+
+    /// Replaces the payload with its SFrame ciphertext. Speaker and spatial are cleared because
+    /// a sealed frame routes to its group only, and proximity routing reads exactly those.
+    pub fn into_sealed(mut self, ciphertext: Vec<u8>) -> Self {
+        self.data = Bytes::from(ciphertext);
+        self.speaker = None;
+        self.spatial = None;
+        if !self.is_sealed() {
+            self.metadata.push(AudioFrameMetadata::Sealed);
+        }
+        self
+    }
 }

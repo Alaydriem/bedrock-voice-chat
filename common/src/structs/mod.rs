@@ -11,6 +11,7 @@ pub mod control;
 pub mod discord;
 pub mod events;
 pub mod game;
+pub mod group_key;
 pub mod i18n;
 pub mod iap;
 pub mod keybinds;

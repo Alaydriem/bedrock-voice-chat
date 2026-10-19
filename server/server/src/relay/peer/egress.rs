@@ -26,6 +26,10 @@ impl PeerEgress {
         let QuicNetworkPacketData::AudioFrame(audio) = &packet.data else {
             return None;
         };
+        // A protected group does not span servers, and no other server's player holds its keys.
+        if audio.is_sealed() {
+            return None;
+        }
 
         let world = speaker.world_identifier()?.to_string();
 
@@ -34,6 +38,7 @@ impl PeerEgress {
         // name, so the far side is told rather than left to infer.
         let jukebox = audio.metadata.iter().find_map(|meta| match meta {
             AudioFrameMetadata::Jukebox(jb) => Some(jb.event_id.clone()),
+            AudioFrameMetadata::Sealed => None,
         });
 
         Some((

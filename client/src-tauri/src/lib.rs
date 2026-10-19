@@ -310,6 +310,10 @@ pub fn run() {
             crate::commands::groups::group_create,
             crate::commands::groups::group_join,
             crate::commands::groups::group_leave,
+            crate::commands::groups::group_create_protected,
+            crate::commands::groups::group_join_protected,
+            crate::commands::groups::group_stop_protected,
+            crate::commands::groups::group_release_protected,
             crate::api::commands::api_rename_channel,
             crate::api::commands::api_get_player_gamerpic,
             // WebSocket Server

@@ -281,6 +281,14 @@ impl CacheManager {
                                         &channel_data.name.to_string(),
                                         &channel_data.channel,
                                     );
+                                    let protected = self
+                                        .channel_collection
+                                        .get(&channel_data.channel)
+                                        .await
+                                        .is_some_and(|channel| channel.is_protected());
+                                    if protected {
+                                        registry.mark_protected(&channel_data.channel);
+                                    }
                                 }
 
                                 curia::info!(

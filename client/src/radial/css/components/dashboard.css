@@ -823,6 +823,76 @@
     background: transparent;
 }
 
+/* ---- protected groups ---- */
+
+.rad-protected-banner,
+.rad-safety-code,
+.rad-protected-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 13px;
+    font-size: var(--text-rad-sm);
+    color: var(--color-rad-dim);
+}
+
+.rad-protected-banner > [data-rad-icon] > svg,
+.rad-group-row__lock > svg {
+    width: 12px;
+    height: 12px;
+}
+
+.rad-safety-code {
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+.rad-safety-code__digits {
+    font-family: var(--font-rad-mono, ui-monospace, monospace);
+    letter-spacing: 0.06em;
+    color: var(--color-rad-tx);
+}
+
+.rad-protected-notice {
+    color: var(--color-rad-tx);
+}
+
+.rad-group-row__lock {
+    display: inline-flex;
+    margin-right: 6px;
+    vertical-align: -1px;
+    color: var(--color-rad-dim);
+}
+
+/* ---- password prompt ---- */
+
+.rad-password-prompt {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 11px 13px;
+}
+
+.rad-password-prompt__input {
+    padding: 8px 10px;
+    font: inherit;
+    border: 1px solid var(--color-rad-line);
+    border-radius: var(--radius-rad-md);
+    background: var(--color-rad-void);
+    color: var(--color-rad-tx);
+}
+
+.rad-password-prompt__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.rad-password-prompt__error {
+    font-size: var(--text-rad-sm);
+    color: var(--color-rad-tx);
+}
+
 .rad-group-list .rad-group-row {
     border-left: 3px solid transparent;
     background: transparent;

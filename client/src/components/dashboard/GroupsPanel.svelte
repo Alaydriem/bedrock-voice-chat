@@ -20,6 +20,15 @@
         onleave?: (id: string) => void;
         onclosegroup?: (id: string) => void;
         onrename?: (id: string, name: string) => void;
+        /** The server supports end-to-end encrypted groups. An older one would refuse the create. */
+        protectedAvailable?: boolean;
+        oncreateprotected?: () => void;
+        /** This client is in a protected group: nearby players cannot hear it. */
+        protectedJoined?: boolean;
+        /** The code members compare out of band, from the group's current epoch. */
+        safetyCode?: string | null;
+        /** Why this client last left a protected group, as copy. */
+        protectedNotice?: string | null;
     }
     let {
         groups,
@@ -31,6 +40,11 @@
         onleave,
         onclosegroup,
         onrename,
+        protectedAvailable = false,
+        oncreateprotected,
+        protectedJoined = false,
+        safetyCode = null,
+        protectedNotice = null,
     }: Props = $props();
 
     /**
@@ -48,6 +62,28 @@
         <Icon name="plus" />
         {I18n.t("New group")}
     </button>
+    {#if protectedAvailable}
+        <button class="rad-new-group rad-new-group--protected" onclick={() => oncreateprotected?.()}>
+            <Icon name="lock" />
+            {I18n.t("New protected group")}
+        </button>
+    {/if}
+
+    {#if protectedJoined}
+        <div class="rad-protected-banner" role="status">
+            <Icon name="lock" />
+            <span>{I18n.t("Players nearby cannot hear you.")}</span>
+        </div>
+        {#if safetyCode}
+            <div class="rad-safety-code">
+                <span class="rad-safety-code__label">{I18n.t("Compare now")}</span>
+                <code class="rad-safety-code__digits">{safetyCode}</code>
+            </div>
+        {/if}
+    {/if}
+    {#if protectedNotice}
+        <div class="rad-protected-notice" role="alert">{protectedNotice}</div>
+    {/if}
 
     {#each groups as group (group.id)}
         <GroupRow

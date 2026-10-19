@@ -123,4 +123,31 @@ describe("GroupsView.since", () => {
         expect(GroupsView.since(now - 120_000, now)).toBe("active 2 min ago");
         expect(GroupsView.since(now - 7_200_000, now)).toBe("active 2 h ago");
     });
+
+    it("marks a protected group as locked", () => {
+        const view = new GroupsView();
+        const rows = view.rows(
+            [{ ...channel("vault", "Vault", []), protected: true }, channel("open", "Open", [])],
+            null,
+        );
+
+        expect(get(rows).map((r) => r.locked)).toEqual([true, false]);
+    });
+
+    // In a protected group the server's member list is the one thing that must not be trusted:
+    // the joined row shows the group's own roster, so a listener the server hid still appears.
+    it("shows the group's own roster for the protected group this client is in", () => {
+        const view = new GroupsView();
+        const vault = { ...channel("vault", "Vault", ["minecraft:Alice"]), protected: true };
+
+        const rows = view.rows([vault], "vault", "minecraft:Alice", [
+            "minecraft:Alice",
+            "minecraft:Ghost",
+        ]);
+
+        expect(get(rows)[0].members.map((m) => m.name)).toEqual([
+            "minecraft:Alice",
+            "minecraft:Ghost",
+        ]);
+    });
 });

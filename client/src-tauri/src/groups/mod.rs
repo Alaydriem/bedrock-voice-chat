@@ -1,3 +1,4 @@
+pub mod protected;
 mod resolution;
 mod service;
 

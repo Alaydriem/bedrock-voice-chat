@@ -79,6 +79,11 @@ impl AppBuilder {
             ),
         };
 
+        // The one protected group this client may hold. The audio threads seal and open through
+        // its gate; joining and leaving a group drive it from the group service.
+        let protected_slot = crate::groups::protected::ProtectedGroupSlot::new_shared();
+        app.manage(protected_slot.clone());
+
         let audio_stream = AudioStreamManager::new_with_sources(
             handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
             handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
@@ -91,6 +96,7 @@ impl AppBuilder {
             ),
             input_source,
             output_sink,
+            protected_slot.gate(),
             #[cfg(feature = "bedrock-protocol")]
             player_state_cache,
             #[cfg(feature = "bedrock-protocol")]

@@ -43,6 +43,8 @@
     import { DiagnosticsManager, type LinkHealth } from "../../js/app/dashboard/DiagnosticsManager";
     import { GroupsView } from "../../js/app/dashboard/GroupsView";
     import type { GroupRowView } from "../../js/app/dashboard/GroupRowView";
+    import { ProtectedGroupManager } from "../../js/app/managers/ProtectedGroupManager";
+    import PasswordPrompt from "../../components/dashboard/PasswordPrompt.svelte";
     import type { NearbyPlayer } from "../../js/app/dashboard/NearbyPlayer";
     import type { RailServer } from "../../js/app/dashboard/RailView";
     import { RosterHandoff } from "../../js/app/dashboard/RosterHandoff";
@@ -68,7 +70,16 @@
     let presence: PlayerPresenceManager | undefined;
     const diagnostics = new DiagnosticsManager();
     const groupsView = new GroupsView();
+    const protectedGroups = new ProtectedGroupManager();
     const unsubs: Array<() => void> = [];
+
+    /** The protected group's own roster, epoch code and last lost reason, from the app's Rust side. */
+    let protectedRoster = $state<readonly string[]>([]);
+    let protectedActive = $state(false);
+    let safetyCode = $state<string | null>(null);
+    let protectedNotice = $state<string | null>(null);
+    /** Which password the prompt is asking for, if it is open. */
+    let passwordFor = $state<{ mode: "create" } | { mode: "join"; id: string } | null>(null);
 
     /**
      * One per session, so the nav badge and the About row read the same object and the check does
@@ -433,6 +444,25 @@
             }),
         );
         unsubs.push(channels.channels.subscribe((list) => (channelList = list)));
+
+        try {
+            await protectedGroups.startListening();
+        } catch (e) {
+            logError(`Dashboard: could not start protected groups: ${e}`);
+        }
+        unsubs.push(protectedGroups.roster.subscribe((r) => (protectedRoster = r)));
+        unsubs.push(protectedGroups.active.subscribe((a) => (protectedActive = a)));
+        unsubs.push(protectedGroups.safetyCode.subscribe((c) => (safetyCode = c)));
+        unsubs.push(
+            protectedGroups.lostReason.subscribe((reason) => {
+                protectedNotice = reason ? ProtectedGroupManager.lostMessage(reason) : null;
+            }),
+        );
+    }
+
+    /** Whether the channel with this id is a protected group. */
+    function isProtected(id: string | null): boolean {
+        return id !== null && channelList.some((c) => c.id === id && c.protected === true);
     }
 
     /**
@@ -447,7 +477,9 @@
      * ordinary activity left a growing crowd of stores writing to one variable.
      */
     $effect(() => {
-        return groupsView.rows(channelList, joinedId, identity).subscribe((v) => (groupRows = v));
+        return groupsView
+            .rows(channelList, joinedId, identity, protectedActive ? protectedRoster : null)
+            .subscribe((v) => (groupRows = v));
     });
 
     /** The group whose editor is open. Set on create so the new one opens ready to be named. */
@@ -471,7 +503,45 @@
     }
 
     function leaveGroup(id: string): void {
-        void app?.channelManager?.leaveChannel(id, identity);
+        void leaveCurrent(id);
+    }
+
+    /**
+     * Leaves a group. For a protected one the keys go first and protection last, so between the
+     * two the microphone is silent, never plain. `release` is false when another protected group
+     * is about to be entered, which protects the gate again itself.
+     */
+    async function leaveCurrent(id: string, release = true): Promise<void> {
+        const wasProtected = isProtected(id);
+        if (wasProtected) await protectedGroups.stop();
+        await app?.channelManager?.leaveChannel(id, identity);
+        if (wasProtected && release) await protectedGroups.release();
+    }
+
+    function createProtectedGroup(): void {
+        passwordFor = { mode: "create" };
+    }
+
+    /**
+     * The password is handed straight to the app's Rust side and not kept here. A create joins at
+     * once; a join completes when a member admits this client, which arrives as an event.
+     */
+    async function submitPassword(password: string): Promise<void> {
+        const request = passwordFor;
+        passwordFor = null;
+        const channels = app?.channelManager;
+        if (!request || !channels) return;
+        if (joinedId) await leaveCurrent(joinedId, false);
+        if (request.mode === "create") {
+            const id = await protectedGroups.create("", password);
+            if (id) {
+                await channels.fetchChannels();
+                editId = id;
+            }
+        } else {
+            await protectedGroups.join(request.id, password);
+            await channels.fetchChannels();
+        }
     }
 
     /** Closing is deleting. Only the creator can, and the server is the one that enforces it. */
@@ -484,6 +554,7 @@
     }
 
     onDestroy(() => {
+        protectedGroups.cleanup();
         chatManager?.cleanup();
         for (const off of unsubs) off();
         presence?.cleanup();
@@ -511,8 +582,22 @@
     function joinGroup(id: string): void {
         const channels = app?.channelManager;
         if (!channels) return;
-        if (joinedId === id) void channels.leaveChannel(id, identity);
-        else void channels.joinChannel(id, identity);
+        if (joinedId === id) {
+            void leaveCurrent(id);
+            return;
+        }
+        if (isProtected(id)) {
+            passwordFor = { mode: "join", id };
+            return;
+        }
+        void (async () => {
+            // Moving out of a protected group: its keys go before the move and protection only
+            // after it, so nothing unsealed is sent while the server still routes the old group.
+            const leavingProtected = isProtected(joinedId);
+            if (leavingProtected) await protectedGroups.stop();
+            await channels.joinChannel(id, identity);
+            if (leavingProtected) await protectedGroups.release();
+        })();
     }
 
     /**
@@ -580,9 +665,23 @@
                     onstatus={(open) => (statusOpen = open)}
                 >
                     {#snippet groups()}
+                        {#if passwordFor}
+                            <PasswordPrompt
+                                title={passwordFor.mode === "create"
+                                    ? I18n.t("Password for the new protected group")
+                                    : I18n.t("Group password")}
+                                onsubmit={(password) => void submitPassword(password)}
+                                oncancel={() => (passwordFor = null)}
+                            />
+                        {/if}
                         <GroupsPanel
                             groups={groupRows}
                             {now}
+                            protectedAvailable={app?.protectedGroups ?? false}
+                            oncreateprotected={createProtectedGroup}
+                            protectedJoined={isProtected(joinedId)}
+                            {safetyCode}
+                            {protectedNotice}
                             onjoin={joinGroup}
                             oncreate={() => void createGroup()}
                             {editId}

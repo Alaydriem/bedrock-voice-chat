@@ -119,6 +119,8 @@ impl RocketHarness {
             routes::api::channel::channel_list,
             routes::api::channel::delete::channel_delete,
             routes::api::channel::event::channel_event,
+            routes::api::channel::protected::channel_create_protected,
+            routes::api::channel::protected::channel_join_protected,
             routes::api::channel::rename::channel_rename,
         ];
 
@@ -144,6 +146,7 @@ impl RocketHarness {
             .manage(nonce)
             .manage(access_token_service)
             .manage(None::<std::sync::Arc<bvc_server_lib::relay::PeerPlane>>)
+            .manage(bvc_server_lib::services::GroupKeyRelayService::new_shared())
             .attach(AppDb::init())
             .mount("/ncryptf", ncryptf_routes)
             .mount("/api/admin", admin_routes)
@@ -151,6 +154,10 @@ impl RocketHarness {
             .mount("/api", control_routes)
             .mount("/api/channel", channel_routes)
             .mount("/api", routes![routes::api::server_config::get_config])
+            .mount(
+                "/api",
+                routes![routes::api::websocket::group::group_key_socket],
+            )
             .mount("/metrics", routes![routes::metrics::metrics])
             .mount(
                 "/health",

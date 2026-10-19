@@ -235,7 +235,9 @@
             onlostpointercapture={lost}
         >
             <span class="rad-group-row__text">
-                <span class="rad-group-row__name">{group.name}</span>
+                <span class="rad-group-row__name">
+                    {#if group.locked}<span class="rad-group-row__lock" aria-label={I18n.t("Protected")}><Icon name="lock" /></span>{/if}{group.name}
+                </span>
                 {#if since}
                     <span class="rad-group-row__since">{since}</span>
                 {/if}

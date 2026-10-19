@@ -71,6 +71,8 @@ pub(crate) struct OutputStream {
     // Peer meter levels go here rather than out of the mixer directly; one publisher owns
     // every webview message about levels.
     levels: Arc<crate::audio::stream::level_bus::LevelBus>,
+    // A protected group's gate: sealed frames open through it, or are dropped.
+    protected_gate: Arc<crate::groups::protected::SealGate>,
     peer_registry: Arc<crate::diagnostics::PeerRegistry>,
     session_config: Arc<crate::diagnostics::SessionConfig>,
     recording_active: Option<Arc<AtomicBool>>,
@@ -235,6 +237,7 @@ impl OutputStream {
         recovery_tx: RecoverySender,
         peer_registry: Arc<crate::diagnostics::PeerRegistry>,
         levels: Arc<crate::audio::stream::level_bus::LevelBus>,
+        protected_gate: Arc<crate::groups::protected::SealGate>,
         session_config: Arc<crate::diagnostics::SessionConfig>,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
@@ -274,6 +277,7 @@ impl OutputStream {
             player_gain_cache: Arc::new(player_gain_cache),
             peer_registry,
             levels,
+            protected_gate,
             session_config,
             recording_active,
             recovery_tx,
@@ -310,6 +314,9 @@ impl OutputStream {
             self.player_presence_debounce.clone(),
             self.gain.clone(),
             self.app_handle.clone(),
+            crate::audio::stream::protected_frame_filter::ProtectedFrameFilter::new(
+                self.protected_gate.clone(),
+            ),
             #[cfg(feature = "bedrock-protocol")]
             self.beacon_cache.clone(),
             #[cfg(feature = "bedrock-protocol")]

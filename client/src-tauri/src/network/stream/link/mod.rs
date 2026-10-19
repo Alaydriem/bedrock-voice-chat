@@ -1,4 +1,5 @@
 mod error;
+mod mtls_client_config;
 mod recv_failure;
 mod ws;
 
@@ -6,6 +7,7 @@ mod ws;
 mod permissive_server_verifier;
 
 pub(crate) use error::VoiceLinkError;
+pub(crate) use mtls_client_config::MtlsClientConfig;
 pub(crate) use recv_failure::RecvFailure;
 pub(crate) use ws::WsLink;
 

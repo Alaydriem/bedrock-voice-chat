@@ -6,7 +6,7 @@ use common::structs::packet::{
     ServerErrorPacket, ServerErrorType,
 };
 use common::traits::player_data::PlayerData;
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use moka::future::Cache;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -37,6 +37,9 @@ pub struct ConnectionRegistry {
     name_index: DashMap<Arc<str>, u64>,
     // canonical identity -> channel_id (one channel per player)
     player_channel: DashMap<Arc<str>, Arc<str>>,
+    // Channels whose audio is end-to-end encrypted. Their members' frames route to the channel
+    // only, and only sealed.
+    protected_channels: DashSet<Arc<str>>,
     // certificate fingerprint -> connection id. Revocation addresses a live session by the
     // credential it was opened with, so one identity holding two connections on two
     // certificates loses only the revoked one.
@@ -88,6 +91,7 @@ impl ConnectionRegistry {
             connections: DashMap::new(),
             name_index: DashMap::new(),
             player_channel: DashMap::new(),
+            protected_channels: DashSet::new(),
             fingerprint_index: DashMap::new(),
             metrics: OnceLock::new(),
             route_rejections: RouteRejectionCounts::new(),
@@ -422,7 +426,12 @@ impl ConnectionRegistry {
         self.push_gauges();
     }
 
-    pub fn unregister(&self, device: u64) {
+    /// Removes a connection. Returns `true` when it was its identity's current connection, and
+    /// `false` when the player has already reconnected on another one (or it was never
+    /// registered): a caller must not evict a live player's state on a superseded connection's
+    /// close.
+    pub fn unregister(&self, device: u64) -> bool {
+        let mut was_current = false;
         if let Some((_, entry)) = self.connections.remove(&device) {
             // Only clear the index if it still points at THIS connection — a
             // reconnect that already reused the name must not be evicted here.
@@ -464,7 +473,9 @@ impl ConnectionRegistry {
                 self.connections.len()
             );
             self.push_gauges();
+            was_current = is_current;
         }
+        was_current
     }
 
     pub fn broadcast_to_all(&self, packet: QuicNetworkPacket) {
@@ -725,7 +736,16 @@ impl ConnectionRegistry {
 
     pub fn remove_channel(&self, channel_id: &str) {
         self.player_channel.retain(|_, v| v.as_ref() != channel_id);
+        self.protected_channels.remove(channel_id);
         self.push_gauges();
+    }
+
+    pub fn mark_protected(&self, channel_id: &str) {
+        self.protected_channels.insert(Arc::from(channel_id));
+    }
+
+    pub fn is_protected_channel(&self, channel_id: &str) -> bool {
+        self.protected_channels.contains(channel_id)
     }
 
     // The precomputed reach hash for a locally-connected player. `None` means the
@@ -778,6 +798,18 @@ impl ConnectionRegistry {
 
         let sender_channel: Option<Arc<str>> =
             self.player_channel.get(sender_identity).map(|r| r.clone());
+
+        // A protected group's member sends only ciphertext, and only to the group. A plaintext
+        // frame from one is a stale or broken client; delivering it anywhere would leak exactly
+        // what the group is encrypted against.
+        let sealed = audio_frame.is_sealed();
+        let sender_protected = sender_channel
+            .as_deref()
+            .is_some_and(|channel| self.is_protected_channel(channel));
+        if sender_protected && !sealed {
+            self.reject(RouteRejection::UnsealedInProtectedChannel);
+            return;
+        }
 
         let original_spatial = audio_frame.spatial;
         let has_sender = speaker.is_some();
@@ -905,6 +937,9 @@ impl ConnectionRegistry {
                 // a spatial=true packet would be zeroed by calculate_spatial_audio_data
                 // when members are far apart, defeating the channel-bypass entirely.
                 (true, InteractionRoute::Channel)
+            } else if sealed {
+                report.reject(RouteRejection::SealedOutsideChannel);
+                continue;
             } else {
                 // Proximity is the only branch that needs coordinates, so both sides
                 // must have reported a position to be compared at all. The recipient's

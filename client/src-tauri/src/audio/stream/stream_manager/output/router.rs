@@ -49,6 +49,8 @@ pub(crate) struct PacketRouter {
     // heartbeat rather than on every frame; frames between heartbeats are filled from
     // here before anything downstream reads them.
     speaker_states: SpeakerStateCache,
+    // Opens a protected group's sealed frames, attributing each to the member whose key sealed it.
+    protected: crate::audio::stream::protected_frame_filter::ProtectedFrameFilter,
     #[cfg(feature = "bedrock-protocol")]
     beacon_cache: Option<Arc<JukeboxBeaconCache>>,
     #[cfg(feature = "bedrock-protocol")]
@@ -65,6 +67,7 @@ impl PacketRouter {
         player_presence_debounce: Arc<moka::sync::Cache<String, ()>>,
         gain: Arc<GainProjection>,
         app_handle: tauri::AppHandle,
+        protected: crate::audio::stream::protected_frame_filter::ProtectedFrameFilter,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
     ) -> Self {
@@ -78,6 +81,7 @@ impl PacketRouter {
             gain,
             app_handle,
             speaker_states: SpeakerStateCache::new(),
+            protected,
             #[cfg(feature = "bedrock-protocol")]
             beacon_cache,
             #[cfg(feature = "bedrock-protocol")]
@@ -222,6 +226,7 @@ impl PacketRouter {
                 );
 
                 self.announce_channel_event(&event);
+                self.release_protected_on_exit(&event);
 
                 if let Err(e) = tauri::Emitter::emit(
                     &self.app_handle,
@@ -271,6 +276,35 @@ impl PacketRouter {
         };
 
         crate::audio::CueAnnouncer::new(&self.app_handle).play(cue);
+    }
+
+    /// Stops this client's protected group when the server says it is out of that group's
+    /// channel — moved by the in-game panel, a controller, or the channel deleted. Without this
+    /// the client went on sealing into a group it had left, and nobody in its new group heard it.
+    fn release_protected_on_exit(&self, event: &ChannelEventPacket) {
+        let left = match event.event {
+            common::structs::channel::ChannelEvents::Delete => true,
+            common::structs::channel::ChannelEvents::Leave => {
+                let current_player = self
+                    .app_handle
+                    .store("store.json")
+                    .ok()
+                    .and_then(|store| store.get("current_player"))
+                    .and_then(|value| value.as_str().map(String::from));
+                current_player.is_some_and(|player| event.name.gamertag() == player)
+            }
+            _ => false,
+        };
+        if !left {
+            return;
+        }
+        use tauri::Manager;
+        if let Some(slot) = self
+            .app_handle
+            .try_state::<Arc<crate::groups::protected::ProtectedGroupSlot>>()
+        {
+            slot.release_if_left(&event.channel);
+        }
     }
 
     /// The first frame of another player's voice to reach this client.
@@ -343,6 +377,18 @@ impl PacketRouter {
         let player_name = state.name;
         frame.speaker = state.speaker;
 
+        // A protected group's frame opens only if its key belongs to the member the server named.
+        // Group audio is never spatial, which is also what keeps distance from zeroing it.
+        if frame.is_sealed() {
+            match self.protected.inbound(&frame, &player_name) {
+                Some(opus) => {
+                    frame.data = opus.into();
+                    frame.spatial = Some(false);
+                }
+                None => return,
+            }
+        }
+
         // Skip presence tracking for synthetic jukebox players
         if !player_name.starts_with(common::consts::audio::JUKEBOX_PLAYER_PREFIX) {
             // Tell the gain projection which player this device belongs to. Every frame,
@@ -406,6 +452,7 @@ impl PacketRouter {
                             &jb.event_id,
                         );
                     }
+                    AudioFrameMetadata::Sealed => {}
                 }
             }
         }

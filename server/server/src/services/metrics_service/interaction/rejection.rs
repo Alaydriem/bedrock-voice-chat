@@ -21,10 +21,14 @@ pub enum RouteRejection {
     SequenceExhausted,
     RecipientQueueFull,
     RecipientClosed,
+    /// Plaintext audio from a protected group's member, refused so it cannot reach anyone.
+    UnsealedInProtectedChannel,
+    /// A sealed frame offered to a recipient outside the sender's group.
+    SealedOutsideChannel,
 }
 
 impl RouteRejection {
-    pub const ALL: [RouteRejection; 14] = [
+    pub const ALL: [RouteRejection; 16] = [
         Self::SenderUnknown,
         Self::NotAudio,
         Self::SpeakerUnresolved,
@@ -39,6 +43,8 @@ impl RouteRejection {
         Self::SequenceExhausted,
         Self::RecipientQueueFull,
         Self::RecipientClosed,
+        Self::UnsealedInProtectedChannel,
+        Self::SealedOutsideChannel,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -57,6 +63,8 @@ impl RouteRejection {
             Self::SequenceExhausted => "sequence_exhausted",
             Self::RecipientQueueFull => "recipient_queue_full",
             Self::RecipientClosed => "recipient_closed",
+            Self::UnsealedInProtectedChannel => "unsealed_in_protected_channel",
+            Self::SealedOutsideChannel => "sealed_outside_channel",
         }
     }
 

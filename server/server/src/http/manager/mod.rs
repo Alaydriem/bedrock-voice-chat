@@ -188,7 +188,8 @@ impl RocketManager {
                     .manage(self.metrics.clone())
                     .manage(self.nonce.clone())
                     .manage(self.peer_plane.clone())
-                    .manage(self.access_token_service.clone());
+                    .manage(self.access_token_service.clone())
+                    .manage(crate::services::GroupKeyRelayService::new_shared());
 
                 // Cross-server peering routes: the code-mint/offer, code-redeem, and
                 // peer-link endpoints two servers sharing a realm use directly.
@@ -215,6 +216,7 @@ impl RocketManager {
                         routes![
                             routes::api::websocket::positions::positions,
                             routes::api::websocket::chat::chat,
+                            routes::api::websocket::group::group_key_socket,
                         ],
                     );
 

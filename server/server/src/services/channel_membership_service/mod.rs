@@ -25,11 +25,29 @@ impl ChannelMembershipService {
         name: String,
         creator: common::PlayerIdentity,
     ) -> String {
-        let channel = Channel::with_id(
-            Self::free_code(channels).await,
-            name,
-            creator.clone(),
-        );
+        let channel = Channel::with_id(Self::free_code(channels).await, name, creator);
+        Self::insert_and_fan(channels, webhook, channel).await
+    }
+
+    /// Creates an empty end-to-end encrypted channel and fans a `Create`. The server records
+    /// only that it is protected; it never sees the group's password or keys.
+    pub async fn create_protected(
+        channels: &ChannelCollection,
+        webhook: &WebhookReceiver,
+        name: String,
+        creator: common::PlayerIdentity,
+    ) -> String {
+        let channel =
+            Channel::with_id(Self::free_code(channels).await, name, creator).into_protected();
+        Self::insert_and_fan(channels, webhook, channel).await
+    }
+
+    async fn insert_and_fan(
+        channels: &ChannelCollection,
+        webhook: &WebhookReceiver,
+        channel: Channel,
+    ) -> String {
+        let creator = channel.creator.clone();
         let id = channel.id();
         let channel_name = channel.name.clone();
         channels.insert(channel).await;

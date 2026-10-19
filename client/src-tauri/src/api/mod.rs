@@ -70,6 +70,11 @@ impl Api {
         self.client.get_client(self.family_preference.get())
     }
 
+    /// The server's CA and this player's certificate and key, for a socket reqwest cannot open.
+    pub(crate) fn tls_material(&self) -> (&str, &str) {
+        self.client.tls_material()
+    }
+
     /// Send a prepared request through this endpoint's circuit breaker. While the
     /// breaker is open the request short-circuits without touching the network.
     /// Connection-establishment failures are retried with backoff — the request
@@ -320,6 +325,7 @@ impl Api {
                             chat: Default::default(),
                             capacity: Default::default(),
                             radar: Default::default(),
+                            protected_groups: Default::default(),
                             // A server old enough to need this fallback predates peering
                             // entirely, so there is no peer endpoint to report.
                             peer_link: None,

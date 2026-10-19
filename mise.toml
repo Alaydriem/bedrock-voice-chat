@@ -221,6 +221,35 @@ $count = (Select-String -Path "$root/.github/workflows/*.yml" -Pattern "dtolnay/
 Write-Host "ok    $count workflow refs agree on $pinned"
 '''
 
+[tasks.check-server-crypto-free]
+description = "Fail when an MLS, PAKE or SFrame crate reaches the server or common. Protected groups rely on the server being unable to decrypt"
+shell = "pwsh -NoLogo -Command"
+run = '''
+$root = $env:MISE_PROJECT_ROOT
+$banned = '^(openmls|libcrux|hpke-rs-libcrux|cpace|pake-cpace|pakery|spake2|sframe)'
+$trees = @{
+  "server" = (cargo tree --manifest-path "$root/server/Cargo.toml" --workspace -e normal,build --prefix none --format "{p}" 2>$null)
+  "common" = (cargo tree --manifest-path "$root/Cargo.toml" -p common -e normal,build --prefix none --format "{p}" 2>$null)
+}
+# A tree that resolved at all contains these; an empty or failed `cargo tree` must not read as clean.
+$expected = @{ "server" = '^rocket '; "common" = '^postcard ' }
+$failed = $false
+foreach ($name in $trees.Keys) {
+  if (-not ($trees[$name] | Where-Object { $_ -match $expected[$name] })) {
+    Write-Host "FAIL  cargo tree produced no usable output for $name"
+    $failed = $true
+    continue
+  }
+  $hits = $trees[$name] | Where-Object { $_ -match $banned } | Sort-Object -Unique
+  foreach ($hit in $hits) {
+    Write-Host "FAIL  $hit found in $name"
+    $failed = $true
+  }
+}
+if ($failed) { exit 1 }
+Write-Host "ok    server and common are crypto-free"
+'''
+
 [tasks.asio]
 description = "Download and extract the pinned Steinberg ASIO SDK if it is not already present"
 dir = "client/src-tauri"
@@ -433,6 +462,11 @@ description = "Build the e2e client binary the scenario tests spawn as a real pr
 # set to "../build" but this path doesn't exist`, and nothing else in this graph
 # builds it for the harness.
 depends = ["frontend"]
+# Built from the workspace root, where client/src-tauri/.cargo/config.toml (which points
+# asio-sys at the pinned SDK) does not apply. Without this asio-sys falls back to its own
+# %TEMP%\asio_sdk download, which lacks asiodrivers.h — invisible while asio-sys stays cached,
+# fatal the first time a dependency change rebuilds it.
+env = { CPAL_ASIO_DIR = "{{config_root}}/client/src-tauri/ASIOSDK" }
 shell = "pwsh -NoLogo -Command"
 run = "cargo build -p bvc-client-e2e"
 

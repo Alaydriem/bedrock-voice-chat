@@ -577,6 +577,34 @@ impl ClientProc {
         }
     }
 
+    /// Create a protected group with `password` and join it as its first member, through the
+    /// production group service. Returns the server-assigned channel id.
+    pub fn create_protected(&self, password: &str, timeout: Duration) -> Result<String, String> {
+        self.state.lock().unwrap().channel_id = None;
+        self.send(&InMsg::CreateProtected {
+            password: password.to_string(),
+        });
+        self.await_channel_id(timeout)
+    }
+
+    /// Start joining a protected group. Blocks until the bin has opened the key socket; the
+    /// outcome of admission arrives later as a `protected-group:*` UI event.
+    pub fn join_protected(
+        &self,
+        channel_id: &str,
+        password: &str,
+        timeout: Duration,
+    ) -> Result<(), String> {
+        self.channel_op(
+            InMsg::JoinProtected {
+                channel_id: channel_id.to_string(),
+                password: password.to_string(),
+            },
+            "join_protected",
+            timeout,
+        )
+    }
+
     /// Send one channel-membership command and block until the bin echoes a
     /// matching `ChannelOpDone`. The completion latch is cleared first so a
     /// prior op's ack is never mistaken for this one.

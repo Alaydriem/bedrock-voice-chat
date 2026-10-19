@@ -338,6 +338,40 @@ jobs:
         working-directory: ./server/server
         run: cargo nextest run --test integration -E 'test(kotlin_export)'
 
+  # Protected groups are end-to-end encrypted on the premise that the server cannot decrypt.
+  # That holds only while no MLS, PAKE or SFrame crate reaches the server or common, so a
+  # dependency that drags one in fails here rather than in review.
+  crypto-free:
+    name: Verify Server Is Crypto-Free
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      # Through mise rather than open-coded, so the banned list lives in one place.
+      - name: Install mise
+        uses: jdx/mise-action@v4
+        with:
+          version: 2026.8.2
+        env:
+          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+      - name: Check the server and common dependency trees
+        run: mise run check-server-crypto-free
+        env:
+          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
   generate-openapi-spec:
     name: Generate OpenAPI Spec
     runs-on: ubuntu-latest

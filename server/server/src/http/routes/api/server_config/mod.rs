@@ -1,8 +1,8 @@
 use common::consts::version::PROTOCOL_VERSION;
 use common::curia;
 use common::response::{
-    ApiConfigAge, ApiConfigCapacity, ApiConfigChat, ApiConfigRadar, ApiConfigRecording,
-    ApiConfigResponse,
+    ApiConfigAge, ApiConfigCapacity, ApiConfigChat, ApiConfigProtectedGroups, ApiConfigRadar,
+    ApiConfigRecording, ApiConfigResponse,
 };
 use rocket::{State, serde::json::Json};
 use rocket_okapi::openapi;
@@ -89,6 +89,7 @@ pub async fn get_config(
         radar: ApiConfigRadar {
             enabled: config.features.radar,
         },
+        protected_groups: ApiConfigProtectedGroups { enabled: true },
         peer_link,
     })
 }

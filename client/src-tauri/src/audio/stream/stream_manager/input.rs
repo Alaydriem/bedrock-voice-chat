@@ -7,6 +7,7 @@ use super::{DeviceLease, JobSet};
 use crate::NetworkPacket;
 use crate::audio::recording::{RawRecordingData, RecordingProducer};
 use crate::audio::stream::RecoverySender;
+use crate::audio::stream::protected_frame_filter::OutboundDecision;
 use crate::audio::{AudioDevice, BUFFER_SIZE};
 #[cfg(feature = "bedrock-protocol")]
 use crate::bedrock::BedrockPlayerStateCache;
@@ -63,6 +64,8 @@ pub(crate) struct InputStream {
     input_stats: Arc<crate::diagnostics::InputPipelineStats>,
     // Where this microphone's level goes in a session, and the only thing that publishes it.
     levels: Arc<crate::audio::stream::level_bus::LevelBus>,
+    // A protected group's gate. While it is protected every frame is sealed, or not sent at all.
+    protected_gate: Arc<crate::groups::protected::SealGate>,
     // Whether to also publish the unquantised capture level at capture rate. True only for
     // the setup screen's metering stream; see `listener`.
     raw_levels: bool,
@@ -275,6 +278,7 @@ impl InputStream {
         recovery_tx: RecoverySender,
         input_stats: Arc<crate::diagnostics::InputPipelineStats>,
         levels: Arc<crate::audio::stream::level_bus::LevelBus>,
+        protected_gate: Arc<crate::groups::protected::SealGate>,
         #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<
             Arc<BedrockPlayerStateCache>,
         >,
@@ -294,6 +298,7 @@ impl InputStream {
             recovery_tx,
             input_stats,
             levels,
+            protected_gate,
             raw_levels: false,
             #[cfg(feature = "bedrock-protocol")]
             player_state_cache,
@@ -504,6 +509,9 @@ impl InputStream {
 
         let bus = self.bus.clone();
         let recording_producer = self.recording_producer.clone();
+        let protected = crate::audio::stream::protected_frame_filter::ProtectedFrameFilter::new(
+            self.protected_gate.clone(),
+        );
         #[cfg(feature = "bedrock-protocol")]
         let player_state_cache = self.player_state_cache.clone();
 
@@ -518,6 +526,9 @@ impl InputStream {
             let tx = bus.clone();
 
             let mut first_sample_timestamp_ms: Option<u64> = None;
+            // Hard CBR while protected: every frame the same size, so frame lengths say nothing
+            // about the speech inside them. VBR otherwise, which is libopus's default.
+            let mut constant_bitrate = false;
 
             #[allow(irrefutable_let_patterns)]
             while let Ok(sample) = consumer.recv_async().await {
@@ -543,6 +554,13 @@ impl InputStream {
                 while data_stream.len() >= BUFFER_SIZE as usize {
                     let sample_to_process: Vec<f32> =
                         data_stream.drain(0..BUFFER_SIZE as usize).collect();
+
+                    if protected.is_protected() != constant_bitrate {
+                        constant_bitrate = !constant_bitrate;
+                        if let Err(e) = encoder.set_vbr(!constant_bitrate) {
+                            error!("Could not switch the encoder's bitrate mode: {:?}", e);
+                        }
+                    }
 
                     let encoded_data = match encoder
                         .encode_vec_float(&sample_to_process, sample_to_process.len() * 4)
@@ -581,14 +599,19 @@ impl InputStream {
                         first_sample_timestamp_ms = None;
                     }
 
+                    // Recording above keeps the plaintext: it never leaves this machine.
+                    let frame = match protected.outbound(&encoded_data) {
+                        OutboundDecision::Plain(opus) => AudioFramePacket::new(opus, None, None),
+                        OutboundDecision::Sealed(sealed) => {
+                            AudioFramePacket::new(Vec::new(), None, None).into_sealed(sealed)
+                        }
+                        OutboundDecision::Drop => continue,
+                    };
+
                     let packet = NetworkPacket {
                         data: QuicNetworkPacket {
                             packet_type: common::structs::packet::PacketType::AudioFrame,
-                            data: QuicNetworkPacketData::AudioFrame(AudioFramePacket::new(
-                                encoded_data.clone(),
-                                None,
-                                None,
-                            )),
+                            data: QuicNetworkPacketData::AudioFrame(frame),
                             // Not a server fan-out, so this envelope carries no sequence.
                             ..Default::default()
                         },

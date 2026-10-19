@@ -41,6 +41,20 @@ fn a_stale_disconnect_leaves_a_reconnected_players_membership_alone() {
     assert_eq!(reg.channel_membership_count(), 1);
 }
 
+// The disconnect callback evicts a player's caches and channel memberships only when the closing
+// connection was the live one. It learns that from here.
+#[test]
+fn unregister_reports_whether_the_closing_connection_was_current() {
+    let reg = ConnectionRegistry::new();
+    let (tx, _rx) = mpsc::channel(4);
+    reg.try_register(1, "minecraft:Alaydriem".into(), "fp-1".into(), tx.clone()).expect("admitted");
+    reg.try_register(2, "minecraft:Alaydriem".into(), "fp-2".into(), tx).expect("admitted");
+
+    assert!(!reg.unregister(1), "a superseded connection reported itself current");
+    assert!(reg.unregister(2), "the live connection reported itself superseded");
+    assert!(!reg.unregister(99), "an unknown connection reported itself current");
+}
+
 #[test]
 fn reaper_purges_absent_channel_membership_after_grace() {
     let reg = ConnectionRegistry::new();
@@ -700,6 +714,78 @@ async fn injected_audio_keeps_its_full_sender() {
             "round {round} must still name the service"
         );
     }
+}
+
+// A protected group's audio is ciphertext only its members can open; anyone else nearby must
+// receive nothing, not an undecryptable frame and not a plaintext copy.
+#[tokio::test]
+async fn sealed_frame_reaches_same_channel_member_only() {
+    let reg = ConnectionRegistry::new();
+    let alice = RoutingFixture::player("Alice", 0.0, false);
+    let carol = RoutingFixture::player("Carol", 5.0, false);
+    let cache = RoutingFixture::player_cache(&[alice.clone(), carol]).await;
+    let (bob_tx, mut bob_rx) = mpsc::channel(16);
+    let (carol_tx, mut carol_rx) = mpsc::channel(16);
+    reg.try_register(2, "minecraft:Bob".into(), "fp-2".into(), bob_tx).expect("admitted");
+    reg.try_register(3, "minecraft:Carol".into(), "fp-3".into(), carol_tx).expect("admitted");
+    reg.update_player_channel("minecraft:Alice", "vault");
+    reg.update_player_channel("minecraft:Bob", "vault");
+    reg.mark_protected("vault");
+
+    let packet = RoutingFixture::sealed_audio_packet("minecraft:Alice");
+    reg.route_audio_frame(&packet, Some(&alice), &cache, 50.0, 5.0).await;
+
+    let delivered = RoutingFixture::delivered_frame(&mut bob_rx).await.expect("member receives");
+    assert!(delivered.is_sealed());
+    assert!(RoutingFixture::delivered_frame(&mut carol_rx).await.is_none());
+}
+
+// A stale or buggy client in a protected group must not leak plaintext to nearby players.
+#[tokio::test]
+async fn unsealed_frame_from_protected_member_reaches_nobody() {
+    let reg = ConnectionRegistry::new();
+    let alice = RoutingFixture::player("Alice", 0.0, false);
+    let carol = RoutingFixture::player("Carol", 5.0, false);
+    let cache = RoutingFixture::player_cache(&[alice.clone(), carol]).await;
+    let (bob_tx, mut bob_rx) = mpsc::channel(16);
+    let (carol_tx, mut carol_rx) = mpsc::channel(16);
+    reg.try_register(2, "minecraft:Bob".into(), "fp-2".into(), bob_tx).expect("admitted");
+    reg.try_register(3, "minecraft:Carol".into(), "fp-3".into(), carol_tx).expect("admitted");
+    reg.update_player_channel("minecraft:Alice", "vault");
+    reg.update_player_channel("minecraft:Bob", "vault");
+    reg.mark_protected("vault");
+
+    let packet = RoutingFixture::audio_packet(alice.clone(), "minecraft:Alice");
+    reg.route_audio_frame(&packet, Some(&alice), &cache, 50.0, 5.0).await;
+
+    assert!(RoutingFixture::delivered_frame(&mut bob_rx).await.is_none());
+    assert!(RoutingFixture::delivered_frame(&mut carol_rx).await.is_none());
+}
+
+#[tokio::test]
+async fn sealed_frame_from_unprotected_sender_is_rejected_outside_channel() {
+    let reg = ConnectionRegistry::new();
+    let alice = RoutingFixture::player("Alice", 0.0, false);
+    let carol = RoutingFixture::player("Carol", 5.0, false);
+    let cache = RoutingFixture::player_cache(&[alice.clone(), carol]).await;
+    let (carol_tx, mut carol_rx) = mpsc::channel(16);
+    reg.try_register(3, "minecraft:Carol".into(), "fp-3".into(), carol_tx).expect("admitted");
+
+    let packet = RoutingFixture::sealed_audio_packet("minecraft:Alice");
+    reg.route_audio_frame(&packet, Some(&alice), &cache, 50.0, 5.0).await;
+
+    assert!(RoutingFixture::delivered_frame(&mut carol_rx).await.is_none());
+}
+
+#[test]
+fn removing_a_channel_unmarks_it_protected() {
+    let reg = ConnectionRegistry::new();
+    reg.mark_protected("vault");
+    assert!(reg.is_protected_channel("vault"));
+
+    reg.remove_channel("vault");
+
+    assert!(!reg.is_protected_channel("vault"));
 }
 
 // The ingress gate and the egress attach read the same per-speaker interval. If the gate

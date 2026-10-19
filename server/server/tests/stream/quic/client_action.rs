@@ -323,6 +323,39 @@ async fn join_group_adds_actor_and_fans_event() {
     assert_eq!(pkt.packet_type, PacketType::ChannelEvent);
 }
 
+// The control plane serves `/bvc:panel` and the FFI the SVC bridge uses. Neither can run the
+// admission protocol, so a protected group must be refused here, and the actor's current
+// group must survive the refusal.
+#[tokio::test]
+async fn route_group_join_refuses_a_protected_channel() {
+    let channels = ChannelCollection::new(64);
+    let current = Channel::new("current".into(), identity("minecraft:Owner"));
+    let current_id = current.id();
+    channels.insert(current).await;
+    channels
+        .add_player_to_channel(&identity("minecraft:Alice"), &current_id)
+        .await;
+    let protected = Channel::new_protected("vault".into(), identity("minecraft:Owner"));
+    let protected_id = protected.id();
+    channels.insert(protected).await;
+    let (webhook, mut _rx) = test_webhook();
+
+    let res = ClientActionService::route_group(
+        &ClientActionType::JoinGroup {
+            channel: protected_id.clone(),
+        },
+        &identity("minecraft:Alice"),
+        &channels,
+        &webhook,
+    )
+    .await;
+
+    let err = res.expect_err("a protected group must be refused");
+    assert!(err.to_string().contains("only be joined from the BVC app"));
+    assert!(!channels.get(&protected_id).await.unwrap().contains(&identity("minecraft:Alice")));
+    assert!(channels.get(&current_id).await.unwrap().contains(&identity("minecraft:Alice")));
+}
+
 #[tokio::test]
 async fn join_missing_channel_errors_and_creates_no_membership() {
     let channels = ChannelCollection::new(64);

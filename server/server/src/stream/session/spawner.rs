@@ -188,7 +188,16 @@ impl SessionSpawner {
             tokio::spawn(async move {
                 curia::info!("Player {} (device: {}) disconnected", player_id, device);
 
-                registry.unregister(device);
+                // A player who has already reconnected — QUIC giving way to the WebSocket
+                // fallback, or a new connection racing the old one's close — still owns their
+                // state. Evicting it here dropped them from every channel, a protected group's
+                // included, while they were connected and talking.
+                if !registry.unregister(device) {
+                    curia::info!(format!(
+                        "Kept {player_id}'s state: the closed connection was already superseded"
+                    ));
+                    return;
+                }
 
                 // The callback is handed the identity as text by the transport. A value that
                 // does not parse belongs to no player, so there is nothing to evict.

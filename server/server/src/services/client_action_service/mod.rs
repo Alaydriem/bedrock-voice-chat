@@ -183,8 +183,13 @@ impl ClientActionService {
                     .ok_or_else(|| anyhow::anyhow!("not a group code: {channel}"))?;
                 // Validate the code BEFORE leaving anything: a typo must not
                 // kick the actor out of their current group.
-                if channels.get(channel).await.is_none() {
+                let Some(target) = channels.get(channel).await else {
                     anyhow::bail!("channel does not exist: {channel}");
+                };
+                // This plane serves the in-game panel and the FFI bridges, none of which can run
+                // a protected group's admission. Refused before leaving anything, like a typo.
+                if target.is_protected() {
+                    return Err(common::errors::ProtectedGroupError::RequiresClient.into());
                 }
                 // A repeat join of the current group is a no-op, not a move.
                 if channels

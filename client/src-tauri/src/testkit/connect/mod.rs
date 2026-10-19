@@ -83,6 +83,13 @@ impl Connector {
             state.current_server = Some(config.server.clone());
         }
 
+        // The webview writes this after a login (`loginCode.ts`); the testkit has no webview.
+        // Anything that reads this client's identity from the store — a protected group's MLS
+        // credential among them — otherwise sees the seeded placeholder instead of this player.
+        if let Ok(store) = tauri_plugin_store::StoreExt::store(handle, "store.json") {
+            store.set("current_player", serde_json::json!(login.gamertag.clone()));
+        }
+
         // Places this client on the WebSocket transport by writing the verdict a client
         // reaches in the field once QUIC has degraded on a host. Selection then takes the
         // real demoted branch, so the scenario exercises production code rather than a
@@ -200,6 +207,34 @@ impl Connector {
         )
         .await
         .map(|_| ())
+    }
+
+    // Creates a protected group through the production GroupService path and joins it as its
+    // first member. Returns the server-assigned channel id.
+    pub async fn create_protected(
+        handle: &tauri::AppHandle,
+        password: String,
+    ) -> Result<String, String> {
+        crate::groups::GroupService::new(handle.clone())
+            .create_protected(String::new(), password)
+            .await
+            .map_err(|e| e.to_string())?
+            .id
+            .ok_or_else(|| "created a protected group without an id".to_string())
+    }
+
+    // Starts joining a protected group through the production GroupService path. Admission
+    // finishes later and is reported as a `protected-group:*` event.
+    pub async fn join_protected(
+        handle: &tauri::AppHandle,
+        channel_id: String,
+        password: String,
+    ) -> Result<(), String> {
+        crate::groups::GroupService::new(handle.clone())
+            .join_protected(channel_id, password)
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
     }
 
     // Uploads an audio file through the production client path: encode (decode →

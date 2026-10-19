@@ -243,6 +243,10 @@ fn main() {
                 "player_presence",
                 "recording:started",
                 "recording:stopped",
+                "protected-group:joined",
+                "protected-group:roster",
+                "protected-group:epoch",
+                "protected-group:lost",
             ];
             for name in FORWARDED_UI_EVENTS {
                 let event_name = (*name).to_string();
@@ -351,6 +355,35 @@ fn main() {
                                 common::structs::channel::ChannelEvents::Delete,
                                 "delete",
                             );
+                        }
+                        Ok(InMsg::CreateProtected { password }) => {
+                            let h = stdin_handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                match Connector::create_protected(&h, password).await {
+                                    Ok(channel_id) => {
+                                        StdoutBridge::emit(&OutMsg::ChannelJoined { channel_id })
+                                    }
+                                    Err(e) => StdoutBridge::emit(&OutMsg::Log {
+                                        line: format!("create_protected failed: {e}"),
+                                    }),
+                                }
+                            });
+                        }
+                        Ok(InMsg::JoinProtected {
+                            channel_id,
+                            password,
+                        }) => {
+                            let h = stdin_handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                match Connector::join_protected(&h, channel_id, password).await {
+                                    Ok(()) => StdoutBridge::emit(&OutMsg::ChannelOpDone {
+                                        op: "join_protected".to_string(),
+                                    }),
+                                    Err(e) => StdoutBridge::emit(&OutMsg::Log {
+                                        line: format!("join_protected failed: {e}"),
+                                    }),
+                                }
+                            });
                         }
                         Ok(InMsg::UploadAudio { wav_path, game }) => {
                             let h = stdin_handle.clone();

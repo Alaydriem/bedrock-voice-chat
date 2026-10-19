@@ -227,6 +227,22 @@ impl NetworkStreamManager {
             bus.preferences();
         }
 
+        // A protected group outlives the voice link: its keys and epoch are untouched by a
+        // reconnect, but a server that saw the old link close first has dropped this client
+        // from the group's channel. Re-asserting membership keeps sealed audio routed.
+        let protected_active = self
+            .app_handle
+            .try_state::<Arc<crate::groups::protected::ProtectedGroupSlot>>()
+            .is_some_and(|slot| slot.is_active());
+        if protected_active {
+            let app = self.app_handle.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = crate::groups::GroupService::new(app).rejoin_protected().await {
+                    log::warn!("could not rejoin the protected group after reconnecting: {e}");
+                }
+            });
+        }
+
         Ok(())
     }
 

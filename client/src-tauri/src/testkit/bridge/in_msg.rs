@@ -71,5 +71,15 @@ pub enum InMsg {
     SetCrouchWhisper {
         enabled: bool,
     },
+    // Create a protected group through the production path and join it as its first member.
+    // Replies with OutMsg::ProtectedCreated.
+    CreateProtected {
+        password: String,
+    },
+    // Start joining a protected group. The outcome arrives as OutMsg::ProtectedEvent.
+    JoinProtected {
+        channel_id: String,
+        password: String,
+    },
     Shutdown,
 }

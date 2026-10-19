@@ -126,6 +126,10 @@ msgstr ""
 msgid "A friend runs the server"
 msgstr ""
 
+#: src/components/dashboard/PasswordPrompt.svelte:44
+msgid "A group password needs at least 6 characters."
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:375
 msgid "A new version (v{version}) of Bedrock Voice Chat is available. This will download and install the update immediately."
 msgstr ""
@@ -290,11 +294,11 @@ msgstr ""
 msgid "Almost there…"
 msgstr ""
 
-#: src/js/app/dashboard.ts:440
+#: src/js/app/dashboard.ts:443
 msgid "already granted"
 msgstr ""
 
-#: src/js/app/dashboard.ts:778
+#: src/js/app/dashboard.ts:781
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
@@ -332,7 +336,7 @@ msgstr ""
 msgid "Audio output"
 msgstr ""
 
-#: src/js/app/dashboard.ts:360
+#: src/js/app/dashboard.ts:363
 msgid "Audio permission denied"
 msgstr ""
 
@@ -400,7 +404,7 @@ msgstr ""
 msgid "Background Audio Couldn't Start"
 msgstr ""
 
-#: src/js/app/dashboard.ts:390
+#: src/js/app/dashboard.ts:393
 msgid "background service"
 msgstr ""
 
@@ -491,7 +495,8 @@ msgstr ""
 msgid "Can't start"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:300
+#: src/components/dashboard/GroupRow.svelte:302
+#: src/components/dashboard/PasswordPrompt.svelte:48
 #: src/components/settings/panes/ManagePlayersPane.svelte:454
 #: src/components/settings/panes/ManagePlayersPane.svelte:486
 #: src/components/settings/panes/PlayersPane.svelte:342
@@ -512,7 +517,7 @@ msgstr ""
 msgid "Capturing"
 msgstr ""
 
-#: src/js/app/dashboard.ts:987
+#: src/js/app/dashboard.ts:993
 msgid "certificate rejected"
 msgstr ""
 
@@ -582,7 +587,7 @@ msgstr ""
 msgid "Checking"
 msgstr ""
 
-#: src/js/app/dashboard.ts:354
+#: src/js/app/dashboard.ts:357
 msgid "Checking audio permission..."
 msgstr ""
 
@@ -704,6 +709,10 @@ msgstr ""
 msgid "Community discussions and help"
 msgstr ""
 
+#: src/components/dashboard/GroupsPanel.svelte:79
+msgid "Compare now"
+msgstr ""
+
 #: src/components/login/SignInScreen.svelte:54
 #: src/components/login/SignInScreen.svelte:66
 #: src/components/settings/PlateGrid.svelte:91
@@ -714,7 +723,7 @@ msgstr ""
 msgid "Connect"
 msgstr ""
 
-#: src/js/app/dashboard.ts:999
+#: src/js/app/dashboard.ts:1005
 msgid "connect failed"
 msgstr ""
 
@@ -768,6 +777,10 @@ msgstr ""
 msgid "Connection status"
 msgstr ""
 
+#: src/js/app/managers/ProtectedGroupManager.ts:66
+msgid "Connection to the group was lost. Rejoin to continue."
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsCopy.ts:39
 msgid "Connection type"
 msgstr ""
@@ -778,6 +791,10 @@ msgstr ""
 
 #: src/routes/uireview/+page.svelte:202
 msgid "Container queries, so these are faithful. Scroll each frame — the footbar must stay on screen at every step."
+msgstr ""
+
+#: src/components/dashboard/PasswordPrompt.svelte:49
+msgid "Continue"
 msgstr ""
 
 #: src/components/setup/MicrophoneScreen.svelte:89
@@ -844,6 +861,10 @@ msgstr ""
 
 #: src/components/audio/PlaybackTest.svelte:40
 msgid "Could not play through that device. Try another one."
+msgstr ""
+
+#: src/js/app/managers/ProtectedGroupManager.ts:64
+msgid "Could not reach a group member."
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsView.ts:159
@@ -959,7 +980,7 @@ msgstr ""
 msgid "Display language"
 msgstr ""
 
-#: src/js/app/dashboard.ts:981
+#: src/js/app/dashboard.ts:987
 msgid "DNS lookup failed"
 msgstr ""
 
@@ -1070,7 +1091,7 @@ msgstr ""
 msgid "Failed to link Java identity."
 msgstr ""
 
-#: src/js/app/dashboard.ts:322
+#: src/js/app/dashboard.ts:325
 msgid "Failed to refresh server state, using cached permissions"
 msgstr ""
 
@@ -1098,7 +1119,7 @@ msgstr ""
 msgid "For a bug report. Written to your Documents folder."
 msgstr ""
 
-#: src/js/app/dashboard.ts:389
+#: src/js/app/dashboard.ts:392
 msgid "Foreground service could not be started."
 msgstr ""
 
@@ -1144,13 +1165,17 @@ msgstr ""
 msgid "Grant it in your system settings, then come back and try again. Voice chat cannot work without it."
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:290
+#: src/components/dashboard/GroupRow.svelte:292
 msgid "Group id"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:275
-#: src/components/dashboard/GroupRow.svelte:284
+#: src/components/dashboard/GroupRow.svelte:277
+#: src/components/dashboard/GroupRow.svelte:286
 msgid "Group name"
+msgstr ""
+
+#: src/routes/dashboard/+layout.svelte:672
+msgid "Group password"
 msgstr ""
 
 #: src/components/dashboard/DashboardScreen.svelte:269
@@ -1229,7 +1254,7 @@ msgid "Identity"
 msgstr ""
 
 #: src/components/dashboard/DashboardScreen.svelte:332
-#: src/routes/dashboard/+layout.svelte:645
+#: src/routes/dashboard/+layout.svelte:744
 msgid "In earshot"
 msgstr ""
 
@@ -1246,7 +1271,7 @@ msgstr ""
 msgid "In public group channel"
 msgstr ""
 
-#: src/js/app/dashboard.ts:435
+#: src/js/app/dashboard.ts:438
 #: src/js/app/managers/ChannelManager.ts:412
 msgid "In public voice chat"
 msgstr ""
@@ -1264,7 +1289,7 @@ msgstr ""
 msgid "Incompatible Audio Input Device"
 msgstr ""
 
-#: src/js/app/dashboard.ts:915
+#: src/js/app/dashboard.ts:921
 msgid "incompatible device"
 msgstr ""
 
@@ -1351,7 +1376,7 @@ msgid "last seen {n} min ago"
 msgstr ""
 
 #: src/components/dashboard/GroupRow.svelte:194
-#: src/routes/dashboard/+layout.svelte:638
+#: src/routes/dashboard/+layout.svelte:737
 msgid "Leave"
 msgstr ""
 
@@ -1403,7 +1428,7 @@ msgstr ""
 msgid "Login failed. Please check your server URL and try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:777
+#: src/js/app/dashboard.ts:780
 msgid "Logout Failed"
 msgstr ""
 
@@ -1453,7 +1478,7 @@ msgstr ""
 msgid "Microphone access was refused"
 msgstr ""
 
-#: src/js/app/dashboard.ts:361
+#: src/js/app/dashboard.ts:364
 msgid "microphone denied"
 msgstr ""
 
@@ -1530,8 +1555,12 @@ msgstr ""
 msgid "Network transport failed"
 msgstr ""
 
-#: src/components/dashboard/GroupsPanel.svelte:49
+#: src/components/dashboard/GroupsPanel.svelte:63
 msgid "New group"
+msgstr ""
+
+#: src/components/dashboard/GroupsPanel.svelte:68
+msgid "New protected group"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:303
@@ -1558,7 +1587,7 @@ msgstr ""
 msgid "NO ANSWER · CONN01"
 msgstr ""
 
-#: src/js/app/dashboard.ts:941
+#: src/js/app/dashboard.ts:947
 msgid "No current server found in store!"
 msgstr ""
 
@@ -1579,7 +1608,7 @@ msgstr ""
 msgid "no events here, but {frames} frames/s are being captured  ← the meter is not receiving, the microphone is fine"
 msgstr ""
 
-#: src/js/app/dashboard.ts:922
+#: src/js/app/dashboard.ts:928
 msgid "no input device"
 msgstr ""
 
@@ -1599,6 +1628,10 @@ msgstr ""
 msgid "no levels have reached it  ← the feed above decides whether that is a fault"
 msgstr ""
 
+#: src/js/app/managers/ProtectedGroupManager.ts:62
+msgid "No member is online to admit you."
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:103
 msgid "No microphone was detected on your system. Connect a microphone or headset, verify it appears in your system sound settings, then try again."
 msgstr ""
@@ -1607,7 +1640,7 @@ msgstr ""
 msgid "No network address yet. Connect to Wi-Fi and reopen this pane."
 msgstr ""
 
-#: src/js/app/dashboard.ts:928
+#: src/js/app/dashboard.ts:934
 msgid "no output device"
 msgstr ""
 
@@ -1635,7 +1668,7 @@ msgstr ""
 msgid "no registration  ← this window is asking for levels and the feed holds no listener"
 msgstr ""
 
-#: src/js/app/dashboard.ts:254
+#: src/js/app/dashboard.ts:257
 msgid "no response"
 msgstr ""
 
@@ -1664,7 +1697,7 @@ msgstr ""
 msgid "NO VOICE PATH"
 msgstr ""
 
-#: src/js/app/dashboard.ts:995
+#: src/js/app/dashboard.ts:1001
 msgid "no voice transport"
 msgstr ""
 
@@ -1844,7 +1877,7 @@ msgstr ""
 msgid "Notification access was refused"
 msgstr ""
 
-#: src/js/app/dashboard.ts:371
+#: src/js/app/dashboard.ts:374
 msgid "Notification permission denied - notifications may not be visible"
 msgstr ""
 
@@ -1861,7 +1894,7 @@ msgstr ""
 msgid "Notifications and devices come next"
 msgstr ""
 
-#: src/js/app/dashboard.ts:373
+#: src/js/app/dashboard.ts:376
 msgid "notifications denied"
 msgstr ""
 
@@ -1987,6 +2020,10 @@ msgstr ""
 msgid "painting — {counts}, last level {level}"
 msgstr ""
 
+#: src/routes/dashboard/+layout.svelte:671
+msgid "Password for the new protected group"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsView.ts:447
 msgid "Paths used"
 msgstr ""
@@ -2049,6 +2086,10 @@ msgstr ""
 msgid "Players"
 msgstr ""
 
+#: src/components/dashboard/GroupsPanel.svelte:75
+msgid "Players nearby cannot hear you."
+msgstr ""
+
 #: src/components/settings/panes/AudioPane.svelte:208
 msgid "Playing"
 msgstr ""
@@ -2107,6 +2148,10 @@ msgstr ""
 
 #: src/components/dashboard/SelfControls.svelte:76
 msgid "Profile and sign-out"
+msgstr ""
+
+#: src/components/dashboard/GroupRow.svelte:239
+msgid "Protected"
 msgstr ""
 
 #: src/components/serverList/PreflightPanel.svelte:142
@@ -2421,7 +2466,7 @@ msgstr ""
 msgid "Sample rate"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:303
+#: src/components/dashboard/GroupRow.svelte:305
 msgid "Save"
 msgstr ""
 
@@ -2493,7 +2538,7 @@ msgstr ""
 msgid "Server address"
 msgstr ""
 
-#: src/js/app/dashboard.ts:991
+#: src/js/app/dashboard.ts:997
 msgid "server certificate"
 msgstr ""
 
@@ -2753,7 +2798,7 @@ msgstr ""
 msgid "stopped painting {seconds}s ago — {counts}  ← levels are still arriving"
 msgstr ""
 
-#: src/js/app/dashboard.ts:193
+#: src/js/app/dashboard.ts:196
 msgid "Stopped recording that was active before page refresh"
 msgstr ""
 
@@ -3354,6 +3399,10 @@ msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsView.ts:415
 msgid "Worst direction"
+msgstr ""
+
+#: src/js/app/managers/ProtectedGroupManager.ts:60
+msgid "Wrong password."
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:38

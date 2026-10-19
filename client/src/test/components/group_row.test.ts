@@ -14,6 +14,7 @@ function view(over: Partial<GroupRowView> = {}): GroupRowView {
         owned: false,
         activeAt: null,
         stirring: false,
+        locked: false,
         ...over,
     };
 }

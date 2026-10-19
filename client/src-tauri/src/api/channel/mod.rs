@@ -1,3 +1,5 @@
+mod protected;
+
 use crate::api::Api;
 
 use crate::api::circuit_breaker::SendError;
