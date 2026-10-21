@@ -8,6 +8,8 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::{Connector, WebSocketStream};
 
+use tauri_plugin_curia::curia;
+
 use super::KeySocketEvent;
 use crate::network::MtlsClientConfig;
 
@@ -61,6 +63,8 @@ impl KeySocket {
                 let Ok(bytes) = frame.to_bytes() else {
                     continue;
                 };
+                #[cfg(feature = "e2e")]
+                crate::testkit::WireTap::key_frame(&bytes);
                 if sink.send(Message::Binary(bytes.into())).await.is_err() {
                     break;
                 }
@@ -78,7 +82,7 @@ impl KeySocket {
                                 return;
                             }
                         }
-                        Err(_) => log::debug!("protected group: undecodable key socket frame"),
+                        Err(_) => curia::debug!("protected group: undecodable key socket frame"),
                     },
                     Ok(Message::Close(frame)) => {
                         reason = frame

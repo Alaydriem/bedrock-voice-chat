@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use common::bedrock_protocol::protocol::event::EventPacket;
 use common::bedrock_protocol::{Direction, Event};
-use log::info;
+use tauri_plugin_curia::curia;
 
 use super::{DispatchResult, ModeDispatch};
 use crate::bedrock::BedrockChatChannel;
@@ -83,7 +83,9 @@ impl ModeDispatch for FullDispatch {
                 true
             }
             EventPacket::UpdatePlayerGameType(p) => {
-                info!("Received UpdatePlayerGameType: {:?}", p);
+                curia::info!("received UpdatePlayerGameType", {
+                    packet: format!("{p:?}"),
+                });
                 let gamemode = i64::from(p.player_game_type) as i32;
                 GameTypeHandler.handle(&gamemode, state, emitter);
                 true
@@ -91,7 +93,9 @@ impl ModeDispatch for FullDispatch {
             // The bvc: buses are server-authored (/playsound is clientbound);
             // like the ChatMessage arm, ignore the serverbound direction.
             EventPacket::PlaySound(p) if matches!(direction, Direction::Clientbound) => {
-                info!("Received PlaySound: {:?}", p);
+                curia::info!("received PlaySound", {
+                    packet: format!("{p:?}"),
+                });
                 PlaySoundHandler {
                     beacon_cache: &self.beacon_cache,
                     player_name: &self.player_name,

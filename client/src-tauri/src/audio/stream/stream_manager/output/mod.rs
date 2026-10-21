@@ -29,7 +29,6 @@ use common::{
         audio::{GainProjection, JukeboxLevel, PlayerGainSettings, PlayerGainStore, StreamEvent},
     },
 };
-use log::{error, info, warn};
 use moka::future::Cache;
 use once_cell::sync::Lazy;
 use std::{
@@ -131,7 +130,9 @@ impl common::traits::StreamTrait for OutputStream {
                         self.gain.set_store(settings);
                     }
                     Err(e) => {
-                        error!("Failed to parse PlayerGainStore: {:?}", e);
+                        curia::error!("failed to parse PlayerGainStore", {
+                            error: format!("{e:?}"),
+                        });
                     }
                 };
             }
@@ -155,10 +156,14 @@ impl common::traits::StreamTrait for OutputStream {
         }
 
         if !self.jobs.settle(Self::STOP_GRACE).await {
-            warn!("Output stream jobs did not finish within the grace window; aborting them.");
+            curia::warn!("output stream jobs did not finish within the grace window; aborting them", {
+                io: "output",
+            });
         }
 
-        info!("Output stream has been stopped.");
+        curia::info!("output stream has been stopped", {
+            io: "output",
+        });
 
         Ok(())
     }
@@ -346,7 +351,7 @@ impl OutputStream {
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         let current_player_name = match metadata.get("current_player").await {
             Some(name) => {
-                log::info!("Starting playback for current player");
+                curia::info!("starting playback for the current player");
                 name
             }
             None => {
@@ -388,27 +393,30 @@ impl OutputStream {
                                 let fresh_config: rodio::cpal::SupportedStreamConfig =
                                     fresh_configs[0].clone().into();
                                 if fresh_config.sample_rate() != stored_config.sample_rate() {
-                                    warn!(
-                                        "Output device {} sample rate changed: stored {}Hz, actual {}Hz. Using actual.",
-                                        device.display_name,
-                                        stored_config.sample_rate(),
-                                        fresh_config.sample_rate()
-                                    );
+                                    curia::warn!("output device sample rate changed; using the actual rate", {
+                                        io: "output",
+                                        device_name: device.display_name.clone(),
+                                        stored_rate: stored_config.sample_rate(),
+                                        actual_rate: fresh_config.sample_rate(),
+                                    });
                                 }
                                 fresh_config
                             }
                             _ => {
-                                warn!(
-                                    "Could not refresh output device config for {}, using stored config",
-                                    device.display_name
-                                );
+                                curia::warn!("could not refresh the output device config; using the stored config", {
+                                    io: "output",
+                                    device_name: device.display_name.clone(),
+                                });
                                 stored_config
                             }
                         };
                     Some(config)
                 }
                 Err(e) => {
-                    error!("Receiving stream startup failed: {:?}", e);
+                    curia::error!("receiving stream startup failed", {
+                        io: "output",
+                        error: format!("{e:?}"),
+                    });
                     return Err(e);
                 }
             },

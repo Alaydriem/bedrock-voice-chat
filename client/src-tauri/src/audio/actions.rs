@@ -2,7 +2,6 @@ use crate::audio::AudioDeviceType;
 use crate::audio::{AudioStreamManager, RecordingManager};
 use common::structs::audio::{MuteEvent, PlayerGainSettings, StreamEvent, VoiceRuntimeState};
 use common::structs::keybinds::VoiceMode;
-use log::info;
 use std::sync::Arc;
 use tauri::async_runtime::Mutex;
 use tauri::{AppHandle, Emitter, Manager};

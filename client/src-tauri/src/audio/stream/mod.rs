@@ -18,7 +18,6 @@ use crate::bedrock::JukeboxBeaconCache;
 use crate::bedrock::JukeboxEjectInjector;
 use anyhow::Error;
 use common::structs::audio::StreamEvent;
-use log::info;
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
@@ -308,14 +307,13 @@ impl AudioStreamManager {
                 }
             };
 
-            log::warn!(
-                "{:?} stream failed ({}); rebuild {} of {} in {:?}",
-                device_type,
-                reason,
-                attempt,
-                RebuildBreaker::MAX_ATTEMPTS,
-                after
-            );
+            curia::warn!("audio stream failed; scheduling a rebuild", {
+                device_type: format!("{device_type:?}"),
+                error: reason.clone(),
+                attempt: attempt,
+                max_attempts: RebuildBreaker::MAX_ATTEMPTS,
+                after_ms: after.as_millis() as u64,
+            });
             tokio::time::sleep(after).await;
 
             // The manager is gone, which means the application is shutting down. Nothing left
@@ -335,7 +333,9 @@ impl AudioStreamManager {
                     if is_input {
                         availability.set(true);
                     }
-                    info!("{:?} stream rebuilt", device_type);
+                    curia::info!("audio stream rebuilt", {
+                        device_type: format!("{device_type:?}"),
+                    });
                     break;
                 }
                 Err(e) => reason = format!("{:?}", e),
@@ -473,7 +473,7 @@ impl AudioStreamManager {
                         broadcaster.broadcast_levels(snapshot);
                         levels.record_emitted();
                     }
-                    None => log::warn!("no push channel to publish audio levels on"),
+                    None => curia::warn!("no push channel to publish audio levels on"),
                 }
             }
         });
@@ -780,11 +780,10 @@ impl AudioStreamManager {
         self.levels.clear_peers();
 
         if discarded_outbound > 0 || discarded_inbound > 0 {
-            log::info!(
-                "Restart discarded {} outbound and {} inbound queued frames",
-                discarded_outbound,
-                discarded_inbound
-            );
+            curia::info!("restart discarded queued frames", {
+                outbound: discarded_outbound,
+                inbound: discarded_inbound,
+            });
         }
 
         self.rebuild_streams().await

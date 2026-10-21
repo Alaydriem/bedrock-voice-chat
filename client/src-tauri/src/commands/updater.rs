@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use tauri_plugin_curia::curia;
 use tauri_plugin_updater::UpdaterExt;
 
 pub(crate) struct UpdaterHelper;
@@ -31,16 +32,11 @@ impl UpdaterHelper {
             "https://www.bedrockvoicechat.com/updater/latest.json"
         });
 
-        log::info!(
-            "Updater: version={}, channel={}, endpoint={}",
-            version,
-            if is_prerelease {
-                "prerelease"
-            } else {
-                "stable"
-            },
-            endpoint
-        );
+        curia::info!("updater configured", {
+            version: version,
+            channel: if is_prerelease { "prerelease" } else { "stable" },
+            endpoint: endpoint,
+        });
 
         endpoint
     }
@@ -78,7 +74,7 @@ impl UpdaterHelper {
 #[tauri::command]
 pub(crate) async fn check_for_updates(app: tauri::AppHandle) -> Result<Option<String>, String> {
     if UpdaterHelper::is_msix_packaged() {
-        log::info!("Updater disabled: MSIX-packaged build, updates delivered via Microsoft Store");
+        curia::info!("updater disabled: MSIX-packaged build, updates delivered via Microsoft Store");
         return Ok(None);
     }
 
@@ -87,11 +83,14 @@ pub(crate) async fn check_for_updates(app: tauri::AppHandle) -> Result<Option<St
     match update {
         Some(update) => {
             let display = UpdaterHelper::display_version(&update);
-            log::info!("Update available: v{} ({})", display, update.version);
+            curia::info!("update available", {
+                display_version: display.clone(),
+                version: update.version.clone(),
+            });
             Ok(Some(display))
         }
         None => {
-            log::info!("No updates available");
+            curia::info!("no updates available");
             Ok(None)
         }
     }
@@ -109,25 +108,27 @@ pub(crate) async fn install_update(app: tauri::AppHandle) -> Result<(), String> 
 
     match update {
         Some(update) => {
-            log::info!(
-                "Installing update v{} ({})...",
-                UpdaterHelper::display_version(&update),
-                update.version
-            );
+            curia::info!("installing update", {
+                display_version: UpdaterHelper::display_version(&update),
+                version: update.version.clone(),
+            });
 
             update
                 .download_and_install(
                     |chunk_length, content_length| {
-                        log::info!("Downloaded {chunk_length} of {content_length:?}");
+                        curia::info!("update chunk downloaded", {
+                            chunk_bytes: chunk_length,
+                            content_bytes: content_length,
+                        });
                     },
                     || {
-                        log::info!("Download finished");
+                        curia::info!("update download finished");
                     },
                 )
                 .await
                 .map_err(|e| e.to_string())?;
 
-            log::info!("Update installed, restarting...");
+            curia::info!("update installed, restarting");
             app.restart();
         }
         None => Err("No update available".to_string()),

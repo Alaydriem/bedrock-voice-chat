@@ -1,7 +1,7 @@
 use common::structs::packet::ServerErrorType;
-use log::error;
 use serde::{Deserialize, Serialize};
 use tauri::Listener;
+use tauri_plugin_curia::curia;
 
 pub(crate) const SERVER_ERROR: &str = "server_error";
 
@@ -22,10 +22,10 @@ impl ServerError {
     pub fn register(app: &tauri::App) {
         app.listen(SERVER_ERROR, |event| {
             if let Ok(payload) = serde_json::from_str::<ServerError>(&event.payload()) {
-                error!(
-                    "Server error occurred: {:?} - {}",
-                    payload.error_type, payload.message
-                );
+                curia::error!("server error occurred", {
+                    error_type: format!("{:?}", payload.error_type),
+                    error: payload.message,
+                });
             }
         });
     }

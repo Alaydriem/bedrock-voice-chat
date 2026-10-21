@@ -7,6 +7,7 @@ use tauri_plugin_iap::{
 
 use common::consts::iap::{IAP_KEYRING_KEY_ENTITLEMENT, PRODUCT_IDS, PRODUCT_TYPE_SUBS};
 use common::structs::iap::{EntitlementState, IapOffer};
+use tauri_plugin_curia::curia;
 
 use crate::iap::IapKeyringService;
 use crate::iap::provider::EntitlementProvider;
@@ -127,7 +128,9 @@ impl EntitlementProvider for StoreProvider {
         {
             Ok(resp) => resp.products,
             Err(e) => {
-                log::warn!("iap get_products failed: {e}");
+                curia::warn!("iap get_products failed", {
+                    error: e.to_string(),
+                });
                 return Vec::new();
             }
         };
@@ -167,7 +170,9 @@ impl EntitlementProvider for StoreProvider {
                 .acknowledge_purchase(purchase.purchase_token.clone())
                 .await
             {
-                log::warn!("iap acknowledge_purchase failed: {e}");
+                curia::warn!("iap acknowledge_purchase failed", {
+                    error: e.to_string(),
+                });
             }
         }
 

@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use common::structs::group_key::SocketId;
+use common::structs::group_key::{AdmissionMessage, SocketId};
 
 use crate::groups::protected::{JoinerAwaitingWelcome, JoinerSession, PendingJoin};
 
@@ -12,6 +12,10 @@ pub enum JoinPhase {
         session: JoinerSession,
         pending: PendingJoin,
         key_package: Vec<u8>,
+        // Kept so a redirect can send the same init on to the admitter.
+        init: AdmissionMessage,
+        // At most one redirect is followed per attempt, so a relay cannot bounce a join forever.
+        redirected: bool,
         sent_at: Instant,
     },
     AwaitingWelcome {

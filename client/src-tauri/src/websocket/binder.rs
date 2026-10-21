@@ -1,3 +1,4 @@
+use tauri_plugin_curia::curia;
 use tokio::net::TcpListener;
 
 /// Chooses the port the operator-facing listener answers on.
@@ -35,9 +36,10 @@ impl ListenerBinder {
             match TcpListener::bind((host, port)).await {
                 Ok(listener) => {
                     if offset > 0 {
-                        log::warn!(
-                            "port {preferred} is in use; the WebSocket server is answering on {port} instead"
-                        );
+                        curia::warn!("preferred port is in use; the WebSocket server is answering on another", {
+                            preferred: preferred,
+                            port: port,
+                        });
                     }
                     return Ok(listener);
                 }

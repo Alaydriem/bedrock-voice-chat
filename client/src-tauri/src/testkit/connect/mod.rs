@@ -1,5 +1,6 @@
 use tauri::Manager;
 use tauri::async_runtime::Mutex;
+use tauri_plugin_curia::curia;
 
 use crate::AudioStreamManager;
 use crate::NetworkStreamManager;
@@ -133,10 +134,16 @@ impl Connector {
                 )
                 .await;
             if let Err(e) = asm.start(AudioDeviceType::OutputDevice).await {
-                log::warn!("testkit: output stream start failed: {e}");
+                curia::warn!("testkit: output stream start failed", {
+                    io: "output",
+                    error: e.to_string(),
+                });
             }
             if let Err(e) = asm.start(AudioDeviceType::InputDevice).await {
-                log::warn!("testkit: input stream start failed: {e}");
+                curia::warn!("testkit: input stream start failed", {
+                    io: "input",
+                    error: e.to_string(),
+                });
             }
         }
 

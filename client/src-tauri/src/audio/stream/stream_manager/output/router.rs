@@ -24,9 +24,9 @@ use common::{
         },
     },
 };
-use log::{debug, error, info, warn};
 use moka::future::Cache;
 use std::sync::Arc;
+use tauri_plugin_curia::curia;
 use tauri_plugin_store::StoreExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -175,7 +175,7 @@ impl PacketRouter {
                                     game,
                                 ),
                             ) {
-                                error!("Failed to emit player presence event: {:?}", e);
+                                curia::error!("failed to emit a player presence event", { error: format!("{e:?}") });
                             }
                         }
                     }
@@ -192,13 +192,13 @@ impl PacketRouter {
                                 game,
                             ),
                         ) {
-                            error!("Failed to emit player presence event: {:?}", e);
+                            curia::error!("failed to emit a player presence event", { error: format!("{e:?}") });
                         }
                     }
                 }
             }
             Err(_) => {
-                warn!("Could not decode player data packet");
+                curia::warn!("could not decode a player data packet");
             }
         }
     }
@@ -217,13 +217,12 @@ impl PacketRouter {
                     common::structs::channel::ChannelEvents::Rename => "rename",
                 };
 
-                info!(
-                    "Channel event: {} {} in channel {} ({})",
-                    event.name,
-                    event_type,
-                    event.channel,
-                    event.channel_name.as_deref().unwrap_or("unknown")
-                );
+                curia::info!("channel event", {
+                    player: event.name.to_string(),
+                    event_type: event_type,
+                    channel_id: event.channel.clone(),
+                    channel_name: event.channel_name.clone(),
+                });
 
                 self.announce_channel_event(&event);
                 self.release_protected_on_exit(&event);
@@ -240,11 +239,13 @@ impl PacketRouter {
                         event.timestamp,
                     ),
                 ) {
-                    error!("Failed to emit channel event: {:?}", e);
+                    curia::error!("failed to emit a channel event", {
+                        error: format!("{e:?}"),
+                    });
                 }
             }
             Err(_) => {
-                warn!("Could not decode channel event packet");
+                curia::warn!("could not decode a channel event packet");
             }
         }
     }
@@ -339,7 +340,7 @@ impl PacketRouter {
 
         let frame: Result<AudioFramePacket, ()> = data.data.to_owned().try_into();
         let Ok(mut frame) = frame else {
-            warn!("Could not decode audio frame packet");
+            curia::warn!("could not decode an audio frame packet");
             return;
         };
 
@@ -432,10 +433,9 @@ impl PacketRouter {
                             game,
                         ),
                     ) {
-                        error!(
-                            "Failed to emit auto-detected player presence event: {:?}",
-                            e
-                        );
+                        curia::error!("failed to emit an auto-detected player presence event", {
+                            error: format!("{e:?}"),
+                        });
                     }
                 }
             }
@@ -494,7 +494,9 @@ impl PacketRouter {
         #[cfg(feature = "e2e")]
         crate::testkit::counters::TransportCounters::increment_into_jitter_buffer();
         if let Err(e) = self.producer.send(encoded_packet) {
-            warn!("Could not send encoded audio frame packet: {:?}", e);
+            curia::warn!("could not send an encoded audio frame packet", {
+                error: format!("{e:?}"),
+            });
         }
     }
 
@@ -534,7 +536,7 @@ impl PacketRouter {
                 }
             }
             Err(_) => {
-                warn!("Could not decode player data packet");
+                curia::warn!("could not decode a player data packet");
             }
         }
     }
@@ -555,7 +557,7 @@ impl PacketRouter {
 
         let packet: Result<ChatMessagePacket, ()> = data.data.to_owned().try_into();
         let Ok(packet) = packet else {
-            warn!("Could not decode chat message packet");
+            curia::warn!("could not decode a chat message packet");
             return;
         };
 
@@ -566,7 +568,9 @@ impl PacketRouter {
         });
 
         if let Err(e) = tauri::Emitter::emit(&self.app_handle, "bedrock-chat", payload) {
-            warn!("Failed to emit chat line: {:?}", e);
+            curia::warn!("failed to emit a chat line", {
+                error: format!("{e:?}"),
+            });
         }
     }
 
@@ -578,7 +582,7 @@ impl PacketRouter {
     async fn handle_chat_rejected(&self, data: &QuicNetworkPacket) {
         let packet: Result<ChatRejectedPacket, ()> = data.data.to_owned().try_into();
         let Ok(packet) = packet else {
-            warn!("Could not decode chat rejection packet");
+            curia::warn!("could not decode a chat rejection packet");
             return;
         };
 
@@ -588,7 +592,9 @@ impl PacketRouter {
         });
 
         if let Err(e) = tauri::Emitter::emit(&self.app_handle, "bedrock-chat-rejected", payload) {
-            warn!("Failed to emit chat rejection: {:?}", e);
+            curia::warn!("failed to emit a chat rejection", {
+                error: format!("{e:?}"),
+            });
         }
     }
 
@@ -599,22 +605,26 @@ impl PacketRouter {
                     ref client_version,
                     ref server_version,
                 } => {
-                    error!(
-                        "Protocol version mismatch: client={}, server={}",
-                        client_version, server_version
-                    );
+                    curia::error!("protocol version mismatch", {
+                        client_version: client_version.to_string(),
+                        server_version: server_version.to_string(),
+                    });
                     let health_event = ConnectionHealth::VersionMismatch {
                         client_version: client_version.clone(),
                         server_version: server_version.clone(),
                         client_too_old: true,
                     };
-                    debug!("Publishing connection health: {:?}", health_event);
+                    curia::debug!("publishing connection health", {
+                        health: format!("{health_event:?}"),
+                    });
                     crate::network::HealthPublisher::publish(&self.app_handle, health_event);
                 }
                 // Reported as `Unauthorized` rather than a variant of its own: that state is
                 // already terminal, and retrying with a revoked certificate cannot succeed.
                 ServerErrorType::CertificateRevoked { ref reason } => {
-                    error!("Certificate revoked by the server: {}", reason);
+                    curia::error!("certificate revoked by the server", {
+                        reason: reason.to_string(),
+                    });
                     crate::network::HealthPublisher::publish(
                         &self.app_handle,
                         ConnectionHealth::Unauthorized {
@@ -625,10 +635,9 @@ impl PacketRouter {
                 // Not terminal, unlike the two above: no health flag is set, so the existing
                 // reconnect backoff keeps trying and succeeds as soon as a slot frees.
                 ServerErrorType::AtCapacity { limit } => {
-                    warn!(
-                        "Server refused the connection: full at {} connections",
-                        limit
-                    );
+                    curia::warn!("server refused the connection: at capacity", {
+                        limit: limit,
+                    });
                     crate::network::HealthPublisher::publish(
                         &self.app_handle,
                         ConnectionHealth::AtCapacity { limit },

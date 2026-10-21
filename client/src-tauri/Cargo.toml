@@ -29,7 +29,6 @@ dirs = { version = "^6", optional = true }
 serde = { version = "^1", features = ["derive"] }
 base64 = { version = "^0.22" }
 serde_json = { version = "^1" }
-log = { version = "^0.4" }
 anyhow = { version = "^1" }
 icu_plurals = { version = "^2.2" }
 icu_locale_core = { version = "^2.2" }

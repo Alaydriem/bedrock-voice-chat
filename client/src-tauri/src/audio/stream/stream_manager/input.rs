@@ -17,7 +17,6 @@ use common::RecordingPlayerData;
 use common::consts::OPUS_FRAME_DURATION_MS;
 use common::structs::audio::{InputLevel, NoiseGateSettings, StreamEvent};
 use common::structs::packet::{AudioFramePacket, QuicNetworkPacket, QuicNetworkPacketData};
-use log::{error, warn};
 use once_cell::sync::Lazy;
 use opus2::Bitrate;
 use std::{
@@ -75,7 +74,11 @@ pub(crate) struct InputStream {
 
 impl common::traits::StreamTrait for InputStream {
     async fn metadata(&mut self, key: String, value: String) -> Result<(), anyhow::Error> {
-        log::debug!("Setting metadata for input stream: {} = {}", key, value);
+        curia::debug!("setting input stream metadata", {
+            io: "input",
+            key: key.clone(),
+            value: value.clone(),
+        });
         match key.as_str() {
             // Toggle Mute
             "mute" => {
@@ -102,10 +105,9 @@ impl common::traits::StreamTrait for InputStream {
                         drop(lock_settings);
                     }
                     Err(e) => {
-                        log::error!(
-                            "Failed to deserialize NoiseGateSettings on metadata set: {}",
-                            e
-                        );
+                        curia::error!("failed to deserialize NoiseGateSettings on metadata set", {
+                            error: e.to_string(),
+                        });
                     }
                 };
             }
@@ -135,7 +137,9 @@ impl common::traits::StreamTrait for InputStream {
         self.stream.release().await;
 
         if !self.jobs.settle(Self::STOP_GRACE).await {
-            warn!("Input stream jobs did not finish within the grace window; aborting them.");
+            curia::warn!("input stream jobs did not finish within the grace window; aborting them", {
+                io: "input",
+            });
         }
 
         Ok(())
@@ -245,7 +249,12 @@ impl InputStream {
 
         let stream = self
             .listener(capture_config, producer, self.shutdown.clone())
-            .inspect_err(|e| error!("input metering listener failed to start: {:?}", e))?;
+            .inspect_err(|e| {
+                curia::error!("input metering listener failed to start", {
+                    io: "input",
+                    error: format!("{e:?}"),
+                })
+            })?;
         self.stream.hold(stream).await;
 
         // No jobs: metering is the capture callback and nothing else. `self.stream` is what says
@@ -356,11 +365,10 @@ impl InputStream {
         // Create resampler if the source sample rate is not 48 kHz
         let audio_resampler = match AudioResampler::new_if_needed(sample_rate) {
             Some(Ok(r)) => {
-                warn!(
-                    "Input device sample rate {} Hz requires resampling to 48 kHz. \
-                     For optimal performance, use a device that supports 48 kHz natively.",
-                    sample_rate
-                );
+                curia::warn!("input device sample rate requires resampling to 48 kHz; a device that supports 48 kHz natively performs better", {
+                    io: "input",
+                    sample_rate: sample_rate,
+                });
                 Some(r)
             }
             Some(Err(e)) => {
@@ -533,9 +541,9 @@ impl InputStream {
             #[allow(irrefutable_let_patterns)]
             while let Ok(sample) = consumer.recv_async().await {
                 if shutdown.load(Ordering::Relaxed) {
-                    warn!(
-                        "Audio Input stream, quic sender received shutdown signal, and is now terminating."
-                    );
+                    curia::warn!("input stream QUIC sender received the shutdown signal and is terminating", {
+                        io: "input",
+                    });
                     break;
                 }
 
@@ -558,7 +566,10 @@ impl InputStream {
                     if protected.is_protected() != constant_bitrate {
                         constant_bitrate = !constant_bitrate;
                         if let Err(e) = encoder.set_vbr(!constant_bitrate) {
-                            error!("Could not switch the encoder's bitrate mode: {:?}", e);
+                            curia::error!("could not switch the encoder's bitrate mode", {
+                                io: "input",
+                                error: format!("{e:?}"),
+                            });
                         }
                     }
 
@@ -618,7 +629,10 @@ impl InputStream {
                     };
 
                     if let Err(e) = tx.send_async(packet).await {
-                        error!("Sending audio frame to Quic network thread failed: {:?}", e);
+                        curia::error!("sending an audio frame to the QUIC network thread failed", {
+                            io: "input",
+                            error: format!("{e:?}"),
+                        });
                     }
                 }
             }

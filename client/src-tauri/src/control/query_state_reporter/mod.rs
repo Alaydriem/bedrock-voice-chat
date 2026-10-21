@@ -8,8 +8,8 @@ use common::structs::control::{BvcsCodec, PlayerPreference, QueryState};
 use common::structs::packet::{
     PacketType, PlayerPreferencePacket, QueryStatePacket, QuicNetworkPacket, QuicNetworkPacketData,
 };
-use log::{debug, warn};
 use tauri::Manager;
+use tauri_plugin_curia::curia;
 use tokio::sync::broadcast;
 
 use super::connection_identity::ConnectionIdentity;
@@ -145,7 +145,7 @@ impl QueryStateReporter {
                         QuicNetworkPacketData::QueryState(QueryStatePacket::new(state)),
                     );
                 } else {
-                    debug!("QueryStateReporter: no connection identity; QUIC report skipped");
+                    curia::debug!("QueryStateReporter: no connection identity; QUIC report skipped");
                 }
             }
             let seq = self.next_seq();
@@ -245,7 +245,9 @@ impl QueryStateReporter {
                     let seq = self.next_seq();
                     self.ride_bvcs(BvcsCodec::encode_preference(seq, &preference));
                 } else if panel_reads {
-                    debug!("QueryStateReporter: target not !bvcs:-safe; ride skipped: {target}");
+                    curia::debug!("QueryStateReporter: target not !bvcs:-safe; ride skipped", {
+                        target: target.to_string(),
+                    });
                 }
             }
         }
@@ -266,7 +268,9 @@ impl QueryStateReporter {
                 }
                 // No header rides on failure, so the panel's wait times out and reports
                 // the list as unavailable rather than drawing an empty server.
-                Err(e) => warn!("QueryStateReporter: group list unavailable: {e}"),
+                Err(e) => curia::warn!("QueryStateReporter: group list unavailable", {
+                    error: e,
+                }),
             }
         }
     }
@@ -301,7 +305,9 @@ impl QueryStateReporter {
             },
         };
         if let Err(e) = producer.try_send(packet) {
-            warn!("QueryStateReporter: dropping state report: {e}");
+            curia::warn!("QueryStateReporter: dropping state report", {
+                error: e.to_string(),
+            });
         }
     }
 

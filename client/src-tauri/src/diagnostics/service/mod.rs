@@ -9,6 +9,7 @@ use common::structs::metrics::{
     LinkDiagnostics, LinkDiagnosticsSnapshot, LinkQuality, LinkSample, MicDiagnostics,
     PeerDiagnostics, PlaybackDiagnostics, SessionDiagnostics,
 };
+use tauri_plugin_curia::curia;
 use tokio::sync::watch;
 
 use super::rollup::{RollupBuilder, RollupWindow};
@@ -684,32 +685,28 @@ impl LinkDiagnosticsService {
     }
 
     fn log_peer(peer: &PeerDiagnostics, rtt: &str, uplink_loss: f32, family: &str) {
-        log::info!(
-            "Receive diagnostics [{}]: underruns={} overflow_drops={} ooo_drops={} plc={} \
-             silence={} decoded={} ring={}/{} warmup={} buffer={}ms quality={:.2} \
-             concealment={:.1}% reanchors={} rearms={} sheds={} gaps_spatial={} gaps_normal={} \
-             | link rtt={}ms uplink_loss={:.1}% family={}",
-            peer.name,
-            peer.underruns,
-            peer.overflow_drops,
-            peer.ooo_drops,
-            peer.plc_frames,
-            peer.silence_frames,
-            peer.frames_decoded,
-            peer.ring_len,
-            peer.capacity,
-            peer.warmup_needed,
-            peer.buffer_ms,
-            peer.quality_score,
-            peer.concealment_pct,
-            peer.reanchors,
-            peer.warmup_rearms,
-            peer.drain_sheds,
-            peer.spatial_gap_frames,
-            peer.normal_gap_frames,
-            rtt,
-            uplink_loss,
-            family,
-        );
+        curia::info!("receive diagnostics", {
+            player: peer.name.clone(),
+            underruns: peer.underruns,
+            overflow_drops: peer.overflow_drops,
+            ooo_drops: peer.ooo_drops,
+            plc: peer.plc_frames,
+            silence: peer.silence_frames,
+            decoded: peer.frames_decoded,
+            ring_len: peer.ring_len,
+            ring_capacity: peer.capacity,
+            warmup: peer.warmup_needed,
+            buffer_ms: peer.buffer_ms,
+            quality: peer.quality_score,
+            concealment_pct: peer.concealment_pct,
+            reanchors: peer.reanchors,
+            rearms: peer.warmup_rearms,
+            sheds: peer.drain_sheds,
+            gaps_spatial: peer.spatial_gap_frames,
+            gaps_normal: peer.normal_gap_frames,
+            rtt_ms: rtt,
+            uplink_loss_pct: uplink_loss,
+            family: family,
+        });
     }
 }

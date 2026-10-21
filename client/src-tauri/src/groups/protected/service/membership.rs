@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use common::structs::group_key::{GroupKeyFrame, GroupKeyPayload, SocketId};
+use tauri_plugin_curia::curia;
 
 use super::{
     Clock, CommitterRank, GroupKeyService, JoinPhase, LostReason, PendingCommit, PendingKind,
@@ -24,7 +25,10 @@ impl<C: Clock> GroupKeyService<C> {
             let pending = self.pending.take();
             let leaves_before = self.leaves();
             if let Some(Err(e)) = self.state.as_mut().map(|s| s.merge_pending()) {
-                log::warn!("protected group: could not merge an accepted commit: {e}");
+                curia::warn!("protected group: could not merge an accepted commit", {
+                    channel_id: self.group_id.clone(),
+                    error: e.to_string(),
+                });
                 self.lose(LostReason::ProtocolFailure);
                 return;
             }
@@ -58,7 +62,10 @@ impl<C: Clock> GroupKeyService<C> {
             return;
         };
         if let Err(e) = state.process(body) {
-            log::debug!("protected group: ignored a commit that is not valid for this epoch: {e}");
+            curia::debug!("protected group: ignored a commit that is not valid for this epoch", {
+                channel_id: self.group_id.clone(),
+                error: e.to_string(),
+            });
             return;
         }
         // Another member's commit won this epoch, so ours, built on the same epoch, lost.
@@ -110,7 +117,10 @@ impl<C: Clock> GroupKeyService<C> {
                 }
             }
             Ok(_) => {}
-            Err(e) => log::debug!("protected group: unreadable application message: {e}"),
+            Err(e) => curia::debug!("protected group: unreadable application message", {
+                channel_id: self.group_id.clone(),
+                error: e.to_string(),
+            }),
         }
     }
 
@@ -125,7 +135,10 @@ impl<C: Clock> GroupKeyService<C> {
                 GroupKeyFrame::Broadcast,
                 GroupKeyPayload::Mls(message.into()),
             ),
-            Err(e) => log::warn!("protected group: could not announce this socket: {e}"),
+            Err(e) => curia::warn!("protected group: could not announce this socket", {
+                channel_id: self.group_id.clone(),
+                error: e.to_string(),
+            }),
         }
     }
 
@@ -215,7 +228,11 @@ impl<C: Clock> GroupKeyService<C> {
         let epoch = state.epoch();
         match state.remove(leaf) {
             Ok(commit) => self.send_commit(PendingKind::Remove, commit, epoch),
-            Err(e) => log::warn!("protected group: could not remove leaf {leaf}: {e}"),
+            Err(e) => curia::warn!("protected group: could not remove a leaf", {
+                channel_id: self.group_id.clone(),
+                leaf: leaf,
+                error: e.to_string(),
+            }),
         }
     }
 
@@ -240,7 +257,10 @@ impl<C: Clock> GroupKeyService<C> {
         let epoch = state.epoch();
         match state.self_update() {
             Ok(commit) => self.send_commit(PendingKind::Update, commit, epoch),
-            Err(e) => log::warn!("protected group: could not commit the periodic ratchet: {e}"),
+            Err(e) => curia::warn!("protected group: could not commit the periodic ratchet", {
+                channel_id: self.group_id.clone(),
+                error: e.to_string(),
+            }),
         }
     }
 

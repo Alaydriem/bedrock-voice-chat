@@ -2,6 +2,7 @@ use common::structs::group_key::notice::{
     ProtectedGroupEpochNotice, ProtectedGroupLostNotice, ProtectedGroupRosterNotice,
 };
 use tauri::{AppHandle, Emitter};
+use tauri_plugin_curia::curia;
 
 use super::ProtectedGroupEvent;
 
@@ -45,7 +46,9 @@ impl ProtectedGroupNotifier {
             ),
         };
         if let Err(e) = sent {
-            log::warn!("could not notify the webview about a protected group: {e}");
+            curia::warn!("could not notify the webview about a protected group", {
+                error: e.to_string(),
+            });
         }
     }
 }

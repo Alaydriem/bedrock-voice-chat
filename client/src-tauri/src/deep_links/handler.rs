@@ -1,6 +1,6 @@
 use common::structs::DeepLink;
-use log::{error, info};
 use tauri::{AppHandle, Emitter};
+use tauri_plugin_curia::curia;
 use tauri_plugin_store::StoreExt;
 
 /// Trait for handling deep link events
@@ -11,10 +11,9 @@ pub trait DeepLinkHandler {
 
 impl DeepLinkHandler for DeepLink {
     fn handle(&self, app: &AppHandle) -> Result<(), String> {
-        log::info!(
-            "Rust: Handling deep link: {}",
-            crate::deep_links::UrlRedactor::for_log(&self.url)
-        );
+        curia::info!("handling deep link", {
+            url: crate::deep_links::UrlRedactor::for_log(&self.url).to_string(),
+        });
 
         // Clone what we need for the async block
         let app_handle = app.clone();
@@ -33,18 +32,24 @@ impl DeepLinkHandler for DeepLink {
                     match store.save() {
                         Ok(_) => {
                             if let Err(e) = app_handle.emit("deep-link-received", deep_link) {
-                                error!("Failed to emit deep-link-received event: {}", e);
+                                curia::error!("failed to emit the deep-link-received event", {
+                                    error: e.to_string(),
+                                });
                             } else {
-                                info!("Rust: Emitted deep-link-received event");
+                                curia::info!("emitted the deep-link-received event");
                             }
                         }
                         Err(e) => {
-                            error!("Failed to save store: {}", e);
+                            curia::error!("failed to save the store for a deep link", {
+                                error: e.to_string(),
+                            });
                         }
                     }
                 }
                 Err(e) => {
-                    error!("Failed to get store: {}", e);
+                    curia::error!("failed to get the store for a deep link", {
+                        error: e.to_string(),
+                    });
                 }
             }
         });

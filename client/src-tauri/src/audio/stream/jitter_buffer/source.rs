@@ -1,5 +1,5 @@
-use log::error;
 use rodio::Source;
+use tauri_plugin_curia::curia;
 use std::collections::VecDeque;
 use std::num::NonZero;
 use std::sync::Arc;
@@ -257,7 +257,9 @@ impl JitterBufferSource {
                     return self.audio_processor.next_sample();
                 }
                 Err(e) => {
-                    error!("Failed to process packet: {}", e);
+                    curia::error!("failed to process a jitter buffer packet", {
+                        error: e.to_string(),
+                    });
                     // A packet arrived and could not be used. Concealment either way.
                     return self.generate_plc_sample(true);
                 }

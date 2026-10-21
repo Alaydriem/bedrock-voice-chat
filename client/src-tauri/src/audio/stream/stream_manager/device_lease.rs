@@ -33,7 +33,9 @@ impl<T: Send + 'static> DeviceLease<T> {
         };
 
         if let Err(e) = tokio::task::spawn_blocking(move || drop(handle)).await {
-            log::warn!("Device release did not complete cleanly: {:?}", e);
+            tauri_plugin_curia::curia::warn!("device release did not complete cleanly", {
+                error: format!("{e:?}"),
+            });
         }
     }
 }

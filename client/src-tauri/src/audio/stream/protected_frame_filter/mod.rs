@@ -32,7 +32,11 @@ impl ProtectedFrameFilter {
             return OutboundDecision::Plain(encoded.to_vec());
         }
         match self.gate.seal(encoded) {
-            Some(sealed) => OutboundDecision::Sealed(sealed),
+            Some(sealed) => {
+                #[cfg(feature = "e2e")]
+                crate::testkit::WireTap::sealed_plaintext(encoded);
+                OutboundDecision::Sealed(sealed)
+            }
             None => OutboundDecision::Drop,
         }
     }

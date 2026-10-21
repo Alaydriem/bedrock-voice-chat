@@ -8,8 +8,9 @@ use common::structs::group_key::{
 
 use super::Hostility;
 
-/// The server's relay rules, in process: first commit per epoch wins, `Any` never routes back to
-/// the sender, a closed socket is announced as `Gone`. A [`Hostility`] layers an attack on top.
+/// The server's relay rules, in process: every commit to every socket in order, `Any` never routes
+/// back to the sender, a closed socket is announced as `Gone`. A [`Hostility`] layers an attack on
+/// top.
 pub struct TestRelay {
     sockets: Vec<SocketId>,
     inboxes: HashMap<SocketId, VecDeque<GroupKeyFrame>>,
@@ -20,6 +21,9 @@ pub struct TestRelay {
     first_commit: Option<GroupKeyFrame>,
     impostor: Option<AdmitterSession>,
     pub impostor_verified_an_offer: Option<bool>,
+    /// Every socket that answered a PAKE init, once per answer. Each online password guess costs
+    /// one of these.
+    pub pake_replies_from: Vec<SocketId>,
 }
 
 impl TestRelay {
@@ -37,6 +41,7 @@ impl TestRelay {
             first_commit: None,
             impostor: None,
             impostor_verified_an_offer: None,
+            pake_replies_from: Vec::new(),
         }
     }
 
@@ -107,6 +112,9 @@ impl TestRelay {
 
     fn direct(&mut self, from: SocketId, to: GroupKeyRecipient, body: Bytes) {
         let payload = GroupKeyPayload::from_bytes(&body).ok();
+        if let Some(GroupKeyPayload::Admission(AdmissionMessage::PakeReply(_))) = &payload {
+            self.pake_replies_from.push(from);
+        }
         match (self.hostility, payload) {
             (Hostility::PakeToSelf, Some(GroupKeyPayload::Admission(message))) => {
                 self.impersonate_admitter(from, message);
@@ -164,9 +172,13 @@ impl TestRelay {
                 if others.is_empty() {
                     return;
                 }
-                let pick = others[self.cursor % others.len()];
-                self.cursor += 1;
-                pick
+                if self.hostility == Hostility::AnyToNewestMember {
+                    others[others.len() - 1]
+                } else {
+                    let pick = others[self.cursor % others.len()];
+                    self.cursor += 1;
+                    pick
+                }
             }
         };
         self.deliver(target, GroupKeyFrame::Delivered { from, body });

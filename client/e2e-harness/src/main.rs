@@ -62,6 +62,16 @@ fn main() {
         .chain(std::io::stderr())
         .apply();
 
+    // fern carries what dependencies emit through the log crate. The client's own lines are
+    // curia calls, which reach no sink at all until a curia logger is installed, and this
+    // process never runs the app's setup that installs one.
+    let _ = common::curia::Logger::install(Box::new(common::curia::Dispatcher::new(vec![
+        common::curia::ConsoleSink::new(
+            common::curia::Level::Warn,
+            bvc_client_lib::logging::HumanFormatter::new().formatter(),
+        ),
+    ])));
+
     // input_tx feeds the real DSP through BridgeInputSource; cap_rx receives
     // post-mix PCM from CapturingSink.
     let (input_tx, input_rx) = flume::unbounded::<Vec<f32>>();
@@ -471,6 +481,11 @@ fn main() {
                                 frames_from_quic: from_quic,
                                 frames_into_jitter_buffer: into_jitter_buffer,
                             });
+                        }
+                        Ok(InMsg::RequestWireCapture) => {
+                            StdoutBridge::emit(&OutMsg::WireCapture(
+                                bvc_client_lib::testkit::WireTap::take(),
+                            ));
                         }
                         Ok(InMsg::TriggerJukebox { .. }) | Ok(InMsg::InjectPresence { .. }) => {
                             StdoutBridge::emit(&OutMsg::Log {

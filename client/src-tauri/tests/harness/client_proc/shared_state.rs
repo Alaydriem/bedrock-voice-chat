@@ -1,4 +1,4 @@
-use bvc_client_lib::testkit::PeerStat;
+use bvc_client_lib::testkit::{PeerStat, WireCapture};
 
 /// Shared state the stdout-reader thread writes and the orchestrator reads.
 /// `ready`/`connected` latch on first sight of the matching `OutMsg`; `captured`
@@ -44,4 +44,6 @@ pub(super) struct SharedState {
     // Every frontend-facing Tauri event the bin observed, in arrival order,
     // as (event name, raw JSON payload).
     pub(super) ui_events: Vec<(String, String)>,
+    // The reply to the most recent `InMsg::RequestWireCapture`, cleared before each request.
+    pub(super) wire_capture: Option<WireCapture>,
 }

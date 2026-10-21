@@ -11,6 +11,7 @@ use common::traits::StreamTrait;
 use std::sync::Arc;
 use tauri::Manager;
 use tauri::async_runtime::Mutex;
+use tauri_plugin_curia::curia;
 
 /// Shared application-state construction used by both the real `run()` setup
 /// and the e2e harness bin, so the two never diverge on wiring.
@@ -153,14 +154,16 @@ impl AppBuilder {
                     // Transient: locked, no permission, disk full. Run in memory so audio
                     // still applies what the user sets this session, and leave the file alone
                     // so nothing is lost once the condition clears.
-                    log::error!(
-                        "Player settings unavailable, running in memory this session: {cause}"
-                    );
+                    curia::error!("player settings unavailable, running in memory this session", {
+                        error: cause.to_string(),
+                    });
                     crate::players::PlayerSettingsService::new_memory_only()
                 }
             },
             Err(cause) => {
-                log::error!("No local data directory for player settings: {cause}");
+                curia::error!("no local data directory for player settings", {
+                    error: cause.to_string(),
+                });
                 crate::players::PlayerSettingsService::new_memory_only()
             }
         };
@@ -183,14 +186,18 @@ impl AppBuilder {
             let manager = handle_for_internal.state::<Mutex<crate::websocket::WebSocketManager>>();
             let mut manager = manager.lock().await;
             if let Err(cause) = manager.start_internal().await {
-                log::error!("could not bind the internal push listener: {cause}");
+                curia::error!("could not bind the internal push listener", {
+                    error: cause.to_string(),
+                });
             }
 
             // The operator-facing listener has no enable switch either. It declines until a
             // token exists, which on a fresh install is the settings manager's first save, so
             // this is a start rather than a requirement.
             if let Err(cause) = manager.start().await {
-                log::info!("the WebSocket server did not bind at start: {cause}");
+                curia::info!("the WebSocket server did not bind at start", {
+                    error: cause.to_string(),
+                });
             }
         });
 

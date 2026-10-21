@@ -15,8 +15,8 @@ use common::net::PositionCadence;
 use common::structs::bedrock::AddonMode;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use common::traits::StreamTrait;
-use log::{debug, error, info, warn};
 use rand::RngExt;
+use tauri_plugin_curia::curia;
 use tokio::sync::{oneshot, watch};
 use tokio::task::{AbortHandle, JoinHandle};
 
@@ -146,7 +146,9 @@ impl StreamTrait for BedrockProxyManager {
         match self.listener(self.shutdown.clone()) {
             Ok(job) => jobs.push(job),
             Err(e) => {
-                error!("Bedrock listener encountered an error: {:?}", e);
+                curia::error!("Bedrock listener encountered an error", {
+                    error: format!("{e:?}"),
+                });
                 return Err(e);
             }
         };
@@ -172,10 +174,9 @@ impl StreamTrait for BedrockProxyManager {
             // against it. The abort handles collected in `start` exist for
             // exactly this and were never used.
             if tokio::time::timeout(STOP_GRACE, handle).await.is_err() {
-                warn!(
-                    "Bedrock teardown did not finish within {:?}; aborting the listener",
-                    STOP_GRACE
-                );
+                curia::warn!("Bedrock teardown did not finish in time; aborting the listener", {
+                    grace_ms: STOP_GRACE.as_millis() as u64,
+                });
                 for job in &self.jobs {
                     job.abort();
                 }
@@ -184,7 +185,7 @@ impl StreamTrait for BedrockProxyManager {
 
         self.jobs = vec![];
         self.deps.player_state_cache.clear();
-        info!("Bedrock connect manager stopped");
+        curia::info!("Bedrock connect manager stopped");
         Ok(())
     }
 
@@ -235,7 +236,10 @@ impl BedrockProxyManager {
             let bind_addr: SocketAddr = match format!("[::]:{}", listen_port).parse() {
                 Ok(a) => a,
                 Err(e) => {
-                    error!("Bedrock listener invalid bind: {}", e);
+                    curia::error!("Bedrock listener has an invalid bind address", {
+                        port: listen_port,
+                        error: e.to_string(),
+                    });
                     return;
                 }
             };
@@ -261,18 +265,19 @@ impl BedrockProxyManager {
                         Ok(mut addrs) => match addrs.next() {
                             Some(addr) => Some(addr),
                             None => {
-                                error!(
-                                    "Bedrock listener could not resolve {}:{} — no addresses returned",
-                                    target_host, target_port
-                                );
+                                curia::error!("Bedrock listener could not resolve the target: no addresses returned", {
+                                    host: target_host.clone(),
+                                    port: *target_port,
+                                });
                                 return;
                             }
                         },
                         Err(e) => {
-                            error!(
-                                "Bedrock listener failed to resolve {}:{}: {}",
-                                target_host, target_port, e
-                            );
+                            curia::error!("Bedrock listener failed to resolve the target", {
+                                host: target_host.clone(),
+                                port: *target_port,
+                                error: e.to_string(),
+                            });
                             return;
                         }
                     }
@@ -299,7 +304,10 @@ impl BedrockProxyManager {
             let mut proxy = match Proxy::new(config.clone()).await {
                 Ok(p) => p,
                 Err(e) => {
-                    error!("Bedrock proxy bind failed: {}", e);
+                    curia::error!("Bedrock proxy bind failed", {
+                        port: listen_port,
+                        error: e.to_string(),
+                    });
                     error_channel.emit(
                         common::structs::bedrock::BedrockConnectError::Transport {
                             message: format!(
@@ -313,11 +321,13 @@ impl BedrockProxyManager {
             let signaling_addr = match proxy.http_addr() {
                 Some(addr) => addr,
                 None => {
-                    error!("Bedrock proxy bound no signaling endpoint");
+                    curia::error!("Bedrock proxy bound no signaling endpoint");
                     return;
                 }
             };
-            info!("Bedrock proxy listening on {}", signaling_addr);
+            curia::info!("Bedrock proxy listening", {
+                address: signaling_addr.to_string(),
+            });
 
             let listening_addr = signaling_addr.to_string();
             match &backend {
@@ -345,7 +355,9 @@ impl BedrockProxyManager {
 
             let warm_pool: Option<Arc<WarmPool>> = match (&backend, direct_target_addr) {
                 (Backend::Direct { .. }, Some(addr)) => {
-                    info!("Bedrock WarmPool dialing direct backend at {}", addr);
+                    curia::info!("Bedrock WarmPool dialing the direct backend", {
+                        address: addr.to_string(),
+                    });
                     Some(Arc::new(WarmPool::new(WarmTarget::Direct(addr), None)))
                 }
                 (Backend::Realm { .. }, _) => None,
@@ -360,7 +372,7 @@ impl BedrockProxyManager {
             let (child_cancel_tx, _) = watch::channel(false);
 
             if addon_mode.relays_only() {
-                info!("Bedrock: position heartbeat disabled; the addon feeds this world over HTTP");
+                curia::info!("Bedrock: position heartbeat disabled; the addon feeds this world over HTTP");
             } else {
                 let emitter = Arc::clone(&event_emitter);
                 let heartbeat_cache = Arc::clone(&player_state_cache);
@@ -373,7 +385,7 @@ impl BedrockProxyManager {
                             biased;
                             _ = heartbeat_cancel_rx.changed() => {
                                 if *heartbeat_cancel_rx.borrow() {
-                                    info!("Bedrock position heartbeat received cancel");
+                                    curia::info!("Bedrock position heartbeat received cancel");
                                     break;
                                 }
                             }
@@ -391,7 +403,7 @@ impl BedrockProxyManager {
             loop {
                 tokio::select! {
                     _ = &mut shutdown_rx => {
-                        info!("Bedrock listener received shutdown signal");
+                        curia::info!("Bedrock listener received the shutdown signal");
                         break;
                     }
                     conn = proxy.accept() => {
@@ -406,19 +418,18 @@ impl BedrockProxyManager {
 
                         if !gating.is_allowed(peer_protocol).await {
                             let kick = gating.kick_message(peer_protocol);
-                            warn!(
-                                "Bedrock: rejecting {} on unsupported protocol {} \
-                                 (not in SUPPORTED_PROTOCOLS, not flag-overridden)",
-                                player_name, peer_protocol
-                            );
+                            curia::warn!("Bedrock: rejecting a player on an unsupported protocol (not in SUPPORTED_PROTOCOLS, not flag-overridden)", {
+                                player: player_name.clone(),
+                                protocol: peer_protocol.0,
+                            });
                             conn.disconnect(&kick).await;
                             continue;
                         }
 
-                        info!(
-                            "Bedrock: player connected: {} (protocol {})",
-                            player_name, peer_protocol
-                        );
+                        curia::info!("Bedrock: player connected", {
+                            player: player_name.clone(),
+                            protocol: peer_protocol.0,
+                        });
                         player_state_cache.set_local_gamertag(player_name.clone());
 
                         let backend_label = match &*backend {
@@ -468,17 +479,19 @@ impl BedrockProxyManager {
                                         Err(
                                             common::bedrock_protocol::Error::ReauthRequired { .. },
                                         ) => {
-                                            error!(
-                                                "Xbox credential rejected for {}; re-authentication required",
-                                                child_player_name
-                                            );
+                                            curia::error!("Xbox credential rejected; re-authentication required", {
+                                                player: child_player_name.clone(),
+                                            });
                                             child_error_channel.emit(
                                                 common::structs::bedrock::BedrockConnectError::ReauthRequired,
                                             );
                                             return;
                                         }
                                         Err(e) => {
-                                            error!("Auth failed for {}: {}", child_player_name, e);
+                                            curia::error!("Bedrock auth failed", {
+                                                player: child_player_name.clone(),
+                                                error: e.to_string(),
+                                            });
                                             child_error_channel.emit(
                                                 common::structs::bedrock::BedrockConnectError::Auth {
                                                     message: e.to_string(),
@@ -495,7 +508,9 @@ impl BedrockProxyManager {
                                 None => None,
                             };
                             let session_result = if let Some(warm) = warm {
-                                info!("Bedrock: splicing {} onto warm backend", child_player_name);
+                                curia::info!("Bedrock: splicing onto a warm backend", {
+                                    player: child_player_name.clone(),
+                                });
                                 match conn
                                     .splice_onto_warm(warm, auth_for_dial.clone(), None::<fn(&str, &str)>)
                                     .await
@@ -505,9 +520,10 @@ impl BedrockProxyManager {
                                     // has reached the player, so dial again
                                     // rather than dropping them.
                                     Err(SpliceFailure::StaleBackend { error, connection }) => {
-                                        warn!(
-                                            "Bedrock: warm backend was already closed ({error});                                              dialing fresh for {child_player_name}"
-                                        );
+                                        curia::warn!("Bedrock: warm backend was already closed; dialing fresh", {
+                                            player: child_player_name.clone(),
+                                            error: error.to_string(),
+                                        });
                                         match child_backend.as_ref() {
                                             Backend::Direct { .. } => {
                                                 let addr = direct_target_addr
@@ -526,7 +542,9 @@ impl BedrockProxyManager {
                                     Err(failure) => Err(failure.into()),
                                 }
                             } else {
-                                info!("Bedrock: no warm slot for {}, lazy dial", child_player_name);
+                                curia::info!("Bedrock: no warm slot; lazy dial", {
+                                    player: child_player_name.clone(),
+                                });
                                 match child_backend.as_ref() {
                                     Backend::Direct { .. } => {
                                         let addr = direct_target_addr
@@ -542,7 +560,10 @@ impl BedrockProxyManager {
                             let mut session = match session_result {
                                 Ok(s) => s,
                                 Err(e) => {
-                                    error!("Bedrock connect failed for {}: {}", child_player_name, e);
+                                    curia::error!("Bedrock connect failed", {
+                                        player: child_player_name.clone(),
+                                        error: e.to_string(),
+                                    });
                                     child_error_channel.emit(
                                         common::structs::bedrock::BedrockConnectError::from(&e),
                                     );
@@ -550,7 +571,9 @@ impl BedrockProxyManager {
                                 }
                             };
 
-                            info!("Bedrock session started for {}", child_player_name);
+                            curia::info!("Bedrock session started", {
+                                player: child_player_name.clone(),
+                            });
 
                             let mut state = BedrockSessionState::new(
                                 child_player_name.clone(),
@@ -576,10 +599,9 @@ impl BedrockProxyManager {
                                     biased;
                                     _ = child_cancel_rx.changed() => {
                                         if *child_cancel_rx.borrow() {
-                                            info!(
-                                                "Bedrock session for {} received cancel; sending Disconnect to client",
-                                                child_player_name
-                                            );
+                                            curia::info!("Bedrock session received cancel; sending Disconnect to the client", {
+                                                player: child_player_name.clone(),
+                                            });
                                             Self::send_client_disconnect(&session, &child_player_name);
                                             tokio::time::sleep(CLIENT_DISCONNECT_DRAIN).await;
                                             disconnect_reason = "session_cancelled";
@@ -603,10 +625,9 @@ impl BedrockProxyManager {
                                     eject = child_eject_rx.recv_async() => {
                                         if let Ok(eject) = eject {
                                             if !child_process_events {
-                                                debug!(
-                                                    "Bedrock: dropping jukebox eject for {}; the addon receives it over HTTP",
-                                                    child_player_name
-                                                );
+                                                curia::debug!("Bedrock: dropping a jukebox eject; the addon receives it over HTTP", {
+                                                    player: child_player_name.clone(),
+                                                });
                                             } else {
                                                 Self::dispatch_jukebox_eject(
                                                     &session,
@@ -626,10 +647,9 @@ impl BedrockProxyManager {
                                                     send,
                                                 );
                                             } else {
-                                                info!(
-                                                    "Bedrock: dropping chat send for {}; the addon relays chat itself",
-                                                    child_player_name
-                                                );
+                                                curia::info!("Bedrock: dropping a chat send; the addon relays chat itself", {
+                                                    player: child_player_name.clone(),
+                                                });
                                             }
                                         }
                                     }
@@ -667,7 +687,9 @@ impl BedrockProxyManager {
                             // tasks need async time to flush their Disconnect packet to BDS.
                             drop(session);
 
-                            info!("Bedrock session ended for {}", child_player_name);
+                            curia::info!("Bedrock session ended", {
+                                player: child_player_name.clone(),
+                            });
                         });
 
                         // A world is bound to one player, so this session is the
@@ -684,7 +706,7 @@ impl BedrockProxyManager {
                         };
 
                         if stop_requested {
-                            info!("Bedrock listener received shutdown signal during a session");
+                            curia::info!("Bedrock listener received the shutdown signal during a session");
                             child_handles.push(h);
                             break;
                         }
@@ -702,13 +724,15 @@ impl BedrockProxyManager {
                         match Proxy::new(config.clone()).await {
                             Ok(p) => {
                                 proxy = p;
-                                info!(
-                                    "Bedrock proxy rebound on {} after the session ended",
-                                    signaling_addr
-                                );
+                                curia::info!("Bedrock proxy rebound after the session ended", {
+                                    address: signaling_addr.to_string(),
+                                });
                             }
                             Err(e) => {
-                                error!("Bedrock proxy could not rebind after a session: {}", e);
+                                curia::error!("Bedrock proxy could not rebind after a session", {
+                                    port: listen_port,
+                                    error: e.to_string(),
+                                });
                                 error_channel.emit(
                                     common::structs::bedrock::BedrockConnectError::Transport {
                                         message: format!(
@@ -724,7 +748,7 @@ impl BedrockProxyManager {
                                 for handle in child_handles {
                                     let _ = handle.await;
                                 }
-                                info!("Bedrock accept loop stopped: the proxy could not rebind");
+                                curia::info!("Bedrock accept loop stopped: the proxy could not rebind");
                                 return;
                             }
                         }
@@ -748,7 +772,7 @@ impl BedrockProxyManager {
             for h in child_handles {
                 let abort = h.abort_handle();
                 if tokio::time::timeout(CHILD_DRAIN_GRACE, h).await.is_err() {
-                    warn!("Bedrock session did not finish draining; aborting it");
+                    curia::warn!("Bedrock session did not finish draining; aborting it");
                     abort.abort();
                 }
             }
@@ -758,7 +782,7 @@ impl BedrockProxyManager {
             proxy.shutdown(PROXY_SHUTDOWN_GRACE).await;
             drop(proxy);
 
-            info!("Bedrock accept loop drained, listener released");
+            curia::info!("Bedrock accept loop drained, listener released");
         });
 
         Ok(handle)
@@ -772,10 +796,11 @@ impl BedrockProxyManager {
     ) {
         let local_world = state.world_uuid().unwrap_or("");
         if local_world != eject.world_uuid {
-            info!(
-                "Bedrock: dropping jukebox eject (world mismatch local={} ann={}) event_id={}",
-                local_world, eject.world_uuid, eject.event_id
-            );
+            curia::info!("Bedrock: dropping a jukebox eject for a different world", {
+                local_world: local_world,
+                announced_world: eject.world_uuid.to_string(),
+                event_id: eject.event_id.clone(),
+            });
             return;
         }
 
@@ -784,14 +809,13 @@ impl BedrockProxyManager {
         let chat_sender_name = session.player.name.clone();
         let player_name_owned = player_name.to_string();
         let event_id = eject.event_id.clone();
-        info!(
-            "Bedrock: dispatching jukebox eject event_id={} pos=({},{},{}) world={}",
-            event_id,
-            eject.block_pos.x.floor() as i32,
-            eject.block_pos.y.floor() as i32,
-            eject.block_pos.z.floor() as i32,
-            eject.world_uuid
-        );
+        curia::info!("Bedrock: dispatching a jukebox eject", {
+            event_id: event_id.clone(),
+            x: eject.block_pos.x.floor() as i32,
+            y: eject.block_pos.y.floor() as i32,
+            z: eject.block_pos.z.floor() as i32,
+            world: eject.world_uuid.to_string(),
+        });
 
         tokio::spawn(async move {
             let stagger_ms = rand::rng().random_range(0u64..500u64);
@@ -807,14 +831,16 @@ impl BedrockProxyManager {
             let text = Self::chat_packet(message.clone(), chat_sender_name, player_xuid);
 
             match writer.send_to_server(&text) {
-                Ok(()) => debug!(
-                    "Bedrock: injected silent chat '{}' event_id={} (stagger {}ms)",
-                    message, event_id, stagger_ms
-                ),
-                Err(e) => warn!(
-                    "Bedrock: failed to inject silent chat for jukebox eject (player {}) event_id={}: {:?}",
-                    player_name_owned, event_id, e
-                ),
+                Ok(()) => curia::debug!("Bedrock: injected silent chat", {
+                    message: message,
+                    event_id: event_id,
+                    stagger_ms: stagger_ms,
+                }),
+                Err(e) => curia::warn!("Bedrock: failed to inject silent chat for a jukebox eject", {
+                    player: player_name_owned,
+                    event_id: event_id,
+                    error: format!("{e:?}"),
+                }),
             }
         });
     }
@@ -842,10 +868,10 @@ impl BedrockProxyManager {
     // nothing for an addon to cancel, because it is a real chat message.
     fn inject_chat(session: &Session, player_name: &str, send: PendingChatSend) {
         if send.is_expired(std::time::Instant::now()) {
-            debug!(
-                "Bedrock: dropping expired chat send for {}: {}",
-                player_name, send.text
-            );
+            curia::debug!("Bedrock: dropping an expired chat send", {
+                player: player_name,
+                text: send.text.clone(),
+            });
             return;
         }
 
@@ -856,11 +882,13 @@ impl BedrockProxyManager {
         );
 
         match session.writer().send_to_server(&text) {
-            Ok(()) => debug!("Bedrock: injected chat for {}", player_name),
-            Err(e) => warn!(
-                "Bedrock: failed to inject chat (player {}): {:?}",
-                player_name, e
-            ),
+            Ok(()) => curia::debug!("Bedrock: injected chat", {
+                player: player_name,
+            }),
+            Err(e) => curia::warn!("Bedrock: failed to inject chat", {
+                player: player_name,
+                error: format!("{e:?}"),
+            }),
         }
     }
 
@@ -869,10 +897,10 @@ impl BedrockProxyManager {
     // and cancels the message (the no-net reverse ride).
     fn inject_bvcs(session: &Session, player_name: &str, ride: PendingQueryState) {
         if ride.is_expired(std::time::Instant::now()) {
-            debug!(
-                "Bedrock: dropping expired bvcs ride for {}: {}",
-                player_name, ride.message
-            );
+            curia::debug!("Bedrock: dropping an expired bvcs ride", {
+                player: player_name,
+                message: ride.message.clone(),
+            });
             return;
         }
 
@@ -883,14 +911,14 @@ impl BedrockProxyManager {
         );
 
         match session.writer().send_to_server(&text) {
-            Ok(()) => debug!(
-                "Bedrock: injected bvcs ride for {}: {}",
-                player_name, ride.message
-            ),
-            Err(e) => warn!(
-                "Bedrock: failed to inject bvcs ride (player {}): {:?}",
-                player_name, e
-            ),
+            Ok(()) => curia::debug!("Bedrock: injected a bvcs ride", {
+                player: player_name,
+                message: ride.message.clone(),
+            }),
+            Err(e) => curia::warn!("Bedrock: failed to inject a bvcs ride", {
+                player: player_name,
+                error: format!("{e:?}"),
+            }),
         }
     }
 
@@ -903,10 +931,10 @@ impl BedrockProxyManager {
         };
 
         if let Err(e) = session.writer().send_to_client(&pkt) {
-            warn!(
-                "Bedrock: failed to inject Disconnect for {} (client may have already left): {}",
-                player_name, e
-            );
+            curia::warn!("Bedrock: failed to inject Disconnect; the client may have already left", {
+                player: player_name,
+                error: e.to_string(),
+            });
         }
     }
 }

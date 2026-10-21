@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use common::bedrock_protocol::protocol::packets::generated::misc::set_health::SetHealthPacket;
 use common::structs::packet::BedrockEvent;
-use log::info;
+use tauri_plugin_curia::curia;
 
 use crate::bedrock::BedrockEventEmitter;
 use crate::bedrock::proxy::session::BedrockPacketHandler;
@@ -43,7 +43,9 @@ impl<'a> BedrockPacketHandler for SetHealthHandler<'a> {
             dimension: state.dimension(),
             last_pos: state.coordinates(),
         };
-        info!("Bedrock proxy: emitting player death for {}", state.name());
+        curia::info!("Bedrock proxy: emitting player death", {
+            player: state.name().to_string(),
+        });
         emitter.try_send(event, world_uuid);
     }
 }

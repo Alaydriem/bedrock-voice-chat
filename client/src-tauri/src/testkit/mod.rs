@@ -11,11 +11,13 @@ pub mod counters;
 pub mod e2e_app_data;
 pub mod port_pool;
 pub mod signal;
+pub mod wire_tap;
 
-pub use bridge::{Frame, InMsg, OutMsg, PeerStat};
+pub use bridge::{Frame, InMsg, OutMsg, PeerStat, WireCapture};
 pub use command_socket::CommandSocket;
 pub use connect::ConnectConfig;
 pub use counters::TransportCounters;
 pub use e2e_app_data::E2eAppData;
 pub use port_pool::PortPool;
 pub use signal::Signal;
+pub use wire_tap::WireTap;

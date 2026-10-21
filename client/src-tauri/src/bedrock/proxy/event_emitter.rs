@@ -6,8 +6,6 @@ use common::structs::packet::{
     BedrockEvent, BedrockEventDirection, BedrockEventPacket, ClientActionPacket, PacketDirection,
     PacketType, PlayerPositionPacket, QuicNetworkPacket, QuicNetworkPacketData,
 };
-use log::{trace, warn};
-
 use crate::NetworkPacket;
 use tauri_plugin_curia::curia;
 
@@ -36,12 +34,16 @@ impl BedrockEventEmitter {
         };
 
         match self.tx.try_send(packet) {
-            Ok(()) => trace!("Bedrock event queued for QUIC transport"),
+            Ok(()) => curia::trace!("Bedrock event queued for QUIC transport"),
             Err(flume::TrySendError::Full(_)) => {
-                warn!("Network packet queue full; dropping bedrock event");
+                curia::warn!("network packet queue full; dropping bedrock event", {
+                    game: "bedrock",
+                });
             }
             Err(flume::TrySendError::Disconnected(_)) => {
-                warn!("Network packet channel disconnected; dropping bedrock event");
+                curia::warn!("network packet channel disconnected; dropping bedrock event", {
+                    game: "bedrock",
+                });
             }
         }
     }
@@ -58,12 +60,16 @@ impl BedrockEventEmitter {
         };
 
         match self.tx.try_send(packet) {
-            Ok(()) => trace!("Bedrock control action queued for QUIC transport"),
+            Ok(()) => curia::trace!("Bedrock control action queued for QUIC transport"),
             Err(flume::TrySendError::Full(_)) => {
-                warn!("Network packet queue full; dropping control action");
+                curia::warn!("network packet queue full; dropping control action", {
+                    game: "bedrock",
+                });
             }
             Err(flume::TrySendError::Disconnected(_)) => {
-                warn!("Network packet channel disconnected; dropping control action");
+                curia::warn!("network packet channel disconnected; dropping control action", {
+                    game: "bedrock",
+                });
             }
         }
     }
@@ -79,7 +85,7 @@ impl BedrockEventEmitter {
         };
 
         match self.tx.try_send(packet) {
-            Ok(()) => trace!("Bedrock position queued for QUIC transport"),
+            Ok(()) => curia::trace!("Bedrock position queued for QUIC transport"),
             Err(flume::TrySendError::Full(_)) => {
                 curia::warn!("network packet queue full; dropping bedrock position", {
                     defect: crate::logging::Defect::PositionFeedStalled,

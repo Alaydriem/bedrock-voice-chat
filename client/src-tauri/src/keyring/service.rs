@@ -5,6 +5,7 @@ use common::structs::config::Keypair;
 use common::structs::permission::ServerPermissions;
 use std::collections::HashMap;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_curia::curia;
 use tauri_plugin_keyring::{CredentialType, CredentialValue, KeyringExt};
 
 use super::KeyringFault;
@@ -141,7 +142,10 @@ impl KeyringService {
 
         let state = app.state::<tauri::async_runtime::Mutex<Self>>();
         if let Err(e) = state.lock().await.get_credentials(&server) {
-            log::debug!("Keyring warm-up read failed for {}: {}", server, e);
+            curia::debug!("keyring warm-up read failed", {
+                connected_server: server.to_string(),
+                error: e.to_string(),
+            });
         }
     }
 

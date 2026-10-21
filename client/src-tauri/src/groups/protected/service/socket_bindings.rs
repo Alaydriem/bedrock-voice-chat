@@ -36,6 +36,13 @@ impl SocketBindings {
         self.leaves.get(&socket).copied()
     }
 
+    pub fn socket_of(&self, leaf: u32) -> Option<SocketId> {
+        self.leaves
+            .iter()
+            .find(|(_, bound)| **bound == leaf)
+            .map(|(socket, _)| *socket)
+    }
+
     pub fn forget(&mut self, socket: SocketId) {
         self.leaves.remove(&socket);
         self.announced.remove(&socket);

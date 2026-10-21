@@ -17,7 +17,7 @@ use std::sync::RwLock as StdRwLock;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use log::{info, warn};
+use tauri_plugin_curia::curia;
 use open_feature::provider::{FeatureProvider, ProviderMetadata, ResolutionDetails};
 use open_feature::{
     EvaluationContext, EvaluationError, EvaluationErrorCode, EvaluationResult, StructValue, Value,
@@ -152,11 +152,10 @@ impl FlagsmithProvider {
         let trait_summary: Vec<String> = std::iter::once(format!("build_number={}", build_number))
             .chain(discord_roles.iter().map(|r| format!("discord-role-{}", r)))
             .collect();
-        info!(
-            "Flagsmith identity POST: id={} traits=[{}]",
-            install_id,
-            trait_summary.join(", ")
-        );
+        curia::info!("Flagsmith identity POST", {
+            install_id: install_id,
+            traits: trait_summary,
+        });
 
         let response = http_client
             .post(&url)
@@ -181,10 +180,11 @@ impl FlagsmithProvider {
         let mut c = cache.write().await;
         c.clear();
         for flag in identity_response.flags {
-            info!(
-                "Flag '{}': enabled={}, value={:?}",
-                flag.feature.name, flag.enabled, flag.value
-            );
+            curia::info!("feature flag evaluated", {
+                flag: flag.feature.name.clone(),
+                enabled: flag.enabled,
+                value: format!("{:?}", flag.value),
+            });
             c.insert(flag.feature.name.clone(), flag);
         }
         let count = c.len();
@@ -214,10 +214,10 @@ impl FlagsmithProvider {
             &self.generation,
         )
         .await?;
-        info!(
-            "Refreshed {} feature flags for identity {}",
-            count, platform_id
-        );
+        curia::info!("refreshed feature flags", {
+            flags: count,
+            platform_id: platform_id,
+        });
         Ok(())
     }
 
@@ -247,7 +247,9 @@ impl FlagsmithProvider {
 impl FeatureProvider for FlagsmithProvider {
     async fn initialize(&mut self, _context: &EvaluationContext) {
         if let Err(e) = self.refresh().await {
-            warn!("Initial feature flag refresh failed: {}", e);
+            curia::warn!("initial feature flag refresh failed", {
+                error: e.to_string(),
+            });
         }
 
         let cache = self.cache.clone();
@@ -280,8 +282,12 @@ impl FeatureProvider for FlagsmithProvider {
                 )
                 .await
                 {
-                    Ok(n) => info!("Refreshed {} feature flags", n),
-                    Err(e) => warn!("Feature flag refresh failed: {}", e),
+                    Ok(n) => curia::info!("refreshed feature flags", {
+                        flags: n,
+                    }),
+                    Err(e) => curia::warn!("feature flag refresh failed", {
+                        error: e.to_string(),
+                    }),
                 }
             }
         });

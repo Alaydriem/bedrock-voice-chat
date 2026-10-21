@@ -107,4 +107,6 @@ pub enum OutMsg {
         event: String,
         payload: String,
     },
+    // Reply to InMsg::RequestWireCapture.
+    WireCapture(super::WireCapture),
 }

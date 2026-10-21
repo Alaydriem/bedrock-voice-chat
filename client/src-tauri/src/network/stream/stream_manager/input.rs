@@ -2,12 +2,12 @@ use crate::AudioPacket;
 use crate::network::stream::link::DatagramLink;
 use bytes::Bytes;
 use common::structs::packet::{PacketType, QuicNetworkPacket};
-use log::{error, info};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
 use std::time::{Duration, Instant};
+use tauri_plugin_curia::curia;
 use tokio::task::AbortHandle;
 
 use super::HealthMonitorState;
@@ -69,13 +69,13 @@ impl common::traits::StreamTrait for InputStream {
         let transport_stats = self.transport_stats.clone();
         let quic_stats = self.quic_stats.clone();
         jobs.push(tokio::spawn(async move {
-            log::info!("Started network recv stream.");
+            curia::info!("started network recv stream");
             let mut decode_errors: u64 = 0;
             let mut consecutive_decode_errors: u32 = 0;
             let mut last_decode_error_log: Option<Instant> = None;
             while let Some(bytes) = Self::recv_next(&link, &health_state).await {
                 if shutdown.load(Ordering::Relaxed) {
-                    info!("Network stream input handler stopped.");
+                    curia::info!("network stream input handler stopped");
                     break;
                 }
                 match QuicNetworkPacket::from_datagram(&bytes) {
@@ -94,7 +94,7 @@ impl common::traits::StreamTrait for InputStream {
 
                         if packet.packet_type == PacketType::HealthCheck {
                             health_state.on_health_check_received();
-                            log::trace!("Received health check response from server");
+                            curia::trace!("received health check response from server");
                             continue;
                         }
 
@@ -111,19 +111,20 @@ impl common::traits::StreamTrait for InputStream {
                             .unwrap_or(true);
                         if should_log {
                             // A sustained run of these almost always means a client/server protocol mismatch
-                            error!(
-                                "Couldn't decode datagram packet ({} failure(s) in the last interval, likely a client/server version mismatch). {:?}",
-                                decode_errors, e
-                            );
+                            curia::error!("couldn't decode datagram packets; likely a client/server version mismatch", {
+                                transport: "quic",
+                                failures: decode_errors,
+                                error: format!("{e:?}"),
+                            });
                             decode_errors = 0;
                             last_decode_error_log = Some(Instant::now());
                         }
 
                         if consecutive_decode_errors >= DECODE_ERROR_FATAL_THRESHOLD {
-                            error!(
-                                "Aborting connection: {} consecutive undecodable datagrams indicate an incompatible server protocol.",
-                                consecutive_decode_errors
-                            );
+                            curia::error!("aborting connection: consecutive undecodable datagrams indicate an incompatible server protocol", {
+                                transport: "quic",
+                                consecutive: consecutive_decode_errors,
+                            });
                             health_state.signal_protocol_error();
                             shutdown.store(true, Ordering::SeqCst);
                             break;
@@ -148,12 +149,14 @@ impl InputStream {
             Ok(bytes) => Some(bytes),
             Err(failure) => {
                 if link.is_refused(&failure) {
-                    error!(
-                        "Server refused this connection's identity; not retrying. Sign in again if your credentials were revoked."
+                    curia::error!(
+                        "server refused this connection's identity; not retrying. Sign in again if your credentials were revoked"
                     );
                     health_state.signal_unauthorized();
                 } else {
-                    info!("Network recv stream ended: {}", failure);
+                    curia::info!("network recv stream ended", {
+                        error: failure.to_string(),
+                    });
                 }
                 None
             }

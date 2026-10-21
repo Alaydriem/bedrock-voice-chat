@@ -7,9 +7,9 @@ pub use chime::Chime;
 
 use crate::audio::{AudioDevice, AudioDeviceCpal};
 use anyhow::anyhow;
-use log::error;
 use rodio::DeviceSinkBuilder;
 use rodio::buffer::SamplesBuffer;
+use tauri_plugin_curia::curia;
 
 /// Plays a chime through a chosen output device.
 ///
@@ -48,13 +48,19 @@ impl SpeakerTest {
         let stream_config: rodio::cpal::StreamConfig = config.into();
         let mut stream = DeviceSinkBuilder::from_device(cpal_device)
             .map_err(|e| {
-                error!("Speaker test could not create DeviceSinkBuilder: {:?}", e);
+                curia::error!("speaker test could not create DeviceSinkBuilder", {
+                    io: "output",
+                    error: format!("{e:?}"),
+                });
                 anyhow!(e)
             })?
             .with_config(&stream_config)
             .open_sink_or_fallback()
             .map_err(|e| {
-                error!("Speaker test could not open the output device: {:?}", e);
+                curia::error!("speaker test could not open the output device", {
+                    io: "output",
+                    error: format!("{e:?}"),
+                });
                 anyhow!(e)
             })?;
         stream.log_on_drop(false);

@@ -11,6 +11,7 @@ use tauri_plugin_http::reqwest::{
 use crate::auth::LoginFailure;
 use crate::auth::NcryptfClient;
 use common::structs::reachability::AddressFamilyPreference;
+use tauri_plugin_curia::curia;
 
 pub struct AuthClient;
 
@@ -34,7 +35,7 @@ impl AuthClient {
             Ok(response) => response,
             Err(e) => {
                 let message = LoginFailure::describe(&endpoint, &e);
-                log::error!("{}", message);
+                curia::error!("login request failed", { error: message.clone() });
                 return Err(anyhow!(message));
             }
         };
@@ -67,7 +68,7 @@ impl AuthClient {
         let ek = match NcryptfClient::get_ek(server.clone(), preference).await {
             Ok(ek) => ek,
             Err(e) => {
-                log::error!("{}", LoginFailure::describe(&server, &*e));
+                curia::error!("key exchange failed", { error: LoginFailure::describe(&server, &*e) });
                 return Err(anyhow!("Unable to reach the server for key exchange"));
             }
         };
@@ -113,19 +114,19 @@ impl AuthClient {
                                         None => Err(anyhow!("Login response contained no data")),
                                     },
                                     Err(e) => {
-                                        log::error!("Response Error: {:?}", e.to_string());
+                                        curia::error!("login response could not be parsed", { error: e.to_string() });
                                         Err(anyhow!("Login response could not be parsed"))
                                     }
                                 }
                             }
                             Err(e) => {
-                                log::error!("Ncryptf Error: {}", e.to_string());
+                                curia::error!("login response could not be decrypted", { error: e.to_string() });
                                 return Err(anyhow!("Login response could not be decrypted"));
                             }
                         }
                     }
                     Err(e) => {
-                        log::error!("Error: {}", e.to_string());
+                        curia::error!("login response could not be read", { error: e.to_string() });
                         return Err(anyhow!("Login response could not be read"));
                     }
                 },
@@ -148,7 +149,7 @@ impl AuthClient {
             },
             Err(e) => {
                 let message = LoginFailure::describe(&endpoint, &e);
-                log::error!("{}", message);
+                curia::error!("login request failed", { error: message.clone() });
                 Err(anyhow!(message))
             }
         }
@@ -164,7 +165,7 @@ impl AuthClient {
         let ek = match NcryptfClient::get_ek(server.clone(), preference).await {
             Ok(ek) => ek,
             Err(e) => {
-                log::error!("{}", LoginFailure::describe(&server, &*e));
+                curia::error!("key exchange failed", { error: LoginFailure::describe(&server, &*e) });
                 return Err(false);
             }
         };
@@ -210,29 +211,33 @@ impl AuthClient {
                                         None => Err(false),
                                     },
                                     Err(e) => {
-                                        log::error!("Response Error: {:?}", e.to_string());
+                                        curia::error!("login response could not be parsed", { error: e.to_string() });
                                         Err(false)
                                     }
                                 }
                             }
                             Err(e) => {
-                                log::error!("Ncryptf Error: {}", e.to_string());
+                                curia::error!("login response could not be decrypted", { error: e.to_string() });
                                 Err(false)
                             }
                         }
                     }
                     Err(e) => {
-                        log::error!("Error: {}", e.to_string());
+                        curia::error!("login response could not be read", { error: e.to_string() });
                         Err(false)
                     }
                 },
                 _ => {
-                    log::error!("Code login returned non-200 status");
+                    curia::error!("code login returned a non-200 status", {
+                        status: response.status().as_u16(),
+                    });
                     Err(false)
                 }
             },
             Err(e) => {
-                log::error!("{}", LoginFailure::describe(&endpoint, &e));
+                curia::error!("code login request failed", {
+                    error: LoginFailure::describe(&endpoint, &e),
+                });
                 Err(false)
             }
         }

@@ -4,7 +4,9 @@ use std::time::{Duration, Instant};
 /// Failed admissions this member's client has served, per joiner and for the whole group.
 ///
 /// Enforced on the admitting client, not the server, so a server guessing the password cannot
-/// lift the limit for itself: across N members it gets at most about `5 × N` guesses per window.
+/// lift the limit for itself. The per-joiner count is keyed by the identity a KeyPackage claims,
+/// which a hostile server chooses freely; the group count is what bounds it, at `PER_GROUP`
+/// guesses per window, because only the lowest leaf answers PAKE inits.
 pub struct AdmissionRateLimiter {
     per_joiner: HashMap<common::PlayerIdentity, Vec<Instant>>,
     group: Vec<Instant>,

@@ -7,6 +7,7 @@ pub use resolved::ResolvedTarget;
 pub use saved_entry::SavedProxyEntry;
 
 use tauri::{AppHandle, Manager};
+use tauri_plugin_curia::curia;
 use tauri_plugin_store::StoreExt;
 
 use common::response::ApiConfigBedrockServer;
@@ -173,7 +174,9 @@ impl BedrockTargetService {
         match serde_json::from_value(raw) {
             Ok(entries) => entries,
             Err(e) => {
-                log::warn!("Bedrock targets: saved proxies unreadable: {}", e);
+                curia::warn!("Bedrock targets: saved proxies unreadable", {
+                    error: e.to_string(),
+                });
                 Vec::new()
             }
         }
@@ -196,7 +199,9 @@ impl BedrockTargetService {
         match api.get_config().await {
             Ok(config) => config.bedrock.servers,
             Err(e) => {
-                log::warn!("Bedrock targets: advertised servers unavailable: {}", e);
+                curia::warn!("Bedrock targets: advertised servers unavailable", {
+                    error: e.to_string(),
+                });
                 Vec::new()
             }
         }

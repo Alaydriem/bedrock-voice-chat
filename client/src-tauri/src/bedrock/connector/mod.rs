@@ -9,6 +9,7 @@ use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::async_runtime::Mutex;
+use tauri_plugin_curia::curia;
 
 use common::consts::bedrock::BEDROCK_LISTEN_PORT;
 use common::structs::bedrock::{
@@ -99,17 +100,16 @@ impl BedrockConnector {
         };
 
         let Some(api) = api else {
-            log::warn!("No API client; resolving the addon transport as no-net");
+            curia::warn!("no API client; resolving the addon transport as no-net");
             return vec![];
         };
 
         match api.get_config().await {
             Ok(config) => config.bedrock.servers,
             Err(e) => {
-                log::warn!(
-                    "Could not read the advertised server list; resolving as no-net: {}",
-                    e
-                );
+                curia::warn!("could not read the advertised server list; resolving as no-net", {
+                    error: e.to_string(),
+                });
                 vec![]
             }
         }
@@ -251,7 +251,9 @@ impl BedrockConnector {
             // The tokens already held may still work, and refusing on a network blip would be
             // worse than trying with them.
             BedrockRenewal::Unavailable { message } => {
-                log::warn!("Could not renew before realm connect: {}", message);
+                curia::warn!("could not renew before realm connect", {
+                    error: message.to_string(),
+                });
             }
             BedrockRenewal::Renewed => {}
         }
@@ -402,7 +404,9 @@ impl BedrockConnector {
         let service = match BedrockTargetService::load_proxies(&self.app_handle).await {
             Ok(service) => service,
             Err(e) => {
-                log::warn!("Could not name the proxy session: {}", e);
+                curia::warn!("could not name the proxy session", {
+                    error: e.to_string(),
+                });
                 return None;
             }
         };
@@ -410,7 +414,10 @@ impl BedrockConnector {
         match service.resolve_by_address(host, port) {
             Some(target) => Some(target.to_active()),
             None => {
-                log::warn!("No saved or advertised entry names {}:{}", host, port);
+                curia::warn!("no saved or advertised entry names this address", {
+                    host: host.to_string(),
+                    port: port,
+                });
                 None
             }
         }
@@ -474,7 +481,9 @@ impl BedrockConnector {
 
     fn emit_connection_info(&self, info: BedrockConnectionInfo) {
         if let Err(e) = self.app_handle.emit("bedrock_connection_info", &info) {
-            log::warn!("Failed to emit bedrock_connection_info: {}", e);
+            curia::warn!("failed to emit bedrock_connection_info", {
+                error: e.to_string(),
+            });
         }
     }
 }

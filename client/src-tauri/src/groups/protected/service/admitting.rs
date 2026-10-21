@@ -1,6 +1,7 @@
 use common::structs::group_key::{
     AdmissionMessage, GroupKeyFrame, GroupKeyPayload, GroupKeyRecipient, SocketId,
 };
+use tauri_plugin_curia::curia;
 
 use super::{Clock, GroupKeyService, PendingCommit, PendingKind};
 use crate::groups::protected::{AdmitterSession, MlsGroupState};
@@ -23,6 +24,20 @@ impl<C: Clock> GroupKeyService<C> {
     }
 
     fn admit_init(&mut self, from: SocketId, init: AdmissionMessage) {
+        // Only the lowest leaf runs the PAKE. Any other member answering would keep a guess count
+        // of its own, and a relay spreading guesses across members would multiply the limit.
+        if let Some(admitter) = self.admitter_leaf()
+            && self.state.as_ref().map(MlsGroupState::own_leaf) != Some(admitter)
+        {
+            self.send_direct(
+                from,
+                AdmissionMessage::Redirect {
+                    to: self.bindings.socket_of(admitter),
+                },
+            );
+            return;
+        }
+
         // One admission per socket at a time. Replacing a live session would hand whoever can send
         // from that socket a fresh password guess the rate limiter never counts.
         let busy = self.admissions.contains_key(&from)
@@ -105,7 +120,10 @@ impl<C: Clock> GroupKeyService<C> {
                 });
             }
             Err(e) => {
-                log::warn!("protected group: a verified key package could not be added: {e}");
+                curia::warn!("protected group: a verified key package could not be added", {
+                    channel_id: self.group_id.clone(),
+                    error: e.to_string(),
+                });
                 self.admissions.remove(&joiner);
                 self.refuse(joiner);
             }
@@ -118,6 +136,14 @@ impl<C: Clock> GroupKeyService<C> {
         if let Some(session) = self.admissions.remove(&joiner) {
             self.send_direct(joiner, session.seal_welcome(welcome));
         }
+    }
+
+    /// The member that answers PAKE inits: the lowest leaf, which every member computes the same
+    /// from state the relay cannot forge.
+    fn admitter_leaf(&self) -> Option<u32> {
+        self.state
+            .as_ref()
+            .and_then(|state| state.roster().iter().map(|m| m.leaf).min())
     }
 
     fn refuse(&self, to: SocketId) {

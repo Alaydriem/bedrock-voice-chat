@@ -8,6 +8,7 @@ pub use inbox::Inbox;
 
 use std::sync::{Arc, Mutex};
 
+use common::curia;
 use common::structs::relay::wire::datagram::VoiceFrame;
 use iroh::EndpointAddr;
 use tokio_util::sync::CancellationToken;
@@ -121,12 +122,15 @@ impl PeerSession {
                         // at any level an operator runs, so a relay that was down read
                         // as a bridge sitting idle rather than one retrying.
                         if failures % Self::FAILURES_PER_REPORT == 0 {
-                            tracing::warn!(
-                                "peer dial failed ({e}); retrying (attempt {})",
-                                failures + 1
-                            );
+                            curia::warn!("peer dial failed; retrying", {
+                                attempt: failures + 1,
+                                error: e.to_string(),
+                            });
                         } else {
-                            tracing::debug!("peer dial failed: {e}");
+                            curia::debug!("peer dial failed", {
+                                attempt: failures + 1,
+                                error: e.to_string(),
+                            });
                         }
                         failures += 1;
                     }
@@ -178,7 +182,9 @@ impl PeerSession {
                 frame = link.recv() => match frame {
                     Ok(frame) => self.inbox.push(frame),
                     Err(e) => {
-                        tracing::info!("peer link ended: {e}");
+                        curia::info!("peer link ended", {
+                            error: e.to_string(),
+                        });
                         return;
                     }
                 }

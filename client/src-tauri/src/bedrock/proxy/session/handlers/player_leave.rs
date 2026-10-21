@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use common::structs::packet::BedrockEvent;
-use log::info;
+use tauri_plugin_curia::curia;
 
 use crate::bedrock::BedrockEventEmitter;
 use crate::bedrock::proxy::session::BedrockPacketHandler;
@@ -27,7 +27,9 @@ impl BedrockPacketHandler for PlayerLeaveHandler {
             None => return,
         };
 
-        info!("Bedrock proxy: emitting player leave for {}", state.name());
+        curia::info!("Bedrock proxy: emitting player leave", {
+            player: state.name().to_string(),
+        });
         emitter.try_send_position(state.to_departed_player_enum());
 
         let event = BedrockEvent::PlayerLeave {

@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use common::errors::DiscordLinkError;
 use common::structs::DiscordLinkStatus;
-use log::{info, warn};
 use tauri::Emitter;
+use tauri_plugin_curia::curia;
 use tauri_plugin_store::StoreExt;
 
 use crate::discord::trait_state::CACHE_TTL_SECS;
@@ -138,7 +138,9 @@ impl DiscordLinkService {
 
     pub fn load_persisted(&self) {
         let (roles, last_sync) = self.read_persisted();
-        info!("Discord: seeding {} cached role(s)", roles.len());
+        curia::info!("Discord: seeding cached roles", {
+            roles: roles.len(),
+        });
         self.flags.seed_discord_roles(roles, last_sync);
     }
 
@@ -198,7 +200,9 @@ impl DiscordLinkService {
             .update_discord_roles(roles.clone(), Some(now))
             .await
         {
-            warn!("Discord: flag refresh after link failed: {e}");
+            curia::warn!("Discord: flag refresh after link failed", {
+                error: e.to_string(),
+            });
         }
         self.emit_flags_updated();
         Ok(Self::build_status(&roles, Some(now), now, true))
@@ -207,7 +211,9 @@ impl DiscordLinkService {
     pub async fn unlink(&self) -> Result<DiscordLinkStatus, DiscordLinkError> {
         self.write_persisted(&[], None)?;
         if let Err(e) = self.flags.update_discord_roles(Vec::new(), None).await {
-            warn!("Discord: flag refresh after unlink failed: {e}");
+            curia::warn!("Discord: flag refresh after unlink failed", {
+                error: e.to_string(),
+            });
         }
         self.emit_flags_updated();
         Ok(Self::build_status(

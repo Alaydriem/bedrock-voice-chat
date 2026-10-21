@@ -1,7 +1,6 @@
 use super::{RawRecordingData, Recorder, RecordingConsumer, RecordingProducer};
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use common::traits::StreamTrait;
-use log::info;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},

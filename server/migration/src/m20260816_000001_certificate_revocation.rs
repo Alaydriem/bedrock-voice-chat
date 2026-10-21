@@ -1,3 +1,4 @@
+use common::curia;
 use common::structs::certificate::{CertificateFingerprint, CertificateValidity};
 use sea_orm_migration::prelude::*;
 use sea_orm_migration::sea_orm::ConnectionTrait;
@@ -112,10 +113,9 @@ impl Migration {
             let pem: String = row.try_get("", "certificate")?;
 
             let Some(fingerprint) = CertificateFingerprint::from_pem(&pem) else {
-                tracing::warn!(
-                    player_id,
-                    "certificate revocation backfill: stored certificate did not parse, \
-                     so there is nothing to revoke for this player"
+                curia::warn!(
+                    "certificate revocation backfill: stored certificate did not parse, so there is nothing to revoke for this player",
+                    { player_id: player_id }
                 );
                 continue;
             };

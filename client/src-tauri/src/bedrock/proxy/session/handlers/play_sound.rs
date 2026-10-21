@@ -5,7 +5,7 @@ use common::bedrock_protocol::protocol::types::primitives::BlockPos;
 use common::game_data::Dimension;
 use common::structs::game::{BlockCoordinate, Coordinate};
 use common::structs::packet::BedrockEvent;
-use log::{debug, info};
+use tauri_plugin_curia::curia;
 
 use super::JukeboxCommand;
 use common::structs::control::{ClientAction, CtlCodec, CtlMessage};
@@ -136,10 +136,13 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
                 pos,
                 dimension,
             } => {
-                info!(
-                    "Bedrock proxy: bvc:play -> JukeboxInsert audio_id={} at ({},{},{}) dim={}",
-                    audio_id, pos.x, pos.y, pos.z, dimension
-                );
+                curia::info!("Bedrock proxy: bvc:play -> JukeboxInsert", {
+                    audio_id: audio_id.clone(),
+                    x: pos.x,
+                    y: pos.y,
+                    z: pos.z,
+                    dimension: dimension.clone(),
+                });
                 emitter.try_send(
                     BedrockEvent::JukeboxInsert {
                         audio_id,
@@ -157,17 +160,18 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
                 let event_id = match self.beacon_cache.resolve_for_eject(block_pos, dim) {
                     Some(id) => id,
                     None => {
-                        debug!(
-                            "Bedrock proxy: bvc:eject no live beacon at ({},{},{}) dim={}; ignoring",
-                            pos.x, pos.y, pos.z, dimension
-                        );
+                        curia::debug!("Bedrock proxy: bvc:eject found no live beacon; ignoring", {
+                            x: pos.x,
+                            y: pos.y,
+                            z: pos.z,
+                            dimension: dimension.clone(),
+                        });
                         return;
                     }
                 };
-                info!(
-                    "Bedrock proxy: bvc:eject -> JukeboxEject event_id={}",
-                    event_id
-                );
+                curia::info!("Bedrock proxy: bvc:eject -> JukeboxEject", {
+                    event_id: event_id.clone(),
+                });
                 emitter.try_send(
                     BedrockEvent::JukeboxEject {
                         event_id,

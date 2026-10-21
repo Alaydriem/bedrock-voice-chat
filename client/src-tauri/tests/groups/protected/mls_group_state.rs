@@ -1,7 +1,27 @@
-use bvc_client_lib::groups::protected::MlsGroupState;
+use std::time::Instant;
+
+use bvc_client_lib::groups::protected::{MlsGroupState, SframeCipher};
+
+const OPUS: &[u8] = &[0xAB; 80];
 
 fn identity(canonical: &str) -> common::PlayerIdentity {
     canonical.parse().expect("canonical identity")
+}
+
+/// A sender's cipher keyed for its member's current epoch, as the gate installs it.
+fn cipher_for(member: &MlsGroupState, now: Instant) -> SframeCipher {
+    let mut cipher = SframeCipher::new(member.own_leaf());
+    cipher.install_epoch(member.epoch(), member.sframe_base_keys(), now);
+    cipher
+}
+
+/// Adds Carol to Alice and Bob's group; every member ends at the Add's epoch.
+fn add_carol(alice: &mut MlsGroupState, bob: &mut MlsGroupState) -> MlsGroupState {
+    let (pending, key_package) = MlsGroupState::key_package(&identity("minecraft:Carol")).unwrap();
+    let add = alice.add(&key_package).unwrap();
+    alice.merge_pending().unwrap();
+    bob.process(&add.commit).unwrap();
+    pending.join(&add.welcome).unwrap()
 }
 
 /// Alice creates the group and admits Bob; both are returned at the same epoch.
@@ -109,6 +129,45 @@ fn removed_member_cannot_process_the_next_commit() {
 
     assert!(bob.process(&update).is_err());
     assert!(carol.process(&update).is_ok());
+}
+
+// A Welcome hands over the epoch it creates and nothing older, so audio sealed before an Add
+// stays closed to the member it added, even when the server delivers that audio to it.
+#[test]
+fn a_joiner_cannot_open_audio_sealed_before_it_joined() {
+    let now = Instant::now();
+    let (mut alice, mut bob) = alice_and_bob();
+    let before = cipher_for(&alice, now).seal(OPUS).unwrap();
+
+    let carol = add_carol(&mut alice, &mut bob);
+    let mut carol_cipher = cipher_for(&carol, now);
+    let after = cipher_for(&alice, now).seal(OPUS).unwrap();
+
+    assert!(carol_cipher.open(&before, now).is_err());
+    assert_eq!(carol_cipher.open(&after, now).unwrap().opus, OPUS);
+}
+
+// A removed member keeps every key it held and is still handed the commit that removed it, as a
+// server that kept forwarding to it would. Neither is enough to open what is sealed afterwards.
+#[test]
+fn a_removed_member_cannot_open_audio_sealed_after_its_removal() {
+    let now = Instant::now();
+    let (mut alice, mut bob) = alice_and_bob();
+    let mut carol = add_carol(&mut alice, &mut bob);
+    let mut carol_cipher = cipher_for(&carol, now);
+    let carol_keys = carol.sframe_base_keys();
+    assert_eq!(carol_cipher.open(&cipher_for(&alice, now).seal(OPUS).unwrap(), now).unwrap().opus, OPUS);
+
+    let remove = alice.remove(carol.own_leaf()).unwrap();
+    alice.merge_pending().unwrap();
+    bob.process(&remove).unwrap();
+    let _ = carol.process(&remove);
+    let after = cipher_for(&alice, now).seal(OPUS).unwrap();
+    let new_keys = alice.sframe_base_keys();
+
+    assert!(carol_cipher.open(&after, now).is_err());
+    assert!(new_keys.iter().all(|(_, new)| carol_keys.iter().all(|(_, held)| held != new)));
+    assert!(carol.sframe_base_keys().iter().all(|(_, derived)| new_keys.iter().all(|(_, new)| new != derived)));
 }
 
 #[test]

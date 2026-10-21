@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use common::structs::packet::{BedrockEvent, BedrockEventDirection, BedrockEventPacket};
 use moka::sync::Cache;
+use tauri_plugin_curia::curia;
 
 use super::pending_eject::PendingEject;
 
@@ -47,22 +48,20 @@ impl JukeboxEjectInjector {
         };
 
         if self.seen.get(&event_id).is_some() {
-            log::debug!(
-                "JukeboxEjectInjector: dropping duplicate announcement event_id={}",
-                event_id
-            );
+            curia::debug!("JukeboxEjectInjector: dropping duplicate announcement", {
+                event_id: event_id,
+            });
             return;
         }
         self.seen.insert(event_id.clone(), ());
 
-        log::info!(
-            "JukeboxEjectInjector: enqueue eject event_id={} world={} pos=({},{},{})",
-            event_id,
-            packet.world_uuid,
-            block_pos.x,
-            block_pos.y,
-            block_pos.z
-        );
+        curia::info!("JukeboxEjectInjector: enqueue eject", {
+            event_id: event_id.clone(),
+            world: packet.world_uuid.to_string(),
+            x: block_pos.x,
+            y: block_pos.y,
+            z: block_pos.z,
+        });
         let _ = self.tx.try_send(PendingEject {
             event_id,
             world_uuid: packet.world_uuid.clone(),

@@ -1,8 +1,11 @@
 use std::time::Duration;
 
-use bvc_client_lib::groups::protected::{LostReason, ProtectedGroupEvent};
+use bvc_client_lib::groups::protected::{
+    GroupPassword, JoinerSession, LostReason, ProtectedGroupEvent,
+};
+use common::structs::group_key::{AdmissionMessage, GroupKeyFrame, GroupKeyPayload};
 
-use super::harness::TestGroup;
+use super::harness::{Hostility, TestGroup};
 
 const OPUS: &[u8] = &[0x5A; 80];
 
@@ -161,6 +164,62 @@ fn joiner_retries_any_three_times_then_reports_admitter_unreachable() {
 
     group.advance(Duration::from_secs(5));
     assert_eq!(lost_reason(&group, bob), Some(LostReason::AdmitterUnreachable));
+}
+
+#[test]
+fn a_non_admitter_answers_a_pake_init_with_a_redirect_to_the_admitter() {
+    let mut group = TestGroup::new();
+    let alice = group.create("Alice");
+    let bob = group.join("Bob");
+    let joiner = group.relay.connect();
+    group.relay.take_inbox(joiner);
+
+    let (_session, init) = JoinerSession::start(
+        TestGroup::ID,
+        &GroupPassword::new(TestGroup::PASSWORD).unwrap(),
+    );
+    group.relay.inject(
+        group.members[bob].socket,
+        GroupKeyFrame::Delivered {
+            from: joiner,
+            body: GroupKeyPayload::Admission(init).to_bytes().unwrap(),
+        },
+    );
+    group.pump();
+    let answers: Vec<AdmissionMessage> = group
+        .relay
+        .take_inbox(joiner)
+        .into_iter()
+        .filter_map(|frame| match frame {
+            GroupKeyFrame::Delivered { body, .. } => match GroupKeyPayload::from_bytes(&body) {
+                Ok(GroupKeyPayload::Admission(message)) => Some(message),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(
+        answers,
+        vec![AdmissionMessage::Redirect {
+            to: Some(group.members[alice].socket)
+        }]
+    );
+}
+
+// The relay sends the joiner to a member that is not the admitter. The joiner follows the redirect
+// and is admitted by the lowest leaf; the member it first reached never runs the PAKE.
+#[test]
+fn a_joiner_routed_to_a_non_admitter_is_redirected_and_admitted() {
+    let mut group = TestGroup::with_hostility(Hostility::AnyToNewestMember);
+    let alice = group.create("Alice");
+    let bob = group.join("Bob");
+    let carol = group.join("Carol");
+
+    assert!(group.members[carol].joined());
+    assert_converged(&group, &[alice, bob, carol]);
+    let admitter = group.members[alice].socket;
+    assert!(group.relay.pake_replies_from.iter().all(|socket| *socket == admitter));
 }
 
 #[test]

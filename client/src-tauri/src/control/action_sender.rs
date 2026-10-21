@@ -1,5 +1,5 @@
 use common::structs::control::ClientAction;
-use log::debug;
+use tauri_plugin_curia::curia;
 
 // Control actions are low-rate, human-initiated events; a small bound is ample
 // and keeps a stalled consumer from buffering unbounded state flips.
@@ -41,7 +41,9 @@ impl ControlActionSender {
     /// so dropping under backpressure is preferable to blocking a packet path.
     pub fn send(&self, action: ClientAction) {
         if let Err(e) = self.tx.try_send(action) {
-            debug!("ControlActionSender: dropping control action: {e}");
+            curia::debug!("ControlActionSender: dropping control action", {
+                error: e.to_string(),
+            });
         }
     }
 }

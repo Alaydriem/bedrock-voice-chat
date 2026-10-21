@@ -8,7 +8,9 @@
 
 use std::time::Duration;
 
+use bvc_client_lib::testkit::WireCapture;
 use bvc_client_lib::testkit::signal::Signal;
+use common::structs::packet::{AudioFramePacket, QuicNetworkPacket};
 
 use crate::harness::client_proc::ClientProc;
 use crate::harness::server::EmbeddedServer;
@@ -64,6 +66,28 @@ fn joined(client: &ClientProc, name: &str) {
     client
         .await_ui_event("protected-group:joined", |_| true, ADMIT)
         .unwrap_or_else(|e| panic!("{name} is admitted: {e}"));
+}
+
+/// Every byte a client handed the server: what the server could observe, whatever it does with it.
+fn sent(capture: &WireCapture) -> impl Iterator<Item = &Vec<u8>> {
+    capture
+        .datagrams
+        .iter()
+        .chain(&capture.key_frames)
+        .chain(&capture.http_bodies)
+}
+
+fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+    !needle.is_empty() && haystack.windows(needle.len()).any(|window| window == needle)
+}
+
+fn audio_frames(capture: &WireCapture) -> Vec<AudioFramePacket> {
+    capture
+        .datagrams
+        .iter()
+        .filter_map(|bytes| QuicNetworkPacket::from_datagram(bytes).ok())
+        .filter_map(|packet| AudioFramePacket::try_from(packet.data).ok())
+        .collect()
 }
 
 fn epoch_of(payload: &str) -> u64 {
@@ -221,4 +245,89 @@ async fn protected_member_is_not_heard_by_nearby_non_member() {
 
     assert!(bob_heard > 0, "Alice was not sending: Bob heard nothing either");
     assert_eq!(erin_from_quic, 0, "a nearby non-member received Alice's frames");
+}
+
+// What the server observes, checked against every byte both clients handed it: audio leaves only
+// as sealed frames that carry no position, none of the plaintext Opus appears anywhere in what was
+// sent, the password crosses no boundary (the PAKE included), and frame sizes follow the frame
+// counter rather than the speech.
+#[tokio::test(flavor = "multi_thread")]
+async fn server_observes_only_ciphertext_of_speech_independent_size_and_never_the_password() {
+    const CANARY: &str = "canary-Zq7!vault";
+    // Long enough that a match is no coincidence, short enough to catch any fragment of a frame.
+    const FRAGMENT: usize = 16;
+
+    let world = World::start().await;
+    let alice = world.client("Alice");
+    let bob = world.client("Bob");
+
+    let group = alice.create_protected(CANARY, ADMIT).expect("Alice creates the group");
+    joined(&alice, "Alice");
+    bob.join_protected(&group, CANARY, ADMIT).expect("Bob starts joining");
+    joined(&bob, "Bob");
+    world.place(&[("Alice", 0.0, 64.0, 0.0), ("Bob", 10_000.0, 64.0, 0.0)]);
+    let admission = [alice.wire_capture(), bob.wire_capture()];
+
+    let probe = Signal::musical_probe(48_000);
+    alice.feed_tone(&probe, 48_000);
+    // The probe plays out at real time after `feed_tone` returns.
+    std::thread::sleep(Duration::from_millis(3_600));
+    let (alice_sent, _, _) = alice.stats();
+    let (_, _, bob_heard) = bob.await_transport_frames(alice_sent, Duration::from_secs(5));
+    let speech = alice.wire_capture();
+
+    alice.shutdown();
+    bob.shutdown();
+
+    let frames = audio_frames(&speech);
+    let sealed_sizes: Vec<usize> = frames.iter().map(|frame| frame.data.len()).collect();
+    let plaintext_sizes: Vec<usize> = speech.sealed_plaintext.iter().map(Vec::len).collect();
+    eprintln!(
+        "[protected_group] frames={} plaintext={} bob_heard={bob_heard} sealed_sizes={:?} plaintext_sizes={:?}",
+        frames.len(),
+        speech.sealed_plaintext.len(),
+        sealed_sizes.iter().collect::<std::collections::BTreeSet<_>>(),
+        plaintext_sizes.iter().collect::<std::collections::BTreeSet<_>>(),
+    );
+
+    assert!(bob_heard > 0, "the session carried no audio, so nothing below was exercised");
+    // Well over a hundred frames, so the size check spans enough of the probe's changing notes for
+    // a variable-bitrate encoder to have shown itself.
+    assert!(frames.len() >= 100, "too few audio frames to judge: {}", frames.len());
+    assert!(!speech.sealed_plaintext.is_empty(), "Alice sealed nothing while speaking");
+
+    for frame in &frames {
+        assert!(frame.is_sealed(), "an audio frame left Alice unsealed");
+        assert!(frame.speaker.is_none(), "a sealed frame carried Alice's position");
+        assert!(frame.spatial.is_none(), "a sealed frame carried a spatial flag");
+    }
+
+    let everything_sent: Vec<&Vec<u8>> = admission.iter().chain([&speech]).flat_map(sent).collect();
+    for plaintext in &speech.sealed_plaintext {
+        let fragment = &plaintext[..FRAGMENT.min(plaintext.len())];
+        assert!(
+            !everything_sent.iter().any(|bytes| contains(bytes, fragment)),
+            "plaintext Opus reached the server"
+        );
+    }
+    assert!(
+        !everything_sent.iter().any(|bytes| contains(bytes, CANARY.as_bytes())),
+        "the group password reached the server"
+    );
+
+    let plaintext_size = plaintext_sizes[0];
+    assert!(
+        plaintext_sizes.iter().all(|size| *size == plaintext_size),
+        "the encoder was not constant-bitrate while protected: {plaintext_sizes:?}"
+    );
+    assert!(
+        sealed_sizes.windows(2).all(|pair| pair[0] <= pair[1]),
+        "sealed frame sizes moved with the audio rather than the frame counter: {sealed_sizes:?}"
+    );
+    assert!(
+        sealed_sizes
+            .iter()
+            .all(|size| (plaintext_size + 17..=plaintext_size + 24).contains(size)),
+        "sealed frames carried more than the SFrame overhead: {sealed_sizes:?}"
+    );
 }

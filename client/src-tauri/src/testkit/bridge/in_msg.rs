@@ -81,5 +81,8 @@ pub enum InMsg {
         channel_id: String,
         password: String,
     },
+    // Take everything this client has sent the server since the last request. The bin
+    // responds with OutMsg::WireCapture and starts a fresh record.
+    RequestWireCapture,
     Shutdown,
 }

@@ -5,10 +5,10 @@ use crate::audio::spatial::SpatialSettingsResolver;
 use common::structs::AudioFormat;
 use common::structs::recording::{ExportOutcome, RecordingTrack, SessionManifest};
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
-use log::{error, info};
 use std::fs;
 use std::sync::Arc;
 use tauri::async_runtime::Mutex;
+use tauri_plugin_curia::curia;
 use tauri::{Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
@@ -145,13 +145,12 @@ pub async fn export_recording(
     app_handle: tauri::AppHandle,
     asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<ExportOutcome, String> {
-    log::info!(
-        "Export recording called - Session ID: {}, Tracks: {}, Spatial: {}, Format: {:?}",
-        session_id,
-        tracks.len(),
-        spatial,
-        format
-    );
+    curia::info!("export recording called", {
+        session: session_id.clone(),
+        tracks: tracks.len(),
+        spatial: spatial,
+        format: format!("{format:?}"),
+    });
 
     let rec_path = app_handle
         .path()
@@ -192,11 +191,10 @@ pub async fn export_recording(
         let settings =
             SpatialSettingsResolver::choose(live, SpatialSettingsResolver::last_known(&app_handle));
 
-        info!(
-            "Spatial export using {} settings, falloff {}",
-            settings.provenance().as_str(),
-            settings.config().falloff_distance
-        );
+        curia::info!("spatial export settings resolved", {
+            provenance: settings.provenance().as_str(),
+            falloff: settings.config().falloff_distance,
+        });
 
         Some(settings)
     } else {
@@ -214,13 +212,15 @@ pub async fn export_recording(
     let outcome = ExportRun::execute(&tracks, &sink).await;
 
     for failure in &outcome.failed {
-        error!("Error rendering {}: {}", failure.track, failure.reason);
+        curia::error!("error rendering a recording track", {
+            track: failure.track.to_string(),
+            error: failure.reason.to_string(),
+        });
     }
-    info!(
-        "Rendered {} of {} tracks",
-        outcome.written.len(),
-        tracks.len()
-    );
+    curia::info!("recording tracks rendered", {
+        written: outcome.written.len(),
+        tracks: tracks.len(),
+    });
 
     let render_time_ms = render_start.elapsed().as_millis() as u64;
     let analytics = app_handle.state::<Arc<AnalyticsService>>();

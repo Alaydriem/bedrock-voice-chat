@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tauri::Emitter;
 use tauri::State;
 use tauri::async_runtime::Mutex;
+use tauri_plugin_curia::curia;
 
 use common::bedrock_protocol::{RealmsApi, RealmsEnvironment};
 use common::consts::bedrock::{
@@ -93,7 +94,10 @@ pub(crate) async fn bedrock_xbox_login(
         XBOX_CLIENT_ID,
         RealmsEnvironment::Retail,
         move |code, url| {
-            log::info!("Xbox device code: {} at {}", code, url);
+            curia::info!("Xbox device code issued", {
+                code: code.to_string(),
+                url: url.to_string(),
+            });
             let _ = app.emit(
                 "bedrock-device-code",
                 serde_json::json!({

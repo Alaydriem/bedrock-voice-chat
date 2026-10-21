@@ -3,6 +3,8 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Instant;
 
+use tauri_plugin_curia::curia;
+
 use super::{GateState, RosterMember, SframeCipher};
 
 /// Where the audio threads meet a protected group's keys.
@@ -44,8 +46,9 @@ impl SealGate {
         if due {
             *reported_at = Some(Instant::now());
             self.mismatches.store(0, Ordering::Relaxed);
-            log::warn!(
-                "dropped {count} sealed frame(s) whose key belongs to a different member than its sender stamp"
+            curia::warn!(
+                "dropped sealed frames whose key belongs to a different member than their sender stamp",
+                { frames: count }
             );
         }
     }

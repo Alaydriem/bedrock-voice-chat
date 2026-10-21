@@ -24,6 +24,7 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use common::structs::group_key::{GroupKeyFrame, GroupKeyPayload, SocketId};
+use tauri_plugin_curia::curia;
 use tokio::sync::mpsc;
 
 use super::{AdmissionRateLimiter, AdmitterSession, GroupPassword, MlsGroupState, SealGate};
@@ -169,7 +170,9 @@ impl<C: Clock> GroupKeyService<C> {
             GroupKeyFrame::Delivered { from, body } => match GroupKeyPayload::from_bytes(&body) {
                 Ok(GroupKeyPayload::Admission(message)) => self.on_admission(from, message),
                 Ok(GroupKeyPayload::Mls(message)) => self.on_application(from, &message),
-                Err(_) => log::debug!("protected group: undecodable delivered frame"),
+                Err(_) => curia::debug!("protected group: undecodable delivered frame", {
+                    channel_id: self.group_id.clone(),
+                }),
             },
             // Client-originated frames never arrive from the relay.
             GroupKeyFrame::Broadcast(_) | GroupKeyFrame::Direct { .. } => {}
@@ -240,14 +243,19 @@ impl<C: Clock> GroupKeyService<C> {
 
     fn send(&self, frame: GroupKeyFrame) {
         if self.outbound.try_send(frame).is_err() {
-            log::warn!("protected group: key socket queue full, frame dropped");
+            curia::warn!("protected group: key socket queue full, frame dropped", {
+                channel_id: self.group_id.clone(),
+            });
         }
     }
 
     fn send_payload(&self, frame: impl FnOnce(Bytes) -> GroupKeyFrame, payload: GroupKeyPayload) {
         match payload.to_bytes() {
             Ok(body) => self.send(frame(body)),
-            Err(e) => log::error!("protected group: could not encode a payload: {e}"),
+            Err(e) => curia::error!("protected group: could not encode a payload", {
+                channel_id: self.group_id.clone(),
+                error: e.to_string(),
+            }),
         }
     }
 

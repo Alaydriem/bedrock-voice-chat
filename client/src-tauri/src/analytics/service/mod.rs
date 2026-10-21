@@ -9,6 +9,7 @@ use chrono::Utc;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
 use futures_util::future::join_all;
 use std::sync::Arc;
+use tauri_plugin_curia::curia;
 mod context;
 
 use context::AnalyticsContext;
@@ -173,17 +174,18 @@ impl AnalyticsService {
 
         let any_success = results.iter().any(|r| r.is_ok());
         for err in results.iter().filter_map(|r| r.as_ref().err()) {
-            log::warn!("Analytics provider flush failed: {}", err);
+            curia::warn!("analytics provider flush failed", {
+                error: err.to_string(),
+            });
         }
 
         if !any_success {
             let requeue_count = events.len();
             let mut queue = self.queue.lock();
             queue.extend(events);
-            log::warn!(
-                "All analytics providers failed. {} events re-queued.",
-                requeue_count
-            );
+            curia::warn!("all analytics providers failed; events re-queued", {
+                events: requeue_count,
+            });
         }
 
         Ok(())

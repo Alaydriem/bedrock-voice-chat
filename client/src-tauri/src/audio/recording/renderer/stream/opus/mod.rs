@@ -1,5 +1,6 @@
 use crate::audio::recording::renderer::WalAudioReader;
 use std::path::Path;
+use tauri_plugin_curia::curia;
 
 mod chunk;
 mod silence_encoder;
@@ -110,7 +111,10 @@ impl Iterator for OpusPacketStream {
             let expected_next = last_ts + 20;
             if timestamp_ms > expected_next + 30 {
                 let gap_ms = timestamp_ms - expected_next;
-                log::debug!("Gap detected: {}ms at timestamp {}ms", gap_ms, timestamp_ms);
+                curia::debug!("recording gap detected", {
+                    gap_ms: gap_ms,
+                    timestamp_ms: timestamp_ms,
+                });
 
                 // Generate silence packets to fill the gap
                 if let Some(ref mut encoder) = self.silence_encoder {
@@ -135,7 +139,9 @@ impl Iterator for OpusPacketStream {
                             }
                         }
                         Err(e) => {
-                            log::warn!("Failed to encode silence: {}", e);
+                            curia::warn!("failed to encode silence", {
+                                error: e.to_string(),
+                            });
                         }
                     }
                 }

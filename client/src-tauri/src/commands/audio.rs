@@ -3,12 +3,12 @@ use crate::audio::{AudioDevice, AudioDeviceType};
 use crate::events::event::notification::{EVENT_NOTIFICATION, Notification};
 use crate::{AudioStreamManager, structs::app_state::AppState};
 use common::structs::audio::StreamEvent;
-use log::{error, info, warn};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::async_runtime::Mutex;
 use tauri::{AppHandle, State};
+use tauri_plugin_curia::curia;
 use tauri_plugin_store::StoreExt;
 
 /// Returns the active audio device for the given device type
@@ -59,10 +59,11 @@ pub(crate) async fn change_audio_device(
     // Input device: init, start, fallback to default on failure
     asm_active.init(input_device.clone()).await;
     if let Err(e) = asm_active.start(input_device.clone().io).await {
-        warn!(
-            "Input device '{}' failed: {}. Falling back to default.",
-            input_device.display_name, e
-        );
+        curia::warn!("input device failed; falling back to the default", {
+            io: "input",
+            device_name: input_device.display_name.clone(),
+            error: e.to_string(),
+        });
         drop(asm_active);
         let fallback_result = {
             let mut state = state.lock().await;
@@ -75,7 +76,10 @@ pub(crate) async fn change_audio_device(
                 asm_active = asm.lock().await;
                 asm_active.init(default_input.clone()).await;
                 if let Err(e2) = asm_active.start(default_input.clone().io).await {
-                    error!("Default input device also failed: {}", e2);
+                    curia::error!("the default input device also failed", {
+                        io: "input",
+                        error: e2.to_string(),
+                    });
                     return Err(format!("NO_INPUT_DEVICE: {}", e2));
                 }
                 let _ = app.emit(
@@ -94,11 +98,17 @@ pub(crate) async fn change_audio_device(
                 );
             }
             Err(e) if e.contains("INCOMPATIBLE_DEVICE") => {
-                error!("Incompatible input device: {}", e);
+                curia::error!("incompatible input device", {
+                    io: "input",
+                    error: e.clone(),
+                });
                 return Err(e);
             }
             Err(e) => {
-                error!("No input device available: {}", e);
+                curia::error!("no input device available", {
+                    io: "input",
+                    error: e.clone(),
+                });
                 return Err(format!("NO_INPUT_DEVICE: {}", e));
             }
         }
@@ -107,10 +117,11 @@ pub(crate) async fn change_audio_device(
     // Output device: init, start, fallback to default on failure
     asm_active.init(output_device.clone()).await;
     if let Err(e) = asm_active.start(output_device.clone().io).await {
-        warn!(
-            "Output device '{}' failed: {}. Falling back to default.",
-            output_device.display_name, e
-        );
+        curia::warn!("output device failed; falling back to the default", {
+            io: "output",
+            device_name: output_device.display_name.clone(),
+            error: e.to_string(),
+        });
         drop(asm_active);
         let fallback_result = {
             let mut state = state.lock().await;
@@ -123,7 +134,10 @@ pub(crate) async fn change_audio_device(
                 asm_active = asm.lock().await;
                 asm_active.init(default_output.clone()).await;
                 if let Err(e2) = asm_active.start(default_output.clone().io).await {
-                    error!("Default output device also failed: {}", e2);
+                    curia::error!("the default output device also failed", {
+                        io: "output",
+                        error: e2.to_string(),
+                    });
                     return Err(format!("NO_OUTPUT_DEVICE: {}", e2));
                 }
                 let _ = app.emit(
@@ -142,11 +156,17 @@ pub(crate) async fn change_audio_device(
                 );
             }
             Err(e) if e.contains("INCOMPATIBLE_DEVICE") => {
-                error!("Incompatible output device: {}", e);
+                curia::error!("incompatible output device", {
+                    io: "output",
+                    error: e.clone(),
+                });
                 return Err(e);
             }
             Err(e) => {
-                error!("No output device available: {}", e);
+                curia::error!("no output device available", {
+                    io: "output",
+                    error: e.clone(),
+                });
                 return Err(format!("NO_OUTPUT_DEVICE: {}", e));
             }
         }
@@ -268,7 +288,7 @@ async fn update_current_player(
     app: AppHandle,
     asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<(), ()> {
-    info!("Updating current player metadata");
+    curia::info!("updating current player metadata");
     match app.store("store.json") {
         Ok(store) => match store.get("current_player") {
             Some(value) => match value.as_str() {
@@ -344,9 +364,15 @@ pub(crate) async fn set_mute(
     // At info so it lands in logcat on a device build: "did my press reach Rust at all" is the
     // first question when a button appears to do nothing, and it cannot be answered from the
     // webview alone.
-    info!("set_mute({:?}, {}) requested", device, muted);
+    curia::info!("set_mute requested", {
+        device_type: format!("{device:?}"),
+        muted: muted,
+    });
     let status = actions.set_mute(device.clone(), muted).await;
-    info!("set_mute({:?}) resolved to {}", device, status);
+    curia::info!("set_mute resolved", {
+        device_type: format!("{device:?}"),
+        muted: status,
+    });
     actions.broadcast_state().await;
     Ok(status)
 }
@@ -357,9 +383,13 @@ pub(crate) async fn set_deafened(
     deafened: bool,
     actions: State<'_, AudioActionsManager>,
 ) -> Result<bool, String> {
-    info!("set_deafened({}) requested", deafened);
+    curia::info!("set_deafened requested", {
+        deafened: deafened,
+    });
     let status = actions.set_deafened(deafened).await;
-    info!("set_deafened resolved to {}", status);
+    curia::info!("set_deafened resolved", {
+        deafened: status,
+    });
     actions.broadcast_state().await;
     Ok(status)
 }
@@ -498,13 +528,17 @@ pub(crate) async fn restart_audio_stream(
     device: AudioDeviceType,
     asm: State<'_, Mutex<AudioStreamManager>>,
 ) -> Result<(), String> {
-    info!("Restarting audio stream for {:?}", device);
+    curia::info!("restarting audio stream", {
+        device_type: format!("{device:?}"),
+    });
     let restarted = {
         let mut asm = asm.lock().await;
         asm.restart(device.clone()).await.map_err(|e| {
-            let err_msg = format!("Failed to restart audio stream: {:?}", e);
-            log::error!("{}", err_msg);
-            err_msg
+            curia::error!("failed to restart audio stream", {
+                device_type: format!("{device:?}"),
+                error: format!("{e:?}"),
+            });
+            format!("Failed to restart audio stream: {:?}", e)
         })
     };
     restarted?;

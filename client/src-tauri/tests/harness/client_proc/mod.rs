@@ -6,8 +6,8 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use bvc_client_lib::testkit::E2eAppData;
-use bvc_client_lib::testkit::PeerStat;
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
+use bvc_client_lib::testkit::{PeerStat, WireCapture};
 use common::structs::bedrock::AddonMode;
 
 mod shared_state;
@@ -295,6 +295,9 @@ impl ClientProc {
                         }) => {
                             reader_state.lock().unwrap().control_state =
                                 Some((muted, deafened, recording));
+                        }
+                        Ok(OutMsg::WireCapture(capture)) => {
+                            reader_state.lock().unwrap().wire_capture = Some(capture);
                         }
                         Err(_) => break,
                     }
@@ -664,6 +667,23 @@ impl ClientProc {
     /// arrives (or the 5 s deadline passes). Returns `(frames_sent,
     /// frames_from_quic, frames_into_jitter_buffer)` as recorded by the atomic
     /// counters in the real audio path.
+    /// Everything this client sent the server since the previous call, then starts a fresh record.
+    pub fn wire_capture(&self) -> WireCapture {
+        self.state.lock().unwrap().wire_capture = None;
+        self.send(&InMsg::RequestWireCapture);
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(capture) = self.state.lock().unwrap().wire_capture.take() {
+                return capture;
+            }
+            if Instant::now() >= deadline {
+                panic!("the client never answered RequestWireCapture");
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
     pub fn stats(&self) -> (u64, u64, u64) {
         // Clear any stale snapshot before requesting a fresh one.
         self.state.lock().unwrap().stats = None;

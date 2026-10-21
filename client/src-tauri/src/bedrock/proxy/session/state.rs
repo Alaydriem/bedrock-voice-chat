@@ -8,7 +8,7 @@ use common::players::minecraft::MinecraftPlayer;
 use common::structs::bedrock::BedrockWorldId;
 use common::structs::game::coordinate::Coordinate;
 use common::structs::game::orientation::Orientation;
-use log::debug;
+use tauri_plugin_curia::curia;
 
 pub struct BedrockSessionState {
     name: String,
@@ -81,26 +81,32 @@ impl BedrockSessionState {
         let prev = self.sneaking;
         self.sneaking = self.crawling || sneak_flag;
         if crawl_start || crawl_stop || prev != self.sneaking {
-            debug!(
-                "Bedrock state: sneak/crawl input_data={:?} start_crawl={} stop_crawl={} sneak_flag={} crawling={} sneaking={}",
-                flags, crawl_start, crawl_stop, sneak_flag, self.crawling, self.sneaking,
-            );
+            curia::debug!("Bedrock state: sneak/crawl changed", {
+                input_data: format!("{flags:?}"),
+                start_crawl: crawl_start,
+                stop_crawl: crawl_stop,
+                sneak_flag: sneak_flag,
+                crawling: self.crawling,
+                sneaking: self.sneaking,
+            });
         }
     }
 
     pub fn apply_change_dimension(&mut self, dimension: i32) {
         self.dimension = Self::dimension_from_i32(dimension);
-        debug!("Bedrock state: ChangeDimension -> {:?}", self.dimension);
+        curia::debug!("Bedrock state: ChangeDimension", {
+            dimension: format!("{:?}", self.dimension),
+        });
     }
 
     pub fn apply_game_type(&mut self, gamemode: i32) {
         let was_spectator = self.spectator;
         self.spectator = Self::is_spectator_gamemode(gamemode);
         if was_spectator != self.spectator {
-            debug!(
-                "Bedrock state: gamemode={} spectator={}",
-                gamemode, self.spectator
-            );
+            curia::debug!("Bedrock state: gamemode changed", {
+                gamemode: gamemode,
+                spectator: self.spectator,
+            });
         }
     }
 

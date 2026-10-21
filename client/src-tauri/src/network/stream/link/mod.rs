@@ -60,6 +60,8 @@ impl DatagramLink {
     }
 
     pub(crate) fn send(&self, payload: Bytes) -> Result<(), VoiceLinkError> {
+        #[cfg(feature = "e2e")]
+        crate::testkit::WireTap::datagram(&payload);
         match self {
             Self::Quic(connection) => connection
                 .datagram_mut(

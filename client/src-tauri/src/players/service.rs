@@ -5,7 +5,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use common::structs::audio::{PlayerGainSettings, PlayerGainStore};
 use common::structs::players::{PlayerKey, PlayerSettingsRow};
-use log::{error, warn};
+use tauri_plugin_curia::curia;
 
 use super::backend::{MemoryBackend, PlayerSettings, PlayerSettingsBackend};
 
@@ -42,7 +42,9 @@ impl PlayerSettingsService {
                 .map(|row| (row.key, row.settings))
                 .collect(),
             Err(cause) => {
-                error!("Could not load player settings, starting empty: {cause}");
+                curia::error!("could not load player settings, starting empty", {
+                    error: cause.to_string(),
+                });
                 HashMap::new()
             }
         };
@@ -64,15 +66,17 @@ impl PlayerSettingsService {
         });
 
         if partial {
-            warn!(
-                "Player settings loaded with undecodable rows; leaving the file alone this session"
+            curia::warn!(
+                "player settings loaded with undecodable rows; leaving the file alone this session"
             );
         } else if dropped > 0 {
             // Only when the prune actually removed something, so an ordinary launch does not
             // rewrite the whole file for nothing. A failure costs nothing — the map in memory
             // is already pruned and the rows are merely stale, not wrong.
             if let Err(cause) = service.persist() {
-                warn!("Could not write back pruned player settings: {cause}");
+                curia::warn!("could not write back pruned player settings", {
+                    error: cause.to_string(),
+                });
             }
         }
         service
@@ -261,7 +265,9 @@ impl PlayerSettingsService {
                 quiet_ticks += 1;
                 if quiet_ticks >= Self::QUIET_TICKS_TO_FLUSH {
                     if let Err(cause) = self.flush() {
-                        error!("Could not flush player settings: {cause}");
+                        curia::error!("could not flush player settings", {
+                            error: cause.to_string(),
+                        });
                     }
                     quiet_ticks = 0;
                 }
@@ -271,10 +277,9 @@ impl PlayerSettingsService {
 
     fn mutate(&self, key: &PlayerKey, change: impl FnOnce(&mut PlayerGainSettings)) {
         let Ok(mut settings) = self.settings.write() else {
-            warn!(
-                "Player settings lock is poisoned; dropping a change for {}",
-                key.encode()
-            );
+            curia::warn!("player settings lock is poisoned; dropping a change", {
+                key: key.encode().to_string(),
+            });
             return;
         };
         let entry = settings

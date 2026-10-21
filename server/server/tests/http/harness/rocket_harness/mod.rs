@@ -15,6 +15,7 @@ use bvc_server_lib::http::routes;
 use bvc_server_lib::services::{
     CertificateRevocationService, CertificateService, PlayerIdentityService,
 };
+use common::curia;
 use common::ncryptflib as ncryptf;
 use rocket::routes;
 use sea_orm_rocket::Database;
@@ -172,12 +173,16 @@ impl RocketHarness {
             let ignite = match rocket.ignite().await {
                 Ok(r) => r,
                 Err(e) => {
-                    tracing::error!("rocket ignite failed: {}", e);
+                    curia::error!("rocket ignite failed", {
+                        error: e.to_string(),
+                    });
                     return;
                 }
             };
             if let Err(e) = ignite.launch().await {
-                tracing::error!("rocket launch failed: {}", e);
+                curia::error!("rocket launch failed", {
+                    error: e.to_string(),
+                });
             }
         });
         Ok(handle)

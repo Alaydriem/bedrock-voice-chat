@@ -3,11 +3,31 @@
 
 use std::time::Duration;
 
-use bvc_client_lib::groups::protected::{LostReason, ProtectedGroupEvent};
+use bvc_client_lib::groups::protected::{
+    AdmissionRateLimiter, GroupPassword, JoinerSession, LostReason, MlsGroupState,
+    ProtectedGroupEvent,
+};
 use bytes::Bytes;
-use common::structs::group_key::{AdmissionMessage, GroupKeyFrame, GroupKeyPayload};
+use common::structs::group_key::{AdmissionMessage, GroupKeyFrame, GroupKeyPayload, SocketId};
 
 use super::harness::{Hostility, TestGroup, TestRelay};
+
+fn delivered(from: SocketId, message: AdmissionMessage) -> GroupKeyFrame {
+    GroupKeyFrame::Delivered {
+        from,
+        body: GroupKeyPayload::Admission(message).to_bytes().unwrap(),
+    }
+}
+
+fn pake_reply(frame: GroupKeyFrame) -> Option<AdmissionMessage> {
+    let GroupKeyFrame::Delivered { body, .. } = frame else {
+        return None;
+    };
+    match GroupKeyPayload::from_bytes(&body).ok()? {
+        GroupKeyPayload::Admission(reply @ AdmissionMessage::PakeReply(_)) => Some(reply),
+        _ => None,
+    }
+}
 
 fn lost_reason(group: &TestGroup, index: usize) -> Option<LostReason> {
     match group.members[index].lost() {
@@ -128,4 +148,44 @@ fn relay_forking_the_group_shows_different_safety_codes() {
 
     assert_eq!(group.epoch(alice), group.epoch(bob));
     assert_ne!(group.safety_code(alice), group.safety_code(bob));
+}
+
+// A relay spreading online password guesses across every member, each under an identity it made
+// up, gets one admitter's group limit and no more: the other members never run the PAKE, so the
+// limit does not grow with the group.
+#[test]
+fn guesses_spread_across_every_member_stay_within_one_admitters_limit() {
+    let mut group = TestGroup::new();
+    let alice = group.create("Alice");
+    let bob = group.join("Bob");
+    let carol = group.join("Carol");
+    let before = group.relay.pake_replies_from.len();
+    let guesser = group.relay.connect();
+    group.relay.take_inbox(guesser);
+    let wrong = GroupPassword::new("not the password").unwrap();
+
+    for round in 0..AdmissionRateLimiter::PER_GROUP + 5 {
+        for target in [alice, bob, carol] {
+            let socket = group.members[target].socket;
+            let (session, init) = JoinerSession::start(TestGroup::ID, &wrong);
+            group.relay.inject(socket, delivered(guesser, init));
+            group.pump();
+            let Some(reply) = group.relay.take_inbox(guesser).into_iter().find_map(pake_reply)
+            else {
+                continue;
+            };
+            let identity = format!("minecraft:Guess{round}x{target}").parse().unwrap();
+            let (_pending, key_package) = MlsGroupState::key_package(&identity).unwrap();
+            let (_awaiting, offer) = session.on_reply(reply, &key_package).unwrap();
+            group.relay.inject(socket, delivered(guesser, offer));
+            group.pump();
+            group.relay.take_inbox(guesser);
+        }
+    }
+
+    let admitter = group.members[alice].socket;
+    let answered = &group.relay.pake_replies_from[before..];
+    assert!(answered.iter().all(|socket| *socket == admitter));
+    assert_eq!(answered.len(), AdmissionRateLimiter::PER_GROUP);
+    assert_eq!(group.roster(alice).len(), 3);
 }

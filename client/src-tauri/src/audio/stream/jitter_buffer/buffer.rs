@@ -34,13 +34,12 @@ impl JitterBuffer {
         let buffer_size_ms = initial_packet.buffer_size_ms as u64;
         let buffer_capacity = ((buffer_size_ms / 20) as usize).max(5); // Minimum 5 frames (20ms each)
 
-        log::info!(
-            "[{}] Creating jitter buffer with activity detection for player, capacity: {} frames ({}ms), sample_rate: {}Hz",
-            identifier,
-            buffer_capacity,
-            buffer_size_ms,
-            sample_rate
-        );
+        curia::info!("creating jitter buffer with activity detection", {
+            player: identifier.clone(),
+            capacity_frames: buffer_capacity,
+            buffer_ms: buffer_size_ms,
+            sample_rate: sample_rate,
+        });
 
         let source = JitterBufferSource::new_with_activity(
             rx,

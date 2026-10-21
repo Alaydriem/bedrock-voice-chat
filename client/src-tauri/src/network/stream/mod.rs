@@ -144,10 +144,10 @@ impl NetworkStreamManager {
             match first {
                 Ok(client) => (client, plan),
                 Err(detail) => {
-                    log::warn!(
-                        "Dual-stack QUIC socket bind failed ({}); retrying on IPv4 only",
-                        detail
-                    );
+                    curia::warn!("dual-stack QUIC socket bind failed; retrying on IPv4 only", {
+                        transport: "quic",
+                        error: detail.to_string(),
+                    });
                     // The abandoned endpoint never accepted a connection, so it never minted a
                     // stats context and published nothing.
                     let client = Self::build_client(
@@ -238,7 +238,9 @@ impl NetworkStreamManager {
             let app = self.app_handle.clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = crate::groups::GroupService::new(app).rejoin_protected().await {
-                    log::warn!("could not rejoin the protected group after reconnecting: {e}");
+                    curia::warn!("could not rejoin the protected group after reconnecting", {
+                        error: e.to_string(),
+                    });
                 }
             });
         }
@@ -335,7 +337,10 @@ impl NetworkStreamManager {
             VoiceChoice::Quic
                 if voice_websocket && self.transport_verdict.is_demoted(server_fqdn) =>
             {
-                log::info!("QUIC is demoted for {server_fqdn}; connecting over WebSocket");
+                curia::info!("QUIC is demoted for this server; connecting over WebSocket", {
+                    transport: "wss",
+                    connected_server: server_fqdn.to_string(),
+                });
                 outcome.chose(TransportKind::WebSocket);
                 outcome.fell_back(FallbackReason::Demoted);
                 self.connect_websocket(server_url, ca_cert, cert, key).await
@@ -354,10 +359,10 @@ impl NetworkStreamManager {
                     // nothing about whether UDP reaches this server.
                     Err(failure) if failure.is_certificate() => Err(failure),
                     Err(failure) if voice_websocket => {
-                        log::warn!(
-                            "no QUIC candidate carried a session ({}); using WebSocket",
-                            failure.detail()
-                        );
+                        curia::warn!("no QUIC candidate carried a session; using WebSocket", {
+                            transport: "quic",
+                            error: failure.detail().to_string(),
+                        });
                         self.transport_verdict.demote(server_fqdn);
                         outcome.fell_back(FallbackReason::QuicFailed);
                         self.connect_websocket(server_url, ca_cert, cert, key).await
@@ -372,10 +377,10 @@ impl NetworkStreamManager {
                     Ok(link) => Ok(link),
                     Err(failure) if failure.is_certificate() => Err(failure),
                     Err(failure) => {
-                        log::warn!(
-                            "the fallback path did not carry a session ({}); walking the QUIC plan",
-                            failure.detail()
-                        );
+                        curia::warn!("the fallback path did not carry a session; walking the QUIC plan", {
+                            transport: "wss",
+                            error: failure.detail().to_string(),
+                        });
                         outcome.fell_back(FallbackReason::WebSocketFailed);
                         self.connect_quic(client, plan, server_fqdn, server_url, ca_cert, outcome)
                             .await
@@ -450,7 +455,10 @@ impl NetworkStreamManager {
             .trim_end_matches('/');
         let url = format!("wss://{authority}/voice");
 
-        log::info!("Connecting the WebSocket voice transport to {url}");
+        curia::info!("connecting the WebSocket voice transport", {
+            transport: "wss",
+            url: url.clone(),
+        });
         let link = link::WsLink::connect(&url, ca_cert, cert, key)
             .await
             .map_err(|e| {
@@ -472,7 +480,9 @@ impl NetworkStreamManager {
                     }
                 }
             })?;
-        log::info!("WebSocket voice transport connected");
+        curia::info!("WebSocket voice transport connected", {
+            transport: "wss",
+        });
 
         // The family is deliberately absent: the TLS dialler picks it, and reporting a
         // guess would be worse than reporting nothing. The port is the public one, which
@@ -601,12 +611,12 @@ impl NetworkStreamManager {
 
             match tokio::time::timeout(candidate.budget(), client.connect(connect)).await {
                 Ok(Ok(connection)) => {
-                    log::info!(
-                        "QUIC handshake succeeded on {} ({:?}, port {})",
-                        candidate.dial(),
-                        candidate.family(),
-                        candidate.port()
-                    );
+                    curia::info!("QUIC handshake succeeded", {
+                        transport: "quic",
+                        dial: candidate.dial().to_string(),
+                        family: format!("{:?}", candidate.family()),
+                        port: candidate.port(),
+                    });
                     outcome.record(*candidate, AttemptResult::Connected);
                     return Ok((connection, *candidate));
                 }
@@ -617,31 +627,32 @@ impl NetworkStreamManager {
                     // Walking them spends a full handshake budget per port and family on the
                     // player's clock to rediscover the answer this candidate already gave.
                     if crate::network::CredentialFault::in_connection(&e) {
-                        log::error!(
-                            "QUIC handshake on {} rejected the certificate: {}",
-                            candidate.dial(),
-                            e
-                        );
+                        curia::error!("the voice transport rejected a certificate", {
+                            defect: crate::logging::Defect::CertificateRejected,
+                            transport: "quic",
+                            dial: candidate.dial().to_string(),
+                            error: e.to_string(),
+                        });
                         return Err(ConnectFailure::Certificate {
                             detail: e.to_string(),
                         });
                     }
 
-                    log::warn!(
-                        "QUIC handshake rejected on {} ({:?}): {}",
-                        candidate.dial(),
-                        candidate.family(),
-                        e
-                    );
+                    curia::warn!("QUIC handshake rejected", {
+                        transport: "quic",
+                        dial: candidate.dial().to_string(),
+                        family: format!("{:?}", candidate.family()),
+                        error: e.to_string(),
+                    });
                     last_error = Some(e.to_string());
                 }
                 Err(_) => {
-                    log::warn!(
-                        "QUIC handshake timed out on {} ({:?}) after {:?}",
-                        candidate.dial(),
-                        candidate.family(),
-                        candidate.budget()
-                    );
+                    curia::warn!("QUIC handshake timed out", {
+                        transport: "quic",
+                        dial: candidate.dial().to_string(),
+                        family: format!("{:?}", candidate.family()),
+                        budget_ms: candidate.budget().as_millis() as u64,
+                    });
                     outcome.record(*candidate, AttemptResult::TimedOut);
                     last_error = Some(format!("timed out after {:?}", candidate.budget()));
                 }

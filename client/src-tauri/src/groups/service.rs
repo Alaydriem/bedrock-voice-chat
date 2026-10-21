@@ -3,6 +3,7 @@ use common::Game;
 use common::structs::channel::{ChannelEvent, ChannelEvents};
 use tauri::async_runtime::Mutex;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_curia::curia;
 use tauri_plugin_store::StoreExt;
 use websocket_types::GroupData;
 
@@ -200,7 +201,10 @@ impl GroupService {
         };
         if let Err(e) = entered {
             if let Err(leave) = self.send(&id, ChannelEvents::Leave).await {
-                log::warn!("could not leave a protected group that failed to start: {leave}");
+                curia::warn!("could not leave a protected group that failed to start", {
+                    channel_id: id.clone(),
+                    error: leave.to_string(),
+                });
             }
             slot.gate().set_protected(false);
             return Err(e);

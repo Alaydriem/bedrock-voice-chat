@@ -1,4 +1,3 @@
-use log::warn;
 use opus2::{Channels, Decoder};
 use ringbuf::{
     HeapRb,
@@ -173,7 +172,7 @@ impl AudioProcessor {
             // Write chunk to ring buffer
             for &sample in chunk {
                 if self.output_producer.try_push(sample).is_err() {
-                    warn!("Ring buffer overflow during decode");
+                    curia::warn!("ring buffer overflow during decode");
                     return frames_written;
                 }
             }

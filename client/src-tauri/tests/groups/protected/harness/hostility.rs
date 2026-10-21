@@ -12,4 +12,7 @@ pub enum Hostility {
     ForkOnNextCommit,
     /// Answers every PAKE init itself, with a guessed password.
     PakeToSelf,
+    /// Routes every `Any` to the most recently announced member, which is never the lowest leaf
+    /// once a group has two members.
+    AnyToNewestMember,
 }

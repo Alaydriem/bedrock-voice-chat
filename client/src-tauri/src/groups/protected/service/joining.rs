@@ -4,6 +4,7 @@ use common::errors::AdmissionError;
 use common::structs::group_key::{
     AdmissionMessage, GroupKeyFrame, GroupKeyPayload, GroupKeyRecipient, SocketId,
 };
+use tauri_plugin_curia::curia;
 
 use super::{Clock, GroupKeyService, JoinPhase, LostReason, ProtectedGroupEvent};
 use crate::groups::protected::{JoinerSession, MlsGroupState};
@@ -31,7 +32,10 @@ impl<C: Clock> GroupKeyService<C> {
         let (pending, key_package) = match MlsGroupState::key_package(&self.identity) {
             Ok(material) => material,
             Err(e) => {
-                log::error!("protected group: could not build a key package: {e}");
+                curia::error!("protected group: could not build a key package", {
+                    channel_id: self.group_id.clone(),
+                    error: e.to_string(),
+                });
                 self.lose(LostReason::ProtocolFailure);
                 return;
             }
@@ -43,16 +47,53 @@ impl<C: Clock> GroupKeyService<C> {
                 session,
                 pending,
                 key_package,
+                init: init.clone(),
+                redirected: false,
                 sent_at: now,
             };
         }
+        self.send_init(GroupKeyRecipient::Any, init);
+    }
+
+    fn send_init(&self, to: GroupKeyRecipient, init: AdmissionMessage) {
         self.send_payload(
-            |body| GroupKeyFrame::Direct {
-                to: GroupKeyRecipient::Any,
-                body,
-            },
+            |body| GroupKeyFrame::Direct { to, body },
             GroupKeyPayload::Admission(init),
         );
+    }
+
+    /// Sends the attempt's init on to the socket a member named as the admitter. A redirect is not
+    /// authenticated, so one from a stranger can only cost this attempt its timeout: the init
+    /// reveals nothing about the password to whoever receives it.
+    fn follow_redirect(&mut self, phase: JoinPhase, to: Option<SocketId>) {
+        let JoinPhase::AwaitingReply {
+            session,
+            pending,
+            key_package,
+            init,
+            redirected: false,
+            ..
+        } = phase
+        else {
+            self.start_join_attempt();
+            return;
+        };
+        let Some(admitter) = to.filter(|socket| Some(*socket) != self.own_socket) else {
+            self.start_join_attempt();
+            return;
+        };
+        let now = self.clock.now();
+        if let Some(joining) = self.joining.as_mut() {
+            joining.phase = JoinPhase::AwaitingReply {
+                session,
+                pending,
+                key_package,
+                init: init.clone(),
+                redirected: true,
+                sent_at: now,
+            };
+        }
+        self.send_init(GroupKeyRecipient::Socket(admitter), init);
     }
 
     pub(super) fn tick_joining(&mut self) {
@@ -108,11 +149,17 @@ impl<C: Clock> GroupKeyService<C> {
                 // A reply that is not a PAKE message can come from any socket, a stranger's
                 // included; it costs this attempt, not the whole join.
                 Err(AdmissionError::Protocol(detail)) => {
-                    log::debug!("protected group: unusable PAKE reply: {detail}");
+                    curia::debug!("protected group: unusable PAKE reply", {
+                        channel_id: self.group_id.clone(),
+                        error: detail,
+                    });
                     self.start_join_attempt();
                 }
                 Err(error) => self.lose_admission(error),
             },
+            (phase @ JoinPhase::AwaitingReply { .. }, AdmissionMessage::Redirect { to }) => {
+                self.follow_redirect(phase, to);
+            }
             (
                 JoinPhase::AwaitingWelcome {
                     awaiting,
@@ -125,7 +172,10 @@ impl<C: Clock> GroupKeyService<C> {
                 Ok(welcome) => match pending.join(&welcome) {
                     Ok(state) => self.become_member(state),
                     Err(e) => {
-                        log::warn!("protected group: a verified Welcome did not join: {e}");
+                        curia::warn!("protected group: a verified Welcome did not join", {
+                            channel_id: self.group_id.clone(),
+                            error: e.to_string(),
+                        });
                         self.lose(LostReason::ProtocolFailure);
                     }
                 },
@@ -145,7 +195,10 @@ impl<C: Clock> GroupKeyService<C> {
     fn lose_admission(&mut self, error: AdmissionError) {
         match error {
             AdmissionError::Protocol(detail) => {
-                log::warn!("protected group: admission protocol error: {detail}");
+                curia::warn!("protected group: admission protocol error", {
+                    channel_id: self.group_id.clone(),
+                    error: detail,
+                });
                 self.lose(LostReason::ProtocolFailure);
             }
             _ => self.lose(LostReason::WrongPassword),

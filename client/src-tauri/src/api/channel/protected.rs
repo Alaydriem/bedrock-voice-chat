@@ -3,7 +3,7 @@ use crate::api::Api;
 use crate::api::circuit_breaker::SendError;
 use common::request::channel::ProtectedChannelCreateRequest;
 use common::reqwest::StatusCode;
-use log::error;
+use tauri_plugin_curia::curia;
 
 impl Api {
     /// Creates an end-to-end encrypted channel. The request carries no password.
@@ -19,7 +19,9 @@ impl Api {
                 .await
                 .map_err(|_| "Failed to parse response".to_string()),
             Ok(response) => {
-                error!("Protected channel creation failed with status: {}", response.status());
+                curia::error!("protected channel creation failed", {
+                    status: response.status().as_u16(),
+                });
                 Err(format!("Request failed with status: {}", response.status()))
             }
             Err(e) => Err(Self::describe_send_error(e)),
@@ -36,7 +38,10 @@ impl Api {
                 StatusCode::NOT_FOUND => Err("Group not found".to_string()),
                 StatusCode::CONFLICT => Err("This group is not protected".to_string()),
                 status => {
-                    error!("Protected channel join failed with status: {}", status);
+                    curia::error!("protected channel join failed", {
+                        channel_id: channel_id.clone(),
+                        status: status.as_u16(),
+                    });
                     Err(format!("Request failed with status: {}", status))
                 }
             },
@@ -48,7 +53,9 @@ impl Api {
         match error {
             SendError::Open => "Server temporarily unreachable; backing off".to_string(),
             SendError::Transport(e) => {
-                error!("Protected channel request failed: {}", e);
+                curia::error!("protected channel request failed", {
+                    error: e.to_string(),
+                });
                 "Network error occurred".to_string()
             }
         }

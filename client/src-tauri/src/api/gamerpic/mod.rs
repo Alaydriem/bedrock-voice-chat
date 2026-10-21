@@ -6,8 +6,8 @@ use common::reqwest::{
     header::{HeaderMap, HeaderValue},
 };
 use common::response::GamerpicResponse;
-use log::error;
 use std::error::Error;
+use tauri_plugin_curia::curia;
 
 impl Api {
     pub(crate) async fn get_gamerpic(
@@ -27,23 +27,31 @@ impl Api {
                 StatusCode::OK => match response.json::<GamerpicResponse>().await {
                     Ok(result) => Ok(result),
                     Err(e) => {
-                        error!("Failed to parse gamerpic response: {}", e);
+                        curia::error!("failed to parse the gamerpic response", {
+                            error: e.to_string(),
+                        });
                         Err("Failed to parse response".to_string())
                     }
                 },
                 status => {
-                    error!("Gamerpic request failed with status: {}", status);
+                    curia::error!("gamerpic request failed", {
+                        status: status.as_u16(),
+                    });
                     Err(format!("Request failed with status: {}", status))
                 }
             },
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Failed to get gamerpic: {}", e);
+                let mut causes = Vec::new();
                 let mut source = e.source();
                 while let Some(cause) = source {
-                    error!("Caused by: {}", cause);
+                    causes.push(cause.to_string());
                     source = cause.source();
                 }
+                curia::error!("failed to get gamerpic", {
+                    error: e.to_string(),
+                    causes: causes,
+                });
                 Err("Network error occurred".to_string())
             }
         }

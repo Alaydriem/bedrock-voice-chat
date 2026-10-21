@@ -11,11 +11,11 @@ pub(crate) use driver::SourceDriver;
 use crate::audio::stream::StreamRecoveryEvent;
 use crate::audio::{AudioDevice, AudioDeviceCpal, AudioDeviceType};
 use anyhow::anyhow;
-use log::{error, warn};
 use rodio::DeviceTrait;
 use rodio::cpal::traits::StreamTrait as CpalStreamTrait;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use tauri_plugin_curia::curia;
 
 // Pull/push source of raw f32 frames fed through the real input processing path.
 // Enum dispatch, no trait objects: both variants resolve a uniform CaptureConfig
@@ -61,12 +61,12 @@ impl AudioInputSource {
                             let fresh_config: rodio::cpal::SupportedStreamConfig =
                                 fresh_configs[0].clone().into();
                             if fresh_config.sample_rate() != stored_config.sample_rate() {
-                                warn!(
-                                    "Device {} sample rate changed: stored {}Hz, actual {}Hz. Using actual.",
-                                    device.display_name,
-                                    stored_config.sample_rate(),
-                                    fresh_config.sample_rate()
-                                );
+                                curia::warn!("input device sample rate changed; using the actual rate", {
+                                    io: "input",
+                                    device_name: device.display_name.clone(),
+                                    stored_rate: stored_config.sample_rate(),
+                                    actual_rate: fresh_config.sample_rate(),
+                                });
                             }
                             fresh_config
                         }
@@ -79,17 +79,17 @@ impl AudioInputSource {
                             .and_then(|d| d.default_input_config().ok())
                         {
                             Some(live_config) => {
-                                warn!(
-                                    "Could not refresh device config for {}, using live default config",
-                                    device.display_name
-                                );
+                                curia::warn!("could not refresh the input device config; using the live default config", {
+                                    io: "input",
+                                    device_name: device.display_name.clone(),
+                                });
                                 live_config
                             }
                             None => {
-                                warn!(
-                                    "Could not refresh device config for {}, using stored config",
-                                    device.display_name
-                                );
+                                curia::warn!("could not refresh the input device config; using the stored config", {
+                                    io: "input",
+                                    device_name: device.display_name.clone(),
+                                });
                                 stored_config
                             }
                         },
@@ -157,12 +157,12 @@ impl AudioInputSource {
         })?;
 
         let cpal_device = device.clone().to_cpal_device().ok_or_else(|| {
-            error!(
-                "CPAL device not found for {} '{}'. Device may have been disconnected or its ID changed. {:?}",
-                device.io.store_key(),
-                device.display_name,
-                device
-            );
+            curia::error!("CPAL device not found; it may have been disconnected or its ID changed", {
+                io: "input",
+                store_key: device.io.store_key().to_string(),
+                device_name: device.display_name.clone(),
+                device: format!("{device:?}"),
+            });
             anyhow!(
                 "Couldn't retrieve native cpal device for {} {}.",
                 device.io.store_key(),
@@ -180,17 +180,17 @@ impl AudioInputSource {
         let recovery_tx_for_error = recovery_tx.clone();
         let shutdown_for_error = shutdown.clone();
 
-        log::info!(
-            "Input Stream Config: {:?} {:?}",
-            device_config.channels,
-            device_config.sample_rate
-        );
+        curia::info!("input stream config", {
+            io: "input",
+            channels: format!("{:?}", device_config.channels),
+            sample_rate: format!("{:?}", device_config.sample_rate),
+        });
 
         let error_fn = move |error: rodio::cpal::StreamError| {
-            error!(
-                "Audio stream error (device may have disconnected): {}",
-                error
-            );
+            curia::error!("audio stream error; the device may have disconnected", {
+                io: "input",
+                error: error.to_string(),
+            });
             shutdown_for_error.store(true, Ordering::Relaxed);
 
             let _ = recovery_tx_for_error.send(StreamRecoveryEvent::DeviceError {
@@ -287,10 +287,11 @@ impl AudioInputSource {
                 if Self::is_config_rejection(&e)
                     && device_config.buffer_size != rodio::cpal::BufferSize::Default =>
             {
-                warn!(
-                    "Input stream config rejected for {} ({:?}), falling back to default buffer size",
-                    device.display_name, e
-                );
+                curia::warn!("input stream config rejected; falling back to the default buffer size", {
+                    io: "input",
+                    device_name: device.display_name.clone(),
+                    error: format!("{e:?}"),
+                });
                 let fallback_config = rodio::cpal::StreamConfig {
                     buffer_size: rodio::cpal::BufferSize::Default,
                     ..device_config
@@ -298,10 +299,10 @@ impl AudioInputSource {
                 let shutdown_retry = shutdown.clone();
                 let recovery_tx_retry = recovery_tx.clone();
                 let fallback_error_fn = move |error: rodio::cpal::StreamError| {
-                    error!(
-                        "Audio input stream error (device may have disconnected): {}",
-                        error
-                    );
+                    curia::error!("audio input stream error; the device may have disconnected", {
+                        io: "input",
+                        error: error.to_string(),
+                    });
                     shutdown_retry.store(true, Ordering::Relaxed);
                     let _ = recovery_tx_retry.send(StreamRecoveryEvent::DeviceError {
                         device_type: AudioDeviceType::InputDevice,
