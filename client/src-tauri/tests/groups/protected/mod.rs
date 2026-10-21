@@ -1,4 +1,4 @@
-mod admission;
+mod approval;
 mod group_key_service;
 mod harness;
 mod hostile_relay;

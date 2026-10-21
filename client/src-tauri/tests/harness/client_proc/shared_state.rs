@@ -26,6 +26,8 @@ pub(super) struct SharedState {
     // Name of the most recently completed channel op (OutMsg::ChannelOpDone),
     // cleared before each op so the orchestrator can await a fresh completion.
     pub(super) last_channel_op: Option<String>,
+    // (op, error) from the most recent OutMsg::ChannelOpFailed, cleared with `last_channel_op`.
+    pub(super) last_channel_failure: Option<(String, String)>,
     // Server-assigned (audio_file_id, duration_ms) from the last UploadAudio.
     pub(super) last_upload: Option<(String, u32)>,
     // Local listen port reported by OutMsg::ProxyStarted after a StartProxy command.

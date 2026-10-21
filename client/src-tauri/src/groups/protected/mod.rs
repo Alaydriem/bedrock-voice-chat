@@ -2,6 +2,7 @@
 //! messages it produces and the frames it seals, and holds none of this code.
 
 mod admission;
+mod command;
 mod gate_state;
 mod key_socket;
 mod key_socket_event;
@@ -14,18 +15,20 @@ mod sframe;
 mod slot;
 
 pub use self::admission::{
-    AdmissionBinding, AdmissionRateLimiter, AdmitterSession, GroupPassword, JoinerAwaitingWelcome,
-    JoinerSession,
+    AdmissionRateLimiter, ApprovalCode, ApprovalCommitment, CheckError, CheckFields, CheckIdHex,
+    ConfirmOutcome, DecideError, JoinerRequest, MemberCheck, QueuedAdd, SeenKeyPackages,
+    WelcomeRefusal,
 };
+pub use self::command::ProtectedGroupCommand;
 pub use self::key_socket::KeySocket;
 pub use self::key_socket_event::KeySocketEvent;
-pub use self::mls::{MlsGroupState, PendingJoin, RosterMember, SafetyCode, StagedAdd};
+pub use self::mls::{MlsGroupState, PendingJoin, RosterMember, SafetyCode, StagedAdd, StagedJoin};
 pub use self::notifier::ProtectedGroupNotifier;
 pub use self::runner::ProtectedGroupRunner;
 pub use self::seal_gate::SealGate;
 pub use self::slot::ProtectedGroupSlot;
 pub use self::service::{
-    Clock, CommitterRank, GroupKeyService, LostReason, ProtectedGroupEvent, SystemClock,
+    Clock, CodeRole, CommitterRank, GroupKeyService, LostReason, ProtectedGroupEvent, SystemClock,
 };
 pub use self::sframe::{OpenedFrame, SframeCipher};
 

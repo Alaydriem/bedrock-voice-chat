@@ -3,13 +3,14 @@ use bvc_client_lib::audio::Cue;
 /// Rates a real endpoint reports, including the unusual ones.
 const RATES: [u32; 5] = [22_050, 44_100, 48_000, 96_000, 192_000];
 
-const ALL: [Cue; 6] = [
+const ALL: [Cue; 7] = [
     Cue::Mute,
     Cue::Unmute,
     Cue::Deafen,
     Cue::Undeafen,
     Cue::GroupJoin,
     Cue::GroupLeave,
+    Cue::JoinRequest,
 ];
 
 /// Sign changes in a slice. A pitch measure that does not care about amplitude, which
@@ -54,8 +55,27 @@ fn turning_something_off_falls_and_turning_it_on_rises() {
                     first < last,
                     "{cue:?} at {rate} Hz did not rise: opened at {first} crossings, closed at {last}"
                 ),
+                // Neither: see join_request_starts_and_ends_on_the_same_note.
+                Cue::JoinRequest => {}
             }
         }
+    }
+}
+
+/// Someone asking to join is not a state turning on or off. It goes up and comes back, so it is
+/// not heard as a join, a leave, a mute or a deafen.
+#[test]
+fn join_request_starts_and_ends_on_the_same_note() {
+    for rate in RATES {
+        let cue = Cue::JoinRequest;
+        let samples = cue.samples(rate, 1);
+        let first = zero_crossings(opening(&samples, rate));
+        let last = zero_crossings(closing(&samples, rate, cue.duration_seconds()));
+
+        assert!(
+            first.abs_diff(last) <= 1,
+            "{cue:?} at {rate} Hz opened at {first} crossings and closed at {last}"
+        );
     }
 }
 

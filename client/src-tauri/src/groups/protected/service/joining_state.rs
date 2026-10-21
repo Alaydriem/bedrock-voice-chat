@@ -6,6 +6,5 @@ use super::JoinPhase;
 /// accepted while its Welcome was in flight would otherwise be lost to it.
 pub struct JoiningState {
     pub phase: JoinPhase,
-    pub attempts: u32,
     pub buffered_commits: Vec<(u64, Bytes)>,
 }

@@ -55,13 +55,17 @@ pub async fn channel_event(
             return CustomJsonResponse::custom(Status::Forbidden, Some(false));
         }
         Join => {
-            ChannelMembershipService::join(
+            // Protected between the check above and now: refused as above.
+            if !ChannelMembershipService::join_open(
                 &channel_collection,
                 webhook_receiver.inner(),
                 &user,
                 id,
             )
-            .await;
+            .await
+            {
+                return CustomJsonResponse::custom(Status::Forbidden, Some(false));
+            }
             metrics.record_channel_join();
         }
         Leave => {

@@ -1,4 +1,7 @@
 use moka::future::Cache;
+use moka::ops::compute::Op;
+
+use crate::errors::ProtectRefusal;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -58,18 +61,87 @@ impl ChannelCollection {
         }
     }
 
+    /// Marks the channel protected if `owner` created it and nobody else is in it.
+    ///
+    /// The check and the write are one step under the cache's per-key lock, as is every join
+    /// below, so a join that lands at the same moment either comes first and is refused here, or
+    /// comes after and finds the channel protected.
+    pub async fn protect_if_alone(
+        &self,
+        channel_id: &str,
+        owner: &crate::PlayerIdentity,
+    ) -> Result<(), ProtectRefusal> {
+        let mut outcome = Err(ProtectRefusal::NotFound);
+        let result = &mut outcome;
+        self.channels
+            .entry_by_ref(channel_id)
+            .and_compute_with(|entry| {
+                let op = match entry.map(|entry| entry.into_value()) {
+                    None => Op::Nop,
+                    Some(channel) if &channel.creator != owner => {
+                        *result = Err(ProtectRefusal::NotCreator);
+                        Op::Nop
+                    }
+                    Some(channel) if channel.is_protected() => {
+                        *result = Err(ProtectRefusal::AlreadyProtected);
+                        Op::Nop
+                    }
+                    Some(channel) if channel.players.iter().any(|p| p != owner) => {
+                        *result = Err(ProtectRefusal::NotAlone);
+                        Op::Nop
+                    }
+                    Some(channel) => {
+                        *result = Ok(());
+                        Op::Put(channel.into_protected())
+                    }
+                };
+                std::future::ready(op)
+            })
+            .await;
+        outcome
+    }
+
     pub async fn add_player_to_channel(
         &self,
         identity: &crate::PlayerIdentity,
         channel_id: &str,
     ) -> bool {
-        if let Some(mut channel) = self.channels.get(channel_id).await {
-            channel.add_player(identity.clone());
-            self.channels.insert(channel_id.to_string(), channel).await;
-            true
-        } else {
-            false
-        }
+        self.add_player(identity, channel_id, true).await
+    }
+
+    /// Adds a player only while the channel is open. A protected channel is joined through
+    /// admission, so a plain join must not slip in after protection was turned on.
+    pub async fn add_player_to_open_channel(
+        &self,
+        identity: &crate::PlayerIdentity,
+        channel_id: &str,
+    ) -> bool {
+        self.add_player(identity, channel_id, false).await
+    }
+
+    async fn add_player(
+        &self,
+        identity: &crate::PlayerIdentity,
+        channel_id: &str,
+        protected_allowed: bool,
+    ) -> bool {
+        let mut added = false;
+        let result = &mut added;
+        self.channels
+            .entry_by_ref(channel_id)
+            .and_compute_with(|entry| {
+                let op = match entry.map(|entry| entry.into_value()) {
+                    Some(mut channel) if protected_allowed || !channel.is_protected() => {
+                        channel.add_player(identity.clone());
+                        *result = true;
+                        Op::Put(channel)
+                    }
+                    _ => Op::Nop,
+                };
+                std::future::ready(op)
+            })
+            .await;
+        added
     }
 
     pub async fn remove_player_from_channel(

@@ -263,6 +263,7 @@ impl QueryStateReporter {
                             seq,
                             &channel.id(),
                             &channel.name,
+                            channel.is_protected(),
                         ));
                     }
                 }

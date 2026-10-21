@@ -1,10 +1,10 @@
 use std::time::{Duration, Instant};
 
-use common::structs::group_key::{GroupKeyFrame, GroupKeyPayload, SocketId};
+use common::structs::group_key::{AdmissionMessage, GroupKeyFrame, GroupKeyPayload, SocketId};
 use tauri_plugin_curia::curia;
 
 use super::{
-    Clock, CommitterRank, GroupKeyService, JoinPhase, LostReason, PendingCommit, PendingKind,
+    Clock, CommitterRank, GroupKeyService, LostReason, PendingCommit, PendingKind,
     ProtectedGroupEvent,
 };
 
@@ -34,19 +34,26 @@ impl<C: Clock> GroupKeyService<C> {
             }
             self.after_epoch_change(before);
             if let Some(PendingCommit {
-                kind: PendingKind::Add {
-                    joiner, welcome, ..
-                },
+                kind: PendingKind::Add { add, welcome },
                 ..
             }) = pending
             {
-                // The admitter alone knows the joiner's socket before the joiner announces. Bound
-                // now, a joiner that drops before announcing is still removed when it goes,
-                // rather than left in the group as a leaf nobody holds the key for.
-                if let Some(leaf) = self.leaves().into_iter().find(|l| !leaves_before.contains(l)) {
-                    self.bindings.bind_unannounced(joiner, leaf);
+                let new_leaf = self.leaves().into_iter().find(|l| !leaves_before.contains(l));
+                if self.departed.remove(&add.joiner) {
+                    // The joiner's socket closed while its Add was in flight. Nobody will ever
+                    // hold this leaf's key, so it is removed again.
+                    if let Some(leaf) = new_leaf {
+                        self.removals.push((leaf, self.clock.now()));
+                    }
+                } else {
+                    // The admitter alone knows the joiner's socket before the joiner announces.
+                    // Bound now, a joiner that drops before announcing is still removed when it
+                    // goes, rather than left in the group as a leaf nobody holds the key for.
+                    if let Some(leaf) = new_leaf {
+                        self.bindings.bind_unannounced(add.joiner, leaf);
+                    }
+                    self.deliver_welcome(&add, &welcome);
                 }
-                self.deliver_welcome(joiner, &welcome);
             }
             self.try_commit_next_add();
             return;
@@ -86,15 +93,15 @@ impl<C: Clock> GroupKeyService<C> {
     }
 
     pub(super) fn on_gone(&mut self, socket: SocketId) {
-        if let Some(joining) = self.joining.as_ref() {
-            if matches!(&joining.phase, JoinPhase::AwaitingWelcome { admitter, .. } if *admitter == socket)
-            {
-                self.start_join_attempt();
+        if self.joining.is_some() {
+            // The member checking this joiner left before sending a Welcome: nobody else can
+            // finish this ticket. A Welcome already held can still be entered.
+            if self.is_checker(socket) && !self.holds_welcome() {
+                self.lose(LostReason::Expired);
             }
             return;
         }
-        self.admissions.remove(&socket);
-        self.queued_adds.retain(|(joiner, _)| *joiner != socket);
+        self.forget_joiner(socket);
         if let Some(leaf) = self.bindings.leaf_of(socket) {
             self.bindings.forget(socket);
             self.removals.push((leaf, self.clock.now()));
@@ -116,7 +123,12 @@ impl<C: Clock> GroupKeyService<C> {
                     self.announce_binding();
                 }
             }
-            Ok(_) => {}
+            Ok((leaf, data)) => {
+                if let Ok(AdmissionMessage::Checking { joiner }) = AdmissionMessage::from_bytes(&data)
+                {
+                    self.on_checking(joiner, leaf);
+                }
+            }
             Err(e) => curia::debug!("protected group: unreadable application message", {
                 channel_id: self.group_id.clone(),
                 error: e.to_string(),
@@ -161,6 +173,7 @@ impl<C: Clock> GroupKeyService<C> {
     /// would make its late echo unrecognisable.
     pub(super) fn tick_member(&mut self) {
         let now = self.clock.now();
+        self.expire_admissions(now);
         self.process_removals(now);
         self.periodic_ratchet(now);
         self.try_commit_next_add();
@@ -193,13 +206,11 @@ impl<C: Clock> GroupKeyService<C> {
         if let Some(state) = self.state.as_mut() {
             state.discard_pending();
         }
-        if let PendingKind::Add {
-            joiner,
-            key_package,
-            ..
-        } = pending.kind
-        {
-            self.queued_adds.insert(0, (joiner, key_package));
+        if let PendingKind::Add { add, .. } = pending.kind {
+            // A joiner that left meanwhile has nobody to send the Welcome to.
+            if !self.departed.remove(&add.joiner) {
+                self.queued_adds.insert(0, add);
+            }
         }
     }
 
@@ -237,7 +248,7 @@ impl<C: Clock> GroupKeyService<C> {
     }
 
     fn periodic_ratchet(&mut self, now: Instant) {
-        if self.pending.is_some() || !self.removals.is_empty() {
+        if self.pending.is_some() || !self.removals.is_empty() || self.admission_open() {
             return;
         }
         let Some(state) = self.state.as_ref() else {

@@ -1,34 +1,24 @@
-use std::time::Duration;
-
-use common::errors::AdmissionError;
+use anyhow::bail;
 use common::structs::group_key::{
     AdmissionMessage, GroupKeyFrame, GroupKeyPayload, GroupKeyRecipient, SocketId,
 };
 use tauri_plugin_curia::curia;
 
-use super::{Clock, GroupKeyService, JoinPhase, LostReason, ProtectedGroupEvent};
-use crate::groups::protected::{JoinerSession, MlsGroupState};
+use super::{
+    Clock, CodeRole, GroupKeyService, HeldWelcome, JoinPhase, LostReason, ProtectedGroupEvent,
+};
+use crate::groups::protected::{CheckFields, ConfirmOutcome, JoinerRequest, MlsGroupState};
 
 impl<C: Clock> GroupKeyService<C> {
-    const ADMITTER_TIMEOUT: Duration = Duration::from_secs(5);
-    // Once a KeyPackage is offered and its MAC verified, the admitter is committing an Add. A new
-    // attempt with a fresh KeyPackage then could leave the first Add's leaf in the group with no
-    // one holding its key, so the joiner waits for this Welcome instead, and gives up rather than
-    // retries if it never comes.
-    const WELCOME_TIMEOUT: Duration = Duration::from_secs(30);
-    const MAX_ATTEMPTS: u32 = 3;
-
-    /// Starts admission against whichever member the relay picks.
-    pub(super) fn start_join_attempt(&mut self) {
-        let Some(joining) = self.joining.as_mut() else {
-            return;
-        };
-        if joining.attempts >= Self::MAX_ATTEMPTS {
-            self.lose(LostReason::AdmitterUnreachable);
+    /// Sends the join request to every member at once: a commitment to a fresh KeyPackage, which
+    /// the first member to check it gets opened to and nobody else.
+    pub(super) fn start_request(&mut self) {
+        if !matches!(
+            self.joining.as_ref().map(|j| &j.phase),
+            Some(JoinPhase::Waiting)
+        ) {
             return;
         }
-        joining.attempts += 1;
-
         let (pending, key_package) = match MlsGroupState::key_package(&self.identity) {
             Ok(material) => material,
             Err(e) => {
@@ -40,169 +30,223 @@ impl<C: Clock> GroupKeyService<C> {
                 return;
             }
         };
-        let (session, init) = JoinerSession::start(&self.group_id, &self.password);
         let now = self.clock.now();
+        let (request, message) = match JoinerRequest::new(self.group_id.clone(), key_package, now)
+        {
+            Ok(request) => request,
+            Err(e) => {
+                curia::error!("protected group: could not start a join request", {
+                    channel_id: self.group_id.clone(),
+                    error: e.to_string(),
+                });
+                self.lose(LostReason::ProtocolFailure);
+                return;
+            }
+        };
         if let Some(joining) = self.joining.as_mut() {
-            joining.phase = JoinPhase::AwaitingReply {
-                session,
+            joining.phase = JoinPhase::Asking {
+                request,
                 pending,
-                key_package,
-                init: init.clone(),
-                redirected: false,
-                sent_at: now,
+                held: None,
             };
         }
-        self.send_init(GroupKeyRecipient::Any, init);
-    }
-
-    fn send_init(&self, to: GroupKeyRecipient, init: AdmissionMessage) {
         self.send_payload(
-            |body| GroupKeyFrame::Direct { to, body },
-            GroupKeyPayload::Admission(init),
+            |body| GroupKeyFrame::Direct {
+                to: GroupKeyRecipient::Members,
+                body,
+            },
+            GroupKeyPayload::Admission(message),
         );
-    }
-
-    /// Sends the attempt's init on to the socket a member named as the admitter. A redirect is not
-    /// authenticated, so one from a stranger can only cost this attempt its timeout: the init
-    /// reveals nothing about the password to whoever receives it.
-    fn follow_redirect(&mut self, phase: JoinPhase, to: Option<SocketId>) {
-        let JoinPhase::AwaitingReply {
-            session,
-            pending,
-            key_package,
-            init,
-            redirected: false,
-            ..
-        } = phase
-        else {
-            self.start_join_attempt();
-            return;
-        };
-        let Some(admitter) = to.filter(|socket| Some(*socket) != self.own_socket) else {
-            self.start_join_attempt();
-            return;
-        };
-        let now = self.clock.now();
-        if let Some(joining) = self.joining.as_mut() {
-            joining.phase = JoinPhase::AwaitingReply {
-                session,
-                pending,
-                key_package,
-                init: init.clone(),
-                redirected: true,
-                sent_at: now,
-            };
-        }
-        self.send_init(GroupKeyRecipient::Socket(admitter), init);
     }
 
     pub(super) fn tick_joining(&mut self) {
         let now = self.clock.now();
-        match self.joining.as_ref().map(|j| &j.phase) {
-            Some(JoinPhase::AwaitingReply { sent_at, .. })
-                if now.duration_since(*sent_at) >= Self::ADMITTER_TIMEOUT =>
-            {
-                self.start_join_attempt();
-            }
-            Some(JoinPhase::AwaitingWelcome { sent_at, .. })
-                if now.duration_since(*sent_at) >= Self::WELCOME_TIMEOUT =>
-            {
-                self.lose(LostReason::AdmitterUnreachable);
-            }
-            _ => {}
+        if self.request().is_some_and(|request| request.is_ended(now)) {
+            self.lose(LostReason::Expired);
         }
     }
 
     pub(super) fn on_joiner_admission(&mut self, from: SocketId, message: AdmissionMessage) {
+        match message {
+            AdmissionMessage::Check {
+                check_id,
+                nonce,
+                signature_key,
+                mls_group_id,
+                member,
+            } => self.on_check(
+                from,
+                CheckFields {
+                    check_id,
+                    nonce,
+                    signature_key,
+                    mls_group_id,
+                    member,
+                },
+            ),
+            AdmissionMessage::Welcome { check_id, welcome } => {
+                self.on_welcome(from, check_id, welcome.to_vec());
+            }
+            AdmissionMessage::Refused { check_id } => {
+                if self
+                    .request_mut()
+                    .is_some_and(|request| request.on_refused(from, check_id))
+                {
+                    self.lose(LostReason::Refused);
+                }
+            }
+            // A joiner receives nothing else; anything else is not this join's answer.
+            _ => {}
+        }
+    }
+
+    /// The joiner's answer to the comparison: "It matches" lets a held Welcome in, "No match"
+    /// ends the request.
+    pub fn confirm(&mut self, check_id: [u8; 16], matches: bool) -> anyhow::Result<()> {
+        let Some(request) = self.request_mut() else {
+            bail!("not asking to join");
+        };
+        match request.confirm(check_id, matches) {
+            ConfirmOutcome::Confirmed => {
+                self.enter_group();
+                Ok(())
+            }
+            ConfirmOutcome::Mismatch => {
+                self.lose(LostReason::Mismatch);
+                Ok(())
+            }
+            ConfirmOutcome::Stale => bail!("that check is not this request's"),
+        }
+    }
+
+    fn on_check(&mut self, from: SocketId, check: CheckFields) {
+        let now = self.clock.now();
+        let check_id = check.check_id;
+        let member = check.member.clone();
+        let Some(request) = self.request_mut() else {
+            return;
+        };
+        match request.on_check(from, check, now) {
+            Ok((reveal, code)) => {
+                self.send_direct(from, reveal);
+                self.emit(ProtectedGroupEvent::Code {
+                    role: CodeRole::Joiner,
+                    check_id,
+                    joiner: self.own_socket.unwrap_or_default(),
+                    peer_name: member,
+                    code: code.display(),
+                });
+            }
+            Err(busy) => self.send_direct(from, busy),
+        }
+    }
+
+    /// Holds the Welcome until the joiner has said the codes match. Only one from the socket and
+    /// check this request revealed to is kept.
+    fn on_welcome(&mut self, from: SocketId, check_id: [u8; 16], welcome: Vec<u8>) {
+        let Some(joining) = self.joining.as_mut() else {
+            return;
+        };
+        let JoinPhase::Asking { request, held, .. } = &mut joining.phase else {
+            return;
+        };
+        if request.checker() != Some((from, check_id)) || held.is_some() {
+            return;
+        }
+        *held = Some(HeldWelcome {
+            from,
+            check_id,
+            welcome,
+        });
+        if request.is_confirmed() {
+            self.enter_group();
+        }
+    }
+
+    /// Enters the group from a held Welcome, after the joiner confirmed, and only if the member
+    /// that checked signed it for the group it named.
+    fn enter_group(&mut self) {
         let Some(joining) = self.joining.as_mut() else {
             return;
         };
         let phase = std::mem::replace(&mut joining.phase, JoinPhase::Waiting);
-        match (phase, message) {
-            (
-                JoinPhase::AwaitingReply {
-                    session,
-                    pending,
-                    key_package,
-                    ..
-                },
-                reply @ AdmissionMessage::PakeReply(_),
-            ) => match session.on_reply(reply, &key_package) {
-                Ok((awaiting, offer)) => {
-                    let now = self.clock.now();
-                    if let Some(joining) = self.joining.as_mut() {
-                        joining.phase = JoinPhase::AwaitingWelcome {
-                            awaiting,
-                            pending,
-                            admitter: from,
-                            sent_at: now,
-                        };
-                    }
-                    self.send_payload(
-                        |body| GroupKeyFrame::Direct {
-                            to: GroupKeyRecipient::Socket(from),
-                            body,
-                        },
-                        GroupKeyPayload::Admission(offer),
-                    );
-                }
-                // A reply that is not a PAKE message can come from any socket, a stranger's
-                // included; it costs this attempt, not the whole join.
-                Err(AdmissionError::Protocol(detail)) => {
-                    curia::debug!("protected group: unusable PAKE reply", {
-                        channel_id: self.group_id.clone(),
-                        error: detail,
-                    });
-                    self.start_join_attempt();
-                }
-                Err(error) => self.lose_admission(error),
-            },
-            (phase @ JoinPhase::AwaitingReply { .. }, AdmissionMessage::Redirect { to }) => {
-                self.follow_redirect(phase, to);
+        let (request, pending, held) = match phase {
+            JoinPhase::Asking {
+                request,
+                pending,
+                held: Some(held),
+            } => (request, pending, held),
+            other => {
+                joining.phase = other;
+                return;
             }
-            (
-                JoinPhase::AwaitingWelcome {
-                    awaiting,
-                    pending,
-                    admitter,
-                    ..
-                },
-                offer @ (AdmissionMessage::WelcomeOffer { .. } | AdmissionMessage::Refused),
-            ) if admitter == from => match awaiting.on_welcome(offer) {
-                Ok(welcome) => match pending.join(&welcome) {
-                    Ok(state) => self.become_member(state),
-                    Err(e) => {
-                        curia::warn!("protected group: a verified Welcome did not join", {
-                            channel_id: self.group_id.clone(),
-                            error: e.to_string(),
-                        });
-                        self.lose(LostReason::ProtocolFailure);
-                    }
-                },
-                Err(error) => self.lose_admission(error),
-            },
-            // Anything else — a refusal from a socket other than the admitter, a message out of
-            // order — is not this join's answer. Socket ids are guessable, so honouring a stranger's
-            // refusal would let anyone end anyone's join.
-            (phase, _) => {
-                if let Some(joining) = self.joining.as_mut() {
-                    joining.phase = phase;
-                }
+        };
+        let staged = match pending.stage(&held.welcome) {
+            Ok(staged) => staged,
+            Err(e) => {
+                curia::warn!("protected group: an unreadable Welcome", {
+                    channel_id: self.group_id.clone(),
+                    error: e.to_string(),
+                });
+                self.lose(LostReason::ProtocolFailure);
+                return;
+            }
+        };
+        let Some(sender_key) = staged.sender_signature_key() else {
+            self.lose(LostReason::ProtocolFailure);
+            return;
+        };
+        if let Err(refusal) = request.accept_welcome(
+            held.check_id,
+            held.from,
+            &sender_key,
+            &staged.mls_group_id(),
+        ) {
+            curia::warn!("protected group: refused a Welcome", {
+                channel_id: self.group_id.clone(),
+                defect: format!("{refusal:?}"),
+            });
+            self.lose(LostReason::ProtocolFailure);
+            return;
+        }
+        match pending.finish(staged) {
+            Ok(state) => self.become_member(state),
+            Err(e) => {
+                curia::warn!("protected group: a checked Welcome did not join", {
+                    channel_id: self.group_id.clone(),
+                    error: e.to_string(),
+                });
+                self.lose(LostReason::ProtocolFailure);
             }
         }
     }
 
-    fn lose_admission(&mut self, error: AdmissionError) {
-        match error {
-            AdmissionError::Protocol(detail) => {
-                curia::warn!("protected group: admission protocol error", {
-                    channel_id: self.group_id.clone(),
-                    error: detail,
-                });
-                self.lose(LostReason::ProtocolFailure);
-            }
-            _ => self.lose(LostReason::WrongPassword),
+    fn request(&self) -> Option<&JoinerRequest> {
+        match self.joining.as_ref().map(|j| &j.phase) {
+            Some(JoinPhase::Asking { request, .. }) => Some(request),
+            _ => None,
         }
+    }
+
+    fn request_mut(&mut self) -> Option<&mut JoinerRequest> {
+        match self.joining.as_mut().map(|j| &mut j.phase) {
+            Some(JoinPhase::Asking { request, .. }) => Some(request),
+            _ => None,
+        }
+    }
+
+    /// Whether the member on `socket` is the one checking this joiner.
+    pub(super) fn is_checker(&self, socket: SocketId) -> bool {
+        self.request()
+            .and_then(JoinerRequest::checker)
+            .is_some_and(|(checker, _)| checker == socket)
+    }
+
+    pub(super) fn holds_welcome(&self) -> bool {
+        matches!(
+            self.joining.as_ref().map(|j| &j.phase),
+            Some(JoinPhase::Asking { held: Some(_), .. })
+        )
     }
 
     fn become_member(&mut self, state: MlsGroupState) {

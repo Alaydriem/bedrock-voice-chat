@@ -32,6 +32,15 @@ impl GroupRelayState {
         Some(pick)
     }
 
+    /// Every announced socket other than `from`.
+    pub fn members_except(&self, from: SocketId) -> Vec<SocketId> {
+        self.sockets
+            .iter()
+            .filter(|s| s.announced && s.id != from)
+            .map(|s| s.id)
+            .collect()
+    }
+
     /// Removes a socket and tells the rest it is gone. Dropping its sender ends its queue.
     pub fn remove(&mut self, id: SocketId) -> bool {
         let before = self.sockets.len();

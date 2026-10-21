@@ -19,6 +19,7 @@ pub struct SocketEntry {
     window_started: Option<Instant>,
     bytes_this_window: usize,
     over_limit_since: Option<Instant>,
+    last_members_frame: Option<Instant>,
 }
 
 impl SocketEntry {
@@ -26,6 +27,7 @@ impl SocketEntry {
     pub const MAX_BYTES_PER_WINDOW: usize = 1024 * 1024;
     pub const WINDOW: Duration = Duration::from_secs(10);
     pub const OVER_LIMIT_CLOSE: Duration = Duration::from_secs(30);
+    pub const MEMBERS_INTERVAL: Duration = Duration::from_secs(10);
 
     pub fn new(
         id: SocketId,
@@ -43,7 +45,20 @@ impl SocketEntry {
             window_started: None,
             bytes_this_window: 0,
             over_limit_since: None,
+            last_members_frame: None,
         }
+    }
+
+    /// A frame to every member puts a prompt on every member's screen, so a socket may send
+    /// one per [`Self::MEMBERS_INTERVAL`].
+    pub fn permits_members_frame(&mut self, now: Instant) -> bool {
+        let permitted = self
+            .last_members_frame
+            .is_none_or(|last| now.duration_since(last) >= Self::MEMBERS_INTERVAL);
+        if permitted {
+            self.last_members_frame = Some(now);
+        }
+        permitted
     }
 
     pub fn meter(&mut self, bytes: usize, now: Instant) -> RateVerdict {

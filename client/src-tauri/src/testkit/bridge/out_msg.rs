@@ -22,6 +22,11 @@ pub enum OutMsg {
     ChannelOpDone {
         op: String,
     },
+    // Emitted when an explicit operation was refused, with the error the production path gave.
+    ChannelOpFailed {
+        op: String,
+        error: String,
+    },
     // Emitted after UploadAudio: the server-assigned audio file id + its decoded
     // duration, so the orchestrator can trigger jukebox playback of it.
     AudioUploaded {

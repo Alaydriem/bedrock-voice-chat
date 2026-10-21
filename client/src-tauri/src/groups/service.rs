@@ -7,12 +7,10 @@ use tauri_plugin_curia::curia;
 use tauri_plugin_store::StoreExt;
 use websocket_types::GroupData;
 
-use zeroize::Zeroize;
-
 use super::GroupResolution;
 use super::protected::{
-    GroupKeyService, GroupPassword, KeySocket, ProtectedGroupNotifier, ProtectedGroupRunner,
-    SystemClock,
+    CheckIdHex, GroupKeyService, KeySocket, ProtectedGroupCommand, ProtectedGroupNotifier,
+    ProtectedGroupRunner, SystemClock,
 };
 use crate::api::Api;
 use crate::control::ControlActionsManager;
@@ -55,10 +53,18 @@ impl GroupService {
     pub async fn join(&self, name: String) -> Result<GroupData, anyhow::Error> {
         let api = self.api().await?;
         let channels = api.list_channels().await.map_err(|e| anyhow!(e))?;
-        let (id, resolved) = {
+        let (id, resolved, protected) = {
             let channel = GroupResolution::by_name(&channels, &name)?;
-            (channel.id(), channel.name.clone())
+            (channel.id(), channel.name.clone(), channel.is_protected())
         };
+
+        // A protected group is joined by asking its members, never by a plain membership event,
+        // which the server refuses for it.
+        if protected {
+            let mut joined = self.join_protected_moving(id).await?;
+            joined.name = Some(resolved);
+            return Ok(joined);
+        }
 
         self.send(&id, ChannelEvents::Join).await?;
 
@@ -107,47 +113,120 @@ impl GroupService {
         })
     }
 
-    /// Creates an end-to-end encrypted group and joins it as its first member.
-    ///
-    /// The password is checked and moved into a zeroizing holder before anything goes on the
-    /// wire, and never leaves this process.
-    pub async fn create_protected(
-        &self,
-        name: String,
-        mut password: String,
-    ) -> Result<GroupData, anyhow::Error> {
-        let password = Self::take_password(&mut password)?;
+    /// Turns this player's own group into an end-to-end encrypted one, while they are alone in
+    /// it, and starts it with this client as its only member. The server closes the group if this
+    /// client never opens its key socket.
+    pub async fn protect(&self, id: String) -> Result<GroupData, anyhow::Error> {
         let api = self.api().await?;
-        let id = api
-            .create_protected_channel(name.clone())
+        api.protect_channel(id.clone())
             .await
             .map_err(|e| anyhow!(e))?;
-        self.enter_protected(&api, id.clone(), password, true).await?;
-
-        Ok(GroupData {
-            in_group: true,
-            id: Some(id),
-            name: Some(name),
-        })
-    }
-
-    /// Joins an end-to-end encrypted group. Membership is not complete until a member admits
-    /// this client; the outcome arrives as a `protected-group:joined` or `protected-group:lost`
-    /// event.
-    pub async fn join_protected(
-        &self,
-        id: String,
-        mut password: String,
-    ) -> Result<GroupData, anyhow::Error> {
-        let password = Self::take_password(&mut password)?;
-        let api = self.api().await?;
-        self.enter_protected(&api, id.clone(), password, false).await?;
+        self.enter_protected(&api, id.clone(), true).await?;
 
         Ok(GroupData {
             in_group: true,
             id: Some(id),
             name: None,
         })
+    }
+
+    /// Asks to join an end-to-end encrypted group. Membership is not complete until a member
+    /// admits this client; the outcome arrives as a `protected-group:joined` or
+    /// `protected-group:lost` event.
+    pub async fn join_protected(&self, id: String) -> Result<GroupData, anyhow::Error> {
+        let api = self.api().await?;
+        self.enter_protected(&api, id.clone(), false).await?;
+
+        Ok(GroupData {
+            in_group: true,
+            id: Some(id),
+            name: None,
+        })
+    }
+
+    /// A protected join that arrived from outside the window — the game, a controller — and so
+    /// must also leave the group this client is in, as the dashboard's own join does. Asking to
+    /// join the group this client is already in does nothing.
+    pub async fn join_protected_moving(&self, id: String) -> Result<GroupData, anyhow::Error> {
+        let api = self.api().await?;
+        let channels = api.list_channels().await.map_err(|e| anyhow!(e))?;
+        let player = self.current_player().await?;
+        let current = GroupResolution::containing(&channels, &player).map(|channel| channel.id());
+        if current.as_deref() == Some(id.as_str()) {
+            return Ok(GroupData {
+                in_group: true,
+                id: Some(id),
+                name: None,
+            });
+        }
+
+        // Keys go first and protection last, as in `leave`: the old group hears nothing unsealed.
+        self.stop_protected().await;
+        if let Some(current) = current {
+            self.send(&current, ChannelEvents::Leave).await?;
+        }
+        match self.join_protected(id.clone()).await {
+            Ok(joined) => {
+                ProtectedGroupNotifier::join_started(&self.app_handle, &id);
+                Ok(joined)
+            }
+            Err(e) => {
+                self.release_protected().await;
+                Err(e)
+            }
+        }
+    }
+
+    /// The member pressed "Check code" on a joiner's card.
+    pub async fn check(&self, joiner: u64) -> Result<(), anyhow::Error> {
+        let (reply, answer) = tokio::sync::oneshot::channel();
+        self.command(ProtectedGroupCommand::Check { joiner, reply })
+            .await?;
+        answer.await?
+    }
+
+    /// The member pressed Admit or Deny on the card showing `check_id`.
+    pub async fn decide(
+        &self,
+        joiner: u64,
+        check_id: &str,
+        allow: bool,
+    ) -> Result<(), anyhow::Error> {
+        let check_id = CheckIdHex::decode(check_id).ok_or_else(|| anyhow!("not a check id"))?;
+        let (reply, answer) = tokio::sync::oneshot::channel();
+        self.command(ProtectedGroupCommand::Decide {
+            joiner,
+            check_id,
+            allow,
+            reply,
+        })
+        .await?;
+        answer.await?
+    }
+
+    /// The joiner pressed "It matches" or "No match".
+    pub async fn confirm(&self, check_id: &str, matches: bool) -> Result<(), anyhow::Error> {
+        let check_id = CheckIdHex::decode(check_id).ok_or_else(|| anyhow!("not a check id"))?;
+        let (reply, answer) = tokio::sync::oneshot::channel();
+        self.command(ProtectedGroupCommand::Confirm {
+            check_id,
+            matches,
+            reply,
+        })
+        .await?;
+        answer.await?
+    }
+
+    async fn command(&self, command: ProtectedGroupCommand) -> Result<(), anyhow::Error> {
+        let commands = self
+            .protected_slot()
+            .await
+            .commands()
+            .ok_or_else(|| anyhow!("no protected group is running"))?;
+        commands
+            .send(command)
+            .await
+            .map_err(|_| anyhow!("the protected group stopped"))
     }
 
     /// Stops this client's protected group, if it holds one, and wipes its keys. The gate stays
@@ -185,7 +264,6 @@ impl GroupService {
         &self,
         api: &Api,
         id: String,
-        password: GroupPassword,
         create: bool,
     ) -> Result<(), anyhow::Error> {
         let slot = self.protected_slot().await;
@@ -193,7 +271,7 @@ impl GroupService {
         slot.gate().set_protected(true);
 
         let entered = match api.join_protected_channel(id.clone()).await {
-            Ok(_) => self.start_protected(api, id.clone(), password, create).await,
+            Ok(_) => self.start_protected(api, id.clone(), create).await,
             Err(e) => {
                 slot.gate().set_protected(false);
                 return Err(anyhow!(e));
@@ -212,17 +290,10 @@ impl GroupService {
         Ok(())
     }
 
-    fn take_password(password: &mut String) -> Result<GroupPassword, anyhow::Error> {
-        let checked = GroupPassword::new(password);
-        password.zeroize();
-        Ok(checked?)
-    }
-
     async fn start_protected(
         &self,
         api: &Api,
         id: String,
-        password: GroupPassword,
         create: bool,
     ) -> Result<(), anyhow::Error> {
         let identity: common::PlayerIdentity = self.current_player().await?.parse()?;
@@ -234,21 +305,41 @@ impl GroupService {
         let gate = slot.gate();
         let id = id.clone();
         let service = if create {
-            GroupKeyService::create(id.clone(), identity, password, SystemClock, socket_tx, event_tx, gate.clone())?
+            GroupKeyService::create(
+                id.clone(),
+                identity,
+                SystemClock,
+                socket_tx,
+                event_tx,
+                gate.clone(),
+            )?
         } else {
-            GroupKeyService::join(id.clone(), identity, password, SystemClock, socket_tx, event_tx, gate.clone())?
+            GroupKeyService::join(
+                id.clone(),
+                identity,
+                SystemClock,
+                socket_tx,
+                event_tx,
+                gate.clone(),
+            )?
         };
 
         let (stop_tx, stop) = tokio::sync::oneshot::channel();
-        slot.install(stop_tx, id);
+        let (command_tx, commands) = tokio::sync::mpsc::channel(16);
+        slot.install(stop_tx, id, command_tx);
         let app = self.app_handle.clone();
         // Only tells the webview. A lost group leaves the gate protected and keyless, so the
         // microphone is silent until the user leaves the channel; it never falls back to plaintext
         // on its own, which is exactly what a hostile server closing the socket would want.
         tauri::async_runtime::spawn(async move {
-            ProtectedGroupRunner::run(service, socket_events, event_rx, stop, move |event| {
-                ProtectedGroupNotifier::notify(&app, &event)
-            })
+            ProtectedGroupRunner::run(
+                service,
+                socket_events,
+                event_rx,
+                commands,
+                stop,
+                move |event| ProtectedGroupNotifier::notify(&app, &event),
+            )
             .await;
         });
         Ok(())

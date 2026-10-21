@@ -277,3 +277,83 @@ async fn creator_deadline_fires_only_without_sockets() {
     assert!(fired_empty.load(Ordering::SeqCst));
     assert!(!fired_open.load(Ordering::SeqCst));
 }
+
+fn members_frame() -> GroupKeyFrame {
+    GroupKeyFrame::Direct {
+        to: GroupKeyRecipient::Members,
+        body: Bytes::from_static(b"request"),
+    }
+}
+
+// A join request goes to every member at once, so whoever is at their screen can check the
+// joiner. It never echoes to the sender.
+#[tokio::test]
+async fn members_recipient_reaches_every_other_socket() {
+    let relay = GroupKeyRelayService::new();
+    let (joiner, mut joiner_rx) = open(&relay, "minecraft:Steve").await;
+    let (a, mut a_rx) = open(&relay, "minecraft:Alice").await;
+    let (b, mut b_rx) = open(&relay, "minecraft:Bob").await;
+    let now = Instant::now();
+    relay.handle(GROUP, a, announce(), now).await;
+    relay.handle(GROUP, b, announce(), now).await;
+    while a_rx.try_recv().is_ok() {}
+    while b_rx.try_recv().is_ok() {}
+    while joiner_rx.try_recv().is_ok() {}
+
+    let outcome = relay.handle(GROUP, joiner, members_frame(), now).await;
+
+    assert_eq!(outcome, RelayOutcome::Routed);
+    let expected = GroupKeyFrame::Asked {
+        from: joiner,
+        identity: "minecraft:Steve".to_string(),
+        body: Bytes::from_static(b"request"),
+    };
+    assert_eq!(a_rx.try_recv().ok(), Some(expected.clone()));
+    assert_eq!(b_rx.try_recv().ok(), Some(expected));
+    assert!(joiner_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn members_recipient_is_rate_limited() {
+    let relay = GroupKeyRelayService::new();
+    let (joiner, _joiner_rx) = open(&relay, "minecraft:Steve").await;
+    let (a, mut a_rx) = open(&relay, "minecraft:Alice").await;
+    let now = Instant::now();
+    relay.handle(GROUP, a, announce(), now).await;
+    while a_rx.try_recv().is_ok() {}
+
+    assert_eq!(
+        relay.handle(GROUP, joiner, members_frame(), now).await,
+        RelayOutcome::Routed
+    );
+    assert!(matches!(
+        relay
+            .handle(GROUP, joiner, members_frame(), now + Duration::from_secs(9))
+            .await,
+        RelayOutcome::Dropped(ProtectedGroupError::RateLimited)
+    ));
+    assert_eq!(
+        relay
+            .handle(GROUP, joiner, members_frame(), now + Duration::from_secs(10))
+            .await,
+        RelayOutcome::Routed
+    );
+
+    let mut delivered = 0;
+    while a_rx.try_recv().is_ok() {
+        delivered += 1;
+    }
+    assert_eq!(delivered, 2);
+}
+
+#[tokio::test]
+async fn members_recipient_with_no_member_online_is_no_admitter() {
+    let relay = GroupKeyRelayService::new();
+    let (joiner, _joiner_rx) = open(&relay, "minecraft:Steve").await;
+
+    let outcome = relay
+        .handle(GROUP, joiner, members_frame(), Instant::now())
+        .await;
+
+    assert_eq!(outcome, RelayOutcome::NoAdmitter);
+}

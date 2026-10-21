@@ -81,7 +81,30 @@ impl ControlActionsManager {
             }
             ClientActionType::CreateGroup
             | ClientActionType::JoinGroup { .. }
-            | ClientActionType::LeaveGroup => {}
+            | ClientActionType::LeaveGroup => {
+                let Some(channel) = Self::protected_join_target(&action.action) else {
+                    return;
+                };
+                let service = crate::groups::GroupService::new(self.app_handle.clone());
+                if let Err(e) = service.join_protected_moving(channel.clone()).await {
+                    curia::warn!("ControlActionsManager: a protected join from the game failed", {
+                        channel_id: channel,
+                        error: e.to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    /// The group a delivered group action asks this app to join by approval.
+    ///
+    /// Open-group actions are applied by the server and reach the app as channel events. The
+    /// server delivers a `JoinGroup` to the app only for a protected group, which the game
+    /// cannot join itself: the app asks the group's members and opens the join dialog.
+    pub fn protected_join_target(action: &ClientActionType) -> Option<String> {
+        match action {
+            ClientActionType::JoinGroup { channel } => Some(channel.clone()),
+            _ => None,
         }
     }
 

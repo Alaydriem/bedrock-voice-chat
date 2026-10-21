@@ -4,6 +4,7 @@ import { httpClient } from '../net';
 import type { ServerAdminConfig } from '../config';
 import type { NoNetControlSender } from '../control/sender';
 import type { GroupCache, GroupRow } from './group_cache';
+import { GroupRowParser } from './group_row_parser';
 
 const REQUEST_TIMEOUT_SEC = 2;
 
@@ -49,7 +50,7 @@ export class NetGroupSource implements GroupSource {
     if (!response || response.status < 200 || response.status >= 300) {
       return null;
     }
-    const rows = NetGroupSource.parse(response.body);
+    const rows = GroupRowParser.parse(response.body);
     if (rows !== null) {
       this.cache.beginList(rows.length);
       for (const row of rows) {
@@ -57,29 +58,6 @@ export class NetGroupSource implements GroupSource {
       }
     }
     return rows;
-  }
-
-  // `Channel` carries players and creator as well; the panel reads neither.
-  private static parse(body: string): GroupRow[] | null {
-    try {
-      const parsed: unknown = JSON.parse(body);
-      if (!Array.isArray(parsed)) {
-        return null;
-      }
-      const rows: GroupRow[] = [];
-      for (const item of parsed) {
-        if (item === null || typeof item !== 'object') {
-          continue;
-        }
-        const c = item as Record<string, unknown>;
-        if (typeof c.id === 'string' && typeof c.name === 'string') {
-          rows.push({ id: c.id, name: c.name });
-        }
-      }
-      return rows;
-    } catch {
-      return null;
-    }
   }
 }
 

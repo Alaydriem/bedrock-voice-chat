@@ -7,4 +7,6 @@ pub enum GroupKeyRecipient {
     /// Any member's socket other than the sender's, chosen by the server.
     Any,
     Socket(SocketId),
+    /// Every member's socket other than the sender's.
+    Members,
 }

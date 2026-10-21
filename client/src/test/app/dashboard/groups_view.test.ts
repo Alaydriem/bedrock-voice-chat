@@ -134,6 +134,62 @@ describe("GroupsView.since", () => {
         expect(get(rows).map((r) => r.locked)).toEqual([true, false]);
     });
 
+    // Protection can only be turned on while nobody else holds the group's audio in the clear:
+    // the owner, alone, in an open group.
+    it("offers protection only to an owner alone in an open group", () => {
+        const view = new GroupsView();
+        const me = "minecraft:Alice";
+        const rows = view.rows(
+            [
+                channel("alone", "Alone", [me], me),
+                channel("pair", "Pair", [me, "minecraft:Bob"], me),
+                channel("theirs", "Theirs", [me], "minecraft:Bob"),
+                { ...channel("locked", "Locked", [me], me), protected: true },
+            ],
+            "alone",
+            me,
+        );
+
+        expect(get(rows).map((r) => r.canProtect)).toEqual([true, false, false, false]);
+    });
+
+    // The server closes a Private Group when its last member leaves, so only that leave needs
+    // a confirmation. An open group stays standing, and so does one with somebody else in it.
+    it("marks leaving as closing only for the last member of a Private Group", () => {
+        const view = new GroupsView();
+        const me = "minecraft:Alice";
+        const rows = view.rows(
+            [
+                { ...channel("solo", "Solo", [me], me), protected: true },
+                { ...channel("pair", "Pair", [me, "minecraft:Bob"], me), protected: true },
+                channel("open", "Open", [me], me),
+                { ...channel("away", "Away", ["minecraft:Bob"], me), protected: true },
+            ],
+            "solo",
+            me,
+        );
+        expect(get(rows).map((r) => r.closesOnLeave)).toEqual([true, false, false, false]);
+
+        const inPair = view.rows(
+            [{ ...channel("pair", "Pair", [me, "minecraft:Bob"], me), protected: true }],
+            "pair",
+            me,
+        );
+        expect(get(inPair)[0].closesOnLeave).toBe(false);
+    });
+
+    // The joined row counts the group's own roster, not the server's list: a member the server
+    // dropped from its list still holds the keys, so leaving does not close the group.
+    it("counts the group's own roster when deciding a leave closes the group", () => {
+        const view = new GroupsView();
+        const me = "minecraft:Alice";
+        const vault = { ...channel("vault", "Vault", [me], me), protected: true };
+
+        const rows = view.rows([vault], "vault", me, [me, "minecraft:Bob"]);
+
+        expect(get(rows)[0].closesOnLeave).toBe(false);
+    });
+
     // In a protected group the server's member list is the one thing that must not be trusted:
     // the joined row shows the group's own roster, so a listener the server hid still appears.
     it("shows the group's own roster for the protected group this client is in", () => {

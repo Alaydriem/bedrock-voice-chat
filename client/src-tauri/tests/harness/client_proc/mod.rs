@@ -228,6 +228,9 @@ impl ClientProc {
                         Ok(OutMsg::ChannelOpDone { op }) => {
                             reader_state.lock().unwrap().last_channel_op = Some(op);
                         }
+                        Ok(OutMsg::ChannelOpFailed { op, error }) => {
+                            reader_state.lock().unwrap().last_channel_failure = Some((op, error));
+                        }
                         Ok(OutMsg::AudioUploaded {
                             audio_file_id,
                             duration_ms,
@@ -580,45 +583,105 @@ impl ClientProc {
         }
     }
 
-    /// Create a protected group with `password` and join it as its first member, through the
-    /// production group service. Returns the server-assigned channel id.
-    pub fn create_protected(&self, password: &str, timeout: Duration) -> Result<String, String> {
+    /// Create a group, join it, and protect it while alone, through the production group
+    /// service. Returns the server-assigned channel id.
+    pub fn create_protected(&self, timeout: Duration) -> Result<String, String> {
         self.state.lock().unwrap().channel_id = None;
-        self.send(&InMsg::CreateProtected {
-            password: password.to_string(),
-        });
+        self.send(&InMsg::CreateProtected);
         self.await_channel_id(timeout)
     }
 
-    /// Start joining a protected group. Blocks until the bin has opened the key socket; the
-    /// outcome of admission arrives later as a `protected-group:*` UI event.
-    pub fn join_protected(
-        &self,
-        channel_id: &str,
-        password: &str,
-        timeout: Duration,
-    ) -> Result<(), String> {
+    /// Protect a group this client created. `Err` carries the refusal, e.g. `not_alone`.
+    pub fn protect(&self, channel_id: &str, timeout: Duration) -> Result<(), String> {
+        self.channel_op(
+            InMsg::ProtectGroup {
+                channel_id: channel_id.to_string(),
+            },
+            "protect",
+            timeout,
+        )
+    }
+
+    /// Ask to join a protected group. Blocks until the bin has opened the key socket; the
+    /// outcome of admission arrives later as `protected-group:*` UI events.
+    pub fn join_protected(&self, channel_id: &str, timeout: Duration) -> Result<(), String> {
         self.channel_op(
             InMsg::JoinProtected {
                 channel_id: channel_id.to_string(),
-                password: password.to_string(),
             },
             "join_protected",
             timeout,
         )
     }
 
-    /// Send one channel-membership command and block until the bin echoes a
-    /// matching `ChannelOpDone`. The completion latch is cleared first so a
-    /// prior op's ack is never mistaken for this one.
+    /// A member presses "Check code" on the card for `joiner_socket`.
+    pub fn admission_check(&self, joiner_socket: u64, timeout: Duration) -> Result<(), String> {
+        self.channel_op(
+            InMsg::AdmissionCheck { joiner_socket },
+            "admission_check",
+            timeout,
+        )
+    }
+
+    /// A member presses Admit (`allow`) or Deny on the card showing `check_id`.
+    pub fn admission_decide(
+        &self,
+        joiner_socket: u64,
+        check_id: &str,
+        allow: bool,
+        timeout: Duration,
+    ) -> Result<(), String> {
+        self.channel_op(
+            InMsg::AdmissionDecide {
+                joiner_socket,
+                check_id: check_id.to_string(),
+                allow,
+            },
+            "admission_decide",
+            timeout,
+        )
+    }
+
+    /// The joiner presses "It matches" (`matches`) or "No match".
+    pub fn admission_confirm(
+        &self,
+        check_id: &str,
+        matches: bool,
+        timeout: Duration,
+    ) -> Result<(), String> {
+        self.channel_op(
+            InMsg::AdmissionConfirm {
+                check_id: check_id.to_string(),
+                matches,
+            },
+            "admission_confirm",
+            timeout,
+        )
+    }
+
+    /// Send one command and block until the bin echoes a matching `ChannelOpDone`, or a
+    /// `ChannelOpFailed` whose error becomes the `Err`. Both latches are cleared first so a prior
+    /// op's answer is never mistaken for this one.
     fn channel_op(&self, msg: InMsg, op: &str, timeout: Duration) -> Result<(), String> {
-        self.state.lock().unwrap().last_channel_op = None;
+        {
+            let mut state = self.state.lock().unwrap();
+            state.last_channel_op = None;
+            state.last_channel_failure = None;
+        }
         self.send(&msg);
 
         let deadline = Instant::now() + timeout;
         loop {
-            if self.state.lock().unwrap().last_channel_op.as_deref() == Some(op) {
-                return Ok(());
+            {
+                let state = self.state.lock().unwrap();
+                if state.last_channel_op.as_deref() == Some(op) {
+                    return Ok(());
+                }
+                if let Some((failed, error)) = &state.last_channel_failure
+                    && failed == op
+                {
+                    return Err(error.clone());
+                }
             }
             if Instant::now() >= deadline {
                 return Err(format!(

@@ -42,11 +42,13 @@ use bvc_client_lib::{BridgeInputSource, CapturingSink};
 
 mod channel_driver;
 mod e2e_env;
+mod op_driver;
 mod stdout_bridge;
 mod store_seeder;
 
 use channel_driver::ChannelDriver;
 use e2e_env::E2eEnv;
+use op_driver::OpDriver;
 use stdout_bridge::StdoutBridge;
 use store_seeder::StoreSeeder;
 
@@ -257,6 +259,14 @@ fn main() {
                 "protected-group:roster",
                 "protected-group:epoch",
                 "protected-group:lost",
+                "protected-group:request",
+                "protected-group:waiting",
+                "protected-group:code",
+                "protected-group:checking",
+                "protected-group:check-failed",
+                "protected-group:request-ended",
+                "protected-group:admitted",
+                "protected-group:join-started",
             ];
             for name in FORWARDED_UI_EVENTS {
                 let event_name = (*name).to_string();
@@ -366,10 +376,10 @@ fn main() {
                                 "delete",
                             );
                         }
-                        Ok(InMsg::CreateProtected { password }) => {
+                        Ok(InMsg::CreateProtected) => {
                             let h = stdin_handle.clone();
                             tauri::async_runtime::spawn(async move {
-                                match Connector::create_protected(&h, password).await {
+                                match Connector::create_protected(&h).await {
                                     Ok(channel_id) => {
                                         StdoutBridge::emit(&OutMsg::ChannelJoined { channel_id })
                                     }
@@ -379,20 +389,34 @@ fn main() {
                                 }
                             });
                         }
-                        Ok(InMsg::JoinProtected {
-                            channel_id,
-                            password,
+                        Ok(InMsg::ProtectGroup { channel_id }) => {
+                            OpDriver::run(&stdin_handle, "protect", move |h| async move {
+                                Connector::protect(&h, channel_id).await
+                            });
+                        }
+                        Ok(InMsg::JoinProtected { channel_id }) => {
+                            OpDriver::run(&stdin_handle, "join_protected", move |h| async move {
+                                Connector::join_protected(&h, channel_id).await
+                            });
+                        }
+                        Ok(InMsg::AdmissionCheck { joiner_socket }) => {
+                            OpDriver::run(&stdin_handle, "admission_check", move |h| async move {
+                                Connector::admission_check(&h, joiner_socket).await
+                            });
+                        }
+                        Ok(InMsg::AdmissionDecide {
+                            joiner_socket,
+                            check_id,
+                            allow,
                         }) => {
-                            let h = stdin_handle.clone();
-                            tauri::async_runtime::spawn(async move {
-                                match Connector::join_protected(&h, channel_id, password).await {
-                                    Ok(()) => StdoutBridge::emit(&OutMsg::ChannelOpDone {
-                                        op: "join_protected".to_string(),
-                                    }),
-                                    Err(e) => StdoutBridge::emit(&OutMsg::Log {
-                                        line: format!("join_protected failed: {e}"),
-                                    }),
-                                }
+                            OpDriver::run(&stdin_handle, "admission_decide", move |h| async move {
+                                Connector::admission_decide(&h, joiner_socket, check_id, allow)
+                                    .await
+                            });
+                        }
+                        Ok(InMsg::AdmissionConfirm { check_id, matches }) => {
+                            OpDriver::run(&stdin_handle, "admission_confirm", move |h| async move {
+                                Connector::admission_confirm(&h, check_id, matches).await
                             });
                         }
                         Ok(InMsg::UploadAudio { wav_path, game }) => {

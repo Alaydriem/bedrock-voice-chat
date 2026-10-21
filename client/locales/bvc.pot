@@ -48,6 +48,18 @@ msgstr ""
 msgid "{failures} of {events} events could not be read  ← the meter is receiving but failing to handle them"
 msgstr ""
 
+#: src/components/dashboard/AdmissionCard.svelte:79
+msgid "{joiner} joined {group}"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:106
+msgid "{joiner} reads you this code. Admit only if it is {joiner} and the code matches."
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:75
+msgid "{joiner}'s code is ready"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsView.ts:297
 msgid "{levels} levels arrived and none were painted  ← the renderer is not drawing them"
 msgstr ""
@@ -58,6 +70,14 @@ msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsView.ts:279
 msgid "{listening} of {bindings} bindings subscribed to the live source  ← the rest are bound to one nothing pushes to"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:63
+msgid "{member} did not admit you"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:77
+msgid "{member} is checking {joiner}"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsView.ts:191
@@ -114,6 +134,10 @@ msgstr ""
 msgid "← your microphone has stopped"
 msgstr ""
 
+#: src/components/dashboard/AdmissionStack.svelte:106
+msgid "+{count} more"
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:413
 msgid "A Bedrock add-on, or the Fabric or Paper mod for Java"
 msgstr ""
@@ -126,8 +150,12 @@ msgstr ""
 msgid "A friend runs the server"
 msgstr ""
 
-#: src/components/dashboard/PasswordPrompt.svelte:44
-msgid "A group password needs at least 6 characters."
+#: src/js/app/managers/ProtectedGroupManager.ts:122
+msgid "A member did not admit you"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:77
+msgid "A member must admit you."
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:375
@@ -259,6 +287,14 @@ msgstr ""
 msgid "Administrator"
 msgstr ""
 
+#: src/components/dashboard/AdmissionCard.svelte:116
+msgid "Admit {joiner}"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:71
+msgid "Admit {joiner} to {group}?"
+msgstr ""
+
 #: src/components/settings/ProxyServerEditor.svelte:122
 msgid "Advertised version"
 msgstr ""
@@ -316,6 +352,14 @@ msgstr ""
 
 #: src/components/settings/panes/AboutPane.svelte:191
 msgid "Anonymous usage statistics and crash reports help us improve the app. No personal data is sent."
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:102
+msgid "Ask again"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:92
+msgid "Ask to join"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:226
@@ -495,8 +539,10 @@ msgstr ""
 msgid "Can't start"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:302
-#: src/components/dashboard/PasswordPrompt.svelte:48
+#: src/components/dashboard/GroupRow.svelte:348
+#: src/components/dashboard/JoinProtectedDialog.svelte:91
+#: src/components/dashboard/JoinProtectedDialog.svelte:94
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:41
 #: src/components/settings/panes/ManagePlayersPane.svelte:454
 #: src/components/settings/panes/ManagePlayersPane.svelte:486
 #: src/components/settings/panes/PlayersPane.svelte:342
@@ -561,9 +607,22 @@ msgstr ""
 msgid "Chat is unavailable"
 msgstr ""
 
+#: src/components/dashboard/AdmissionCard.svelte:73
+msgid "Check {joiner}'s code"
+msgstr ""
+
 #: src/components/settings/panes/AboutPane.svelte:136
 #: src/components/settings/panes/ConnectPane.svelte:250
 msgid "Check again"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:101
+#: src/components/dashboard/AdmissionCard.svelte:95
+msgid "Check code"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:81
+msgid "Check failed"
 msgstr ""
 
 #: src/components/settings/panes/AboutPane.svelte:243
@@ -649,9 +708,14 @@ msgstr ""
 msgid "Client Update Required"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:207
+#: src/components/dashboard/GroupRow.svelte:243
+#: src/components/dashboard/JoinProtectedDialog.svelte:101
 #: src/components/serverList/PreflightPanel.svelte:80
 msgid "Close"
+msgstr ""
+
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:27
+msgid "Close {name}?"
 msgstr ""
 
 #: src/components/dashboard/ChatDock.svelte:102
@@ -693,6 +757,10 @@ msgstr ""
 msgid "CODE"
 msgstr ""
 
+#: src/components/dashboard/CodeDigits.svelte:12
+msgid "Code {code}"
+msgstr ""
+
 #: src/components/login/NoServerScreen.svelte:129
 msgid "Come back any time from the sign-in screen"
 msgstr ""
@@ -707,10 +775,6 @@ msgstr ""
 
 #: src/js/app/managers/settings/AboutManager.ts:66
 msgid "Community discussions and help"
-msgstr ""
-
-#: src/components/dashboard/GroupsPanel.svelte:79
-msgid "Compare now"
 msgstr ""
 
 #: src/components/login/SignInScreen.svelte:54
@@ -777,7 +841,7 @@ msgstr ""
 msgid "Connection status"
 msgstr ""
 
-#: src/js/app/managers/ProtectedGroupManager.ts:66
+#: src/js/app/managers/ProtectedGroupManager.ts:130
 msgid "Connection to the group was lost. Rejoin to continue."
 msgstr ""
 
@@ -793,10 +857,6 @@ msgstr ""
 msgid "Container queries, so these are faithful. Scroll each frame — the footbar must stay on screen at every step."
 msgstr ""
 
-#: src/components/dashboard/PasswordPrompt.svelte:49
-msgid "Continue"
-msgstr ""
-
 #: src/components/setup/MicrophoneScreen.svelte:89
 #: src/components/setup/NotificationsScreen.svelte:93
 msgid "Continue →"
@@ -810,6 +870,7 @@ msgstr ""
 msgid "Copied."
 msgstr ""
 
+#: src/components/dashboard/SafetyCodeDialog.svelte:56
 #: src/components/settings/BedrockLog.svelte:113
 msgid "Copy"
 msgstr ""
@@ -863,10 +924,6 @@ msgstr ""
 msgid "Could not play through that device. Try another one."
 msgstr ""
 
-#: src/js/app/managers/ProtectedGroupManager.ts:64
-msgid "Could not reach a group member."
-msgstr ""
-
 #: src/js/app/dashboard/DiagnosticsView.ts:159
 msgid "could not read  ← {reason}"
 msgstr ""
@@ -877,6 +934,10 @@ msgstr ""
 
 #: src/js/app/managers/settings/AccountManager.ts:125
 msgid "Could not retrieve Java username."
+msgstr ""
+
+#: src/components/dashboard/GroupRow.svelte:200
+msgid "Could not turn this on. The group is closed."
 msgstr ""
 
 #: src/components/settings/panes/ManagePlayersPane.svelte:261
@@ -935,6 +996,7 @@ msgstr ""
 msgid "Delete this sound?"
 msgstr ""
 
+#: src/components/dashboard/AdmissionCard.svelte:113
 #: src/components/settings/panes/ManagePlayersPane.svelte:515
 msgid "Deny"
 msgstr ""
@@ -972,6 +1034,7 @@ msgstr ""
 msgid "Discord callback missing token payload"
 msgstr ""
 
+#: src/components/dashboard/AdmissionCard.svelte:126
 #: src/components/events/Notification.svelte:96
 msgid "Dismiss"
 msgstr ""
@@ -992,6 +1055,7 @@ msgstr ""
 msgid "Do both installs yourself. The guide covers the server and the mod, start to finish, in about fifteen minutes."
 msgstr ""
 
+#: src/components/dashboard/SafetyCodeDialog.svelte:58
 #: src/components/settings/panes/ManagePlayersPane.svelte:523
 msgid "Done"
 msgstr ""
@@ -1008,7 +1072,7 @@ msgstr ""
 msgid "drops"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:200
+#: src/components/dashboard/GroupRow.svelte:236
 msgid "Edit"
 msgstr ""
 
@@ -1165,17 +1229,13 @@ msgstr ""
 msgid "Grant it in your system settings, then come back and try again. Voice chat cannot work without it."
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:292
+#: src/components/dashboard/GroupRow.svelte:328
 msgid "Group id"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:277
-#: src/components/dashboard/GroupRow.svelte:286
+#: src/components/dashboard/GroupRow.svelte:313
+#: src/components/dashboard/GroupRow.svelte:322
 msgid "Group name"
-msgstr ""
-
-#: src/routes/dashboard/+layout.svelte:672
-msgid "Group password"
 msgstr ""
 
 #: src/components/dashboard/DashboardScreen.svelte:269
@@ -1254,7 +1314,7 @@ msgid "Identity"
 msgstr ""
 
 #: src/components/dashboard/DashboardScreen.svelte:332
-#: src/routes/dashboard/+layout.svelte:744
+#: src/routes/dashboard/+layout.svelte:810
 msgid "In earshot"
 msgstr ""
 
@@ -1264,6 +1324,10 @@ msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:327
 msgid "In game, run"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:85
+msgid "In person, by phone or on Discord. Not in game chat."
 msgstr ""
 
 #: src/js/app/managers/ChannelManager.ts:332
@@ -1326,6 +1390,10 @@ msgstr ""
 msgid "It is either still being written, or it was written by an older build whose format this version cannot read. It can still be renamed or deleted."
 msgstr ""
 
+#: src/components/dashboard/JoinProtectedDialog.svelte:98
+msgid "It matches"
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:389
 msgid "It works with"
 msgstr ""
@@ -1338,8 +1406,21 @@ msgstr ""
 msgid "Jitter buffer"
 msgstr ""
 
+#: src/components/dashboard/JoinProtectedDialog.svelte:71
+msgid "Join {name}"
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:372
 msgid "Join from in-game"
+msgstr ""
+
+#: src/components/dashboard/AdmissionStack.svelte:79
+#: src/components/dashboard/AdmissionStack.svelte:81
+msgid "Join requests"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:61
+msgid "Joining {name}"
 msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:52
@@ -1375,9 +1456,18 @@ msgstr ""
 msgid "last seen {n} min ago"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:194
-#: src/routes/dashboard/+layout.svelte:737
+#: src/components/dashboard/GroupRow.svelte:230
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:45
+#: src/routes/dashboard/+layout.svelte:803
 msgid "Leave"
+msgstr ""
+
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:29
+msgid "Leave {name}?"
+msgstr ""
+
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:43
+msgid "Leave and close"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:197
@@ -1555,12 +1645,8 @@ msgstr ""
 msgid "Network transport failed"
 msgstr ""
 
-#: src/components/dashboard/GroupsPanel.svelte:63
+#: src/components/dashboard/GroupsPanel.svelte:72
 msgid "New group"
-msgstr ""
-
-#: src/components/dashboard/GroupsPanel.svelte:68
-msgid "New protected group"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:303
@@ -1628,8 +1714,18 @@ msgstr ""
 msgid "no levels have reached it  ← the feed above decides whether that is a fault"
 msgstr ""
 
-#: src/js/app/managers/ProtectedGroupManager.ts:62
-msgid "No member is online to admit you."
+#: src/components/dashboard/JoinProtectedDialog.svelte:96
+msgid "No match"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:67
+#: src/js/app/managers/ProtectedGroupManager.ts:126
+msgid "No member answered"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:69
+#: src/js/app/managers/ProtectedGroupManager.ts:128
+msgid "No member is online"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:103
@@ -1798,6 +1894,7 @@ msgstr ""
 msgid "not mounted  ← no pill has registered a meter in this window"
 msgstr ""
 
+#: src/components/dashboard/AdmissionCard.svelte:93
 #: src/components/shell/UpdateOfferDialog.svelte:22
 msgid "Not now"
 msgstr ""
@@ -2020,10 +2117,6 @@ msgstr ""
 msgid "painting — {counts}, last level {level}"
 msgstr ""
 
-#: src/routes/dashboard/+layout.svelte:671
-msgid "Password for the new protected group"
-msgstr ""
-
 #: src/js/app/dashboard/DiagnosticsView.ts:447
 msgid "Paths used"
 msgstr ""
@@ -2086,7 +2179,7 @@ msgstr ""
 msgid "Players"
 msgstr ""
 
-#: src/components/dashboard/GroupsPanel.svelte:75
+#: src/components/dashboard/ProtectedLine.svelte:19
 msgid "Players nearby cannot hear you."
 msgstr ""
 
@@ -2146,11 +2239,16 @@ msgstr ""
 msgid "Privacy Notice"
 msgstr ""
 
+#: src/components/dashboard/GroupRow.svelte:338
+#: src/components/dashboard/GroupRow.svelte:339
+msgid "Private Group"
+msgstr ""
+
 #: src/components/dashboard/SelfControls.svelte:76
 msgid "Profile and sign-out"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:239
+#: src/components/dashboard/GroupRow.svelte:275
 msgid "Protected"
 msgstr ""
 
@@ -2225,6 +2323,14 @@ msgstr ""
 
 #: src/routes/login/+page.svelte:276
 msgid "Reaching"
+msgstr ""
+
+#: src/components/dashboard/SafetyCodeDialog.svelte:47
+msgid "Read it out to the others. If yours is different, leave the group."
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:59
+msgid "Read this code to {member}"
 msgstr ""
 
 #: src/js/app/serverList/PlateView.ts:136
@@ -2462,11 +2568,18 @@ msgstr ""
 msgid "Runs on this machine. Anything it filters out is never encoded or sent."
 msgstr ""
 
+#: src/components/dashboard/ProtectedLine.svelte:27
+#: src/components/dashboard/SafetyCodeDialog.svelte:39
+#: src/components/dashboard/SafetyCodeDialog.svelte:43
+#: src/components/dashboard/SafetyCodeDialog.svelte:48
+msgid "Safety code"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsCopy.ts:27
 msgid "Sample rate"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:305
+#: src/components/dashboard/GroupRow.svelte:351
 msgid "Save"
 msgstr ""
 
@@ -2631,6 +2744,10 @@ msgstr ""
 msgid "Share the address and talk"
 msgstr ""
 
+#: src/components/dashboard/AdmissionCard.svelte:121
+msgid "Show code"
+msgstr ""
+
 #: src/components/settings/BedrockLog.svelte:117
 msgid "Show debug"
 msgstr ""
@@ -2739,6 +2856,15 @@ msgstr ""
 
 #: src/components/login/GateScreen.svelte:74
 msgid "Someone already set it up"
+msgstr ""
+
+#: src/components/dashboard/GroupRow.svelte:186
+#: src/components/dashboard/GroupRow.svelte:195
+msgid "Someone joined. Turn this on while you are alone."
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:124
+msgid "Someone may be interfering."
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:332
@@ -2881,6 +3007,11 @@ msgstr ""
 msgid "The BVC server runs separately, on"
 msgstr ""
 
+#: src/components/dashboard/JoinProtectedDialog.svelte:65
+#: src/js/app/managers/ProtectedGroupManager.ts:124
+msgid "The codes did not match"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsManager.ts:106
 msgid "The connection failed and will not retry on its own."
 msgstr ""
@@ -3013,6 +3144,10 @@ msgstr ""
 
 #: src/js/app/chat/ChatManager.ts:124
 msgid "This world is not known to the server yet"
+msgstr ""
+
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:37
+msgid "To come back, a member must admit you."
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:314
@@ -3296,6 +3431,10 @@ msgstr ""
 msgid "Waiting"
 msgstr ""
 
+#: src/components/dashboard/JoinProtectedDialog.svelte:80
+msgid "Waiting for a member"
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:328
 msgid "Walk up to someone."
 msgstr ""
@@ -3401,10 +3540,6 @@ msgstr ""
 msgid "Worst direction"
 msgstr ""
 
-#: src/js/app/managers/ProtectedGroupManager.ts:60
-msgid "Wrong password."
-msgstr ""
-
 #: src/js/app/dashboard/DiagnosticsCopy.ts:38
 msgid "WSS port"
 msgstr ""
@@ -3435,6 +3570,10 @@ msgstr ""
 
 #: src/js/app/serverList/preflight/PreflightVerdict.ts:59
 msgid "You are not signed in to this server any more. Sign in again to connect."
+msgstr ""
+
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:35
+msgid "You are the last member. Leaving closes the group."
 msgstr ""
 
 #: src/components/settings/panes/ConnectPane.svelte:242

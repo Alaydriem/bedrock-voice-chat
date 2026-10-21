@@ -71,15 +71,32 @@ pub enum InMsg {
     SetCrouchWhisper {
         enabled: bool,
     },
-    // Create a protected group through the production path and join it as its first member.
-    // Replies with OutMsg::ProtectedCreated.
-    CreateProtected {
-        password: String,
+    // Create a group, join it, and protect it while alone, through the production path. Replies
+    // with OutMsg::ChannelJoined.
+    CreateProtected,
+    // Protect a group this client created. Replies with ChannelOpDone or ChannelOpFailed under
+    // "protect"; the failure carries the server's refusal code.
+    ProtectGroup {
+        channel_id: String,
     },
-    // Start joining a protected group. The outcome arrives as OutMsg::ProtectedEvent.
+    // Ask to join a protected group. The outcome arrives as `protected-group:*` UI events.
     JoinProtected {
         channel_id: String,
-        password: String,
+    },
+    // A member presses "Check code" on a request card. Op "admission_check".
+    AdmissionCheck {
+        joiner_socket: u64,
+    },
+    // A member presses Admit or Deny on the card showing `check_id`. Op "admission_decide".
+    AdmissionDecide {
+        joiner_socket: u64,
+        check_id: String,
+        allow: bool,
+    },
+    // The joiner presses "It matches" or "No match". Op "admission_confirm".
+    AdmissionConfirm {
+        check_id: String,
+        matches: bool,
     },
     // Take everything this client has sent the server since the last request. The bin
     // responds with OutMsg::WireCapture and starts a fresh record.

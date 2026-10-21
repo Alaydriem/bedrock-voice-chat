@@ -35,6 +35,16 @@ export interface GroupRowView {
     activeAt: number | null;
     /** True while a join or leave is recent enough to be worth animating. */
     stirring: boolean;
-    /** End-to-end encrypted: joining takes the group's password. */
+    /** End-to-end encrypted: a member must admit each new person. */
     locked: boolean;
+    /**
+     * The owner may turn on "Private Group": an open group they are alone in. Anyone
+     * else already in it holds no keys and would be cut off.
+     */
+    canProtect: boolean;
+    /**
+     * Leaving closes the group: this client is the last member of a Private Group, and nobody
+     * would be left to admit anyone.
+     */
+    closesOnLeave: boolean;
 }

@@ -1,35 +1,43 @@
 mod admitting;
 mod clock;
+mod code_role;
 mod committer_rank;
 mod event;
+mod held_welcome;
 mod join_phase;
 mod joining;
 mod joining_state;
 mod lost_reason;
 mod membership;
+mod open_request;
 mod pending_commit;
 mod pending_kind;
 mod socket_bindings;
 mod system_clock;
 
 pub use clock::Clock;
+pub use code_role::CodeRole;
 pub use committer_rank::CommitterRank;
 pub use event::ProtectedGroupEvent;
 pub use lost_reason::LostReason;
 pub use system_clock::SystemClock;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
 
 use bytes::Bytes;
-use common::structs::group_key::{GroupKeyFrame, GroupKeyPayload, SocketId};
+use common::structs::group_key::{AdmissionMessage, GroupKeyFrame, GroupKeyPayload, SocketId};
 use tauri_plugin_curia::curia;
 use tokio::sync::mpsc;
 
-use super::{AdmissionRateLimiter, AdmitterSession, GroupPassword, MlsGroupState, SealGate};
+use super::{
+    AdmissionRateLimiter, MemberCheck, MlsGroupState, QueuedAdd, SealGate, SeenKeyPackages,
+};
+use held_welcome::HeldWelcome;
 use join_phase::JoinPhase;
 use joining_state::JoiningState;
+use open_request::OpenRequest;
 use pending_commit::PendingCommit;
 use pending_kind::PendingKind;
 use socket_bindings::SocketBindings;
@@ -43,7 +51,6 @@ use socket_bindings::SocketBindings;
 pub struct GroupKeyService<C: Clock> {
     group_id: String,
     identity: common::PlayerIdentity,
-    password: GroupPassword,
     clock: C,
     outbound: mpsc::Sender<GroupKeyFrame>,
     events: mpsc::Sender<ProtectedGroupEvent>,
@@ -54,31 +61,36 @@ pub struct GroupKeyService<C: Clock> {
     state: Option<MlsGroupState>,
     joining: Option<JoiningState>,
     pending: Option<PendingCommit>,
-    admissions: HashMap<SocketId, AdmitterSession>,
-    queued_adds: Vec<(SocketId, Vec<u8>)>,
+    requests: Vec<OpenRequest>,
+    checks: HashMap<[u8; 16], MemberCheck>,
+    queued_adds: Vec<QueuedAdd>,
+    // Joiners whose socket closed while their Add was already in flight. A merged Add for one of
+    // these is removed again rather than bound to a socket that is gone.
+    departed: HashSet<SocketId>,
+    seen: SeenKeyPackages,
     bindings: SocketBindings,
     removals: Vec<(u32, Instant)>,
     last_epoch_change: Instant,
     limiter: AdmissionRateLimiter,
+    last_cue: Option<Instant>,
+    waiting_reported: usize,
     lost: bool,
 }
 
 impl<C: Clock> GroupKeyService<C> {
     const MAX_BUFFERED_COMMITS: usize = 256;
-    const MAX_CONCURRENT_ADMISSIONS: usize = 16;
 
     /// Creates the group at epoch 0 with this client as its only member.
     pub fn create(
         group_id: String,
         identity: common::PlayerIdentity,
-        password: GroupPassword,
         clock: C,
         outbound: mpsc::Sender<GroupKeyFrame>,
         events: mpsc::Sender<ProtectedGroupEvent>,
         gate: Arc<SealGate>,
     ) -> anyhow::Result<Self> {
         let state = MlsGroupState::create(&identity)?;
-        let mut service = Self::new(group_id, identity, password, clock, outbound, events, gate);
+        let mut service = Self::new(group_id, identity, clock, outbound, events, gate);
         service.state = Some(state);
         service.after_join();
         Ok(service)
@@ -88,16 +100,14 @@ impl<C: Clock> GroupKeyService<C> {
     pub fn join(
         group_id: String,
         identity: common::PlayerIdentity,
-        password: GroupPassword,
         clock: C,
         outbound: mpsc::Sender<GroupKeyFrame>,
         events: mpsc::Sender<ProtectedGroupEvent>,
         gate: Arc<SealGate>,
     ) -> anyhow::Result<Self> {
-        let mut service = Self::new(group_id, identity, password, clock, outbound, events, gate);
+        let mut service = Self::new(group_id, identity, clock, outbound, events, gate);
         service.joining = Some(JoiningState {
             phase: JoinPhase::Waiting,
-            attempts: 0,
             buffered_commits: Vec::new(),
         });
         Ok(service)
@@ -106,7 +116,6 @@ impl<C: Clock> GroupKeyService<C> {
     fn new(
         group_id: String,
         identity: common::PlayerIdentity,
-        password: GroupPassword,
         clock: C,
         outbound: mpsc::Sender<GroupKeyFrame>,
         events: mpsc::Sender<ProtectedGroupEvent>,
@@ -118,7 +127,6 @@ impl<C: Clock> GroupKeyService<C> {
         Self {
             group_id,
             identity,
-            password,
             clock,
             outbound,
             events,
@@ -128,12 +136,17 @@ impl<C: Clock> GroupKeyService<C> {
             state: None,
             joining: None,
             pending: None,
-            admissions: HashMap::new(),
+            requests: Vec::new(),
+            checks: HashMap::new(),
             queued_adds: Vec::new(),
+            departed: HashSet::new(),
+            seen: SeenKeyPackages::new(),
             bindings: SocketBindings::default(),
             removals: Vec::new(),
             last_epoch_change: now,
             limiter: AdmissionRateLimiter::new(),
+            last_cue: None,
+            waiting_reported: 0,
             lost: false,
         }
     }
@@ -146,7 +159,7 @@ impl<C: Clock> GroupKeyService<C> {
             GroupKeyFrame::Welcome { socket } => {
                 self.own_socket = Some(socket);
                 if self.joining.is_some() {
-                    self.start_join_attempt();
+                    self.start_request();
                 } else {
                     self.announce_binding();
                 }
@@ -174,12 +187,24 @@ impl<C: Clock> GroupKeyService<C> {
                     channel_id: self.group_id.clone(),
                 }),
             },
+            GroupKeyFrame::Asked {
+                from,
+                identity,
+                body,
+            } => match GroupKeyPayload::from_bytes(&body) {
+                Ok(GroupKeyPayload::Admission(AdmissionMessage::JoinRequest { commitment })) => {
+                    self.on_join_request(from, identity, commitment);
+                }
+                _ => curia::debug!("protected group: a request that is not a join request", {
+                    channel_id: self.group_id.clone(),
+                }),
+            },
             // Client-originated frames never arrive from the relay.
             GroupKeyFrame::Broadcast(_) | GroupKeyFrame::Direct { .. } => {}
         }
     }
 
-    /// Drives every timer: admission retries, commit fallbacks, the periodic ratchet.
+    /// Drives every timer: request and check lifetimes, commit fallbacks, the periodic ratchet.
     pub fn tick(&mut self) {
         if self.lost {
             return;
@@ -235,8 +260,10 @@ impl<C: Clock> GroupKeyService<C> {
         self.state = None;
         self.joining = None;
         self.pending = None;
-        self.admissions.clear();
+        self.requests.clear();
+        self.checks.clear();
         self.queued_adds.clear();
+        self.departed.clear();
         self.bindings.clear();
         self.removals.clear();
     }

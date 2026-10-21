@@ -20,6 +20,14 @@ pub enum GroupKeyFrame {
     Delivered { from: SocketId, body: Bytes },
     /// Server to client, once, when the socket opens: this socket's own id.
     Welcome { socket: SocketId },
+    /// Server to client: a `Direct { to: Members }` from another socket, with the canonical
+    /// identity the server authenticated for that socket. The identity is the server's word, not
+    /// proof; it stops one client from asking in another player's name.
+    Asked {
+        from: SocketId,
+        identity: String,
+        body: Bytes,
+    },
 }
 
 impl GroupKeyFrame {

@@ -1,6 +1,8 @@
 export interface GroupRow {
   id: string;
   name: string;
+  // Members admit each new person, in the BVC app.
+  protected?: boolean;
 }
 
 /// The server's group list as the panel last saw it.
@@ -47,6 +49,10 @@ export class GroupCache {
   // list has not arrived, which the caller renders as the code itself.
   nameFor(id: string): string | null {
     return this.settled.find((row) => row.id === id)?.name ?? null;
+  }
+
+  isProtected(id: string): boolean {
+    return this.settled.find((row) => row.id === id)?.protected === true;
   }
 
   // Whether any header has been seen. False means the proxy never answered, which

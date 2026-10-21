@@ -1,3 +1,7 @@
+mod group_outcome;
+
+pub use group_outcome::GroupOutcome;
+
 use common::structs::audio::PlayerGainSettings;
 use common::structs::channel::{ChannelCollection, GroupCode, GroupName};
 use common::structs::control::{
@@ -47,6 +51,14 @@ impl ClientActionService {
     /// Returns whether a live connection received it.
     pub fn route_self(
         &self,
+        action: &ClientAction,
+        actor_identity: &str,
+        registry: &ConnectionRegistry,
+    ) -> bool {
+        Self::deliver_to_actor(action, actor_identity, registry)
+    }
+
+    fn deliver_to_actor(
         action: &ClientAction,
         actor_identity: &str,
         registry: &ConnectionRegistry,
@@ -200,10 +212,10 @@ impl ClientActionService {
                     return Ok(None);
                 }
                 Self::leave_all(channels, webhook, actor).await;
-                if ChannelMembershipService::join(channels, webhook, actor, channel).await {
+                if ChannelMembershipService::join_open(channels, webhook, actor, channel).await {
                     Ok(None)
                 } else {
-                    anyhow::bail!("channel does not exist: {channel}")
+                    anyhow::bail!("channel does not exist or is protected: {channel}")
                 }
             }
             ClientActionType::LeaveGroup => {
@@ -212,6 +224,46 @@ impl ClientActionService {
             }
             _ => Ok(None),
         }
+    }
+
+    /// `route_group` for the control plane, which can also hand a protected join to the actor's
+    /// own app.
+    ///
+    /// The game cannot run a protected group's admission, so a `JoinGroup` for a protected group
+    /// is delivered to the actor's app as a ClientBound action, and the app asks the group's
+    /// members. The actor is not moved here: the app moves them once a member admits them.
+    pub async fn route_group_forwarding(
+        action: &ClientAction,
+        channels: &ChannelCollection,
+        webhook: &WebhookReceiver,
+        registry: Option<&ConnectionRegistry>,
+    ) -> anyhow::Result<GroupOutcome> {
+        let actor = action.actor_identity();
+        if let ClientActionType::JoinGroup { channel } = &action.action
+            && let Some(code) = GroupCode::normalize(channel)
+            && channels.get(&code).await.is_some_and(|c| c.is_protected())
+        {
+            let actor_key = actor.to_string();
+            let delivered = match registry {
+                Some(registry) if registry.has_live_client(&actor_key) => {
+                    let forwarded = ClientAction {
+                        id: action.id.clone(),
+                        game: action.game.clone(),
+                        action: ClientActionType::JoinGroup { channel: code },
+                    };
+                    Self::deliver_to_actor(&forwarded, &actor_key, registry)
+                }
+                _ => false,
+            };
+            return Ok(if delivered {
+                GroupOutcome::Forwarded
+            } else {
+                GroupOutcome::NoSession
+            });
+        }
+        Self::route_group(&action.action, &actor, channels, webhook)
+            .await
+            .map(GroupOutcome::Done)
     }
 
     /// Drops the actor from every group they are in, leaving the groups themselves

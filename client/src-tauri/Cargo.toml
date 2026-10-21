@@ -109,12 +109,9 @@ openmls = { version = "0.9.1", features = ["draft-ietf-mls-pq-ciphersuites"] }
 openmls_libcrux_crypto = { version = "0.4.0", features = ["draft-ietf-mls-pq-ciphersuites"] }
 openmls_basic_credential = { version = "0.6.0", features = ["draft-ietf-mls-pq-ciphersuites"] }
 openmls_traits = { version = "0.6.0", features = ["draft-ietf-mls-pq-ciphersuites"] }
-spake2 = { version = "0.4" }
 sframe = { version = "2.1", default-features = false, features = ["rust-crypto"] }
 hkdf = { version = "0.12" }
-hmac = { version = "0.12" }
 zeroize = { version = "1", features = ["derive"] }
-unicode-normalization = { version = "0.1" }
 
 # Desktop Targets
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]

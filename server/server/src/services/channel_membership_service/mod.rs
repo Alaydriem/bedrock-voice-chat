@@ -1,4 +1,5 @@
 use common::curia;
+use common::errors::ProtectRefusal;
 use common::structs::channel::{Channel, ChannelCollection, ChannelEvents, GroupCode};
 use common::structs::packet::{
     ChannelEventPacket, PacketSender, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
@@ -42,6 +43,35 @@ impl ChannelMembershipService {
         Self::insert_and_fan(channels, webhook, channel).await
     }
 
+    /// Turns an open channel into a protected one and fans a `Rename` with the unchanged name,
+    /// which every client already decodes and answers by re-reading the channel list.
+    ///
+    /// Only the creator may do this, and only while nobody else is in the channel: a member who
+    /// joined an open group holds no keys and would be cut off without being told why.
+    pub async fn protect(
+        channels: &ChannelCollection,
+        webhook: &WebhookReceiver,
+        caller: &common::PlayerIdentity,
+        channel_id: &str,
+    ) -> Result<(), ProtectRefusal> {
+        channels.protect_if_alone(channel_id, caller).await?;
+        let Some(channel) = channels.get(channel_id).await else {
+            return Err(ProtectRefusal::NotFound);
+        };
+        Self::fan(
+            webhook,
+            ChannelEventPacket::new(
+                ChannelEvents::Rename,
+                caller.clone(),
+                channel_id.to_string(),
+                Some(channel.name),
+                Some(channel.creator),
+            ),
+        )
+        .await;
+        Ok(())
+    }
+
     async fn insert_and_fan(
         channels: &ChannelCollection,
         webhook: &WebhookReceiver,
@@ -77,6 +107,35 @@ impl ChannelMembershipService {
             return false;
         };
         channels.add_player_to_channel(member, channel_id).await;
+        Self::fan(
+            webhook,
+            ChannelEventPacket::new(
+                ChannelEvents::Join,
+                member.clone(),
+                channel_id.to_string(),
+                Some(channel.name.clone()),
+                Some(channel.creator),
+            ),
+        )
+        .await;
+        true
+    }
+
+    /// `join` for a channel that must still be open: a plain join never lands in a protected
+    /// channel, even one protected a moment ago. Returns `false` (no mutation, no fan) when the
+    /// channel does not exist or is protected.
+    pub async fn join_open(
+        channels: &ChannelCollection,
+        webhook: &WebhookReceiver,
+        member: &common::PlayerIdentity,
+        channel_id: &str,
+    ) -> bool {
+        if !channels.add_player_to_open_channel(member, channel_id).await {
+            return false;
+        }
+        let Some(channel) = channels.get(channel_id).await else {
+            return false;
+        };
         Self::fan(
             webhook,
             ChannelEventPacket::new(

@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex};
 
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
-use super::SealGate;
+use super::{ProtectedGroupCommand, SealGate};
 
 /// The app's one active protected group: the gate the audio threads use, the signal that stops
 /// the group's runner, and the channel it routes through. A client is in at most one group, so a
@@ -13,6 +13,7 @@ pub struct ProtectedGroupSlot {
     // The protected group's channel, remembered past the runner's end: a lost group leaves the
     // gate protected until this client is out of that channel, however it gets out.
     entered: Mutex<Option<String>>,
+    commands: Mutex<Option<mpsc::Sender<ProtectedGroupCommand>>>,
 }
 
 impl ProtectedGroupSlot {
@@ -21,6 +22,7 @@ impl ProtectedGroupSlot {
             gate: Arc::new(SealGate::new()),
             active: Mutex::new(None),
             entered: Mutex::new(None),
+            commands: Mutex::new(None),
         }
     }
 
@@ -32,10 +34,19 @@ impl ProtectedGroupSlot {
         self.gate.clone()
     }
 
-    /// Registers a new runner and its channel, stopping any runner already registered.
-    pub fn install(&self, stop: oneshot::Sender<()>, channel_id: String) {
+    /// Registers a new runner, its channel and the queue its decisions go to, stopping any runner
+    /// already registered.
+    pub fn install(
+        &self,
+        stop: oneshot::Sender<()>,
+        channel_id: String,
+        commands: mpsc::Sender<ProtectedGroupCommand>,
+    ) {
         if let Ok(mut entered) = self.entered.lock() {
             *entered = Some(channel_id.clone());
+        }
+        if let Ok(mut slot) = self.commands.lock() {
+            *slot = Some(commands);
         }
         if let Ok(mut slot) = self.active.lock() {
             if let Some((previous, _)) = slot.replace((stop, channel_id)) {
@@ -79,6 +90,15 @@ impl ProtectedGroupSlot {
             .unwrap_or(false);
         self.gate.clear();
         stopped
+    }
+
+    /// Where a person's admission decisions go, while a runner is alive.
+    pub fn commands(&self) -> Option<mpsc::Sender<ProtectedGroupCommand>> {
+        self.commands
+            .lock()
+            .ok()
+            .and_then(|slot| slot.clone())
+            .filter(|commands| !commands.is_closed())
     }
 
     /// The channel of the group this client holds, while its runner is alive.

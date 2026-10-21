@@ -122,6 +122,7 @@ impl RocketHarness {
             routes::api::channel::event::channel_event,
             routes::api::channel::protected::channel_create_protected,
             routes::api::channel::protected::channel_join_protected,
+            routes::api::channel::protected::channel_protect,
             routes::api::channel::rename::channel_rename,
         ];
 

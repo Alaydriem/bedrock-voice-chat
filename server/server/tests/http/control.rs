@@ -92,6 +92,47 @@ async fn control_join_unknown_group_is_not_found() {
     );
 }
 
+// A player with no BVC app open cannot be handed the join; the mod tells them to open it.
+#[tokio::test]
+async fn control_protected_join_without_an_app_is_conflict() {
+    let env = TestServer::start().await.unwrap();
+    let (cert, key) = env
+        .issue_player("Creator", &common::Game::Minecraft)
+        .await
+        .unwrap();
+    let id: String = crate::harness::http_client::MtlsClient::with_identity(&env.ca_pem, &cert, &key)
+        .unwrap()
+        .post(format!("{}/api/channel/protected", env.base_url))
+        .json(&common::request::channel::ProtectedChannelCreateRequest {
+            name: "vault".to_string(),
+        })
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap()
+        .trim_matches('"')
+        .to_string();
+
+    let body = ClientAction {
+        id: "Alice".into(),
+        game: None,
+        action: ClientActionType::JoinGroup { channel: id },
+    };
+    let resp = env
+        .noauth_client()
+        .unwrap()
+        .post(format!("{}/api/control", env.base_url))
+        .header("Authorization", format!("Bearer {TOKEN}"))
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 409);
+}
+
 #[tokio::test]
 async fn control_refuses_to_arm_recording_when_the_server_disallows_it() {
     let env = TestServer::start_with_recording(false).await.unwrap();

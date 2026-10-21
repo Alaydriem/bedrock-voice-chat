@@ -2,6 +2,7 @@ use common::curia;
 use crate::config::Voice;
 use crate::http::guards::GameAccessToken;
 use crate::http::openapi::{CustomJsonResponse, RouteSpec, TagDefinition};
+use crate::services::client_action_service::GroupOutcome;
 use crate::services::{ClientActionService, PlayerIdentityService};
 use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::Game;
@@ -63,19 +64,21 @@ pub async fn control(
 
     if action.action.is_group_action() {
         let channels = cache_manager.get_channel_collection();
-        let actor = action.actor_identity();
-        match ClientActionService::route_group(
-            &action.action,
-            &actor,
+        let registry = cache_manager.get_connection_registry();
+        match ClientActionService::route_group_forwarding(
+            &action,
             &channels,
             webhook_receiver.inner(),
+            registry.as_deref(),
         )
         .await
         {
-            Ok(created) => CustomJsonResponse::ok(created),
+            Ok(GroupOutcome::Done(created)) => CustomJsonResponse::ok(created),
+            Ok(GroupOutcome::Forwarded) => CustomJsonResponse::custom(Status::Accepted, None),
+            Ok(GroupOutcome::NoSession) => CustomJsonResponse::custom(Status::Conflict, None),
             Err(e) => {
-                // route_group only errors on a JoinGroup miss (unknown share code) —
-                // a client error, not a server fault.
+                // A JoinGroup for an unknown or malformed share code: a client error, not a
+                // server fault.
                 curia::info!("route_group rejected: {}", e);
                 CustomJsonResponse::error(Status::NotFound)
             }

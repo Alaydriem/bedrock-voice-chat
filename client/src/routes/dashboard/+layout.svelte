@@ -33,6 +33,10 @@
     import ChatDock from "../../components/dashboard/ChatDock.svelte";
     import DashboardScreen from "../../components/dashboard/DashboardScreen.svelte";
     import GroupsPanel from "../../components/dashboard/GroupsPanel.svelte";
+    import AdmissionStack from "../../components/dashboard/AdmissionStack.svelte";
+    import JoinProtectedDialog from "../../components/dashboard/JoinProtectedDialog.svelte";
+    import LeavePrivateGroupDialog from "../../components/dashboard/LeavePrivateGroupDialog.svelte";
+    import type { AdmissionCardState } from "../../js/app/dashboard/AdmissionStackView";
     import NearbyRing from "../../components/dashboard/NearbyRing.svelte";
     import Roster from "../../components/dashboard/Roster.svelte";
     import StatusPanel from "../../components/dashboard/StatusPanel.svelte";
@@ -43,8 +47,11 @@
     import { DiagnosticsManager, type LinkHealth } from "../../js/app/dashboard/DiagnosticsManager";
     import { GroupsView } from "../../js/app/dashboard/GroupsView";
     import type { GroupRowView } from "../../js/app/dashboard/GroupRowView";
-    import { ProtectedGroupManager } from "../../js/app/managers/ProtectedGroupManager";
-    import PasswordPrompt from "../../components/dashboard/PasswordPrompt.svelte";
+    import {
+        type JoinFlow,
+        ProtectedGroupManager,
+        type ProtectResult,
+    } from "../../js/app/managers/ProtectedGroupManager";
     import type { NearbyPlayer } from "../../js/app/dashboard/NearbyPlayer";
     import type { RailServer } from "../../js/app/dashboard/RailView";
     import { RosterHandoff } from "../../js/app/dashboard/RosterHandoff";
@@ -78,8 +85,11 @@
     let protectedActive = $state(false);
     let safetyCode = $state<string | null>(null);
     let protectedNotice = $state<string | null>(null);
-    /** Which password the prompt is asking for, if it is open. */
-    let passwordFor = $state<{ mode: "create" } | { mode: "join"; id: string } | null>(null);
+    /** The join dialog, while this client asks to join a protected group. */
+    let joinFlow = $state<JoinFlow | null>(null);
+    /** Join request cards, while this client is a member others ask. */
+    let admissionCards = $state<readonly AdmissionCardState[]>([]);
+    let admissionWaiting = $state(0);
 
     /**
      * One per session, so the nav badge and the About row read the same object and the check does
@@ -453,6 +463,9 @@
         unsubs.push(protectedGroups.roster.subscribe((r) => (protectedRoster = r)));
         unsubs.push(protectedGroups.active.subscribe((a) => (protectedActive = a)));
         unsubs.push(protectedGroups.safetyCode.subscribe((c) => (safetyCode = c)));
+        unsubs.push(protectedGroups.joinFlow.subscribe((flow) => (joinFlow = flow)));
+        unsubs.push(protectedGroups.cards.subscribe((cards) => (admissionCards = cards)));
+        unsubs.push(protectedGroups.waiting.subscribe((count) => (admissionWaiting = count)));
         unsubs.push(
             protectedGroups.lostReason.subscribe((reason) => {
                 protectedNotice = reason ? ProtectedGroupManager.lostMessage(reason) : null;
@@ -502,8 +515,24 @@
         editId = id;
     }
 
+    /**
+     * A leave held for confirmation. Coming back to a Private Group takes a member's admission,
+     * and the server closes one its last member leaves.
+     */
+    let pendingLeave = $state<{ name: string; closes: boolean; proceed: () => void } | null>(null);
+
+    /** Runs `proceed` now, or after a confirmation when it leaves a Private Group. */
+    function confirmLeave(proceed: () => void): void {
+        const current = groupRows.find((row) => row.joined);
+        if (current?.locked) {
+            pendingLeave = { name: current.name, closes: current.closesOnLeave, proceed };
+            return;
+        }
+        proceed();
+    }
+
     function leaveGroup(id: string): void {
-        void leaveCurrent(id);
+        confirmLeave(() => void leaveCurrent(id));
     }
 
     /**
@@ -518,30 +547,38 @@
         if (wasProtected && release) await protectedGroups.release();
     }
 
-    function createProtectedGroup(): void {
-        passwordFor = { mode: "create" };
+    /**
+     * Turns on "Private Group" from the editor. The group's channel stays the same; the
+     * app starts the group's keys with this client as its only member.
+     */
+    async function protectGroup(id: string): Promise<ProtectResult> {
+        const result = await protectedGroups.protect(id);
+        if (result === "ok") await app?.channelManager?.fetchChannels();
+        return result;
     }
 
     /**
-     * The password is handed straight to the app's Rust side and not kept here. A create joins at
-     * once; a join completes when a member admits this client, which arrives as an event.
+     * "Ask to join" or "Ask again". Leaving the current group comes first, as for any join; the
+     * request then waits on a member, and the dialog follows its events.
      */
-    async function submitPassword(password: string): Promise<void> {
-        const request = passwordFor;
-        passwordFor = null;
-        const channels = app?.channelManager;
-        if (!request || !channels) return;
-        if (joinedId) await leaveCurrent(joinedId, false);
-        if (request.mode === "create") {
-            const id = await protectedGroups.create("", password);
-            if (id) {
-                await channels.fetchChannels();
-                editId = id;
-            }
-        } else {
-            await protectedGroups.join(request.id, password);
-            await channels.fetchChannels();
-        }
+    function askToJoin(): void {
+        const flow = joinFlow;
+        if (!flow) return;
+        const moving = joinedId !== null && joinedId !== flow.id;
+        const ask = async (): Promise<void> => {
+            if (joinedId && joinedId !== flow.id) await leaveCurrent(joinedId, false);
+            await protectedGroups.ask();
+            await app?.channelManager?.fetchChannels();
+        };
+        if (moving) confirmLeave(() => void ask());
+        else void ask();
+    }
+
+    /** Cancel or Close. A request already sent holds the group's channel, which is left too. */
+    async function closeJoin(): Promise<void> {
+        const flow = joinFlow;
+        protectedGroups.closeJoin();
+        if (flow && joinedId === flow.id) await leaveCurrent(flow.id);
     }
 
     /** Closing is deleting. Only the creator can, and the server is the one that enforces it. */
@@ -583,21 +620,24 @@
         const channels = app?.channelManager;
         if (!channels) return;
         if (joinedId === id) {
-            void leaveCurrent(id);
+            leaveGroup(id);
             return;
         }
+        // The join dialog leaves nothing until "Ask to join", which confirms the leave itself.
         if (isProtected(id)) {
-            passwordFor = { mode: "join", id };
+            protectedGroups.openJoin(id);
             return;
         }
-        void (async () => {
-            // Moving out of a protected group: its keys go before the move and protection only
-            // after it, so nothing unsealed is sent while the server still routes the old group.
-            const leavingProtected = isProtected(joinedId);
-            if (leavingProtected) await protectedGroups.stop();
-            await channels.joinChannel(id, identity);
-            if (leavingProtected) await protectedGroups.release();
-        })();
+        confirmLeave(() =>
+            void (async () => {
+                // Moving out of a protected group: its keys go before the move and protection only
+                // after it, so nothing unsealed is sent while the server still routes the old group.
+                const leavingProtected = isProtected(joinedId);
+                if (leavingProtected) await protectedGroups.stop();
+                await channels.joinChannel(id, identity);
+                if (leavingProtected) await protectedGroups.release();
+            })(),
+        );
     }
 
     /**
@@ -665,20 +705,10 @@
                     onstatus={(open) => (statusOpen = open)}
                 >
                     {#snippet groups()}
-                        {#if passwordFor}
-                            <PasswordPrompt
-                                title={passwordFor.mode === "create"
-                                    ? I18n.t("Password for the new protected group")
-                                    : I18n.t("Group password")}
-                                onsubmit={(password) => void submitPassword(password)}
-                                oncancel={() => (passwordFor = null)}
-                            />
-                        {/if}
                         <GroupsPanel
                             groups={groupRows}
                             {now}
-                            protectedAvailable={app?.protectedGroups ?? false}
-                            oncreateprotected={createProtectedGroup}
+                            onprotect={app?.protectedGroups ? protectGroup : undefined}
                             protectedJoined={isProtected(joinedId)}
                             {safetyCode}
                             {protectedNotice}
@@ -693,6 +723,42 @@
                     {/snippet}
 
                     {#snippet main()}
+                        <!-- Join requests show on the dashboard only; the request sound is what
+                             tells a member elsewhere in the app to come and look. -->
+                        <AdmissionStack
+                            cards={admissionCards}
+                            waiting={admissionWaiting}
+                            groupName={inGroup?.name ?? ""}
+                            oncheck={(joiner) => void protectedGroups.check(joiner)}
+                            ondecide={(joiner, checkId, allow) =>
+                                void protectedGroups.decide(joiner, checkId, allow)}
+                            onlater={(joiner) => protectedGroups.later(joiner)}
+                            ondismiss={(joiner) => protectedGroups.dismiss(joiner)}
+                        />
+                        {#if joinFlow}
+                            <JoinProtectedDialog
+                                name={channelList.find((c) => c.id === joinFlow?.id)?.name ?? ""}
+                                phase={joinFlow.phase}
+                                code={joinFlow.code}
+                                checkId={joinFlow.checkId}
+                                checker={joinFlow.checker}
+                                onask={askToJoin}
+                                onconfirm={(_checkId, matches) => void protectedGroups.confirm(matches)}
+                                oncancel={() => void closeJoin()}
+                            />
+                        {/if}
+                        {#if pendingLeave}
+                            <LeavePrivateGroupDialog
+                                name={pendingLeave.name}
+                                closes={pendingLeave.closes}
+                                onconfirm={() => {
+                                    const proceed = pendingLeave?.proceed;
+                                    pendingLeave = null;
+                                    proceed?.();
+                                }}
+                                oncancel={() => (pendingLeave = null)}
+                            />
+                        {/if}
                         <!-- The ring is the empty state and the approach. Once anybody is close enough to
              hear, the roster owns the stage and the ring gets out of the way. -->
                         <NearbyRing

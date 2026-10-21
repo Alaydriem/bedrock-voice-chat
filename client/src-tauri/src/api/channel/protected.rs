@@ -1,28 +1,32 @@
 use crate::api::Api;
 
 use crate::api::circuit_breaker::SendError;
-use common::request::channel::ProtectedChannelCreateRequest;
 use common::reqwest::StatusCode;
 use tauri_plugin_curia::curia;
 
 impl Api {
-    /// Creates an end-to-end encrypted channel. The request carries no password.
-    pub(crate) async fn create_protected_channel(&self, name: String) -> Result<String, String> {
-        let url = format!("{}/api/channel/protected", self.endpoint());
-        let request = self
-            .get_client()
-            .post(url)
-            .json(&ProtectedChannelCreateRequest { name });
-        match self.send(request).await {
-            Ok(response) if response.status() == StatusCode::OK => response
-                .json::<String>()
-                .await
-                .map_err(|_| "Failed to parse response".to_string()),
+    /// Turns this player's open channel into an end-to-end encrypted one. The error is the
+    /// server's refusal code: `not_found`, `not_creator`, `not_alone` or `already_protected`.
+    pub(crate) async fn protect_channel(&self, channel_id: String) -> Result<(), String> {
+        let url = format!("{}/api/channel/{}/protect", self.endpoint(), channel_id);
+        match self.send(self.get_client().put(url)).await {
+            Ok(response) if response.status() == StatusCode::OK => Ok(()),
             Ok(response) => {
-                curia::error!("protected channel creation failed", {
-                    status: response.status().as_u16(),
-                });
-                Err(format!("Request failed with status: {}", response.status()))
+                let status = response.status();
+                let code = response
+                    .json::<String>()
+                    .await
+                    .unwrap_or_default();
+                match code.as_str() {
+                    "not_found" | "not_creator" | "not_alone" | "already_protected" => Err(code),
+                    _ => {
+                        curia::error!("protecting a channel failed", {
+                            channel_id: channel_id.clone(),
+                            status: status.as_u16(),
+                        });
+                        Err(format!("Request failed with status: {}", status))
+                    }
+                }
             }
             Err(e) => Err(Self::describe_send_error(e)),
         }

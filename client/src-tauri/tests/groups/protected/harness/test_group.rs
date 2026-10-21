@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use bvc_client_lib::groups::protected::{GroupKeyService, GroupPassword, SealGate};
+use bvc_client_lib::groups::protected::{CodeRole, GroupKeyService, SealGate};
 use tokio::sync::mpsc;
 
 use super::{Hostility, TestClock, TestMember, TestRelay};
@@ -15,7 +15,6 @@ pub struct TestGroup {
 
 impl TestGroup {
     pub const ID: &'static str = "ABCD2345";
-    pub const PASSWORD: &'static str = "correct horse";
 
     pub fn new() -> Self {
         Self {
@@ -32,43 +31,93 @@ impl TestGroup {
     }
 
     pub fn create(&mut self, name: &str) -> usize {
-        self.add_member(name, Self::PASSWORD, true)
+        let index = self.add_member_unsettled(name, true);
+        self.pump();
+        index
     }
 
+    /// Asks to join, and has the first member that can answer admit it, both people pressing
+    /// their buttons after comparing equal codes.
     pub fn join(&mut self, name: &str) -> usize {
-        self.add_member(name, Self::PASSWORD, false)
+        let index = self.join_quietly(name);
+        self.pump();
+        let admitter = (0..self.members.len())
+            .find(|m| *m != index && self.members[*m].active() && self.members[*m].joined());
+        if let Some(admitter) = admitter {
+            self.admit(admitter, index);
+        }
+        index
     }
 
-    pub fn join_with(&mut self, name: &str, password: &str) -> usize {
-        self.add_member(name, password, false)
-    }
-
-    /// Adds a joiner without letting anything settle, so several joins can race.
+    /// Asks to join without letting anything settle or anyone answer, so several joins can race.
     pub fn join_quietly(&mut self, name: &str) -> usize {
-        self.add_member_unsettled(name, Self::PASSWORD, false)
+        self.add_member_unsettled(name, false)
+    }
+
+    /// `member` checks `joiner`, both see the same code, the member admits and the joiner
+    /// confirms.
+    pub fn admit(&mut self, member: usize, joiner: usize) {
+        self.check(member, joiner);
+        let (member_check, member_code) = self
+            .member_code(member, joiner)
+            .expect("the member was shown a code");
+        let (joiner_check, joiner_code) = self
+            .joiner_code(joiner)
+            .expect("the joiner was shown a code");
+        assert_eq!(member_code, joiner_code, "the two codes differ");
+        self.decide(member, joiner, member_check, true);
+        self.confirm(joiner, joiner_check, true);
+    }
+
+    pub fn check(&mut self, member: usize, joiner: usize) {
+        let socket = self.members[joiner].socket;
+        self.members[member]
+            .service
+            .check(socket)
+            .expect("the member can check");
+        self.pump();
+    }
+
+    pub fn decide(&mut self, member: usize, joiner: usize, check_id: [u8; 16], allow: bool) {
+        let socket = self.members[joiner].socket;
+        self.members[member]
+            .service
+            .decide(socket, check_id, allow)
+            .expect("the decision applies");
+        self.pump();
+    }
+
+    pub fn confirm(&mut self, joiner: usize, check_id: [u8; 16], matches: bool) {
+        self.members[joiner]
+            .service
+            .confirm(check_id, matches)
+            .expect("the confirmation applies");
+        self.pump();
+    }
+
+    pub fn member_code(&self, member: usize, joiner: usize) -> Option<([u8; 16], String)> {
+        let socket = self.members[joiner].socket;
+        self.members[member].code(CodeRole::Member, Some(socket))
+    }
+
+    pub fn joiner_code(&self, joiner: usize) -> Option<([u8; 16], String)> {
+        self.members[joiner].code(CodeRole::Joiner, None)
     }
 
     pub fn freeze(&mut self, index: usize) {
         self.members[index].frozen = true;
     }
 
-    fn add_member(&mut self, name: &str, password: &str, create: bool) -> usize {
-        let index = self.add_member_unsettled(name, password, create);
-        self.pump();
-        index
-    }
-
-    fn add_member_unsettled(&mut self, name: &str, password: &str, create: bool) -> usize {
+    fn add_member_unsettled(&mut self, name: &str, create: bool) -> usize {
         let (outbound_tx, outbound) = mpsc::channel(256);
         let (event_tx, events) = mpsc::channel(256);
         let gate = Arc::new(SealGate::new());
-        let identity: common::PlayerIdentity = format!("minecraft:{name}").parse().unwrap();
-        let password = GroupPassword::new(password).unwrap();
+        let canonical = format!("minecraft:{name}");
+        let identity: common::PlayerIdentity = canonical.parse().unwrap();
         let service = if create {
             GroupKeyService::create(
                 Self::ID.to_string(),
                 identity,
-                password,
                 self.clock.clone(),
                 outbound_tx,
                 event_tx,
@@ -78,7 +127,6 @@ impl TestGroup {
             GroupKeyService::join(
                 Self::ID.to_string(),
                 identity,
-                password,
                 self.clock.clone(),
                 outbound_tx,
                 event_tx,
@@ -86,7 +134,7 @@ impl TestGroup {
             )
         }
         .unwrap();
-        let socket = self.relay.connect();
+        let socket = self.relay.connect(&canonical);
         self.members
             .push(TestMember::new(service, socket, gate, outbound, events));
         self.members.len() - 1

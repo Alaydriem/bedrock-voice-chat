@@ -22,7 +22,7 @@ use socket_entry::SocketEntry;
 
 /// Sequences and routes a protected group's key socket frames.
 ///
-/// It never parses a frame body: the server holds no MLS, PAKE or SFrame code, and the bodies
+/// It never parses a frame body: the server holds no MLS or SFrame code, and the bodies
 /// are encrypted, public, or safe to relay. What it owns is order — every socket receives every
 /// commit in the same sequence, so members agree on which valid commit came first — and delivery
 /// between sockets.
@@ -133,6 +133,9 @@ impl GroupKeyRelayService {
                         None => return RelayOutcome::NoAdmitter,
                     },
                     GroupKeyRecipient::Socket(target) => target,
+                    GroupKeyRecipient::Members => {
+                        return Self::deliver_members(&mut state, from, body, now);
+                    }
                 };
                 if target == from || state.find(target).is_none() {
                     return RelayOutcome::Dropped(ProtectedGroupError::NotMember);
@@ -144,10 +147,43 @@ impl GroupKeyRelayService {
             GroupKeyFrame::Stale { .. }
             | GroupKeyFrame::Gone { .. }
             | GroupKeyFrame::Delivered { .. }
+            | GroupKeyFrame::Asked { .. }
             | GroupKeyFrame::Welcome { .. } => {
                 RelayOutcome::Dropped(ProtectedGroupError::NotMember)
             }
         }
+    }
+
+    /// A join request goes to every announced member at once, so whoever is at their screen can
+    /// check the joiner. A socket may send one per `SocketEntry::MEMBERS_INTERVAL`.
+    fn deliver_members(
+        state: &mut GroupRelayState,
+        from: SocketId,
+        body: bytes::Bytes,
+        now: Instant,
+    ) -> RelayOutcome {
+        let members = state.members_except(from);
+        if members.is_empty() {
+            return RelayOutcome::NoAdmitter;
+        }
+        let Some(sender) = state.find(from) else {
+            return RelayOutcome::Dropped(ProtectedGroupError::NotMember);
+        };
+        if !sender.permits_members_frame(now) {
+            return RelayOutcome::Dropped(ProtectedGroupError::RateLimited);
+        }
+        let identity = sender.identity.to_string();
+        for member in members {
+            state.deliver(
+                member,
+                GroupKeyFrame::Asked {
+                    from,
+                    identity: identity.clone(),
+                    body: body.clone(),
+                },
+            );
+        }
+        RelayOutcome::Routed
     }
 
     pub async fn close(&self, group: &str, socket: SocketId) -> CloseOutcome {
@@ -195,7 +231,8 @@ impl GroupKeyRelayService {
             GroupKeyFrame::Broadcast(body)
             | GroupKeyFrame::Commit { body, .. }
             | GroupKeyFrame::Direct { body, .. }
-            | GroupKeyFrame::Delivered { body, .. } => body.len(),
+            | GroupKeyFrame::Delivered { body, .. }
+            | GroupKeyFrame::Asked { body, .. } => body.len(),
             GroupKeyFrame::Stale { .. }
             | GroupKeyFrame::Gone { .. }
             | GroupKeyFrame::Welcome { .. } => 0,

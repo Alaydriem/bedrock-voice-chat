@@ -28,6 +28,7 @@ inventory::submit! {
                 channel_list,
                 protected::channel_create_protected,
                 protected::channel_join_protected,
+                protected::channel_protect,
                 rename::channel_rename
             ]
         },

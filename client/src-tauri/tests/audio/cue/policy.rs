@@ -79,3 +79,20 @@ fn events_that_are_not_membership_changes_are_silent() {
         assert_eq!(CuePolicy::for_channel_event(&event, false), None);
     }
 }
+
+/// A server can put many requests on a member's screen at once. One sound tells the member to
+/// look; a burst of them is noise.
+#[test]
+fn join_request_cue_plays_at_most_once_per_30_s() {
+    let now = std::time::Instant::now();
+
+    assert_eq!(CuePolicy::for_join_request(None, now), Some(Cue::JoinRequest));
+    assert_eq!(
+        CuePolicy::for_join_request(Some(now), now + std::time::Duration::from_secs(29)),
+        None
+    );
+    assert_eq!(
+        CuePolicy::for_join_request(Some(now), now + std::time::Duration::from_secs(30)),
+        Some(Cue::JoinRequest)
+    );
+}

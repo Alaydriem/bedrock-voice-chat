@@ -1,5 +1,7 @@
 package com.alaydriem.bedrockvoicechat.network
 
+import com.alaydriem.bedrockvoicechat.control.ControlOutcome
+import com.alaydriem.bedrockvoicechat.control.ControlSendResult
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -167,22 +169,29 @@ class HttpRequestHandler(
      * successful CreateGroup — the new group's share code, invoked from the HTTP
      * client's executor thread.
      */
-    fun controlAsync(clientActionJson: String, onResult: ((ok: Boolean, groupCode: String?) -> Unit)? = null) {
+    fun controlAsync(clientActionJson: String, onResult: ((ControlSendResult) -> Unit)? = null) {
         val request = jsonRequestBuilder("$serverUrl/api/control")
             .POST(HttpRequest.BodyPublishers.ofString(clientActionJson))
             .build()
 
         httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
             .thenAccept { response ->
-                val ok = response.statusCode() in 200..299
-                if (!ok) {
-                    LOGGER.warn("BVC server returned error on control: {} - {}", response.statusCode(), response.body())
+                val status = response.statusCode()
+                // A protected join: 202 handed to the player's BVC app, 409 no app session.
+                val outcome = ControlOutcome.fromHttpStatus(status)
+                if (outcome != null) {
+                    onResult?.invoke(ControlSendResult(outcome == ControlOutcome.FORWARDED, outcome = outcome))
+                    return@thenAccept
                 }
-                onResult?.invoke(ok, if (ok) parseGroupCode(response.body()) else null)
+                val ok = status in 200..299
+                if (!ok) {
+                    LOGGER.warn("BVC server returned error on control: {} - {}", status, response.body())
+                }
+                onResult?.invoke(ControlSendResult(ok, if (ok) parseGroupCode(response.body()) else null))
             }
             .exceptionally { ex ->
                 LOGGER.error("Failed to send control action: {}", ex.message)
-                onResult?.invoke(false, null)
+                onResult?.invoke(ControlSendResult(false))
                 null
             }
     }

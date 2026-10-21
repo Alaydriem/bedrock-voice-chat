@@ -62,16 +62,20 @@ export class GroupsView {
                     joined && channel.protected && protectedRoster
                         ? protectedRoster
                         : channel.players;
+                const locked = channel.protected === true;
+                // Exact. The creator is the certificate's Common Name and so is `self`, and a
+                // comparison that tolerated the bare form would hand the close button for one
+                // game prefix's group to the same gamertag under another.
+                const owned = self !== "" && channel.creator === self;
                 return {
                     id: channel.id,
                     name: channel.name,
                     members: GroupsView.members(players),
                     joined,
-                    locked: channel.protected === true,
-                    // Exact. The creator is the certificate's Common Name and so is `self`, and a
-                    // comparison that tolerated the bare form would hand the close button for one
-                    // game prefix's group to the same gamertag under another.
-                    owned: self !== "" && channel.creator === self,
+                    locked,
+                    owned,
+                    canProtect: owned && !locked && players.length === 1,
+                    closesOnLeave: joined && locked && players.length <= 1,
                     activeAt,
                     stirring: activeAt !== null && $now - activeAt < GroupsView.STIR_MS,
                 };

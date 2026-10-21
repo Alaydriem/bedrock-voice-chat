@@ -2,12 +2,14 @@ mod pending_join;
 mod roster_member;
 mod safety_code;
 mod staged_add;
+mod staged_join;
 mod storage_wiper;
 
 pub use pending_join::PendingJoin;
 pub use roster_member::RosterMember;
 pub use safety_code::SafetyCode;
 pub use staged_add::StagedAdd;
+pub use staged_join::StagedJoin;
 
 use storage_wiper::StorageWiper;
 
@@ -66,6 +68,31 @@ impl MlsGroupState {
         let package = KeyPackageIn::tls_deserialize_exact_bytes(key_package).ok()?;
         let credential = BasicCredential::try_from(package.unverified_credential().credential).ok()?;
         std::str::from_utf8(credential.identity()).ok()?.parse().ok()
+    }
+
+    /// The identity a KeyPackage claims, only if the KeyPackage is valid: its signature, suite and
+    /// lifetime check out.
+    pub fn validated_identity(key_package: &[u8]) -> Option<common::PlayerIdentity> {
+        let provider = Provider::new().ok()?;
+        let package = KeyPackageIn::tls_deserialize_exact_bytes(key_package)
+            .ok()?
+            .validate(provider.crypto(), ProtocolVersion::Mls10)
+            .ok()?;
+        if package.ciphersuite() != Self::SUITE {
+            return None;
+        }
+        let credential = BasicCredential::try_from(package.leaf_node().credential().clone()).ok()?;
+        std::str::from_utf8(credential.identity()).ok()?.parse().ok()
+    }
+
+    /// This member's current leaf signature key. A joiner accepts a Welcome only if this key
+    /// signed it, so it must not change while a check or its Add is open.
+    pub fn own_signature_key(&self) -> Vec<u8> {
+        self.signer.public().to_vec()
+    }
+
+    pub fn mls_group_id(&self) -> Vec<u8> {
+        self.group.group_id().as_slice().to_vec()
     }
 
     pub(crate) fn from_parts(provider: Provider, signer: SignatureKeyPair, group: MlsGroup) -> Self {

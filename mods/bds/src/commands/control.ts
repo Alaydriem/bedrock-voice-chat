@@ -11,6 +11,7 @@ import type {
   CustomCommandResult,
 } from '@minecraft/server';
 import type { ControlAction } from '../control/action';
+import { JoinReply } from '../control/join_reply';
 import { JUKEBOX_TARGET, MAX_LEVEL } from '../control/jukebox';
 import type { ControlSender } from '../control/sender';
 import type { PanelTestConfig } from '../ui/panel_test';
@@ -59,6 +60,11 @@ export class ControlCommands {
               } else if (!result.ok) {
                 acting.sendMessage('§c[BVC] Group create failed; try again');
               }
+            } else if (action.kind === 'group-join' && result.outcome) {
+              // A protected group: the join continues in the player's BVC app.
+              acting.sendMessage(
+                JoinReply.forResult(result, action.channel, true),
+              );
             } else if (!result.ok) {
               acting.sendMessage('§c[BVC] Action failed; try again');
             }
@@ -188,7 +194,11 @@ export class ControlCommands {
         },
         (origin: CustomCommandOrigin, muted: boolean) =>
           // The plane carries "heard", the command reads as "mute", so the flag inverts here.
-          dispatch(origin, { kind: 'hear', target: JUKEBOX_TARGET, on: !muted }),
+          dispatch(origin, {
+            kind: 'hear',
+            target: JUKEBOX_TARGET,
+            on: !muted,
+          }),
       );
 
       registry.registerCommand(

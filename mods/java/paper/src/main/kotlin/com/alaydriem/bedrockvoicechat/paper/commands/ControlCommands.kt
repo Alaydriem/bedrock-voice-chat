@@ -2,6 +2,7 @@ package com.alaydriem.bedrockvoicechat.paper.commands
 
 import com.alaydriem.bedrockvoicechat.control.ControlAction
 import com.alaydriem.bedrockvoicechat.control.ControlSender
+import com.alaydriem.bedrockvoicechat.control.JoinReply
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.BoolArgumentType
 import com.mojang.brigadier.arguments.IntegerArgumentType
@@ -153,7 +154,11 @@ class ControlCommands(
         // Adventure audiences are thread-safe, so replying from the HTTP
         // executor thread is fine.
         sender.send(action, canonicalName(executor)) { result ->
-            if (!result.ok) {
+            // A protected group continues in the player's BVC app; say where.
+            val reply = (action as? ControlAction.JoinGroup)?.let { JoinReply.forResult(result, it.channel) }
+            if (reply != null) {
+                executor.sendMessage(Component.text(reply))
+            } else if (!result.ok) {
                 executor.sendMessage(Component.text("[BVC] Action failed; try again"))
             }
         }

@@ -11,6 +11,7 @@ pub use player_state_cache::PlayerStateCache;
 pub use websocket_ticket_cache::{TicketIdentity, WebsocketTicketCache};
 
 use common::curia;
+use crate::services::client_action_service::GroupOutcome;
 use crate::services::{BedrockEventService, ClientActionService};
 use crate::stream::quic::connection::ConnectionRegistry;
 use crate::stream::quic::webhook_receiver::WebhookReceiver;
@@ -335,7 +336,20 @@ impl CacheManager {
 
                                 curia::info!("Channel {} deleted", channel_data.channel);
                             }
-                            ChannelEvents::Rename => {}
+                            // Turning protection on fans a Rename with the unchanged name, so
+                            // a Rename is where a channel becomes protected for audio routing.
+                            ChannelEvents::Rename => {
+                                let protected = self
+                                    .channel_collection
+                                    .get(&channel_data.channel)
+                                    .await
+                                    .is_some_and(|channel| channel.is_protected());
+                                if protected
+                                    && let Some(registry) = &self.connection_registry
+                                {
+                                    registry.mark_protected(&channel_data.channel);
+                                }
+                            }
                         }
                     }
                 }
@@ -478,21 +492,28 @@ impl CacheManager {
                     );
                     return Ok(());
                 };
-                match ClientActionService::route_group(
-                    &ca.action.action,
-                    &ca.action.actor_identity(),
+                // There is no reply channel on this path, so each outcome is only logged. A
+                // protected join still goes back to the actor's own app, which runs admission.
+                match ClientActionService::route_group_forwarding(
+                    &ca.action,
                     &self.channel_collection,
                     webhook,
+                    self.connection_registry.as_deref(),
                 )
                 .await
                 {
-                    Ok(created) => {
-                        if let Some(code) = created {
-                            curia::info!(format!("Group {code} created via QUIC control by {author}"));
-                        }
+                    Ok(GroupOutcome::Done(Some(code))) => {
+                        curia::info!(format!("Group {code} created via QUIC control by {author}"));
                     }
-                    // route_group only errors on a JoinGroup miss (unknown share
-                    // code) — a client mistake, not a server fault.
+                    Ok(GroupOutcome::Done(None)) => {}
+                    Ok(GroupOutcome::Forwarded) => {
+                        curia::info!(format!("Protected join forwarded to the app of {author}"));
+                    }
+                    Ok(GroupOutcome::NoSession) => {
+                        curia::info!(format!("Protected join for {author} found no app session"));
+                    }
+                    // A JoinGroup for an unknown or malformed share code: a client mistake,
+                    // not a server fault.
                     Err(e) => curia::info!(format!("route_group (QUIC) rejected for {author}: {e}")),
                 }
             }

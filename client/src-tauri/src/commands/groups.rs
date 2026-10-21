@@ -24,29 +24,65 @@ pub(crate) async fn group_join(app: AppHandle, name: String) -> Result<GroupData
         .map_err(|e| e.to_string())
 }
 
-/// Create an end-to-end encrypted group. The password stays in this process.
+/// Turn this player's own group into an end-to-end encrypted one, while they are alone in it.
+/// The error is the server's refusal code: `not_alone`, `already_protected`, `not_creator` or
+/// `not_found`.
 #[tauri::command]
-pub(crate) async fn group_create_protected(
-    app: AppHandle,
-    name: String,
-    password: String,
-) -> Result<GroupData, String> {
+pub(crate) async fn group_protect(app: AppHandle, id: String) -> Result<GroupData, String> {
     GroupService::new(app)
-        .create_protected(name, password)
+        .protect(id)
         .await
         .map_err(|e| e.to_string())
 }
 
-/// Join an end-to-end encrypted group by id. Admission completes asynchronously and is reported
-/// through `protected-group:*` events.
+/// Ask to join an end-to-end encrypted group by id. Admission completes asynchronously and is
+/// reported through `protected-group:*` events.
 #[tauri::command]
 pub(crate) async fn group_join_protected(
     app: AppHandle,
     id: String,
-    password: String,
 ) -> Result<GroupData, String> {
     GroupService::new(app)
-        .join_protected(id, password)
+        .join_protected(id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// The member pressed "Check code" on a join request card.
+#[tauri::command]
+pub(crate) async fn group_admission_check(
+    app: AppHandle,
+    joiner_socket: u64,
+) -> Result<(), String> {
+    GroupService::new(app)
+        .check(joiner_socket)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// The member pressed Admit or Deny on the card showing `check_id` (32 hex characters).
+#[tauri::command]
+pub(crate) async fn group_admission_decide(
+    app: AppHandle,
+    joiner_socket: u64,
+    check_id: String,
+    allow: bool,
+) -> Result<(), String> {
+    GroupService::new(app)
+        .decide(joiner_socket, &check_id, allow)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// The joiner pressed "It matches" or "No match" for `check_id`.
+#[tauri::command]
+pub(crate) async fn group_admission_confirm(
+    app: AppHandle,
+    check_id: String,
+    matches: bool,
+) -> Result<(), String> {
+    GroupService::new(app)
+        .confirm(&check_id, matches)
         .await
         .map_err(|e| e.to_string())
 }

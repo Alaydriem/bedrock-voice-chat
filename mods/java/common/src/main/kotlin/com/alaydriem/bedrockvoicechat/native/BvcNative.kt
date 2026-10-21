@@ -1,5 +1,6 @@
 package com.alaydriem.bedrockvoicechat.native
 
+import com.alaydriem.bedrockvoicechat.control.ControlOutcome
 import com.alaydriem.bedrockvoicechat.control.ControlSendResult
 import com.sun.jna.Library
 import com.sun.jna.Native
@@ -190,6 +191,10 @@ object BvcNative {
     fun clientAction(handle: Pointer, actionJson: String): ControlSendResult {
         val codeOut = PointerByReference()
         val result = getLib().bvc_client_action(handle, actionJson, codeOut)
+        val outcome = ControlOutcome.fromFfiCode(result)
+        if (outcome != null) {
+            return ControlSendResult(outcome == ControlOutcome.FORWARDED, outcome = outcome)
+        }
         if (result != 0) {
             logger.warn("Failed to send control action: {}", getLastError())
             return ControlSendResult(false)

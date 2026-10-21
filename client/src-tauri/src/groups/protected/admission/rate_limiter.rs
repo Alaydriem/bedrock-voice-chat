@@ -1,21 +1,22 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-/// Failed admissions this member's client has served, per joiner and for the whole group.
+/// Checks that failed, per joiner identity and for the whole group, on this member's client.
 ///
-/// Enforced on the admitting client, not the server, so a server guessing the password cannot
-/// lift the limit for itself. The per-joiner count is keyed by the identity a KeyPackage claims,
-/// which a hostile server chooses freely; the group count is what bounds it, at `PER_GROUP`
-/// guesses per window, because only the lowest leaf answers PAKE inits.
+/// Each check a server attacks gives it one chance in 10⁸ to match both codes. Enforced here, not
+/// on the server, so a server cannot lift the limit for itself. A failed check and a check that
+/// expired with no reveal count; `Busy`, and a check the member let expire after a valid reveal,
+/// do not.
 pub struct AdmissionRateLimiter {
-    per_joiner: HashMap<common::PlayerIdentity, Vec<Instant>>,
+    per_joiner: HashMap<String, Vec<Instant>>,
     group: Vec<Instant>,
 }
 
 impl AdmissionRateLimiter {
-    pub const WINDOW: Duration = Duration::from_secs(10 * 60);
-    pub const PER_JOINER: usize = 5;
-    pub const PER_GROUP: usize = 20;
+    pub const JOINER_WINDOW: Duration = Duration::from_secs(10 * 60);
+    pub const GROUP_WINDOW: Duration = Duration::from_secs(60 * 60);
+    pub const PER_JOINER: usize = 3;
+    pub const PER_GROUP: usize = 10;
 
     pub fn new() -> Self {
         Self {
@@ -24,33 +25,28 @@ impl AdmissionRateLimiter {
         }
     }
 
-    pub fn permits(&self, joiner: &common::PlayerIdentity, now: Instant) -> bool {
-        let recent = |failures: &Vec<Instant>| {
+    /// Whether this member may start another check of `identity`.
+    pub fn permits_check(&self, identity: &str, now: Instant) -> bool {
+        let joiner_failures = self.per_joiner.get(identity).map_or(0, |failures| {
             failures
                 .iter()
-                .filter(|at| now.duration_since(**at) < Self::WINDOW)
+                .filter(|at| now.duration_since(**at) < Self::JOINER_WINDOW)
                 .count()
-        };
-        let joiner_failures = self.per_joiner.get(joiner).map_or(0, recent);
-        joiner_failures < Self::PER_JOINER && recent(&self.group) < Self::PER_GROUP
-    }
-
-    /// The group-wide limit alone, for a PAKE init whose joiner is not yet known: the identity
-    /// arrives with the KeyPackage, after the PAKE.
-    pub fn permits_group(&self, now: Instant) -> bool {
-        self.group
+        });
+        let group_failures = self
+            .group
             .iter()
-            .filter(|at| now.duration_since(**at) < Self::WINDOW)
-            .count()
-            < Self::PER_GROUP
+            .filter(|at| now.duration_since(**at) < Self::GROUP_WINDOW)
+            .count();
+        joiner_failures < Self::PER_JOINER && group_failures < Self::PER_GROUP
     }
 
-    pub fn record_failure(&mut self, joiner: &common::PlayerIdentity, now: Instant) {
-        let fresh = |at: &Instant| now.duration_since(*at) < Self::WINDOW;
-        self.group.retain(fresh);
+    pub fn record_failure(&mut self, identity: &str, now: Instant) {
+        self.group
+            .retain(|at| now.duration_since(*at) < Self::GROUP_WINDOW);
         self.group.push(now);
-        let failures = self.per_joiner.entry(joiner.clone()).or_default();
-        failures.retain(fresh);
+        let failures = self.per_joiner.entry(identity.to_string()).or_default();
+        failures.retain(|at| now.duration_since(*at) < Self::JOINER_WINDOW);
         failures.push(now);
     }
 }

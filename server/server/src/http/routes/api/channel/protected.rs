@@ -2,6 +2,7 @@ use crate::http::guards::PlayerGuard;
 use crate::http::openapi::CustomJsonResponse;
 use crate::services::{ChannelMembershipService, GroupKeyRelayService, MetricsService};
 use crate::stream::quic::{CacheManager, WebhookReceiver};
+use common::errors::ProtectRefusal;
 use common::request::channel::ProtectedChannelCreateRequest;
 use common::structs::channel::GroupName;
 use rocket::{State, http::Status, serde::json::Json};
@@ -11,7 +12,7 @@ use std::sync::Arc;
 /// Create an end-to-end encrypted channel and return its id.
 ///
 /// The creator is not added: the app joins through `PUT /<id>/protected` once it holds the
-/// group's keys. The request carries no password, and the server never receives one.
+/// group's keys. The server never receives any of the group's secrets.
 #[openapi(tag = "Channels")]
 #[post("/protected", data = "<request>")]
 pub async fn channel_create_protected(
@@ -52,6 +53,48 @@ pub async fn channel_create_protected(
     });
 
     CustomJsonResponse::ok(id)
+}
+
+/// Turn the caller's open channel into an end-to-end encrypted one.
+///
+/// Only the creator may, and only while nobody else is in it. The body names the refusal:
+/// `not_found` (404), `not_creator` (403), `already_protected` or `not_alone` (409). A creator
+/// whose app never opens the group's key socket loses the group after the creator deadline.
+#[openapi(tag = "Channels")]
+#[put("/<id>/protect")]
+pub async fn channel_protect(
+    guard: PlayerGuard,
+    cache_manager: &State<CacheManager>,
+    webhook_receiver: &State<WebhookReceiver>,
+    relay: &State<Arc<GroupKeyRelayService>>,
+    id: &str,
+) -> CustomJsonResponse<String> {
+    let Some(gamertag) = guard.player.gamertag.clone() else {
+        return CustomJsonResponse::error(Status::Forbidden);
+    };
+    let caller = guard.player.game.membership_key(&gamertag);
+    let channels = cache_manager.get_channel_collection();
+
+    if let Err(refusal) =
+        ChannelMembershipService::protect(&channels, webhook_receiver.inner(), &caller, id).await
+    {
+        let status = match refusal {
+            ProtectRefusal::NotFound => Status::NotFound,
+            ProtectRefusal::NotCreator => Status::Forbidden,
+            ProtectRefusal::AlreadyProtected | ProtectRefusal::NotAlone => Status::Conflict,
+        };
+        return CustomJsonResponse::custom(status, Some(refusal.as_code().to_string()));
+    }
+
+    let webhook = webhook_receiver.inner().clone();
+    let expired = id.to_string();
+    relay.arm_creator_deadline(id.to_string(), move || {
+        tokio::spawn(async move {
+            ChannelMembershipService::close(&channels, &webhook, &caller, &expired).await;
+        });
+    });
+
+    CustomJsonResponse::ok(id.to_string())
 }
 
 /// Join an end-to-end encrypted channel.

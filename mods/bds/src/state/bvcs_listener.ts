@@ -41,7 +41,11 @@ export class BvcsListener {
           return;
         }
         if (msg.kind === 'g') {
-          this.groups.add({ id: msg.id, name: msg.name });
+          this.groups.add({
+            id: msg.id,
+            name: msg.name,
+            protected: msg.protected,
+          });
           return;
         }
         const cache = this.cacheFor(sender);

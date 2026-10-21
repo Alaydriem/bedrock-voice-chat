@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
-use bvc_client_lib::groups::protected::{AdmitterSession, GroupPassword, MlsGroupState};
+use bvc_client_lib::groups::protected::MlsGroupState;
 use bytes::Bytes;
 use common::structs::group_key::{
     AdmissionMessage, GroupKeyFrame, GroupKeyPayload, GroupKeyRecipient, SocketId,
@@ -9,46 +9,42 @@ use common::structs::group_key::{
 use super::Hostility;
 
 /// The server's relay rules, in process: every commit to every socket in order, `Any` never routes
-/// back to the sender, a closed socket is announced as `Gone`. A [`Hostility`] layers an attack on
+/// back to the sender, `Members` reaches every announced socket but the sender as `Asked` with the
+/// sender's identity, a closed socket is announced as `Gone`. A [`Hostility`] layers an attack on
 /// top.
 pub struct TestRelay {
     sockets: Vec<SocketId>,
+    identities: HashMap<SocketId, String>,
     inboxes: HashMap<SocketId, VecDeque<GroupKeyFrame>>,
     announced: Vec<SocketId>,
     next_socket: SocketId,
     cursor: usize,
     pub hostility: Hostility,
     first_commit: Option<GroupKeyFrame>,
-    impostor: Option<AdmitterSession>,
-    pub impostor_verified_an_offer: Option<bool>,
-    /// Every socket that answered a PAKE init, once per answer. Each online password guess costs
-    /// one of these.
-    pub pake_replies_from: Vec<SocketId>,
 }
 
 impl TestRelay {
     pub const IMPOSTOR: SocketId = 999;
-    const GROUP: &'static str = "ABCD2345";
 
     pub fn new() -> Self {
         Self {
             sockets: Vec::new(),
+            identities: HashMap::new(),
             inboxes: HashMap::new(),
             announced: Vec::new(),
             next_socket: 1,
             cursor: 0,
             hostility: Hostility::None,
             first_commit: None,
-            impostor: None,
-            impostor_verified_an_offer: None,
-            pake_replies_from: Vec::new(),
         }
     }
 
-    pub fn connect(&mut self) -> SocketId {
+    /// Opens a socket for `identity`, the canonical identity the server authenticated.
+    pub fn connect(&mut self, identity: &str) -> SocketId {
         let id = self.next_socket;
         self.next_socket += 1;
         self.sockets.push(id);
+        self.identities.insert(id, identity.to_string());
         self.inboxes
             .entry(id)
             .or_default()
@@ -112,54 +108,47 @@ impl TestRelay {
 
     fn direct(&mut self, from: SocketId, to: GroupKeyRecipient, body: Bytes) {
         let payload = GroupKeyPayload::from_bytes(&body).ok();
-        if let Some(GroupKeyPayload::Admission(AdmissionMessage::PakeReply(_))) = &payload {
-            self.pake_replies_from.push(from);
-        }
-        match (self.hostility, payload) {
-            (Hostility::PakeToSelf, Some(GroupKeyPayload::Admission(message))) => {
-                self.impersonate_admitter(from, message);
-                return;
-            }
+        let body = match (self.hostility, payload) {
+            (
+                Hostility::AbortReveals,
+                Some(GroupKeyPayload::Admission(AdmissionMessage::Reveal { .. })),
+            ) => return,
             (
                 Hostility::SwapKeyPackage,
-                Some(GroupKeyPayload::Admission(AdmissionMessage::KeyPackageOffer { mac, .. })),
+                Some(GroupKeyPayload::Admission(AdmissionMessage::Reveal {
+                    check_id, nonce, ..
+                })),
             ) => {
                 let (_pending, forged) =
                     MlsGroupState::key_package(&"minecraft:Server".parse().unwrap()).unwrap();
-                let swapped = GroupKeyPayload::Admission(AdmissionMessage::KeyPackageOffer {
+                GroupKeyPayload::Admission(AdmissionMessage::Reveal {
+                    check_id,
                     key_package: Bytes::from(forged),
-                    mac,
-                });
-                self.route(from, to, swapped.to_bytes().unwrap());
-                return;
+                    nonce,
+                })
+                .to_bytes()
+                .unwrap()
             }
             (
-                Hostility::InjectWelcome,
-                Some(GroupKeyPayload::Admission(AdmissionMessage::KeyPackageOffer {
-                    key_package,
+                Hostility::SwapMemberNonce,
+                Some(GroupKeyPayload::Admission(AdmissionMessage::Check {
+                    check_id,
+                    signature_key,
+                    mls_group_id,
+                    member,
                     ..
                 })),
-            ) => {
-                let welcome = Self::own_group_welcome(&key_package);
-                let forged = GroupKeyPayload::Admission(AdmissionMessage::WelcomeOffer {
-                    welcome: Bytes::from(welcome),
-                    mac: [0x42; 32],
-                });
-                // The server chooses `from`, so the forgery claims to be the real admitter.
-                let GroupKeyRecipient::Socket(admitter) = to else {
-                    return;
-                };
-                self.deliver(
-                    from,
-                    GroupKeyFrame::Delivered {
-                        from: admitter,
-                        body: forged.to_bytes().unwrap(),
-                    },
-                );
-                return;
-            }
-            _ => {}
-        }
+            ) => GroupKeyPayload::Admission(AdmissionMessage::Check {
+                check_id,
+                nonce: [0x5E; 32],
+                signature_key,
+                mls_group_id,
+                member,
+            })
+            .to_bytes()
+            .unwrap(),
+            _ => body,
+        };
         self.route(from, to, body);
     }
 
@@ -172,54 +161,28 @@ impl TestRelay {
                 if others.is_empty() {
                     return;
                 }
-                if self.hostility == Hostility::AnyToNewestMember {
-                    others[others.len() - 1]
-                } else {
-                    let pick = others[self.cursor % others.len()];
-                    self.cursor += 1;
-                    pick
+                let pick = others[self.cursor % others.len()];
+                self.cursor += 1;
+                pick
+            }
+            GroupKeyRecipient::Members => {
+                let identity = self.identities.get(&from).cloned().unwrap_or_default();
+                let members: Vec<SocketId> =
+                    self.announced.iter().copied().filter(|s| *s != from).collect();
+                for member in members {
+                    self.deliver(
+                        member,
+                        GroupKeyFrame::Asked {
+                            from,
+                            identity: identity.clone(),
+                            body: body.clone(),
+                        },
+                    );
                 }
+                return;
             }
         };
         self.deliver(target, GroupKeyFrame::Delivered { from, body });
-    }
-
-    /// The relay plays admitter with a guessed password, then hands the joiner a Welcome into a
-    /// group it runs itself.
-    fn impersonate_admitter(&mut self, joiner: SocketId, message: AdmissionMessage) {
-        let guess = GroupPassword::new("a guess!").unwrap();
-        let reply = match message {
-            AdmissionMessage::PakeInit(_) => {
-                let (session, reply) =
-                    AdmitterSession::respond(Self::GROUP, &guess, message).unwrap();
-                self.impostor = Some(session);
-                GroupKeyPayload::Admission(reply)
-            }
-            offer @ AdmissionMessage::KeyPackageOffer { .. } => {
-                let AdmissionMessage::KeyPackageOffer { key_package, .. } = offer.clone() else {
-                    unreachable!()
-                };
-                let session = self.impostor.take().expect("PAKE ran first");
-                self.impostor_verified_an_offer = Some(session.verify_offer(offer).is_ok());
-                let welcome = Self::own_group_welcome(&key_package);
-                GroupKeyPayload::Admission(session.seal_welcome(&welcome))
-            }
-            _ => return,
-        };
-        self.deliver(
-            joiner,
-            GroupKeyFrame::Delivered {
-                from: Self::IMPOSTOR,
-                body: reply.to_bytes().unwrap(),
-            },
-        );
-    }
-
-    fn own_group_welcome(key_package: &[u8]) -> Vec<u8> {
-        let mut own = MlsGroupState::create(&"minecraft:Alice".parse().unwrap()).unwrap();
-        let staged = own.add(key_package).unwrap();
-        own.merge_pending().unwrap();
-        staged.welcome
     }
 
     fn deliver(&mut self, to: SocketId, frame: GroupKeyFrame) {

@@ -2,10 +2,12 @@ use std::time::Duration;
 
 use tokio::sync::{mpsc, oneshot};
 
-use super::{GroupKeyService, KeySocketEvent, ProtectedGroupEvent, SystemClock};
+use super::{
+    GroupKeyService, KeySocketEvent, ProtectedGroupCommand, ProtectedGroupEvent, SystemClock,
+};
 
-/// Runs one protected group: feeds key socket frames and a one-second tick to the service, and
-/// passes each event it raises to `on_event`, until the group is lost or stopped.
+/// Runs one protected group: feeds key socket frames, people's decisions and a one-second tick to
+/// the service, and passes each event it raises to `on_event`, until the group is lost or stopped.
 pub struct ProtectedGroupRunner;
 
 impl ProtectedGroupRunner {
@@ -15,6 +17,7 @@ impl ProtectedGroupRunner {
         mut service: GroupKeyService<SystemClock>,
         mut socket_events: mpsc::Receiver<KeySocketEvent>,
         mut service_events: mpsc::Receiver<ProtectedGroupEvent>,
+        mut commands: mpsc::Receiver<ProtectedGroupCommand>,
         mut stop: oneshot::Receiver<()>,
         mut on_event: F,
     ) where
@@ -41,6 +44,10 @@ impl ProtectedGroupRunner {
                         true
                     }
                 },
+                Some(command) = commands.recv() => {
+                    Self::apply(&mut service, command);
+                    false
+                }
                 _ = tick.tick() => {
                     service.tick();
                     false
@@ -54,6 +61,29 @@ impl ProtectedGroupRunner {
             }
             if ended || lost {
                 return;
+            }
+        }
+    }
+
+    fn apply(service: &mut GroupKeyService<SystemClock>, command: ProtectedGroupCommand) {
+        match command {
+            ProtectedGroupCommand::Check { joiner, reply } => {
+                let _ = reply.send(service.check(joiner));
+            }
+            ProtectedGroupCommand::Decide {
+                joiner,
+                check_id,
+                allow,
+                reply,
+            } => {
+                let _ = reply.send(service.decide(joiner, check_id, allow));
+            }
+            ProtectedGroupCommand::Confirm {
+                check_id,
+                matches,
+                reply,
+            } => {
+                let _ = reply.send(service.confirm(check_id, matches));
             }
         }
     }
