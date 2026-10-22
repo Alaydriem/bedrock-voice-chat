@@ -51,7 +51,9 @@ describe("PreflightPanel", () => {
     it("names every check and how long it took", () => {
         const { container } = render(PreflightPanel, { props: props() });
         const rows = within(container.querySelector(".rad-preflight-steps") as HTMLElement);
-        for (const name of PREFLIGHT_STEPS) expect(rows.getByText(name)).toBeInTheDocument();
+        for (const label of ["Credentials", "Handshake", "Protocol", "Voice path"]) {
+            expect(rows.getByText(label)).toBeInTheDocument();
+        }
         expect(screen.getByText(/100 ms/)).toBeInTheDocument();
     });
 

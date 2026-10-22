@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use bwavfile::{Bext, WaveFmt, WaveWriter};
 use chrono::{DateTime, Datelike, Local, TimeZone};
 use std::path::Path;
+use tauri_plugin_curia::curia;
 
 /// BWav audio renderer that outputs PCM BWav files
 pub struct BwavRenderer {
@@ -166,12 +167,11 @@ impl AudioRenderer for BwavRenderer {
             }
         }
 
-        log::info!(
-            "Rendering {} complete: {} audio frames, {} silence chunks written",
-            player_name,
-            frames_processed,
-            silence_chunks_written
-        );
+        curia::info!("BWav rendering complete", {
+            player: player_name,
+            frames: frames_processed,
+            silence_chunks: silence_chunks_written,
+        });
 
         let _writer = frame_writer.end()?;
         Ok(())

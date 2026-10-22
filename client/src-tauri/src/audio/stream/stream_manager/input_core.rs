@@ -3,9 +3,9 @@ use super::{AudioFrame, AudioFrameData};
 use audio_gate::NoiseGate;
 use common::consts::OPUS_FRAME_DURATION_MS;
 use common::structs::audio::{InputLevel, NoiseGateSettings};
-use log::warn;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use tauri_plugin_curia::curia;
 
 use super::input::{
     MUTE_INPUT_STREAM, NOISE_GATE_SETTINGS, UPDATE_NOISE_GATE_SETTINGS, USE_NOISE_GATE,
@@ -82,7 +82,9 @@ impl InputProcessCore {
                 let current_settings = NOISE_GATE_SETTINGS.lock().unwrap();
                 match serde_json::from_value::<NoiseGateSettings>(current_settings.clone()) {
                     Ok(settings) => {
-                        log::debug!("Updating noise gate settings: {:?}", settings);
+                        curia::debug!("updating noise gate settings", {
+                            settings: format!("{settings:?}"),
+                        });
                         self.gate.update(
                             settings.open_threshold,
                             settings.close_threshold,
@@ -97,10 +99,9 @@ impl InputProcessCore {
                             .max(2.0) as u32;
                     }
                     Err(e) => {
-                        warn!(
-                            "Noise gate settings were asked to update, but failed to deserialize: {}",
-                            e
-                        );
+                        curia::warn!("noise gate settings were asked to update, but failed to deserialize", {
+                            error: e.to_string(),
+                        });
                     }
                 };
                 drop(current_settings);

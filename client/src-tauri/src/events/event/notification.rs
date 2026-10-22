@@ -1,6 +1,6 @@
-use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use tauri::Listener;
+use tauri_plugin_curia::curia;
 
 // Events Tauri is to subscribe to
 // This is the general notification event
@@ -38,14 +38,20 @@ impl Notification {
     pub fn register(app: &tauri::App) {
         app.listen(EVENT_NOTIFICATION, |event| {
             if let Ok(payload) = serde_json::from_str::<Notification>(&event.payload()) {
-                match payload.level {
-                    Some(level) => match level.as_str() {
-                        "info" => info!("{}: {}", payload.title, payload.body),
-                        "warn" => warn!("{}: {}", payload.title, payload.body),
-                        "error" => error!("{}: {} {:?}", payload.title, payload.body, payload.e),
-                        _ => info!("{}: {}", payload.title, payload.body),
-                    },
-                    None => info!("{}: {}", payload.title, payload.body),
+                match payload.level.as_deref() {
+                    Some("warn") => curia::warn!("webview notification", {
+                        title: payload.title,
+                        body: payload.body,
+                    }),
+                    Some("error") => curia::error!("webview notification", {
+                        title: payload.title,
+                        body: payload.body,
+                        error: payload.e,
+                    }),
+                    _ => curia::info!("webview notification", {
+                        title: payload.title,
+                        body: payload.body,
+                    }),
                 };
             }
         });

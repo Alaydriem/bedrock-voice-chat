@@ -6,6 +6,7 @@ use crate::analytics::AnalyticsLevel;
 use crate::analytics::dtos::QueuedEvent;
 use crate::analytics::posthog::{BatchRequest, CaptureEvent, CaptureEventProperties};
 use crate::analytics::provider::AnalyticsProvider;
+use tauri_plugin_curia::curia;
 
 pub struct Provider {
     client: reqwest::Client,
@@ -114,14 +115,16 @@ impl AnalyticsProvider for Provider {
                     let status = resp.status();
                     if status.is_server_error() || status.is_client_error() {
                         let body = resp.text().await.unwrap_or_default();
-                        log::warn!("PostHog error: {} - {}", status, body);
+                        curia::warn!("PostHog returned an error", {
+                            status: status.as_u16(),
+                            error: body,
+                        });
                     }
                 }
                 Err(e) => {
-                    log::warn!(
-                        "PostHog request failed: {}. Continuing with remaining chunks.",
-                        e
-                    );
+                    curia::warn!("PostHog request failed; continuing with the remaining chunks", {
+                        error: e.to_string(),
+                    });
                 }
             }
         }

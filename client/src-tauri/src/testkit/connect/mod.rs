@@ -1,5 +1,6 @@
 use tauri::Manager;
 use tauri::async_runtime::Mutex;
+use tauri_plugin_curia::curia;
 
 use crate::AudioStreamManager;
 use crate::NetworkStreamManager;
@@ -83,6 +84,13 @@ impl Connector {
             state.current_server = Some(config.server.clone());
         }
 
+        // The webview writes this after a login (`loginCode.ts`); the testkit has no webview.
+        // Anything that reads this client's identity from the store — a protected group's MLS
+        // credential among them — otherwise sees the seeded placeholder instead of this player.
+        if let Ok(store) = tauri_plugin_store::StoreExt::store(handle, "store.json") {
+            store.set("current_player", serde_json::json!(login.gamertag.clone()));
+        }
+
         // Places this client on the WebSocket transport by writing the verdict a client
         // reaches in the field once QUIC has degraded on a host. Selection then takes the
         // real demoted branch, so the scenario exercises production code rather than a
@@ -126,10 +134,16 @@ impl Connector {
                 )
                 .await;
             if let Err(e) = asm.start(AudioDeviceType::OutputDevice).await {
-                log::warn!("testkit: output stream start failed: {e}");
+                curia::warn!("testkit: output stream start failed", {
+                    io: "output",
+                    error: e.to_string(),
+                });
             }
             if let Err(e) = asm.start(AudioDeviceType::InputDevice).await {
-                log::warn!("testkit: input stream start failed: {e}");
+                curia::warn!("testkit: input stream start failed", {
+                    io: "input",
+                    error: e.to_string(),
+                });
             }
         }
 
@@ -200,6 +214,76 @@ impl Connector {
         )
         .await
         .map(|_| ())
+    }
+
+    // Creates a group, joins it, and protects it while alone, through the production
+    // GroupService path — the order the app's "New group" and editor follow. Returns the
+    // server-assigned channel id.
+    pub async fn create_protected(handle: &tauri::AppHandle) -> Result<String, String> {
+        let service = crate::groups::GroupService::new(handle.clone());
+        let id = service
+            .create(String::new())
+            .await
+            .map_err(|e| e.to_string())?
+            .id
+            .ok_or_else(|| "created a group without an id".to_string())?;
+        service
+            .protect(id.clone())
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(id)
+    }
+
+    // Protects a group this client created and is alone in.
+    pub async fn protect(handle: &tauri::AppHandle, channel_id: String) -> Result<(), String> {
+        crate::groups::GroupService::new(handle.clone())
+            .protect(channel_id)
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+
+    // Asks to join a protected group through the production GroupService path. Admission
+    // finishes later and is reported as a `protected-group:*` event.
+    pub async fn join_protected(
+        handle: &tauri::AppHandle,
+        channel_id: String,
+    ) -> Result<(), String> {
+        crate::groups::GroupService::new(handle.clone())
+            .join_protected(channel_id)
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+
+    pub async fn admission_check(handle: &tauri::AppHandle, joiner: u64) -> Result<(), String> {
+        crate::groups::GroupService::new(handle.clone())
+            .check(joiner)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    pub async fn admission_decide(
+        handle: &tauri::AppHandle,
+        joiner: u64,
+        check_id: String,
+        allow: bool,
+    ) -> Result<(), String> {
+        crate::groups::GroupService::new(handle.clone())
+            .decide(joiner, &check_id, allow)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    pub async fn admission_confirm(
+        handle: &tauri::AppHandle,
+        check_id: String,
+        matches: bool,
+    ) -> Result<(), String> {
+        crate::groups::GroupService::new(handle.clone())
+            .confirm(&check_id, matches)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     // Uploads an audio file through the production client path: encode (decode →

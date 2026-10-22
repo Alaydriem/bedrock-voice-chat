@@ -87,3 +87,25 @@ fn the_reserved_jukebox_target_never_resolves_onto_a_player() {
         common::consts::audio::JUKEBOX_CONTROL_TARGET
     );
 }
+
+// The server hands the app a `JoinGroup` only for a protected group, which the game cannot join.
+// The app must then ask that group's members; every other group action is the server's to apply.
+#[test]
+fn control_join_for_a_protected_group_starts_a_request() {
+    use common::structs::control::ClientActionType;
+
+    assert_eq!(
+        ControlActionsManager::protected_join_target(&ClientActionType::JoinGroup {
+            channel: "NR4K2PQX".to_string(),
+        }),
+        Some("NR4K2PQX".to_string())
+    );
+    assert_eq!(
+        ControlActionsManager::protected_join_target(&ClientActionType::CreateGroup),
+        None
+    );
+    assert_eq!(
+        ControlActionsManager::protected_join_target(&ClientActionType::LeaveGroup),
+        None
+    );
+}

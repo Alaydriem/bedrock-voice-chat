@@ -78,6 +78,18 @@ fn a_frame_needs_a_speaker_before_it_can_be_scoped_to_a_world() {
     assert!(PeerEgress::frame_from(&audio(None), &sp).is_some());
 }
 
+// A protected group does not span servers, and another server's players could not decrypt it.
+#[test]
+fn peer_egress_skips_sealed_frames() {
+    let sp = speaker(Some("W1"));
+    let mut packet = audio(Some(sp.clone()));
+    if let QuicNetworkPacketData::AudioFrame(frame) = packet.data {
+        packet.data = QuicNetworkPacketData::AudioFrame(frame.into_sealed(vec![7u8; 40]));
+    }
+
+    assert!(PeerEgress::frame_from(&packet, &sp).is_none());
+}
+
 #[test]
 fn a_non_audio_packet_is_not_forwardable() {
     let packet = QuicNetworkPacket {

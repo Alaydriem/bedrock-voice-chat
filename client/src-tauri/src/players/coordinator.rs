@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use common::structs::audio::{AudioDeviceType, PlayerGainSettings, PlayerGainStore};
 use common::structs::players::{PlayerKey, PlayerSettingsRow};
-use log::warn;
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_curia::curia;
 use tokio::sync::Mutex;
 
 use super::service::PlayerSettingsService;
@@ -161,13 +161,17 @@ impl PlayerSettingsCoordinator {
             Ok(None) => return,
             Ok(Some(_)) => {}
             Err(cause) => {
-                warn!("PlayerSettingsCoordinator: could not re-seed the mixer: {cause}");
+                curia::warn!("PlayerSettingsCoordinator: could not re-seed the mixer", {
+                    error: cause.to_string(),
+                });
                 return;
             }
         }
 
         if let Err(cause) = coordinator.publish(app, None).await {
-            warn!("PlayerSettingsCoordinator: could not re-seed the mixer: {cause}");
+            curia::warn!("PlayerSettingsCoordinator: could not re-seed the mixer", {
+                error: cause.to_string(),
+            });
         }
     }
 
@@ -193,7 +197,7 @@ impl PlayerSettingsCoordinator {
         // stream has no arm for this key, so feeding it there parks the update in a cache and
         // no audio ever changes.
         let Some(manager) = app.try_state::<Mutex<AudioStreamManager>>() else {
-            warn!("PlayerSettingsCoordinator: no audio stream to feed yet");
+            curia::warn!("PlayerSettingsCoordinator: no audio stream to feed yet");
             return Ok(());
         };
         let mut manager = manager.lock().await;
@@ -205,7 +209,9 @@ impl PlayerSettingsCoordinator {
             )
             .await
         {
-            warn!("PlayerSettingsCoordinator: could not feed the mixer: {cause}");
+            curia::warn!("PlayerSettingsCoordinator: could not feed the mixer", {
+                error: cause.to_string(),
+            });
         }
         Ok(())
     }

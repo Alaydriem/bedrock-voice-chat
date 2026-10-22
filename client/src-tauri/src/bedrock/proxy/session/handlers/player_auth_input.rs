@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use common::bedrock_protocol::PlayerAuthInputPacket;
-use log::debug;
+use tauri_plugin_curia::curia;
 
 use crate::bedrock::BedrockEventEmitter;
 use crate::bedrock::proxy::session::BedrockPacketHandler;
@@ -21,7 +21,7 @@ impl<'a> BedrockPacketHandler for PlayerAuthInputHandler<'a> {
         _emitter: Option<&Arc<BedrockEventEmitter>>,
     ) {
         if !*self.player_auth_input_seen {
-            debug!("Bedrock: first PlayerAuthInput received");
+            curia::debug!("Bedrock: first PlayerAuthInput received");
             *self.player_auth_input_seen = true;
         }
         state.apply_position(packet);

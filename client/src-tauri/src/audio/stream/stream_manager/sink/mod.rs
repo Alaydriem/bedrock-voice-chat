@@ -8,10 +8,10 @@ pub(crate) use mix_target::MixTarget;
 
 use crate::audio::{AudioDevice, AudioDeviceCpal};
 use anyhow::anyhow;
-use log::error;
 use rodio::DeviceSinkBuilder;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use tauri_plugin_curia::curia;
 
 // Post-mix consumer for output samples. Enum dispatch, no trait objects: each
 // variant yields a uniform MixTarget so playback never branches on the sink kind.
@@ -49,10 +49,11 @@ impl AudioOutputSink {
             config.ok_or_else(|| anyhow!("Output device is missing a usable stream config"))?;
 
         let cpal_device = device.clone().to_cpal_device().ok_or_else(|| {
-            error!(
-                "CPAL output device is not defined. This shouldn't happen! Restart BVC? {:?}",
-                device.clone()
-            );
+            curia::error!("CPAL output device is not defined; restarting BVC may help", {
+                io: "output",
+                device_name: device.display_name.clone(),
+                device: format!("{device:?}"),
+            });
             anyhow!(
                 "Couldn't retrieve native cpal device for {} {}.",
                 device.io.store_key(),
@@ -60,19 +61,22 @@ impl AudioOutputSink {
             )
         })?;
 
-        log::info!("started receiving audio stream");
+        curia::info!("started receiving audio stream");
         let builder = DeviceSinkBuilder::from_device(cpal_device).map_err(|e| {
-            error!("Could not create DeviceSinkBuilder: {:?}", e);
+            curia::error!("could not create DeviceSinkBuilder", {
+                io: "output",
+                error: format!("{e:?}"),
+            });
             anyhow!(e)
         })?;
 
         let stream_config: rodio::cpal::StreamConfig = config.into();
         let builder = builder.with_config(&stream_config);
         let mut stream = builder.open_sink_or_fallback().map_err(|e| {
-            error!(
-                "Could not acquire MixerDeviceSink. Try restarting the stream? {:?}",
-                e
-            );
+            curia::error!("could not acquire MixerDeviceSink; restarting the stream may help", {
+                io: "output",
+                error: format!("{e:?}"),
+            });
             anyhow!(e)
         })?;
 

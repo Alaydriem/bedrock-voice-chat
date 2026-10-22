@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use serde::Deserialize;
 use tauri::Wry;
+use tauri_plugin_curia::curia;
 use tauri_plugin_store::Store;
 
 use crate::audio::{AudioDeviceHost, AudioDeviceType, StreamConfig};
@@ -38,20 +39,18 @@ impl StoredAudioDevice {
 
         match serde_json::from_value::<Self>(raw) {
             Ok(stored) if stored.stream_configs.is_empty() => {
-                log::warn!(
-                    "Stored device config for {} lists no stream configurations; reverting to the system default.",
-                    io.store_key()
-                );
+                curia::warn!("stored device config lists no stream configurations; reverting to the system default", {
+                    store_key: io.store_key().to_string(),
+                });
                 Self::discard(io, store);
                 None
             }
             Ok(stored) => Some(stored),
             Err(e) => {
-                log::warn!(
-                    "Discarding unreadable device config for {}: {}. Reverting to the system default.",
-                    io.store_key(),
-                    e
-                );
+                curia::warn!("discarding an unreadable device config; reverting to the system default", {
+                    store_key: io.store_key().to_string(),
+                    error: e.to_string(),
+                });
                 Self::discard(io, store);
                 None
             }

@@ -30,8 +30,8 @@ class ControlSender(
                 }
                 onResult?.invoke(result)
             }
-            httpHandler != null -> httpHandler.controlAsync(json) { ok, groupCode ->
-                onResult?.invoke(ControlSendResult(ok, groupCode))
+            httpHandler != null -> httpHandler.controlAsync(json) { result ->
+                onResult?.invoke(result)
             }
             else -> {
                 logger.warn("No control sender available (neither embedded nor HTTP configured)")

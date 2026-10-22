@@ -24,6 +24,8 @@ pub enum BvcsMessage {
     Group {
         id: String,
         name: String,
+        /// Members admit each new person. Absent on the wire means open.
+        protected: bool,
     },
 }
 
@@ -75,8 +77,11 @@ impl BvcsCodec {
         format!("{BVCS_PREFIX}{seq}:gl:c={count}")
     }
 
-    pub fn encode_group(seq: u64, id: &str, name: &str) -> String {
-        format!("{BVCS_PREFIX}{seq}:g:i={id};n={}", Self::escape(name))
+    /// `;p=1` marks a protected group. An open group carries no `p`, so a receiver that
+    /// predates the flag reads every row unchanged.
+    pub fn encode_group(seq: u64, id: &str, name: &str, protected: bool) -> String {
+        let flag = if protected { ";p=1" } else { "" };
+        format!("{BVCS_PREFIX}{seq}:g:i={id};n={}{flag}", Self::escape(name))
     }
 
     pub fn decode(message: &str) -> Option<BvcsMessage> {
@@ -116,7 +121,12 @@ impl BvcsCodec {
             "g" => {
                 let id = fields.iter().find(|(k, _)| *k == "i")?.1.to_string();
                 let name = Self::unescape(fields.iter().find(|(k, _)| *k == "n")?.1)?;
-                Some(BvcsMessage::Group { id, name })
+                let protected = fields.iter().any(|(k, v)| *k == "p" && *v == "1");
+                Some(BvcsMessage::Group {
+                    id,
+                    name,
+                    protected,
+                })
             }
             _ => None,
         }

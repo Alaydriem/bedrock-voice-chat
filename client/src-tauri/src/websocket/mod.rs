@@ -7,6 +7,7 @@ use common::structs::websocket::InternalEndpoint;
 use common::traits::StreamTrait;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_curia::curia;
 use tauri_plugin_store::StoreExt;
 use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
@@ -179,7 +180,10 @@ impl WebSocketManager {
 
         self.internal_task = Some(handle);
         self.internal_port = Some(port);
-        log::info!("internal push listener bound on 127.0.0.1:{}", port);
+        curia::info!("internal push listener bound", {
+            host: "127.0.0.1",
+            port: port,
+        });
         self.internal_endpoint()
             .ok_or_else(|| anyhow::anyhow!("internal listener bound but reported no endpoint"))
     }
@@ -263,7 +267,10 @@ impl WebSocketManager {
             .spawn_accept_loop(listener, ListenerKind::External, credential, shutdown_rx)
             .await?;
 
-        log::info!("operator WebSocket listener bound on {host}:{port}");
+        curia::info!("operator WebSocket listener bound", {
+            host: host.to_string(),
+            port: port,
+        });
         Ok((handle, port))
     }
 
@@ -329,7 +336,9 @@ impl WebSocketManager {
                         );
 
                         if !is_disconnect {
-                            log::error!("Connection error: {}", e);
+                            curia::error!("WebSocket connection error", {
+                                error: e.to_string(),
+                            });
                         }
                     }
                 });
@@ -393,7 +402,9 @@ impl WebSocketManager {
                     Ok(response)
                 }
                 Err(reason) => {
-                    log::warn!("Rejected WebSocket upgrade: {}", reason.as_str());
+                    curia::warn!("rejected WebSocket upgrade", {
+                        reason: reason.as_str(),
+                    });
                     let status = StatusCode::UNAUTHORIZED;
                     let _ = reason;
                     let mut error = HandshakeError::new(Some(reason.as_str().to_string()));
@@ -491,7 +502,9 @@ impl WebSocketManager {
                                 .await?;
                         }
                         Err(broadcast::error::RecvError::Lagged(n)) => {
-                            log::warn!("Metrics subscriber lagged by {} frames", n);
+                            curia::warn!("metrics subscriber lagged", {
+                                frames: n,
+                            });
                         }
                         Err(broadcast::error::RecvError::Closed) => return Ok(()),
                     }
@@ -558,7 +571,9 @@ impl WebSocketManager {
                                 .await?;
                         }
                         Err(broadcast::error::RecvError::Lagged(n)) => {
-                            log::warn!("Events subscriber lagged by {} frames", n);
+                            curia::warn!("events subscriber lagged", {
+                                frames: n,
+                            });
                         }
                         Err(broadcast::error::RecvError::Closed) => return Ok(()),
                     }
@@ -669,7 +684,9 @@ impl WebSocketManager {
                             write.send(tokio_tungstenite::tungstenite::Message::Text(json.into())).await?;
                         }
                         Err(broadcast::error::RecvError::Lagged(n)) => {
-                            log::warn!("WebSocket broadcast receiver lagged by {} messages", n);
+                            curia::warn!("WebSocket broadcast receiver lagged", {
+                                messages: n,
+                            });
                         }
                         Err(broadcast::error::RecvError::Closed) => {
                             return Ok(());
@@ -840,7 +857,10 @@ impl WebSocketManager {
             }
         }
 
-        log::info!("WebSocket connect: started {} ({})", target.name, target.id);
+        curia::info!("WebSocket connect: started", {
+            target: target.name.clone(),
+            target_id: target.id.to_string(),
+        });
         Ok(ResponseData::Connect(ConnectData {
             connected: true,
             id: Some(target.id.clone()),

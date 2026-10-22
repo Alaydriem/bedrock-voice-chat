@@ -756,6 +756,9 @@ pub unsafe extern "C" fn bvc_audio_stop(
 /// `group_code_out`, when non-null, receives a heap string holding the new group's
 /// share code after a successful `CreateGroup` (free via `bvc_free_string`) and is
 /// set to null for every other action or on error.
+///
+/// Returns `0` when applied, `1` when a protected `JoinGroup` was handed to the player's
+/// BVC app, `-2` when a protected `JoinGroup` found no live app session, and `-1` on error.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bvc_client_action(
     handle: *mut RuntimeHandle,
@@ -864,18 +867,20 @@ pub unsafe extern "C" fn bvc_client_action(
             }
         };
         let channels = cache_manager.get_channel_collection();
-        let actor = action.actor_identity();
+        let registry = cache_manager.get_connection_registry();
         let result = tokio_rt.block_on(async {
-            crate::services::ClientActionService::route_group(
-                &action.action,
-                &actor,
+            crate::services::ClientActionService::route_group_forwarding(
+                &action,
                 &channels,
                 &webhook,
+                registry.as_deref(),
             )
             .await
         });
         match result {
-            Ok(created) => {
+            Ok(crate::services::client_action_service::GroupOutcome::Forwarded) => 1,
+            Ok(crate::services::client_action_service::GroupOutcome::NoSession) => -2,
+            Ok(crate::services::client_action_service::GroupOutcome::Done(created)) => {
                 if let (Some(code), false) = (created, group_code_out.is_null()) {
                     match CString::new(code) {
                         Ok(cstr) => unsafe { *group_code_out = cstr.into_raw() },

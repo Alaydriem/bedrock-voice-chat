@@ -1,3 +1,4 @@
+import { I18n } from "#lib/i18n/index.js";
 import type { NearbyPlayer } from "./NearbyPlayer";
 
 export interface RosterSplit {
@@ -42,11 +43,17 @@ export class RosterView {
     /** What the top bar says about the room. */
     static headline(inEarshot: number, approaching: number): string {
         if (inEarshot > 0) {
-            return `${inEarshot} IN EARSHOT`;
+            return I18n.tn("{count} IN EARSHOT", "{count} IN EARSHOT", inEarshot).replace(
+                "{count}",
+                String(inEarshot),
+            );
         }
         if (approaching > 0) {
-            return `${approaching} NEARBY`;
+            return I18n.tn("{count} NEARBY", "{count} NEARBY", approaching).replace(
+                "{count}",
+                String(approaching),
+            );
         }
-        return "NOBODY IN EARSHOT";
+        return I18n.t("NOBODY IN EARSHOT");
     }
 }

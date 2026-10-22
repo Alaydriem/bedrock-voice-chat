@@ -101,6 +101,8 @@ export default class Dashboard extends BVCApp {
     public feedScope = 120;
     /** The server's `radar.enabled`. On until `/api/config` says otherwise. */
     public radar = true;
+    /** The server's `protected_groups.enabled`. Off until `/api/config` says the server has it. */
+    public protectedGroups = false;
 
     // Per-server age gate. Fetches the server's declared minimum age from
     // /api/config and asks AgeGateService for a decision. Fail-open: any error,
@@ -122,6 +124,7 @@ export default class Dashboard extends BVCApp {
             // Read here as well as at stream setup: this is the only `/api/config` fetch a warm
             // re-entry makes, and a fresh dashboard would otherwise start the ring with radar on.
             this.radar = config?.config?.radar?.enabled ?? true;
+            this.protectedGroups = config?.config?.protected_groups?.enabled ?? false;
             const ageMinimum = config?.config?.age?.minimum ?? null;
             if (ageMinimum == null) {
                 return false;
@@ -838,6 +841,7 @@ export default class Dashboard extends BVCApp {
                     // Reset per connect, so a fetch that fails after a server with radar off
                     // does not carry that server's answer to this one.
                     this.radar = true;
+                    this.protectedGroups = false;
 
                     // Fetch server config to get fresh QUIC port and spatial audio settings
                     try {
@@ -847,6 +851,8 @@ export default class Dashboard extends BVCApp {
                         );
 
                         this.radar = configResponse?.config?.radar?.enabled ?? true;
+                        this.protectedGroups =
+                            configResponse?.config?.protected_groups?.enabled ?? false;
 
                         // Update QUIC port from server config
                         if (configResponse?.config?.quic_port && credentials) {

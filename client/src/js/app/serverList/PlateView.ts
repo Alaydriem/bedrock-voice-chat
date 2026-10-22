@@ -1,3 +1,4 @@
+import { I18n } from "#lib/i18n/index.js";
 import type { PlateAction } from "./PlateAction";
 import type { ServerRosterEntry } from "./ServerRosterEntry";
 import type { TallyItem } from "./TallyItem";
@@ -22,14 +23,24 @@ export class PlateView {
         switch (entry.status) {
             case "connect":
                 return entry.slow
-                    ? { chip: "Ready · slow", severity: "warn", action: "Connect", kind: "connect" }
-                    : { chip: "Ready", severity: "ok", action: "Connect", kind: "connect" };
+                    ? {
+                          chip: I18n.t("Ready · slow"),
+                          severity: "warn",
+                          action: I18n.t("Connect"),
+                          kind: "connect",
+                      }
+                    : {
+                          chip: I18n.t("Ready"),
+                          severity: "ok",
+                          action: I18n.t("Connect"),
+                          kind: "connect",
+                      };
 
             case "reauth":
                 return {
-                    chip: "Sign in needed",
+                    chip: I18n.t("Sign in needed"),
                     severity: "bad",
-                    action: "Sign in",
+                    action: I18n.t("Sign in"),
                     kind: "signin",
                 };
 
@@ -41,11 +52,16 @@ export class PlateView {
              */
             case "version_mismatch":
                 return entry.clientTooOld
-                    ? { chip: "Update needed", severity: "warn", action: "Update", kind: "update" }
-                    : {
-                          chip: "Server is older",
+                    ? {
+                          chip: I18n.t("Update needed"),
                           severity: "warn",
-                          action: "Blocked",
+                          action: I18n.t("Update"),
+                          kind: "update",
+                      }
+                    : {
+                          chip: I18n.t("Server is older"),
+                          severity: "warn",
+                          action: I18n.t("Blocked"),
                           kind: "blocked",
                       };
 
@@ -57,34 +73,34 @@ export class PlateView {
              */
             case "ws_fallback":
                 return {
-                    chip: "Ready · fallback path",
+                    chip: I18n.t("Ready · fallback path"),
                     severity: "warn",
-                    action: "Connect",
+                    action: I18n.t("Connect"),
                     kind: "connect",
                 };
 
             // Connecting would fail, so rechecking is the only thing worth offering.
             case "udp_blocked":
                 return {
-                    chip: "Voice blocked",
+                    chip: I18n.t("Voice blocked"),
                     severity: "bad",
-                    action: "Recheck",
+                    action: I18n.t("Recheck"),
                     kind: "recheck",
                 };
 
             case "unreachable":
                 return {
-                    chip: "Not answering",
+                    chip: I18n.t("Not answering"),
                     severity: "bad",
-                    action: "Recheck",
+                    action: I18n.t("Recheck"),
                     kind: "recheck",
                 };
 
             case "checking":
                 return {
-                    chip: "Checking…",
+                    chip: I18n.t("Checking…"),
                     severity: "muted",
-                    action: "Connect",
+                    action: I18n.t("Connect"),
                     kind: "blocked",
                 };
         }
@@ -117,19 +133,19 @@ export class PlateView {
     private static tallyLabel(entry: ServerRosterEntry): string {
         switch (entry.status) {
             case "connect":
-                return entry.slow ? "slow" : "ready";
+                return entry.slow ? I18n.t("slow") : I18n.t("ready");
             case "reauth":
-                return "need sign-in";
+                return I18n.t("need sign-in");
             case "version_mismatch":
-                return "outdated";
+                return I18n.t("outdated");
             case "ws_fallback":
-                return "fallback path";
+                return I18n.t("fallback path");
             case "udp_blocked":
-                return "voice blocked";
+                return I18n.t("voice blocked");
             case "unreachable":
-                return "not answering";
+                return I18n.t("not answering");
             case "checking":
-                return "checking";
+                return I18n.t("checking");
         }
     }
 

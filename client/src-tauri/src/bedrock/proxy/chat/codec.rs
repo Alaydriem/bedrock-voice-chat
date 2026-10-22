@@ -1,7 +1,7 @@
 use common::bedrock_protocol::protocol::packets::generated::misc::text::TextPacket;
 use common::bedrock_protocol::protocol::types::generated::{TextPacketBody, TextPacketType};
 use common::structs::control::bvcs_codec::BVCS_PREFIX;
-use log::debug;
+use tauri_plugin_curia::curia;
 
 use crate::bedrock::proxy::chat::{ChatLine, MinecraftTranslation};
 
@@ -61,7 +61,10 @@ impl ChatCodec {
                     None => {
                         // Named at debug so an event the table does not cover can be added by
                         // reading one log line rather than guessing at Mojang's catalogue.
-                        debug!("Bedrock chat: unrendered translation key '{message}' {params:?}");
+                        curia::debug!("Bedrock chat: unrendered translation key", {
+                            key: message,
+                            params: params,
+                        });
                         None
                     }
                 }

@@ -143,7 +143,7 @@ fn an_empty_server_rides_a_zero_header() {
 #[test]
 fn a_group_row_is_pinned() {
     assert_eq!(
-        BvcsCodec::encode_group(8, "Xk3_9aQ", "Sculk Striders"),
+        BvcsCodec::encode_group(8, "Xk3_9aQ", "Sculk Striders", false),
         "!bvcs:8:g:i=Xk3_9aQ;n=Sculk Striders"
     );
     assert_eq!(
@@ -151,6 +151,7 @@ fn a_group_row_is_pinned() {
         Some(BvcsMessage::Group {
             id: "Xk3_9aQ".to_string(),
             name: "Sculk Striders".to_string(),
+            protected: false,
         })
     );
 }
@@ -160,13 +161,14 @@ fn a_name_carrying_grammar_characters_survives_the_round_trip() {
     // A renamed group can carry anything a player can type. Dropping such a row would
     // hide the group from everyone rather than showing it with an awkward name.
     let name = "a;b=c:d%e";
-    let encoded = BvcsCodec::encode_group(9, "id1", name);
+    let encoded = BvcsCodec::encode_group(9, "id1", name, false);
     assert_eq!(encoded, "!bvcs:9:g:i=id1;n=a%3Bb%3Dc%3Ad%25e");
     assert_eq!(
         BvcsCodec::decode(&encoded),
         Some(BvcsMessage::Group {
             id: "id1".to_string(),
             name: name.to_string(),
+            protected: false,
         })
     );
 }
@@ -175,4 +177,33 @@ fn a_name_carrying_grammar_characters_survives_the_round_trip() {
 fn a_row_whose_name_cannot_be_decoded_is_dropped() {
     assert_eq!(BvcsCodec::decode("!bvcs:9:g:i=id1;n=a%ZZ"), None);
     assert_eq!(BvcsCodec::decode("!bvcs:9:g:i=id1;n=trailing%"), None);
+}
+
+#[test]
+fn encode_group_marks_protected() {
+    assert_eq!(
+        BvcsCodec::encode_group(4, "NR4K", "Night Raid", true),
+        "!bvcs:4:g:i=NR4K;n=Night Raid;p=1"
+    );
+    assert!(!BvcsCodec::encode_group(4, "NR4K", "Night Raid", false).contains("p="));
+}
+
+#[test]
+fn a_protected_row_decodes_as_protected_and_a_row_without_p_does_not() {
+    assert_eq!(
+        BvcsCodec::decode("!bvcs:4:g:i=NR4K;n=Night%20Raid;p=1"),
+        Some(BvcsMessage::Group {
+            id: "NR4K".to_string(),
+            name: "Night Raid".to_string(),
+            protected: true,
+        })
+    );
+    assert_eq!(
+        BvcsCodec::decode("!bvcs:4:g:i=NR4K;n=Night Raid"),
+        Some(BvcsMessage::Group {
+            id: "NR4K".to_string(),
+            name: "Night Raid".to_string(),
+            protected: false,
+        })
+    );
 }

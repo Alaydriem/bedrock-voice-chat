@@ -1,1 +1,2 @@
+mod protected;
 mod resolution;

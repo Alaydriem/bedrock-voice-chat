@@ -42,11 +42,13 @@ use bvc_client_lib::{BridgeInputSource, CapturingSink};
 
 mod channel_driver;
 mod e2e_env;
+mod op_driver;
 mod stdout_bridge;
 mod store_seeder;
 
 use channel_driver::ChannelDriver;
 use e2e_env::E2eEnv;
+use op_driver::OpDriver;
 use stdout_bridge::StdoutBridge;
 use store_seeder::StoreSeeder;
 
@@ -61,6 +63,16 @@ fn main() {
         .level(log::LevelFilter::Warn)
         .chain(std::io::stderr())
         .apply();
+
+    // fern carries what dependencies emit through the log crate. The client's own lines are
+    // curia calls, which reach no sink at all until a curia logger is installed, and this
+    // process never runs the app's setup that installs one.
+    let _ = common::curia::Logger::install(Box::new(common::curia::Dispatcher::new(vec![
+        common::curia::ConsoleSink::new(
+            common::curia::Level::Warn,
+            bvc_client_lib::logging::HumanFormatter::new().formatter(),
+        ),
+    ])));
 
     // input_tx feeds the real DSP through BridgeInputSource; cap_rx receives
     // post-mix PCM from CapturingSink.
@@ -243,6 +255,18 @@ fn main() {
                 "player_presence",
                 "recording:started",
                 "recording:stopped",
+                "protected-group:joined",
+                "protected-group:roster",
+                "protected-group:epoch",
+                "protected-group:lost",
+                "protected-group:request",
+                "protected-group:waiting",
+                "protected-group:code",
+                "protected-group:checking",
+                "protected-group:check-failed",
+                "protected-group:request-ended",
+                "protected-group:admitted",
+                "protected-group:join-started",
             ];
             for name in FORWARDED_UI_EVENTS {
                 let event_name = (*name).to_string();
@@ -352,6 +376,49 @@ fn main() {
                                 "delete",
                             );
                         }
+                        Ok(InMsg::CreateProtected) => {
+                            let h = stdin_handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                match Connector::create_protected(&h).await {
+                                    Ok(channel_id) => {
+                                        StdoutBridge::emit(&OutMsg::ChannelJoined { channel_id })
+                                    }
+                                    Err(e) => StdoutBridge::emit(&OutMsg::Log {
+                                        line: format!("create_protected failed: {e}"),
+                                    }),
+                                }
+                            });
+                        }
+                        Ok(InMsg::ProtectGroup { channel_id }) => {
+                            OpDriver::run(&stdin_handle, "protect", move |h| async move {
+                                Connector::protect(&h, channel_id).await
+                            });
+                        }
+                        Ok(InMsg::JoinProtected { channel_id }) => {
+                            OpDriver::run(&stdin_handle, "join_protected", move |h| async move {
+                                Connector::join_protected(&h, channel_id).await
+                            });
+                        }
+                        Ok(InMsg::AdmissionCheck { joiner_socket }) => {
+                            OpDriver::run(&stdin_handle, "admission_check", move |h| async move {
+                                Connector::admission_check(&h, joiner_socket).await
+                            });
+                        }
+                        Ok(InMsg::AdmissionDecide {
+                            joiner_socket,
+                            check_id,
+                            allow,
+                        }) => {
+                            OpDriver::run(&stdin_handle, "admission_decide", move |h| async move {
+                                Connector::admission_decide(&h, joiner_socket, check_id, allow)
+                                    .await
+                            });
+                        }
+                        Ok(InMsg::AdmissionConfirm { check_id, matches }) => {
+                            OpDriver::run(&stdin_handle, "admission_confirm", move |h| async move {
+                                Connector::admission_confirm(&h, check_id, matches).await
+                            });
+                        }
                         Ok(InMsg::UploadAudio { wav_path, game }) => {
                             let h = stdin_handle.clone();
                             tauri::async_runtime::spawn(async move {
@@ -438,6 +505,11 @@ fn main() {
                                 frames_from_quic: from_quic,
                                 frames_into_jitter_buffer: into_jitter_buffer,
                             });
+                        }
+                        Ok(InMsg::RequestWireCapture) => {
+                            StdoutBridge::emit(&OutMsg::WireCapture(
+                                bvc_client_lib::testkit::WireTap::take(),
+                            ));
                         }
                         Ok(InMsg::TriggerJukebox { .. }) | Ok(InMsg::InjectPresence { .. }) => {
                             StdoutBridge::emit(&OutMsg::Log {

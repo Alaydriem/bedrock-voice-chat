@@ -1,8 +1,8 @@
-use log::{error, warn};
 use reqwest::{
     Response, StatusCode,
     header::{HeaderMap, HeaderValue},
 };
+use tauri_plugin_curia::curia;
 
 use common::request::AudioFileListQuery;
 use common::response::{ApiError, AudioFileResponse, AudioStreamTokenResponse, PaginatedResponse};
@@ -76,7 +76,9 @@ impl Api {
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Failed to list audio files: {}", e);
+                curia::error!("failed to list audio files", {
+                    error: e.to_string(),
+                });
                 Err(format!("Connection failed: {}", e))
             }
         }
@@ -124,7 +126,9 @@ impl Api {
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Failed to upload audio file: {}", e);
+                curia::error!("failed to upload an audio file", {
+                    error: e.to_string(),
+                });
                 Err(format!("Connection failed: {}", e))
             }
         }
@@ -151,7 +155,9 @@ impl Api {
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Failed to delete audio file: {}", e);
+                curia::error!("failed to delete an audio file", {
+                    error: e.to_string(),
+                });
                 Err(format!("Connection failed: {}", e))
             }
         }
@@ -178,28 +184,26 @@ impl Api {
                 CredentialVerdict::Rejected
             }
             Ok(response) => {
-                warn!(
-                    "credential probe to {} was inconclusive: HTTP {}",
-                    self.endpoint,
-                    response.status()
-                );
+                curia::warn!("credential probe was inconclusive", {
+                    connected_server: self.endpoint.clone(),
+                    status: response.status().as_u16(),
+                });
                 CredentialVerdict::Inconclusive
             }
             Err(SendError::Transport(e)) if crate::network::CredentialFault::in_tls_chain(&e) => {
                 CredentialVerdict::Rejected
             }
             Err(SendError::Transport(e)) => {
-                warn!(
-                    "credential probe to {} was inconclusive: {}",
-                    self.endpoint, e
-                );
+                curia::warn!("credential probe was inconclusive", {
+                    connected_server: self.endpoint.clone(),
+                    error: e.to_string(),
+                });
                 CredentialVerdict::Inconclusive
             }
             Err(SendError::Open) => {
-                warn!(
-                    "credential probe to {} was inconclusive: the endpoint breaker is open",
-                    self.endpoint
-                );
+                curia::warn!("credential probe was inconclusive: the endpoint breaker is open", {
+                    connected_server: self.endpoint.clone(),
+                });
                 CredentialVerdict::Inconclusive
             }
         }
@@ -232,7 +236,9 @@ impl Api {
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Failed to get server state: {}", e);
+                curia::error!("failed to get the server state", {
+                    error: e.to_string(),
+                });
                 Err(format!("Connection failed: {}", e))
             }
         }
@@ -266,7 +272,9 @@ impl Api {
             Ok(response) => Err(ApiErrorResponse::from_response(response).await),
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Failed to get audio stream token: {}", e);
+                curia::error!("failed to get an audio stream token", {
+                    error: e.to_string(),
+                });
                 Err(format!("Connection failed: {}", e))
             }
         }

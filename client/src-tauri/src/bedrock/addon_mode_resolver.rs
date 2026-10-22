@@ -1,6 +1,6 @@
 use common::response::ApiConfigBedrockServer;
 use common::structs::bedrock::AddonMode;
-use log::info;
+use tauri_plugin_curia::curia;
 
 // Hosts known to block outbound HTTP from a world's addon, so a world reached
 // through one cannot be feeding the BVC server itself. A heuristic, not a
@@ -28,10 +28,13 @@ impl AddonModeResolver {
         // silently ignores the bvc: sound buses. A world left on `Net` by
         // mistake loses the jukebox and the control plane with no other
         // symptom, so both the verdict and the reason for it are recorded.
-        info!(
-            "Bedrock: addon mode {mode:?} for {host}:{port} ({source}) — {}",
-            Self::consequence(mode)
-        );
+        curia::info!("Bedrock: addon mode resolved", {
+            mode: format!("{mode:?}"),
+            host: host,
+            port: port,
+            source: source.to_string(),
+            consequence: Self::consequence(mode).to_string(),
+        });
 
         mode
     }

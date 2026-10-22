@@ -45,24 +45,37 @@ export class GroupsView {
      * @param channels Every channel on the server.
      * @param joinedId The channel this client is in, if any.
      * @param self This client's canonical identity, for the ownership test.
+     * @param protectedRoster The roster of the protected group this client is in, from the
+     *   group's own MLS state. It replaces the server's member list for that one row.
      */
     rows(
         channels: readonly Channel[],
         joinedId: string | null,
         self = "",
+        protectedRoster: readonly string[] | null = null,
     ): Readable<readonly GroupRowView[]> {
         return derived([this.activityStore, this.nowStore], ([$activity, $now]) =>
             channels.map((channel) => {
                 const activeAt = $activity[channel.id] ?? null;
+                const joined = channel.id === joinedId;
+                const players =
+                    joined && channel.protected && protectedRoster
+                        ? protectedRoster
+                        : channel.players;
+                const locked = channel.protected === true;
+                // Exact. The creator is the certificate's Common Name and so is `self`, and a
+                // comparison that tolerated the bare form would hand the close button for one
+                // game prefix's group to the same gamertag under another.
+                const owned = self !== "" && channel.creator === self;
                 return {
                     id: channel.id,
                     name: channel.name,
-                    members: GroupsView.members(channel),
-                    joined: channel.id === joinedId,
-                    // Exact. The creator is the certificate's Common Name and so is `self`, and a
-                    // comparison that tolerated the bare form would hand the close button for one
-                    // game prefix's group to the same gamertag under another.
-                    owned: self !== "" && channel.creator === self,
+                    members: GroupsView.members(players),
+                    joined,
+                    locked,
+                    owned,
+                    canProtect: owned && !locked && players.length === 1,
+                    closesOnLeave: joined && locked && players.length <= 1,
                     activeAt,
                     stirring: activeAt !== null && $now - activeAt < GroupsView.STIR_MS,
                 };
@@ -70,8 +83,8 @@ export class GroupsView {
         );
     }
 
-    private static members(channel: Channel): GroupMember[] {
-        return channel.players.map((player) => {
+    private static members(players: readonly string[]): GroupMember[] {
+        return players.map((player) => {
             // Membership already carries the canonical form; composing it again costs nothing
             // and is what keeps this row's hue derived from the same string as that player's
             // card rather than from a different one.

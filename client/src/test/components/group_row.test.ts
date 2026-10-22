@@ -2,6 +2,7 @@ import { render } from "@testing-library/svelte";
 import { flushSync } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import type { GroupRowView } from "../../js/app/dashboard/GroupRowView";
+import type { ProtectResult } from "../../js/app/managers/ProtectedGroupManager";
 
 const { default: GroupRow } = await import("../../components/dashboard/GroupRow.svelte");
 
@@ -14,8 +15,28 @@ function view(over: Partial<GroupRowView> = {}): GroupRowView {
         owned: false,
         activeAt: null,
         stirring: false,
+        locked: false,
+        canProtect: false,
+        closesOnLeave: false,
         ...over,
     };
+}
+
+function mountEditor(
+    group: GroupRowView,
+    onprotect: (id: string) => Promise<ProtectResult> = vi.fn(async () => "ok" as const),
+) {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const onedit = vi.fn();
+    render(
+        GroupRow as never,
+        {
+            target: host,
+            props: { group, now: Date.now(), onjoin: vi.fn(), editId: group.id, onedit, onprotect },
+        } as never,
+    );
+    return { host, onprotect, onedit };
 }
 
 function mount(group: GroupRowView = view()) {
@@ -100,5 +121,92 @@ describe("GroupRow swipe", () => {
         expect(track.style.transform).toBe("translateX(0px)");
         pointer(row, "pointerup", 20);
         expect(onopen).not.toHaveBeenCalled();
+    });
+});
+
+describe("GroupRow protect", () => {
+    it("shows the switch only when the owner can protect the group", () => {
+        const allowed = mountEditor(view({ owned: true, canProtect: true }));
+        const refused = mountEditor(view({ owned: true, canProtect: false }));
+
+        expect(allowed.host.querySelector(".rad-toggle")).not.toBeNull();
+        expect(allowed.host.textContent).toContain("Private Group");
+        expect(allowed.host.textContent).not.toContain("Only while you are alone");
+        expect(refused.host.querySelector(".rad-toggle")).toBeNull();
+    });
+
+    // A server without protected groups would refuse the protect, so the switch is not offered.
+    it("shows no switch when the server cannot protect groups", () => {
+        const host = document.createElement("div");
+        document.body.append(host);
+        render(
+            GroupRow as never,
+            {
+                target: host,
+                props: {
+                    group: view({ owned: true, canProtect: true }),
+                    now: Date.now(),
+                    onjoin: vi.fn(),
+                    editId: "g1",
+                },
+            } as never,
+        );
+
+        expect(host.querySelector(".rad-toggle")).toBeNull();
+    });
+
+    it("saving with the switch on protects the group", async () => {
+        const { host, onprotect } = mountEditor(view({ owned: true, canProtect: true }));
+
+        host.querySelector<HTMLButtonElement>(".rad-toggle")?.click();
+        flushSync();
+        host.querySelector<HTMLButtonElement>(".rad-group-edit__foot .rad-btn:not(.rad-btn--quiet)")?.click();
+        await Promise.resolve();
+
+        expect(onprotect).toHaveBeenCalledWith("g1");
+    });
+
+    // Someone joins while the editor is open: the row stops offering protection. Save must still
+    // say why nothing was protected rather than close as if it had.
+    it("a join while the switch is on keeps the editor open and says why", async () => {
+        const host = document.createElement("div");
+        document.body.append(host);
+        const onprotect = vi.fn(async () => "ok" as const);
+        const onedit = vi.fn();
+        const props = {
+            group: view({ owned: true, canProtect: true }),
+            now: Date.now(),
+            onjoin: vi.fn(),
+            editId: "g1",
+            onedit,
+            onprotect,
+        };
+        const { rerender } = render(GroupRow as never, { target: host, props } as never);
+
+        host.querySelector<HTMLButtonElement>(".rad-toggle")?.click();
+        flushSync();
+        await rerender({ ...props, group: view({ owned: true, canProtect: false }) } as never);
+        flushSync();
+        host.querySelector<HTMLButtonElement>(".rad-group-edit__foot .rad-btn:not(.rad-btn--quiet)")?.click();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        flushSync();
+
+        expect(onprotect).not.toHaveBeenCalled();
+        expect(onedit).not.toHaveBeenCalledWith(null);
+        expect(host.textContent).toContain("Someone joined. Turn this on while you are alone.");
+    });
+
+    it("someone joining first turns the switch off and says why", async () => {
+        const onprotect = vi.fn(async () => "not_alone" as const);
+        const { host } = mountEditor(view({ owned: true, canProtect: true }), onprotect);
+
+        host.querySelector<HTMLButtonElement>(".rad-toggle")?.click();
+        flushSync();
+        host.querySelector<HTMLButtonElement>(".rad-group-edit__foot .rad-btn:not(.rad-btn--quiet)")?.click();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        flushSync();
+
+        expect(host.textContent).toContain("Someone joined. Turn this on while you are alone.");
+        expect(host.querySelector(".rad-toggle")?.getAttribute("aria-checked")).toBe("false");
     });
 });

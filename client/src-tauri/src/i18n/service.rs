@@ -1,6 +1,6 @@
 use common::structs::i18n::{LanguagePack, LocaleNegotiator};
-use log::warn;
 use std::path::PathBuf;
+use tauri_plugin_curia::curia;
 
 /// Reads compiled language packs from the bundled resource directory.
 ///
@@ -49,7 +49,10 @@ impl LocalizationService {
         match serde_json::from_slice::<LanguagePack>(&bytes) {
             Ok(pack) => Ok(Some(pack)),
             Err(e) => {
-                warn!("language pack {locale} is malformed, falling back to English: {e}");
+                curia::warn!("language pack is malformed, falling back to English", {
+                    locale: locale,
+                    error: e.to_string(),
+                });
                 Ok(None)
             }
         }

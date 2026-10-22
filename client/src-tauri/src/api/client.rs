@@ -17,6 +17,11 @@ impl Client {
         Self { ca_cert, pem }
     }
 
+    /// The server's CA and this player's certificate and key, for sockets reqwest does not open.
+    pub(crate) fn tls_material(&self) -> (&str, &str) {
+        (&self.ca_cert, &self.pem)
+    }
+
     fn get_ca_cert(&self) -> Result<Certificate, anyhow::Error> {
         let buf = self.ca_cert.as_bytes();
 

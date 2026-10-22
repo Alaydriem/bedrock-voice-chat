@@ -1073,7 +1073,6 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "tokio-util",
- "tracing",
 ]
 
 [[package]]
@@ -4034,7 +4033,6 @@ dependencies = [
  "common",
  "sea-orm-migration",
  "tokio",
- "tracing",
 ]
 
 [[package]]

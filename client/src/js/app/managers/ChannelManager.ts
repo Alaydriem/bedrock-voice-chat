@@ -131,7 +131,7 @@ export default class ChannelManager {
 
     private handleError(error: any): void {
         logError(`Channel manager error: ${error}`);
-        this.errorStore.set(error.message || "An unknown error occurred");
+        this.errorStore.set(error.message || I18n.t("An unknown error occurred"));
     }
 
     public clearError(): void {
@@ -696,6 +696,9 @@ export default class ChannelManager {
                         }),
                     );
                 }
+                // Turning protection on reaches every client as a rename with the unchanged
+                // name; only a fresh list carries the channel's `protected` flag.
+                await this.fetchChannels();
                 break;
 
             default:

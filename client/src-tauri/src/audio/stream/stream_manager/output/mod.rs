@@ -29,7 +29,6 @@ use common::{
         audio::{GainProjection, JukeboxLevel, PlayerGainSettings, PlayerGainStore, StreamEvent},
     },
 };
-use log::{error, info, warn};
 use moka::future::Cache;
 use once_cell::sync::Lazy;
 use std::{
@@ -71,6 +70,8 @@ pub(crate) struct OutputStream {
     // Peer meter levels go here rather than out of the mixer directly; one publisher owns
     // every webview message about levels.
     levels: Arc<crate::audio::stream::level_bus::LevelBus>,
+    // A protected group's gate: sealed frames open through it, or are dropped.
+    protected_gate: Arc<crate::groups::protected::SealGate>,
     peer_registry: Arc<crate::diagnostics::PeerRegistry>,
     session_config: Arc<crate::diagnostics::SessionConfig>,
     recording_active: Option<Arc<AtomicBool>>,
@@ -129,7 +130,9 @@ impl common::traits::StreamTrait for OutputStream {
                         self.gain.set_store(settings);
                     }
                     Err(e) => {
-                        error!("Failed to parse PlayerGainStore: {:?}", e);
+                        curia::error!("failed to parse PlayerGainStore", {
+                            error: format!("{e:?}"),
+                        });
                     }
                 };
             }
@@ -153,10 +156,14 @@ impl common::traits::StreamTrait for OutputStream {
         }
 
         if !self.jobs.settle(Self::STOP_GRACE).await {
-            warn!("Output stream jobs did not finish within the grace window; aborting them.");
+            curia::warn!("output stream jobs did not finish within the grace window; aborting them", {
+                io: "output",
+            });
         }
 
-        info!("Output stream has been stopped.");
+        curia::info!("output stream has been stopped", {
+            io: "output",
+        });
 
         Ok(())
     }
@@ -235,6 +242,7 @@ impl OutputStream {
         recovery_tx: RecoverySender,
         peer_registry: Arc<crate::diagnostics::PeerRegistry>,
         levels: Arc<crate::audio::stream::level_bus::LevelBus>,
+        protected_gate: Arc<crate::groups::protected::SealGate>,
         session_config: Arc<crate::diagnostics::SessionConfig>,
         #[cfg(feature = "bedrock-protocol")] beacon_cache: Option<Arc<JukeboxBeaconCache>>,
         #[cfg(feature = "bedrock-protocol")] eject_injector: Option<Arc<JukeboxEjectInjector>>,
@@ -274,6 +282,7 @@ impl OutputStream {
             player_gain_cache: Arc::new(player_gain_cache),
             peer_registry,
             levels,
+            protected_gate,
             session_config,
             recording_active,
             recovery_tx,
@@ -310,6 +319,9 @@ impl OutputStream {
             self.player_presence_debounce.clone(),
             self.gain.clone(),
             self.app_handle.clone(),
+            crate::audio::stream::protected_frame_filter::ProtectedFrameFilter::new(
+                self.protected_gate.clone(),
+            ),
             #[cfg(feature = "bedrock-protocol")]
             self.beacon_cache.clone(),
             #[cfg(feature = "bedrock-protocol")]
@@ -339,7 +351,7 @@ impl OutputStream {
     ) -> Result<JoinHandle<()>, anyhow::Error> {
         let current_player_name = match metadata.get("current_player").await {
             Some(name) => {
-                log::info!("Starting playback for current player");
+                curia::info!("starting playback for the current player");
                 name
             }
             None => {
@@ -381,27 +393,30 @@ impl OutputStream {
                                 let fresh_config: rodio::cpal::SupportedStreamConfig =
                                     fresh_configs[0].clone().into();
                                 if fresh_config.sample_rate() != stored_config.sample_rate() {
-                                    warn!(
-                                        "Output device {} sample rate changed: stored {}Hz, actual {}Hz. Using actual.",
-                                        device.display_name,
-                                        stored_config.sample_rate(),
-                                        fresh_config.sample_rate()
-                                    );
+                                    curia::warn!("output device sample rate changed; using the actual rate", {
+                                        io: "output",
+                                        device_name: device.display_name.clone(),
+                                        stored_rate: stored_config.sample_rate(),
+                                        actual_rate: fresh_config.sample_rate(),
+                                    });
                                 }
                                 fresh_config
                             }
                             _ => {
-                                warn!(
-                                    "Could not refresh output device config for {}, using stored config",
-                                    device.display_name
-                                );
+                                curia::warn!("could not refresh the output device config; using the stored config", {
+                                    io: "output",
+                                    device_name: device.display_name.clone(),
+                                });
                                 stored_config
                             }
                         };
                     Some(config)
                 }
                 Err(e) => {
-                    error!("Receiving stream startup failed: {:?}", e);
+                    curia::error!("receiving stream startup failed", {
+                        io: "output",
+                        error: format!("{e:?}"),
+                    });
                     return Err(e);
                 }
             },

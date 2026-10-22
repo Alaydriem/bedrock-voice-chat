@@ -15,6 +15,7 @@ use bvc_server_lib::http::routes;
 use bvc_server_lib::services::{
     CertificateRevocationService, CertificateService, PlayerIdentityService,
 };
+use common::curia;
 use common::ncryptflib as ncryptf;
 use rocket::routes;
 use sea_orm_rocket::Database;
@@ -119,6 +120,9 @@ impl RocketHarness {
             routes::api::channel::channel_list,
             routes::api::channel::delete::channel_delete,
             routes::api::channel::event::channel_event,
+            routes::api::channel::protected::channel_create_protected,
+            routes::api::channel::protected::channel_join_protected,
+            routes::api::channel::protected::channel_protect,
             routes::api::channel::rename::channel_rename,
         ];
 
@@ -144,6 +148,7 @@ impl RocketHarness {
             .manage(nonce)
             .manage(access_token_service)
             .manage(None::<std::sync::Arc<bvc_server_lib::relay::PeerPlane>>)
+            .manage(bvc_server_lib::services::GroupKeyRelayService::new_shared())
             .attach(AppDb::init())
             .mount("/ncryptf", ncryptf_routes)
             .mount("/api/admin", admin_routes)
@@ -151,6 +156,10 @@ impl RocketHarness {
             .mount("/api", control_routes)
             .mount("/api/channel", channel_routes)
             .mount("/api", routes![routes::api::server_config::get_config])
+            .mount(
+                "/api",
+                routes![routes::api::websocket::group::group_key_socket],
+            )
             .mount("/metrics", routes![routes::metrics::metrics])
             .mount(
                 "/health",
@@ -165,12 +174,16 @@ impl RocketHarness {
             let ignite = match rocket.ignite().await {
                 Ok(r) => r,
                 Err(e) => {
-                    tracing::error!("rocket ignite failed: {}", e);
+                    curia::error!("rocket ignite failed", {
+                        error: e.to_string(),
+                    });
                     return;
                 }
             };
             if let Err(e) = ignite.launch().await {
-                tracing::error!("rocket launch failed: {}", e);
+                curia::error!("rocket launch failed", {
+                    error: e.to_string(),
+                });
             }
         });
         Ok(handle)

@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::{AppHandle, Wry};
 use tauri_plugin_audio_permissions::{AudioPermissionsExt, PermissionRequest, PermissionType};
+use tauri_plugin_curia::curia;
 use tauri_plugin_store::Store;
 use tokio::sync::RwLock;
 
@@ -33,10 +34,10 @@ impl AppState {
     pub fn new(store: Arc<Store<Wry>>, app_handle: AppHandle) -> Self {
         let output_device = AppState::setup_audio_device(AudioDeviceType::OutputDevice, &store)
             .unwrap_or_else(|e| {
-                log::error!(
-                    "Failed to initialize default output device: {}. Using placeholder.",
-                    e
-                );
+                curia::error!("failed to initialize the default output device; using a placeholder", {
+                    io: "output",
+                    error: e.to_string(),
+                });
                 AudioDevice {
                     io: AudioDeviceType::OutputDevice,
                     id: "default".to_string(),

@@ -1,8 +1,8 @@
 use super::KeybindListener;
 use common::structs::keybinds::{KeybindAction, KeybindConfig, VoiceMode};
-use log::{error, info};
 use std::sync::Arc;
 use tauri::AppHandle;
+use tauri_plugin_curia::curia;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
 pub type ActionMap = Vec<(Shortcut, KeybindAction)>;
@@ -33,7 +33,9 @@ impl KeybindManager {
         // Unregister all existing shortcuts
         let gs = self.app_handle.global_shortcut();
         if let Err(e) = gs.unregister_all() {
-            error!("Failed to unregister shortcuts: {:?}", e);
+            curia::error!("failed to unregister shortcuts", {
+                error: format!("{e:?}"),
+            });
         }
 
         // Build new shortcuts from config
@@ -59,14 +61,17 @@ impl KeybindManager {
         // Register shortcuts
         for (shortcut, action) in &entries {
             if let Err(e) = gs.register(shortcut.clone()) {
-                error!(
-                    "Failed to register {:?} for {:?}: {:?}",
-                    shortcut, action, e
-                );
+                curia::error!("failed to register a shortcut", {
+                    shortcut: format!("{shortcut:?}"),
+                    action: format!("{action:?}"),
+                    error: format!("{e:?}"),
+                });
             }
         }
 
-        info!("Registered {} keybind shortcuts", entries.len());
+        curia::info!("registered keybind shortcuts", {
+            shortcuts: entries.len(),
+        });
         *self.action_map.write() = entries;
     }
 
@@ -84,7 +89,9 @@ impl KeybindManager {
                 key => {
                     code = key.parse::<Code>().ok();
                     if code.is_none() {
-                        error!("Unknown key code: {}", key);
+                        curia::error!("unknown key code", {
+                            key: key,
+                        });
                     }
                 }
             }

@@ -11,6 +11,7 @@ use common::traits::StreamTrait;
 use std::sync::Arc;
 use tauri::Manager;
 use tauri::async_runtime::Mutex;
+use tauri_plugin_curia::curia;
 
 /// Shared application-state construction used by both the real `run()` setup
 /// and the e2e harness bin, so the two never diverge on wiring.
@@ -79,6 +80,11 @@ impl AppBuilder {
             ),
         };
 
+        // The one protected group this client may hold. The audio threads seal and open through
+        // its gate; joining and leaving a group drive it from the group service.
+        let protected_slot = crate::groups::protected::ProtectedGroupSlot::new_shared();
+        app.manage(protected_slot.clone());
+
         let audio_stream = AudioStreamManager::new_with_sources(
             handle.state::<Arc<Sender<NetworkPacket>>>().inner().clone(),
             handle.state::<Arc<Receiver<AudioPacket>>>().inner().clone(),
@@ -91,6 +97,7 @@ impl AppBuilder {
             ),
             input_source,
             output_sink,
+            protected_slot.gate(),
             #[cfg(feature = "bedrock-protocol")]
             player_state_cache,
             #[cfg(feature = "bedrock-protocol")]
@@ -147,14 +154,16 @@ impl AppBuilder {
                     // Transient: locked, no permission, disk full. Run in memory so audio
                     // still applies what the user sets this session, and leave the file alone
                     // so nothing is lost once the condition clears.
-                    log::error!(
-                        "Player settings unavailable, running in memory this session: {cause}"
-                    );
+                    curia::error!("player settings unavailable, running in memory this session", {
+                        error: cause.to_string(),
+                    });
                     crate::players::PlayerSettingsService::new_memory_only()
                 }
             },
             Err(cause) => {
-                log::error!("No local data directory for player settings: {cause}");
+                curia::error!("no local data directory for player settings", {
+                    error: cause.to_string(),
+                });
                 crate::players::PlayerSettingsService::new_memory_only()
             }
         };
@@ -177,14 +186,18 @@ impl AppBuilder {
             let manager = handle_for_internal.state::<Mutex<crate::websocket::WebSocketManager>>();
             let mut manager = manager.lock().await;
             if let Err(cause) = manager.start_internal().await {
-                log::error!("could not bind the internal push listener: {cause}");
+                curia::error!("could not bind the internal push listener", {
+                    error: cause.to_string(),
+                });
             }
 
             // The operator-facing listener has no enable switch either. It declines until a
             // token exists, which on a fresh install is the settings manager's first save, so
             // this is a start rather than a requirement.
             if let Err(cause) = manager.start().await {
-                log::info!("the WebSocket server did not bind at start: {cause}");
+                curia::info!("the WebSocket server did not bind at start", {
+                    error: cause.to_string(),
+                });
             }
         });
 

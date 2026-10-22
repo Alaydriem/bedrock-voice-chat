@@ -2,6 +2,7 @@ use crate::analytics::AnalyticsService;
 use crate::keyring::KeyringService;
 use crate::structs::app_state::AppState;
 use common::structs::ServerListEntry;
+use tauri_plugin_curia::curia;
 use tauri_plugin_store::StoreExt;
 
 /// Ending a session with a server, and forgetting that it was ever signed into.
@@ -38,7 +39,9 @@ impl SessionService {
 
         if let Some(ref server_url) = current_server {
             if let Err(e) = keyring.delete_credentials(server_url) {
-                log::warn!("Failed to clear keyring credentials: {}", e);
+                curia::warn!("failed to clear keyring credentials", {
+                    error: e.to_string(),
+                });
             }
         }
 
@@ -94,7 +97,9 @@ impl SessionService {
             .disconnect()
             .await
         {
-            log::warn!("Could not stop the Bedrock session during logout: {}", e);
+            curia::warn!("could not stop the Bedrock session during logout", {
+                error: e.to_string(),
+            });
         }
 
         let Some(state) = self

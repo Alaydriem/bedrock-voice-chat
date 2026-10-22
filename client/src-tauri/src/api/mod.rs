@@ -5,7 +5,7 @@ pub(crate) mod commands;
 use common::request::LinkJavaIdentityRequest;
 use common::response::ApiConfigResponse;
 use common::response::LinkJavaIdentityResponse;
-use log::{debug, error, warn};
+use tauri_plugin_curia::curia;
 mod channel;
 mod circuit_breaker;
 mod client;
@@ -70,6 +70,11 @@ impl Api {
         self.client.get_client(self.family_preference.get())
     }
 
+    /// The server's CA and this player's certificate and key, for a socket reqwest cannot open.
+    pub(crate) fn tls_material(&self) -> (&str, &str) {
+        self.client.tls_material()
+    }
+
     /// Send a prepared request through this endpoint's circuit breaker. While the
     /// breaker is open the request short-circuits without touching the network.
     /// Connection-establishment failures are retried with backoff — the request
@@ -83,6 +88,15 @@ impl Api {
         let breaker = circuit_breaker::EndpointBreaker::for_endpoint(&self.endpoint);
         if !breaker.allow() {
             return Err(circuit_breaker::SendError::Open);
+        }
+
+        #[cfg(feature = "e2e")]
+        if let Some(body) = request
+            .try_clone()
+            .and_then(|clone| clone.build().ok())
+            .and_then(|built| built.body().and_then(|b| b.as_bytes()).map(<[u8]>::to_vec))
+        {
+            crate::testkit::WireTap::http_body(&body);
         }
 
         let mut current = request;
@@ -99,41 +113,42 @@ impl Api {
                     // A retry that succeeds is a non-event, and one that does not is
                     // reported by the final failure below. Neither is worth a record of
                     // its own; as a breadcrumb it still rides along on any real report.
-                    debug!(
-                        "Attempt {}/{} to {} failed; retrying: {}",
-                        attempt,
-                        MAX_SEND_ATTEMPTS,
-                        self.endpoint,
-                        common::net::ErrorChain::render(&e)
-                    );
+                    curia::debug!("request attempt failed; retrying", {
+                        connected_server: self.endpoint.clone(),
+                        attempt: attempt,
+                        max_attempts: MAX_SEND_ATTEMPTS,
+                        error: common::net::ErrorChain::render(&e),
+                    });
                     tokio::time::sleep(RETRY_BASE_DELAY * attempt).await;
                     current = retry.unwrap();
                     attempt += 1;
                 }
                 Err(e) => {
                     let report = breaker.on_transport_failure();
-                    let message = format!(
-                        "Request to {} failed after {} attempt(s): {}",
-                        self.endpoint,
-                        attempt,
-                        common::net::ErrorChain::render(&e)
-                    );
+                    let chain = common::net::ErrorChain::render(&e);
 
                     // Only the failure that opens an outage is an error. A client
                     // pointed at a host it cannot reach keeps failing for as long as it
                     // runs — once per cooldown, forever — and every one of those after
                     // the first says nothing the first did not.
                     if report.first {
-                        error!("{}", message);
+                        curia::error!("request failed", {
+                            connected_server: self.endpoint.clone(),
+                            attempts: attempt,
+                            error: chain,
+                        });
                     } else {
-                        debug!("{}", message);
+                        curia::debug!("request failed", {
+                            connected_server: self.endpoint.clone(),
+                            attempts: attempt,
+                            error: chain,
+                        });
                     }
 
                     if report.opened {
-                        debug!(
-                            "Repeated connection failures to {}; backing off further requests",
-                            self.endpoint
-                        );
+                        curia::debug!("repeated connection failures; backing off further requests", {
+                            connected_server: self.endpoint.clone(),
+                        });
                     }
 
                     return Err(circuit_breaker::SendError::Transport(e));
@@ -167,7 +182,10 @@ impl Api {
             },
             Err(circuit_breaker::SendError::Open) => Err(false),
             Err(circuit_breaker::SendError::Transport(e)) => {
-                error!("Unable to connect to BVC Server: {} {}", self.endpoint, e);
+                curia::error!("unable to connect to the BVC server", {
+                    connected_server: self.endpoint.clone(),
+                    error: e.to_string(),
+                });
                 Err(false)
             }
         }
@@ -213,7 +231,10 @@ impl Api {
                 Err("Server temporarily unreachable; backing off".to_string())
             }
             Err(circuit_breaker::SendError::Transport(e)) => {
-                error!("Failed to link Java identity: {}", e);
+                curia::error!("failed to link the Java identity", {
+                    connected_server: self.endpoint.clone(),
+                    error: e.to_string(),
+                });
                 Err(format!("Connection failed: {}", e))
             }
         }
@@ -302,10 +323,9 @@ impl Api {
                     }
 
                     if let Ok(legacy) = serde_json::from_str::<LegacyApiConfig>(&body) {
-                        warn!(
-                            "Config from {} parsed via legacy fallback; server predates bedrock/protocol fields",
-                            self.endpoint
-                        );
+                        curia::warn!("config parsed via legacy fallback; the server predates the bedrock/protocol fields", {
+                            connected_server: self.endpoint.clone(),
+                        });
                         return Ok(ApiConfigResponse {
                             status: legacy.status,
                             client_id: legacy.client_id,
@@ -320,6 +340,7 @@ impl Api {
                             chat: Default::default(),
                             capacity: Default::default(),
                             radar: Default::default(),
+                            protected_groups: Default::default(),
                             // A server old enough to need this fallback predates peering
                             // entirely, so there is no peer endpoint to report.
                             peer_link: None,
@@ -334,10 +355,10 @@ impl Api {
                 Err("Server temporarily unreachable; backing off".to_string())
             }
             Err(circuit_breaker::SendError::Transport(e)) => {
-                error!(
-                    "Unable to get config from BVC Server: {} {}",
-                    self.endpoint, e
-                );
+                curia::error!("unable to get config from the BVC server", {
+                    connected_server: self.endpoint.clone(),
+                    error: e.to_string(),
+                });
                 Err(format!("Connection failed: {}", e))
             }
         }

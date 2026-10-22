@@ -3,8 +3,9 @@ import type { ApiConfigAge } from "./ApiConfigAge";
 import type { ApiConfigBedrock } from "./ApiConfigBedrock";
 import type { ApiConfigCapacity } from "./ApiConfigCapacity";
 import type { ApiConfigChat } from "./ApiConfigChat";
+import type { ApiConfigProtectedGroups } from "./ApiConfigProtectedGroups";
 import type { ApiConfigRadar } from "./ApiConfigRadar";
 import type { ApiConfigRecording } from "./ApiConfigRecording";
 import type { SpatialAudioConfig } from "./SpatialAudioConfig";
 
-export type ApiConfigResponse = { status: string, client_id: string, protocol_version: string, quic_port: number, quic_ports: Array<number>, voice_websocket: boolean, spatial_audio: SpatialAudioConfig, bedrock: ApiConfigBedrock, age: ApiConfigAge, recording: ApiConfigRecording, chat: ApiConfigChat, capacity: ApiConfigCapacity, radar: ApiConfigRadar, peer_link: string | null, };
+export type ApiConfigResponse = { status: string, client_id: string, protocol_version: string, quic_port: number, quic_ports: Array<number>, voice_websocket: boolean, spatial_audio: SpatialAudioConfig, bedrock: ApiConfigBedrock, age: ApiConfigAge, recording: ApiConfigRecording, chat: ApiConfigChat, capacity: ApiConfigCapacity, radar: ApiConfigRadar, protected_groups: ApiConfigProtectedGroups, peer_link: string | null, };

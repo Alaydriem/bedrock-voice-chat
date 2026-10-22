@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { warn } from "@charlesportwoodii/tauri-plugin-curia";
 import { writable, type Readable, type Writable } from "svelte/store";
+import { I18n } from "#lib/i18n/index.js";
 import type { RingMode } from "$radial/bindings/RingBinding";
 import type { ProtocolCompatibility } from "../../bindings/ProtocolCompatibility";
 import type { ServerReachability } from "../../bindings/ServerReachability";
@@ -41,29 +42,40 @@ export default class AddressResolver {
     static readonly DEBOUNCE_MS = 700;
     private static readonly STANDARD_QUIC_PORT = 443;
 
-    /** The field has something in it that no probe will be spent on. */
-    private static readonly EDITING: ResolveVerdict = {
-        state: "editing",
-        ring: "empty",
-        line: "○ Resolving",
-        caption: "RESOLVING",
-        busy: false,
-    };
+    /**
+     * The field has something in it that no probe will be spent on.
+     *
+     * Getters rather than fields: a field is built when the module loads, before any language
+     * pack, and would hold English for the life of the app.
+     */
+    private static get EDITING(): ResolveVerdict {
+        return {
+            state: "editing",
+            ring: "empty",
+            line: `○ ${I18n.t("Resolving")}`,
+            caption: I18n.t("RESOLVING"),
+            busy: false,
+        };
+    }
 
     /** The same state with something actually happening behind it. */
-    private static readonly MEASURING: ResolveVerdict = {
-        ...AddressResolver.EDITING,
-        line: "Resolving",
-        busy: true,
-    };
+    private static get MEASURING(): ResolveVerdict {
+        return {
+            ...AddressResolver.EDITING,
+            line: I18n.t("Resolving"),
+            busy: true,
+        };
+    }
 
-    private static readonly NO_RESPONSE: ResolveVerdict = {
-        state: "bad",
-        ring: "empty",
-        line: "✕ Nothing at that address",
-        caption: "NO RESPONSE",
-        busy: false,
-    };
+    private static get NO_RESPONSE(): ResolveVerdict {
+        return {
+            state: "bad",
+            ring: "empty",
+            line: `✕ ${I18n.t("Nothing at that address")}`,
+            caption: I18n.t("NO RESPONSE"),
+            busy: false,
+        };
+    }
 
     private readonly verdictStore: Writable<ResolveVerdict>;
     public readonly verdict: Readable<ResolveVerdict>;
@@ -85,15 +97,22 @@ export default class AddressResolver {
      * lead to different places.
      */
     static verdictForIncompatible(check: ProtocolCompatibility): ResolveVerdict {
+        const versions = { server: check.server_version, client: check.client_version };
         const line = check.client_too_old
-            ? `✕ Server needs a newer app — it speaks ${check.server_version}, this build speaks ${check.client_version}`
-            : `✕ Server is on an older protocol — it speaks ${check.server_version}, this build speaks ${check.client_version}`;
+            ? I18n.tf(
+                  "Server needs a newer app — it speaks {server}, this build speaks {client}",
+                  versions,
+              )
+            : I18n.tf(
+                  "Server is on an older protocol — it speaks {server}, this build speaks {client}",
+                  versions,
+              );
 
         return {
             state: "bad",
             ring: "empty",
-            line,
-            caption: `PROTOCOL ${check.server_version}`,
+            line: `✕ ${line}`,
+            caption: I18n.tf("PROTOCOL {version}", { version: check.server_version }),
             busy: false,
         };
     }
@@ -123,12 +142,12 @@ export default class AddressResolver {
                 const suffix =
                     port === null || port === AddressResolver.STANDARD_QUIC_PORT
                         ? ""
-                        : ` · port ${port}`;
+                        : ` · ${I18n.tf("port {port}", { port })}`;
                 return {
                     state: "ok",
                     ring: "lock",
-                    line: `● Resolved · ${ms} ms${suffix}`,
-                    caption: `RESOLVED · ${ms} MS`,
+                    line: `● ${I18n.tf("Resolved · {ms} ms", { ms })}${suffix}`,
+                    caption: I18n.tf("RESOLVED · {ms} MS", { ms }),
                     busy: false,
                 };
             }
@@ -136,16 +155,16 @@ export default class AddressResolver {
                 return {
                     state: "bad",
                     ring: "empty",
-                    line: "✕ Server reachable, but no voice path",
-                    caption: "NO VOICE PATH",
+                    line: `✕ ${I18n.t("Server reachable, but no voice path")}`,
+                    caption: I18n.t("NO VOICE PATH"),
                     busy: false,
                 };
             case "NoRoute":
                 return {
                     state: "bad",
                     ring: "empty",
-                    line: "✕ This device has no route to that address",
-                    caption: "NO ROUTE",
+                    line: `✕ ${I18n.t("This device has no route to that address")}`,
+                    caption: I18n.t("NO ROUTE"),
                     busy: false,
                 };
             case "Unreachable":

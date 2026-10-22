@@ -25,8 +25,8 @@ pub use wal_entry::WalEntry;
 use async_trait::async_trait;
 use common::structs::AudioFormat;
 use common::structs::recording::{RecordingHeader, RecordingTrack};
-use log::debug;
 use std::fs;
+use tauri_plugin_curia::curia;
 use std::path::Path;
 
 use crate::audio::spatial::SpatialResolver;
@@ -281,12 +281,11 @@ impl WalAudioReader {
         {
             Some(samples) if samples <= usize::MAX as u64 => samples as usize,
             _ => {
-                log::error!(
-                    "Overflow calculating silence: {}ms gap at {}Hz {} channels",
-                    time_gap_ms,
-                    sample_rate,
-                    channels
-                );
+                curia::error!("overflow calculating silence", {
+                    gap_ms: time_gap_ms,
+                    sample_rate: sample_rate,
+                    channels: channels,
+                });
                 return None;
             }
         };
@@ -313,7 +312,9 @@ impl WalAudioReader {
         const MAX_CONTENT_SIZE: usize = 50 * 1024;
         let mut entries = Vec::new();
 
-        debug!("Reading directory: {:?}", wal_path);
+        curia::debug!("reading the WAL directory", {
+            path: wal_path.display().to_string(),
+        });
         let dir_entries = fs::read_dir(wal_path)?;
         let mut segment_files = Vec::new();
 
@@ -328,7 +329,9 @@ impl WalAudioReader {
         segment_files.sort();
 
         for file_path in segment_files {
-            log::info!("Parsing WAL file: {:?}", file_path);
+            curia::info!("parsing WAL file", {
+                path: file_path.display().to_string(),
+            });
 
             let file_bytes = std::fs::read(&file_path)?;
             // Each WAL record is at minimum 16 bytes (6 signature + 2 header_len + 8 content_len),
@@ -349,10 +352,9 @@ impl WalAudioReader {
 
             // If signature not found in first 4KB, skip this file
             if pos + 6 > search_limit {
-                log::warn!(
-                    "Could not find NANO_REC_SIGNATURE in {:?}, skipping file",
-                    file_path
-                );
+                curia::warn!("could not find NANO_REC_SIGNATURE; skipping the file", {
+                    path: file_path.display().to_string(),
+                });
                 continue;
             }
 
@@ -373,11 +375,10 @@ impl WalAudioReader {
 
                 // Validate header length
                 if header_len > MAX_HEADER_SIZE {
-                    log::warn!(
-                        "Invalid header_len {} in {:?}, stopping parse",
-                        header_len,
-                        file_path
-                    );
+                    curia::warn!("invalid header_len; stopping parse", {
+                        header_len: header_len,
+                        path: file_path.display().to_string(),
+                    });
                     break;
                 }
 
@@ -403,11 +404,10 @@ impl WalAudioReader {
                 pos += 8;
 
                 if content_len > MAX_CONTENT_SIZE {
-                    log::warn!(
-                        "Invalid content_len {} in {:?}, stopping parse",
-                        content_len,
-                        file_path
-                    );
+                    curia::warn!("invalid content_len; stopping parse", {
+                        content_len: content_len,
+                        path: file_path.display().to_string(),
+                    });
                     break;
                 }
 
@@ -432,11 +432,10 @@ impl WalAudioReader {
                             });
                         }
                         Err(e) => {
-                            log::warn!(
-                                "Failed to parse header (len={}): {:?}",
-                                header_bytes.len(),
-                                e
-                            );
+                            curia::warn!("failed to parse a WAL record header", {
+                                header_len: header_bytes.len(),
+                                error: format!("{e:?}"),
+                            });
                         }
                     }
                 }
@@ -445,14 +444,15 @@ impl WalAudioReader {
             }
 
             if records_parsed >= max_records {
-                log::warn!("Hit max_records limit in {:?}, stopping parse", file_path);
+                curia::warn!("hit the max_records limit; stopping parse", {
+                    path: file_path.display().to_string(),
+                });
             }
 
-            log::info!(
-                "  Parsed {} total records from {:?}",
-                records_parsed,
-                file_path
-            );
+            curia::info!("parsed WAL records", {
+                records: records_parsed,
+                path: file_path.display().to_string(),
+            });
         }
 
         Ok(entries)

@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::sync::RwLock as StdRwLock;
 use std::time::Duration;
 
-use log::warn;
 use open_feature::{EvaluationContext, OpenFeature};
+use tauri_plugin_curia::curia;
 use tokio::sync::{RwLock, watch};
 
 use super::FlagsmithProvider;
@@ -76,7 +76,7 @@ impl FeatureFlagService {
 
     pub async fn initialize(&self) {
         if self.api_key.is_empty() {
-            warn!("FLAGSMITH_KEY not set, feature flags disabled");
+            curia::warn!("FLAGSMITH_KEY not set, feature flags disabled");
             let _ = self.ready_tx.send(true);
             return;
         }
@@ -133,7 +133,9 @@ impl FeatureFlagService {
                 )
                 .await
                 .map_err(|e| e.to_string())?;
-                log::info!("Manually refreshed {} feature flags", count);
+                curia::info!("manually refreshed feature flags", {
+                    flags: count,
+                });
                 Ok(())
             }
             _ => Err("Feature flags are not initialized yet".to_string()),
@@ -169,10 +171,9 @@ impl FeatureFlagService {
             .await
             .is_err()
         {
-            warn!(
-                "feature flags not ready after {:?}; using defaults",
-                Self::READY_TIMEOUT
-            );
+            curia::warn!("feature flags not ready in time; using defaults", {
+                timeout_ms: Self::READY_TIMEOUT.as_millis() as u64,
+            });
         }
     }
 
@@ -230,10 +231,10 @@ impl FeatureFlagService {
             }
             None => None,
         };
-        match result {
-            Some(v) => log::info!("Feature flag '{}' = {}", flag, v),
-            None => log::info!("Feature flag '{}' = <unset>", flag),
-        }
+        curia::info!("feature flag read", {
+            flag: flag,
+            value: result,
+        });
         result
     }
 
@@ -273,10 +274,10 @@ impl FeatureFlagService {
             }
             None => None,
         };
-        match result {
-            Some(v) => log::info!("Feature flag '{}' = {}", flag, v),
-            None => log::info!("Feature flag '{}' = <unset>", flag),
-        }
+        curia::info!("feature flag read", {
+            flag: flag,
+            value: result,
+        });
         result
     }
 }

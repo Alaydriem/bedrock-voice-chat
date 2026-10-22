@@ -6,7 +6,6 @@ pub(crate) use audio::AudioStreamManager;
 pub(crate) use audio::recording::RecordingManager;
 use common::consts::variant::Variant;
 pub(crate) use flume::{Receiver, Sender};
-use log::{debug, error, info, warn};
 pub use network::NetworkPacket;
 pub(crate) use network::NetworkStreamManager;
 use std::sync::Arc;
@@ -129,7 +128,9 @@ pub extern "system" fn Java_com_alaydriem_bvc_client_MainActivity_initNdkContext
             Some(ref_)
         }
         Err(e) => {
-            log::error!("failed to create global ref for android context: {e}");
+            curia::error!("failed to create a global ref for the android context", {
+                error: e.to_string(),
+            });
             None
         }
     });
@@ -168,7 +169,11 @@ pub fn run() {
 
     #[cfg(desktop)]
     let _minidump = sentry_rust_minidump::init(&sentry_guard)
-        .map_err(|e| warn!("Minidump crash reporter failed to initialize: {e}"))
+        .map_err(|e| {
+            curia::warn!("minidump crash reporter failed to initialize", {
+                error: e.to_string(),
+            })
+        })
         .ok();
 
     #[allow(unused_mut)]
@@ -184,7 +189,7 @@ pub fn run() {
                 Some(window) => {
                     let _ = window.set_focus();
                 }
-                None => warn!("Second instance launched but no main window exists to focus"),
+                None => curia::warn!("second instance launched but no main window exists to focus"),
             }
         }));
     }
@@ -310,6 +315,13 @@ pub fn run() {
             crate::commands::groups::group_create,
             crate::commands::groups::group_join,
             crate::commands::groups::group_leave,
+            crate::commands::groups::group_protect,
+            crate::commands::groups::group_join_protected,
+            crate::commands::groups::group_admission_check,
+            crate::commands::groups::group_admission_decide,
+            crate::commands::groups::group_admission_confirm,
+            crate::commands::groups::group_stop_protected,
+            crate::commands::groups::group_release_protected,
             crate::api::commands::api_rename_channel,
             crate::api::commands::api_get_player_gamerpic,
             // WebSocket Server
@@ -420,25 +432,32 @@ pub fn run() {
                 unsafe {
                     NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
                     let current_ms = current_res as f64 / 10_000.0;
-                    debug!("Current Windows timer resolution: {:.2}ms", current_ms);
+                    curia::debug!("current Windows timer resolution", {
+                        resolution_ms: current_ms,
+                    });
 
                     timeBeginPeriod(1);
 
                     NtQueryTimerResolution(&mut min_res, &mut max_res, &mut current_res);
                     let new_ms = current_res as f64 / 10_000.0;
-                    debug!("Set Windows timer resolution to 1ms (actual: {:.2}ms)", new_ms);
+                    curia::debug!("set Windows timer resolution to 1ms", {
+                        resolution_ms: new_ms,
+                    });
 
                     if new_ms > 2.0 {
-                        warn!("WARNING: Timer resolution is degraded ({:.2}ms). This will cause audio jitter!", new_ms);
-                        warn!("Try closing other applications or restarting Windows.");
+                        curia::warn!("timer resolution is degraded and will cause audio jitter; closing other applications or restarting Windows may help", {
+                            resolution_ms: new_ms,
+                        });
                     }
                 }
             }
 
-            debug!("BVC Variant {:?}", crate::commands::env::get_variant());
-            debug!("Protocol Version: {}", common::consts::version::PROTOCOL_VERSION);
             let sentry_enabled = sentry::Hub::current().client().map(|c| c.is_enabled()).unwrap_or(false);
-            debug!("Sentry: {}", if sentry_enabled { "initialized" } else { "not configured (DSN missing or invalid)" });
+            curia::debug!("build information", {
+                variant: format!("{:?}", crate::commands::env::get_variant()),
+                protocol_version: common::consts::version::PROTOCOL_VERSION,
+                sentry: if sentry_enabled { "initialized" } else { "not configured (DSN missing or invalid)" },
+            });
             let store = app.store("store.json")?;
 
             let telemetry = Arc::new(crate::logging::Telemetry::new(store.get("telemetry").and_then(|v| v.as_bool()).unwrap_or(true)));
@@ -506,9 +525,6 @@ pub fn run() {
                 ),
             ));
 
-            curia::Logger::install(Box::new(curia::Dispatcher::new(sinks)))
-                .map_err(|e| e.to_string())?;
-
             // Restores the policy tauri_plugin_log's .level() / .level_for()
             // carried. Without it every dependency's debug output reaches every
             // sink: h2 and rustls alone will fill the log file.
@@ -524,27 +540,41 @@ pub fn run() {
                 })
                 .unwrap_or(curia::Level::Info);
 
-            let bridge = curia::TracingBridge::to_global()
-                .with_max_level(max_level)
-                .with_target_level("webrtc", curia::Level::Warn)
-                .with_target_level("webrtc_ice", curia::Level::Warn)
-                .with_target_level("webrtc_sctp", curia::Level::Warn)
-                .with_target_level("webrtc_mdns", curia::Level::Warn)
-                .with_target_level("webrtc_dtls", curia::Level::Warn)
-                .with_target_level("dtls", curia::Level::Warn)
-                .with_target_level("h2", curia::Level::Warn)
-                .with_target_level("hyper", curia::Level::Warn)
-                .with_target_level("rustls", curia::Level::Warn)
-                .with_target_level("tokio_util", curia::Level::Warn)
+            let mut filter = curia::Filter::new(curia::Threshold::At(max_level));
+            for (target, level) in [
+                ("webrtc", curia::Level::Warn),
+                ("webrtc_ice", curia::Level::Warn),
+                ("webrtc_sctp", curia::Level::Warn),
+                ("webrtc_mdns", curia::Level::Warn),
+                ("webrtc_dtls", curia::Level::Warn),
+                ("dtls", curia::Level::Warn),
+                ("h2", curia::Level::Warn),
+                ("hyper", curia::Level::Warn),
+                ("rustls", curia::Level::Warn),
+                ("tokio_util", curia::Level::Warn),
                 // The Connect pane wants this traffic in full; the Sentry sink
                 // excludes it by target rather than by level.
-                .with_target_level("bedrock_protocol", curia::Level::Debug)
-                .with_target_level("bedrock_client", curia::Level::Debug)
-                .with_target_level("bedrock_network", curia::Level::Debug)
-                .with_target_level("bedrock_server", curia::Level::Debug)
-                .with_target_level("rust_raknet", curia::Level::Debug)
-                .with_target_level("raknet", curia::Level::Debug)
-                .with_target_level("rakrs", curia::Level::Debug);
+                ("bedrock_protocol", curia::Level::Debug),
+                ("bedrock_client", curia::Level::Debug),
+                ("bedrock_network", curia::Level::Debug),
+                ("bedrock_server", curia::Level::Debug),
+                ("rust_raknet", curia::Level::Debug),
+                ("raknet", curia::Level::Debug),
+                ("rakrs", curia::Level::Debug),
+            ] {
+                filter.add_target(target, curia::Threshold::At(level));
+            }
+
+            // The dispatcher carries the same filter as the bridge. BVC's own lines are
+            // direct curia calls that never pass through the bridge, and without it the
+            // Bedrock sink's Debug level would admit every one of them: each would be
+            // built and dispatched only for the sink to discard it by target.
+            curia::Logger::install(Box::new(
+                curia::Dispatcher::new(sinks).with_filter(filter.clone()),
+            ))
+            .map_err(|e| e.to_string())?;
+
+            let bridge = curia::TracingBridge::to_global().with_filter(filter);
 
             use tracing_subscriber::prelude::*;
             tracing_subscriber::registry().with(bridge).init();
@@ -644,7 +674,9 @@ pub fn run() {
                 let _ = store.save();
             }
             let install_id = marker.install_id.clone();
-            log::debug!("Platform ID: {}", install_id);
+            curia::debug!("platform ID", {
+                platform_id: install_id.clone(),
+            });
 
             // One identity, shared by analytics and feature flags, so the About pane can
             // replace it without a restart.
@@ -669,7 +701,7 @@ pub fn run() {
                             )
                         )
                     );
-                    debug!("PostHog analytics provider configured");
+                    curia::debug!("PostHog analytics provider configured");
                 }
             }
 
@@ -679,7 +711,7 @@ pub fn run() {
                         analytics::sentry::Provider::new(),
                     ),
                 );
-                debug!("Sentry analytics provider configured");
+                curia::debug!("Sentry analytics provider configured");
             }
 
             let analytics_service = Arc::new(analytics_service);
@@ -740,7 +772,9 @@ pub fn run() {
                 loop {
                     interval.tick().await;
                     if let Err(e) = flush_analytics.flush().await {
-                        log::warn!("Analytics flush failed: {}", e);
+                        curia::warn!("analytics flush failed", {
+                            error: e.to_string(),
+                        });
                     }
                 }
             });
@@ -755,24 +789,27 @@ pub fn run() {
             #[cfg(any(windows, target_os = "linux"))]
             {
                 if let Err(e) = app.deep_link().register_all() {
-                    warn!("Deep link registration failed; deep links may not work: {}", e);
+                    curia::warn!("deep link registration failed; deep links may not work", {
+                        error: e.to_string(),
+                    });
                 }
             }
 
             // Register event handler for incoming deep links (when app is already running)
             let app_handle = handle.clone();
             app.deep_link().on_open_url(move |event| {
-                debug!("on_open_url callback fired");
+                curia::debug!("on_open_url callback fired");
                 for url in event.urls() {
-                    info!(
-                        "Processing deep link URL from on_open_url: {}",
-                        crate::deep_links::UrlRedactor::for_log(url.as_str())
-                    );
+                    curia::info!("processing a deep link URL from on_open_url", {
+                        url: crate::deep_links::UrlRedactor::for_log(url.as_str()).to_string(),
+                    });
                     let deep_link = DeepLink::new(url.to_string());
                     if let Err(e) = deep_link.handle(&app_handle) {
-                        error!("Failed to handle deep link: {}", e);
+                        curia::error!("failed to handle a deep link", {
+                            error: e.to_string(),
+                        });
                     } else {
-                        info!("Successfully handled deep link from on_open_url");
+                        curia::info!("handled a deep link from on_open_url");
                     }
                 }
             });
@@ -785,20 +822,24 @@ pub fn run() {
                         for url in &urls {
                             let deep_link = DeepLink::new(url.to_string());
                             if let Err(e) = deep_link.handle(&app_handle2) {
-                                error!("Failed to handle cold-start deep link: {}", e);
+                                curia::error!("failed to handle a cold-start deep link", {
+                                    error: e.to_string(),
+                                });
                             } else {
-                                info!("Successfully handled cold-start deep link");
+                                curia::info!("handled a cold-start deep link");
                             }
                         }
                     },
                     None => {
                         // The ordinary launch. A link only cold-starts the app when the
                         // user followed one, so its absence is the common case.
-                        debug!("No cold-start deep links found");
+                        curia::debug!("no cold-start deep links found");
                     }
                 }
                 Err(e) => {
-                    warn!("cold-start deep links error: {}", e);
+                    curia::warn!("cold-start deep links error", {
+                        error: e.to_string(),
+                    });
                 }
             }
 
@@ -838,7 +879,7 @@ pub fn run() {
                 })
                 .unwrap_or(false);
             if mock_iap && cfg!(debug_assertions) {
-                log::info!("BVC_MOCK_IAP set — using mock IAP offers for local preview");
+                curia::info!("BVC_MOCK_IAP set — using mock IAP offers for local preview");
                 entitlement_providers.insert(
                     0,
                     crate::iap::EntitlementProviderType::Mock(crate::iap::mock::MockProvider::new()),
@@ -857,7 +898,9 @@ pub fn run() {
                         .inner()
                         .clone();
                     if let Err(e) = svc.check_and_refresh().await {
-                        log::warn!("startup entitlement refresh failed: {e}");
+                        curia::warn!("startup entitlement refresh failed", {
+                            error: e.to_string(),
+                        });
                     }
                 });
             }
@@ -959,7 +1002,11 @@ pub fn run() {
                 let analytics = app_handle.state::<Arc<analytics::AnalyticsService>>();
                 analytics.track(common::structs::AnalyticsEvent::AppExited, None);
                 tauri::async_runtime::block_on(analytics.flush())
-                    .unwrap_or_else(|e| log::warn!("Final analytics flush failed: {}", e));
+                    .unwrap_or_else(|e| {
+                        curia::warn!("final analytics flush failed", {
+                            error: e.to_string(),
+                        })
+                    });
 
                 // Proximity stamps are held back for two seconds of quiet, so an exit inside
                 // that window would otherwise drop them. This is the only exit hook the app
@@ -969,7 +1016,11 @@ pub fn run() {
                 {
                     players
                         .flush()
-                        .unwrap_or_else(|e| log::warn!("Final player settings flush failed: {e}"));
+                        .unwrap_or_else(|e| {
+                            curia::warn!("final player settings flush failed", {
+                                error: e.to_string(),
+                            })
+                        });
                 }
 
                 // Drains the queued tail before the Sentry guard drops. Last

@@ -6,6 +6,7 @@ import type { ControlSender } from '../control/sender';
 import type { GroupRow } from '../state/group_cache';
 import type { GroupSource } from '../state/group_source';
 import type { StateCache } from '../state/state_cache';
+import { JoinReply } from '../control/join_reply';
 import { FormShow } from './form_show';
 import type { PanelTestConfig } from './panel_test';
 import { SearchableRows } from './searchable_rows';
@@ -63,8 +64,13 @@ export class GroupListView {
         // The current group is marked and inert: joining it again is a no-op the
         // server already absorbs, and a row that does nothing should say why.
         // A button renders § codes literally, so the marker is plain text.
+        // `[Ask]` marks a protected group: a member admits the player in the BVC app.
         label: new ObservableString(
-          row.id === current ? `* ${row.name} (current)` : row.name,
+          row.id === current
+            ? `* ${row.name} (current)`
+            : row.protected
+              ? `[Ask] ${row.name}`
+              : row.name,
         ),
         onSelect: (): void => {
           if (row.id === current) {
@@ -102,7 +108,11 @@ export class GroupListView {
       .button('Join by code', () => {
         const code = joinCode.getData().trim();
         if (code.length > 0) {
-          void this.sender.send({ kind: 'group-join', channel: code }, player);
+          const row = rows?.find((r) => r.id === code) ?? {
+            id: code,
+            name: code,
+          };
+          void this.join(player, row);
         }
         form.close();
       })
@@ -151,11 +161,9 @@ export class GroupListView {
       { kind: 'group-join', channel: row.id },
       player,
     );
-    if (!result.ok) {
-      player.sendMessage('§c[BVC] Group join failed; try again');
-      return;
-    }
-    player.sendMessage(`§a[BVC] Joined §f${row.name}`);
+    player.sendMessage(
+      JoinReply.forResult(result, row.name, row.protected === true),
+    );
   }
 
   private async create(

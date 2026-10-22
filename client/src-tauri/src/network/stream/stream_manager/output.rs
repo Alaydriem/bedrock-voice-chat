@@ -2,12 +2,12 @@ use crate::NetworkPacket;
 use crate::network::stream::link::DatagramLink;
 use bytes::Bytes;
 use common::structs::packet::{DebugPacket, QuicNetworkPacket};
-use log::{error, info};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
 use tauri::Emitter;
+use tauri_plugin_curia::curia;
 use tokio::{task::AbortHandle, time::Instant};
 
 use common::consts::version::PROTOCOL_VERSION as CLIENT_VERSION;
@@ -81,11 +81,19 @@ impl common::traits::StreamTrait for OutputStream {
 
             match debug_packet.to_datagram() {
                 Ok(bytes) => {
-                    info!("Sent debug packet to server.");
+                    curia::info!("sent debug packet to server");
                     let payload = Bytes::from(bytes);
-                    if let Err(e) = link.send(payload.clone()) { error!("Debug datagram send error: {:?}", e); }
+                    if let Err(e) = link.send(payload.clone()) {
+                        curia::error!("debug datagram send error", {
+                            error: format!("{e:?}"),
+                        });
+                    }
                 }
-                Err(e) => { error!("Failed to serialize DEBUG packet: {:?}", e); }
+                Err(e) => {
+                    curia::error!("failed to serialize the DEBUG packet", {
+                        error: format!("{e:?}"),
+                    });
+                }
             }
 
             let mut error_count = 0;
@@ -94,7 +102,7 @@ impl common::traits::StreamTrait for OutputStream {
                 match packet {
                     Ok(network_packet) => {
                         if shutdown.load(Ordering::Relaxed) {
-                            info!("Network stream output handler stopped.");
+                            curia::info!("network stream output handler stopped");
                             break;
                         }
 
@@ -128,11 +136,17 @@ impl common::traits::StreamTrait for OutputStream {
                                     }
                                 }
                             }
-                            Err(e) => { error!("{}", e.to_string()); }
+                            Err(e) => {
+                                curia::error!("failed to serialize an outbound packet", {
+                                    error: e.to_string(),
+                                });
+                            }
                         }
                     }
                     Err(e) => {
-                        error!("QuicNetworkPacket was not valid? {}", e.to_string());
+                        curia::error!("outbound QuicNetworkPacket was not valid", {
+                            error: e.to_string(),
+                        });
                     }
                 }
             }

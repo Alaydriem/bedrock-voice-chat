@@ -10,6 +10,22 @@ msgstr ""
 msgid "(fallback)"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:429
+msgid "(nobody is speaking)"
+msgstr ""
+
+#: src/js/app/dashboard/RosterView.ts:46
+msgid "{count} IN EARSHOT"
+msgid_plural "{count} IN EARSHOT"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/js/app/dashboard/RosterView.ts:52
+msgid "{count} NEARBY"
+msgid_plural "{count} NEARBY"
+msgstr[0] ""
+msgstr[1] ""
+
 #: src/js/app/dashboard/DiagnosticsCopy.ts:106
 msgid "{count} player is muted by you."
 msgid_plural "{count} players are muted by you."
@@ -24,6 +40,50 @@ msgstr ""
 msgid "{count} track{plural} written"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:375
+msgid "{events} events, {rate}/s"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:354
+msgid "{failures} of {events} events could not be read  ← the meter is receiving but failing to handle them"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:79
+msgid "{joiner} joined {group}"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:106
+msgid "{joiner} reads you this code. Admit only if it is {joiner} and the code matches."
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:75
+msgid "{joiner}'s code is ready"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:297
+msgid "{levels} levels arrived and none were painted  ← the renderer is not drawing them"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:306
+msgid "{levels} levels, {paints} paints"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:279
+msgid "{listening} of {bindings} bindings subscribed to the live source  ← the rest are bound to one nothing pushes to"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:63
+msgid "{member} did not admit you"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:77
+msgid "{member} is checking {joiner}"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:191
+msgid "{mode}  ← the button still thinks {other}"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsCopy.ts:94
 msgid "{percent}% of the worst speaker's audio had to be reconstructed. They will sound rough."
 msgstr ""
@@ -32,12 +92,30 @@ msgstr ""
 msgid "{reason} — that message was not sent"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:319
+msgid "{seconds}s ago"
+msgstr ""
+
 #: src/js/app/settings/RecordingTracksView.ts:51
 msgid "{written} of {total} written — {names} failed"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:289
+msgid "← {bindings} bindings share this meter"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:50
+msgid "← {count} reconnect attempt so far"
+msgid_plural "← {count} reconnect attempts so far"
+msgstr[0] ""
+msgstr[1] ""
+
 #: src/js/app/dashboard/DiagnosticsCopy.ts:51
 msgid "← expected 48.0"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:55
+msgid "← nothing is being pushed to this window"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:50
@@ -48,8 +126,16 @@ msgstr ""
 msgid "← stalled"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:385
+msgid "← stopped {seconds}s ago"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsCopy.ts:49
 msgid "← your microphone has stopped"
+msgstr ""
+
+#: src/components/dashboard/AdmissionStack.svelte:106
+msgid "+{count} more"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:413
@@ -62,6 +148,14 @@ msgstr ""
 
 #: src/components/login/NoServerScreen.svelte:92
 msgid "A friend runs the server"
+msgstr ""
+
+#: src/js/app/managers/ProtectedGroupManager.ts:122
+msgid "A member did not admit you"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:77
+msgid "A member must admit you."
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:375
@@ -88,6 +182,10 @@ msgstr ""
 msgid "About"
 msgstr ""
 
+#: src/js/app/serverList/preflight/PreflightVerdict.ts:44
+msgid "About {ms} ms for your voice to reach this server. Voice works, with delay you will notice."
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:220
 msgid "Access Denied"
 msgstr ""
@@ -97,7 +195,7 @@ msgstr ""
 msgid "Access token"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:114
+#: src/components/serverList/PreflightPanel.svelte:115
 #: src/js/app/error/FaultCatalog.ts:226
 #: src/js/app/error/FaultCatalog.ts:319
 #: src/js/app/settings/SettingsCatalogue.ts:28
@@ -169,6 +267,10 @@ msgstr ""
 msgid "Address"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:446
+msgid "Address family"
+msgstr ""
+
 #: src/components/settings/panes/WebSocketPane.svelte:144
 msgid "Addresses"
 msgstr ""
@@ -183,6 +285,14 @@ msgstr ""
 
 #: src/js/app/settings/ManagePlayersView.ts:178
 msgid "Administrator"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:116
+msgid "Admit {joiner}"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:71
+msgid "Admit {joiner} to {group}?"
 msgstr ""
 
 #: src/components/settings/ProxyServerEditor.svelte:122
@@ -220,16 +330,20 @@ msgstr ""
 msgid "Almost there…"
 msgstr ""
 
-#: src/js/app/dashboard.ts:440
+#: src/js/app/dashboard.ts:443
 msgid "already granted"
 msgstr ""
 
-#: src/js/app/dashboard.ts:778
+#: src/js/app/dashboard.ts:781
 msgid "An error occurred during logout. Please try again."
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:333
 msgid "An unexpected error occurred. Please try again or contact support if the problem persists."
+msgstr ""
+
+#: src/js/app/managers/ChannelManager.ts:134
+msgid "An unknown error occurred"
 msgstr ""
 
 #: src/components/setup/NotificationsScreen.svelte:61
@@ -238,6 +352,14 @@ msgstr ""
 
 #: src/components/settings/panes/AboutPane.svelte:191
 msgid "Anonymous usage statistics and crash reports help us improve the app. No personal data is sent."
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:102
+msgid "Ask again"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:92
+msgid "Ask to join"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:226
@@ -258,7 +380,7 @@ msgstr ""
 msgid "Audio output"
 msgstr ""
 
-#: src/js/app/dashboard.ts:360
+#: src/js/app/dashboard.ts:363
 msgid "Audio permission denied"
 msgstr ""
 
@@ -272,6 +394,10 @@ msgstr ""
 
 #: src/js/app/deepLinkHandlers/authCallbackHandler.ts:77
 msgid "AuthCallbackHandler: Authorization code already exchanged"
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:70
+msgid "Authentication failed"
 msgstr ""
 
 #: src/js/app/deepLinkHandlers/authCallbackHandler.ts:103
@@ -294,6 +420,7 @@ msgstr ""
 #: src/js/app/error/FaultCatalog.ts:142
 #: src/js/app/error/FaultCatalog.ts:52
 #: src/js/app/error/FaultCatalog.ts:66
+#: src/js/app/serverList/AddServerRoute.ts:33
 msgid "Back to Dashboard"
 msgstr ""
 
@@ -321,7 +448,7 @@ msgstr ""
 msgid "Background Audio Couldn't Start"
 msgstr ""
 
-#: src/js/app/dashboard.ts:390
+#: src/js/app/dashboard.ts:393
 msgid "background service"
 msgstr ""
 
@@ -342,6 +469,10 @@ msgstr ""
 msgid "Banned"
 msgstr ""
 
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:21
+msgid "Bedrock server rejected the login"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:71
 msgid "Bedrock Voice Chat could not start the service that keeps your microphone live while the app is not in front. Check that your system is not restricting the app in the background, then try again."
 msgstr ""
@@ -356,6 +487,10 @@ msgstr ""
 
 #: src/components/login/GateScreen.svelte:53
 msgid "Before you sign in"
+msgstr ""
+
+#: src/js/app/serverList/PlateView.ts:64
+msgid "Blocked"
 msgstr ""
 
 #: src/components/setup/DevicesScreen.svelte:52
@@ -404,22 +539,31 @@ msgstr ""
 msgid "Can't start"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:300
+#: src/components/dashboard/GroupRow.svelte:348
+#: src/components/dashboard/JoinProtectedDialog.svelte:91
+#: src/components/dashboard/JoinProtectedDialog.svelte:94
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:41
 #: src/components/settings/panes/ManagePlayersPane.svelte:454
 #: src/components/settings/panes/ManagePlayersPane.svelte:486
 #: src/components/settings/panes/PlayersPane.svelte:342
 #: src/components/settings/panes/RecordingsPane.svelte:287
 #: src/components/settings/ProxyServerEditor.svelte:153
 #: src/components/settings/XboxSignIn.svelte:103
+#: src/js/app/serverList/AddServerRoute.ts:31
 #: src/routes/login/+page.svelte:281
 msgid "Cancel"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:198
+#: src/js/app/dashboard/DiagnosticsView.ts:234
+msgid "Capture stream"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:29
 msgid "Capturing"
 msgstr ""
 
-#: src/js/app/dashboard.ts:987
+#: src/js/app/dashboard.ts:993
 msgid "certificate rejected"
 msgstr ""
 
@@ -455,13 +599,30 @@ msgid "Chat"
 msgstr ""
 
 #: src/components/dashboard/ChatDock.svelte:112
-#: src/js/app/chat/ChatManager.ts:273
+#: src/js/app/chat/ChatManager.ts:276
 msgid "Chat is disabled on this server"
+msgstr ""
+
+#: src/js/app/chat/ChatManager.ts:299
+msgid "Chat is unavailable"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:73
+msgid "Check {joiner}'s code"
 msgstr ""
 
 #: src/components/settings/panes/AboutPane.svelte:136
 #: src/components/settings/panes/ConnectPane.svelte:250
 msgid "Check again"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:101
+#: src/components/dashboard/AdmissionCard.svelte:95
+msgid "Check code"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:81
+msgid "Check failed"
 msgstr ""
 
 #: src/components/settings/panes/AboutPane.svelte:243
@@ -472,11 +633,20 @@ msgstr ""
 msgid "Check the name, and that your server is online and running."
 msgstr ""
 
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:90
+msgid "Check your internet connection. If it persists, restart BVC."
+msgstr ""
+
+#: src/components/serverList/PreflightStrip.svelte:35
+#: src/js/app/serverList/PlateView.ts:148
+msgid "checking"
+msgstr ""
+
 #: src/components/settings/panes/AboutPane.svelte:128
 msgid "Checking"
 msgstr ""
 
-#: src/js/app/dashboard.ts:354
+#: src/js/app/dashboard.ts:357
 msgid "Checking audio permission..."
 msgstr ""
 
@@ -485,6 +655,8 @@ msgid "Checking your Microsoft sign-in."
 msgstr ""
 
 #: src/components/settings/panes/ConnectPane.svelte:250
+#: src/js/app/serverList/PlateView.ts:101
+#: src/js/app/serverList/preflight/PreflightVerdict.ts:22
 msgid "Checking…"
 msgstr ""
 
@@ -515,6 +687,18 @@ msgstr ""
 msgid "Click a binding, then press the combination."
 msgstr ""
 
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:54
+msgid "Click Refresh to renew tokens, then try again."
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:41
+msgid "Click Refresh to renew tokens, then try again. If it persists, sign out and back in."
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:72
+msgid "Click Refresh to renew tokens. If it persists, sign out and back in."
+msgstr ""
+
 #: src/components/settings/panes/WebSocketPane.svelte:237
 #: src/js/app/error/FaultCatalog.ts:138
 msgid "Client"
@@ -524,9 +708,14 @@ msgstr ""
 msgid "Client Update Required"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:207
-#: src/components/serverList/PreflightPanel.svelte:79
+#: src/components/dashboard/GroupRow.svelte:243
+#: src/components/dashboard/JoinProtectedDialog.svelte:101
+#: src/components/serverList/PreflightPanel.svelte:80
 msgid "Close"
+msgstr ""
+
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:27
+msgid "Close {name}?"
 msgstr ""
 
 #: src/components/dashboard/ChatDock.svelte:102
@@ -568,6 +757,10 @@ msgstr ""
 msgid "CODE"
 msgstr ""
 
+#: src/components/dashboard/CodeDigits.svelte:12
+msgid "Code {code}"
+msgstr ""
+
 #: src/components/login/NoServerScreen.svelte:129
 msgid "Come back any time from the sign-in screen"
 msgstr ""
@@ -587,11 +780,19 @@ msgstr ""
 #: src/components/login/SignInScreen.svelte:54
 #: src/components/login/SignInScreen.svelte:66
 #: src/components/settings/PlateGrid.svelte:91
+#: src/js/app/serverList/PlateView.ts:103
+#: src/js/app/serverList/PlateView.ts:29
+#: src/js/app/serverList/PlateView.ts:35
+#: src/js/app/serverList/PlateView.ts:78
 msgid "Connect"
 msgstr ""
 
-#: src/js/app/dashboard.ts:999
+#: src/js/app/dashboard.ts:1005
 msgid "connect failed"
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:99
+msgid "Connect failed"
 msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:66
@@ -607,8 +808,20 @@ msgstr ""
 msgid "Connected"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:60
+msgid "connected  ← nothing has arrived on it yet"
+msgstr ""
+
 #: src/components/settings/panes/WebSocketPane.svelte:230
 msgid "Connected clients"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:67
+msgid "connected, but nothing has arrived for {seconds}s  ← the channel is being replaced"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:76
+msgid "connected, last frame {ms}ms ago"
 msgstr ""
 
 #: src/routes/login/+page.svelte:246
@@ -626,6 +839,10 @@ msgstr ""
 
 #: src/components/dashboard/NearbyRing.svelte:108
 msgid "Connection status"
+msgstr ""
+
+#: src/js/app/managers/ProtectedGroupManager.ts:130
+msgid "Connection to the group was lost. Rejoin to continue."
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:39
@@ -653,6 +870,7 @@ msgstr ""
 msgid "Copied."
 msgstr ""
 
+#: src/components/dashboard/SafetyCodeDialog.svelte:56
 #: src/components/settings/BedrockLog.svelte:113
 msgid "Copy"
 msgstr ""
@@ -706,6 +924,10 @@ msgstr ""
 msgid "Could not play through that device. Try another one."
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:159
+msgid "could not read  ← {reason}"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:161
 msgid "Could not resolve the server address. Check that the server URL is correct and that your internet connection is working. If you are using a custom DNS provider, ensure it can resolve the server hostname."
 msgstr ""
@@ -714,12 +936,20 @@ msgstr ""
 msgid "Could not retrieve Java username."
 msgstr ""
 
+#: src/components/dashboard/GroupRow.svelte:200
+msgid "Could not turn this on. The group is closed."
+msgstr ""
+
 #: src/components/settings/panes/ManagePlayersPane.svelte:261
 msgid "Couldn't load the players"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:261
 msgid "Create a Login keyring, then sign in again"
+msgstr ""
+
+#: src/js/app/serverList/preflight/PreflightStepLabel.ts:9
+msgid "Credentials"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:236
@@ -766,6 +996,7 @@ msgstr ""
 msgid "Delete this sound?"
 msgstr ""
 
+#: src/components/dashboard/AdmissionCard.svelte:113
 #: src/components/settings/panes/ManagePlayersPane.svelte:515
 msgid "Deny"
 msgstr ""
@@ -803,6 +1034,7 @@ msgstr ""
 msgid "Discord callback missing token payload"
 msgstr ""
 
+#: src/components/dashboard/AdmissionCard.svelte:126
 #: src/components/events/Notification.svelte:96
 msgid "Dismiss"
 msgstr ""
@@ -811,7 +1043,7 @@ msgstr ""
 msgid "Display language"
 msgstr ""
 
-#: src/js/app/dashboard.ts:981
+#: src/js/app/dashboard.ts:987
 msgid "DNS lookup failed"
 msgstr ""
 
@@ -823,8 +1055,13 @@ msgstr ""
 msgid "Do both installs yourself. The guide covers the server and the mod, start to finish, in about fifteen minutes."
 msgstr ""
 
+#: src/components/dashboard/SafetyCodeDialog.svelte:58
 #: src/components/settings/panes/ManagePlayersPane.svelte:523
 msgid "Done"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:410
+msgid "Downlink"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:24
@@ -835,7 +1072,7 @@ msgstr ""
 msgid "drops"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:200
+#: src/components/dashboard/GroupRow.svelte:236
 msgid "Edit"
 msgstr ""
 
@@ -864,8 +1101,21 @@ msgstr ""
 msgid "Enter the code"
 msgstr ""
 
+#: src/js/app/managers/bedrock/proxy/BedrockProxyManager.ts:212
+msgid "Error stopping: {error}"
+msgstr ""
+
+#: src/js/app/managers/bedrock/auth/BedrockAuthManager.ts:130
+#: src/js/app/managers/bedrock/proxy/BedrockProxyManager.ts:199
+msgid "Error: {error}"
+msgstr ""
+
 #: src/components/settings/panes/KeybindsPane.svelte:67
 msgid "Escape cancels, Delete clears it."
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:40
+msgid "Even the unmodified login chain was rejected{kick}."
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:439
@@ -877,6 +1127,7 @@ msgid "Everyone signs in with the account they already play on"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:115
+#: src/js/app/serverList/preflight/PreflightVerdict.ts:51
 msgid "Everything looks fine."
 msgstr ""
 
@@ -904,8 +1155,12 @@ msgstr ""
 msgid "Failed to link Java identity."
 msgstr ""
 
-#: src/js/app/dashboard.ts:322
+#: src/js/app/dashboard.ts:325
 msgid "Failed to refresh server state, using cached permissions"
+msgstr ""
+
+#: src/js/app/serverList/PlateView.ts:142
+msgid "fallback path"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:43
@@ -928,7 +1183,7 @@ msgstr ""
 msgid "For a bug report. Written to your Documents folder."
 msgstr ""
 
-#: src/js/app/dashboard.ts:389
+#: src/js/app/dashboard.ts:392
 msgid "Foreground service could not be started."
 msgstr ""
 
@@ -952,7 +1207,7 @@ msgstr ""
 msgid "FULL VOLUME · ANY DISTANCE"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:120
+#: src/components/serverList/PreflightPanel.svelte:121
 #: src/components/settings/panes/ManagePlayersPane.svelte:276
 msgid "Game"
 msgstr ""
@@ -974,12 +1229,12 @@ msgstr ""
 msgid "Grant it in your system settings, then come back and try again. Voice chat cannot work without it."
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:290
+#: src/components/dashboard/GroupRow.svelte:328
 msgid "Group id"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:275
-#: src/components/dashboard/GroupRow.svelte:284
+#: src/components/dashboard/GroupRow.svelte:313
+#: src/components/dashboard/GroupRow.svelte:322
 msgid "Group name"
 msgstr ""
 
@@ -987,6 +1242,18 @@ msgstr ""
 #: src/components/dashboard/DashboardScreen.svelte:283
 #: src/components/dashboard/DashboardScreen.svelte:424
 msgid "Groups"
+msgstr ""
+
+#: src/js/app/serverList/preflight/PreflightStepLabel.ts:11
+msgid "Handshake"
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:60
+msgid "Handshake failed"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:182
+msgid "held"
 msgstr ""
 
 #: src/js/app/settings/NoiseGateModel.ts:69
@@ -997,8 +1264,16 @@ msgstr ""
 msgid "Held under the level that opens it, so a steady voice at the edge does not stutter."
 msgstr ""
 
+#: src/js/app/login/InviteMessage.ts:18
+msgid "Hey — I'd like to use proximity voice chat on our Minecraft world."
+msgstr ""
+
 #: src/components/dashboard/ChatDock.svelte:120
 msgid "History starts when you connect — nothing is stored"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:197
+msgid "Hold"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:326
@@ -1039,7 +1314,7 @@ msgid "Identity"
 msgstr ""
 
 #: src/components/dashboard/DashboardScreen.svelte:332
-#: src/routes/dashboard/+layout.svelte:645
+#: src/routes/dashboard/+layout.svelte:810
 msgid "In earshot"
 msgstr ""
 
@@ -1051,12 +1326,16 @@ msgstr ""
 msgid "In game, run"
 msgstr ""
 
+#: src/components/dashboard/JoinProtectedDialog.svelte:85
+msgid "In person, by phone or on Discord. Not in game chat."
+msgstr ""
+
 #: src/js/app/managers/ChannelManager.ts:332
 #: src/js/app/managers/ChannelManager.ts:373
 msgid "In public group channel"
 msgstr ""
 
-#: src/js/app/dashboard.ts:435
+#: src/js/app/dashboard.ts:438
 #: src/js/app/managers/ChannelManager.ts:412
 msgid "In public voice chat"
 msgstr ""
@@ -1074,7 +1353,7 @@ msgstr ""
 msgid "Incompatible Audio Input Device"
 msgstr ""
 
-#: src/js/app/dashboard.ts:915
+#: src/js/app/dashboard.ts:921
 msgid "incompatible device"
 msgstr ""
 
@@ -1095,6 +1374,10 @@ msgstr ""
 msgid "Install guide →"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:422
+msgid "Interface"
+msgstr ""
+
 #: src/components/login/GateScreen.svelte:55
 msgid "Is a BVC server already set up for"
 msgstr ""
@@ -1107,20 +1390,37 @@ msgstr ""
 msgid "It is either still being written, or it was written by an older build whose format this version cannot read. It can still be renamed or deleted."
 msgstr ""
 
+#: src/components/dashboard/JoinProtectedDialog.svelte:98
+msgid "It matches"
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:389
 msgid "It works with"
 msgstr ""
 
-#: src/js/app/login/InviteMessage.ts:13
-msgid "It's a one-time setup on your side: run the BVC server on any machine you control,"
+#: src/js/app/login/InviteMessage.ts:20
+msgid "It's a one-time setup on your side: run the BVC server on any machine you control, and add a small mod to the world. The guide walks through both:"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:36
 msgid "Jitter buffer"
 msgstr ""
 
+#: src/components/dashboard/JoinProtectedDialog.svelte:71
+msgid "Join {name}"
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:372
 msgid "Join from in-game"
+msgstr ""
+
+#: src/components/dashboard/AdmissionStack.svelte:79
+#: src/components/dashboard/AdmissionStack.svelte:81
+msgid "Join requests"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:61
+msgid "Joining {name}"
 msgstr ""
 
 #: src/components/dashboard/JukeboxChip.svelte:52
@@ -1156,9 +1456,18 @@ msgstr ""
 msgid "last seen {n} min ago"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:194
-#: src/routes/dashboard/+layout.svelte:638
+#: src/components/dashboard/GroupRow.svelte:230
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:45
+#: src/routes/dashboard/+layout.svelte:803
 msgid "Leave"
+msgstr ""
+
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:29
+msgid "Leave {name}?"
+msgstr ""
+
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:43
+msgid "Leave and close"
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:197
@@ -1166,7 +1475,19 @@ msgstr ""
 msgid "Length"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:129
+#: src/js/app/dashboard/DiagnosticsView.ts:381
+msgid "level {level}"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:382
+msgid "level 0  ← reported as not speaking"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:426
+msgid "Level updates"
+msgstr ""
+
+#: src/components/serverList/PreflightPanel.svelte:130
 #: src/js/app/dashboard/DiagnosticsCopy.ts:23
 msgid "Link"
 msgstr ""
@@ -1197,12 +1518,16 @@ msgstr ""
 msgid "Login failed. Please check your server URL and try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:777
+#: src/js/app/dashboard.ts:780
 msgid "Logout Failed"
 msgstr ""
 
 #: src/components/settings/panes/ManagePlayersPane.svelte:480
 msgid "loses voice access now. Their certificate is revoked and their live session is closed, so unbanning them requires them to sign in again."
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:407
+msgid "Loss, by direction"
 msgstr ""
 
 #: src/js/app/settings/NoiseGateModel.ts:43
@@ -1235,6 +1560,7 @@ msgid "Message the server…"
 msgstr ""
 
 #: src/components/setup/MicrophoneScreen.svelte:27
+#: src/js/app/dashboard/DiagnosticsView.ts:196
 msgid "Microphone"
 msgstr ""
 
@@ -1242,7 +1568,7 @@ msgstr ""
 msgid "Microphone access was refused"
 msgstr ""
 
-#: src/js/app/dashboard.ts:361
+#: src/js/app/dashboard.ts:364
 msgid "microphone denied"
 msgstr ""
 
@@ -1261,6 +1587,10 @@ msgstr ""
 #: src/components/settings/RecordingDetail.svelte:140
 #: src/components/settings/RecordingDetail.svelte:151
 msgid "Mix in the spatial positions"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:188
+msgid "Mode"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:383
@@ -1282,8 +1612,20 @@ msgstr ""
 msgid "Muted"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:177
+msgid "muted  (resting state of push-to-talk)"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:178
+msgid "muted  ← nothing is being captured"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsCopy.ts:32
 msgid "Muted by you"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:180
+msgid "n/a in open mic"
 msgstr ""
 
 #: src/components/settings/ProxyServerEditor.svelte:104
@@ -1291,11 +1633,19 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
+#: src/js/app/serverList/PlateView.ts:138
+msgid "need sign-in"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:321
 msgid "NEEDS UNLOCKING"
 msgstr ""
 
-#: src/components/dashboard/GroupsPanel.svelte:49
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:88
+msgid "Network transport failed"
+msgstr ""
+
+#: src/components/dashboard/GroupsPanel.svelte:72
 msgid "New group"
 msgstr ""
 
@@ -1323,7 +1673,7 @@ msgstr ""
 msgid "NO ANSWER · CONN01"
 msgstr ""
 
-#: src/js/app/dashboard.ts:941
+#: src/js/app/dashboard.ts:947
 msgid "No current server found in store!"
 msgstr ""
 
@@ -1332,7 +1682,19 @@ msgstr ""
 msgid "NO DEVICE"
 msgstr ""
 
-#: src/js/app/dashboard.ts:922
+#: src/js/app/dashboard/DiagnosticsView.ts:366
+msgid "no events  ← nothing captured yet either"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:367
+msgid "no events  ← the capture stream is not running"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:361
+msgid "no events here, but {frames} frames/s are being captured  ← the meter is not receiving, the microphone is fine"
+msgstr ""
+
+#: src/js/app/dashboard.ts:928
 msgid "no input device"
 msgstr ""
 
@@ -1348,6 +1710,24 @@ msgstr ""
 msgid "No Keyring Available"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:292
+msgid "no levels have reached it  ← the feed above decides whether that is a fault"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:96
+msgid "No match"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:67
+#: src/js/app/managers/ProtectedGroupManager.ts:126
+msgid "No member answered"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:69
+#: src/js/app/managers/ProtectedGroupManager.ts:128
+msgid "No member is online"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:103
 msgid "No microphone was detected on your system. Connect a microphone or headset, verify it appears in your system sound settings, then try again."
 msgstr ""
@@ -1356,7 +1736,7 @@ msgstr ""
 msgid "No network address yet. Connect to Wi-Fi and reopen this pane."
 msgstr ""
 
-#: src/js/app/dashboard.ts:928
+#: src/js/app/dashboard.ts:934
 msgid "no output device"
 msgstr ""
 
@@ -1372,8 +1752,28 @@ msgstr ""
 msgid "No players yet"
 msgstr ""
 
-#: src/js/app/dashboard.ts:254
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:14
+msgid "no reason code"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:160
+msgid "no reason given"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:344
+msgid "no registration  ← this window is asking for levels and the feed holds no listener"
+msgstr ""
+
+#: src/js/app/dashboard.ts:257
 msgid "no response"
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:75
+msgid "NO RESPONSE"
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:167
+msgid "NO ROUTE"
 msgstr ""
 
 #: src/components/login/NoServerScreen.svelte:17
@@ -1385,8 +1785,20 @@ msgstr ""
 msgid "No speakers or headphones were detected on your system. Connect an audio output device, verify it appears in your system sound settings, then try again."
 msgstr ""
 
-#: src/js/app/dashboard.ts:995
+#: src/js/app/serverList/ServerRosterManager.ts:310
+msgid "No update has been published yet. That server is ahead of every build of the app."
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:159
+msgid "NO VOICE PATH"
+msgstr ""
+
+#: src/js/app/dashboard.ts:1001
 msgid "no voice transport"
+msgstr ""
+
+#: src/js/app/chat/ChatManager.ts:129
+msgid "No world to send to yet"
 msgstr ""
 
 #: src/components/login/GateScreen.svelte:94
@@ -1395,6 +1807,10 @@ msgstr ""
 
 #: src/js/app/settings/PlayersView.ts:166
 msgid "Nobody here has that name."
+msgstr ""
+
+#: src/js/app/dashboard/RosterView.ts:57
+msgid "NOBODY IN EARSHOT"
 msgstr ""
 
 #: src/js/app/settings/PlayersView.ts:162
@@ -1427,6 +1843,14 @@ msgstr ""
 msgid "None"
 msgstr ""
 
+#: src/js/app/serverList/PlateView.ts:146
+msgid "not answering"
+msgstr ""
+
+#: src/js/app/serverList/PlateView.ts:93
+msgid "Not answering"
+msgstr ""
+
 #: src/components/dashboard/ChatTargetPicker.svelte:26
 msgid "not answering right now"
 msgstr ""
@@ -1439,8 +1863,13 @@ msgstr ""
 msgid "not confirmed — this may not have been delivered"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:56
+msgid "not connected"
+msgstr ""
+
 #: src/components/login/ConnectErrorScreen.svelte:32
 #: src/components/login/ConnectErrorScreen.svelte:44
+#: src/js/app/chat/ChatManager.ts:81
 #: src/js/app/error/FaultCatalog.ts:168
 #: src/js/app/error/FaultCatalog.ts:183
 #: src/js/app/error/FaultCatalog.ts:198
@@ -1461,6 +1890,11 @@ msgstr ""
 msgid "not measured yet"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:265
+msgid "not mounted  ← no pill has registered a meter in this window"
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:93
 #: src/components/shell/UpdateOfferDialog.svelte:22
 msgid "Not now"
 msgstr ""
@@ -1468,6 +1902,11 @@ msgstr ""
 #: src/js/app/error/FaultCatalog.ts:49
 #: src/js/app/error/FaultCatalog.ts:63
 msgid "NOT PERMITTED"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:151
+#: src/js/app/dashboard/DiagnosticsView.ts:237
+msgid "not read yet"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:228
@@ -1482,6 +1921,10 @@ msgstr ""
 msgid "Not set"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:347
+msgid "not subscribed  ← the level fan-out stopped asking, so re-registering would fix nothing"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:212
 msgid "NOT VERIFIED"
 msgstr ""
@@ -1489,6 +1932,10 @@ msgstr ""
 #: src/js/app/error/FaultCatalog.ts:227
 #: src/js/app/error/FaultCatalog.ts:320
 msgid "Not yet"
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:74
+msgid "Nothing at that address"
 msgstr ""
 
 #: src/js/app/settings/PlayersView.ts:171
@@ -1527,7 +1974,7 @@ msgstr ""
 msgid "Notification access was refused"
 msgstr ""
 
-#: src/js/app/dashboard.ts:371
+#: src/js/app/dashboard.ts:374
 msgid "Notification permission denied - notifications may not be visible"
 msgstr ""
 
@@ -1544,7 +1991,7 @@ msgstr ""
 msgid "Notifications and devices come next"
 msgstr ""
 
-#: src/js/app/dashboard.ts:373
+#: src/js/app/dashboard.ts:376
 msgid "notifications denied"
 msgstr ""
 
@@ -1604,12 +2051,21 @@ msgstr ""
 msgid "Only the name changes. The recording and its tracks stay where they are."
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:175
+msgid "open"
+msgstr ""
+
 #: src/components/settings/panes/RecordingsPane.svelte:232
 msgid "Open {name}"
 msgstr ""
 
 #: src/js/app/managers/settings/AboutManager.ts:60
 msgid "Open a bug report on GitHub"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:173
+#: src/js/app/dashboard/DiagnosticsView.ts:193
+msgid "open mic"
 msgstr ""
 
 #: src/components/settings/panes/ConnectPane.svelte:325
@@ -1636,6 +2092,10 @@ msgstr ""
 msgid "Opens above"
 msgstr ""
 
+#: src/js/app/serverList/PlateView.ts:140
+msgid "outdated"
+msgstr ""
+
 #: src/components/audio/AudioDeviceSelector.svelte:116
 #: src/components/audio/AudioDeviceSelector.svelte:120
 msgid "Output device"
@@ -1651,6 +2111,14 @@ msgstr ""
 
 #: src/components/settings/panes/PlayersPane.svelte:290
 msgid "Page {page}"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:320
+msgid "painting — {counts}, last level {level}"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:447
+msgid "Paths used"
 msgstr ""
 
 #: src/js/app/settings/PlayersView.ts:177
@@ -1711,6 +2179,10 @@ msgstr ""
 msgid "Players"
 msgstr ""
 
+#: src/components/dashboard/ProtectedLine.svelte:19
+msgid "Players nearby cannot hear you."
+msgstr ""
+
 #: src/components/settings/panes/AudioPane.svelte:208
 msgid "Playing"
 msgstr ""
@@ -1726,6 +2198,10 @@ msgstr ""
 msgid "Please enter a valid server URL"
 msgstr ""
 
+#: src/js/app/loginCode.ts:50
+msgid "Please enter your code."
+msgstr ""
+
 #: src/components/settings/panes/WebSocketPane.svelte:123
 msgid "Point your plugin here."
 msgstr ""
@@ -1733,6 +2209,10 @@ msgstr ""
 #: src/components/settings/panes/WebSocketPane.svelte:107
 #: src/components/settings/panes/WebSocketPane.svelte:114
 msgid "Port"
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:145
+msgid "port {port}"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:337
@@ -1743,7 +2223,7 @@ msgstr ""
 msgid "Post to"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:69
+#: src/components/serverList/PreflightPanel.svelte:70
 msgid "Preflight readout"
 msgstr ""
 
@@ -1759,14 +2239,32 @@ msgstr ""
 msgid "Privacy Notice"
 msgstr ""
 
+#: src/components/dashboard/GroupRow.svelte:338
+#: src/components/dashboard/GroupRow.svelte:339
+msgid "Private Group"
+msgstr ""
+
 #: src/components/dashboard/SelfControls.svelte:76
 msgid "Profile and sign-out"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:141
+#: src/components/dashboard/GroupRow.svelte:275
+msgid "Protected"
+msgstr ""
+
+#: src/components/serverList/PreflightPanel.svelte:142
 #: src/components/settings/panes/AboutPane.svelte:148
 #: src/js/app/dashboard/DiagnosticsCopy.ts:41
+#: src/js/app/serverList/preflight/PreflightStepLabel.ts:13
 msgid "Protocol"
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:115
+msgid "PROTOCOL {version}"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:412
+msgid "Provable, lower bound"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:42
@@ -1781,8 +2279,21 @@ msgstr ""
 msgid "Proxy all events"
 msgstr ""
 
+#: src/js/app/managers/bedrock/proxy/BedrockProxyManager.ts:210
+msgid "Proxy stopped"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:46
+msgid "Push channel"
+msgstr ""
+
 #: src/js/app/managers/settings/KeybindsManager.ts:175
 msgid "Push to Talk"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:173
+#: src/js/app/dashboard/DiagnosticsView.ts:193
+msgid "push-to-talk"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:451
@@ -1797,7 +2308,11 @@ msgstr ""
 msgid "Puts every player back to full volume and unmutes them all. Use this if somebody is silent and you do not remember why."
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:135
+#: src/js/app/dashboard/DiagnosticsView.ts:445
+msgid "Quality"
+msgstr ""
+
+#: src/components/serverList/PreflightPanel.svelte:136
 #: src/js/app/dashboard/DiagnosticsCopy.ts:37
 msgid "QUIC port"
 msgstr ""
@@ -1810,13 +2325,34 @@ msgstr ""
 msgid "Reaching"
 msgstr ""
 
+#: src/components/dashboard/SafetyCodeDialog.svelte:47
+msgid "Read it out to the others. If yours is different, leave the group."
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:59
+msgid "Read this code to {member}"
+msgstr ""
+
+#: src/js/app/serverList/PlateView.ts:136
+msgid "ready"
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:261
 #: src/components/login/IntroScreen.svelte:271
+#: src/js/app/serverList/PlateView.ts:33
 msgid "Ready"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:305
 msgid "READY"
+msgstr ""
+
+#: src/js/app/serverList/PlateView.ts:76
+msgid "Ready · fallback path"
+msgstr ""
+
+#: src/js/app/serverList/PlateView.ts:27
+msgid "Ready · slow"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:306
@@ -1835,11 +2371,17 @@ msgstr ""
 msgid "Realms / No-Net Addon Required"
 msgstr ""
 
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:13
+msgid "reason {code}"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsCopy.ts:31
 msgid "Receiving"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:164
+#: src/components/serverList/PreflightPanel.svelte:165
+#: src/js/app/serverList/PlateView.ts:87
+#: src/js/app/serverList/PlateView.ts:95
 msgid "Recheck"
 msgstr ""
 
@@ -1858,6 +2400,10 @@ msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:73
 msgid "Reconnecting. Nobody can hear you right now."
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:442
+msgid "Reconstructed, worst speaker"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:436
@@ -1897,7 +2443,11 @@ msgstr ""
 msgid "Release"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:159
+#: src/js/app/dashboard/DiagnosticsView.ts:183
+msgid "released"
+msgstr ""
+
+#: src/components/serverList/PreflightPanel.svelte:160
 msgid "Remove"
 msgstr ""
 
@@ -1963,6 +2513,23 @@ msgstr ""
 msgid "Reset stats"
 msgstr ""
 
+#: src/js/app/login/AddressResolver.ts:149
+msgid "Resolved · {ms} ms"
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:150
+msgid "RESOLVED · {ms} MS"
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:55
+#: src/js/app/login/AddressResolver.ts:65
+msgid "Resolving"
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:56
+msgid "RESOLVING"
+msgstr ""
+
 #: src/components/dashboard/StatusPanel.svelte:169
 msgid "Restart every counter from now"
 msgstr ""
@@ -1971,7 +2538,7 @@ msgstr ""
 msgid "Restores every shortcut above to their default settings"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:131
+#: src/components/serverList/PreflightPanel.svelte:132
 #: src/js/app/dashboard/DiagnosticsCopy.ts:34
 msgid "Round trip"
 msgstr ""
@@ -2001,11 +2568,18 @@ msgstr ""
 msgid "Runs on this machine. Anything it filters out is never encoded or sent."
 msgstr ""
 
+#: src/components/dashboard/ProtectedLine.svelte:27
+#: src/components/dashboard/SafetyCodeDialog.svelte:39
+#: src/components/dashboard/SafetyCodeDialog.svelte:43
+#: src/components/dashboard/SafetyCodeDialog.svelte:48
+msgid "Safety code"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsCopy.ts:27
 msgid "Sample rate"
 msgstr ""
 
-#: src/components/dashboard/GroupRow.svelte:303
+#: src/components/dashboard/GroupRow.svelte:351
 msgid "Save"
 msgstr ""
 
@@ -2032,6 +2606,11 @@ msgstr ""
 
 #: src/components/serverList/ServerListScreen.svelte:59
 msgid "Select a server"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:202
+#: src/js/app/dashboard/DiagnosticsView.ts:240
+msgid "Self meter"
 msgstr ""
 
 #: src/components/dashboard/ChatComposer.svelte:101
@@ -2072,7 +2651,7 @@ msgstr ""
 msgid "Server address"
 msgstr ""
 
-#: src/js/app/dashboard.ts:991
+#: src/js/app/dashboard.ts:997
 msgid "server certificate"
 msgstr ""
 
@@ -2090,6 +2669,27 @@ msgstr ""
 
 #: src/components/login/GateScreen.svelte:40
 msgid "Server check"
+msgstr ""
+
+#: src/js/app/serverList/PlateView.ts:62
+msgid "Server is older"
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:106
+msgid "Server is on an older protocol — it speaks {server}, this build speaks {client}"
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:102
+msgid "Server needs a newer app — it speaks {server}, this build speaks {client}"
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:158
+msgid "Server reachable, but no voice path"
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:39
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:50
+msgid "Server rejected the original login"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:146
@@ -2144,6 +2744,10 @@ msgstr ""
 msgid "Share the address and talk"
 msgstr ""
 
+#: src/components/dashboard/AdmissionCard.svelte:121
+msgid "Show code"
+msgstr ""
+
 #: src/components/settings/BedrockLog.svelte:117
 msgid "Show debug"
 msgstr ""
@@ -2158,6 +2762,7 @@ msgstr ""
 
 #: src/components/login/CodeScreen.svelte:85
 #: src/components/settings/panes/ConnectPane.svelte:229
+#: src/js/app/serverList/PlateView.ts:43
 msgid "Sign in"
 msgstr ""
 
@@ -2168,6 +2773,14 @@ msgstr ""
 #: src/js/app/error/FaultCatalog.ts:215
 #: src/js/app/error/FaultCatalog.ts:277
 msgid "Sign In Again"
+msgstr ""
+
+#: src/js/app/serverList/PlateView.ts:41
+msgid "Sign in needed"
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:80
+msgid "Sign in to Xbox again"
 msgstr ""
 
 #: src/routes/login/+page.svelte:274
@@ -2182,6 +2795,10 @@ msgstr ""
 #: src/components/settings/panes/ConnectPane.svelte:222
 #: src/components/settings/XboxSignIn.svelte:45
 msgid "Sign in with Microsoft"
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:82
+msgid "Sign in with the code shown to get back to your worlds."
 msgstr ""
 
 #: src/components/settings/panes/AccountPane.svelte:143
@@ -2200,8 +2817,12 @@ msgstr ""
 msgid "Sign-in code"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:116
+#: src/components/serverList/PreflightPanel.svelte:117
 msgid "Signed in as"
+msgstr ""
+
+#: src/js/app/managers/bedrock/auth/BedrockAuthManager.ts:98
+msgid "Signed in to Xbox Live"
 msgstr ""
 
 #: src/components/settings/panes/AccountPane.svelte:82
@@ -2225,12 +2846,25 @@ msgstr ""
 msgid "Skip"
 msgstr ""
 
+#: src/js/app/serverList/PlateView.ts:136
+msgid "slow"
+msgstr ""
+
 #: src/js/app/settings/NoiseGateModel.ts:61
 msgid "Slow enough to hear as a fade, fast enough not to clip a word."
 msgstr ""
 
 #: src/components/login/GateScreen.svelte:74
 msgid "Someone already set it up"
+msgstr ""
+
+#: src/components/dashboard/GroupRow.svelte:186
+#: src/components/dashboard/GroupRow.svelte:195
+msgid "Someone joined. Turn this on while you are alone."
+msgstr ""
+
+#: src/components/dashboard/AdmissionCard.svelte:124
+msgid "Someone may be interfering."
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:332
@@ -2263,6 +2897,8 @@ msgid "Starting up"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:33
+#: src/js/app/dashboard/DiagnosticsView.ts:151
+#: src/js/app/dashboard/DiagnosticsView.ts:158
 msgid "State"
 msgstr ""
 
@@ -2284,11 +2920,15 @@ msgstr ""
 msgid "Stop"
 msgstr ""
 
-#: src/js/app/dashboard.ts:193
+#: src/js/app/dashboard/DiagnosticsView.ts:311
+msgid "stopped painting {seconds}s ago — {counts}  ← levels are still arriving"
+msgstr ""
+
+#: src/js/app/dashboard.ts:196
 msgid "Stopped recording that was active before page refresh"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:124
+#: src/components/serverList/PreflightPanel.svelte:125
 msgid "Stored in"
 msgstr ""
 
@@ -2316,6 +2956,10 @@ msgstr ""
 msgid "Takes about a minute on a normal connection"
 msgstr ""
 
+#: src/js/app/login/InviteMessage.ts:25
+msgid "Takes about fifteen minutes. Once it's running, send me the server address and everyone signs in with the account they already play on."
+msgstr ""
+
 #: src/components/settings/panes/AudioPane.svelte:89
 msgid "Test my microphone"
 msgstr ""
@@ -2326,6 +2970,10 @@ msgstr ""
 
 #: src/components/settings/panes/AudioPane.svelte:87
 msgid "Test your devices"
+msgstr ""
+
+#: src/js/app/loginCode.ts:94
+msgid "That code was not accepted. Check it and try again."
 msgstr ""
 
 #: src/js/app/settings/ManagePlayersView.ts:208
@@ -2344,6 +2992,10 @@ msgstr ""
 msgid "That player is no longer on this server."
 msgstr ""
 
+#: src/js/app/serverList/ServerRosterManager.ts:202
+msgid "That server could not be removed. Try again."
+msgstr ""
+
 #: src/js/app/deepLinkHandlers/authCallbackHandler.ts:149
 #: src/js/app/deepLinkHandlers/authCallbackHandler.ts:227
 #: src/js/app/deepLinkHandlers/authCallbackHandler.ts:238
@@ -2353,6 +3005,15 @@ msgstr ""
 
 #: src/components/login/IntroScreen.svelte:287
 msgid "The BVC server runs separately, on"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:65
+#: src/js/app/managers/ProtectedGroupManager.ts:124
+msgid "The codes did not match"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsManager.ts:106
+msgid "The connection failed and will not retry on its own."
 msgstr ""
 
 #: src/components/audio/AudioDeviceSelector.svelte:138
@@ -2365,6 +3026,14 @@ msgstr ""
 
 #: src/components/settings/panes/RecordingsPane.svelte:190
 msgid "The operator has turned voice recording off, so the record button is unavailable while you are connected here."
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:22
+msgid "The Realm rejected the proxy handshake ({reason}) and there is no fallback for NetherNet/Realms."
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsManager.ts:118
+msgid "The server ({server}) is older than this client ({client})."
 msgstr ""
 
 #: src/components/settings/panes/ManagePlayersPane.svelte:91
@@ -2387,6 +3056,10 @@ msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:206
 msgid "The server refused this connection because it could not verify your identity. Your certificate may have been revoked or reissued. Sign in again to get fresh credentials."
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:51
+msgid "The server sent a Disconnect packet during fallback that could not be decoded."
 msgstr ""
 
 #: src/routes/error/+page.svelte:178
@@ -2417,8 +3090,16 @@ msgstr ""
 msgid "They only have to do it once. Copy a short message with the guide link and send it over."
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsManager.ts:114
+msgid "This client ({client}) is too old for the server ({server})."
+msgstr ""
+
 #: src/components/settings/panes/WebSocketPane.svelte:145
 msgid "This device answers on all of them. Use whichever your other device can reach."
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:166
+msgid "This device has no route to that address"
 msgstr ""
 
 #: src/components/settings/RecordingDetail.svelte:77
@@ -2433,8 +3114,40 @@ msgstr ""
 msgid "This server has not granted you account access. Join the Minecraft server in-game at least once so it can register you, or ask the server operator to add you."
 msgstr ""
 
+#: src/js/app/serverList/preflight/PreflightVerdict.ts:72
+msgid "This server is not answering. Nothing is wrong on this device — ask whoever runs it."
+msgstr ""
+
+#: src/js/app/serverList/preflight/PreflightVerdict.ts:69
+msgid "This server refused your saved sign-in. Sign in again to connect."
+msgstr ""
+
+#: src/js/app/serverList/preflight/PreflightVerdict.ts:82
+msgid "This server speaks protocol {server} and your client speaks {client}. Update the client to connect."
+msgstr ""
+
+#: src/js/app/serverList/preflight/PreflightVerdict.ts:86
+msgid "This server speaks protocol {server} and your client speaks {client}. Whoever runs it has to update it."
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:268
 msgid "This server's security certificate does not match the one this device was issued. Your saved sign-in for it has been removed. Sign in again to get fresh credentials. If it keeps happening, the server operator needs to fix their certificate configuration."
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:26
+msgid "This usually clears in 30 seconds. Wait, then try Connect again. If it persists, click Refresh to renew tokens, or restart BVC."
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:246
+msgid "This window"
+msgstr ""
+
+#: src/js/app/chat/ChatManager.ts:124
+msgid "This world is not known to the server yet"
+msgstr ""
+
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:37
+msgid "To come back, a member must admit you."
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:314
@@ -2457,7 +3170,7 @@ msgstr ""
 msgid "Tracks"
 msgstr ""
 
-#: src/components/serverList/PreflightPanel.svelte:147
+#: src/components/serverList/PreflightPanel.svelte:148
 msgid "Transport"
 msgstr ""
 
@@ -2488,6 +3201,14 @@ msgstr ""
 
 #: src/components/settings/panes/WebSocketPane.svelte:96
 msgid "Turn on to drive BVC from another device on your network."
+msgstr ""
+
+#: src/js/app/serverList/preflight/PreflightVerdict.ts:96
+msgid "UDP {port} to this server is blocked and it offers no fallback path, so voice cannot connect at all. Check the network or firewall you are behind, then recheck."
+msgstr ""
+
+#: src/js/app/serverList/preflight/PreflightVerdict.ts:34
+msgid "UDP {port} to this server is blocked, so voice will use the slower fallback path over TCP. It works — expect more delay when the network is busy."
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:182
@@ -2527,6 +3248,14 @@ msgstr ""
 msgid "Unknown date"
 msgstr ""
 
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:100
+msgid "Unknown error"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:402
+msgid "unmeasured (server too old)"
+msgstr ""
+
 #: src/components/dashboard/JukeboxChip.svelte:43
 msgid "Unmute jukeboxes"
 msgstr ""
@@ -2544,6 +3273,10 @@ msgstr ""
 msgid "UNTRUSTED"
 msgstr ""
 
+#: src/js/app/serverList/PlateView.ts:58
+msgid "Update"
+msgstr ""
+
 #: src/components/shell/UpdateOfferDialog.svelte:20
 msgid "Update available"
 msgstr ""
@@ -2556,6 +3289,10 @@ msgstr ""
 msgid "Update Bedrock Voice Chat to the latest version"
 msgstr ""
 
+#: src/js/app/serverList/PlateView.ts:56
+msgid "Update needed"
+msgstr ""
+
 #: src/components/shell/UpdateOfferDialog.svelte:21
 msgid "Update now"
 msgstr ""
@@ -2564,8 +3301,16 @@ msgstr ""
 msgid "Update Now"
 msgstr ""
 
+#: src/js/app/serverList/ServerRosterManager.ts:317
+msgid "Updates are installed from wherever you got the app."
+msgstr ""
+
 #: src/routes/error/+page.svelte:93
 msgid "Updating…"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:409
+msgid "Uplink"
 msgstr ""
 
 #: src/js/app/settings/ManagePlayersView.ts:180
@@ -2605,7 +3350,16 @@ msgid "View privacy statement"
 msgstr ""
 
 #: src/components/settings/panes/AudioPane.svelte:105
+#: src/js/app/dashboard/DiagnosticsView.ts:149
 msgid "Voice"
+msgstr ""
+
+#: src/js/app/serverList/PlateView.ts:144
+msgid "voice blocked"
+msgstr ""
+
+#: src/js/app/serverList/PlateView.ts:85
+msgid "Voice blocked"
 msgstr ""
 
 #: src/components/setup/MicrophoneScreen.svelte:97
@@ -2645,6 +3399,7 @@ msgstr ""
 #: src/components/login/ConnectErrorScreen.svelte:38
 #: src/js/app/error/FaultCatalog.ts:181
 #: src/js/app/error/FaultCatalog.ts:196
+#: src/js/app/serverList/preflight/PreflightStepLabel.ts:15
 msgid "Voice path"
 msgstr ""
 
@@ -2664,8 +3419,20 @@ msgstr ""
 msgid "Volume for {name}"
 msgstr ""
 
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:101
+msgid "Wait a moment and try Connect again."
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:62
+msgid "Wait a moment and try Connect again. If it keeps failing, click Refresh or restart BVC."
+msgstr ""
+
 #: src/components/settings/XboxSignIn.svelte:89
 msgid "Waiting"
+msgstr ""
+
+#: src/components/dashboard/JoinProtectedDialog.svelte:80
+msgid "Waiting for a member"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:328
@@ -2711,6 +3478,10 @@ msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:22
 msgid "What you hear"
+msgstr ""
+
+#: src/js/app/dashboard/DiagnosticsView.ts:435
+msgid "What you heard"
 msgstr ""
 
 #: src/components/login/NoServerScreen.svelte:40
@@ -2765,6 +3536,10 @@ msgstr ""
 msgid "Wiki"
 msgstr ""
 
+#: src/js/app/dashboard/DiagnosticsView.ts:415
+msgid "Worst direction"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsCopy.ts:38
 msgid "WSS port"
 msgstr ""
@@ -2791,6 +3566,14 @@ msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:85
 msgid "You are muted. Nobody can hear you."
+msgstr ""
+
+#: src/js/app/serverList/preflight/PreflightVerdict.ts:59
+msgid "You are not signed in to this server any more. Sign in again to connect."
+msgstr ""
+
+#: src/components/dashboard/LeavePrivateGroupDialog.svelte:35
+msgid "You are the last member. Leaving closes the group."
 msgstr ""
 
 #: src/components/settings/panes/ConnectPane.svelte:242
@@ -2914,6 +3697,10 @@ msgstr ""
 
 #: src/components/login/IntroScreen.svelte:295
 msgid "YOUR WORLD STAYS WHERE IT IS"
+msgstr ""
+
+#: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:81
+msgid "Your Xbox Live session expired and could not be renewed."
 msgstr ""
 
 #: src/components/settings/panes/ConnectPane.svelte:305

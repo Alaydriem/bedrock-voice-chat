@@ -122,15 +122,15 @@ impl ConnectionHealthManager {
             interval.tick().await;
 
             if shutdown.load(Ordering::Relaxed) {
-                log::debug!("Health monitor shutting down");
+                curia::debug!("health monitor shutting down");
                 break;
             }
 
             // Terminal: the server refused this identity, so probing and re-dialing
             // would loop forever against a server that is perfectly healthy.
             if health_state.has_unauthorized() {
-                log::error!(
-                    "Server refused this connection's identity; stopping reconnect attempts"
+                curia::error!(
+                    "server refused this connection's identity; stopping reconnect attempts"
                 );
                 HealthPublisher::publish(
                     &app_handle,
@@ -144,25 +144,24 @@ impl ConnectionHealthManager {
             }
 
             if health_state.has_protocol_error() {
-                log::error!(
-                    "Datagram decode failures indicate an incompatible server protocol; tearing down connection"
+                curia::error!(
+                    "datagram decode failures indicate an incompatible server protocol; tearing down the connection"
                 );
                 Self::emit_version_mismatch(&server_url, &app_handle).await;
                 break;
             }
 
             if health_state.should_send_health_check(health_config.threshold) {
-                log::trace!("Sending health check packet");
+                curia::trace!("sending health check packet");
 
                 Self::send_health_check(&link, &health_state).await;
                 tokio::time::sleep(health_config.timeout).await;
 
                 let failures = health_state.on_timeout();
                 if failures >= health_config.max_failures {
-                    log::warn!(
-                        "Health check failed {} times, triggering reconnect",
-                        failures
-                    );
+                    curia::warn!("health checks failed; triggering reconnect", {
+                        failures: failures,
+                    });
 
                     // The session handshook and then stopped carrying traffic. On QUIC
                     // that is the signature of a network which inspects or degrades UDP
@@ -175,7 +174,9 @@ impl ConnectionHealthManager {
                     Self::probe_and_reconnect(&server_url, &app_handle, &reconnect_config).await;
                     break;
                 } else if failures > 0 {
-                    log::debug!("Health check timeout, failure count: {}", failures);
+                    curia::debug!("health check timeout", {
+                        failures: failures,
+                    });
                 }
             }
         }
@@ -195,7 +196,9 @@ impl ConnectionHealthManager {
         if let Ok(bytes) = health_packet.to_datagram()
             && let Err(e) = link.send(Bytes::from(bytes))
         {
-            log::warn!("Failed to send health check packet: {}", e);
+            curia::warn!("failed to send a health check packet", {
+                error: e.to_string(),
+            });
         }
     }
 
@@ -215,7 +218,7 @@ impl ConnectionHealthManager {
 
             match Self::probe_server(server_url).await {
                 ProbeResult::Available => {
-                    log::info!("Server is back online, triggering refresh...");
+                    curia::info!("server is back online; triggering refresh");
                     let _ = app_handle.emit("trigger_refresh", ());
                     return;
                 }
@@ -224,12 +227,11 @@ impl ConnectionHealthManager {
                     server_version,
                     client_too_old,
                 } => {
-                    log::error!(
-                        "Protocol version mismatch detected: client={}, server={}, client_too_old={}",
-                        client_version,
-                        server_version,
-                        client_too_old
-                    );
+                    curia::error!("protocol version mismatch detected", {
+                        client_version: client_version.clone(),
+                        server_version: server_version.clone(),
+                        client_too_old: client_too_old,
+                    });
                     HealthPublisher::publish(
                         app_handle,
                         ConnectionHealth::VersionMismatch {
@@ -242,7 +244,9 @@ impl ConnectionHealthManager {
                     return;
                 }
                 ProbeResult::Unavailable => {
-                    log::warn!("Server not yet available (attempt {}), waiting...", attempt);
+                    curia::warn!("server not yet available; waiting", {
+                        attempt: attempt,
+                    });
                 }
             }
 
@@ -272,12 +276,11 @@ impl ConnectionHealthManager {
     /// is already authoritative proof the wire formats differ.
     async fn emit_version_mismatch(server_url: &str, app_handle: &tauri::AppHandle) {
         let (server_version, client_too_old) = Self::fetch_server_version(server_url).await;
-        log::warn!(
-            "Protocol mismatch confirmed: client={}, server={}, client_too_old={}",
-            PROTOCOL_VERSION,
-            server_version,
-            client_too_old
-        );
+        curia::warn!("protocol mismatch confirmed", {
+            client_version: PROTOCOL_VERSION,
+            server_version: server_version.clone(),
+            client_too_old: client_too_old,
+        });
         HealthPublisher::publish(
             app_handle,
             ConnectionHealth::VersionMismatch {
@@ -344,7 +347,9 @@ impl ConnectionHealthManager {
         let client = match builder.build() {
             Ok(c) => c,
             Err(e) => {
-                log::warn!("Failed to build HTTP client for probe: {}", e);
+                curia::warn!("failed to build the HTTP client for a probe", {
+                    error: e.to_string(),
+                });
                 return ProbeResult::Unavailable;
             }
         };
@@ -356,11 +361,15 @@ impl ConnectionHealthManager {
         };
 
         let url = format!("{}/api/config", base_url);
-        log::debug!("Probing server at: {}", url);
+        curia::debug!("probing server", {
+            url: url.clone(),
+        });
 
         match client.get(&url).send().await {
             Ok(resp) => {
-                log::debug!("Probe response status: {}", resp.status());
+                curia::debug!("probe response", {
+                    status: resp.status().as_u16(),
+                });
 
                 // This request carried no credentials and went nowhere near the
                 // endpoint's breaker, so reaching the server here is evidence the
@@ -376,7 +385,9 @@ impl ConnectionHealthManager {
                 let body = match resp.text().await {
                     Ok(text) => text,
                     Err(e) => {
-                        log::warn!("Failed to read response body: {}", e);
+                        curia::warn!("failed to read the probe response body", {
+                            error: e.to_string(),
+                        });
                         return ProbeResult::Unavailable;
                     }
                 };
@@ -386,12 +397,11 @@ impl ConnectionHealthManager {
                         let server_version = config.protocol_version.clone();
                         let check = ApiConfigCheckResponse::from_config(config, PROTOCOL_VERSION);
                         if !check.compatible {
-                            log::warn!(
-                                "Protocol version mismatch: client={}, server={}, client_too_old={}",
-                                check.client_version,
-                                server_version,
-                                check.client_too_old,
-                            );
+                            curia::warn!("protocol version mismatch", {
+                                client_version: check.client_version.clone(),
+                                server_version: server_version.clone(),
+                                client_too_old: check.client_too_old,
+                            });
                             return ProbeResult::VersionMismatch {
                                 client_version: check.client_version,
                                 server_version,
@@ -410,8 +420,8 @@ impl ConnectionHealthManager {
 
                         match serde_json::from_str::<LegacyApiConfig>(&body) {
                             Ok(legacy) if legacy.status == "Ok" => {
-                                log::warn!(
-                                    "Server is running outdated version without protocol_version field"
+                                curia::warn!(
+                                    "server is running an outdated version without the protocol_version field"
                                 );
                                 ProbeResult::VersionMismatch {
                                     client_version: PROTOCOL_VERSION.to_string(),
@@ -420,7 +430,7 @@ impl ConnectionHealthManager {
                                 }
                             }
                             _ => {
-                                log::warn!("Failed to parse ApiConfigResponse response");
+                                curia::warn!("failed to parse the ApiConfigResponse");
                                 ProbeResult::Unavailable
                             }
                         }
@@ -428,7 +438,9 @@ impl ConnectionHealthManager {
                 }
             }
             Err(e) => {
-                log::debug!("Probe failed: {}", e);
+                curia::debug!("probe failed", {
+                    error: e.to_string(),
+                });
                 ProbeResult::Unavailable
             }
         }

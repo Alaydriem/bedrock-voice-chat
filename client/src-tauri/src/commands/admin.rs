@@ -5,6 +5,7 @@ use common::response::admin::{AdminActionOutcome, AdminUserRow, PermissionListRe
 use common::response::auth::IntrospectResponse;
 use common::structs::permission::{PermissionEffect, ServerPermissions};
 use tauri::{State, async_runtime::Mutex};
+use tauri_plugin_curia::curia;
 
 use crate::keyring::KeyringService;
 use crate::structs::app_state::AppState;
@@ -185,7 +186,9 @@ pub(crate) async fn api_introspect(
     if let Ok(json) = serde_json::to_string(&permissions) {
         let mut kr = keyring.lock().await;
         if let Err(e) = kr.set_credential(&endpoint, "server_permissions", &json) {
-            log::warn!("api_introspect: failed to cache permissions: {}", e);
+            curia::warn!("api_introspect: failed to cache permissions", {
+                error: e.to_string(),
+            });
         }
     }
 

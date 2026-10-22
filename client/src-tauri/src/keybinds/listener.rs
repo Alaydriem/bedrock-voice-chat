@@ -4,9 +4,9 @@ use crate::audio::AudioDeviceType;
 use common::structs::keybinds::{
     KeybindAction, KeybindConfig, PttEvent, VoiceMode, VoiceModeEvent,
 };
-use log::info;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, async_runtime::Mutex};
+use tauri_plugin_curia::curia;
 
 /// How long the microphone stays open after the hold is released, so key repeat and the
 /// gap between two words do not clip the end of a sentence.
@@ -56,20 +56,19 @@ impl KeybindListener {
         // Only run the transition if the voice mode actually changed
         let mut last = self.last_voice_mode.lock().await;
         if last.as_ref() == Some(&config.voice_mode) {
-            info!(
-                "Voice mode unchanged ({:?}), skipping transition",
-                config.voice_mode
-            );
+            curia::info!("voice mode unchanged, skipping transition", {
+                voice_mode: format!("{:?}", config.voice_mode),
+            });
             return;
         }
         let previous = last.clone();
         *last = Some(config.voice_mode.clone());
         drop(last);
 
-        info!(
-            "Voice mode transition: {:?} -> {:?}",
-            previous, config.voice_mode
-        );
+        curia::info!("voice mode transition", {
+            from: format!("{previous:?}"),
+            to: format!("{:?}", config.voice_mode),
+        });
 
         let actions = self.app_handle.state::<AudioActionsManager>();
         let is_muted = actions.is_muted(AudioDeviceType::InputDevice).await;

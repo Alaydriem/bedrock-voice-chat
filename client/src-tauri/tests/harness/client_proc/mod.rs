@@ -6,8 +6,8 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use bvc_client_lib::testkit::E2eAppData;
-use bvc_client_lib::testkit::PeerStat;
 use bvc_client_lib::testkit::bridge::{Frame, InMsg, OutMsg};
+use bvc_client_lib::testkit::{PeerStat, WireCapture};
 use common::structs::bedrock::AddonMode;
 
 mod shared_state;
@@ -228,6 +228,9 @@ impl ClientProc {
                         Ok(OutMsg::ChannelOpDone { op }) => {
                             reader_state.lock().unwrap().last_channel_op = Some(op);
                         }
+                        Ok(OutMsg::ChannelOpFailed { op, error }) => {
+                            reader_state.lock().unwrap().last_channel_failure = Some((op, error));
+                        }
                         Ok(OutMsg::AudioUploaded {
                             audio_file_id,
                             duration_ms,
@@ -295,6 +298,9 @@ impl ClientProc {
                         }) => {
                             reader_state.lock().unwrap().control_state =
                                 Some((muted, deafened, recording));
+                        }
+                        Ok(OutMsg::WireCapture(capture)) => {
+                            reader_state.lock().unwrap().wire_capture = Some(capture);
                         }
                         Err(_) => break,
                     }
@@ -577,17 +583,105 @@ impl ClientProc {
         }
     }
 
-    /// Send one channel-membership command and block until the bin echoes a
-    /// matching `ChannelOpDone`. The completion latch is cleared first so a
-    /// prior op's ack is never mistaken for this one.
+    /// Create a group, join it, and protect it while alone, through the production group
+    /// service. Returns the server-assigned channel id.
+    pub fn create_protected(&self, timeout: Duration) -> Result<String, String> {
+        self.state.lock().unwrap().channel_id = None;
+        self.send(&InMsg::CreateProtected);
+        self.await_channel_id(timeout)
+    }
+
+    /// Protect a group this client created. `Err` carries the refusal, e.g. `not_alone`.
+    pub fn protect(&self, channel_id: &str, timeout: Duration) -> Result<(), String> {
+        self.channel_op(
+            InMsg::ProtectGroup {
+                channel_id: channel_id.to_string(),
+            },
+            "protect",
+            timeout,
+        )
+    }
+
+    /// Ask to join a protected group. Blocks until the bin has opened the key socket; the
+    /// outcome of admission arrives later as `protected-group:*` UI events.
+    pub fn join_protected(&self, channel_id: &str, timeout: Duration) -> Result<(), String> {
+        self.channel_op(
+            InMsg::JoinProtected {
+                channel_id: channel_id.to_string(),
+            },
+            "join_protected",
+            timeout,
+        )
+    }
+
+    /// A member presses "Check code" on the card for `joiner_socket`.
+    pub fn admission_check(&self, joiner_socket: u64, timeout: Duration) -> Result<(), String> {
+        self.channel_op(
+            InMsg::AdmissionCheck { joiner_socket },
+            "admission_check",
+            timeout,
+        )
+    }
+
+    /// A member presses Admit (`allow`) or Deny on the card showing `check_id`.
+    pub fn admission_decide(
+        &self,
+        joiner_socket: u64,
+        check_id: &str,
+        allow: bool,
+        timeout: Duration,
+    ) -> Result<(), String> {
+        self.channel_op(
+            InMsg::AdmissionDecide {
+                joiner_socket,
+                check_id: check_id.to_string(),
+                allow,
+            },
+            "admission_decide",
+            timeout,
+        )
+    }
+
+    /// The joiner presses "It matches" (`matches`) or "No match".
+    pub fn admission_confirm(
+        &self,
+        check_id: &str,
+        matches: bool,
+        timeout: Duration,
+    ) -> Result<(), String> {
+        self.channel_op(
+            InMsg::AdmissionConfirm {
+                check_id: check_id.to_string(),
+                matches,
+            },
+            "admission_confirm",
+            timeout,
+        )
+    }
+
+    /// Send one command and block until the bin echoes a matching `ChannelOpDone`, or a
+    /// `ChannelOpFailed` whose error becomes the `Err`. Both latches are cleared first so a prior
+    /// op's answer is never mistaken for this one.
     fn channel_op(&self, msg: InMsg, op: &str, timeout: Duration) -> Result<(), String> {
-        self.state.lock().unwrap().last_channel_op = None;
+        {
+            let mut state = self.state.lock().unwrap();
+            state.last_channel_op = None;
+            state.last_channel_failure = None;
+        }
         self.send(&msg);
 
         let deadline = Instant::now() + timeout;
         loop {
-            if self.state.lock().unwrap().last_channel_op.as_deref() == Some(op) {
-                return Ok(());
+            {
+                let state = self.state.lock().unwrap();
+                if state.last_channel_op.as_deref() == Some(op) {
+                    return Ok(());
+                }
+                if let Some((failed, error)) = &state.last_channel_failure
+                    && failed == op
+                {
+                    return Err(error.clone());
+                }
             }
             if Instant::now() >= deadline {
                 return Err(format!(
@@ -636,6 +730,23 @@ impl ClientProc {
     /// arrives (or the 5 s deadline passes). Returns `(frames_sent,
     /// frames_from_quic, frames_into_jitter_buffer)` as recorded by the atomic
     /// counters in the real audio path.
+    /// Everything this client sent the server since the previous call, then starts a fresh record.
+    pub fn wire_capture(&self) -> WireCapture {
+        self.state.lock().unwrap().wire_capture = None;
+        self.send(&InMsg::RequestWireCapture);
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(capture) = self.state.lock().unwrap().wire_capture.take() {
+                return capture;
+            }
+            if Instant::now() >= deadline {
+                panic!("the client never answered RequestWireCapture");
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
     pub fn stats(&self) -> (u64, u64, u64) {
         // Clear any stale snapshot before requesting a fresh one.
         self.state.lock().unwrap().stats = None;

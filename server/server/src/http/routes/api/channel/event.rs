@@ -48,15 +48,24 @@ pub async fn channel_event(
     // ended up bypassing the creator check that `DELETE /<id>` enforces.
     match event.event {
         // Open by design: the channel id is a share code, so being handed one is the whole
-        // mechanism for joining a group.
+        // mechanism for joining a group. A protected group is the exception: it is joined
+        // through `PUT /<id>/protected` by a client that runs admission, and a client that only
+        // knows this route could never decrypt it.
+        Join if channel.is_protected() => {
+            return CustomJsonResponse::custom(Status::Forbidden, Some(false));
+        }
         Join => {
-            ChannelMembershipService::join(
+            // Protected between the check above and now: refused as above.
+            if !ChannelMembershipService::join_open(
                 &channel_collection,
                 webhook_receiver.inner(),
                 &user,
                 id,
             )
-            .await;
+            .await
+            {
+                return CustomJsonResponse::custom(Status::Forbidden, Some(false));
+            }
             metrics.record_channel_join();
         }
         Leave => {

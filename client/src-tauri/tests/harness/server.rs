@@ -570,6 +570,28 @@ impl EmbeddedServer {
         );
     }
 
+    /// Submit a `JoinGroup` over the real HTTP control plane, exactly as a mod does when a
+    /// player taps a group or runs the join command. Returns the HTTP status.
+    pub async fn post_control_join(&self, gamertag: &str, channel: &str) -> u16 {
+        let url = format!("https://127.0.0.1:{}/api/control", self.rocket_port);
+        let body = serde_json::json!({
+            "id": gamertag,
+            "action": { "JoinGroup": { "channel": channel } },
+        });
+        reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .expect("build control client")
+            .post(&url)
+            .header("Authorization", "Bearer test-token")
+            .json(&body)
+            .send()
+            .await
+            .expect("POST /api/control")
+            .status()
+            .as_u16()
+    }
+
     /// Submit a self-action over the real HTTP control plane (`POST /api/control`),
     /// exactly as a mod does — actor attributed by `gamertag`, gated by the MC token.
     /// Drives `SetMuted` so the harness can assert the actor's client applied it.

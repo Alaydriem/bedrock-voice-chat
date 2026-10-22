@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType, StreamConfig};
 use anyhow::anyhow;
-use log::{error, warn};
+use tauri_plugin_curia::curia;
 use rodio::cpal::{
     self, HostId, SupportedStreamConfigRange,
     traits::{DeviceTrait, HostTrait},
@@ -49,7 +49,10 @@ impl AudioDeviceEnumerator {
             match cpal::host_from_id(platform) {
                 Ok(host) => hosts.push(host),
                 Err(e) => {
-                    error!("{}", e.to_string());
+                    curia::error!("could not initialize an audio host", {
+                        device_host: platform.name().to_lowercase(),
+                        error: e.to_string(),
+                    });
                     return Err(anyhow!(
                         "Could not initialize {} Audio Host for this platform.",
                         platform.name()
@@ -111,12 +114,11 @@ impl AudioDeviceEnumerator {
                 }
             }
             Err(e) => {
-                warn!(
-                    "{} devices for [{}] are not available. {}",
-                    type_name,
-                    host.id().name(),
-                    e.to_string()
-                );
+                curia::warn!("audio devices are not available on this host", {
+                    io: type_name.to_lowercase(),
+                    device_host: host.id().name().to_lowercase(),
+                    error: e.to_string(),
+                });
             }
         }
     }
@@ -125,7 +127,9 @@ impl AudioDeviceEnumerator {
         let hosts = match Self::get_cpal_hosts() {
             Ok(hosts) => hosts,
             Err(e) => {
-                error!("{}", e.to_string());
+                curia::error!("could not enumerate audio hosts", {
+                    error: e.to_string(),
+                });
                 return Err(());
             }
         };
@@ -158,12 +162,11 @@ impl AudioDeviceEnumerator {
         let host = match cpal::host_from_id(host_id) {
             Ok(host) => host,
             Err(e) => {
-                warn!(
-                    "Could not initialize {} host to refresh config for {}: {}",
-                    host_id.name(),
-                    device.display_name,
-                    e
-                );
+                curia::warn!("could not initialize the host to refresh a device config", {
+                    device_host: host_id.name().to_lowercase(),
+                    device_name: device.display_name.clone(),
+                    error: e.to_string(),
+                });
                 return None;
             }
         };
@@ -208,7 +211,9 @@ impl AudioDeviceEnumerator {
         let device_description = match device.description() {
             Ok(desc) => desc.name().to_string(),
             Err(e) => {
-                warn!("Could not get device description: {}", e);
+                curia::warn!("could not get a device description", {
+                    error: e.to_string(),
+                });
                 return vec![];
             }
         };
@@ -216,10 +221,10 @@ impl AudioDeviceEnumerator {
         let device_id = match device.id() {
             Ok(id) => id.to_string(),
             Err(e) => {
-                warn!(
-                    "Could not get device ID, falling back to description: {}",
-                    e
-                );
+                curia::warn!("could not get a device ID, falling back to its description", {
+                    device_name: device_description.clone(),
+                    error: e.to_string(),
+                });
                 device_description.clone()
             }
         };

@@ -1,4 +1,4 @@
-use bvc_client_lib::testkit::PeerStat;
+use bvc_client_lib::testkit::{PeerStat, WireCapture};
 
 /// Shared state the stdout-reader thread writes and the orchestrator reads.
 /// `ready`/`connected` latch on first sight of the matching `OutMsg`; `captured`
@@ -26,6 +26,8 @@ pub(super) struct SharedState {
     // Name of the most recently completed channel op (OutMsg::ChannelOpDone),
     // cleared before each op so the orchestrator can await a fresh completion.
     pub(super) last_channel_op: Option<String>,
+    // (op, error) from the most recent OutMsg::ChannelOpFailed, cleared with `last_channel_op`.
+    pub(super) last_channel_failure: Option<(String, String)>,
     // Server-assigned (audio_file_id, duration_ms) from the last UploadAudio.
     pub(super) last_upload: Option<(String, u32)>,
     // Local listen port reported by OutMsg::ProxyStarted after a StartProxy command.
@@ -44,4 +46,6 @@ pub(super) struct SharedState {
     // Every frontend-facing Tauri event the bin observed, in arrival order,
     // as (event name, raw JSON payload).
     pub(super) ui_events: Vec<(String, String)>,
+    // The reply to the most recent `InMsg::RequestWireCapture`, cleared before each request.
+    pub(super) wire_capture: Option<WireCapture>,
 }

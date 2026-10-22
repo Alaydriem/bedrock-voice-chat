@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use common::bedrock_protocol::ProtocolVersion;
 use common::structs::{AnalyticsEvent, AnalyticsEventData};
+use tauri_plugin_curia::curia;
 
 use crate::analytics::{AnalyticsLevel, AnalyticsService};
 use crate::feature_flags::FeatureFlagService;
@@ -71,23 +72,27 @@ impl ProtocolGatingService {
             })
             .await
         {
-            log::info!("Minecraft protocol {raw} permitted via per-version flag");
+            curia::info!("Minecraft protocol permitted via per-version flag", {
+                protocol: raw,
+            });
             self.record_allowed(raw, "per_version_flag");
             return true;
         }
 
         if let Some(max) = self.flag_service.get(MaxTrustedMinecraftProtocol).await {
             if (raw as i64) <= max {
-                log::info!("Minecraft protocol {raw} permitted via max_trusted_protocol={max}");
+                curia::info!("Minecraft protocol permitted via max_trusted_protocol", {
+                    protocol: raw,
+                    max_trusted_protocol: max,
+                });
                 self.record_allowed(raw, "max_trusted_dial");
                 return true;
             }
         }
 
-        log::warn!(
-            "Minecraft protocol {raw} rejected (not in SUPPORTED_PROTOCOLS, \
-             not flag-overridden)"
-        );
+        curia::warn!("Minecraft protocol rejected (not in SUPPORTED_PROTOCOLS, not flag-overridden)", {
+            protocol: raw,
+        });
         self.record_rejected(raw);
         false
     }

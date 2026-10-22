@@ -18,6 +18,7 @@ mod link_stall;
 mod path_exhaustion;
 mod peer_diagnostics;
 mod position_feed;
+mod protected_group;
 mod provision;
 mod proximity_movement;
 mod proxy_audio;

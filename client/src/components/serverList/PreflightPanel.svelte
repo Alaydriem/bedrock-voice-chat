@@ -3,6 +3,7 @@
     import Icon from "$radial/components/Icon.svelte";
     import Verdict from "$radial/components/Verdict.svelte";
     import { PlateView } from "../../js/app/serverList/PlateView";
+    import { PreflightStepLabel } from "../../js/app/serverList/preflight/PreflightStepLabel";
     import { PREFLIGHT_STEPS } from "../../js/app/serverList/preflight/PreflightStepName";
     import { PreflightVerdict } from "../../js/app/serverList/preflight/PreflightVerdict";
     import type { PreflightStepState } from "../../js/app/serverList/preflight/PreflightStepState";
@@ -89,7 +90,7 @@
                     <div class="rad-preflight-step {ROW[step.state] ?? ''}">
                         <span class="rad-preflight-step__dot"></span>
                         <span>
-                            <span class="rad-preflight-step__name">{step.name}</span>
+                            <span class="rad-preflight-step__name">{PreflightStepLabel.of(step.name)}</span>
                             <span class="rad-preflight-step__note">{step.note || "…"}</span>
                         </span>
                         <span class="rad-preflight-step__ms">

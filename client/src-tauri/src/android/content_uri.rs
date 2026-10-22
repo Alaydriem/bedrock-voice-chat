@@ -22,7 +22,10 @@ impl ContentUriName {
         match Self::query(uri) {
             Ok(name) => name,
             Err(e) => {
-                log::warn!("could not read the display name for {uri}: {e}");
+                tauri_plugin_curia::curia::warn!("could not read the display name for a content URI", {
+                    uri: uri,
+                    error: e.to_string(),
+                });
                 None
             }
         }

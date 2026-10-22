@@ -4,6 +4,7 @@ pub mod capacity;
 pub mod chat;
 mod check;
 mod compatibility;
+pub mod protected_groups;
 pub mod radar;
 pub mod recording;
 
@@ -13,6 +14,7 @@ pub use capacity::ApiConfigCapacity;
 pub use chat::ApiConfigChat;
 pub use check::ApiConfigCheckResponse;
 pub use compatibility::ProtocolCompatibility;
+pub use protected_groups::ApiConfigProtectedGroups;
 pub use radar::ApiConfigRadar;
 pub use recording::ApiConfigRecording;
 
@@ -55,6 +57,8 @@ pub struct ApiConfigResponse {
     pub capacity: ApiConfigCapacity,
     #[serde(default)]
     pub radar: ApiConfigRadar,
+    #[serde(default)]
+    pub protected_groups: ApiConfigProtectedGroups,
 
     // The peer endpoint a Simple Voice Chat bridge dials, or `None` on a server with
     // peering turned off.

@@ -1,10 +1,10 @@
 use common::structs::app::AppInfo;
-use log::{info, warn};
 use std::env;
 use std::fs;
 use std::sync::Arc;
 use tauri::async_runtime::Mutex;
 use tauri::{Manager, State};
+use tauri_plugin_curia::curia;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::analytics::{AnalyticsService, PlatformId};
@@ -81,16 +81,17 @@ pub(crate) async fn refresh_platform_id(
 
     platform_id.set(next.clone());
     analytics.set_user(&next);
-    info!("Platform ID replaced: {}", next);
+    curia::info!("platform ID replaced", {
+        platform_id: next.clone(),
+    });
 
     // Registers the new identity with Flagsmith and re-evaluates every flag under it.
     // Without this the session keeps the segments the retired id was in until the
     // hourly poll, which is what a failure here falls back to.
     if let Err(e) = feature_flags.refresh().await {
-        warn!(
-            "Feature flags did not re-evaluate under the new platform ID: {}",
-            e
-        );
+        curia::warn!("feature flags did not re-evaluate under the new platform ID", {
+            error: e.to_string(),
+        });
     }
 
     Ok(next)
@@ -134,7 +135,9 @@ pub(crate) async fn export_logs(app_handle: tauri::AppHandle) -> Result<bool, St
     fs::write(&export_path, &compressed)
         .map_err(|e| format!("Failed to write log archive: {}", e))?;
 
-    info!("Exported logs to {:?}", export_path);
+    curia::info!("exported logs", {
+        path: export_path.display().to_string(),
+    });
 
     let _ = app_handle
         .opener()

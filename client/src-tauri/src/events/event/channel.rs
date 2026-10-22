@@ -1,6 +1,6 @@
-use log::info;
 use serde::{Deserialize, Serialize};
 use tauri::Listener;
+use tauri_plugin_curia::curia;
 
 pub(crate) const CHANNEL_EVENT: &str = "channel_event";
 
@@ -38,10 +38,11 @@ impl ChannelEventPayload {
     pub fn register(app: &tauri::App) {
         app.listen(CHANNEL_EVENT, |event| {
             if let Ok(payload) = serde_json::from_str::<ChannelEventPayload>(&event.payload()) {
-                info!(
-                    "Channel event: {} {} in channel {}",
-                    payload.player_name, payload.event_type, payload.channel_id
-                );
+                curia::info!("channel event", {
+                    player: payload.player_name,
+                    event_type: payload.event_type,
+                    channel_id: payload.channel_id,
+                });
             }
         });
     }

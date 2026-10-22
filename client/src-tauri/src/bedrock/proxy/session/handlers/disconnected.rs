@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use common::bedrock_protocol::DisconnectReason;
-use log::info;
+use tauri_plugin_curia::curia;
 
 use crate::bedrock::BedrockEventEmitter;
 use crate::bedrock::proxy::session::BedrockSessionState;
@@ -20,10 +20,10 @@ impl<'a> BedrockPacketHandler for DisconnectedHandler<'a> {
         state: &mut BedrockSessionState,
         emitter: Option<&Arc<BedrockEventEmitter>>,
     ) {
-        info!(
-            "Bedrock session disconnected for {}: {:?}",
-            self.player_name, reason
-        );
+        curia::info!("Bedrock session disconnected", {
+            player: self.player_name,
+            reason: format!("{reason:?}"),
+        });
         PlayerLeaveHandler.handle(&(), state, emitter);
     }
 }

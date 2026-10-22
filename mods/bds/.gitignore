@@ -4,3 +4,4 @@ node_modules/
 *.zip
 bp/scripts/
 tools
+.test-out/

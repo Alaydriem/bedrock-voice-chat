@@ -11,7 +11,8 @@ pub mod websocket;
 
 pub use api::config::{
     ApiConfigAge, ApiConfigBedrock, ApiConfigBedrockServer, ApiConfigCapacity, ApiConfigChat,
-    ApiConfigCheckResponse, ApiConfigRadar, ApiConfigRecording, ApiConfigResponse,
+    ApiConfigCheckResponse, ApiConfigProtectedGroups, ApiConfigRadar, ApiConfigRecording,
+    ApiConfigResponse,
 };
 pub use audio::{ApiError, AudioEventResponse, AudioFileResponse, AudioStreamTokenResponse};
 pub use gamerpic_response::GamerpicResponse;

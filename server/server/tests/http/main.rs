@@ -10,3 +10,4 @@ mod control;
 mod guards;
 mod health;
 mod metrics;
+mod websocket;

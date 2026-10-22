@@ -25,11 +25,30 @@ pub struct Channel {
     pub players: Vec<crate::PlayerIdentity>,
     #[ts(as = "String")]
     pub creator: crate::PlayerIdentity,
+    /// End-to-end encrypted. The server only routes and lists it; it never holds the password.
+    /// A server that predates this field sends nothing, which reads as unprotected.
+    #[serde(default)]
+    pub protected: bool,
 }
 
 impl Channel {
     pub fn new(name: String, creator: crate::PlayerIdentity) -> Self {
         Self::with_id(GroupCode::generate(), name, creator)
+    }
+
+    pub fn new_protected(name: String, creator: crate::PlayerIdentity) -> Self {
+        Self::new(name, creator).into_protected()
+    }
+
+    pub fn into_protected(self) -> Self {
+        Self {
+            protected: true,
+            ..self
+        }
+    }
+
+    pub fn is_protected(&self) -> bool {
+        self.protected
     }
 
     /// A channel carrying a caller-supplied code, for the create path that has to
@@ -40,6 +59,7 @@ impl Channel {
             name,
             players: Vec::new(),
             creator,
+            protected: false,
         }
     }
 

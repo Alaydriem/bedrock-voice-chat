@@ -1,4 +1,5 @@
 use bvc_server_lib::services::ClientActionService;
+use bvc_server_lib::services::client_action_service::GroupOutcome;
 use bvc_server_lib::stream::quic::WebhookReceiver;
 use bvc_server_lib::stream::quic::connection::{ConnectionRegistry, RoutedPacket};
 use bvc_server_lib::stream::quic::{CacheTrait, PlayerPreferenceCache, PlayerStateCache};
@@ -321,6 +322,39 @@ async fn join_group_adds_actor_and_fans_event() {
     assert!(ch.players.contains(&identity("minecraft:Alice")));
     let (pkt, _origin) = rx.try_recv().expect("a ChannelEvent must be fanned");
     assert_eq!(pkt.packet_type, PacketType::ChannelEvent);
+}
+
+// The control plane serves `/bvc:panel` and the FFI the SVC bridge uses. Neither can run the
+// admission protocol, so a protected group must be refused here, and the actor's current
+// group must survive the refusal.
+#[tokio::test]
+async fn route_group_join_refuses_a_protected_channel() {
+    let channels = ChannelCollection::new(64);
+    let current = Channel::new("current".into(), identity("minecraft:Owner"));
+    let current_id = current.id();
+    channels.insert(current).await;
+    channels
+        .add_player_to_channel(&identity("minecraft:Alice"), &current_id)
+        .await;
+    let protected = Channel::new_protected("vault".into(), identity("minecraft:Owner"));
+    let protected_id = protected.id();
+    channels.insert(protected).await;
+    let (webhook, mut _rx) = test_webhook();
+
+    let res = ClientActionService::route_group(
+        &ClientActionType::JoinGroup {
+            channel: protected_id.clone(),
+        },
+        &identity("minecraft:Alice"),
+        &channels,
+        &webhook,
+    )
+    .await;
+
+    let err = res.expect_err("a protected group must be refused");
+    assert!(err.to_string().contains("only be joined from the BVC app"));
+    assert!(!channels.get(&protected_id).await.unwrap().contains(&identity("minecraft:Alice")));
+    assert!(channels.get(&current_id).await.unwrap().contains(&identity("minecraft:Alice")));
 }
 
 #[tokio::test]
@@ -743,4 +777,108 @@ async fn a_join_with_a_code_of_the_wrong_shape_errors_without_disturbing_members
         channels.get(&id).await.unwrap().players.contains(&alice),
         "a malformed code must not move the actor out of their group"
     );
+}
+
+async fn protected_channel_with_alice_elsewhere(channels: &ChannelCollection) -> (String, String) {
+    let current = Channel::new("current".into(), identity("minecraft:Owner"));
+    let current_id = current.id();
+    channels.insert(current).await;
+    channels
+        .add_player_to_channel(&identity("minecraft:Alice"), &current_id)
+        .await;
+    let protected = Channel::new_protected("vault".into(), identity("minecraft:Owner"));
+    let protected_id = protected.id();
+    channels.insert(protected).await;
+    (current_id, protected_id)
+}
+
+// The game cannot run admission, so a protected join from the game is handed to the player's
+// own app, which runs it. The server moves nobody.
+#[tokio::test]
+async fn protected_join_forwards_to_a_live_client() {
+    let channels = ChannelCollection::new(64);
+    let (current_id, protected_id) = protected_channel_with_alice_elsewhere(&channels).await;
+    let (webhook, mut fanned) = test_webhook();
+    let registry = ConnectionRegistry::new();
+    let (tx, mut rx) = mpsc::channel(4);
+    registry
+        .try_register(1, "minecraft:Alice".into(), "fp-1".to_string(), tx)
+        .expect("admitted");
+    let action = ClientAction {
+        id: "Alice".to_string(),
+        game: None,
+        action: ClientActionType::JoinGroup {
+            channel: protected_id.clone(),
+        },
+    };
+
+    let outcome = ClientActionService::route_group_forwarding(
+        &action,
+        &channels,
+        &webhook,
+        Some(&registry),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(outcome, GroupOutcome::Forwarded);
+    let pkt = decode(rx.try_recv().expect("Alice's app receives the join"));
+    match pkt.data {
+        QuicNetworkPacketData::ClientAction(p) => {
+            assert_eq!(p.action.action, action.action);
+            assert_eq!(p.action.id, "minecraft:Alice");
+        }
+        other => panic!("expected ClientAction, got {other:?}"),
+    }
+    assert!(fanned.try_recv().is_err(), "no membership change is fanned");
+    assert!(channels.get(&current_id).await.unwrap().contains(&identity("minecraft:Alice")));
+    assert!(!channels.get(&protected_id).await.unwrap().contains(&identity("minecraft:Alice")));
+}
+
+#[tokio::test]
+async fn protected_join_without_a_session_reports_no_session() {
+    let channels = ChannelCollection::new(64);
+    let (current_id, protected_id) = protected_channel_with_alice_elsewhere(&channels).await;
+    let (webhook, _fanned) = test_webhook();
+    let registry = ConnectionRegistry::new();
+    let action = ClientAction {
+        id: "Alice".to_string(),
+        game: None,
+        action: ClientActionType::JoinGroup {
+            channel: protected_id,
+        },
+    };
+
+    let outcome = ClientActionService::route_group_forwarding(
+        &action,
+        &channels,
+        &webhook,
+        Some(&registry),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(outcome, GroupOutcome::NoSession);
+    assert!(channels.get(&current_id).await.unwrap().contains(&identity("minecraft:Alice")));
+}
+
+#[tokio::test]
+async fn an_open_join_through_forwarding_is_done() {
+    let channels = ChannelCollection::new(64);
+    let ch = Channel::new("squad".into(), identity("minecraft:Owner"));
+    let id = ch.id();
+    channels.insert(ch).await;
+    let (webhook, _fanned) = test_webhook();
+    let action = ClientAction {
+        id: "Alice".to_string(),
+        game: None,
+        action: ClientActionType::JoinGroup { channel: id.clone() },
+    };
+
+    let outcome = ClientActionService::route_group_forwarding(&action, &channels, &webhook, None)
+        .await
+        .unwrap();
+
+    assert_eq!(outcome, GroupOutcome::Done(None));
+    assert!(channels.get(&id).await.unwrap().contains(&identity("minecraft:Alice")));
 }

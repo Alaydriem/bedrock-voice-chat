@@ -62,6 +62,19 @@ impl RoutingFixture {
         }
     }
 
+    // What a protected group's member sends: an SFrame ciphertext with no speaker or spatial
+    // field for the server to route on.
+    pub fn sealed_audio_packet(sender_identity: &str) -> QuicNetworkPacket {
+        QuicNetworkPacket {
+            packet_type: PacketType::AudioFrame,
+            sender: Some(Self::sender_for(sender_identity)),
+            data: QuicNetworkPacketData::AudioFrame(
+                AudioFramePacket::new(vec![0u8; 160], None, None).into_sealed(vec![7u8; 180]),
+            ),
+            ..Default::default()
+        }
+    }
+
     pub fn audio_packet(sender: PlayerEnum, sender_identity: &str) -> QuicNetworkPacket {
         QuicNetworkPacket {
             packet_type: PacketType::AudioFrame,

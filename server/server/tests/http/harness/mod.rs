@@ -12,6 +12,7 @@ pub mod ca;
 pub mod fixtures;
 pub mod http_assert;
 pub mod http_client;
+pub mod mtls_websocket;
 pub mod ncryptf_login;
 pub mod rocket_harness;
 pub mod server;

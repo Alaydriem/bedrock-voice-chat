@@ -1,6 +1,7 @@
 pub mod create;
 pub mod delete;
 pub mod event;
+pub mod protected;
 pub mod rename;
 
 use crate::http::openapi::{RouteSpec, TagDefinition};
@@ -25,6 +26,9 @@ inventory::submit! {
                 delete::channel_delete,
                 event::channel_event,
                 channel_list,
+                protected::channel_create_protected,
+                protected::channel_join_protected,
+                protected::channel_protect,
                 rename::channel_rename
             ]
         },

@@ -1,10 +1,10 @@
-use log::error;
 use reqwest::{
     Method, StatusCode,
     header::{HeaderMap, HeaderValue},
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use tauri_plugin_curia::curia;
 
 use common::Game;
 use common::request::admin::{
@@ -174,7 +174,9 @@ impl Api {
             Ok(response) => Err(format!("Server returned status: {}", response.status())),
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Admin request failed: {}", e);
+                curia::error!("admin request failed", {
+                    error: e.to_string(),
+                });
                 Err(format!("Connection failed: {}", e))
             }
         }
@@ -201,7 +203,9 @@ impl Api {
             Ok(response) => Ok(Self::outcome_for(response.status())),
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Admin request failed: {}", e);
+                curia::error!("admin request failed", {
+                    error: e.to_string(),
+                });
                 Err(format!("Connection failed: {}", e))
             }
         }

@@ -1,6 +1,6 @@
-use log::info;
 use serde::{Deserialize, Serialize};
 use tauri::Listener;
+use tauri_plugin_curia::curia;
 
 pub(crate) const PLAYER_PRESENCE: &str = "player_presence";
 
@@ -24,7 +24,10 @@ impl Presence {
     pub fn register(app: &tauri::App) {
         app.listen(PLAYER_PRESENCE, |event| {
             if let Ok(payload) = serde_json::from_str::<Presence>(&event.payload()) {
-                info!("Player {} is now {}", payload.player, payload.status);
+                curia::info!("player presence changed", {
+                    player: payload.player,
+                    status: payload.status,
+                });
             }
         });
     }

@@ -5,11 +5,11 @@ use common::net::{CandidatePlan, NetTimeouts, ReachabilityPlanner};
 use common::response::LoginResponse;
 use common::response::api::config::ProtocolCompatibility;
 use common::structs::reachability::ServerReachability;
-use log::{error, info, warn};
 use std::sync::Arc;
 use tauri::Manager;
 use tauri::State;
 use tauri::async_runtime::Mutex;
+use tauri_plugin_curia::curia;
 
 #[tauri::command]
 pub(crate) async fn stop_network_stream(
@@ -83,15 +83,18 @@ pub(crate) async fn change_network_stream(
                 config.chat.enabled,
             )),
             Err(e) => {
-                warn!(
-                    "Config fetch failed for {}; using stored port: {}",
-                    server, e
-                );
+                curia::warn!("config fetch failed; using the stored port", {
+                    connected_server: server.clone(),
+                    error: e.to_string(),
+                });
                 None
             }
         },
         Err(e) => {
-            warn!("No API client for {}; using stored port: {}", server, e);
+            curia::warn!("no API client; using the stored port", {
+                connected_server: server.clone(),
+                error: e.to_string(),
+            });
             None
         }
     };
@@ -107,13 +110,17 @@ pub(crate) async fn change_network_stream(
         .set_recording_allowed(recording_enabled)
         .await;
     if !recording_enabled {
-        info!("{} does not permit recording", server);
+        curia::info!("server does not permit recording", {
+            connected_server: server.clone(),
+        });
     }
 
     app.state::<std::sync::Arc<crate::chat::ChatPolicy>>()
         .set_enabled(chat_enabled);
     if !chat_enabled {
-        info!("{} has chat sync disabled", server);
+        curia::info!("server has chat sync disabled", {
+            connected_server: server.clone(),
+        });
     }
 
     let request = match ReachabilityPlanner::plan(
@@ -127,7 +134,10 @@ pub(crate) async fn change_network_stream(
     {
         Ok(request) => request,
         Err(e) => {
-            error!("Reachability planning failed for {}: {}", server, e);
+            curia::error!("reachability planning failed", {
+                connected_server: server.clone(),
+                error: e.to_string(),
+            });
             return Err(format!("{}", e));
         }
     };
@@ -136,7 +146,11 @@ pub(crate) async fn change_network_stream(
     let resolved = request.addrs.clone();
     let ports = request.quic_ports.clone();
 
-    info!("QUIC candidate ports for {}: {:?}", server_fqdn, ports);
+    curia::info!("QUIC candidate ports", {
+        transport: "quic",
+        connected_server: server_fqdn.clone(),
+        ports: format!("{ports:?}"),
+    });
 
     let (reachability, family_preference) = {
         let state = state.lock().await;
@@ -149,26 +163,26 @@ pub(crate) async fn change_network_stream(
     let plan = CandidatePlan::build(&resolved, &ports, &report);
     let choice = report.voice_choice(NetTimeouts::WEBSOCKET_PREFERENCE_MARGIN);
 
-    info!(
-        "QUIC candidates for {} ({:?}): {:?}",
-        server_fqdn,
-        report.preference(),
-        plan.candidates()
+    curia::info!("QUIC candidates", {
+        transport: "quic",
+        connected_server: server_fqdn.clone(),
+        preference: format!("{:?}", report.preference()),
+        candidates: plan
+            .candidates()
             .iter()
-            .map(|c| c.dial())
-            .collect::<Vec<_>>()
-    );
+            .map(|c| c.dial().to_string())
+            .collect::<Vec<_>>(),
+    });
 
     // Both measurements, beside the choice they produced. A transport picked against
     // expectation is answerable from one line rather than from the timing of the lines
     // after it.
-    info!(
-        "Voice transport for {}: {:?} (QUIC {:?} us, fallback {:?} us)",
-        server_fqdn,
-        choice,
-        report.best_rtt_micros(),
-        report.fallback_rtt_micros()
-    );
+    curia::info!("voice transport chosen", {
+        connected_server: server_fqdn.clone(),
+        choice: format!("{choice:?}"),
+        quic_rtt_us: report.best_rtt_micros(),
+        fallback_rtt_us: report.fallback_rtt_micros(),
+    });
 
     let mut network_stream = network_stream.lock().await;
     _ = network_stream.stop().await;
@@ -213,7 +227,9 @@ pub(crate) async fn change_network_stream(
 
     match outcome {
         Ok(()) => {
-            info!("Now streaming {}", server);
+            curia::info!("now streaming", {
+                connected_server: server.clone(),
+            });
             analytics.set_connected_server(Some(server.clone()));
             analytics.set_player(&gamertag);
 
@@ -229,7 +245,10 @@ pub(crate) async fn change_network_stream(
             }
         }
         Err((certificate, detail)) => {
-            error!("QUIC connection failed to {}: {}", server, detail);
+            curia::error!("voice connection failed", {
+                connected_server: server.clone(),
+                error: detail.clone(),
+            });
             // A verdict that led nowhere must not persist to its TTL: the next
             // attempt re-probes rather than repeating the same ordering.
             reachability.invalidate(&server_fqdn).await;
@@ -253,10 +272,9 @@ pub(crate) async fn change_network_stream(
 
                 match verdict {
                     crate::api::CredentialVerdict::Rejected => {
-                        error!(
-                            "{} no longer accepts this device's certificate; signing out",
-                            server
-                        );
+                        curia::error!("server no longer accepts this device's certificate; signing out", {
+                            connected_server: server.clone(),
+                        });
 
                         let mut state = state.lock().await;
                         let keyring = app.state::<Mutex<crate::keyring::KeyringService>>();
@@ -265,7 +283,10 @@ pub(crate) async fn change_network_stream(
                             .forget_current_server(&mut state, &mut kr, &analytics)
                             .await
                         {
-                            error!("Could not clear credentials for {}: {}", server, e);
+                            curia::error!("could not clear credentials", {
+                                connected_server: server.clone(),
+                                error: e.to_string(),
+                            });
                         }
 
                         return Err(format!("CERT_INVALID: {}", detail));
@@ -273,18 +294,16 @@ pub(crate) async fn change_network_stream(
                     // The credentials work. The voice listener's certificate is the server
                     // operator's to fix, and taking a working sign-in away would not help.
                     crate::api::CredentialVerdict::Valid => {
-                        error!(
-                            "{} accepts this device's certificate over HTTPS but its voice transport does not",
-                            server
-                        );
+                        curia::error!("server accepts this device's certificate over HTTPS but its voice transport does not", {
+                            connected_server: server.clone(),
+                        });
                         return Err(format!("SERVER_CERT: {}", detail));
                     }
                     // Nothing was established. Credentials are never destroyed on this.
                     crate::api::CredentialVerdict::Inconclusive => {
-                        warn!(
-                            "could not confirm whether {} still accepts this device's certificate; keeping it",
-                            server
-                        );
+                        curia::warn!("could not confirm whether the server still accepts this device's certificate; keeping it", {
+                            connected_server: server.clone(),
+                        });
                     }
                 }
             }

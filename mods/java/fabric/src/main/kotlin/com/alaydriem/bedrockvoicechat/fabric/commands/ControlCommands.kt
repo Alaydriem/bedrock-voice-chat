@@ -2,6 +2,7 @@ package com.alaydriem.bedrockvoicechat.fabric.commands
 
 import com.alaydriem.bedrockvoicechat.control.ControlAction
 import com.alaydriem.bedrockvoicechat.control.ControlSender
+import com.alaydriem.bedrockvoicechat.control.JoinReply
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.BoolArgumentType
 import com.mojang.brigadier.arguments.IntegerArgumentType
@@ -169,7 +170,11 @@ object ControlCommands {
         // the server thread before touching the player.
         val server = ctx.source.server
         sender.send(action, canonicalName(player)) { result ->
-            if (!result.ok) {
+            // A protected group continues in the player's BVC app; say where.
+            val reply = (action as? ControlAction.JoinGroup)?.let { JoinReply.forResult(result, it.channel) }
+            if (reply != null) {
+                server.execute { player.sendSystemMessage(Component.literal(reply)) }
+            } else if (!result.ok) {
                 server.execute {
                     player.sendSystemMessage(Component.literal("[BVC] Action failed; try again"))
                 }

@@ -5,7 +5,7 @@
 //   !bvcs:<seq>:q:m=<0|1>;d=<0|1>;r=<0|1>;g=<group|->   self-state snapshot
 //   !bvcs:<seq>:p:t=<target>;v=<percent>;h=<0|1>        one player preference
 //   !bvcs:<seq>:gl:c=<count>                            group-list header
-//   !bvcs:<seq>:g:i=<id>;n=<name>                       one group
+//   !bvcs:<seq>:g:i=<id>;n=<name>[;p=1]                 one group; p=1 when protected
 
 export interface BvcsQueryState {
   kind: 'q';
@@ -31,6 +31,7 @@ export interface BvcsGroup {
   kind: 'g';
   id: string;
   name: string;
+  protected: boolean;
 }
 
 export type BvcsMessage =
@@ -125,7 +126,9 @@ export class BvcsCodec {
       const name = BvcsCodec.unescape(encoded);
       // A name that cannot be decoded means a corrupt ride; a row with a mangled
       // name is worse than no row.
-      return name === null ? null : { kind: 'g', id, name };
+      return name === null
+        ? null
+        : { kind: 'g', id, name, protected: fields.get('p') === '1' };
     }
 
     return null;

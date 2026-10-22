@@ -26,6 +26,8 @@ pub enum Cue {
     Undeafen,
     GroupJoin,
     GroupLeave,
+    /// Someone asks to join this member's protected group.
+    JoinRequest,
 }
 
 impl Cue {
@@ -90,6 +92,17 @@ impl Cue {
         duration_seconds: 0.20,
     };
 
+    /// Up a minor third and back, with longer gaps than the others: asking for attention, not
+    /// reporting a state. It ends where it starts, so it is heard as neither a rise nor a fall.
+    const JOIN_REQUEST: ToneSpec = ToneSpec {
+        notes: &[(880.0, 0.0), (1046.5, 0.12), (880.0, 0.24)],
+        partials: &Cue::PARTIALS,
+        decay_seconds: Cue::DECAY_SECONDS,
+        attack_seconds: Cue::ATTACK_SECONDS,
+        peak: Cue::PEAK,
+        duration_seconds: 0.45,
+    };
+
     fn spec(&self) -> ToneSpec {
         match self {
             Cue::Mute => Cue::MUTE,
@@ -98,6 +111,7 @@ impl Cue {
             Cue::Undeafen => Cue::UNDEAFEN,
             Cue::GroupJoin => Cue::GROUP_JOIN,
             Cue::GroupLeave => Cue::GROUP_LEAVE,
+            Cue::JoinRequest => Cue::JOIN_REQUEST,
         }
     }
 

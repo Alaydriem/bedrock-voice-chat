@@ -34,6 +34,16 @@ export class NetControlSender implements ControlSender {
       );
 
       const ok = !!response && response.status >= 200 && response.status < 300;
+      // 202: a protected join went to the player's BVC app. 409: the player has no app
+      // session to take it.
+      if (response && response.status === 202) {
+        this.markReachable();
+        return { ok: true, outcome: 'forwarded' };
+      }
+      if (response && response.status === 409) {
+        this.markReachable();
+        return { ok: false, outcome: 'no_session' };
+      }
       if (ok) {
         this.markReachable();
         // The control route replies with the new group's share code (a JSON

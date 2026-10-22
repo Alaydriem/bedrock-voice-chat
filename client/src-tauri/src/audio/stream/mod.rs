@@ -3,6 +3,7 @@ pub(crate) mod capture_availability;
 pub(crate) mod capture_watchdog;
 pub mod jitter_buffer;
 pub(crate) mod level_bus;
+pub mod protected_frame_filter;
 pub(crate) mod rebuild_breaker;
 pub mod stream_manager;
 
@@ -17,7 +18,6 @@ use crate::bedrock::JukeboxBeaconCache;
 use crate::bedrock::JukeboxEjectInjector;
 use anyhow::Error;
 use common::structs::audio::StreamEvent;
-use log::info;
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
@@ -73,6 +73,9 @@ pub(crate) struct AudioStreamManager {
     // diagnostic reads it, and a stream restart must not swap the instance out from under the
     // reader.
     session_config: Arc<crate::diagnostics::SessionConfig>,
+    // A protected group's gate, shared with every stream this manager builds so a device change
+    // or a restart keeps sealing with the same keys rather than falling back to plaintext.
+    protected_gate: Arc<crate::groups::protected::SealGate>,
     #[cfg(feature = "bedrock-protocol")]
     player_state_cache: Option<Arc<BedrockPlayerStateCache>>,
     #[cfg(feature = "bedrock-protocol")]
@@ -109,6 +112,7 @@ impl AudioStreamManager {
         consumer: Arc<flume::Receiver<AudioPacket>>,
         app_handle: tauri::AppHandle,
         recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
+        protected_gate: Arc<crate::groups::protected::SealGate>,
         #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<
             Arc<BedrockPlayerStateCache>,
         >,
@@ -122,6 +126,7 @@ impl AudioStreamManager {
             recording_manager,
             AudioInputSource::Cpal,
             AudioOutputSink::Rodio,
+            protected_gate,
             #[cfg(feature = "bedrock-protocol")]
             player_state_cache,
             #[cfg(feature = "bedrock-protocol")]
@@ -144,6 +149,7 @@ impl AudioStreamManager {
         recording_manager: Option<Arc<TauriMutex<RecordingManager>>>,
         input_source: AudioInputSource,
         output_sink: AudioOutputSink,
+        protected_gate: Arc<crate::groups::protected::SealGate>,
         #[cfg(feature = "bedrock-protocol")] player_state_cache: Option<
             Arc<BedrockPlayerStateCache>,
         >,
@@ -172,6 +178,7 @@ impl AudioStreamManager {
                 recovery_tx.clone(),
                 input_stats.clone(),
                 levels.clone(),
+                protected_gate.clone(),
                 #[cfg(feature = "bedrock-protocol")]
                 player_state_cache.clone(),
             )),
@@ -186,6 +193,7 @@ impl AudioStreamManager {
                 recovery_tx.clone(),
                 peer_registry.clone(),
                 levels.clone(),
+                protected_gate.clone(),
                 session_config.clone(),
                 #[cfg(feature = "bedrock-protocol")]
                 beacon_cache.clone(),
@@ -204,6 +212,7 @@ impl AudioStreamManager {
             cue_sink,
             peer_registry,
             session_config,
+            protected_gate,
             #[cfg(feature = "bedrock-protocol")]
             player_state_cache,
             #[cfg(feature = "bedrock-protocol")]
@@ -298,14 +307,13 @@ impl AudioStreamManager {
                 }
             };
 
-            log::warn!(
-                "{:?} stream failed ({}); rebuild {} of {} in {:?}",
-                device_type,
-                reason,
-                attempt,
-                RebuildBreaker::MAX_ATTEMPTS,
-                after
-            );
+            curia::warn!("audio stream failed; scheduling a rebuild", {
+                device_type: format!("{device_type:?}"),
+                error: reason.clone(),
+                attempt: attempt,
+                max_attempts: RebuildBreaker::MAX_ATTEMPTS,
+                after_ms: after.as_millis() as u64,
+            });
             tokio::time::sleep(after).await;
 
             // The manager is gone, which means the application is shutting down. Nothing left
@@ -325,7 +333,9 @@ impl AudioStreamManager {
                     if is_input {
                         availability.set(true);
                     }
-                    info!("{:?} stream rebuilt", device_type);
+                    curia::info!("audio stream rebuilt", {
+                        device_type: format!("{device_type:?}"),
+                    });
                     break;
                 }
                 Err(e) => reason = format!("{:?}", e),
@@ -463,7 +473,7 @@ impl AudioStreamManager {
                         broadcaster.broadcast_levels(snapshot);
                         levels.record_emitted();
                     }
-                    None => log::warn!("no push channel to publish audio levels on"),
+                    None => curia::warn!("no push channel to publish audio levels on"),
                 }
             }
         });
@@ -510,6 +520,7 @@ impl AudioStreamManager {
                     self.recovery_tx.clone(),
                     self.input_stats.clone(),
                     self.levels.clone(),
+                    self.protected_gate.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.player_state_cache.clone(),
                 ));
@@ -526,6 +537,7 @@ impl AudioStreamManager {
                     self.recovery_tx.clone(),
                     self.peer_registry.clone(),
                     self.levels.clone(),
+                    self.protected_gate.clone(),
                     self.session_config.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.beacon_cache.clone(),
@@ -569,6 +581,7 @@ impl AudioStreamManager {
                     self.recovery_tx.clone(),
                     self.input_stats.clone(),
                     self.levels.clone(),
+                    self.protected_gate.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.player_state_cache.clone(),
                 ));
@@ -585,6 +598,7 @@ impl AudioStreamManager {
                     self.recovery_tx.clone(),
                     self.peer_registry.clone(),
                     self.levels.clone(),
+                    self.protected_gate.clone(),
                     self.session_config.clone(),
                     #[cfg(feature = "bedrock-protocol")]
                     self.beacon_cache.clone(),
@@ -766,11 +780,10 @@ impl AudioStreamManager {
         self.levels.clear_peers();
 
         if discarded_outbound > 0 || discarded_inbound > 0 {
-            log::info!(
-                "Restart discarded {} outbound and {} inbound queued frames",
-                discarded_outbound,
-                discarded_inbound
-            );
+            curia::info!("restart discarded queued frames", {
+                outbound: discarded_outbound,
+                inbound: discarded_inbound,
+            });
         }
 
         self.rebuild_streams().await
@@ -808,6 +821,7 @@ impl AudioStreamManager {
             self.recovery_tx.clone(),
             self.input_stats.clone(),
             self.levels.clone(),
+            self.protected_gate.clone(),
             #[cfg(feature = "bedrock-protocol")]
             self.player_state_cache.clone(),
         ));
@@ -824,6 +838,7 @@ impl AudioStreamManager {
             self.recovery_tx.clone(),
             self.peer_registry.clone(),
             self.levels.clone(),
+            self.protected_gate.clone(),
             self.session_config.clone(),
             #[cfg(feature = "bedrock-protocol")]
             self.beacon_cache.clone(),

@@ -1,3 +1,5 @@
+mod protected;
+
 use crate::api::Api;
 
 use crate::api::circuit_breaker::SendError;
@@ -5,9 +7,9 @@ use common::reqwest::{
     StatusCode,
     header::{HeaderMap, HeaderValue},
 };
-use log::error;
 use serde_json::json;
 use std::error::Error;
+use tauri_plugin_curia::curia;
 
 impl Api {
     /// Creates a new channel
@@ -29,23 +31,22 @@ impl Api {
                 StatusCode::OK => match response.json::<String>().await {
                     Ok(channel_id) => Ok(channel_id),
                     Err(e) => {
-                        error!("Failed to parse channel creation response: {}", e);
+                        curia::error!("failed to parse the channel creation response", {
+                            error: e.to_string(),
+                        });
                         Err("Failed to parse response".to_string())
                     }
                 },
                 status => {
-                    error!("Channel creation failed with status: {}", status);
+                    curia::error!("channel creation failed", {
+                        status: status.as_u16(),
+                    });
                     Err(format!("Request failed with status: {}", status))
                 }
             },
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Failed to create channel: {}", e);
-                let mut source = e.source();
-                while let Some(cause) = source {
-                    error!("Caused by: {}", cause);
-                    source = cause.source();
-                }
+                Self::channel_transport_failure("failed to create a channel", &e);
                 Err("Network error occurred".to_string())
             }
         }
@@ -64,26 +65,28 @@ impl Api {
             Ok(response) => match response.status() {
                 StatusCode::OK => Ok(true),
                 StatusCode::UNAUTHORIZED => {
-                    error!("Not authorized to delete channel {}", channel_id);
+                    curia::error!("not authorized to delete the channel", {
+                        channel_id: channel_id.clone(),
+                    });
                     Err("You are not authorized to delete this channel".to_string())
                 }
                 StatusCode::NOT_FOUND => {
-                    error!("Channel {} not found", channel_id);
+                    curia::error!("channel not found", {
+                        channel_id: channel_id.clone(),
+                    });
                     Err("Channel not found".to_string())
                 }
                 status => {
-                    error!("Channel deletion failed with status: {}", status);
+                    curia::error!("channel deletion failed", {
+                        channel_id: channel_id.clone(),
+                        status: status.as_u16(),
+                    });
                     Err(format!("Request failed with status: {}", status))
                 }
             },
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Failed to delete channel: {}", e);
-                let mut source = e.source();
-                while let Some(cause) = source {
-                    error!("Caused by: {}", cause);
-                    source = cause.source();
-                }
+                Self::channel_transport_failure("failed to delete a channel", &e);
                 Err("Network error occurred".to_string())
             }
         }
@@ -109,24 +112,23 @@ impl Api {
                     {
                         Ok(channels) => Ok(channels),
                         Err(e) => {
-                            error!("Failed to parse channels list response: {}", e);
+                            curia::error!("failed to parse the channel list response", {
+                                error: e.to_string(),
+                            });
                             Err("Failed to parse response".to_string())
                         }
                     }
                 }
                 status => {
-                    error!("Channel list failed with status: {}", status);
+                    curia::error!("channel list failed", {
+                        status: status.as_u16(),
+                    });
                     Err(format!("Request failed with status: {}", status))
                 }
             },
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Failed to list channels: {}", e);
-                let mut source = e.source();
-                while let Some(cause) = source {
-                    error!("Caused by: {}", cause);
-                    source = cause.source();
-                }
+                Self::channel_transport_failure("failed to list channels", &e);
                 Err("Network error occurred".to_string())
             }
         }
@@ -159,25 +161,26 @@ impl Api {
                             }
                         }
                         Err(e) => {
-                            error!("Failed to parse channel response: {}", e);
+                            curia::error!("failed to parse the channel response", {
+                                channel_id: channel_id,
+                                error: e.to_string(),
+                            });
                             Err("Failed to parse response".to_string())
                         }
                     }
                 }
                 StatusCode::NOT_FOUND => Err("Channel not found".to_string()),
                 status => {
-                    error!("Get channel failed with status: {}", status);
+                    curia::error!("get channel failed", {
+                        channel_id: channel_id,
+                        status: status.as_u16(),
+                    });
                     Err(format!("Request failed with status: {}", status))
                 }
             },
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Failed to get channel: {}", e);
-                let mut source = e.source();
-                while let Some(cause) = source {
-                    error!("Caused by: {}", cause);
-                    source = cause.source();
-                }
+                Self::channel_transport_failure("failed to get a channel", &e);
                 Err("Network error occurred".to_string())
             }
         }
@@ -205,26 +208,28 @@ impl Api {
             Ok(response) => match response.status() {
                 StatusCode::OK => Ok(true),
                 StatusCode::UNAUTHORIZED => {
-                    error!("Not authorized to rename channel {}", channel_id);
+                    curia::error!("not authorized to rename the channel", {
+                        channel_id: channel_id,
+                    });
                     Err("You are not authorized to rename this channel".to_string())
                 }
                 StatusCode::NOT_FOUND => {
-                    error!("Channel {} not found", channel_id);
+                    curia::error!("channel not found", {
+                        channel_id: channel_id,
+                    });
                     Err("Channel not found".to_string())
                 }
                 status => {
-                    error!("Channel rename failed with status: {}", status);
+                    curia::error!("channel rename failed", {
+                        channel_id: channel_id,
+                        status: status.as_u16(),
+                    });
                     Err(format!("Request failed with status: {}", status))
                 }
             },
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Failed to rename channel: {}", e);
-                let mut source = e.source();
-                while let Some(cause) = source {
-                    error!("Caused by: {}", cause);
-                    source = cause.source();
-                }
+                Self::channel_transport_failure("failed to rename a channel", &e);
                 Err("Network error occurred".to_string())
             }
         }
@@ -251,28 +256,45 @@ impl Api {
             Ok(response) => match response.status() {
                 StatusCode::OK => Ok(true),
                 StatusCode::BAD_REQUEST => {
-                    error!("Bad request for channel event on channel {}", channel_id);
+                    curia::error!("bad request for a channel event", {
+                        channel_id: channel_id.clone(),
+                    });
                     Err("Invalid channel or event".to_string())
                 }
                 StatusCode::FORBIDDEN => {
-                    error!("Not authorized for channel event on channel {}", channel_id);
+                    curia::error!("not authorized for a channel event", {
+                        channel_id: channel_id.clone(),
+                    });
                     Err("You are not authorized to perform this action".to_string())
                 }
                 status => {
-                    error!("Channel event failed with status: {}", status);
+                    curia::error!("channel event failed", {
+                        channel_id: channel_id.clone(),
+                        status: status.as_u16(),
+                    });
                     Err(format!("Request failed with status: {}", status))
                 }
             },
             Err(SendError::Open) => Err("Server temporarily unreachable; backing off".to_string()),
             Err(SendError::Transport(e)) => {
-                error!("Failed to send channel event: {}", e);
-                let mut source = e.source();
-                while let Some(cause) = source {
-                    error!("Caused by: {}", cause);
-                    source = cause.source();
-                }
+                Self::channel_transport_failure("failed to send a channel event", &e);
                 Err("Network error occurred".to_string())
             }
         }
+    }
+
+    // One event per failure, with the cause chain as a field, so the causes stay attached to
+    // the failure they explain.
+    fn channel_transport_failure(message: &'static str, error: &common::reqwest::Error) {
+        let mut causes = Vec::new();
+        let mut source = error.source();
+        while let Some(cause) = source {
+            causes.push(cause.to_string());
+            source = cause.source();
+        }
+        curia::error!(message, {
+            error: error.to_string(),
+            causes: causes,
+        });
     }
 }

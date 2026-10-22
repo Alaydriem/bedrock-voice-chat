@@ -11,6 +11,7 @@
     "rebuild": "yarn clean && yarn package",
     "bundle": "node bundle.js",
     "pack": "yarn rebuild && yarn bundle",
+    "test": "node test.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },

@@ -1,4 +1,5 @@
 use common::structs::iap::IapOffer;
+use tauri_plugin_curia::curia;
 
 use crate::iap::provider::{EntitlementProvider, EntitlementProviderType};
 
@@ -19,7 +20,9 @@ impl EntitlementService {
     pub async fn check_and_refresh(&self) -> Result<bool, String> {
         for p in &self.providers {
             if let Err(e) = p.check_and_refresh().await {
-                log::warn!("entitlement refresh failed for a provider: {e}");
+                curia::warn!("entitlement refresh failed for a provider", {
+                    error: e.to_string(),
+                });
             }
         }
         Ok(self.is_entitled())

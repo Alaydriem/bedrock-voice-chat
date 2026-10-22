@@ -7,6 +7,9 @@ import type { ControlAction } from '../action';
 export interface ControlSendResult {
   ok: boolean;
   groupCode?: string;
+  // A protected join: handed to the player's BVC app, or no app session to hand it to.
+  // Net mode only; no-net mode has no reply channel.
+  outcome?: 'forwarded' | 'no_session';
 }
 
 export interface ControlSender {

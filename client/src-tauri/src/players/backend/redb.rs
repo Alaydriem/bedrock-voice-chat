@@ -6,9 +6,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::Context;
 use common::structs::audio::PlayerGainSettings;
 use common::structs::players::{PlayerKey, PlayerSettingsRow};
+use tauri_plugin_curia::curia;
 
 use super::PlayerSettingsBackend;
-use log::{error, warn};
 use redb::{
     Database, DatabaseError, ReadableDatabase, ReadableTable, StorageError, TableDefinition,
 };
@@ -164,11 +164,11 @@ impl RedbBackend {
                 path.display()
             )
         })?;
-        error!(
-            "Player settings at {} could not be read ({why}). The file has been kept at {} and a new one started. Per-player volumes for this device are reset.",
-            path.display(),
-            aside.display()
-        );
+        curia::error!("player settings could not be read; the file was kept aside and a new one started, so per-player volumes for this device are reset", {
+            path: path.display().to_string(),
+            kept_at: aside.display().to_string(),
+            error: why,
+        });
         let db = Database::create(path).with_context(|| {
             format!(
                 "could not create a replacement player settings store at {}",
@@ -219,17 +219,19 @@ impl PlayerSettingsBackend for RedbBackend {
         for entry in table.iter()? {
             let (encoded, value) = entry?;
             let Some(key) = PlayerKey::decode(encoded.value()) else {
-                warn!(
-                    "Skipping a player settings row with an undecodable key: {:?}",
-                    encoded.value()
-                );
+                curia::warn!("skipping a player settings row with an undecodable key", {
+                    key: format!("{:?}", encoded.value()),
+                });
                 self.skipped.store(true, Ordering::Relaxed);
                 continue;
             };
             match serde_json::from_slice::<PlayerGainSettings>(value.value()) {
                 Ok(settings) => rows.push(PlayerSettingsRow::new(key, settings)),
                 Err(cause) => {
-                    warn!("Skipping player settings for {}: {cause}", key.encode());
+                    curia::warn!("skipping undecodable player settings", {
+                        key: key.encode().to_string(),
+                        error: cause.to_string(),
+                    });
                     self.skipped.store(true, Ordering::Relaxed);
                 }
             }

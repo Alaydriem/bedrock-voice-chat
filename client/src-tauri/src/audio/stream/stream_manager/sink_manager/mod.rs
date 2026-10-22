@@ -3,8 +3,8 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
 use flume::Receiver;
-use log::{info, warn};
 use moka::sync::Cache;
+use tauri_plugin_curia::curia;
 use rodio::{Player, mixer::Mixer};
 use tokio::task::JoinHandle;
 
@@ -230,7 +230,9 @@ impl SinkManager {
         }
 
         peer_registry.unregister(sink_key);
-        info!("Retired jukebox sink {}", sink_key);
+        curia::info!("retired jukebox sink", {
+            sink: sink_key.to_string(),
+        });
     }
 
     pub fn update_global_mute(&self, muted: bool) {
@@ -328,11 +330,10 @@ impl SinkManager {
                 });
 
                 if listener_info.is_none() {
-                    log::debug!(
-                        "Listener '{}' not found in player cache (cache size: {})",
-                        current_player_name,
-                        players.entry_count(),
-                    );
+                    curia::debug!("listener not found in the player cache", {
+                        player: current_player_name.to_string(),
+                        cache_size: players.entry_count(),
+                    });
                 }
 
                 let use_spatial =
@@ -430,10 +431,10 @@ impl SinkManager {
                                 bundle.spatial_handle = Some(handle.clone());
                             }
                             Err(e) => {
-                                warn!(
-                                    "Failed to create spatial jitter buffer for {}: {:?}",
-                                    sink_key, e
-                                );
+                                curia::warn!("failed to create a spatial jitter buffer", {
+                                    sink: sink_key.to_string(),
+                                    error: format!("{e:?}"),
+                                });
                                 continue;
                             }
                         }
@@ -480,10 +481,10 @@ impl SinkManager {
                                 bundle.normal_handle = Some(handle.clone());
                             }
                             Err(e) => {
-                                warn!(
-                                    "Failed to create normal jitter buffer for {}: {:?}",
-                                    sink_key, e
-                                );
+                                curia::warn!("failed to create a normal jitter buffer", {
+                                    sink: sink_key.to_string(),
+                                    error: format!("{e:?}"),
+                                });
                                 continue;
                             }
                         }
@@ -529,6 +530,6 @@ impl SinkManager {
             }
         }
 
-        info!("SinkManager has been stopped.");
+        curia::info!("SinkManager has been stopped");
     }
 }

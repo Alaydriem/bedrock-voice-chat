@@ -13,7 +13,6 @@ use common::structs::recording::{
     SessionManifest,
 };
 
-use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
@@ -243,7 +242,10 @@ impl Recorder {
                     _ = tokio::time::sleep(FLUSH_INTERVAL) => {
                         if !batch_buffer.is_empty() {
                             if let Err(e) = Self::flush(&mut wal, &mut batch_buffer).await {
-                                error!("Failed to flush batch during timeout: {:?}", e);
+                                curia::error!("failed to flush the recording batch on the interval", {
+                                    defect: crate::logging::Defect::RecordingWalFailed,
+                                    error: format!("{e:?}"),
+                                });
                                 break;
                             }
                         }
@@ -266,7 +268,10 @@ impl Recorder {
 
                 if batch_buffer.len() >= BATCH_SIZE {
                     if let Err(e) = Self::flush(&mut wal, &mut batch_buffer).await {
-                        error!("Failed to flush batch when full: {:?}", e);
+                        curia::error!("failed to flush a full recording batch", {
+                            defect: crate::logging::Defect::RecordingWalFailed,
+                            error: format!("{e:?}"),
+                        });
                         break;
                     }
                 }
@@ -274,7 +279,10 @@ impl Recorder {
 
             if !batch_buffer.is_empty() {
                 if let Err(e) = Self::flush(&mut wal, &mut batch_buffer).await {
-                    error!("Failed final flush: {:?}", e);
+                    curia::error!("final recording flush failed", {
+                        defect: crate::logging::Defect::RecordingWalFailed,
+                        error: format!("{e:?}"),
+                    });
                 }
             }
 
@@ -304,7 +312,9 @@ impl Recorder {
                 });
             }
 
-            info!("Recording session {} fully finalized", manifest.session_id);
+            curia::info!("recording session fully finalized", {
+                session: manifest.session_id.clone(),
+            });
             let _ = completion_tx.send(());
         });
 
@@ -395,7 +405,9 @@ impl common::traits::StreamTrait for Recorder {
         self.jobs.push(handle);
         self.completion_rx = Some(completion_rx);
 
-        info!("Recording session {} started", self.session_id);
+        curia::info!("recording session started", {
+            session: self.session_id.clone(),
+        });
         Ok(())
     }
 
@@ -406,10 +418,10 @@ impl common::traits::StreamTrait for Recorder {
         // 2. Wait for completion with timeout
         if let Some(rx) = self.completion_rx.take() {
             match tokio::time::timeout(Duration::from_secs(5), rx).await {
-                Ok(Ok(())) => info!("Recording loop completed gracefully"),
-                Ok(Err(_)) => log::warn!("Recording completion channel dropped"),
+                Ok(Ok(())) => curia::info!("recording loop completed gracefully"),
+                Ok(Err(_)) => curia::warn!("recording completion channel dropped"),
                 Err(_) => {
-                    log::warn!("Recording loop did not complete within 5s timeout");
+                    curia::warn!("recording loop did not complete within the 5s timeout");
                     // Force abort as fallback
                     for job in &self.jobs {
                         job.abort();
@@ -418,7 +430,9 @@ impl common::traits::StreamTrait for Recorder {
             }
         }
 
-        info!("Recording session {} stopped", self.session_id);
+        curia::info!("recording session stopped", {
+            session: self.session_id.clone(),
+        });
         self.jobs.clear();
         Ok(())
     }

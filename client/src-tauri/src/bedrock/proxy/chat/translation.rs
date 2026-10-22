@@ -1,4 +1,4 @@
-use log::info;
+use tauri_plugin_curia::curia;
 
 /// Renders Minecraft translation keys into readable English.
 ///
@@ -33,7 +33,9 @@ impl MinecraftTranslation {
             // Named at info because the line the player sees is now a paraphrase. Deaths are
             // infrequent, so this costs nothing and is the only way to learn the exact key
             // worth adding above — the generic text alone gives no clue which one fired.
-            info!("Bedrock chat: death key '{key}' has no template; rendered generically");
+            curia::info!("Bedrock chat: death key has no template; rendered generically", {
+                key: key,
+            });
             return Some(Self::substitute(template, params));
         }
 

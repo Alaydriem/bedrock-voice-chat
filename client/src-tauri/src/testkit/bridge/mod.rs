@@ -5,10 +5,12 @@ use serde::{Deserialize, Serialize};
 mod in_msg;
 mod out_msg;
 mod peer_stat;
+mod wire_capture;
 
 pub use in_msg::InMsg;
 pub use out_msg::OutMsg;
 pub use peer_stat::PeerStat;
+pub use wire_capture::WireCapture;
 
 // Upper bound on a single frame so a corrupt length prefix cannot trigger a
 // multi-gigabyte allocation. PCM chunks are small; 64 MiB is generous.

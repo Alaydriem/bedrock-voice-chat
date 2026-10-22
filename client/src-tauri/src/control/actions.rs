@@ -3,9 +3,9 @@ use std::sync::Arc;
 use common::Game;
 use common::structs::audio::PlayerGainSettings;
 use common::structs::control::{ClientAction, ClientActionType};
-use log::warn;
 use tauri::Manager;
 use tauri::async_runtime::Mutex;
+use tauri_plugin_curia::curia;
 
 use crate::audio::AudioActionsManager;
 use crate::audio::AudioDeviceType;
@@ -52,7 +52,10 @@ impl ControlActionsManager {
             }
             ClientActionType::SetRecording(on) => {
                 if let Err(e) = actions.set_recording(*on).await {
-                    warn!("ControlActionsManager: set_recording({on}) failed: {e}");
+                    curia::warn!("ControlActionsManager: set_recording failed", {
+                        recording: *on,
+                        error: e.to_string(),
+                    });
                 }
                 actions.broadcast_state().await;
             }
@@ -60,7 +63,9 @@ impl ControlActionsManager {
                 // Delivered volumes drive live playback; a non-finite or
                 // out-of-range gain is an ear-safety hazard regardless of source.
                 if !volume.is_finite() {
-                    warn!("ControlActionsManager: ignoring non-finite volume for {target}");
+                    curia::warn!("ControlActionsManager: ignoring a non-finite volume", {
+                        target: target.to_string(),
+                    });
                     return;
                 }
                 self.set_gain(
@@ -76,7 +81,30 @@ impl ControlActionsManager {
             }
             ClientActionType::CreateGroup
             | ClientActionType::JoinGroup { .. }
-            | ClientActionType::LeaveGroup => {}
+            | ClientActionType::LeaveGroup => {
+                let Some(channel) = Self::protected_join_target(&action.action) else {
+                    return;
+                };
+                let service = crate::groups::GroupService::new(self.app_handle.clone());
+                if let Err(e) = service.join_protected_moving(channel.clone()).await {
+                    curia::warn!("ControlActionsManager: a protected join from the game failed", {
+                        channel_id: channel,
+                        error: e.to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    /// The group a delivered group action asks this app to join by approval.
+    ///
+    /// Open-group actions are applied by the server and reach the app as channel events. The
+    /// server delivers a `JoinGroup` to the app only for a protected group, which the game
+    /// cannot join itself: the app asks the group's members and opens the join dialog.
+    pub fn protected_join_target(action: &ClientActionType) -> Option<String> {
+        match action {
+            ClientActionType::JoinGroup { channel } => Some(channel.clone()),
+            _ => None,
         }
     }
 
@@ -157,7 +185,7 @@ impl ControlActionsManager {
             .try_state::<Arc<PlayerSettingsCoordinator>>()
             .map(|state| state.inner().clone())
         else {
-            warn!("ControlActionsManager: player settings unavailable for set_gain");
+            curia::warn!("ControlActionsManager: player settings unavailable for set_gain");
             return;
         };
 
@@ -169,7 +197,7 @@ impl ControlActionsManager {
         // edge would complete a deadlock cycle.
         let tracked: Vec<String> = {
             let Some(asm) = self.app_handle.try_state::<Mutex<AudioStreamManager>>() else {
-                warn!("ControlActionsManager: no audio stream for set_gain");
+                curia::warn!("ControlActionsManager: no audio stream for set_gain");
                 return;
             };
             let asm = asm.lock().await;
@@ -191,20 +219,28 @@ impl ControlActionsManager {
 
         if let Some(v) = volume {
             if let Err(e) = coordinator.set_gain(&self.app_handle, &target, v).await {
-                warn!("ControlActionsManager: set_gain failed for {target}: {e}");
+                curia::warn!("ControlActionsManager: set_gain failed", {
+                    target: target.clone(),
+                    error: e.to_string(),
+                });
                 return;
             }
         }
         if let Some(m) = muted {
             if let Err(e) = coordinator.set_muted(&self.app_handle, &target, m).await {
-                warn!("ControlActionsManager: set_muted failed for {target}: {e}");
+                curia::warn!("ControlActionsManager: set_muted failed", {
+                    target: target.clone(),
+                    error: e.to_string(),
+                });
                 return;
             }
         }
 
-        log::debug!(
-            "ControlActionsManager: gain applied target={target} volume={volume:?} muted={muted:?}"
-        );
+        curia::debug!("ControlActionsManager: gain applied", {
+            target: target,
+            volume: volume,
+            muted: muted,
+        });
     }
 
     /// Applies a jukebox action through the backend's own single write path.
@@ -217,17 +253,24 @@ impl ControlActionsManager {
 
         if let Some(gain) = volume {
             if let Err(e) = actions.set_jukebox_gain(gain).await {
-                warn!("ControlActionsManager: set_jukebox_gain failed: {e}");
+                curia::warn!("ControlActionsManager: set_jukebox_gain failed", {
+                    error: e.to_string(),
+                });
                 return;
             }
         }
         if let Some(m) = muted {
             if let Err(e) = actions.set_jukebox_muted(m).await {
-                warn!("ControlActionsManager: set_jukebox_muted failed: {e}");
+                curia::warn!("ControlActionsManager: set_jukebox_muted failed", {
+                    error: e.to_string(),
+                });
                 return;
             }
         }
 
-        log::debug!("ControlActionsManager: jukebox applied volume={volume:?} muted={muted:?}");
+        curia::debug!("ControlActionsManager: jukebox applied", {
+            volume: volume,
+            muted: muted,
+        });
     }
 }

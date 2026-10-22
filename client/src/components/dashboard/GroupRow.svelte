@@ -1,9 +1,11 @@
 <script lang="ts">
     import { I18n } from "#lib/i18n/index.js";
     import Icon from "$radial/components/Icon.svelte";
+    import Toggle from "$radial/components/Toggle.svelte";
     import { SwipeActions } from "$radial/core/controllers/SwipeActions";
     import { GroupsView } from "../../js/app/dashboard/GroupsView";
     import type { GroupRowView } from "../../js/app/dashboard/GroupRowView";
+    import type { ProtectResult } from "../../js/app/managers/ProtectedGroupManager";
 
     interface Props {
         group: GroupRowView;
@@ -18,6 +20,8 @@
         onleave?: (id: string) => void;
         onclosegroup?: (id: string) => void;
         onrename?: (id: string, name: string) => void;
+        /** Makes this group a Private Group. */
+        onprotect?: (id: string) => Promise<ProtectResult>;
     }
     let {
         group,
@@ -30,6 +34,7 @@
         onleave,
         onclosegroup,
         onrename,
+        onprotect,
     }: Props = $props();
 
     /** Beyond this the cluster is a smear; the count carries the rest. */
@@ -74,6 +79,10 @@
     const editing = $derived(editId === group.id);
     let draft = $state("");
     let copied = $state(false);
+    /** The editor's "Private Group" switch. Applied on Save, not when flipped. */
+    let protectOn = $state(false);
+    let protectNotice = $state<string | null>(null);
+    let saving = $state(false);
 
     /**
      * Seeded on the way into editing only.
@@ -86,6 +95,8 @@
     $effect(() => {
         if (editing && !seeded) {
             draft = group.name;
+            protectOn = false;
+            protectNotice = null;
             seeded = true;
         } else if (!editing) {
             seeded = false;
@@ -162,9 +173,34 @@
         onedit?.(group.id);
     }
 
-    function save(): void {
+    /**
+     * Renames, then protects if the switch is on. A refusal keeps the editor open with the switch
+     * off and the reason, so the owner sees why nothing changed.
+     */
+    async function save(): Promise<void> {
         const name = draft.trim();
         if (name && name !== group.name) onrename?.(group.id, name);
+        // Someone joined while the switch was on: say so rather than close as if protected.
+        if (protectOn && !group.canProtect) {
+            protectOn = false;
+            protectNotice = I18n.t("Someone joined. Turn this on while you are alone.");
+            return;
+        }
+        if (protectOn && group.canProtect && onprotect) {
+            saving = true;
+            const result = await onprotect(group.id);
+            saving = false;
+            if (result === "not_alone") {
+                protectOn = false;
+                protectNotice = I18n.t("Someone joined. Turn this on while you are alone.");
+                return;
+            }
+            if (result === "failed") {
+                protectOn = false;
+                protectNotice = I18n.t("Could not turn this on. The group is closed.");
+                return;
+            }
+        }
         onedit?.(null);
     }
 
@@ -235,7 +271,9 @@
             onlostpointercapture={lost}
         >
             <span class="rad-group-row__text">
-                <span class="rad-group-row__name">{group.name}</span>
+                <span class="rad-group-row__name">
+                    {#if group.locked}<span class="rad-group-row__lock" aria-label={I18n.t("Protected")}><Icon name="lock" /></span>{/if}{group.name}
+                </span>
                 {#if since}
                     <span class="rad-group-row__since">{since}</span>
                 {/if}
@@ -278,7 +316,7 @@
                 <input
                     bind:value={draft}
                     onkeydown={(e) => {
-                        if (e.key === "Enter") save();
+                        if (e.key === "Enter") void save();
                         if (e.key === "Escape") onedit?.(null);
                     }}
                     aria-label={I18n.t("Group name")}
@@ -295,11 +333,21 @@
             </span>
         </button>
 
+        {#if group.canProtect && onprotect}
+            <div class="rad-group-edit__protect">
+                <span class="rad-group-edit__protect-text">{I18n.t("Private Group")}</span>
+                <Toggle bind:checked={protectOn} label={I18n.t("Private Group")} />
+            </div>
+        {/if}
+        {#if protectNotice}
+            <p class="rad-group-edit__notice" role="alert">{protectNotice}</p>
+        {/if}
+
         <div class="rad-group-edit__foot">
             <button class="rad-btn rad-btn--quiet" onclick={() => onedit?.(null)}
                 >{I18n.t("Cancel")}</button
             >
-            <button class="rad-btn" onclick={save} disabled={draft.trim() === ""}
+            <button class="rad-btn" onclick={() => void save()} disabled={draft.trim() === "" || saving}
                 >{I18n.t("Save")}</button
             >
         </div>
