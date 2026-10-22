@@ -10,6 +10,311 @@
     "version": "1.0.0-beta.23"
   },
   "paths": {
+    "/api/channel/": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "List channels on the server.\n\nReadable by a player certificate or a game server access token: the in-game panel's group page is a game server asking on a player's behalf.",
+        "operationId": "channel_list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Channel"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ChannelReader": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Create a channel and return its id.\n\nSurfaced in the client as a group.",
+        "operationId": "create_channel_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/channel/{id}": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Update a channel's membership.",
+        "operationId": "event_channel_event",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelEvent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Delete a channel, removing every member.",
+        "operationId": "delete_channel_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Rename a channel.",
+        "operationId": "rename_channel_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/channel/protected": {
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Create an end-to-end encrypted channel and return its id.\n\nThe creator is not added: the app joins through `PUT /<id>/protected` once it holds the group's keys. The server never receives any of the group's secrets.",
+        "operationId": "protected_channel_create_protected",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProtectedChannelCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/channel/{id}/protected": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Join an end-to-end encrypted channel.\n\nMembership here only makes the server route the group's ciphertext to this client. Being admitted to the group's keys happens between members, over the group key socket.",
+        "operationId": "protected_channel_join_protected",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/channel/{id}/protect": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Turn the caller's open channel into an end-to-end encrypted one.\n\nOnly the creator may, and only while nobody else is in it. The body names the refusal: `not_found` (404), `not_creator` (403), `already_protected` or `not_alone` (409). A creator whose app never opens the group's key socket loses the group after the creator deadline.",
+        "operationId": "protected_channel_protect",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
     "/api/websocket/ticket": {
       "post": {
         "tags": [
@@ -35,41 +340,6 @@
         "security": [
           {
             "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/telemetry/host-capability": {
-      "post": {
-        "tags": [
-          "Telemetry"
-        ],
-        "description": "Report whether this Minecraft host could fetch and write a native library.\n\nAnswers one question: what share of hosts could run the skinny mod jar, which resolves its native library at runtime instead of carrying every platform. Both jars report it, so the two populations are comparable.\n\nThe body carries no hostname, address, path, or player data — only the jar variant, the platform, the mod version and the two outcomes. Anything outside the known vocabulary is refused rather than forwarded, because this arrives from a third-party jar and would otherwise put unbounded strings into the metrics pipeline.",
-        "operationId": "host_capability",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "nullable": true
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "GameAccessToken": []
           }
         ]
       }
@@ -126,50 +396,6 @@
         "security": [
           {
             "GameAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/gamerpic/{game}/{gamertag}": {
-      "get": {
-        "tags": [
-          "Gamerpic"
-        ],
-        "description": "Return a player's gamerpic.",
-        "operationId": "get_gamerpic",
-        "parameters": [
-          {
-            "name": "game",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Game"
-            }
-          },
-          {
-            "name": "gamertag",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GamerpicResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
           }
         ]
       }
@@ -1260,56 +1486,17 @@
         ]
       }
     },
-    "/api/channel/": {
-      "get": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "List channels on the server.\n\nReadable by a player certificate or a game server access token: the in-game panel's group page is a game server asking on a player's behalf.",
-        "operationId": "channel_list",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Channel"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "ChannelReader": []
-          }
-        ]
-      },
+    "/api/telemetry/host-capability": {
       "post": {
         "tags": [
-          "Channels"
+          "Telemetry"
         ],
-        "description": "Create a channel and return its id.\n\nSurfaced in the client as a group.",
-        "operationId": "create_channel_create",
+        "description": "Report whether this Minecraft host could fetch and write a native library.\n\nAnswers one question: what share of hosts could run the skinny mod jar, which resolves its native library at runtime instead of carrying every platform. Both jars report it, so the two populations are comparable.\n\nThe body carries no hostname, address, path, or player data — only the jar variant, the platform, the mod version and the two outcomes. Anything outside the known vocabulary is refused rather than forwarded, because this arrives from a third-party jar and would otherwise put unbounded strings into the metrics pipeline.",
+        "operationId": "host_capability",
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": {
-                "type": "string"
-              }
+              "schema": {}
             }
           },
           "required": true
@@ -1320,7 +1507,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "type": "string",
+                  "nullable": true
                 }
               }
             }
@@ -1328,65 +1516,29 @@
         },
         "security": [
           {
-            "PlayerGuard": []
+            "GameAccessToken": []
           }
         ]
       }
     },
-    "/api/channel/{id}": {
-      "put": {
+    "/api/gamerpic/{game}/{gamertag}": {
+      "get": {
         "tags": [
-          "Channels"
+          "Gamerpic"
         ],
-        "description": "Update a channel's membership.",
-        "operationId": "event_channel_event",
+        "description": "Return a player's gamerpic.",
+        "operationId": "get_gamerpic",
         "parameters": [
           {
-            "name": "id",
+            "name": "game",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChannelEvent"
-              }
+              "$ref": "#/components/schemas/Game"
             }
           },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        },
-        "security": [
           {
-            "PlayerGuard": []
-          }
-        ]
-      },
-      "delete": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Delete a channel, removing every member.",
-        "operationId": "delete_channel_delete",
-        "parameters": [
-          {
-            "name": "id",
+            "name": "gamertag",
             "in": "path",
             "required": true,
             "schema": {
@@ -1400,51 +1552,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      },
-      "patch": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Rename a channel.",
-        "operationId": "rename_channel_rename",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
+                  "$ref": "#/components/schemas/GamerpicResponse"
                 }
               }
             }
@@ -1618,6 +1726,89 @@
   },
   "components": {
     "schemas": {
+      "ChannelEvent": {
+        "type": "object",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ChannelEvents"
+          },
+          "game": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvents": {
+        "type": "string",
+        "enum": [
+          "Join",
+          "Leave",
+          "Create",
+          "Delete",
+          "Rename"
+        ]
+      },
+      "Game": {
+        "type": "string",
+        "enum": [
+          "minecraft"
+        ]
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "creator",
+          "id",
+          "name",
+          "players"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerIdentity"
+            }
+          },
+          "creator": {
+            "$ref": "#/components/schemas/PlayerIdentity"
+          },
+          "protected": {
+            "description": "End-to-end encrypted. The server only routes and lists it; it never holds the password. A server that predates this field sends nothing, which reads as unprotected.",
+            "default": false,
+            "type": "boolean"
+          }
+        }
+      },
+      "PlayerIdentity": {
+        "type": "string"
+      },
+      "ProtectedChannelCreateRequest": {
+        "description": "Body of `POST /api/channel/protected`. Carries no password: the server never receives one.",
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "description": "Empty asks the server to generate a name.",
+            "type": "string"
+          }
+        }
+      },
       "WebsocketTicketResponse": {
         "type": "object",
         "required": [
@@ -1657,12 +1848,6 @@
             }
           }
         }
-      },
-      "Game": {
-        "type": "string",
-        "enum": [
-          "minecraft"
-        ]
       },
       "PlayerEnum": {
         "description": "Type-safe enum for storing heterogeneous player types Dispatches to game-specific implementations\n\nUses externally tagged serialization (works with postcard). For JSON compatibility with legacy clients, use GameDataCollection's custom deserialization which handles the game field at the collection level.",
@@ -1824,25 +2009,6 @@
           },
           "game": {
             "$ref": "#/components/schemas/Game"
-          }
-        }
-      },
-      "GamerpicResponse": {
-        "type": "object",
-        "required": [
-          "game",
-          "gamertag"
-        ],
-        "properties": {
-          "gamertag": {
-            "type": "string"
-          },
-          "game": {
-            "$ref": "#/components/schemas/Game"
-          },
-          "gamerpic": {
-            "type": "string",
-            "nullable": true
           }
         }
       },
@@ -2795,64 +2961,24 @@
           }
         }
       },
-      "ChannelEvent": {
+      "GamerpicResponse": {
         "type": "object",
         "required": [
-          "event"
+          "game",
+          "gamertag"
         ],
         "properties": {
-          "event": {
-            "$ref": "#/components/schemas/ChannelEvents"
+          "gamertag": {
+            "type": "string"
           },
           "game": {
-            "default": null,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Game"
-              }
-            ],
+            "$ref": "#/components/schemas/Game"
+          },
+          "gamerpic": {
+            "type": "string",
             "nullable": true
           }
         }
-      },
-      "ChannelEvents": {
-        "type": "string",
-        "enum": [
-          "Join",
-          "Leave",
-          "Create",
-          "Delete",
-          "Rename"
-        ]
-      },
-      "Channel": {
-        "type": "object",
-        "required": [
-          "creator",
-          "id",
-          "name",
-          "players"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "players": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PlayerIdentity"
-            }
-          },
-          "creator": {
-            "$ref": "#/components/schemas/PlayerIdentity"
-          }
-        }
-      },
-      "PlayerIdentity": {
-        "type": "string"
       },
       "ClientAction": {
         "type": "object",
@@ -3182,6 +3308,16 @@
               }
             ]
           },
+          "protected_groups": {
+            "default": {
+              "enabled": false
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigProtectedGroups"
+              }
+            ]
+          },
           "peer_link": {
             "default": null,
             "type": "string",
@@ -3351,6 +3487,18 @@
             "type": "boolean"
           }
         }
+      },
+      "ApiConfigProtectedGroups": {
+        "description": "Whether the server supports end-to-end encrypted groups.\n\nA server that predates this field sends nothing and reads as unsupported, so the app hides the option rather than offering a create that would 404.",
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -3358,6 +3506,11 @@
         "description": "Player mTLS client certificate.",
         "type": "http",
         "scheme": "mutual"
+      },
+      "ChannelReader": {
+        "description": "A player mTLS client certificate, or a game server access token as `Authorization: Bearer <token>`.",
+        "type": "http",
+        "scheme": "bearer"
       },
       "GameAccessToken": {
         "description": "Game server access token, as `Authorization: Bearer <token>`.",
@@ -3368,30 +3521,21 @@
         "description": "Operator mTLS client certificate. Caller must additionally hold the `admin` permission.",
         "type": "http",
         "scheme": "mutual"
-      },
-      "ChannelReader": {
-        "description": "A player mTLS client certificate, or a game server access token as `Authorization: Bearer <token>`.",
-        "type": "http",
-        "scheme": "bearer"
       }
     }
   },
   "tags": [
     {
+      "name": "Channels",
+      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
+    },
+    {
       "name": "WebSocket",
       "description": "Ticket exchange and streaming feeds for client UI surfaces. A browser cannot present a client certificate when opening a socket, so identity is established over mTLS here and spent once at upgrade time."
     },
     {
-      "name": "Telemetry",
-      "description": "Facts a Java mod observes about its own host, which the mod has no channel of its own to report."
-    },
-    {
       "name": "Positions",
       "description": "Player position updates from game mods. Used by the Minecraft server plugin to push player coordinates for spatial audio calculations."
-    },
-    {
-      "name": "Gamerpic",
-      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
     },
     {
       "name": "Clients",
@@ -3422,8 +3566,12 @@
       "description": "OAuth2 authentication via Microsoft (Minecraft). Returns mTLS certificates and ncryptf keys for subsequent API calls. Interacting with these endpoints REQUIRES ncryptf. non-ncryptf request/response bodies are provided here as sample references."
     },
     {
-      "name": "Channels",
-      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
+      "name": "Telemetry",
+      "description": "Facts a Java mod observes about its own host, which the mod has no channel of its own to report."
+    },
+    {
+      "name": "Gamerpic",
+      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
     },
     {
       "name": "Control",
