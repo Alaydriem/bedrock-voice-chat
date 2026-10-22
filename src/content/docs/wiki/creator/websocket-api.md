@@ -97,6 +97,8 @@ All three reply with `in_group`. If the client is in a group, the reply also has
 
 `joingroup` is refused if the name matches no group, or more than one group. The match ignores case.
 
+For a [Private Group](/wiki/player/groups/#private-groups), `joingroup` opens the join dialog in the app and sends the request. The client joins only after a member admits it.
+
 ## Connect to a world
 
 `targets` lists the worlds that this client can join: saved servers, servers that the BVC server advertises, and your Realms. Each entry has an opaque `id`, a `name`, and a `kind` of `proxy` or `realm`.
