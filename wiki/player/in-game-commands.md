@@ -37,4 +37,6 @@ The control panel is only on Bedrock. On Java, use the app window.
 
 Volume, hear, and the jukebox commands change only what you hear. When you make a player quieter, other players hear no change, and that player can still hear you.
 
+To join a [Private Group](/wiki/player/groups/#private-groups), a member must admit you in the BVC app. The join command starts the request, and the app shows the code.
+
 Recording is available only on desktop. You can type the command on all devices. It does nothing on a device that cannot record, or on a server that has [turned recording off](/wiki/creator/recording/).

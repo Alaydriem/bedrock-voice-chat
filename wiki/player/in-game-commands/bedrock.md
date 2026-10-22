@@ -54,10 +54,12 @@ The panel has the same two controls on its **Jukebox music** row. See [using the
 | Command | Result |
 |---|---|
 | `/bvc:groupcreate` | Creates a group and shows its share code. |
-| `/bvc:groupjoin <code>` | Joins a group with its code. |
+| `/bvc:groupjoin <code>` | Joins a group with its code. For a Private Group, asks to join in the BVC app. |
 | `/bvc:groupleave` | Leaves your current group. |
 
 Tell other players the share code, or paste it in chat. See [Groups](/wiki/player/groups/).
+
+In the **Groups** form of the panel, a Private Group shows as `[Ask] <name>`. Select it to ask to join. A member must admit you in the BVC app, after you both compare a code there. The game replies `Your code for <name> is in the BVC app.` If the app is not open and signed in, it replies `Open the BVC app to join <name>.` See [Ask to join from the game](/wiki/player/groups/#ask-to-join-from-the-game).
 
 <div class="window"><img src="/assets/wiki/mc-groups.jpg" alt="The Groups form, listing groups with the current group's share code" /></div>
 

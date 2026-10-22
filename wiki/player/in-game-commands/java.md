@@ -42,10 +42,10 @@ These are the same two controls as **Settings → Audio settings** in the app. S
 | Command | Result |
 |---|---|
 | `/bvc group create` | Creates a group and shows its share code. |
-| `/bvc group join <code>` | Joins a group with its code. |
+| `/bvc group join <code>` | Joins a group with its code. For a Private Group, asks to join in the BVC app. |
 | `/bvc group leave` | Leaves your current group. |
 
-See [Groups](/wiki/player/groups/).
+For a Private Group, a member must admit you in the BVC app, after you both compare a code there. The game replies `Your code for <name> is in the BVC app.` If the app is not open and signed in, it replies `Open the BVC app to join <name>.` See [Ask to join from the game](/wiki/player/groups/#ask-to-join-from-the-game).
 
 ## Audio discs
 

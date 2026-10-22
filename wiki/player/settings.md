@@ -29,7 +29,7 @@ BVC has two voice modes:
 
 ### Mute cues
 
-BVC plays a short tone when you mute or deafen, and a different tone when you unmute or undeafen. This setting is on by default.
+BVC plays a short tone when you mute or deafen, and a different tone when you unmute or undeafen. It also plays a tone when a player asks to join your [Private Group](/wiki/player/groups/#admit-a-player). This setting is on by default.
 
 ### Spatial panning
 
