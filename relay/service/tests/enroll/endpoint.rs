@@ -423,3 +423,101 @@ async fn an_unregistered_node_cannot_declare_an_address() {
     );
     assert!(harness.recording.live_ids().is_empty());
 }
+
+// Anything that is not an IP address is refused before it reaches the zone.
+#[tokio::test]
+async fn a_declared_address_that_is_not_an_ip_is_refused() {
+    let harness = Harness::start(vec!["role-a".to_string()]).await;
+    let token = harness
+        .registry
+        .issue_token("member-1")
+        .await
+        .expect("issues");
+    harness.request(&EnrollFrame::Enroll { token }).await;
+
+    let reply = harness
+        .request(&EnrollFrame::DeclareAddress {
+            address: "attacker.example".to_string(),
+        })
+        .await;
+
+    assert_eq!(
+        reply,
+        EnrollFrame::Refuse {
+            reason: EnrollRefuseReason::Internal
+        }
+    );
+    assert!(harness.recording.live_ids().is_empty());
+}
+
+// An IPv6 address is published immediately, as AAAA. The zone refuses an IPv6
+// address in an A record, so an IPv6-only server would otherwise get no record.
+#[tokio::test]
+async fn an_ipv6_address_is_published_as_aaaa() {
+    let harness = Harness::start(vec!["role-a".to_string()]).await;
+    let token = harness
+        .registry
+        .issue_token("member-1")
+        .await
+        .expect("issues");
+    let name = match harness.request(&EnrollFrame::Enroll { token }).await {
+        EnrollFrame::Assigned { name } => name,
+        other => panic!("expected an assignment, got {other:?}"),
+    };
+
+    let reply = harness
+        .request(&EnrollFrame::DeclareAddress {
+            address: "2001:4860:4860::8888".to_string(),
+        })
+        .await;
+
+    assert_eq!(reply, EnrollFrame::TxtPublished);
+    assert_eq!(
+        harness.recording.created_records(),
+        vec![("AAAA".to_string(), name, "2001:4860:4860::8888".to_string())]
+    );
+}
+
+// A node cannot fill the zone with challenge records. An order needs one and an
+// overlapping retry a second; past the cap the relay refuses.
+#[tokio::test]
+async fn open_challenges_for_a_name_are_capped() {
+    let harness = Harness::start(vec!["role-a".to_string()]).await;
+    let token = harness
+        .registry
+        .issue_token("member-1")
+        .await
+        .expect("issues");
+    let name = match harness.request(&EnrollFrame::Enroll { token }).await {
+        EnrollFrame::Assigned { name } => name,
+        other => panic!("expected an assignment, got {other:?}"),
+    };
+
+    for _ in 0..RegistryEndpoint::MAX_OPEN_CHALLENGES {
+        let reply = harness
+            .request(&EnrollFrame::PublishTxt {
+                name: name.clone(),
+                value: "value".to_string(),
+            })
+            .await;
+        assert_eq!(reply, EnrollFrame::TxtPublished);
+    }
+
+    let reply = harness
+        .request(&EnrollFrame::PublishTxt {
+            name,
+            value: "value".to_string(),
+        })
+        .await;
+
+    assert_eq!(
+        reply,
+        EnrollFrame::Refuse {
+            reason: EnrollRefuseReason::Internal
+        }
+    );
+    assert_eq!(
+        harness.recording.live_ids().len() as u64,
+        RegistryEndpoint::MAX_OPEN_CHALLENGES
+    );
+}

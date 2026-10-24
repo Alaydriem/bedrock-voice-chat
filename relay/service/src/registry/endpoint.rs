@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::sync::Arc;
 
 use bvc_relay::node::NodeIdentity;
@@ -43,6 +44,15 @@ impl RegistryEndpoint {
     // Sized above the peer plane's 64, which is for declared peers: a burst of
     // enrollments must not starve voice peering, nor the reverse.
     pub const MAX_UNAUTHORIZED: usize = 256;
+
+    // How long a challenge record may stay in the zone. A DNS-01 challenge is
+    // answered within minutes; anything older is finished with, whether or not the
+    // order succeeded.
+    pub const CHALLENGE_TTL_SECONDS: i64 = 60 * 60;
+
+    // Challenge records one name may hold at once. An order needs one, and an
+    // overlapping retry a second; past this a node is filling the zone, not issuing.
+    pub const MAX_OPEN_CHALLENGES: u64 = 4;
 
     pub async fn bind(
         identity: &NodeIdentity,
@@ -213,6 +223,15 @@ impl RegistryEndpoint {
                             return Self::refuse(send, EnrollRefuseReason::Internal).await;
                         }
 
+                        // Expired records are cleared first, so the cap counts only
+                        // challenges that could still be in use.
+                        let cutoff = Self::now() - Self::CHALLENGE_TTL_SECONDS;
+                        self.zone.prune_challenges_before(cutoff).await?;
+                        if self.zone.open_challenges(&name).await? >= Self::MAX_OPEN_CHALLENGES {
+                            curia::warn!("refusing a challenge: too many are already open for this name", { "name": name.clone(), "node": node.to_string() });
+                            return Self::refuse(send, EnrollRefuseReason::Internal).await;
+                        }
+
                         self.zone.publish_txt(&name, &value).await?;
                         let _ = self.budget.record(&name, is_renewal).await;
                         Self::write(send, &EnrollFrame::TxtPublished).await
@@ -224,14 +243,26 @@ impl RegistryEndpoint {
             // Recorded before it is published. The daily pass reads the stored column
             // to decide whether to bind the record to this node, so an address
             // published without being recorded is one nothing ever verifies.
+            //
+            // Published immediately: the enrollment is the permission to point the name
+            // at an address, and nothing can reach the server by name until the record
+            // exists. The daily pass proves the address afterwards.
             EnrollFrame::DeclareAddress { address } => {
+                // Refused before it reaches the zone. Canonicalised so the same address
+                // always records the same way.
+                let Ok(ip) = address.parse::<IpAddr>() else {
+                    curia::info!("refusing a declared address that is not an IP address", { "node": node.to_string(), "address": address });
+                    return Self::refuse(send, EnrollRefuseReason::Internal).await;
+                };
+                let address = ip.to_string();
+
                 match self
                     .registry
                     .declare_address(&node.to_string(), &address)
                     .await
                 {
                     Ok(name) => {
-                        self.zone.publish_a(&name, &address).await?;
+                        self.zone.publish_address(&name, ip).await?;
                         Self::write(send, &EnrollFrame::TxtPublished).await
                     }
                     Err(e) => Self::refuse(send, e.refuse_reason()).await,
@@ -241,6 +272,13 @@ impl RegistryEndpoint {
                 expected: "Hello, Enroll, PublishTxt or DeclareAddress",
             }),
         }
+    }
+
+    fn now() -> i64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or_default()
     }
 
     // Sent before the caller sees an error, so the far side learns why rather than

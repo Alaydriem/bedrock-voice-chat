@@ -1,8 +1,9 @@
+use std::net::IpAddr;
 use std::sync::Arc;
 
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait,
-    QueryFilter,
+    PaginatorTrait, QueryFilter,
 };
 
 use crate::entity::dns_record;
@@ -24,6 +25,7 @@ pub struct ZoneWriter {
 impl ZoneWriter {
     const TXT: &'static str = "TXT";
     const A: &'static str = "A";
+    const AAAA: &'static str = "AAAA";
 
     pub fn new(conn: Arc<DatabaseConnection>, api: CloudflareApi, zone: String) -> Self {
         Self { conn, api, zone }
@@ -43,13 +45,46 @@ impl ZoneWriter {
     }
 
     // The address record is replaced rather than added to. A name resolves to one
-    // server, and two A records would round-robin between an operator's current
-    // address and one they moved off.
-    pub async fn publish_a(&self, name: &str, address: &str) -> Result<(), DnsError> {
-        let fqdn = self.address_fqdn(name);
-        self.delete_where(dns_record::Column::Name.eq(fqdn.clone()))
-            .await?;
-        self.create(Self::A, &fqdn, address).await
+    // server, and two records would round-robin between an operator's current address
+    // and one they moved off. The family picks the record type: an IPv6 address in an A
+    // record is refused by the zone, so it is published as AAAA.
+    pub async fn publish_address(&self, name: &str, address: IpAddr) -> Result<(), DnsError> {
+        let kind = match address {
+            IpAddr::V4(_) => Self::A,
+            IpAddr::V6(_) => Self::AAAA,
+        };
+        self.withdraw_address(name).await?;
+        self.create(kind, &self.address_fqdn(name), &address.to_string())
+            .await
+    }
+
+    // The address record alone, leaving any challenge in flight. Used when an operator
+    // declares a new address: the old record points at a host they have said they
+    // moved off, and the new one is not published until it is verified.
+    pub async fn withdraw_address(&self, name: &str) -> Result<(), DnsError> {
+        self.delete_where(dns_record::Column::Name.eq(self.address_fqdn(name)))
+            .await
+    }
+
+    // Challenge records still outstanding for this name. Read before publishing
+    // another, so a node cannot fill the zone with them.
+    pub async fn open_challenges(&self, name: &str) -> Result<u64, DnsError> {
+        Ok(dns_record::Entity::find()
+            .filter(dns_record::Column::Name.eq(self.challenge_fqdn(name)))
+            .count(self.conn.as_ref())
+            .await?)
+    }
+
+    // Every challenge record created before `cutoff`, across the zone. A DNS-01
+    // challenge is answered within minutes, and nothing on the wire tells the relay
+    // when one is done, so age is the only signal that a record is finished with.
+    pub async fn prune_challenges_before(&self, cutoff: i64) -> Result<(), DnsError> {
+        self.delete_where(
+            dns_record::Column::RecordType
+                .eq(Self::TXT)
+                .and(dns_record::Column::CreatedAt.lt(cutoff)),
+        )
+        .await
     }
 
     // Everything the relay has written for this name — address and any challenge

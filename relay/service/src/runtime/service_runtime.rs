@@ -18,7 +18,7 @@ use crate::registry::RegistryService;
 use crate::runtime::TlsProvider;
 use crate::scheduler::DailyScheduler;
 use crate::storage::{CertificateMaterial, CertificateStore, NodeKeyStore};
-use crate::validation::{AddressProbe, LiveAddressProbe, ValidationChecker};
+use crate::validation::{AddressProbe, AddressVerifier, LiveAddressProbe, ValidationChecker};
 
 // The registry.
 //
@@ -81,14 +81,20 @@ impl ServiceRuntime {
         curia::info!("relay registry enrollment link", { "peerlink": enroll.ticket().await?, "node": enroll.node_id().to_string() });
 
         let registry_for_http = Arc::clone(&registry);
-        let checker = ValidationChecker::new_shared(conn.clone(), registry, zone);
+        let checker = ValidationChecker::new_shared(conn.clone(), registry.clone(), zone.clone());
+        let verifier = AddressVerifier::new_shared(
+            Arc::clone(enroll.sessions()),
+            AddressProbe::Live(LiveAddressProbe::new()),
+            zone.clone(),
+        );
         let scheduler = DailyScheduler::new_shared(
             conn.clone(),
             checker,
-            Arc::clone(enroll.sessions()),
+            verifier,
+            registry,
+            zone,
             MemberSource::Bot(DiscordBotClient::new(&self.config.discord)),
             self.config.discord.clone(),
-            AddressProbe::Live(LiveAddressProbe::new()),
         );
 
         let cancel = CancellationToken::new();

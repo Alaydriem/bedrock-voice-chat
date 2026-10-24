@@ -189,6 +189,32 @@ impl RegistryService {
         Ok(name)
     }
 
+    // Records that a validation pass looked at this registration. The time is what
+    // makes the daily cadence survive a restart: a pass is due when the last one is a
+    // day old, not when the process has been up for a day.
+    //
+    // `entitled` is `None` when Discord could not be reached. The check still counts
+    // as made — the registration was visited — but the last known answer stands.
+    pub async fn record_entitlement_check(
+        &self,
+        node_id: &str,
+        entitled: Option<bool>,
+    ) -> Result<(), RegistryError> {
+        let row = registration::Entity::find_by_id(node_id)
+            .one(self.conn.as_ref())
+            .await?
+            .ok_or(RegistryError::NotRegistered)?;
+
+        let mut model: registration::ActiveModel = row.into();
+        model.entitlement_checked_at = ActiveValue::Set(Some(Self::now()));
+        if let Some(entitled) = entitled {
+            model.entitlement_ok = ActiveValue::Set(entitled);
+        }
+        model.update(self.conn.as_ref()).await?;
+
+        Ok(())
+    }
+
     pub async fn suspend(&self, node_id: &str) -> Result<(), RegistryError> {
         let row = registration::Entity::find_by_id(node_id)
             .one(self.conn.as_ref())

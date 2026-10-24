@@ -59,6 +59,8 @@ impl Default for LiveAddressProbe {
 pub enum AddressProbe {
     Live(LiveAddressProbe),
     Fixed(bool),
+    // Answers only for this name, so a test can tell which name the caller probed.
+    For(String),
 }
 
 impl AddressProbe {
@@ -66,6 +68,7 @@ impl AddressProbe {
         match self {
             Self::Live(probe) => probe.serves_nonce(name, address, nonce).await,
             Self::Fixed(answer) => *answer,
+            Self::For(expected) => expected == name,
         }
     }
 }

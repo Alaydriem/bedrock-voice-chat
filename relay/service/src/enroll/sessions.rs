@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use common::structs::relay::enroll::EnrollFrame;
 use common::structs::relay::wire::Framing;
@@ -16,6 +17,12 @@ pub struct EnrollSessions {
 }
 
 impl EnrollSessions {
+    // How long a node has to answer a challenge. A session that is held open but never
+    // answered would otherwise stall the caller indefinitely, and the daily pass visits
+    // registrations one after another: one silent node would stop validation for
+    // everyone behind it.
+    pub const CHALLENGE_TIMEOUT: Duration = Duration::from_secs(10);
+
     pub fn new() -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
@@ -82,6 +89,12 @@ impl EnrollSessions {
     // treat one as excusable.
     pub async fn challenge(&self, node_id: &PublicKey, nonce: &[u8]) -> Option<Vec<u8>> {
         let session = self.get(node_id)?;
+        tokio::time::timeout(Self::CHALLENGE_TIMEOUT, Self::exchange(&session, nonce))
+            .await
+            .ok()?
+    }
+
+    async fn exchange(session: &EnrollSession, nonce: &[u8]) -> Option<Vec<u8>> {
         let (mut send, mut recv) = session.connection().open_bi().await.ok()?;
 
         let frame = EnrollFrame::Challenge {

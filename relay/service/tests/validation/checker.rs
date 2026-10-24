@@ -152,7 +152,7 @@ async fn a_registration_with_no_address_passes_on_identity_alone() {
 async fn suspension_withdraws_the_published_records() {
     let f = fixture().await;
     f.zone
-        .publish_a(&f.name, "203.0.113.10")
+        .publish_address(&f.name, "203.0.113.10".parse().expect("an address"))
         .await
         .expect("publishes an address");
     assert_eq!(f.recording.live_ids().len(), 1);

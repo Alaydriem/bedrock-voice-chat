@@ -7,7 +7,7 @@ use bvc_relay_service::dns::{CloudflareApi, RecordingApi, ZoneWriter};
 use bvc_relay_service::enroll::EnrollSessions;
 use bvc_relay_service::registry::RegistryService;
 use bvc_relay_service::scheduler::DailyScheduler;
-use bvc_relay_service::validation::{AddressProbe, ValidationChecker};
+use bvc_relay_service::validation::{AddressProbe, AddressVerifier, ValidationChecker};
 
 fn discord_config() -> DiscordConfig {
     DiscordConfig {
@@ -41,14 +41,20 @@ fn scheduler(
         CloudflareApi::Recording(Arc::new(RecordingApi::new())),
         "bedrockvc.stream".to_string(),
     ));
-    let checker = ValidationChecker::new_shared(conn.clone(), registry, zone);
+    let checker = ValidationChecker::new_shared(conn.clone(), registry.clone(), zone.clone());
+    let verifier = AddressVerifier::new_shared(
+        EnrollSessions::new_shared(),
+        AddressProbe::Fixed(true),
+        zone.clone(),
+    );
     DailyScheduler::new_shared(
         conn,
         checker,
-        EnrollSessions::new_shared(),
+        verifier,
+        registry,
+        zone,
         members,
         discord_config(),
-        AddressProbe::Fixed(true),
     )
 }
 
@@ -121,4 +127,57 @@ async fn a_suspended_registration_is_not_evaluated_again() {
     }
 
     assert_eq!(scheduler.run_once().await.expect("a pass runs"), 0);
+}
+
+fn now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or_default()
+}
+
+// The cadence lives in the database, not in the process. A registration checked
+// moments ago is not due again, however recently the relay restarted — and one whose
+// last check is a day old is, without waiting a day of uptime first.
+#[tokio::test]
+async fn a_registration_is_due_a_day_after_its_last_check() {
+    let (conn, registry) = enrolled().await;
+    let scheduler = scheduler(
+        conn,
+        registry,
+        MemberSource::Fixed(FixedMemberSource::new(vec!["role-a".to_string()])),
+    );
+    scheduler.run_once().await.expect("a pass runs");
+
+    let day = DailyScheduler::INTERVAL.as_secs() as i64;
+    assert_eq!(scheduler.run_due(now()).await.expect("a pass runs"), 0);
+    assert_eq!(
+        scheduler.run_due(now() + day).await.expect("a pass runs"),
+        1
+    );
+}
+
+// Repeated ticks inside the interval do not re-evaluate. If they did, a relay that
+// ticks hourly would reach the suspension threshold in three hours instead of three
+// days.
+#[tokio::test]
+async fn ticks_within_the_interval_do_not_accumulate_failures() {
+    let (conn, registry) = enrolled().await;
+    let scheduler = scheduler(
+        conn,
+        registry.clone(),
+        MemberSource::Fixed(FixedMemberSource::new(vec!["role-z".to_string()])),
+    );
+    let day = DailyScheduler::INTERVAL.as_secs() as i64;
+
+    // One due pass, then many ticks before the next is due.
+    scheduler.run_due(now() + day).await.expect("a pass runs");
+    for _ in 0..(ValidationChecker::FAILURE_THRESHOLD * 2) {
+        scheduler.run_due(now()).await.expect("a pass runs");
+    }
+
+    assert!(
+        registry.name_for("node-a").await.expect("lookup").is_some(),
+        "one failed check must not become a suspension"
+    );
 }
