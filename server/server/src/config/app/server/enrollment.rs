@@ -19,26 +19,16 @@ pub struct Enrollment {
     #[serde(default)]
     pub token: Option<String>,
 
-    // The address this server answers HTTPS on, published as the assigned name's A
-    // record.
-    //
-    // Declared rather than discovered: an operator behind NAT, behind CGNAT, or on a
-    // LAN has no address the registry could observe that would be right, and one guessed
-    // from a connection's source is correct for a port-forwarded deployment and
-    // silently wrong for every other.
-    //
-    // Optional in the schema, required in practice. Unset publishes no record, and the
-    // assigned name then resolves to nothing — a client dials the hostname it was given
-    // and fails in DNS, with a valid certificate sitting behind a name nobody can
-    // reach. Startup says so out loud, because there is no other symptom that leads
-    // back here.
-    //
-    // A private address is published but never verified — it resolves only on the
-    // network that declared it. A public one is checked daily, because an address an
-    // operator does not control would otherwise have the registry's zone fronting
-    // somebody else's host.
+    // The address this server answers HTTPS on, sent at each relay check-in and published
+    // as the assigned name's A or AAAA record. Unset publishes no record. A public
+    // address is probed for the check-in nonce; a private one is not.
     #[serde(default)]
     pub address: Option<String>,
+
+    // The port the relay probes for the enrollment nonce. Defaults to `server.port`; set
+    // it when a proxy or port forward answers on a different public port.
+    #[serde(default)]
+    pub port: Option<u16>,
 }
 
 impl Enrollment {
@@ -50,6 +40,11 @@ impl Enrollment {
             .as_deref()
             .map(str::trim)
             .filter(|token| !token.is_empty())
+    }
+
+    // `None` when no configured port is set and `server_port` does not fit a port.
+    pub fn port(&self, server_port: u32) -> Option<u16> {
+        self.port.or_else(|| u16::try_from(server_port).ok())
     }
 
     pub fn address(&self) -> Option<&str> {

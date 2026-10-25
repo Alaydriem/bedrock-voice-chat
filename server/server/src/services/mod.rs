@@ -61,4 +61,4 @@ pub use position_service::{FAR_TIER_MAX, PositionService};
 
 pub use session_authorization_service::{SessionAuthorizationService, SessionRejection};
 
-pub use relay_enrollment::{CurrentNonce, EnrollmentError, RelayEnrollmentClient};
+pub use relay_enrollment::{CurrentNonce, EnrollmentError, RelayCheckIn, RelayEnrollmentClient};

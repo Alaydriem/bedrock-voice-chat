@@ -45,8 +45,6 @@ async fn claim_ids_are_distinct_and_do_not_contain_the_token() {
     assert!(!first.contains("bvcenroll-abc"));
 }
 
-// Expiry is enforced on read, not by a sweeper. A claim the page never redeemed must
-// stop being redeemable whether or not anything has run since.
 #[tokio::test]
 async fn an_expired_claim_is_absent() {
     let claims = claims().await;
@@ -56,4 +54,26 @@ async fn an_expired_claim_is_absent() {
         .expect("stores an already-expired claim");
 
     assert_eq!(claims.redeem(&id).await.expect("redeems"), None);
+}
+
+#[tokio::test]
+async fn sweeping_deletes_expired_and_consumed_claims_only() {
+    let claims = claims().await;
+    claims
+        .store_expiring_at("bvcenroll-expired", 0)
+        .await
+        .expect("stores an already-expired claim");
+    let consumed = claims.store("bvcenroll-consumed").await.expect("stores");
+    claims.redeem(&consumed).await.expect("redeems");
+    let live = claims.store("bvcenroll-live").await.expect("stores");
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("after the epoch")
+        .as_secs() as i64;
+    assert_eq!(claims.sweep(now).await.expect("sweeps"), 2);
+    assert_eq!(
+        claims.redeem(&live).await.expect("redeems"),
+        Some("bvcenroll-live".to_string())
+    );
 }

@@ -78,12 +78,18 @@ async fn a_challenge_is_written_beneath_the_acme_challenge_label() {
 async fn a_second_address_replaces_the_first() {
     let (writer, api) = writer().await;
     writer
-        .publish_a("creeper-diorite-badlands", "203.0.113.10")
+        .publish_address(
+            "creeper-diorite-badlands",
+            "203.0.113.10".parse().expect("an address"),
+        )
         .await
         .expect("publishes an address");
 
     writer
-        .publish_a("creeper-diorite-badlands", "203.0.113.20")
+        .publish_address(
+            "creeper-diorite-badlands",
+            "203.0.113.20".parse().expect("an address"),
+        )
         .await
         .expect("republishes");
 
@@ -96,7 +102,10 @@ async fn a_second_address_replaces_the_first() {
 async fn withdrawing_a_name_removes_every_record_for_it() {
     let (writer, api) = writer().await;
     writer
-        .publish_a("creeper-diorite-badlands", "203.0.113.10")
+        .publish_address(
+            "creeper-diorite-badlands",
+            "203.0.113.10".parse().expect("an address"),
+        )
         .await
         .expect("publishes an address");
     writer
@@ -118,11 +127,17 @@ async fn withdrawing_a_name_removes_every_record_for_it() {
 async fn withdrawing_one_name_leaves_another_untouched() {
     let (writer, api) = writer().await;
     writer
-        .publish_a("creeper-diorite-badlands", "203.0.113.10")
+        .publish_address(
+            "creeper-diorite-badlands",
+            "203.0.113.10".parse().expect("an address"),
+        )
         .await
         .expect("publishes");
     writer
-        .publish_a("redstone-piglin-taiga", "203.0.113.20")
+        .publish_address(
+            "redstone-piglin-taiga",
+            "203.0.113.20".parse().expect("an address"),
+        )
         .await
         .expect("publishes");
 
@@ -165,4 +180,110 @@ async fn a_name_outside_the_zone_has_no_label() {
         writer.label_of("evil.tidy-allay-lagoon.bedrockvc.stream"),
         None
     );
+}
+
+#[tokio::test]
+async fn an_ipv6_address_is_published_as_aaaa() {
+    let (writer, api) = writer().await;
+    writer
+        .publish_address(
+            "creeper-diorite-badlands",
+            "2001:db8::10".parse().expect("an address"),
+        )
+        .await
+        .expect("publishes");
+
+    assert_eq!(
+        api.created_records(),
+        vec![(
+            "AAAA".to_string(),
+            "creeper-diorite-badlands.bedrockvc.stream".to_string(),
+            "2001:db8::10".to_string()
+        )]
+    );
+}
+
+#[tokio::test]
+async fn withdrawing_the_address_leaves_challenges_alone() {
+    let (writer, api) = writer().await;
+    writer
+        .publish_address(
+            "creeper-diorite-badlands",
+            "203.0.113.10".parse().expect("an address"),
+        )
+        .await
+        .expect("publishes an address");
+    writer
+        .publish_txt("creeper-diorite-badlands", "value")
+        .await
+        .expect("publishes a challenge");
+
+    writer
+        .withdraw_address("creeper-diorite-badlands")
+        .await
+        .expect("withdraws");
+
+    assert_eq!(api.live_ids(), vec!["record-1".to_string()]);
+    assert_eq!(
+        writer
+            .open_challenges("creeper-diorite-badlands")
+            .await
+            .expect("counts"),
+        1
+    );
+}
+
+#[tokio::test]
+async fn has_records_sees_address_and_challenge_records() {
+    let (writer, _) = writer().await;
+    assert!(!writer.has_records("creeper-diorite-badlands").await.expect("checks"));
+
+    writer
+        .publish_txt("creeper-diorite-badlands", "value")
+        .await
+        .expect("publishes a challenge");
+    assert!(writer.has_records("creeper-diorite-badlands").await.expect("checks"));
+    assert!(!writer.has_records("redstone-piglin-taiga").await.expect("checks"));
+
+    writer
+        .cleanup_txt("creeper-diorite-badlands")
+        .await
+        .expect("cleans up");
+    writer
+        .publish_address(
+            "creeper-diorite-badlands",
+            "203.0.113.10".parse().expect("an address"),
+        )
+        .await
+        .expect("publishes an address");
+    assert!(writer.has_records("creeper-diorite-badlands").await.expect("checks"));
+}
+
+#[tokio::test]
+async fn pruning_removes_old_challenges_and_keeps_addresses() {
+    let (writer, api) = writer().await;
+    writer
+        .publish_address(
+            "creeper-diorite-badlands",
+            "203.0.113.10".parse().expect("an address"),
+        )
+        .await
+        .expect("publishes an address");
+    writer
+        .publish_txt("creeper-diorite-badlands", "one")
+        .await
+        .expect("publishes");
+    writer
+        .publish_txt("redstone-piglin-taiga", "two")
+        .await
+        .expect("publishes");
+
+    writer.prune_challenges_before(0).await.expect("prunes");
+    assert_eq!(api.live_ids().len(), 3);
+
+    writer
+        .prune_challenges_before(i64::MAX)
+        .await
+        .expect("prunes");
+    assert_eq!(api.live_ids(), vec!["record-0".to_string()]);
 }

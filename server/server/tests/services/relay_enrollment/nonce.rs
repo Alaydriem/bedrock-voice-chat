@@ -1,9 +1,6 @@
 use bvc_server_lib::services::relay_enrollment::{CurrentNonce, EnrollmentError};
 use common::structs::relay::enroll::EnrollRefuseReason;
 
-// Before the relay has sent a challenge there is nothing to echo. The HTTP route
-// reports that as absent rather than as an empty value, which would look to the relay
-// like a node answering with the wrong nonce.
 #[test]
 fn a_nonce_that_was_never_set_is_absent() {
     assert_eq!(CurrentNonce::new_shared().get(), None);

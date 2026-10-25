@@ -1,131 +1,261 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::Engine;
 use common::curia;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, Condition, DatabaseConnection, EntityTrait, QueryFilter};
 use tokio_util::sync::CancellationToken;
 
 use crate::config::DiscordConfig;
 use crate::discord::MemberSource;
-use crate::enroll::EnrollSessions;
+use crate::dns::ZoneWriter;
 use crate::entity::{RegistrationState, registration};
-use crate::validation::{AddressProbe, RoutableAddress, ValidationChecker, ValidationError};
+use crate::registry::{ClaimService, RegistryEndpoint, RegistryError, RegistryService};
+use crate::validation::{
+    AddressVerifier, LiveAddressProbe, RoutableAddress, ValidationChecker, ValidationError,
+};
 
-// One pass over every active registration, once a day.
-//
-// Three observations per registration, cheapest first: entitlement from the relay's
-// own Discord credential, identity over the held session, and — only where an address
-// record was published — the nonce fetched from that address.
+// The cadence is stored per registration, so a relay redeployed more often than
+// daily still validates.
 pub struct DailyScheduler {
     conn: Arc<DatabaseConnection>,
     checker: Arc<ValidationChecker>,
-    sessions: Arc<EnrollSessions>,
+    verifier: Arc<AddressVerifier>,
+    registry: Arc<RegistryService>,
+    zone: Arc<ZoneWriter>,
+    claims: Arc<ClaimService>,
     members: MemberSource,
     discord: DiscordConfig,
-    probe: AddressProbe,
 }
 
 impl DailyScheduler {
     pub const INTERVAL: Duration = Duration::from_secs(86_400);
 
-    const NONCE_BYTES: usize = 32;
+    // The first tick fires immediately, so a restart catches up.
+    pub const TICK: Duration = Duration::from_secs(3_600);
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         conn: Arc<DatabaseConnection>,
         checker: Arc<ValidationChecker>,
-        sessions: Arc<EnrollSessions>,
+        verifier: Arc<AddressVerifier>,
+        registry: Arc<RegistryService>,
+        zone: Arc<ZoneWriter>,
+        claims: Arc<ClaimService>,
         members: MemberSource,
         discord: DiscordConfig,
-        probe: AddressProbe,
     ) -> Self {
         Self {
             conn,
             checker,
-            sessions,
+            verifier,
+            registry,
+            zone,
+            claims,
             members,
             discord,
-            probe,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new_shared(
         conn: Arc<DatabaseConnection>,
         checker: Arc<ValidationChecker>,
-        sessions: Arc<EnrollSessions>,
+        verifier: Arc<AddressVerifier>,
+        registry: Arc<RegistryService>,
+        zone: Arc<ZoneWriter>,
+        claims: Arc<ClaimService>,
         members: MemberSource,
         discord: DiscordConfig,
-        probe: AddressProbe,
     ) -> Arc<Self> {
-        Arc::new(Self::new(conn, checker, sessions, members, discord, probe))
+        Arc::new(Self::new(
+            conn, checker, verifier, registry, zone, claims, members, discord,
+        ))
     }
 
     pub fn spawn(self: &Arc<Self>, cancel: CancellationToken) {
         let scheduler = Arc::clone(self);
         tokio::spawn(async move {
+            let mut tick = tokio::time::interval(Self::TICK);
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             loop {
                 tokio::select! {
                     _ = cancel.cancelled() => break,
-                    _ = tokio::time::sleep(Self::INTERVAL) => {
-                        if let Err(e) = scheduler.run_once().await {
-                            curia::error!(format!("the daily validation pass failed: {e}"));
-                        }
-                    }
+                    _ = tick.tick() => scheduler.tick(Self::now()).await,
                 }
             }
         });
     }
 
-    // How many registrations were evaluated. A pass over an empty registry is not an
-    // error.
+    pub async fn tick(&self, now: i64) {
+        self.prune_challenges(now).await;
+        self.withdraw_suspended().await;
+        self.withdraw_revoked_addresses().await;
+        self.sweep_claims(now).await;
+        match self.run_due(now).await {
+            Ok(evaluated) if evaluated > 0 => {
+                curia::info!("validated registrations that were due", { "evaluated": evaluated });
+            }
+            Ok(_) => {}
+            Err(e) => curia::error!("the validation pass failed", { "error": e.to_string() }),
+        }
+    }
+
     pub async fn run_once(&self) -> Result<usize, ValidationError> {
+        self.run(Condition::all(), Self::now()).await
+    }
+
+    pub async fn run_due(&self, now: i64) -> Result<usize, ValidationError> {
+        let cutoff = now - Self::interval_seconds();
+        self.run(
+            Condition::any()
+                .add(registration::Column::EntitlementCheckedAt.is_null())
+                .add(registration::Column::EntitlementCheckedAt.lte(cutoff)),
+            now,
+        )
+        .await
+    }
+
+    pub async fn evaluate_node(&self, node_id: &str) -> Result<(), ValidationError> {
+        let row = registration::Entity::find_by_id(node_id)
+            .one(self.conn.as_ref())
+            .await?
+            .ok_or(RegistryError::NotRegistered)?;
+        self.evaluate_one(&row, Self::now()).await
+    }
+
+    async fn prune_challenges(&self, now: i64) {
+        let cutoff = now - RegistryEndpoint::CHALLENGE_TTL_SECONDS;
+        if let Err(e) = self.zone.prune_challenges_before(cutoff).await {
+            curia::warn!("pruning expired challenge records failed", { "error": e.to_string() });
+        }
+    }
+
+    async fn withdraw_suspended(&self) {
+        let rows = match registration::Entity::find()
+            .filter(registration::Column::State.is_not_in([
+                RegistrationState::Pending.as_str(),
+                RegistrationState::Active.as_str(),
+                RegistrationState::Revoked.as_str(),
+                RegistrationState::Retired.as_str(),
+            ]))
+            .all(self.conn.as_ref())
+            .await
+        {
+            Ok(rows) => rows,
+            Err(e) => {
+                curia::warn!("listing suspended registrations failed", { "error": e.to_string() });
+                return;
+            }
+        };
+
+        for row in rows {
+            let withdrawn = match self.zone.has_records(&row.name).await {
+                Ok(true) => self.zone.withdraw(&row.name).await,
+                Ok(false) => continue,
+                Err(e) => Err(e),
+            };
+            if let Err(e) = withdrawn {
+                curia::warn!("withdrawing a suspended registration's records failed", { "node": row.node_id.clone(), "error": e.to_string() });
+            }
+        }
+    }
+
+    // A check-in in flight when a node is revoked can republish its address after the revocation withdrew it.
+    async fn withdraw_revoked_addresses(&self) {
+        let rows = match registration::Entity::find()
+            .filter(registration::Column::State.eq(RegistrationState::Revoked.as_str()))
+            .all(self.conn.as_ref())
+            .await
+        {
+            Ok(rows) => rows,
+            Err(e) => {
+                curia::warn!("listing revoked registrations failed", { "error": e.to_string() });
+                return;
+            }
+        };
+
+        for row in rows {
+            let withdrawn = match self.zone.has_address_record(&row.name).await {
+                Ok(true) => self.zone.withdraw_address(&row.name).await,
+                Ok(false) => continue,
+                Err(e) => Err(e),
+            };
+            if let Err(e) = withdrawn {
+                curia::warn!("withdrawing a revoked registration's address failed", { "node": row.node_id.clone(), "error": e.to_string() });
+            }
+        }
+    }
+
+    async fn sweep_claims(&self, now: i64) {
+        if let Err(e) = self.claims.sweep(now).await {
+            curia::warn!("sweeping enrollment claims failed", { "error": e.to_string() });
+        }
+    }
+
+    // One registration's failure is logged and skipped so the rest still run.
+    async fn run(&self, due: Condition, now: i64) -> Result<usize, ValidationError> {
         let rows = registration::Entity::find()
-            .filter(registration::Column::State.eq(RegistrationState::Active.as_str()))
+            .filter(registration::Column::State.is_in([
+                RegistrationState::Active.as_str(),
+                RegistrationState::Revoked.as_str(),
+            ]))
+            .filter(due)
             .all(self.conn.as_ref())
             .await?;
 
         let mut evaluated = 0usize;
         for row in rows {
-            self.evaluate_one(&row).await?;
-            evaluated += 1;
+            match self.evaluate_one(&row, now).await {
+                Ok(()) => evaluated += 1,
+                Err(e) => {
+                    curia::error!("validating a registration failed", { "node": row.node_id.clone(), "error": e.to_string() });
+                }
+            }
         }
 
         Ok(evaluated)
     }
 
-    async fn evaluate_one(&self, row: &registration::Model) -> Result<(), ValidationError> {
-        let entitled = match self.members.role_ids(&row.discord_user_id).await {
-            Ok(roles) => self.discord.qualifies(&roles),
-            // An unreachable Discord is not a lapsed membership. Treating it as one
-            // would suspend every registration during an outage that has nothing to
-            // do with the operators.
+    async fn evaluate_one(&self, row: &registration::Model, now: i64) -> Result<(), ValidationError> {
+        let fresh = match self.members.role_ids(&row.discord_user_id).await {
+            Ok(roles) => Some(self.discord.qualifies(&roles)),
+            // An unreachable Discord is not a lapsed membership.
             Err(e) => {
-                curia::warn!(format!("skipping an entitlement check: {e}"), { "node": row.node_id.clone() });
-                true
+                curia::warn!("skipping an entitlement check", { "node": row.node_id.clone(), "error": e.to_string() });
+                None
             }
         };
+        self.registry
+            .record_entitlement_check(&row.node_id, fresh)
+            .await?;
+        let entitled = fresh.unwrap_or(row.entitlement_ok);
 
-        let nonce = Self::mint_nonce();
-        let identity_ok = entitled && self.answered_challenge(&row.node_id, &nonce).await;
+        let checked_in = row
+            .checked_in_at
+            .is_some_and(|at| at >= now - Self::interval_seconds());
+        let identity_ok = entitled && checked_in;
 
-        // Only a publicly routable declared address is probed. A private one is
-        // unreachable from here by construction, and it cannot front anyone either —
-        // it resolves only on the network of whoever declared it, which is the whole
-        // case an operator behind NAT or CGNAT is in.
-        let probeable = row
+        // A private address is unreachable from here and fronts nobody, so only a
+        // public one is probed.
+        let public = row
             .declared_address
             .as_deref()
             .filter(|address| RoutableAddress::is_public(address));
 
-        let address_ok = match probeable {
-            Some(address) if identity_ok => {
-                Some(self.probe.serves_nonce(&row.name, address, &nonce).await)
+        let address_ok = match (public, row.checkin_nonce.as_deref()) {
+            (Some(address), Some(nonce)) if identity_ok => {
+                let port = row
+                    .declared_port
+                    .and_then(|port| u16::try_from(port).ok())
+                    .unwrap_or(LiveAddressProbe::DEFAULT_PORT);
+                Some(
+                    self.verifier
+                        .serves_nonce(&row.name, address, port, nonce)
+                        .await,
+                )
             }
-            // Identity already failed, so the address half cannot rescue the pass.
-            // Recorded as failed rather than skipped so the outcome reads the same
-            // whichever half went first.
-            Some(_) => Some(false),
-            None => None,
+            (Some(_), _) if !identity_ok => Some(false),
+            _ => None,
         };
 
         self.checker
@@ -135,26 +265,14 @@ impl DailyScheduler {
         Ok(())
     }
 
-    async fn answered_challenge(&self, node_id: &str, nonce: &str) -> bool {
-        let Ok(key) = node_id.parse::<iroh::PublicKey>() else {
-            return false;
-        };
-
-        let Some(signature) = self.sessions.challenge(&key, nonce.as_bytes()).await else {
-            return false;
-        };
-
-        let Ok(bytes) = <[u8; 64]>::try_from(signature.as_slice()) else {
-            return false;
-        };
-
-        key.verify(nonce.as_bytes(), &iroh::Signature::from_bytes(&bytes))
-            .is_ok()
+    fn interval_seconds() -> i64 {
+        Self::INTERVAL.as_secs() as i64
     }
 
-    fn mint_nonce() -> String {
-        let mut bytes = [0u8; Self::NONCE_BYTES];
-        getrandom::fill(&mut bytes).expect("the system random source is available");
-        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
+    fn now() -> i64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or_default()
     }
 }

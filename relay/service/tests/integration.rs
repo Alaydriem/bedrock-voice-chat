@@ -7,6 +7,7 @@ mod dns;
 mod enroll;
 mod harness;
 mod http;
+mod migration;
 mod naming;
 mod observe;
 mod registry;

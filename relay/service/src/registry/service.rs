@@ -1,7 +1,12 @@
+use std::net::IpAddr;
 use std::sync::Arc;
 
+use base64::Engine;
+use common::curia;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, DatabaseConnection, EntityTrait,
+    QueryFilter,
 };
 
 use crate::config::DiscordConfig;
@@ -9,6 +14,7 @@ use crate::discord::MemberSource;
 use crate::entity::{RegistrationState, enrollment_token, registration};
 use crate::naming::NameGenerator;
 
+use super::check_in::CheckInRecord;
 use super::error::RegistryError;
 use super::token::EnrollmentToken;
 
@@ -24,6 +30,8 @@ pub struct RegistryService {
 }
 
 impl RegistryService {
+    const NONCE_BYTES: usize = 32;
+
     pub fn new(
         conn: Arc<DatabaseConnection>,
         discord: DiscordConfig,
@@ -117,6 +125,10 @@ impl RegistryService {
             created_at: ActiveValue::Set(now),
             suspended_at: ActiveValue::Set(None),
             retired_at: ActiveValue::Set(None),
+            revoked_at: ActiveValue::Set(None),
+            declared_port: ActiveValue::Set(None),
+            checkin_nonce: ActiveValue::Set(None),
+            checked_in_at: ActiveValue::Set(None),
         }
         .insert(self.conn.as_ref())
         .await?;
@@ -129,10 +141,7 @@ impl RegistryService {
         Ok(name)
     }
 
-    // The name this node may act for, or `None` when it holds no live registration.
-    //
-    // A suspended registration answers `None`: it keeps its row so recovery is a
-    // state change, but it must not authorize a DNS write in the meantime.
+    // A revoked registration keeps its name so its server can still renew its certificate.
     pub async fn name_for(&self, node_id: &str) -> Result<Option<String>, RegistryError> {
         let row = registration::Entity::find_by_id(node_id)
             .one(self.conn.as_ref())
@@ -141,66 +150,136 @@ impl RegistryService {
         Ok(
             row.and_then(|row| match RegistrationState::from_str(&row.state) {
                 Some(RegistrationState::Active) => Some(row.name),
+                Some(RegistrationState::Revoked) if row.entitlement_ok => Some(row.name),
                 _ => None,
             }),
         )
     }
 
-    // The address this node last declared, if any. `None` for a node that has never
-    // declared one, which is the ordinary case for a server nothing but BVC clients
-    // reach.
-    pub async fn declared_address(&self, node_id: &str) -> Result<Option<String>, RegistryError> {
-        Ok(registration::Entity::find_by_id(node_id)
-            .one(self.conn.as_ref())
-            .await?
-            .and_then(|row| row.declared_address))
-    }
-
-    // Records the address an operator says their server answers on, and returns the
-    // name it belongs to.
-    //
-    // Persisted rather than only published, because the daily pass reads this column
-    // to decide whether to bind the record to the node. An address published without
-    // being recorded is one nothing ever verifies.
-    //
-    // `address_verified_at` is cleared: a newly declared address has not been checked
-    // yet, and carrying the previous one's verification forward would vouch for a host
-    // nobody has looked at.
-    pub async fn declare_address(
+    // `entitled` is `None` when Discord could not be reached; the last known answer stands.
+    pub async fn record_entitlement_check(
         &self,
         node_id: &str,
-        address: &str,
-    ) -> Result<String, RegistryError> {
+        entitled: Option<bool>,
+    ) -> Result<(), RegistryError> {
         let row = registration::Entity::find_by_id(node_id)
             .one(self.conn.as_ref())
             .await?
             .ok_or(RegistryError::NotRegistered)?;
 
-        if RegistrationState::from_str(&row.state) != Some(RegistrationState::Active) {
-            return Err(RegistryError::Suspended);
+        let mut model: registration::ActiveModel = row.into();
+        model.entitlement_checked_at = ActiveValue::Set(Some(Self::now()));
+        if let Some(entitled) = entitled {
+            model.entitlement_ok = ActiveValue::Set(entitled);
         }
-
-        let name = row.name.clone();
-        let mut model: registration::ActiveModel = row.into();
-        model.declared_address = ActiveValue::Set(Some(address.to_string()));
-        model.address_verified_at = ActiveValue::Set(None);
-        model.update(self.conn.as_ref()).await?;
-
-        Ok(name)
-    }
-
-    pub async fn suspend(&self, node_id: &str) -> Result<(), RegistryError> {
-        let row = registration::Entity::find_by_id(node_id)
-            .one(self.conn.as_ref())
-            .await?
-            .ok_or(RegistryError::NotRegistered)?;
-
-        let mut model: registration::ActiveModel = row.into();
-        model.state = ActiveValue::Set(RegistrationState::Suspended.as_str().to_string());
-        model.suspended_at = ActiveValue::Set(Some(Self::now()));
         model.update(self.conn.as_ref()).await?;
 
         Ok(())
+    }
+
+    // A changed address or port clears `address_verified_at`.
+    pub async fn record_check_in(
+        &self,
+        node_id: &str,
+        address: Option<IpAddr>,
+        port: u16,
+    ) -> Result<CheckInRecord, RegistryError> {
+        let row = registration::Entity::find_by_id(node_id)
+            .one(self.conn.as_ref())
+            .await?
+            .ok_or(RegistryError::NotRegistered)?;
+
+        let state = match RegistrationState::from_str(&row.state) {
+            Some(
+                state @ (RegistrationState::Active
+                | RegistrationState::Pending
+                | RegistrationState::Revoked),
+            ) => state,
+            _ => {
+                curia::warn!("refusing a check-in from a registration in an unusable state", { "node": node_id.to_string(), "state": row.state.clone() });
+                return Err(RegistryError::Suspended);
+            }
+        };
+
+        let address = address.map(|a| a.to_string());
+        let address_changed =
+            row.declared_address != address || row.declared_port != Some(i32::from(port));
+        let nonce = Self::mint_nonce();
+        let name = row.name.clone();
+
+        let mut model: registration::ActiveModel = row.into();
+        model.declared_address = ActiveValue::Set(address);
+        model.declared_port = ActiveValue::Set(Some(i32::from(port)));
+        model.checkin_nonce = ActiveValue::Set(Some(nonce.clone()));
+        model.checked_in_at = ActiveValue::Set(Some(Self::now()));
+        if address_changed {
+            model.address_verified_at = ActiveValue::Set(None);
+        }
+        model.update(self.conn.as_ref()).await?;
+
+        Ok(CheckInRecord {
+            name,
+            state,
+            nonce,
+            address_changed,
+        })
+    }
+
+    // Atomic: concurrent check-ins win the window at most once.
+    pub async fn claim_recovery_evaluation(
+        &self,
+        node_id: &str,
+        cooldown_seconds: i64,
+    ) -> Result<bool, RegistryError> {
+        let now = Self::now();
+        let result = registration::Entity::update_many()
+            .col_expr(
+                registration::Column::EntitlementCheckedAt,
+                Expr::value(Some(now)),
+            )
+            .filter(registration::Column::NodeId.eq(node_id))
+            .filter(
+                Condition::any()
+                    .add(registration::Column::EntitlementCheckedAt.is_null())
+                    .add(registration::Column::EntitlementCheckedAt.lte(now - cooldown_seconds)),
+            )
+            .exec(self.conn.as_ref())
+            .await?;
+        Ok(result.rows_affected == 1)
+    }
+
+    pub async fn revoke(&self, node_id: &str) -> Result<(), RegistryError> {
+        let row = registration::Entity::find_by_id(node_id)
+            .one(self.conn.as_ref())
+            .await?
+            .ok_or(RegistryError::NotRegistered)?;
+
+        let mut model: registration::ActiveModel = row.into();
+        model.state = ActiveValue::Set(RegistrationState::Revoked.as_str().to_string());
+        model.revoked_at = ActiveValue::Set(Some(Self::now()));
+        model.update(self.conn.as_ref()).await?;
+
+        Ok(())
+    }
+
+    pub async fn reinstate(&self, node_id: &str) -> Result<(), RegistryError> {
+        let row = registration::Entity::find_by_id(node_id)
+            .one(self.conn.as_ref())
+            .await?
+            .ok_or(RegistryError::NotRegistered)?;
+
+        let mut model: registration::ActiveModel = row.into();
+        model.state = ActiveValue::Set(RegistrationState::Active.as_str().to_string());
+        model.revoked_at = ActiveValue::Set(None);
+        model.update(self.conn.as_ref()).await?;
+
+        Ok(())
+    }
+
+    fn mint_nonce() -> String {
+        let mut bytes = [0u8; Self::NONCE_BYTES];
+        getrandom::fill(&mut bytes).expect("the system random source is available");
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
     }
 
     fn now() -> i64 {

@@ -6,7 +6,7 @@ use crate::services::RelayEnrollmentClient;
 
 // Publishes the DNS-01 challenge through the relay registry.
 //
-// There is no credential. The enrollment session authenticates this node
+// There is no credential. The connection's node key authenticates this node
 // cryptographically, so the relay resolves the node to its assigned name itself and
 // refuses any other — a tighter scope than a shared API key could express.
 pub struct BvcRelayProvider {

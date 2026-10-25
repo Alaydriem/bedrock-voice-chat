@@ -1,4 +1,4 @@
-use bvc_server_lib::config::Server;
+use bvc_server_lib::config::{Enrollment, Server};
 
 fn with_enrollment_token() -> Server {
     let mut server = Server::default();
@@ -81,6 +81,26 @@ fn blank_enrollment_values_read_as_absent() {
 
     assert_eq!(config.enrollment.token(), None);
     assert_eq!(config.enrollment.address(), None);
+}
+
+#[test]
+fn the_enrollment_port_defaults_to_the_server_port() {
+    assert_eq!(Enrollment::default().port(8443), Some(8443));
+}
+
+#[test]
+fn a_server_port_outside_the_port_range_gives_no_enrollment_port() {
+    assert_eq!(Enrollment::default().port(70000), None);
+}
+
+#[test]
+fn a_configured_enrollment_port_wins() {
+    let enrollment = Enrollment {
+        port: Some(443),
+        ..Enrollment::default()
+    };
+
+    assert_eq!(enrollment.port(8443), Some(443));
 }
 
 // The address is optional and independent of the token. A server enrolling without

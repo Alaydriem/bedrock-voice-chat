@@ -4,7 +4,9 @@ use bvc_relay_service::config::DiscordConfig;
 use bvc_relay_service::db::Db;
 use bvc_relay_service::discord::{FixedMemberSource, MemberSource};
 use bvc_relay_service::dns::{CloudflareApi, RecordingApi, ZoneWriter};
+use bvc_relay_service::entity::registration;
 use bvc_relay_service::registry::RegistryService;
+use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait};
 use bvc_relay_service::validation::{ValidationChecker, ValidationOutcome};
 
 struct Fixture {
@@ -14,6 +16,17 @@ struct Fixture {
     recording: Arc<RecordingApi>,
     node: String,
     name: String,
+    conn: Arc<DatabaseConnection>,
+}
+
+impl Fixture {
+    async fn row(&self) -> registration::Model {
+        registration::Entity::find_by_id(self.node.as_str())
+            .one(self.conn.as_ref())
+            .await
+            .expect("queries")
+            .expect("row exists")
+    }
 }
 
 async fn fixture() -> Fixture {
@@ -40,7 +53,7 @@ async fn fixture() -> Fixture {
     let token = registry.issue_token("member-1").await.expect("issues");
     let name = registry.redeem(&token, "node-a").await.expect("redeems");
 
-    let checker = ValidationChecker::new_shared(conn, registry.clone(), zone.clone());
+    let checker = ValidationChecker::new_shared(conn.clone(), registry.clone(), zone.clone());
     Fixture {
         checker,
         registry,
@@ -48,6 +61,7 @@ async fn fixture() -> Fixture {
         recording,
         node: "node-a".to_string(),
         name,
+        conn,
     }
 }
 
@@ -77,10 +91,8 @@ async fn a_node_that_answers_passes_and_clears_earlier_failures() {
     assert_eq!(next, ValidationOutcome::Failed { consecutive: 1 });
 }
 
-// Failures suspend only after the threshold. A single missed check is an outage, not
-// an abandonment.
 #[tokio::test]
-async fn a_registration_is_suspended_only_after_the_threshold() {
+async fn a_registration_is_revoked_only_after_the_threshold() {
     let f = fixture().await;
 
     for expected in 1..ValidationChecker::FAILURE_THRESHOLD {
@@ -110,8 +122,7 @@ async fn a_registration_is_suspended_only_after_the_threshold() {
         .await
         .expect("fails");
 
-    assert_eq!(outcome, ValidationOutcome::Suspended);
-    assert_eq!(f.registry.name_for(&f.node).await.expect("lookup"), None);
+    assert_eq!(outcome, ValidationOutcome::Revoked);
 }
 
 // A registration that published an address must bind that address to the node. A
@@ -145,29 +156,103 @@ async fn a_registration_with_no_address_passes_on_identity_alone() {
     assert_eq!(outcome, ValidationOutcome::Passed);
 }
 
-// Suspension withdraws what the relay published. A name that keeps resolving after
-// its registration was suspended still points at a host the relay no longer vouches
-// for.
 #[tokio::test]
-async fn suspension_withdraws_the_published_records() {
+async fn revocation_withdraws_only_the_address_record() {
     let f = fixture().await;
     f.zone
-        .publish_a(&f.name, "203.0.113.10")
+        .publish_txt(&f.name, "challenge")
+        .await
+        .expect("publishes a challenge");
+    f.zone
+        .publish_address(&f.name, "203.0.113.10".parse().expect("an address"))
         .await
         .expect("publishes an address");
-    assert_eq!(f.recording.live_ids().len(), 1);
 
+    let mut outcome = ValidationOutcome::Passed;
     for _ in 0..ValidationChecker::FAILURE_THRESHOLD {
-        f.checker
+        outcome = f
+            .checker
             .evaluate(&f.node, false, None)
             .await
             .expect("fails");
     }
 
-    assert!(
-        f.recording.live_ids().is_empty(),
-        "a suspended name must stop resolving"
+    assert_eq!(outcome, ValidationOutcome::Revoked);
+    assert_eq!(f.zone.open_challenges(&f.name).await.expect("counts"), 1);
+    assert_eq!(f.recording.live_ids().len(), 1);
+}
+
+#[tokio::test]
+async fn a_revoked_registration_that_passes_is_recovered_and_published() {
+    let f = fixture().await;
+    f.registry
+        .record_check_in(&f.node, Some("203.0.113.5".parse().unwrap()), 8443)
+        .await
+        .expect("checks in");
+    f.registry.revoke(&f.node).await.expect("revokes");
+
+    let outcome = f
+        .checker
+        .evaluate(&f.node, true, Some(true))
+        .await
+        .expect("evaluates");
+
+    assert_eq!(outcome, ValidationOutcome::Recovered);
+    assert_eq!(
+        f.registry.name_for(&f.node).await.expect("lookup"),
+        Some(f.name.clone())
     );
+    assert_eq!(
+        f.recording.created_records().last(),
+        Some(&(
+            "A".to_string(),
+            format!("{}.bedrockvc.stream", f.name),
+            "203.0.113.5".to_string()
+        ))
+    );
+}
+
+#[tokio::test]
+async fn a_suspended_registration_is_left_untouched() {
+    let f = fixture().await;
+    f.zone
+        .publish_address(&f.name, "203.0.113.10".parse().expect("an address"))
+        .await
+        .expect("publishes an address");
+    f.conn
+        .execute_unprepared("UPDATE registration SET state = 'suspended'")
+        .await
+        .expect("suspends");
+    let before = f.row().await;
+
+    for _ in 0..ValidationChecker::FAILURE_THRESHOLD {
+        f.checker
+            .evaluate(&f.node, false, None)
+            .await
+            .expect("evaluates");
+    }
+
+    assert_eq!(f.row().await, before);
+    assert!(f.zone.has_records(&f.name).await.expect("checks"));
+}
+
+#[tokio::test]
+async fn a_revoked_registration_that_fails_stays_revoked_and_unpublished() {
+    let f = fixture().await;
+    f.registry
+        .record_check_in(&f.node, Some("203.0.113.5".parse().unwrap()), 8443)
+        .await
+        .expect("checks in");
+    f.registry.revoke(&f.node).await.expect("revokes");
+
+    let outcome = f
+        .checker
+        .evaluate(&f.node, false, None)
+        .await
+        .expect("evaluates");
+
+    assert_eq!(outcome, ValidationOutcome::Failed { consecutive: 1 });
+    assert!(f.recording.created_records().is_empty());
 }
 
 // An unknown node is an error rather than a silent pass. A validation loop that

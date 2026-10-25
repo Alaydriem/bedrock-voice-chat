@@ -2,67 +2,36 @@ use std::sync::Arc;
 
 use bvc_relay::node::NodeIdentity;
 use bvc_relay::peer::PeerEndpoint;
-use common::curia;
 use common::structs::relay::enroll::{EnrollFrame, EnrollVersion};
 use common::structs::relay::wire::Framing;
+use iroh::EndpointAddr;
 use iroh::endpoint::{Connection, RecvStream, SendStream};
-use iroh::{EndpointAddr, SecretKey};
 
 use super::error::EnrollmentError;
-use super::nonce::CurrentNonce;
 
-// This server's link to the relay registry.
-//
-// The session is held for the life of the process rather than dialled per exchange.
-// The relay cannot dial in: the endpoint is built on iroh's `Minimal` preset, which
-// has no discovery, so a bare node id resolves to nothing. Holding the connection
-// this side opened is what lets the relay push a challenge to a server behind CGNAT
-// with the same code that reaches one with a public address.
 pub struct RelayEnrollmentClient {
-    conn: Connection,
+    registry: EndpointAddr,
     endpoint: PeerEndpoint,
 }
 
 impl RelayEnrollmentClient {
     pub const ALPN: &'static [u8] = b"bvc-enroll/1";
 
-    pub async fn connect(
+    pub async fn new(
         identity: &NodeIdentity,
         registry: EndpointAddr,
         port: Option<u16>,
     ) -> Result<Arc<Self>, EnrollmentError> {
-        let endpoint =
-            PeerEndpoint::bind_with_alpns(identity, port, vec![Self::ALPN.to_vec()])
-                .await
-                .map_err(|e| EnrollmentError::Connect(e.to_string()))?;
-
-        let conn = endpoint
-            .endpoint()
-            .connect(registry, Self::ALPN)
+        let endpoint = PeerEndpoint::bind_with_alpns(identity, port, vec![Self::ALPN.to_vec()])
             .await
             .map_err(|e| EnrollmentError::Connect(e.to_string()))?;
 
-        let client = Arc::new(Self { conn, endpoint });
-        client.negotiate().await?;
-        Ok(client)
-    }
-
-    async fn negotiate(&self) -> Result<EnrollVersion, EnrollmentError> {
-        match self
-            .request(&EnrollFrame::Hello {
-                versions: EnrollVersion::SUPPORTED.to_vec(),
-            })
-            .await?
-        {
-            EnrollFrame::Ready { version } => Ok(version),
-            EnrollFrame::Refuse { .. } => Err(EnrollmentError::NoCommonVersion),
-            _ => Err(EnrollmentError::Unexpected { expected: "Ready" }),
-        }
+        Ok(Arc::new(Self { registry, endpoint }))
     }
 
     pub async fn enroll(&self, token: &str) -> Result<String, EnrollmentError> {
         match self
-            .request(&EnrollFrame::Enroll {
+            .exchange(&EnrollFrame::Enroll {
                 token: token.to_string(),
             })
             .await?
@@ -77,7 +46,7 @@ impl RelayEnrollmentClient {
 
     pub async fn publish_txt(&self, name: &str, value: &str) -> Result<(), EnrollmentError> {
         match self
-            .request(&EnrollFrame::PublishTxt {
+            .exchange(&EnrollFrame::PublishTxt {
                 name: name.to_string(),
                 value: value.to_string(),
             })
@@ -91,73 +60,64 @@ impl RelayEnrollmentClient {
         }
     }
 
-    pub async fn declare_address(&self, address: &str) -> Result<(), EnrollmentError> {
+    pub async fn check_in(
+        &self,
+        address: Option<&str>,
+        port: u16,
+    ) -> Result<String, EnrollmentError> {
         match self
-            .request(&EnrollFrame::DeclareAddress {
-                address: address.to_string(),
+            .exchange(&EnrollFrame::CheckIn {
+                address: address.map(str::to_string),
+                port,
             })
             .await?
         {
-            EnrollFrame::TxtPublished => Ok(()),
+            EnrollFrame::CheckedIn { nonce } => Ok(String::from_utf8_lossy(&nonce).into_owned()),
             EnrollFrame::Refuse { reason } => Err(EnrollmentError::refused(reason)),
             _ => Err(EnrollmentError::Unexpected {
-                expected: "TxtPublished",
+                expected: "CheckedIn",
             }),
         }
-    }
-
-    // Answers challenges the relay pushes down the held session, and records the
-    // nonce so the HTTP route can echo it.
-    //
-    // Ends when the session does. A dropped session is not fatal to the server: the
-    // certificate on disk outlives it, and the next boot re-establishes one.
-    pub fn spawn_challenge_responder(
-        self: &Arc<Self>,
-        secret: SecretKey,
-        nonce: Arc<CurrentNonce>,
-    ) {
-        let client = Arc::clone(self);
-        tokio::spawn(async move {
-            loop {
-                let (mut send, mut recv) = match client.conn.accept_bi().await {
-                    Ok(pair) => pair,
-                    Err(e) => {
-                        curia::warn!(format!("the relay enrollment session ended: {e}"));
-                        return;
-                    }
-                };
-
-                let frame = match Self::read_frame(&mut recv).await {
-                    Ok(frame) => frame,
-                    Err(e) => {
-                        curia::debug!(format!("a relay challenge could not be read: {e}"));
-                        continue;
-                    }
-                };
-
-                let EnrollFrame::Challenge { nonce: value } = frame else {
-                    continue;
-                };
-
-                nonce.set(String::from_utf8_lossy(&value).to_string());
-
-                let reply = EnrollFrame::ChallengeReply {
-                    signature: secret.sign(&value).to_bytes().to_vec(),
-                };
-                if let Err(e) = Self::write(&mut send, &reply).await {
-                    curia::debug!(format!("answering a relay challenge failed: {e}"));
-                }
-            }
-        });
     }
 
     pub async fn close(&self) {
         self.endpoint.close().await;
     }
 
-    async fn request(&self, frame: &EnrollFrame) -> Result<EnrollFrame, EnrollmentError> {
-        let (mut send, mut recv) = self
-            .conn
+    async fn exchange(&self, frame: &EnrollFrame) -> Result<EnrollFrame, EnrollmentError> {
+        let conn = self
+            .endpoint
+            .endpoint()
+            .connect(self.registry.clone(), Self::ALPN)
+            .await
+            .map_err(|e| EnrollmentError::Connect(e.to_string()))?;
+
+        let result = Self::negotiate_and_request(&conn, frame).await;
+        conn.close(0u32.into(), b"done");
+        result
+    }
+
+    async fn negotiate_and_request(
+        conn: &Connection,
+        frame: &EnrollFrame,
+    ) -> Result<EnrollFrame, EnrollmentError> {
+        let hello = EnrollFrame::Hello {
+            versions: EnrollVersion::SUPPORTED.to_vec(),
+        };
+        match Self::request(conn, &hello).await? {
+            EnrollFrame::Ready { .. } => {}
+            EnrollFrame::Refuse { .. } => return Err(EnrollmentError::NoCommonVersion),
+            _ => return Err(EnrollmentError::Unexpected { expected: "Ready" }),
+        }
+
+        Self::request(conn, frame).await
+    }
+
+    async fn request(
+        conn: &Connection,
+        frame: &EnrollFrame,
+    ) -> Result<EnrollFrame, EnrollmentError> {
+        let (mut send, mut recv) = conn
             .open_bi()
             .await
             .map_err(|e| EnrollmentError::Transport(e.to_string()))?;

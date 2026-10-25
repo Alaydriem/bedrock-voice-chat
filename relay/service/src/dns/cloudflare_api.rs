@@ -136,6 +136,10 @@ impl RecordingApi {
             .collect()
     }
 
+    pub fn created_records(&self) -> Vec<(String, String, String)> {
+        self.created.lock().expect("recording lock").clone()
+    }
+
     pub fn live_ids(&self) -> Vec<String> {
         let created = self.created.lock().expect("recording lock");
         let deleted = self.deleted.lock().expect("recording lock");

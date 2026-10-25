@@ -57,9 +57,7 @@ pub struct ServerRuntime {
     identity_service: Arc<RwLock<Option<PlayerIdentityService>>>,
     audio_playback_service: Arc<RwLock<Option<Arc<AudioPlaybackService>>>>,
     db_conn: Arc<RwLock<Option<Arc<sea_orm::DatabaseConnection>>>>,
-    /// The held enrollment session, once one exists. Kept so the ACME provider and the
-    /// challenge responder share the connection this server opened rather than each
-    /// dialling their own — the relay pushes challenges down whichever one it holds.
+    /// The relay enrollment client, once built; it opens one connection per exchange.
     relay_enrollment: Arc<RwLock<Option<Arc<crate::services::RelayEnrollmentClient>>>>,
 }
 
@@ -187,11 +185,7 @@ impl ServerRuntime {
                 .map_err(|e| anyhow!("running migrations: {}", e))?;
         }
 
-        // Populated by the relay enrollment session's challenge responder, and read by
-        // the unauthenticated route the relay fetches from the declared address.
-        // Created here so it exists whether or not this server enrolls: the route then
-        // answers 404 rather than being absent, which is a clearer thing for an
-        // operator to see.
+        // Created even when this server does not enroll, so the probe route answers 404.
         let enrollment_nonce = crate::services::CurrentNonce::new_shared();
 
         // The CA keypair is generated exactly once per deployment, so its absence from both
@@ -258,14 +252,15 @@ impl ServerRuntime {
         let access_token_cancel = tokio_util::sync::CancellationToken::new();
         access_token_service.spawn_refresh(access_token_cancel.clone());
 
+        let relay_check_in_cancel = tokio_util::sync::CancellationToken::new();
+        let _relay_check_in_guard = relay_check_in_cancel.clone().drop_guard();
+
         // ACME DNS-01. Issuance must complete before Rocket starts — the HTTPS
         // listener cannot exist without a certificate.
         let mut acme_service: Option<Arc<crate::services::acme::AcmeService>> = None;
         if let Some(acme_config) = self.config.server.tls.acme.clone() {
             let service = match acme_config.provider_kind()? {
-                // The relay provider's only parameter is the live enrollment session,
-                // which `Acme` cannot carry, so it is built here rather than from
-                // configuration the way the others are.
+                // `Acme` cannot carry the enrollment client, so it is built here.
                 crate::config::AcmeProviderKind::BvcRelay => {
                     let name = assigned_name.clone().ok_or_else(|| {
                         anyhow!("the bvc-relay acme provider requires an assigned name")
@@ -276,22 +271,27 @@ impl ServerRuntime {
                         .ok_or_else(|| {
                             anyhow!("the bvc-relay acme provider requires a registry")
                         })?;
-                    client.spawn_challenge_responder(
-                        bvc_relay::node::NodeIdentity::from_secret_bytes(&node_secret)
-                            .secret_key()
-                            .clone(),
-                        enrollment_nonce.clone(),
-                    );
-
-                    match self.config.server.enrollment.address() {
-                        Some(address) => {
-                            client.declare_address(address).await?;
-                            curia::info!("published this server's address for the assigned name", { "address": address.to_string() });
+                    let address = self.config.server.enrollment.address().map(str::to_string);
+                    match self.config.server.enrollment.port(self.config.server.port) {
+                        Some(port) => {
+                            crate::services::RelayCheckIn::spawn(
+                                client.clone(),
+                                address.clone(),
+                                port,
+                                enrollment_nonce.clone(),
+                                relay_check_in_cancel.clone(),
+                            );
                         }
-                        // The certificate is valid and the name resolves to nothing, so
-                        // every client fails to connect with a DNS error that names
-                        // neither this server nor this setting. Said out loud because
-                        // there is no other symptom to follow back here.
+                        None => curia::warn!(
+                            "server.port does not fit a port number, so this server will not check in with the relay; set server.enrollment.port",
+                            { "port": self.config.server.port }
+                        ),
+                    }
+
+                    match address {
+                        Some(address) => {
+                            curia::info!("checking in this server's address for the assigned name", { "address": address });
+                        }
                         None => curia::warn!(
                             "no address declared, so the assigned name has no DNS record and nobody can reach this server by it; set server.enrollment.address to this server's public IP",
                             { "name": name.clone() }
@@ -826,6 +826,7 @@ impl ServerRuntime {
         }
 
         access_token_cancel.cancel();
+        relay_check_in_cancel.cancel();
 
         // Stop refreshing the Meridian record. The lease then lapses on Meridian's
         // side, which is how a departing backend is removed without an explicit
@@ -1094,10 +1095,6 @@ impl ServerRuntime {
         Ok(Some(name))
     }
 
-    /// The held enrollment session, dialling one if `resolve_assignment` did not.
-    ///
-    /// A server whose name came from the database never dialled, so the session it
-    /// needs to publish a challenge does not exist yet.
     async fn relay_session<C: sea_orm::ConnectionTrait>(
         &self,
         _conn: &C,
@@ -1115,7 +1112,7 @@ impl ServerRuntime {
         self.dial_registry(node_secret).await
     }
 
-    /// The enrollment session, or `None` for a build with no registry baked in.
+    /// The relay enrollment client, or `None` for a build with no registry baked in.
     ///
     /// A build without `BVC_REGISTRY_PEERLINK` has no registry to reach, so every
     /// feature that dials one is skipped rather than failed: the server runs on its
@@ -1133,7 +1130,7 @@ impl ServerRuntime {
 
         let identity = bvc_relay::node::NodeIdentity::from_secret_bytes(node_secret);
         let client =
-            crate::services::RelayEnrollmentClient::connect(&identity, addr, None).await?;
+            crate::services::RelayEnrollmentClient::new(&identity, addr, None).await?;
 
         self.relay_enrollment
             .write()
