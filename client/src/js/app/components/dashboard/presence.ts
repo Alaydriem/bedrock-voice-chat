@@ -9,6 +9,7 @@ import type { PlayerManager } from "../../managers/PlayerManager";
 import ImageCache from "../imageCache";
 import ImageCacheOptions from "../imageCacheOptions";
 import GameNameUtils from "../../utils/GameNameUtils";
+import { CredentialRejection } from "../../auth/CredentialRejection";
 
 export class PlayerPresenceManager {
     private playerManager: PlayerManager;
@@ -220,6 +221,7 @@ export class PlayerPresenceManager {
             const dataUrl = await this.imageCache.getImage(options);
             this.playerManager.updatePlayerGamepic(playerName, dataUrl);
         } catch (err) {
+            if (CredentialRejection.handle(err)) return;
             debug(`Failed to fetch gamerpic for ${playerName}: ${err}`);
         } finally {
             this.gamerpicFetchInProgress.delete(playerName);

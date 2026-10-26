@@ -76,6 +76,39 @@ impl SessionService {
         Ok(())
     }
 
+    /// Forget `endpoint` because it has confirmed it no longer accepts this device's certificate.
+    /// Only a `CredentialVerdict::Rejected` may lead here.
+    ///
+    /// The probe that decided this ran without the state lock, so the player may have switched
+    /// server meanwhile. Only a server that is still current is forgotten; the return value says
+    /// whether it was.
+    pub(crate) async fn sign_out_rejected(
+        &self,
+        state: &mut AppState,
+        keyring: &mut KeyringService,
+        analytics: &AnalyticsService,
+        endpoint: &str,
+    ) -> bool {
+        if state.current_server.as_deref() != Some(endpoint) {
+            curia::warn!("a server that is no longer current rejected this device's certificate; keeping the current session", {
+                connected_server: endpoint.to_string(),
+            });
+            return false;
+        }
+
+        curia::error!("server no longer accepts this device's certificate; signing out", {
+            connected_server: endpoint.to_string(),
+        });
+
+        if let Err(e) = self.forget_current_server(state, keyring, analytics).await {
+            curia::error!("could not clear credentials", {
+                connected_server: endpoint.to_string(),
+                error: e,
+            });
+        }
+        true
+    }
+
     /// Ends the Xbox Live session along with the BVC one.
     ///
     /// `BedrockState` is managed once at startup, so it survives a logout that only navigates

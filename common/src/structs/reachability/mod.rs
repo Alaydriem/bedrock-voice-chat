@@ -3,6 +3,8 @@ mod endpoint;
 mod family;
 mod outcome;
 mod request;
+mod server_check_failure;
+mod server_check_report;
 mod verdict;
 mod voice_choice;
 
@@ -11,6 +13,8 @@ pub use endpoint::EndpointReachability;
 pub use family::{AddressFamily, AddressFamilyPreference};
 pub use outcome::{AnsweredVia, ReachabilityOutcome};
 pub use request::ReachabilityRequest;
+pub use server_check_failure::ServerCheckFailure;
+pub use server_check_report::ServerCheckReport;
 pub use verdict::ReachabilityVerdict;
 pub use voice_choice::VoiceChoice;
 

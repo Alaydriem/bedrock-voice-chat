@@ -138,6 +138,10 @@ msgstr ""
 msgid "+{count} more"
 msgstr ""
 
+#: src/js/app/login/ServerAddressFormat.ts:63
+msgid "19132 is the Minecraft game port. Ask the server owner for the voice server address"
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:413
 msgid "A Bedrock add-on, or the Fabric or Paper mod for Java"
 msgstr ""
@@ -342,7 +346,7 @@ msgstr ""
 msgid "An unexpected error occurred. Please try again or contact support if the problem persists."
 msgstr ""
 
-#: src/js/app/managers/ChannelManager.ts:134
+#: src/js/app/managers/ChannelManager.ts:135
 msgid "An unknown error occurred"
 msgstr ""
 
@@ -589,7 +593,7 @@ msgstr ""
 msgid "Channel"
 msgstr ""
 
-#: src/js/app/managers/ChannelManager.ts:551
+#: src/js/app/managers/ChannelManager.ts:552
 msgid "Channel event received with no payload"
 msgstr ""
 
@@ -609,6 +613,10 @@ msgstr ""
 
 #: src/components/dashboard/AdmissionCard.svelte:73
 msgid "Check {joiner}'s code"
+msgstr ""
+
+#: src/js/app/login/AddressResolver.ts:127
+msgid "CHECK ADDRESS"
 msgstr ""
 
 #: src/components/settings/panes/AboutPane.svelte:136
@@ -1097,8 +1105,21 @@ msgstr ""
 msgid "Endpoint"
 msgstr ""
 
+#: src/js/app/login/ServerAddressFormat.ts:42
+msgid "Enter only the server address, without a path"
+msgstr ""
+
 #: src/components/login/CodeScreen.svelte:44
 msgid "Enter the code"
+msgstr ""
+
+#: src/js/app/login/ServerAddressFormat.ts:75
+#: src/js/app/login/ServerAddressFormat.ts:85
+msgid "Enter the full server address, like voice.example.com"
+msgstr ""
+
+#: src/js/app/login/ServerAddressFormat.ts:53
+msgid "Enter the server's domain name, not an IP address"
 msgstr ""
 
 #: src/js/app/managers/bedrock/proxy/BedrockProxyManager.ts:212
@@ -1330,13 +1351,13 @@ msgstr ""
 msgid "In person, by phone or on Discord. Not in game chat."
 msgstr ""
 
-#: src/js/app/managers/ChannelManager.ts:332
-#: src/js/app/managers/ChannelManager.ts:373
+#: src/js/app/managers/ChannelManager.ts:333
+#: src/js/app/managers/ChannelManager.ts:374
 msgid "In public group channel"
 msgstr ""
 
 #: src/js/app/dashboard.ts:438
-#: src/js/app/managers/ChannelManager.ts:412
+#: src/js/app/managers/ChannelManager.ts:413
 msgid "In public voice chat"
 msgstr ""
 
@@ -1768,12 +1789,16 @@ msgstr ""
 msgid "no response"
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:75
+#: src/js/app/login/AddressResolver.ts:76
 msgid "NO RESPONSE"
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:167
+#: src/js/app/login/AddressResolver.ts:179
 msgid "NO ROUTE"
+msgstr ""
+
+#: src/js/app/login/ServerCheckMessage.ts:14
+msgid "No server has that name. Check the spelling"
 msgstr ""
 
 #: src/components/login/NoServerScreen.svelte:17
@@ -1789,7 +1814,7 @@ msgstr ""
 msgid "No update has been published yet. That server is ahead of every build of the app."
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:159
+#: src/js/app/login/AddressResolver.ts:171
 msgid "NO VOICE PATH"
 msgstr ""
 
@@ -1934,7 +1959,7 @@ msgstr ""
 msgid "Not yet"
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:74
+#: src/js/app/login/AddressResolver.ts:75
 msgid "Nothing at that address"
 msgstr ""
 
@@ -2166,7 +2191,7 @@ msgstr ""
 msgid "Player audio levels"
 msgstr ""
 
-#: src/js/app/components/dashboard/presence.ts:114
+#: src/js/app/components/dashboard/presence.ts:115
 msgid "Player presence event received with no payload"
 msgstr ""
 
@@ -2187,14 +2212,12 @@ msgstr ""
 msgid "Playing"
 msgstr ""
 
-#: src/js/app/login.ts:318
+#: src/js/app/login/ServerAddressFormat.ts:28
 msgid "Please enter a server URL"
 msgstr ""
 
-#: src/js/app/login.ts:328
-#: src/js/app/login.ts:331
-#: src/js/app/login.ts:423
-#: src/js/app/login.ts:629
+#: src/js/app/login.ts:411
+#: src/js/app/login.ts:617
 msgid "Please enter a valid server URL"
 msgstr ""
 
@@ -2211,8 +2234,12 @@ msgstr ""
 msgid "Port"
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:145
+#: src/js/app/login/AddressResolver.ts:157
 msgid "port {port}"
+msgstr ""
+
+#: src/js/app/login/ServerAddressFormat.ts:59
+msgid "Port must be between 1 and 65535"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:337
@@ -2259,7 +2286,7 @@ msgstr ""
 msgid "Protocol"
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:115
+#: src/js/app/login/AddressResolver.ts:116
 msgid "PROTOCOL {version}"
 msgstr ""
 
@@ -2513,20 +2540,20 @@ msgstr ""
 msgid "Reset stats"
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:149
+#: src/js/app/login/AddressResolver.ts:161
 msgid "Resolved · {ms} ms"
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:150
+#: src/js/app/login/AddressResolver.ts:162
 msgid "RESOLVED · {ms} MS"
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:55
-#: src/js/app/login/AddressResolver.ts:65
+#: src/js/app/login/AddressResolver.ts:56
+#: src/js/app/login/AddressResolver.ts:66
 msgid "Resolving"
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:56
+#: src/js/app/login/AddressResolver.ts:57
 msgid "RESOLVING"
 msgstr ""
 
@@ -2651,6 +2678,14 @@ msgstr ""
 msgid "Server address"
 msgstr ""
 
+#: src/js/app/login/ServerAddressFormat.ts:80
+msgid "Server addresses can only use letters, numbers, dots and hyphens"
+msgstr ""
+
+#: src/js/app/login/ServerAddressFormat.ts:31
+msgid "Server addresses cannot contain spaces"
+msgstr ""
+
 #: src/js/app/dashboard.ts:997
 msgid "server certificate"
 msgstr ""
@@ -2675,15 +2710,15 @@ msgstr ""
 msgid "Server is older"
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:106
+#: src/js/app/login/AddressResolver.ts:107
 msgid "Server is on an older protocol — it speaks {server}, this build speaks {client}"
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:102
+#: src/js/app/login/AddressResolver.ts:103
 msgid "Server needs a newer app — it speaks {server}, this build speaks {client}"
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:158
+#: src/js/app/login/AddressResolver.ts:170
 msgid "Server reachable, but no voice path"
 msgstr ""
 
@@ -2692,12 +2727,33 @@ msgstr ""
 msgid "Server rejected the original login"
 msgstr ""
 
-#: src/js/app/error/FaultCatalog.ts:146
-msgid "Server Update Required"
+#: src/js/app/login/ServerCheckMessage.ts:43
+msgid "Server unreachable"
 msgstr ""
 
-#: src/js/app/login.ts:325
-msgid "Server URL must use HTTPS"
+#: src/js/app/login/ServerCheckMessage.ts:34
+msgid "Server unreachable: it answered with an error (HTTP {status}). Try again later"
+msgstr ""
+
+#: src/js/app/login/ServerCheckMessage.ts:18
+msgid "Server unreachable: it did not answer in time"
+msgstr ""
+
+#: src/js/app/login/ServerCheckMessage.ts:16
+msgid "Server unreachable: nothing is accepting connections at that address"
+msgstr ""
+
+#: src/js/app/login/ServerCheckMessage.ts:20
+msgid "Server unreachable: the connection was closed"
+msgstr ""
+
+#: src/js/app/login/ServerCheckMessage.ts:23
+#: src/js/app/login/ServerCheckMessage.ts:30
+msgid "Server unreachable: the secure connection was refused"
+msgstr ""
+
+#: src/js/app/error/FaultCatalog.ts:146
+msgid "Server Update Required"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:375
@@ -2972,12 +3028,28 @@ msgstr ""
 msgid "Test your devices"
 msgstr ""
 
+#: src/js/app/login/ServerCheckMessage.ts:32
+msgid "That address answered, but it is not a BVC server"
+msgstr ""
+
+#: src/js/app/login/ServerCheckMessage.ts:25
+msgid "That address belongs to {name}. It may be your game server or panel, not the voice server"
+msgstr ""
+
 #: src/js/app/loginCode.ts:94
 msgid "That code was not accepted. Check it and try again."
 msgstr ""
 
+#: src/js/app/login/ServerAddressFormat.ts:46
+msgid "That is a number, not a server address"
+msgstr ""
+
 #: src/js/app/settings/ManagePlayersView.ts:208
 msgid "That is not a usable gamertag."
+msgstr ""
+
+#: src/js/app/login/ServerAddressFormat.ts:35
+msgid "That looks like an email address. Enter the voice server's address, like voice.example.com"
 msgstr ""
 
 #: src/js/app/settings/ManagePlayersView.ts:221
@@ -2994,6 +3066,10 @@ msgstr ""
 
 #: src/js/app/serverList/ServerRosterManager.ts:202
 msgid "That server could not be removed. Try again."
+msgstr ""
+
+#: src/js/app/login/ServerCheckMessage.ts:39
+msgid "That server's configuration cannot be read by this version. Check for an app update"
 msgstr ""
 
 #: src/js/app/deepLinkHandlers/authCallbackHandler.ts:149
@@ -3098,7 +3174,7 @@ msgstr ""
 msgid "This device answers on all of them. Use whichever your other device can reach."
 msgstr ""
 
-#: src/js/app/login/AddressResolver.ts:166
+#: src/js/app/login/AddressResolver.ts:178
 msgid "This device has no route to that address"
 msgstr ""
 

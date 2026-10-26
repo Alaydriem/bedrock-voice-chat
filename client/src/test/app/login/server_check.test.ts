@@ -17,32 +17,44 @@ describe("ServerCheck", () => {
     });
 
     it("asks Rust rather than fetching from the webview", async () => {
-        mockInvoke({ check_server: () => ({ client_id: "abc", status: "ok" }) });
+        mockInvoke({
+            check_server: () => ({ state: "Reachable", config: { client_id: "abc", status: "ok" } }),
+        });
 
-        await ServerCheck.config(SERVER);
+        await ServerCheck.report(SERVER);
 
         expect(invokeCalls()).toEqual([{ cmd: "check_server", args: { server: SERVER } }]);
     });
 
     it("returns the configuration the command answered with", async () => {
-        mockInvoke({ check_server: () => ({ client_id: "abc", status: "ok" }) });
+        mockInvoke({
+            check_server: () => ({ state: "Reachable", config: { client_id: "abc", status: "ok" } }),
+        });
 
-        const config = await ServerCheck.config(SERVER);
+        const report = await ServerCheck.report(SERVER);
 
-        expect(config.client_id).toBe("abc");
+        expect(report.state === "Reachable" && report.config.client_id).toBe("abc");
     });
 
-    // The screen's error view is driven by the rejection. Swallowing it here would put the
-    // player back on a form that looks like it worked.
-    it("propagates a failure from the command", async () => {
+    // The classified failure is what the screen shows, so it must arrive intact.
+    it("returns a classified failure unchanged", async () => {
+        const failed = {
+            state: "Failed",
+            failure: { kind: "TimedOut" },
+            detail: "Login request to https://example.invalid/api/config failed: operation timed out",
+        };
+        mockInvoke({ check_server: () => failed });
+
+        expect(await ServerCheck.report(SERVER)).toEqual(failed);
+    });
+
+    it("propagates a fault from the command itself", async () => {
         mockInvoke({
             check_server: () => {
-                throw new Error(
-                    "Login request to https://example.invalid/api/config failed: operation timed out",
-                );
+                throw new Error("state unavailable");
             },
         });
 
-        await expect(ServerCheck.config(SERVER)).rejects.toThrow("operation timed out");
+        await expect(ServerCheck.report(SERVER)).rejects.toThrow("state unavailable");
     });
 });

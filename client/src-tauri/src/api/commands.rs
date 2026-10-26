@@ -1,5 +1,10 @@
+use crate::analytics::AnalyticsService;
+use crate::api::GamerpicOutcome;
+use crate::auth::SessionService;
+use crate::keyring::KeyringService;
 use crate::structs::app_state::AppState;
 use common::consts::version::PROTOCOL_VERSION;
+use std::sync::Arc;
 use common::response::ApiConfigCheckResponse;
 use common::response::GamerpicResponse;
 use common::structs::channel::{Channel, ChannelEvent};
@@ -226,12 +231,18 @@ pub(crate) async fn api_rename_channel(
 #[tauri::command(async)]
 pub(crate) async fn api_get_player_gamerpic(
     app_state: State<'_, Mutex<AppState>>,
+    keyring: State<'_, Mutex<KeyringService>>,
+    analytics: State<'_, Arc<AnalyticsService>>,
+    app_handle: tauri::AppHandle,
     game: common::Game,
     gamertag: String,
     server: Option<String>,
 ) -> Result<GamerpicResponse, String> {
     let state = app_state.lock().await;
 
+    // Only the server this device is signed in to is forgotten on a rejection. A pooled
+    // server is read, never signed out of, from here.
+    let current = server.is_none();
     let api = match server {
         Some(endpoint) => {
             drop(state);
@@ -241,10 +252,31 @@ pub(crate) async fn api_get_player_gamerpic(
                 .get_api_client_for_server(&endpoint)
                 .await?
         }
-        None => state.get_api_client()?.clone(),
+        None => {
+            let api = state.get_api_client()?.clone();
+            drop(state);
+            api
+        }
     };
 
-    api.get_gamerpic(game.as_str(), &gamertag).await
+    match api.get_gamerpic(&game, &gamertag).await? {
+        GamerpicOutcome::Found(response) => Ok(response),
+        GamerpicOutcome::CredentialsRejected if current => {
+            let mut state = app_state.lock().await;
+            let mut kr = keyring.lock().await;
+            let signed_out = SessionService::new(app_handle)
+                .sign_out_rejected(&mut state, &mut kr, &analytics, api.endpoint())
+                .await;
+            Err(if signed_out {
+                "CERT_INVALID".to_string()
+            } else {
+                "Gamerpic requests are paused for this server".to_string()
+            })
+        }
+        GamerpicOutcome::CredentialsRejected => {
+            Err("Gamerpic requests are paused for this server".to_string())
+        }
+    }
 }
 
 /// Fetch a WebSocket ticket for a saved server.

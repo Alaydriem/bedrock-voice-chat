@@ -10,7 +10,10 @@ use tauri_plugin_http::reqwest::{
 
 use crate::auth::LoginFailure;
 use crate::auth::NcryptfClient;
-use common::structs::reachability::AddressFamilyPreference;
+use crate::auth::ServerCheckClassifier;
+use common::structs::reachability::{
+    AddressFamilyPreference, ServerCheckFailure, ServerCheckReport,
+};
 use tauri_plugin_curia::curia;
 
 pub struct AuthClient;
@@ -26,7 +29,7 @@ impl AuthClient {
     pub(crate) async fn fetch_public_config(
         server: String,
         preference: AddressFamilyPreference,
-    ) -> Result<ApiConfigResponse, anyhow::Error> {
+    ) -> ServerCheckReport {
         let endpoint =
             super::ServerEndpoint::join(&server, super::ncryptf_client::CONFIG_ENDPOINT);
         let client = NcryptfClient::get_reqwest_client(preference);
@@ -34,22 +37,33 @@ impl AuthClient {
         let response = match client.get(&endpoint).send().await {
             Ok(response) => response,
             Err(e) => {
-                let message = LoginFailure::describe(&endpoint, &e);
-                curia::error!("login request failed", { error: message.clone() });
-                return Err(anyhow!(message));
+                let detail = LoginFailure::describe(&endpoint, &e);
+                let failure = ServerCheckClassifier::classify(&e);
+                curia::warn!("login request failed", {
+                    error: detail.clone(),
+                    failure: format!("{:?}", failure),
+                });
+                return ServerCheckReport::Failed { failure, detail };
             }
         };
 
-        match response.status() {
-            StatusCode::OK => response.json::<ApiConfigResponse>().await.map_err(|e| {
-                anyhow!(
+        let status = response.status();
+        if status != StatusCode::OK {
+            return ServerCheckReport::Failed {
+                failure: ServerCheckClassifier::for_status(status.as_u16()),
+                detail: format!("{} returned HTTP {}", endpoint, status),
+            };
+        }
+
+        match response.json::<ApiConfigResponse>().await {
+            Ok(config) => ServerCheckReport::Reachable { config },
+            Err(e) => ServerCheckReport::Failed {
+                failure: ServerCheckFailure::UnreadableConfig,
+                detail: format!(
                     "{} answered with a configuration this build cannot read: {}",
-                    endpoint,
-                    e
-                )
-            }),
-            StatusCode::FORBIDDEN => Err(anyhow!("403 Forbidden: the server refused this client")),
-            status => Err(anyhow!("{} returned HTTP {}", endpoint, status)),
+                    endpoint, e
+                ),
+            },
         }
     }
 
