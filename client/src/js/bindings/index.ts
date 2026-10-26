@@ -129,6 +129,8 @@ export type { RecordingSession } from './RecordingSession';
 export type { RecordingTrack } from './RecordingTrack';
 export type { RelativePosition } from './RelativePosition';
 export type { RosterPush } from './RosterPush';
+export type { ServerCheckFailure } from './ServerCheckFailure';
+export type { ServerCheckReport } from './ServerCheckReport';
 export type { ServerListEntry } from './ServerListEntry';
 export type { ServerPermissions } from './ServerPermissions';
 export type { ServerReachability } from './ServerReachability';

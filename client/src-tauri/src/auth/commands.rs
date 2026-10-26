@@ -61,15 +61,13 @@ pub(crate) async fn server_login(
 pub(crate) async fn check_server(
     app_state: State<'_, Mutex<AppState>>,
     server: String,
-) -> Result<common::response::ApiConfigResponse, String> {
+) -> Result<common::structs::reachability::ServerCheckReport, String> {
     let preference = {
         let state = app_state.lock().await;
         state.family_preference().get()
     };
 
-    AuthClient::fetch_public_config(server, preference)
-        .await
-        .map_err(|e| e.to_string())
+    Ok(AuthClient::fetch_public_config(server, preference).await)
 }
 
 #[tauri::command(async)]

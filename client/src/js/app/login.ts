@@ -9,6 +9,8 @@ import { stopForegroundService, isServiceRunning } from "tauri-plugin-audio-perm
 import MinecraftAuthUrl from "./auth/MinecraftAuthUrl";
 import FinishWatchdog from "./login/FinishWatchdog";
 import { ServerCheck } from "./login/ServerCheck";
+import { ServerAddressFormat } from "./login/ServerAddressFormat";
+import { ServerCheckMessage } from "./login/ServerCheckMessage";
 import BVCApp from "./BVCApp.ts";
 import HelpLinks from "./HelpLinks";
 import Analytics from "./analytics";
@@ -294,6 +296,10 @@ export default class Login extends BVCApp {
     }
 
     public sanitizeServerUrl(url: string): string {
+        // Built from the validated host, so the address requested is the one that was checked.
+        const format = ServerAddressFormat.check(url);
+        if (format.valid) return `https://${format.host}`;
+
         let sanitized = url.trim();
 
         if (!sanitized.startsWith("https://")) {
@@ -312,26 +318,8 @@ export default class Login extends BVCApp {
     }
 
     public validateServerUrl(url: string): { valid: boolean; error?: string } {
-        const trimmed = url.trim();
-
-        if (!trimmed) {
-            return { valid: false, error: I18n.t("Please enter a server URL") };
-        }
-
-        const sanitized = this.sanitizeServerUrl(trimmed);
-        try {
-            const parsed = new URL(sanitized);
-            if (parsed.protocol !== "https:") {
-                return { valid: false, error: I18n.t("Server URL must use HTTPS") };
-            }
-            if (!parsed.hostname || parsed.hostname.length < 3) {
-                return { valid: false, error: I18n.t("Please enter a valid server URL") };
-            }
-        } catch {
-            return { valid: false, error: I18n.t("Please enter a valid server URL") };
-        }
-
-        return { valid: true };
+        const format = ServerAddressFormat.check(url);
+        return format.valid ? { valid: true } : { valid: false, error: format.error };
     }
 
     public clearError(): void {
@@ -634,7 +622,17 @@ export default class Login extends BVCApp {
         info(`Checking ${sanitizedUrl}`);
 
         try {
-            const configData = await ServerCheck.config(sanitizedUrl);
+            const report = await ServerCheck.report(sanitizedUrl);
+            if (report.state === "Failed") {
+                warn("server check failed", {
+                    server: sanitizedUrl,
+                    failure: report.failure.kind,
+                    error: report.detail,
+                });
+                this.reportError(ServerCheckMessage.for(report.failure));
+                return { status: "invalid", sanitized: sanitizedUrl };
+            }
+            const configData = report.config;
 
             // What this proves and no more. The sign-in that follows spends up to half a minute
             // in an exchange with Microsoft that this request never touches.

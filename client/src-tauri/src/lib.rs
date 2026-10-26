@@ -27,6 +27,7 @@ pub use analytics::PlatformId;
 mod api;
 pub use api::EndpointBreaker;
 pub use api::FetchCache;
+pub use api::GamerpicGate;
 pub mod app_builder;
 pub mod audio;
 mod auth;
@@ -35,6 +36,7 @@ mod auth;
 // path's HTTP client is configured.
 pub use auth::LoginClientConfig;
 pub use auth::LoginFailure;
+pub use auth::ServerCheckClassifier;
 pub use auth::ServerEndpoint;
 #[cfg(feature = "bedrock-protocol")]
 pub mod bedrock;

@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AddressResolver, { type ResolveVerdict } from "../../../js/app/login/AddressResolver";
+import { mockInvoke } from "../../tauri";
 import type { ServerReachability } from "../../../js/bindings/ServerReachability";
 import type { ReachabilityVerdict } from "../../../js/bindings/ReachabilityVerdict";
 
@@ -268,33 +269,58 @@ describe("AddressResolver.verdictForIncompatible", () => {
     });
 });
 
-describe("AddressResolver.HOSTNAME", () => {
-    it("accepts something that could be a host", () => {
-        expect(AddressResolver.HOSTNAME.test("bvc.example.com")).toBe(true);
+describe("AddressResolver format errors", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    function read(resolver: AddressResolver): ResolveVerdict {
+        let seen: ResolveVerdict | null = null;
+        const off = resolver.verdict.subscribe((v) => (seen = v));
+        off();
+        return seen as unknown as ResolveVerdict;
+    }
+
+    // A half-typed address is not a mistake yet, so the error waits for typing to stop.
+    it("shows a malformed address's error only after the debounce", () => {
+        const resolver = new AddressResolver();
+        resolver.input("my world");
+        expect(read(resolver).state).toBe("editing");
+
+        vi.advanceTimersByTime(AddressResolver.DEBOUNCE_MS);
+
+        expect(read(resolver).state).toBe("bad");
+        expect(read(resolver).line).toContain("Server addresses cannot contain spaces");
+        resolver.destroy();
     });
 
-    // Only shapes that cannot become a hostname are rejected. A short TLD is not one
-    // of those, so "bvc.io" has to pass; spending a probe on a plausible address is
-    // the intended cost.
-    it("rejects a value that cannot be a hostname, so no probe is spent on it", () => {
-        expect(AddressResolver.HOSTNAME.test("bvc")).toBe(false);
-        expect(AddressResolver.HOSTNAME.test("bvc.")).toBe(false);
-        expect(AddressResolver.HOSTNAME.test("bvc.e")).toBe(false);
-        expect(AddressResolver.HOSTNAME.test("")).toBe(false);
+    // The inline line and the submit read the same Rust check, so they cannot disagree.
+    it("shows the classified reason a well-formed address failed", async () => {
+        mockInvoke({
+            check_server: () => ({
+                state: "Failed",
+                failure: { kind: "NameNotFound" },
+                detail: "dns error",
+            }),
+        });
+        const resolver = new AddressResolver();
+        resolver.input("bvc.example.com");
+
+        await vi.advanceTimersByTimeAsync(AddressResolver.DEBOUNCE_MS);
+
+        expect(read(resolver).state).toBe("bad");
+        expect(read(resolver).line).toContain("No server has that name. Check the spelling");
+        resolver.destroy();
     });
 
-    it("accepts a short top-level domain", () => {
-        expect(AddressResolver.HOSTNAME.test("bvc.io")).toBe(true);
-    });
+    it("drops a pending format error when the value changes", () => {
+        const resolver = new AddressResolver();
+        resolver.input("my world");
+        resolver.input("");
 
-    // Sign-in accepts a server on a non-standard HTTPS port, so the probe has to as well.
-    // Rejecting it left the field on an idle "Resolving" that never settled.
-    it("accepts a host with an explicit port", () => {
-        expect(AddressResolver.HOSTNAME.test("alaydriem.bedrockvc.stream:28280")).toBe(true);
-    });
+        vi.advanceTimersByTime(AddressResolver.DEBOUNCE_MS);
 
-    it("rejects a port with nothing after the colon", () => {
-        expect(AddressResolver.HOSTNAME.test("bvc.example.com:")).toBe(false);
-        expect(AddressResolver.HOSTNAME.test("bvc.example.com:abc")).toBe(false);
+        expect(read(resolver).state).toBe("editing");
+        resolver.destroy();
     });
 });
+

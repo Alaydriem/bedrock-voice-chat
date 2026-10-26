@@ -17,6 +17,7 @@ import GameNameUtils from "../utils/GameNameUtils";
 import ImageCache from "../components/imageCache";
 import ImageCacheOptions from "../components/imageCacheOptions";
 import Analytics from "../analytics";
+import { CredentialRejection } from "../auth/CredentialRejection";
 
 interface ChannelStoreState {
     channels: Channel[];
@@ -724,6 +725,7 @@ export default class ChannelManager {
                 this.playerManager.updatePlayerGamepic(playerName, dataUrl);
             }
         } catch (err) {
+            if (CredentialRejection.handle(err)) return;
             debug(`ChannelManager: Failed to fetch gamerpic for ${playerName}: ${err}`);
         }
     }

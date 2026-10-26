@@ -16,6 +16,8 @@ mod gamerpic;
 pub use fetch_cache::FetchCache;
 
 pub use circuit_breaker::EndpointBreaker;
+pub use gamerpic::GamerpicGate;
+pub(crate) use gamerpic::GamerpicOutcome;
 pub(crate) use credential_verdict::CredentialVerdict;
 
 use common::reqwest::{
@@ -43,6 +45,9 @@ pub(crate) struct Api {
     // cache created per clone would never see a second hit. `moka::future::Cache` is
     // internally shared, so deriving Clone gives that for free.
     config: FetchCache<ApiConfigResponse>,
+    // Shared for the same reason as `config`: a refusal seen by one clone has to silence them
+    // all, and a fresh sign-in builds a new Api and so a fresh gate.
+    gamerpic: Arc<GamerpicGate>,
 }
 
 impl Api {
@@ -63,6 +68,7 @@ impl Api {
             client: client::Client::new(ca_cert, pem),
             family_preference,
             config: FetchCache::new(Self::CONFIG_TTL, Self::CONFIG_CAPACITY),
+            gamerpic: GamerpicGate::new_shared(),
         }
     }
 

@@ -5,7 +5,9 @@ import { I18n } from "#lib/i18n/index.js";
 import type { RingMode } from "$radial/bindings/RingBinding";
 import type { ProtocolCompatibility } from "../../bindings/ProtocolCompatibility";
 import type { ServerReachability } from "../../bindings/ServerReachability";
-import { PublicServerConfig } from "../services/PublicServerConfig";
+import { ServerAddressFormat } from "./ServerAddressFormat";
+import { ServerCheck } from "./ServerCheck";
+import { ServerCheckMessage } from "./ServerCheckMessage";
 
 export interface ResolveVerdict {
     readonly state: "editing" | "ok" | "bad";
@@ -38,7 +40,6 @@ export interface ResolveVerdict {
  * the server selector cannot reach different conclusions from the same measurement.
  */
 export default class AddressResolver {
-    static readonly HOSTNAME = /^[a-z0-9.-]+\.[a-z]{2,}(:\d{1,5})?$/i;
     static readonly DEBOUNCE_MS = 700;
     private static readonly STANDARD_QUIC_PORT = 443;
 
@@ -113,6 +114,17 @@ export default class AddressResolver {
             ring: "empty",
             line: `✕ ${line}`,
             caption: I18n.tf("PROTOCOL {version}", { version: check.server_version }),
+            busy: false,
+        };
+    }
+
+    /** An address that cannot be a BVC server, said before any probe is spent on it. */
+    static verdictForFormat(error: string): ResolveVerdict {
+        return {
+            state: "bad",
+            ring: "empty",
+            line: `✕ ${error}`,
+            caption: I18n.t("CHECK ADDRESS"),
             busy: false,
         };
     }
@@ -203,22 +215,25 @@ export default class AddressResolver {
         this.generation++;
         if (this.timer !== null) clearTimeout(this.timer);
 
-        const trimmed = value
-            .trim()
-            .replace(/^https?:\/\//, "")
-            .replace(/\/$/, "");
+        const mine = this.generation;
+        const format = ServerAddressFormat.check(value);
 
-        // Nothing about this value will be measured, so it must not claim to be working.
-        if (!AddressResolver.HOSTNAME.test(trimmed)) {
+        // Nothing about this value will be measured, so it must not claim to be working. Its
+        // format error waits for the debounce: a half-typed address is not a mistake yet.
+        if (!format.valid) {
             this.verdictStore.set(AddressResolver.EDITING);
+            if (!value.trim()) return;
+            this.timer = setTimeout(() => {
+                if (mine !== this.generation) return;
+                this.verdictStore.set(AddressResolver.verdictForFormat(format.error));
+            }, AddressResolver.DEBOUNCE_MS);
             return;
         }
 
         this.verdictStore.set(AddressResolver.MEASURING);
 
-        const mine = this.generation;
         this.timer = setTimeout(
-            () => void this.measure(trimmed, mine),
+            () => void this.measure(format.host, mine),
             AddressResolver.DEBOUNCE_MS,
         );
     }
@@ -232,7 +247,16 @@ export default class AddressResolver {
     private async measure(host: string, generation: number): Promise<void> {
         const server = `https://${host}`;
         try {
-            const config = await PublicServerConfig.read(server);
+            const check = await ServerCheck.report(server);
+            if (generation !== this.generation) return;
+            if (check.state === "Failed") {
+                this.verdictStore.set({
+                    ...AddressResolver.NO_RESPONSE,
+                    line: `✕ ${ServerCheckMessage.for(check.failure)}`,
+                });
+                return;
+            }
+            const config = check.config;
 
             // Compatibility is checked before reachability is reported: a server this
             // build cannot speak to is not made better by having a fast voice path,
