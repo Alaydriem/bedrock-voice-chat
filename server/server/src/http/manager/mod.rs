@@ -37,7 +37,7 @@ pub struct RocketManager {
     audio_stream_token_cache: AudioStreamTokenCache,
     metrics: Arc<crate::services::MetricsService>,
     readiness: Arc<crate::runtime::ReadinessState>,
-    /// The challenge the relay registry last sent over the enrollment session, echoed
+    /// The nonce the relay registry last returned on check-in, echoed
     /// by an unauthenticated route so the relay can bind the published address record
     /// to this server's node key.
     nonce: Arc<crate::services::CurrentNonce>,

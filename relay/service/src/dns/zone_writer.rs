@@ -1,8 +1,9 @@
+use std::net::IpAddr;
 use std::sync::Arc;
 
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait,
-    QueryFilter,
+    PaginatorTrait, QueryFilter,
 };
 
 use crate::entity::dns_record;
@@ -24,6 +25,7 @@ pub struct ZoneWriter {
 impl ZoneWriter {
     const TXT: &'static str = "TXT";
     const A: &'static str = "A";
+    const AAAA: &'static str = "AAAA";
 
     pub fn new(conn: Arc<DatabaseConnection>, api: CloudflareApi, zone: String) -> Self {
         Self { conn, api, zone }
@@ -42,18 +44,63 @@ impl ZoneWriter {
         self.delete_where(dns_record::Column::Name.eq(fqdn)).await
     }
 
-    // The address record is replaced rather than added to. A name resolves to one
-    // server, and two A records would round-robin between an operator's current
-    // address and one they moved off.
-    pub async fn publish_a(&self, name: &str, address: &str) -> Result<(), DnsError> {
-        let fqdn = self.address_fqdn(name);
-        self.delete_where(dns_record::Column::Name.eq(fqdn.clone()))
-            .await?;
-        self.create(Self::A, &fqdn, address).await
+    // Replaces any earlier address record; IPv6 is published as AAAA because the zone
+    // refuses it in an A record.
+    pub async fn publish_address(&self, name: &str, address: IpAddr) -> Result<(), DnsError> {
+        let kind = match address {
+            IpAddr::V4(_) => Self::A,
+            IpAddr::V6(_) => Self::AAAA,
+        };
+        self.withdraw_address(name).await?;
+        self.create(kind, &self.address_fqdn(name), &address.to_string())
+            .await
     }
 
-    // Everything the relay has written for this name — address and any challenge
-    // left behind — so a suspended registration stops resolving entirely.
+    // Leaves challenge records in place so an issuance in flight is not broken.
+    pub async fn withdraw_address(&self, name: &str) -> Result<(), DnsError> {
+        self.delete_where(dns_record::Column::Name.eq(self.address_fqdn(name)))
+            .await
+    }
+
+    pub async fn has_records(&self, name: &str) -> Result<bool, DnsError> {
+        Ok(dns_record::Entity::find()
+            .filter(
+                dns_record::Column::Name
+                    .eq(self.address_fqdn(name))
+                    .or(dns_record::Column::Name.eq(self.challenge_fqdn(name))),
+            )
+            .count(self.conn.as_ref())
+            .await?
+            > 0)
+    }
+
+    pub async fn has_address_record(&self, name: &str) -> Result<bool, DnsError> {
+        Ok(dns_record::Entity::find()
+            .filter(dns_record::Column::Name.eq(self.address_fqdn(name)))
+            .filter(dns_record::Column::RecordType.is_in([Self::A, Self::AAAA]))
+            .count(self.conn.as_ref())
+            .await?
+            > 0)
+    }
+
+    pub async fn open_challenges(&self, name: &str) -> Result<u64, DnsError> {
+        Ok(dns_record::Entity::find()
+            .filter(dns_record::Column::Name.eq(self.challenge_fqdn(name)))
+            .count(self.conn.as_ref())
+            .await?)
+    }
+
+    // Nothing signals that a challenge is done, so age is the only way to find finished ones.
+    pub async fn prune_challenges_before(&self, cutoff: i64) -> Result<(), DnsError> {
+        self.delete_where(
+            dns_record::Column::RecordType
+                .eq(Self::TXT)
+                .and(dns_record::Column::CreatedAt.lt(cutoff)),
+        )
+        .await
+    }
+
+    // Everything the relay has written for this name, address and challenges.
     pub async fn withdraw(&self, name: &str) -> Result<(), DnsError> {
         self.delete_where(
             dns_record::Column::Name

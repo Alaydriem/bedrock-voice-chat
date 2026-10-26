@@ -47,7 +47,7 @@ impl AcmeService {
 
     /// Builds the service around a provider the caller already holds.
     ///
-    /// The relay provider's only parameter is a live enrollment session, which `Acme`
+    /// The relay provider's only parameter is an enrollment client, which `Acme`
     /// cannot carry, so it cannot be built from configuration the way the others are.
     pub fn with_provider(
         config: Acme,
@@ -90,6 +90,13 @@ impl AcmeService {
             .await?
             .is_none()
         {
+            if self.storage.load_certificate_any().await?.is_some() {
+                curia::info!("The stored ACME certificate is expiring; renewing", { "domains": format!("{:?}", self.domains) });
+                if let Err(e) = self.issue().await {
+                    curia::warn!("ACME renewal failed; serving the stored certificate", { "error": e.to_string() });
+                }
+                return Ok(self.paths());
+            }
             curia::info!("No valid ACME certificate stored; issuing", { "domains": format!("{:?}", self.domains) });
             let mut last_error = None;
             for (attempt, delay_secs) in [(1u32, 30u64), (2, 60), (3, 0)] {
@@ -111,14 +118,18 @@ impl AcmeService {
                 return Err(e.context("ACME issuance failed after 3 attempts"));
             }
         }
-        Ok(AcmeCertPaths {
+        Ok(self.paths())
+    }
+
+    fn paths(&self) -> AcmeCertPaths {
+        AcmeCertPaths {
             certificate: self
                 .storage
                 .certificate_path()
                 .to_string_lossy()
                 .into_owned(),
             key: self.storage.key_path().to_string_lossy().into_owned(),
-        })
+        }
     }
 
     /// True when a renewal was performed.

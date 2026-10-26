@@ -88,7 +88,7 @@ impl Acme {
         let kind = self.provider_kind()?;
 
         // The relay provider is configured by enrollment, not by the operator. It has
-        // no credential to check — the enrollment session authenticates this server's
+        // no credential to check — the connection authenticates this server's
         // node key — and RFC 8555 makes the account contact optional, so asking for an
         // email would be friction and personal data for nothing.
         if matches!(kind, AcmeProviderKind::BvcRelay) {

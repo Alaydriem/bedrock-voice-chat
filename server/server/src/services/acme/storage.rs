@@ -99,25 +99,36 @@ impl AcmeStorage {
         &self,
         min_validity: Duration,
     ) -> Result<Option<String>> {
+        let Some((pem, key_pem)) = self.matching_pair().await? else {
+            return Ok(None);
+        };
+        match CertificateExpiry::is_valid_for(&pem, min_validity) {
+            Ok(true) => {
+                // The consumer opens these by path, so they are written to disk first.
+                self.materialise(&pem, &key_pem)?;
+                Ok(Some(pem))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    pub async fn load_certificate_any(&self) -> Result<Option<String>> {
+        let Some((pem, key_pem)) = self.matching_pair().await? else {
+            return Ok(None);
+        };
+        // The consumer opens these by path, so they are written to disk first.
+        self.materialise(&pem, &key_pem)?;
+        Ok(Some(pem))
+    }
+
+    async fn matching_pair(&self) -> Result<Option<(String, String)>> {
         let Some(row) = self.row().await? else {
             return Ok(None);
         };
         if row.directory_url != self.directory_url || row.names != self.names {
             return Ok(None);
         }
-        let (Some(pem), Some(key_pem)) = (row.certificate_pem, row.key_pem) else {
-            return Ok(None);
-        };
-        match CertificateExpiry::is_valid_for(&pem, min_validity) {
-            Ok(true) => {
-                // The consumer opens these by path, so a boot that serves the stored
-                // certificate has to leave it on disk first.
-                self.materialise(&pem, &key_pem)?;
-                Ok(Some(pem))
-            }
-            // An unparseable or expiring stored certificate means re-issue, not crash.
-            _ => Ok(None),
-        }
+        Ok(row.certificate_pem.zip(row.key_pem))
     }
 
     pub async fn store_certificate(&self, cert_pem: &str, key_pem: &str) -> Result<()> {

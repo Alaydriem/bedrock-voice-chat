@@ -12,4 +12,7 @@ class Enrollment {
     @SerializedName("address")
     var address: String? = null
 
+    @SerializedName("port")
+    var port: Int? = null
+
 }

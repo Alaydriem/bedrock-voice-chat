@@ -10,7 +10,7 @@ pub struct EnrollVersion(pub u16);
 
 impl EnrollVersion {
     // Every version this build can speak, ascending.
-    pub const SUPPORTED: &'static [EnrollVersion] = &[EnrollVersion(1)];
+    pub const SUPPORTED: &'static [EnrollVersion] = &[EnrollVersion(2)];
 
     // The highest version both sides can speak, or `None` when they share none.
     pub fn negotiate(local: &[EnrollVersion], remote: &[EnrollVersion]) -> Option<EnrollVersion> {

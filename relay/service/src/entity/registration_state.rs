@@ -7,6 +7,7 @@ pub enum RegistrationState {
     Pending,
     Active,
     Suspended,
+    Revoked,
     Retired,
 }
 
@@ -16,6 +17,7 @@ impl RegistrationState {
             Self::Pending => "pending",
             Self::Active => "active",
             Self::Suspended => "suspended",
+            Self::Revoked => "revoked",
             Self::Retired => "retired",
         }
     }
@@ -25,6 +27,7 @@ impl RegistrationState {
             "pending" => Some(Self::Pending),
             "active" => Some(Self::Active),
             "suspended" => Some(Self::Suspended),
+            "revoked" => Some(Self::Revoked),
             "retired" => Some(Self::Retired),
             _ => None,
         }

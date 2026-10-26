@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::sync::Arc;
 
 use common::curia;
@@ -5,16 +6,11 @@ use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, EntityTrait};
 
 use super::error::ValidationError;
 use crate::dns::ZoneWriter;
-use crate::entity::registration;
+use crate::entity::{RegistrationState, registration};
 use crate::registry::{RegistryError, RegistryService};
 
 use super::outcome::ValidationOutcome;
 
-// Decides whether a registration keeps its name.
-//
-// One rule for every registration. Identity and liveness are proved over the held
-// enrollment session, which reaches a node behind CGNAT exactly as it reaches one
-// with a public address; the address half applies only where a record was published.
 pub struct ValidationChecker {
     conn: Arc<DatabaseConnection>,
     registry: Arc<RegistryService>,
@@ -63,6 +59,20 @@ impl ValidationChecker {
         let consecutive = row.validation_failures + 1;
         let passed = identity_ok && address_ok.unwrap_or(true);
         let now = Self::now();
+        let state = match RegistrationState::from_str(&row.state) {
+            Some(state @ (RegistrationState::Active | RegistrationState::Revoked)) => state,
+            _ => {
+                return Ok(if passed {
+                    ValidationOutcome::Passed
+                } else {
+                    ValidationOutcome::Failed {
+                        consecutive: row.validation_failures,
+                    }
+                });
+            }
+        };
+
+        let declared_address = row.declared_address.clone();
 
         // A pass clears the counter rather than decrementing it. Failures that
         // accumulate across unrelated outages weeks apart are not evidence of an
@@ -72,25 +82,34 @@ impl ValidationChecker {
             model.validated_at = ActiveValue::Set(Some(now));
             model.validation_failures = ActiveValue::Set(0);
             model.update(self.conn.as_ref()).await?;
-            return Ok(ValidationOutcome::Passed);
+
+            if state != RegistrationState::Revoked {
+                return Ok(ValidationOutcome::Passed);
+            }
+
+            // Published first so a failed write leaves the row revoked and retried.
+            if let Some(address) = declared_address.and_then(|a| a.parse::<IpAddr>().ok()) {
+                self.zone.publish_address(&name, address).await?;
+            }
+            self.registry.reinstate(node_id).await?;
+            curia::info!("recovered a revoked registration", { "node": node_id.to_string(), "name": name });
+            return Ok(ValidationOutcome::Recovered);
         }
 
         let mut model: registration::ActiveModel = row.into();
         model.validation_failures = ActiveValue::Set(consecutive);
         model.update(self.conn.as_ref()).await?;
 
-        if consecutive < Self::FAILURE_THRESHOLD {
+        if state == RegistrationState::Revoked || consecutive < Self::FAILURE_THRESHOLD {
             return Ok(ValidationOutcome::Failed { consecutive });
         }
 
-        // Suspension withdraws the record and pauses renewal. It never revokes: the
-        // live certificate stays valid until it expires, so the remaining lifetime
-        // is the operator's grace period.
-        curia::warn!("suspending a registration after repeated validation failures", { "node": node_id.to_string(), "name": name.clone() });
-        self.zone.withdraw(&name).await?;
-        self.registry.suspend(node_id).await?;
+        // Challenge records stay so a revoked server can still renew.
+        curia::warn!("revoking a registration after repeated validation failures", { "node": node_id.to_string(), "name": name.clone() });
+        self.zone.withdraw_address(&name).await?;
+        self.registry.revoke(node_id).await?;
 
-        Ok(ValidationOutcome::Suspended)
+        Ok(ValidationOutcome::Revoked)
     }
 
     fn now() -> i64 {

@@ -18,6 +18,10 @@ async fn hold(conn: &sea_orm::DatabaseConnection, node_id: &str, name: &str, mem
         created_at: ActiveValue::Set(0),
         suspended_at: ActiveValue::Set(None),
         retired_at: ActiveValue::Set(None),
+        revoked_at: ActiveValue::Set(None),
+        declared_port: ActiveValue::Set(None),
+        checkin_nonce: ActiveValue::Set(None),
+        checked_in_at: ActiveValue::Set(None),
     }
     .insert(conn)
     .await

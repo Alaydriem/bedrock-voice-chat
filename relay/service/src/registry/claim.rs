@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use base64::Engine;
-use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, EntityTrait};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, DatabaseConnection, EntityTrait,
+    QueryFilter,
+};
 
 use crate::entity::claim;
 
@@ -61,9 +64,7 @@ impl ClaimService {
 
     // `None` for unknown, expired, or already-consumed. The page cannot tell them
     // apart and should not: every one of them means "this link is no longer good".
-    //
-    // Expiry is checked here rather than swept, so a claim stops working on time
-    // whether or not anything else has run.
+    // Expiry is checked here as well as swept.
     pub async fn redeem(&self, id: &str) -> Result<Option<String>, RegistryError> {
         let Some(row) = claim::Entity::find_by_id(id)
             .one(self.conn.as_ref())
@@ -82,6 +83,19 @@ impl ClaimService {
         model.update(self.conn.as_ref()).await?;
 
         Ok(Some(token))
+    }
+
+    pub async fn sweep(&self, now: i64) -> Result<u64, RegistryError> {
+        let result = claim::Entity::delete_many()
+            .filter(
+                Condition::any()
+                    .add(claim::Column::ExpiresAt.lt(now))
+                    .add(claim::Column::ConsumedAt.is_not_null()),
+            )
+            .exec(self.conn.as_ref())
+            .await?;
+
+        Ok(result.rows_affected)
     }
 
     fn mint_id() -> String {

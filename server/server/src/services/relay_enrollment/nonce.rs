@@ -1,11 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-// The challenge value the relay most recently sent over the enrollment session.
-//
-// Published over an unauthenticated route so the relay can fetch it from the address
-// the operator declared. That fetch is what binds the address record to this node:
-// without it, an operator could declare an address they do not control and pass the
-// identity half forever, because their node is genuinely fine.
+// The nonce from the most recent check-in, served on an unauthenticated route.
 pub struct CurrentNonce {
     value: Mutex<Option<String>>,
 }

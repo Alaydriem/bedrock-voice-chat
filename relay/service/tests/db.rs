@@ -37,6 +37,10 @@ async fn a_second_registration_for_one_discord_user_is_refused() {
         created_at: ActiveValue::Set(0),
         suspended_at: ActiveValue::Set(None),
         retired_at: ActiveValue::Set(None),
+        revoked_at: ActiveValue::Set(None),
+        declared_port: ActiveValue::Set(None),
+        checkin_nonce: ActiveValue::Set(None),
+        checked_in_at: ActiveValue::Set(None),
     }
     .insert(&conn)
     .await
@@ -56,6 +60,10 @@ async fn a_second_registration_for_one_discord_user_is_refused() {
         created_at: ActiveValue::Set(0),
         suspended_at: ActiveValue::Set(None),
         retired_at: ActiveValue::Set(None),
+        revoked_at: ActiveValue::Set(None),
+        declared_port: ActiveValue::Set(None),
+        checkin_nonce: ActiveValue::Set(None),
+        checked_in_at: ActiveValue::Set(None),
     }
     .insert(&conn)
     .await;
@@ -86,6 +94,10 @@ async fn two_registrations_cannot_share_a_name() {
         created_at: ActiveValue::Set(0),
         suspended_at: ActiveValue::Set(None),
         retired_at: ActiveValue::Set(None),
+        revoked_at: ActiveValue::Set(None),
+        declared_port: ActiveValue::Set(None),
+        checkin_nonce: ActiveValue::Set(None),
+        checked_in_at: ActiveValue::Set(None),
     }
     .insert(&conn)
     .await
@@ -105,6 +117,10 @@ async fn two_registrations_cannot_share_a_name() {
         created_at: ActiveValue::Set(0),
         suspended_at: ActiveValue::Set(None),
         retired_at: ActiveValue::Set(None),
+        revoked_at: ActiveValue::Set(None),
+        declared_port: ActiveValue::Set(None),
+        checkin_nonce: ActiveValue::Set(None),
+        checked_in_at: ActiveValue::Set(None),
     }
     .insert(&conn)
     .await;

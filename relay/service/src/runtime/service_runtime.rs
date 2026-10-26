@@ -18,7 +18,7 @@ use crate::registry::RegistryService;
 use crate::runtime::TlsProvider;
 use crate::scheduler::DailyScheduler;
 use crate::storage::{CertificateMaterial, CertificateStore, NodeKeyStore};
-use crate::validation::{AddressProbe, LiveAddressProbe, ValidationChecker};
+use crate::validation::{AddressProbe, AddressVerifier, LiveAddressProbe, ValidationChecker};
 
 // The registry.
 //
@@ -65,11 +65,27 @@ impl ServiceRuntime {
 
         let budget = WeeklyBudget::new_shared(conn.clone(), self.config.weekly_certificate_ceiling);
 
+        let checker = ValidationChecker::new_shared(conn.clone(), registry.clone(), zone.clone());
+        let verifier =
+            AddressVerifier::new_shared(AddressProbe::Live(LiveAddressProbe::new()), zone.clone());
+        let claims = ClaimService::new_shared(conn.clone());
+        let scheduler = DailyScheduler::new_shared(
+            conn.clone(),
+            checker,
+            verifier,
+            registry.clone(),
+            zone.clone(),
+            claims.clone(),
+            MemberSource::Bot(DiscordBotClient::new(&self.config.discord)),
+            self.config.discord.clone(),
+        );
+
         let enroll = RegistryEndpoint::bind(
             &identity,
             registry.clone(),
-            zone.clone(),
+            zone,
             budget,
+            scheduler.clone(),
             Some(self.config.enroll_port),
         )
         .await?;
@@ -80,16 +96,7 @@ impl ServiceRuntime {
         // from configuration, and an operator has nowhere else to read it.
         curia::info!("relay registry enrollment link", { "peerlink": enroll.ticket().await?, "node": enroll.node_id().to_string() });
 
-        let registry_for_http = Arc::clone(&registry);
-        let checker = ValidationChecker::new_shared(conn.clone(), registry, zone);
-        let scheduler = DailyScheduler::new_shared(
-            conn.clone(),
-            checker,
-            Arc::clone(enroll.sessions()),
-            MemberSource::Bot(DiscordBotClient::new(&self.config.discord)),
-            self.config.discord.clone(),
-            AddressProbe::Live(LiveAddressProbe::new()),
-        );
+        let registry_for_http = registry;
 
         let cancel = CancellationToken::new();
         scheduler.spawn(cancel.clone());
@@ -123,7 +130,7 @@ impl ServiceRuntime {
             self.config.http.clone(),
             self.config.discord.clone(),
             registry_for_http,
-            ClaimService::new_shared(conn),
+            claims,
             identity_source,
         );
         let router = HttpRouter::build(http_state);

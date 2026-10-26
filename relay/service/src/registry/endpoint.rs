@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::sync::Arc;
 
 use bvc_relay::node::NodeIdentity;
@@ -10,45 +11,40 @@ use iroh::endpoint::{Connection, RecvStream, SendStream};
 
 use crate::budget::WeeklyBudget;
 use crate::dns::ZoneWriter;
+use crate::entity::RegistrationState;
 use crate::registry::RegistryService;
+use crate::scheduler::DailyScheduler;
 
-use crate::enroll::{EnrollError, EnrollSession, EnrollSessions};
+use crate::enroll::EnrollError;
 
-// The registry's iroh endpoint.
-//
-// One endpoint, two protocols, dispatched by ALPN. Enrollment is for entitled members
-// and is gated by a single-use token; address observation is for every server, member
-// or not, because peering is not a paid feature. They share a socket and nothing else.
-//
-// Neither rides the peer wire: `Handshake::accept` refuses any node not declared in a
-// peer block, and neither an enrolling server nor one asking for its own address is
-// anybody's declared peer.
 pub struct RegistryEndpoint {
     endpoint: PeerEndpoint,
     registry: Arc<RegistryService>,
     zone: Arc<ZoneWriter>,
     budget: Arc<WeeklyBudget>,
-    sessions: Arc<EnrollSessions>,
+    scheduler: Arc<DailyScheduler>,
     admission: AdmissionControl,
 }
 
 impl RegistryEndpoint {
     pub const ALPN: &'static [u8] = b"bvc-enroll/1";
 
-    // Connections still completing their handshake, not sessions already established.
-    // The slot is released the moment a connection yields an authenticated node key,
-    // so this bounds the anonymous window rather than the number of servers the relay
-    // can serve — which must not be capped at all.
-    //
-    // Sized above the peer plane's 64, which is for declared peers: a burst of
-    // enrollments must not starve voice peering, nor the reverse.
+    // Sized above the peer plane's 64 so enrollments cannot starve voice peering.
     pub const MAX_UNAUTHORIZED: usize = 256;
+
+    pub const CHALLENGE_TTL_SECONDS: i64 = 60 * 60;
+
+    pub const MAX_OPEN_CHALLENGES: u64 = 4;
+
+    // Caps Discord lookups and probes from a reconnect loop.
+    pub const RECOVERY_COOLDOWN_SECONDS: i64 = 600;
 
     pub async fn bind(
         identity: &NodeIdentity,
         registry: Arc<RegistryService>,
         zone: Arc<ZoneWriter>,
         budget: Arc<WeeklyBudget>,
+        scheduler: Arc<DailyScheduler>,
         port: Option<u16>,
     ) -> Result<Arc<Self>, EnrollError> {
         let endpoint = PeerEndpoint::bind_with_alpns(
@@ -64,22 +60,15 @@ impl RegistryEndpoint {
             registry,
             zone,
             budget,
-            sessions: EnrollSessions::new_shared(),
+            scheduler,
             admission: AdmissionControl::new(Self::MAX_UNAUTHORIZED),
         }))
-    }
-
-    pub fn sessions(&self) -> &Arc<EnrollSessions> {
-        &self.sessions
     }
 
     pub fn node_id(&self) -> PublicKey {
         self.endpoint.node_id()
     }
 
-    // Where a server reaches this relay. Published in operator documentation and
-    // pasted into a server's `relay_registry` block, so it is minted from the live
-    // endpoint rather than assembled from configuration.
     pub async fn ticket(&self) -> Result<String, EnrollError> {
         self.endpoint
             .ticket()
@@ -105,48 +94,32 @@ impl RegistryEndpoint {
             return;
         };
 
-        // Read before the connection is awaited. Iroh exposes the address a
-        // connection arrived from on `Incoming` and not on `Connection`, so a
-        // responder that waited would have nothing left to report.
+        // Iroh exposes the remote address on `Incoming`, not on `Connection`.
         let observed = incoming.remote_addr();
 
         let conn = match incoming.await {
             Ok(conn) => conn,
             Err(e) => {
-                curia::debug!(format!(
-                    "a registry connection failed before its handshake completed: {e}"
-                ));
+                curia::debug!("a registry connection failed before its handshake completed", { "error": e.to_string() });
                 return;
             }
         };
 
-        // The link's own TLS proves the key, so the connection is authenticated the
-        // moment it exists. Releasing here is what keeps the cap a bound on
-        // handshakes rather than on how many servers the relay can hold sessions
-        // with.
         let node = conn.remote_id();
         drop(slot);
 
-        // Address observation is a single exchange with no session and no state, so it
-        // is answered and forgotten. Only enrollment holds a session open.
         if conn.alpn() == AddressObserver::ALPN {
             if let Err(e) = crate::observe::ObserveResponder::answer(&conn, observed).await {
-                curia::debug!(format!("an address observation failed: {e}"), { "node": node.to_string() });
+                curia::debug!("an address observation failed", { "node": node.to_string(), "error": e.to_string() });
             }
             return;
         }
 
-        self.sessions.insert(EnrollSession::new(conn.clone(), node));
-
         if let Err(e) = self.serve(&conn, node).await {
-            curia::debug!(format!("enrollment session ended: {e}"), { "node": node.to_string() });
+            curia::debug!("an enrollment connection ended", { "node": node.to_string(), "error": e.to_string() });
         }
-
-        self.sessions.remove(&node);
     }
 
-    // One stream per request. The session stays open between them, which is what the
-    // daily challenge rides.
     async fn serve(&self, conn: &Connection, node: PublicKey) -> Result<(), EnrollError> {
         loop {
             let (mut send, mut recv) = conn
@@ -174,10 +147,6 @@ impl RegistryEndpoint {
             }
             EnrollFrame::Enroll { token } => {
                 match self.registry.redeem(&token, &node.to_string()).await {
-                    // Fully qualified on the wire. The label alone is not a hostname:
-                    // a server would publish it as its own name, present it as a SAN,
-                    // and ask the certificate authority to sign it — which fails at
-                    // the order, because a bare label is not a domain.
                     Ok(name) => {
                         let name = self.zone.address_fqdn(&name);
                         Self::write(send, &EnrollFrame::Assigned { name }).await
@@ -188,63 +157,139 @@ impl RegistryEndpoint {
                     }
                 }
             }
-            // The node may publish for its own name and no other. The link
-            // authenticates the node cryptographically, so this is a lookup rather
-            // than a credential check — and a tighter scope than a shared key could
-            // express.
-            EnrollFrame::PublishTxt { name, value } => {
-                // The node was handed a fully qualified name, so that is what it sends
-                // back. The label is what everything here is keyed by.
-                let Some(name) = self.zone.label_of(&name) else {
-                    return Self::refuse(send, EnrollRefuseReason::NameNotOwned).await;
-                };
-
-                match self.registry.name_for(&node.to_string()).await {
-                    Ok(Some(owned)) if owned == name => {
-                        // A name that has held a certificate before is renewing, and
-                        // a renewal is exempt at the authority. Only a first issuance
-                        // draws on the weekly ceiling, and one refused here is one
-                        // the authority would have rejected — burning the order and
-                        // delaying the operator further.
-                        let is_renewal = self.budget.has_issued(&name).await.unwrap_or(false);
-                        if !is_renewal && !self.budget.admits_new_issuance().await.unwrap_or(false)
-                        {
-                            curia::warn!("refusing a first issuance: the weekly certificate budget is spent", { "name": name.clone() });
-                            return Self::refuse(send, EnrollRefuseReason::Internal).await;
-                        }
-
-                        self.zone.publish_txt(&name, &value).await?;
-                        let _ = self.budget.record(&name, is_renewal).await;
-                        Self::write(send, &EnrollFrame::TxtPublished).await
-                    }
-                    Ok(_) => Self::refuse(send, EnrollRefuseReason::NameNotOwned).await,
-                    Err(e) => Self::refuse(send, e.refuse_reason()).await,
-                }
-            }
-            // Recorded before it is published. The daily pass reads the stored column
-            // to decide whether to bind the record to this node, so an address
-            // published without being recorded is one nothing ever verifies.
-            EnrollFrame::DeclareAddress { address } => {
-                match self
-                    .registry
-                    .declare_address(&node.to_string(), &address)
-                    .await
-                {
-                    Ok(name) => {
-                        self.zone.publish_a(&name, &address).await?;
-                        Self::write(send, &EnrollFrame::TxtPublished).await
-                    }
-                    Err(e) => Self::refuse(send, e.refuse_reason()).await,
-                }
+            EnrollFrame::PublishTxt { name, value } => self.publish_txt(node, name, value, send).await,
+            EnrollFrame::CheckIn { address, port } => self.check_in(node, address, port, send).await,
+            EnrollFrame::Challenge { .. }
+            | EnrollFrame::ChallengeReply { .. }
+            | EnrollFrame::DeclareAddress { .. } => {
+                Self::refuse(send, EnrollRefuseReason::Internal).await
             }
             _ => Err(EnrollError::Unexpected {
-                expected: "Hello, Enroll, PublishTxt or DeclareAddress",
+                expected: "Hello, Enroll, PublishTxt or CheckIn",
             }),
         }
     }
 
-    // Sent before the caller sees an error, so the far side learns why rather than
-    // seeing a bare close it would read as a network fault and retry.
+    async fn publish_txt(
+        &self,
+        node: PublicKey,
+        name: String,
+        value: String,
+        send: &mut SendStream,
+    ) -> Result<(), EnrollError> {
+        let Some(name) = self.zone.label_of(&name) else {
+            return Self::refuse(send, EnrollRefuseReason::NameNotOwned).await;
+        };
+
+        match self.registry.name_for(&node.to_string()).await {
+            Ok(Some(owned)) if owned == name => {
+                // Renewals are exempt at the authority, so only a first issuance draws on the ceiling.
+                let is_renewal = self.budget.has_issued(&name).await.unwrap_or(false);
+                if !is_renewal && !self.budget.admits_new_issuance().await.unwrap_or(false) {
+                    curia::warn!("refusing a first issuance: the weekly certificate budget is spent", { "name": name.clone() });
+                    return Self::refuse(send, EnrollRefuseReason::Internal).await;
+                }
+
+                let cutoff = Self::now() - Self::CHALLENGE_TTL_SECONDS;
+                self.zone.prune_challenges_before(cutoff).await?;
+                if self.zone.open_challenges(&name).await? >= Self::MAX_OPEN_CHALLENGES {
+                    curia::warn!("refusing a challenge: too many are already open for this name", { "name": name.clone(), "node": node.to_string() });
+                    return Self::refuse(send, EnrollRefuseReason::Internal).await;
+                }
+
+                self.zone.publish_txt(&name, &value).await?;
+                let _ = self.budget.record(&name, is_renewal).await;
+                Self::write(send, &EnrollFrame::TxtPublished).await
+            }
+            Ok(_) => Self::refuse(send, EnrollRefuseReason::NameNotOwned).await,
+            Err(e) => Self::refuse(send, e.refuse_reason()).await,
+        }
+    }
+
+    async fn check_in(
+        &self,
+        node: PublicKey,
+        address: Option<String>,
+        port: u16,
+        send: &mut SendStream,
+    ) -> Result<(), EnrollError> {
+        let address = match address.map(|a| a.parse::<IpAddr>()).transpose() {
+            Ok(address) => address,
+            Err(_) => {
+                curia::info!("refusing a check-in whose address is not an IP address", { "node": node.to_string() });
+                return Self::refuse(send, EnrollRefuseReason::Internal).await;
+            }
+        };
+
+        let node_id = node.to_string();
+        let record = match self.registry.record_check_in(&node_id, address, port).await {
+            Ok(record) => record,
+            Err(e) => return Self::refuse(send, e.refuse_reason()).await,
+        };
+        let reply = EnrollFrame::CheckedIn {
+            nonce: record.nonce.into_bytes(),
+        };
+
+        match (record.state, address) {
+            (RegistrationState::Revoked, _) => {
+                // Replied first so the server holds the nonce before any probe arrives.
+                Self::write(send, &reply).await?;
+                self.evaluate_revoked(&node_id).await;
+                return Ok(());
+            }
+            (RegistrationState::Active, address) => {
+                if let Err(e) = self.sync_address(&record.name, address, record.address_changed).await {
+                    curia::error!("updating a node's address record failed", { "node": node_id.clone(), "name": record.name.clone(), "error": e.to_string() });
+                }
+            }
+            _ => {}
+        }
+
+        Self::write(send, &reply).await
+    }
+
+    // The nonce is already stored, so a DNS fault must not cost the node its reply.
+    async fn sync_address(
+        &self,
+        name: &str,
+        address: Option<IpAddr>,
+        changed: bool,
+    ) -> Result<(), crate::dns::DnsError> {
+        match address {
+            Some(ip) => {
+                if changed || !self.zone.has_address_record(name).await? {
+                    self.zone.publish_address(name, ip).await?;
+                }
+                Ok(())
+            }
+            None => self.zone.withdraw_address(name).await,
+        }
+    }
+
+    async fn evaluate_revoked(&self, node_id: &str) {
+        let claimed = match self
+            .registry
+            .claim_recovery_evaluation(node_id, Self::RECOVERY_COOLDOWN_SECONDS)
+            .await
+        {
+            Ok(claimed) => claimed,
+            Err(e) => {
+                curia::warn!("claiming a recovery evaluation failed", { "node": node_id.to_string(), "error": e.to_string() });
+                return;
+            }
+        };
+        if claimed && let Err(e) = self.scheduler.evaluate_node(node_id).await {
+            curia::warn!("evaluating a revoked registration on check-in failed", { "node": node_id.to_string(), "error": e.to_string() });
+        }
+    }
+
+    fn now() -> i64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or_default()
+    }
+
     async fn refuse(send: &mut SendStream, reason: EnrollRefuseReason) -> Result<(), EnrollError> {
         Self::write(send, &EnrollFrame::Refuse { reason }).await
     }

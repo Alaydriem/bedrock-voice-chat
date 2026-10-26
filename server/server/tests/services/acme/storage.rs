@@ -267,6 +267,47 @@ async fn a_names_change_invalidates_the_stored_certificate() {
     );
 }
 
+#[tokio::test]
+async fn load_any_returns_an_expired_certificate() {
+    let db = DatabaseFixture::create().await.expect("fixture");
+    let dir = TempDir::new().unwrap();
+    let storage = storage(&dir, &db, names());
+    storage.store_account_credentials("{}").await.unwrap();
+    let cert = mint_cert(-1);
+    storage.store_certificate(&cert, "key-pem").await.unwrap();
+    std::fs::remove_file(storage.certificate_path()).unwrap();
+    std::fs::remove_file(storage.key_path()).unwrap();
+
+    assert!(
+        storage
+            .load_certificate_valid_for(Duration::from_secs(0))
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let loaded = storage.load_certificate_any().await.unwrap();
+
+    assert_eq!(loaded.as_deref(), Some(cert.as_str()));
+    assert!(storage.certificate_path().exists());
+    assert!(storage.key_path().exists());
+}
+
+#[tokio::test]
+async fn load_any_ignores_a_certificate_for_other_names() {
+    let db = DatabaseFixture::create().await.expect("fixture");
+    let dir = TempDir::new().unwrap();
+    let original = storage(&dir, &db, names());
+    original.store_account_credentials("{}").await.unwrap();
+    original
+        .store_certificate(&mint_cert(60), "key-pem")
+        .await
+        .unwrap();
+
+    let other = storage(&dir, &db, vec!["other.example.com".to_string()]);
+
+    assert!(other.load_certificate_any().await.unwrap().is_none());
+}
+
 // The order the names arrive in is not a change.
 #[tokio::test]
 async fn reordering_the_names_is_not_a_change() {

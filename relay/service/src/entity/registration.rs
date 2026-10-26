@@ -22,6 +22,10 @@ pub struct Model {
     pub created_at: i64,
     pub suspended_at: Option<i64>,
     pub retired_at: Option<i64>,
+    pub revoked_at: Option<i64>,
+    pub declared_port: Option<i32>,
+    pub checkin_nonce: Option<String>,
+    pub checked_in_at: Option<i64>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

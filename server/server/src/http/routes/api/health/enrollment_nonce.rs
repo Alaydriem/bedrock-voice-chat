@@ -6,8 +6,7 @@ use rocket_okapi::openapi;
 
 use crate::services::CurrentNonce;
 
-/// Echoes the challenge the relay registry most recently sent over the enrollment
-/// session.
+/// Echoes the nonce most recently returned by the relay registry's check-in reply.
 ///
 /// Unauthenticated by necessity: the relay fetches this from the address the operator
 /// declared, before it holds any credential for this server, and the value is a

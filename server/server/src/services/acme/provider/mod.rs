@@ -52,14 +52,13 @@ impl DnsProvider {
                 )))
             }
             AcmeProviderKind::BvcRelay => Err(anyhow!(
-                "the bvc-relay provider is built from the live enrollment session; \
+                "the bvc-relay provider is built from the relay enrollment client; \
                  use DnsProvider::from_relay"
             )),
         }
     }
 
-    // Built from the live enrollment session rather than from config, because the
-    // relay provider's only parameter is a session `Acme` cannot carry.
+    // Built from the enrollment client rather than from config, which `Acme` cannot carry.
     pub fn from_relay(
         client: std::sync::Arc<crate::services::RelayEnrollmentClient>,
         name: String,

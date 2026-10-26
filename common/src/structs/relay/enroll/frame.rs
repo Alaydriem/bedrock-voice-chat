@@ -20,8 +20,13 @@ pub enum EnrollFrame {
     Assigned { name: String },
     PublishTxt { name: String, value: String },
     TxtPublished,
+    // Unused since version 2; keeps its slot so the later variants decode.
     Challenge { nonce: Vec<u8> },
+    // Unused since version 2; keeps its slot so the later variants decode.
     ChallengeReply { signature: Vec<u8> },
+    // Unused since version 2; keeps its slot so the later variants decode.
     DeclareAddress { address: String },
     Refuse { reason: EnrollRefuseReason },
+    CheckIn { address: Option<String>, port: u16 },
+    CheckedIn { nonce: Vec<u8> },
 }

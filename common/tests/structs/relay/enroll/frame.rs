@@ -16,13 +16,25 @@ fn hello_is_the_zeroth_variant() {
 }
 
 #[test]
-fn refuse_is_the_last_variant() {
-    let bytes = Framing::encode(&EnrollFrame::Refuse {
-        reason: EnrollRefuseReason::NotEntitled,
-    })
-    .expect("a refuse frame encodes");
+fn refuse_keeps_its_version_one_index_and_check_in_frames_follow() {
+    let index = |frame: EnrollFrame| {
+        Framing::encode(&frame).expect("a frame encodes")[Framing::HEADER_LEN]
+    };
 
-    assert_eq!(bytes[Framing::HEADER_LEN], 9);
+    assert_eq!(
+        index(EnrollFrame::Refuse {
+            reason: EnrollRefuseReason::NotEntitled,
+        }),
+        9
+    );
+    assert_eq!(
+        index(EnrollFrame::CheckIn {
+            address: None,
+            port: 443,
+        }),
+        10
+    );
+    assert_eq!(index(EnrollFrame::CheckedIn { nonce: vec![1] }), 11);
 }
 
 // Negotiation refuses rather than falling back. A session established on a version
