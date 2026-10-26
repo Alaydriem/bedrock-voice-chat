@@ -1,0 +1,62 @@
+name: Build Branch Docker Images
+
+# Publishes the server and registry images from any branch under one fixed tag, so a
+# test host can pull the same reference after every run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      images:
+        description: 'Images to build'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - server
+          - registry
+
+permissions:
+  contents: read
+  packages: write
+
+# Two runs would race to push the same tag.
+concurrency:
+  group: docker-testing-images
+  cancel-in-progress: false
+
+jobs:
+  build-server:
+    name: Build Server Binaries
+    if: inputs.images == 'both' || inputs.images == 'server'
+    uses: ./.github/workflows/build-server.yml
+    with:
+      build_mode: release
+    secrets: inherit
+
+  build-server-docker:
+    name: Publish Server Image
+    needs: build-server
+    uses: ./.github/workflows/build-server-docker.yml
+    with:
+      version: testing
+      build_mode: release
+      push: true
+    secrets: inherit
+
+  build-relay:
+    name: Build Registry Binaries
+    if: inputs.images == 'both' || inputs.images == 'registry'
+    uses: ./.github/workflows/build-relay.yml
+    with:
+      build_mode: release
+    secrets: inherit
+
+  build-relay-docker:
+    name: Publish Registry Image
+    needs: build-relay
+    uses: ./.github/workflows/build-relay-docker.yml
+    with:
+      version: testing
+      push: true
+    secrets: inherit
