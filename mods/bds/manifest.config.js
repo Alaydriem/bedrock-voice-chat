@@ -41,7 +41,7 @@ const METADATA = {
   product_type: 'addon',
 };
 
-const BP_MIN_ENGINE = [1, 26, 50];
+const BP_MIN_ENGINE = [1, 26, 60];
 const RP_MIN_ENGINE = [1, 26, 12];
 
 // Bedrock disables Vibrant Visuals while any active resource pack lacks `pbr`.
@@ -50,8 +50,8 @@ const RP_CAPABILITIES = ['pbr'];
 const SCRIPT_ENTRY = 'scripts/main.js';
 
 const BP_MODULE_DEPENDENCIES = [
-  { version: '2.3.0-beta', module_name: '@minecraft/server-ui' },
-  { version: '2.11.0-beta', module_name: '@minecraft/server' },
+  { version: '2.4.0-beta', module_name: '@minecraft/server-ui' },
+  { version: '2.12.0-beta', module_name: '@minecraft/server' },
   { version: '1.0.0-beta', module_name: '@minecraft/server-net' },
   { version: '1.0.0-beta', module_name: '@minecraft/server-admin' },
 ];

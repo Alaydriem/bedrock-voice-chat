@@ -54,7 +54,12 @@ class SvcBridge(
      * deliver them instead and SVC players would go silent to each other.
      */
     fun onMicrophonePacket(event: MicrophonePacketEvent) {
-        val speaker = event.senderConnection?.player?.uuid ?: return
+        val sender = event.senderConnection ?: return
+        val speaker = sender.player?.uuid ?: return
+
+        if (!SvcGroupGate.bridges(sender.group)) {
+            return
+        }
 
         // Announced once. A speaker Simple Voice Chat knows about and this server
         // cannot locate produces no frame at all, which is indistinguishable from
