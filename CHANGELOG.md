@@ -1,3 +1,12 @@
+# [1.0.0-beta.24](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.23...v1.0.0-beta.24) (2026-10-27)
+
+
+### Bug Fixes
+
+* **relay:** Relay cert validation fixes ([#274](https://github.com/Alaydriem/bedrock-voice-chat/issues/274)) ([2e640a1](https://github.com/Alaydriem/bedrock-voice-chat/commit/2e640a15dff56e3de2e5f6e69a591c90ddfb16ff))
+* sentry diagnosed issues ([#275](https://github.com/Alaydriem/bedrock-voice-chat/issues/275)) ([2fcf2be](https://github.com/Alaydriem/bedrock-voice-chat/commit/2fcf2bec05a033c8d7fe4a00e8dadacba0ce94ab))
+* updater prompt not firing ([#271](https://github.com/Alaydriem/bedrock-voice-chat/issues/271)) ([bd75691](https://github.com/Alaydriem/bedrock-voice-chat/commit/bd75691fc7dc4a04bbd8942f397c07ed2b69c32c))
+
 # [1.0.0-beta.23](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.22...v1.0.0-beta.23) (2026-10-13)
 
 
