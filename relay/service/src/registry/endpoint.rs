@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use bvc_relay::node::NodeIdentity;
@@ -70,8 +70,16 @@ impl RegistryEndpoint {
     }
 
     pub async fn ticket(&self) -> Result<String, EnrollError> {
+        self.ticket_advertising(None).await
+    }
+
+    /// The enrollment link, also naming `advertised` when there is one.
+    pub async fn ticket_advertising(
+        &self,
+        advertised: Option<SocketAddr>,
+    ) -> Result<String, EnrollError> {
         self.endpoint
-            .ticket()
+            .ticket_advertising(advertised)
             .await
             .map_err(|e| EnrollError::Bind(e.to_string()))
     }

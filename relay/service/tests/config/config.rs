@@ -217,3 +217,54 @@ fn a_config_without_a_logger_block_still_has_a_level_and_a_path() {
     assert_eq!(config.logger.level, "info");
     assert!(!config.logger.path.is_empty());
 }
+
+fn with_advertise(value: &str) -> RelayConfig {
+    RelayConfig::from_hcl(&format!("{SAMPLE}\nadvertise_address = \"{value}\"\n"))
+        .expect("parses")
+}
+
+// A bare IP is the common case: the port Docker publishes is the port the endpoint binds.
+#[test]
+fn an_advertised_ip_takes_the_enroll_port() {
+    let config = with_advertise("165.245.164.210");
+
+    assert_eq!(
+        config.advertised_address().expect("valid"),
+        Some("165.245.164.210:28286".parse().expect("socket"))
+    );
+}
+
+// A published port that differs from the bound one is named explicitly and kept as given.
+#[test]
+fn an_advertised_ip_and_port_is_kept_as_given() {
+    let config = with_advertise("[2604:a880:6:7::1264:7000]:443");
+
+    assert_eq!(
+        config.advertised_address().expect("valid"),
+        Some("[2604:a880:6:7::1264:7000]:443".parse().expect("socket"))
+    );
+}
+
+// Compose maps an unset variable to an empty string, so empty has to mean "none" rather
+// than refuse to start a host-networked registry that needs no address.
+#[test]
+fn an_empty_advertised_address_is_none() {
+    assert_eq!(with_advertise("  ").advertised_address().expect("valid"), None);
+    assert_eq!(
+        RelayConfig::from_hcl(SAMPLE)
+            .expect("parses")
+            .advertised_address()
+            .expect("valid"),
+        None
+    );
+}
+
+// A typo is refused at startup. Accepting it would log a link servers bake and cannot dial.
+#[test]
+fn an_unparseable_advertised_address_is_refused() {
+    assert!(
+        with_advertise("registry.example.com")
+            .advertised_address()
+            .is_err()
+    );
+}

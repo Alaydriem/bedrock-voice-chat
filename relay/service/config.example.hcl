@@ -28,6 +28,13 @@ logger {
 // operating system: every enrolled server stores the address this port is part of.
 enroll_port = 28286
 
+// The public address servers reach the enrollment endpoint at. Required when the
+// registry runs on a bridged container network: the endpoint can see only loopback and
+// the bridge, and the enrollment link it logs names nothing a server can dial. An IP
+// takes `enroll_port`; `ip:port` names a published port that differs from it. Empty
+// leaves the link as the endpoint sees itself, which is right under host networking.
+advertise_address = "${env.BVC_RELAY_ADVERTISE_ADDRESS}"
+
 // First issuances the certificate authority will accept per week for this zone.
 // Renewals are exempt and are not counted against it. Raise this only after the
 // authority has granted a matching increase.

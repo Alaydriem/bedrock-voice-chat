@@ -13,6 +13,7 @@ pub use http::HttpConfig;
 pub use logger::LoggerConfig;
 
 use std::collections::HashMap;
+use std::net::{IpAddr, SocketAddr};
 
 use serde::{Deserialize, Serialize};
 
@@ -41,9 +42,41 @@ pub struct RelayConfig {
     // Renewals are exempt and are not counted against it.
     #[serde(default = "RelayConfig::default_weekly_certificate_ceiling")]
     pub weekly_certificate_ceiling: u32,
+
+    // The public address servers dial the enrollment endpoint at, added to the peer link.
+    // The endpoint reports only the interfaces it can see, which in a bridged container is
+    // loopback and the bridge, and a server baking that link has no path to this registry.
+    // An IP takes `enroll_port`; `ip:port` names a published port that differs from it.
+    // Empty is the same as absent.
+    #[serde(default)]
+    pub advertise_address: Option<String>,
 }
 
 impl RelayConfig {
+    /// The address added to the enrollment link, or `None` when none is configured.
+    pub fn advertised_address(&self) -> Result<Option<SocketAddr>, ConfigError> {
+        let Some(raw) = self
+            .advertise_address
+            .as_deref()
+            .map(str::trim)
+            .filter(|raw| !raw.is_empty())
+        else {
+            return Ok(None);
+        };
+
+        if let Ok(socket) = raw.parse::<SocketAddr>() {
+            return Ok(Some(socket));
+        }
+
+        raw.parse::<IpAddr>()
+            .map(|ip| Some(SocketAddr::new(ip, self.enroll_port)))
+            .map_err(|_| {
+                ConfigError::Parse(format!(
+                    "advertise_address is neither an IP address nor ip:port: {raw}"
+                ))
+            })
+    }
+
     fn default_enroll_port() -> u16 {
         28286
     }

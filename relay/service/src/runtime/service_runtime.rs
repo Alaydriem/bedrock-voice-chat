@@ -80,6 +80,8 @@ impl ServiceRuntime {
             self.config.discord.clone(),
         );
 
+        let advertised = self.config.advertised_address()?;
+
         let enroll = RegistryEndpoint::bind(
             &identity,
             registry.clone(),
@@ -94,7 +96,11 @@ impl ServiceRuntime {
         // The value an operator pastes into a server's `registry` block. Logged
         // at every start because it is minted from the live endpoint, not assembled
         // from configuration, and an operator has nowhere else to read it.
-        curia::info!("relay registry enrollment link", { "peerlink": enroll.ticket().await?, "node": enroll.node_id().to_string() });
+        curia::info!("relay registry enrollment link", {
+            "peerlink": enroll.ticket_advertising(advertised).await?,
+            "node": enroll.node_id().to_string(),
+            "advertised": advertised.map(|socket| socket.to_string()).unwrap_or_default()
+        });
 
         let registry_for_http = registry;
 
