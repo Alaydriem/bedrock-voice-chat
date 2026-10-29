@@ -28,7 +28,22 @@ impl AddressObserver {
     // `None` when the connection did not arrive over a direct IP path, which cannot
     // happen while no relay is configured — but a caller that received it must not
     // advertise anything, and an address it cannot vouch for is worse than none.
+    //
+    // Bounded as a whole, not per step. An unreachable address otherwise waits out
+    // iroh's own handshake timeout, and a registry that accepts and never answers
+    // waits forever.
     pub async fn observe(
+        endpoint: &Endpoint,
+        registry: EndpointAddr,
+    ) -> Result<Option<SocketAddr>, PeerError> {
+        tokio::time::timeout(Self::TIMEOUT, Self::exchange(endpoint, registry))
+            .await
+            .map_err(|_| {
+                PeerError::Transport(format!("no answer within {:?}", Self::TIMEOUT))
+            })?
+    }
+
+    async fn exchange(
         endpoint: &Endpoint,
         registry: EndpointAddr,
     ) -> Result<Option<SocketAddr>, PeerError> {

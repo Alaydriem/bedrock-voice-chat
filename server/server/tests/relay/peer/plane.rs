@@ -211,3 +211,69 @@ async fn audio_with_no_relay_world_is_not_forwarded() {
             .is_err()
     );
 }
+
+// `/api/config` reads the peer link on every request, and a registry that accepts and
+// never answers used to hold each of those requests for the whole observation. The link
+// must come back at once while the registry is silent, on the first request and on every
+// one after it.
+#[tokio::test]
+async fn the_advertised_link_does_not_wait_on_a_silent_registry() {
+    let registry_dir = TempDir::new().expect("tempdir");
+    let plane_dir = TempDir::new().expect("tempdir");
+
+    let registry_identity =
+        NodeIdentity::load_or_create(registry_dir.path().to_str().expect("path"))
+            .expect("identity");
+    let registry = PeerEndpoint::bind_with_alpns(
+        &registry_identity,
+        None,
+        vec![bvc_relay::peer::AddressObserver::ALPN.to_vec()],
+    )
+    .await
+    .expect("bind registry");
+
+    let listening = registry.endpoint().clone();
+    let silent = tokio::spawn(async move {
+        while let Some(incoming) = listening.accept().await {
+            tokio::spawn(async move {
+                if let Ok(conn) = incoming.await {
+                    conn.closed().await;
+                }
+            });
+        }
+    });
+
+    let identity =
+        NodeIdentity::load_or_create(plane_dir.path().to_str().expect("path")).expect("identity");
+    let (tx, _rx) = mpsc::unbounded_channel();
+    let plane = PeerPlane::bind(
+        &identity,
+        grants_for(registry_identity.node_id(), &["W1"]),
+        Arc::new(NoLocals),
+        Arc::new(ChannelSink(tx)),
+        Arc::new(moka::future::Cache::new(16)),
+        None,
+    )
+    .await
+    .expect("bind plane");
+
+    let registry_link = registry.ticket().await.expect("registry ticket");
+
+    for request in 0..3 {
+        let link = tokio::time::timeout(
+            Duration::from_secs(3),
+            plane.advertised_ticket(Some(registry_link.clone()), None),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("request {request} waited on the registry"));
+
+        let link = link.unwrap_or_else(|| panic!("request {request} advertised no link"));
+        assert_eq!(
+            PeerTicket::parse(&link).expect("a peer link").id,
+            plane.node_id(),
+            "request {request} advertised another node's link"
+        );
+    }
+
+    silent.abort();
+}

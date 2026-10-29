@@ -1,5 +1,4 @@
 use common::consts::version::PROTOCOL_VERSION;
-use common::curia;
 use common::response::{
     ApiConfigAge, ApiConfigCapacity, ApiConfigChat, ApiConfigProtectedGroups, ApiConfigRadar,
     ApiConfigRecording, ApiConfigResponse,
@@ -50,13 +49,11 @@ pub async fn get_config(
     // nothing. The value grants no access, but it does name where an attacker would spend
     // the unauthorized-connection budget.
     let peer_link = match plane.inner() {
-        Some(plane) => plane
-            .cached_ticket(crate::config::Registry::peerlink(), config.peer_port)
-            .await
-            .inspect_err(|e| {
-                curia::warn!(format!("could not mint this server's peer link: {e}"));
-            })
-            .ok(),
+        Some(plane) => {
+            plane
+                .advertised_ticket(crate::config::Registry::peerlink(), config.peer_port)
+                .await
+        }
         None => None,
     };
 

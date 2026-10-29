@@ -8,7 +8,7 @@ use bvc_relay::node::NodeIdentity;
 use bvc_relay::peer::{AdmissionControl, Handshake, PeerEndpoint, PeerError, PeerLink};
 
 use crate::relay::grant::GrantTable;
-use crate::relay::peer::AdvertisedAddress;
+use crate::relay::peer::{AdvertisedAddress, PeerTicketCache};
 
 use super::egress::PeerEgress;
 use super::ingest::PeerIngest;
@@ -34,10 +34,9 @@ pub struct PeerPlane {
     // the cache's own presence TTL is what ages a silent one out.
     speakers: Arc<moka::future::Cache<String, Arc<common::PlayerEnum>>>,
     // The minted ticket, so `/api/config` can serve it on every request without paying a
-    // registry round trip each time. One entry because there is one ticket; a TTL rather
-    // than a permanent cell so a server whose observed address changes picks the new one up
-    // without a restart.
-    ticket: moka::future::Cache<(), String>,
+    // registry round trip. Refreshed on a TTL so a server whose observed address changes
+    // picks the new one up without a restart.
+    ticket: PeerTicketCache,
 }
 
 impl PeerPlane {
@@ -71,42 +70,60 @@ impl PeerPlane {
             admission: AdmissionControl::new(Self::MAX_UNAUTHORIZED),
             sink,
             speakers,
-            ticket: moka::future::Cache::builder()
-                .time_to_live(Self::TICKET_TTL)
-                .max_capacity(1)
-                .build(),
+            ticket: PeerTicketCache::new(Self::TICKET_TTL),
         }))
     }
 
-    /// The peer link, minted once and reused until its TTL lapses.
+    /// The peer link for `/api/config`, without waiting on the registry.
     ///
-    /// `/api/config` is polled, and `ticket_observed` spends a registry round trip bounded
-    /// by `AddressObserver::TIMEOUT`. Paying that per request would make an unreachable
-    /// registry into a ten-second stall on an endpoint every client calls.
-    ///
-    /// A failure is not cached: a registry that was briefly down would otherwise leave this
-    /// server advertising nothing for the whole TTL.
-    pub async fn cached_ticket(
-        &self,
+    /// `/api/config` is polled by every client, and an observation is a registry round trip
+    /// bounded only by `AddressObserver::TIMEOUT`. A missing or stale link is minted in the
+    /// background and the last one served meanwhile. Before the first mint completes, the
+    /// link carries only the addresses this endpoint sees itself: `null` would tell a reader
+    /// this server does not peer.
+    pub async fn advertised_ticket(
+        self: &Arc<Self>,
         registry: Option<String>,
         peer_port: Option<u16>,
-    ) -> Result<String, PeerError> {
-        if let Some(cached) = self.ticket.get(&()).await {
-            return Ok(cached);
+    ) -> Option<String> {
+        self.refresh_ticket(registry, peer_port);
+
+        if let Some(ticket) = self.ticket.get() {
+            return Some(ticket);
         }
 
-        let ticket = self.ticket_observed(registry, peer_port).await?;
-        self.ticket.insert((), ticket.clone()).await;
+        self.endpoint
+            .ticket()
+            .await
+            .inspect_err(|e| curia::warn!(format!("could not mint this server's peer link: {e}")))
+            .ok()
+    }
 
-        Ok(ticket)
+    /// Starts minting a replacement link when the current one is missing or stale and no
+    /// mint is already running. Returns at once.
+    pub fn refresh_ticket(self: &Arc<Self>, registry: Option<String>, peer_port: Option<u16>) {
+        if !self.ticket.claim_refresh() {
+            return;
+        }
+
+        let plane = Arc::clone(self);
+        tokio::spawn(async move {
+            match plane.ticket_observed(registry, peer_port).await {
+                Ok(ticket) => plane.ticket.store(ticket),
+                Err(e) => {
+                    curia::warn!(format!("could not mint this server's peer link: {e}"));
+                    plane.ticket.release();
+                }
+            }
+        });
     }
 
     /// A ticket carrying the address the registry saw this server at.
     ///
-    /// Observed lazily, when an operator asks for a peer link rather than at startup:
-    /// a registry that is down then costs one command instead of a boot. An
-    /// observation that fails is not fatal — the ticket still carries the locally
-    /// observed addresses, which is everything a same-host or LAN peer needs.
+    /// Waits on the registry. `/api/config` and the boot path go through
+    /// `advertised_ticket` instead; the operator's `relay peerlink` command calls this and
+    /// waits. An observation that fails is not fatal — the ticket still carries the
+    /// locally observed addresses, which is everything a same-host or LAN peer needs.
     pub async fn ticket_observed(
         &self,
         registry: Option<String>,
