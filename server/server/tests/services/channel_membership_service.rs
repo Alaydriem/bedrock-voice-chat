@@ -89,3 +89,75 @@ async fn a_departure_is_announced_by_the_server_rather_than_the_player() {
     assert_eq!(event.channel, "ABCD-1234");
     assert_eq!(event.creator, Some(owner));
 }
+
+fn quiet_webhook() -> WebhookReceiver {
+    let (packets, _rx) = mpsc::unbounded_channel::<(QuicNetworkPacket, PacketOrigin)>();
+    WebhookReceiver::new(packets)
+}
+
+// The bridge names a linked channel after its SVC group, so the name it passes is the name
+// players see on both sides.
+#[tokio::test]
+async fn create_linked_keeps_the_given_name() {
+    let channels = ChannelCollection::new(16);
+    let webhook = quiet_webhook();
+
+    let id = ChannelMembershipService::create_linked(
+        &channels,
+        &webhook,
+        "Raid Night".to_string(),
+        identity("Steve"),
+        false,
+    )
+    .await;
+
+    assert_eq!(channels.get(&id).await.unwrap().name, "Raid Night");
+}
+
+// A channel linked to a NORMAL or ISOLATED SVC group routes speech to members only; one linked
+// to an OPEN group does not.
+#[tokio::test]
+async fn create_linked_members_only_is_readable() {
+    let channels = ChannelCollection::new(16);
+    let webhook = quiet_webhook();
+
+    let closed = ChannelMembershipService::create_linked(
+        &channels,
+        &webhook,
+        "Closed".to_string(),
+        identity("Steve"),
+        true,
+    )
+    .await;
+    let open = ChannelMembershipService::create_linked(
+        &channels,
+        &webhook,
+        "Open".to_string(),
+        identity("Alex"),
+        false,
+    )
+    .await;
+
+    assert!(channels.get(&closed).await.unwrap().is_members_only());
+    assert!(!channels.get(&open).await.unwrap().is_members_only());
+}
+
+// A linked channel is never end-to-end encrypted: the bridge carries its audio, and a sealed
+// frame cannot cross it.
+#[tokio::test]
+async fn create_linked_is_never_protected() {
+    let channels = ChannelCollection::new(16);
+    let webhook = quiet_webhook();
+
+    for members_only in [true, false] {
+        let id = ChannelMembershipService::create_linked(
+            &channels,
+            &webhook,
+            "Linked".to_string(),
+            identity("Steve"),
+            members_only,
+        )
+        .await;
+        assert!(!channels.get(&id).await.unwrap().is_protected());
+    }
+}

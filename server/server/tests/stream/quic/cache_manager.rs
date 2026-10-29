@@ -238,7 +238,150 @@ async fn crouching_without_opting_in_reaches_a_listener_at_normal_range() {
 
     let frame = RoutingFixture::audio_packet(whisperer("Alice"), "minecraft:Alice");
     let speaker = cm.resolve_speaker(&frame).await;
-    reg.route_audio_frame(&frame, speaker.as_ref(), &cache, 50.0, 10.0).await;
+    reg.route_audio_frame(&frame, speaker.as_ref(), None, &cache, 50.0, 10.0).await;
 
     assert!(RoutingFixture::delivered_spatial(&mut bob_rx).await.is_some());
+}
+
+mod group_link {
+    use std::sync::Arc;
+
+    use bvc_server_lib::services::ChannelMembershipService;
+    use bvc_server_lib::stream::quic::connection::ConnectionRegistry;
+    use bvc_server_lib::stream::quic::{CacheManager, PacketOrigin, WebhookReceiver};
+    use common::Game;
+    use common::structs::control::GroupLinkEventKind;
+    use common::structs::packet::QuicNetworkPacket;
+    use tokio::sync::mpsc;
+
+    // Every channel change the membership service fans, fed through the cache manager the way
+    // the webhook loop feeds it.
+    async fn apply_fanned(
+        cm: &CacheManager,
+        rx: &mut mpsc::UnboundedReceiver<(QuicNetworkPacket, PacketOrigin)>,
+    ) {
+        while let Ok((packet, _)) = rx.try_recv() {
+            cm.process_packet(packet).await.expect("processed");
+        }
+    }
+
+    fn manager() -> (
+        CacheManager,
+        Arc<ConnectionRegistry>,
+        WebhookReceiver,
+        mpsc::UnboundedReceiver<(QuicNetworkPacket, PacketOrigin)>,
+    ) {
+        let registry = Arc::new(ConnectionRegistry::new());
+        let mut cm = CacheManager::new();
+        cm.set_connection_registry(registry.clone());
+        let (tx, rx) = mpsc::unbounded_channel();
+        (cm, registry, WebhookReceiver::new(tx), rx)
+    }
+
+    #[tokio::test]
+    async fn a_join_to_a_members_only_channel_marks_it_for_routing() {
+        let (cm, registry, webhook, mut rx) = manager();
+        let channels = cm.get_channel_collection();
+        let steve = Game::Minecraft.membership_key("Steve");
+        let id = ChannelMembershipService::create_linked(
+            &channels,
+            &webhook,
+            "Raid".to_string(),
+            steve.clone(),
+            true,
+        )
+        .await;
+        ChannelMembershipService::join(&channels, &webhook, &steve, &id).await;
+
+        apply_fanned(&cm, &mut rx).await;
+
+        assert!(registry.is_members_only_channel(&id));
+    }
+
+    #[tokio::test]
+    async fn channel_changes_reach_the_group_link_feed() {
+        let (cm, _registry, webhook, mut rx) = manager();
+        let channels = cm.get_channel_collection();
+        let steve = Game::Minecraft.membership_key("Steve");
+        let id = ChannelMembershipService::create(
+            &channels,
+            &webhook,
+            "Raid".to_string(),
+            steve.clone(),
+        )
+        .await;
+        ChannelMembershipService::join(&channels, &webhook, &steve, &id).await;
+
+        apply_fanned(&cm, &mut rx).await;
+
+        let drain = cm.group_link_service(webhook).feed().drain(0);
+        let kinds: Vec<GroupLinkEventKind> = drain.events.iter().map(|e| e.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![GroupLinkEventKind::Create, GroupLinkEventKind::Join]
+        );
+        assert_eq!(drain.events[1].player.as_deref(), Some("Steve"));
+        assert_eq!(drain.events[1].channel_name.as_deref(), Some("Raid"));
+    }
+
+    // A protected group is never linked, so nothing about it may reach the bridge.
+    #[tokio::test]
+    async fn a_protected_channel_never_reaches_the_feed() {
+        let (cm, _registry, webhook, mut rx) = manager();
+        let channels = cm.get_channel_collection();
+        let steve = Game::Minecraft.membership_key("Steve");
+        let id = ChannelMembershipService::create_protected(
+            &channels,
+            &webhook,
+            "Secret".to_string(),
+            steve.clone(),
+        )
+        .await;
+        ChannelMembershipService::join(&channels, &webhook, &steve, &id).await;
+
+        apply_fanned(&cm, &mut rx).await;
+
+        assert!(cm.group_link_service(webhook).feed().drain(0).events.is_empty());
+    }
+
+    #[tokio::test]
+    async fn protecting_a_linked_channel_tells_the_bridge_once() {
+        let (cm, _registry, webhook, mut rx) = manager();
+        let channels = cm.get_channel_collection();
+        let steve = Game::Minecraft.membership_key("Steve");
+        let id = ChannelMembershipService::create(
+            &channels,
+            &webhook,
+            "Raid".to_string(),
+            steve.clone(),
+        )
+        .await;
+        ChannelMembershipService::join(&channels, &webhook, &steve, &id).await;
+        // Applied as each change happens: the bridge saw the group while it was open.
+        apply_fanned(&cm, &mut rx).await;
+        ChannelMembershipService::protect(&channels, &webhook, &steve, &id)
+            .await
+            .expect("protected");
+        apply_fanned(&cm, &mut rx).await;
+        ChannelMembershipService::leave(&channels, &webhook, &steve, &id, false).await;
+
+        apply_fanned(&cm, &mut rx).await;
+
+        let kinds: Vec<GroupLinkEventKind> = cm
+            .group_link_service(webhook)
+            .feed()
+            .drain(0)
+            .events
+            .iter()
+            .map(|e| e.kind)
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![
+                GroupLinkEventKind::Create,
+                GroupLinkEventKind::Join,
+                GroupLinkEventKind::Protected
+            ]
+        );
+    }
 }

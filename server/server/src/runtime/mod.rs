@@ -704,6 +704,7 @@ impl ServerRuntime {
             cache_manager.get_channel_collection(),
             connection_registry.clone(),
             webhook_receiver.clone(),
+            cache_manager.group_link_leases(),
         );
 
         // Built first, from clones, because the TLS manager below takes ownership of the

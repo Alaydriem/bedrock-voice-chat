@@ -4,6 +4,10 @@ import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import com.alaydriem.bedrockvoicechat.svc.link.LinkEntry
+import com.alaydriem.bedrockvoicechat.svc.link.SvcLinkTable
+import uniffi.bvc_relay_sdk.SdkGroupScope
+import java.util.UUID
 
 class InboundTranslatorTest {
 
@@ -56,5 +60,81 @@ class InboundTranslatorTest {
 
         assertEquals(1, factory.opened.size)
         assertEquals(2, factory.opened.first().sent.size)
+    }
+
+    private val group = UUID.randomUUID()
+    private val steve = UUID.randomUUID()
+    private val table = SvcLinkTable()
+    private val delivered = ArrayList<UUID>()
+
+    private fun groupTranslator(factory: FakeChannelFactory, membersOnly: Boolean): InboundTranslator {
+        table.put(LinkEntry(group, "ABCD", membersOnly, LinkEntry.Origin.SVC))
+        val speakers = SvcSpeakers { false }
+        val audio = SvcGroupAudio(
+            table = table,
+            speakers = speakers,
+            membersOf = { listOf(steve) },
+            staticChannelFor = { listener, _ -> delivered.add(listener); FakeAudioChannel(UUID.randomUUID()) },
+            speakerOf = { null },
+        )
+        return InboundTranslator(SvcChannels(factory, speakers), SampleRateGuard(), audio)
+    }
+
+    // A Bedrock speaker in a linked NORMAL or ISOLATED group reaches the group and nobody nearby.
+    @Test
+    fun `members_only_frame_reaches_members_only`() {
+        val factory = FakeChannelFactory()
+
+        groupTranslator(factory, membersOnly = true)
+            .inject(TestFrames.speech("Alex", group = SdkGroupScope("ABCD", true)))
+
+        assertEquals(listOf(steve), delivered)
+        assertEquals(0, factory.opened.size)
+    }
+
+    @Test
+    fun `open_group_frame_reaches_members_and_proximity`() {
+        val factory = FakeChannelFactory()
+
+        groupTranslator(factory, membersOnly = false)
+            .inject(TestFrames.speech("Alex", group = SdkGroupScope("ABCD", false)))
+
+        assertEquals(listOf(steve), delivered)
+        assertEquals(1, factory.opened.size)
+    }
+
+    // An ISOLATED group's own speaker reaches its Java members on the group channel, which the
+    // proximity filter does not touch.
+    @Test
+    fun `isolated_listener_hears_own_group_speaker`() {
+        val factory = FakeChannelFactory()
+
+        groupTranslator(factory, membersOnly = true)
+            .inject(TestFrames.speech("Alex", group = SdkGroupScope("ABCD", true)))
+
+        assertTrue(steve in delivered)
+    }
+
+    @Test
+    fun `unlinked_open_scope_uses_proximity`() {
+        val factory = FakeChannelFactory()
+
+        groupTranslator(factory, membersOnly = true)
+            .inject(TestFrames.speech("Alex", group = SdkGroupScope("ELSEWHERE", false)))
+
+        assertTrue(delivered.isEmpty())
+        assertEquals(1, factory.opened.size)
+    }
+
+    // A members-only frame the bridge cannot place in a group reaches nobody, never proximity.
+    @Test
+    fun `unlinked_members_only_scope_reaches_nobody`() {
+        val factory = FakeChannelFactory()
+
+        groupTranslator(factory, membersOnly = true)
+            .inject(TestFrames.speech("Alex", group = SdkGroupScope("ELSEWHERE", true)))
+
+        assertTrue(delivered.isEmpty())
+        assertEquals(0, factory.opened.size)
     }
 }
