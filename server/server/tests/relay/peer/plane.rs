@@ -267,7 +267,8 @@ async fn the_advertised_link_does_not_wait_on_a_silent_registry() {
         .await
         .unwrap_or_else(|_| panic!("request {request} waited on the registry"));
 
-        let link = link.unwrap_or_else(|| panic!("request {request} advertised no link"));
+        let link =
+            link.unwrap_or_else(|e| panic!("request {request} advertised no link: {e}"));
         assert_eq!(
             PeerTicket::parse(&link).expect("a peer link").id,
             plane.node_id(),

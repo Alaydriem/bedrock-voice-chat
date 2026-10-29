@@ -85,18 +85,17 @@ impl PeerPlane {
         self: &Arc<Self>,
         registry: Option<String>,
         peer_port: Option<u16>,
-    ) -> Option<String> {
+    ) -> Result<String, PeerError> {
         self.refresh_ticket(registry, peer_port);
 
         if let Some(ticket) = self.ticket.get() {
-            return Some(ticket);
+            return Ok(ticket);
         }
 
         self.endpoint
             .ticket()
             .await
-            .inspect_err(|e| curia::warn!(format!("could not mint this server's peer link: {e}")))
-            .ok()
+            .map_err(|e| PeerError::Transport(e.to_string()))
     }
 
     /// Starts minting a replacement link when the current one is missing or stale and no
