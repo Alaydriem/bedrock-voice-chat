@@ -55,15 +55,23 @@ class SvcGroupLinkerTest {
     fun `svc_open_group_links_open`() {
         val (view, channel) = linkedSvcGroup(SvcGroupType.OPEN)
 
-        assertEquals(listOf("createLinked:Steve:Raid:false"), bvc.calls)
+        assertEquals("createLinked:Steve:Raid:false", bvc.calls.first())
         assertEquals(LinkEntry(view.id, channel, false, LinkEntry.Origin.SVC), table.bySvc(view.id))
+    }
+
+    // SVC puts a group's creator in it directly, with no JoinGroupEvent, so the link has to.
+    @Test
+    fun `svc create joins its creator to the bvc channel`() {
+        val (_, channel) = linkedSvcGroup()
+
+        assertEquals("join:Steve:$channel", bvc.calls.last())
     }
 
     @Test
     fun `svc_normal_group_links_members_only`() {
         val (view, _) = linkedSvcGroup(SvcGroupType.NORMAL)
 
-        assertEquals(listOf("createLinked:Steve:Raid:true"), bvc.calls)
+        assertEquals("createLinked:Steve:Raid:true", bvc.calls.first())
         assertTrue(table.bySvc(view.id)!!.membersOnly)
     }
 
@@ -133,7 +141,7 @@ class SvcGroupLinkerTest {
 
         linker.onSvcJoin(view.id, bob)
 
-        assertTrue(bvc.calls.none { it.startsWith("join") })
+        assertTrue(bvc.calls.none { it.startsWith("join:Bob") })
     }
 
     @Test
@@ -152,7 +160,7 @@ class SvcGroupLinkerTest {
         linker.onSvcJoin(view.id, nobody)
         bvcEvents(event(GroupLinkEventKind.Join, channel, "Nobody"))
 
-        assertTrue(bvc.calls.none { it.startsWith("join") })
+        assertTrue(bvc.calls.none { it.startsWith("join:Nobody") })
         assertNull(svc.memberOf[nobody])
     }
 
