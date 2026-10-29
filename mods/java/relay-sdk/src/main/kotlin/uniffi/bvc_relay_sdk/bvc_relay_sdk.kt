@@ -865,34 +865,34 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if (lib.uniffi_bvc_relay_sdk_checksum_func_bvc_enrol() != 8053) {
+    if ((lib.uniffi_bvc_relay_sdk_checksum_func_bvc_enrol() and 0xFFFF) != 8053) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_bvc_relay_sdk_checksum_method_bvcidentity_node_id() != 31661) {
+    if ((lib.uniffi_bvc_relay_sdk_checksum_method_bvcidentity_node_id() and 0xFFFF) != 31661) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_bvc_relay_sdk_checksum_method_bvcidentity_peerlink() != 58526) {
+    if ((lib.uniffi_bvc_relay_sdk_checksum_method_bvcidentity_peerlink() and 0xFFFF) != 58526) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_bvc_relay_sdk_checksum_method_bvcpeer_is_connected() != 24005) {
+    if ((lib.uniffi_bvc_relay_sdk_checksum_method_bvcpeer_is_connected() and 0xFFFF) != 24005) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_bvc_relay_sdk_checksum_method_bvcpeer_next_frame() != 28445) {
+    if ((lib.uniffi_bvc_relay_sdk_checksum_method_bvcpeer_next_frame() and 0xFFFF) != 28445) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_bvc_relay_sdk_checksum_method_bvcpeer_peerlink() != 18605) {
+    if ((lib.uniffi_bvc_relay_sdk_checksum_method_bvcpeer_peerlink() and 0xFFFF) != 18605) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_bvc_relay_sdk_checksum_method_bvcpeer_send() != 45769) {
+    if ((lib.uniffi_bvc_relay_sdk_checksum_method_bvcpeer_send() and 0xFFFF) != 45769) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_bvc_relay_sdk_checksum_method_bvcpeer_shutdown() != 21060) {
+    if ((lib.uniffi_bvc_relay_sdk_checksum_method_bvcpeer_shutdown() and 0xFFFF) != 21060) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_bvc_relay_sdk_checksum_constructor_bvcidentity_open() != 63281) {
+    if ((lib.uniffi_bvc_relay_sdk_checksum_constructor_bvcidentity_open() and 0xFFFF) != 63281) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_bvc_relay_sdk_checksum_constructor_bvcpeer_open() != 2071) {
+    if ((lib.uniffi_bvc_relay_sdk_checksum_constructor_bvcpeer_open() and 0xFFFF) != 2071) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1968,6 +1968,8 @@ data class SdkFrame (
     var `spatial`: kotlin.Boolean
     , 
     var `jukebox`: kotlin.String?
+    , 
+    var `group`: SdkGroupScope?
     
 ){
     
@@ -1995,6 +1997,7 @@ public object FfiConverterTypeSdkFrame: FfiConverterRustBuffer<SdkFrame> {
             FfiConverterLong.read(buf),
             FfiConverterBoolean.read(buf),
             FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalTypeSdkGroupScope.read(buf),
         )
     }
 
@@ -2009,7 +2012,8 @@ public object FfiConverterTypeSdkFrame: FfiConverterRustBuffer<SdkFrame> {
             FfiConverterUInt.allocationSize(value.`sampleRate`) +
             FfiConverterLong.allocationSize(value.`timestampMs`) +
             FfiConverterBoolean.allocationSize(value.`spatial`) +
-            FfiConverterOptionalString.allocationSize(value.`jukebox`)
+            FfiConverterOptionalString.allocationSize(value.`jukebox`) +
+            FfiConverterOptionalTypeSdkGroupScope.allocationSize(value.`group`)
     )
 
     override fun write(value: SdkFrame, buf: ByteBuffer) {
@@ -2024,6 +2028,45 @@ public object FfiConverterTypeSdkFrame: FfiConverterRustBuffer<SdkFrame> {
             FfiConverterLong.write(value.`timestampMs`, buf)
             FfiConverterBoolean.write(value.`spatial`, buf)
             FfiConverterOptionalString.write(value.`jukebox`, buf)
+            FfiConverterOptionalTypeSdkGroupScope.write(value.`group`, buf)
+    }
+}
+
+
+
+data class SdkGroupScope (
+    var `channel`: kotlin.String
+    , 
+    var `membersOnly`: kotlin.Boolean
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSdkGroupScope: FfiConverterRustBuffer<SdkGroupScope> {
+    override fun read(buf: ByteBuffer): SdkGroupScope {
+        return SdkGroupScope(
+            FfiConverterString.read(buf),
+            FfiConverterBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: SdkGroupScope) = (
+            FfiConverterString.allocationSize(value.`channel`) +
+            FfiConverterBoolean.allocationSize(value.`membersOnly`)
+    )
+
+    override fun write(value: SdkGroupScope, buf: ByteBuffer) {
+            FfiConverterString.write(value.`channel`, buf)
+            FfiConverterBoolean.write(value.`membersOnly`, buf)
     }
 }
 
@@ -2328,6 +2371,38 @@ public object FfiConverterOptionalTypeSdkFrame: FfiConverterRustBuffer<SdkFrame?
         } else {
             buf.put(1)
             FfiConverterTypeSdkFrame.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypeSdkGroupScope: FfiConverterRustBuffer<SdkGroupScope?> {
+    override fun read(buf: ByteBuffer): SdkGroupScope? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeSdkGroupScope.read(buf)
+    }
+
+    override fun allocationSize(value: SdkGroupScope?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeSdkGroupScope.allocationSize(value)
+        }
+    }
+
+    override fun write(value: SdkGroupScope?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeSdkGroupScope.write(value, buf)
         }
     }
 }

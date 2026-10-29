@@ -1,6 +1,7 @@
-use bvc_relay_sdk::SdkFrame;
+use bvc_relay::peer::PeerVoice;
+use bvc_relay_sdk::{SdkFrame, SdkGroupScope};
 use common::game_data::Dimension;
-use common::structs::relay::wire::datagram::VoiceFrame;
+use common::structs::relay::wire::datagram::{GroupScope, VoiceFrame};
 use common::{Coordinate, MinecraftPlayer, Orientation, PlayerEnum};
 
 fn wire(world: Option<&str>) -> VoiceFrame {
@@ -139,4 +140,59 @@ fn a_bridged_speaker_keeps_its_voice_mark_across_the_wire() {
     let speaker = VoiceFrame::from(SdkFrame::from(wire(Some("W1")))).speaker;
 
     assert!(speaker.has_bridged_voice());
+}
+
+// The bridge delivers a linked group's audio to that group's SVC members by the channel id
+// the frame carries.
+#[test]
+fn received_group_voice_exposes_scope() {
+    let frame = SdkFrame::from(PeerVoice {
+        frame: wire(Some("W1")),
+        group: Some(GroupScope {
+            channel: "ABCD-1234".to_string(),
+            members_only: true,
+        }),
+    });
+
+    assert_eq!(
+        frame.group,
+        Some(SdkGroupScope {
+            channel: "ABCD-1234".to_string(),
+            members_only: true,
+        })
+    );
+}
+
+#[test]
+fn received_plain_voice_has_no_scope() {
+    let frame = SdkFrame::from(PeerVoice {
+        frame: wire(Some("W1")),
+        group: None,
+    });
+
+    assert!(frame.group.is_none());
+}
+
+// A Java speaker in a linked NORMAL group sends with the scope set; it has to reach the link,
+// or the server routes the speech by proximity.
+#[test]
+fn sent_frame_scope_reaches_the_link() {
+    use common::traits::player_data::PlayerData;
+
+    let mut frame = SdkFrame::from(wire(Some("W1")));
+    frame.group = Some(SdkGroupScope {
+        channel: "ABCD-1234".to_string(),
+        members_only: true,
+    });
+
+    let (wire_frame, group) = frame.into_wire();
+
+    assert_eq!(wire_frame.speaker.get_name(), "Alice");
+    assert_eq!(
+        group,
+        Some(GroupScope {
+            channel: "ABCD-1234".to_string(),
+            members_only: true,
+        })
+    );
 }

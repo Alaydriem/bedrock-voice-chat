@@ -63,7 +63,7 @@ impl EchoPeer {
                 let Ok(accept) = Handshake::accept(&conn, &AcceptsAnyone).await else {
                     return;
                 };
-                let Ok(link) = PeerLink::establish(conn, accept.worlds) else {
+                let Ok(link) = PeerLink::establish(conn, accept.worlds, accept.version) else {
                     return;
                 };
 
@@ -86,15 +86,15 @@ impl EchoPeer {
             ticker.tick().await;
             sent += 1;
 
-            if link.send(Self::frame(sent as u8, jukebox.clone())).is_err() {
+            if link.send(Self::frame(sent as u8, jukebox.clone()), None).is_err() {
                 return;
             }
         }
 
         // Held open past the burst. Dropping the link closes the connection, which
         // the far side reads as a disconnect and answers with a redial.
-        while let Ok(frame) = link.recv().await {
-            if echo && link.send(frame).is_err() {
+        while let Ok(voice) = link.recv().await {
+            if echo && link.send(voice.frame, voice.group).is_err() {
                 return;
             }
         }

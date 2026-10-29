@@ -6,7 +6,7 @@ use common::curia;
 use common::structs::channel::ChannelCollection;
 use dashmap::DashMap;
 
-use crate::services::ChannelMembershipService;
+use crate::services::{ChannelMembershipService, GroupLinkLeases};
 use crate::stream::quic::WebhookReceiver;
 use crate::stream::quic::connection::ConnectionRegistry;
 
@@ -27,6 +27,7 @@ pub struct ChannelReaperService {
     channels: Arc<ChannelCollection>,
     registry: Arc<ConnectionRegistry>,
     webhook: WebhookReceiver,
+    leases: Arc<GroupLinkLeases>,
     // When each channel was first seen with nobody connected. Kept here rather than on
     // `Channel`, which is a ts-rs DTO the webview receives: server bookkeeping does not
     // belong in a shared type, and a field there would regenerate the binding.
@@ -41,11 +42,13 @@ impl ChannelReaperService {
         channels: Arc<ChannelCollection>,
         registry: Arc<ConnectionRegistry>,
         webhook: WebhookReceiver,
+        leases: Arc<GroupLinkLeases>,
     ) -> Self {
         Self {
             channels,
             registry,
             webhook,
+            leases,
             idle_since: DashMap::new(),
         }
     }
@@ -54,8 +57,9 @@ impl ChannelReaperService {
         channels: Arc<ChannelCollection>,
         registry: Arc<ConnectionRegistry>,
         webhook: WebhookReceiver,
+        leases: Arc<GroupLinkLeases>,
     ) -> Arc<Self> {
-        Arc::new(Self::new(channels, registry, webhook))
+        Arc::new(Self::new(channels, registry, webhook, leases))
     }
 
     /// One pass over every channel, against the current clock.
@@ -77,10 +81,13 @@ impl ChannelReaperService {
         for channel in channels {
             let id = channel.id();
 
-            let occupied = channel
-                .players
-                .iter()
-                .any(|player| self.registry.has_live_client(&player.to_string()));
+            // A leased channel is linked to a Simple Voice Chat group whose Java members hold
+            // no BVC client; the bridge's lease stands in for them.
+            let occupied = self.leases.is_leased(&id)
+                || channel
+                    .players
+                    .iter()
+                    .any(|player| self.registry.has_live_client(&player.to_string()));
 
             if occupied {
                 self.idle_since.remove(&id);

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import uniffi.bvc_relay_sdk.SdkGroupScope
 import java.io.File
 import java.util.UUID
 
@@ -71,5 +72,18 @@ class OutboundTranslatorTest {
         }
 
         assertEquals(relayWorld.id(), translator.translate(speaker, opus, 1L)!!.world)
+    }
+
+    // A Java speaker in a linked NORMAL group: without the scope the server routes the speech to
+    // whoever stands nearby.
+    @Test
+    fun `group_scope_reaches_the_frame`(@TempDir dir: File) {
+        val translator = OutboundTranslator(RelayWorld(dir)) {
+            SpeakerSnapshot("Steve", 0.0f, 64.0f, 0.0f, "overworld")
+        }
+        val scope = SdkGroupScope("ABCD", true)
+
+        assertEquals(scope, translator.translate(speaker, opus, 1L, scope)!!.group)
+        assertNull(translator.translate(speaker, opus, 1L)!!.group)
     }
 }

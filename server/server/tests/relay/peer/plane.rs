@@ -14,6 +14,7 @@ use common::structs::packet::{
 use common::traits::player_data::PlayerData;
 use common::{Coordinate, MinecraftPlayer, Orientation, PlayerEnum};
 use common::structs::packet::SpeakerPosition;
+use common::structs::relay::wire::datagram::GroupScope;
 use iroh::EndpointAddr;
 use tempfile::TempDir;
 use tokio::sync::mpsc;
@@ -30,7 +31,7 @@ impl LocalClients for NoLocals {
 struct ChannelSink(mpsc::UnboundedSender<QuicNetworkPacket>);
 
 impl PeerSink for ChannelSink {
-    fn publish(&self, packet: QuicNetworkPacket) {
+    fn publish(&self, packet: QuicNetworkPacket, _group: Option<GroupScope>) {
         let _ = self.0.send(packet);
     }
 }
@@ -155,7 +156,7 @@ async fn local_audio_forwarded_by_one_plane_arrives_admitted_at_the_other() {
     let mut pair = peered("W1").await;
 
     assert_eq!(
-        pair.dialer.forward_local(&local_audio(Some("W1")), &speaker(Some("W1"))),
+        pair.dialer.forward_local(&local_audio(Some("W1")), &speaker(Some("W1")), None),
         1,
         "the granted world must reach exactly one peer"
     );
@@ -186,7 +187,7 @@ async fn audio_for_an_ungranted_world_is_not_forwarded() {
     let mut pair = peered("W1").await;
 
     assert_eq!(
-        pair.dialer.forward_local(&local_audio(Some("W-other")), &speaker(Some("W-other"))),
+        pair.dialer.forward_local(&local_audio(Some("W-other")), &speaker(Some("W-other")), None),
         0,
         "no link carries that world"
     );
@@ -203,7 +204,7 @@ async fn audio_for_an_ungranted_world_is_not_forwarded() {
 async fn audio_with_no_relay_world_is_not_forwarded() {
     let mut pair = peered("W1").await;
 
-    assert_eq!(pair.dialer.forward_local(&local_audio(None), &speaker(None)), 0);
+    assert_eq!(pair.dialer.forward_local(&local_audio(None), &speaker(None), None), 0);
 
     assert!(
         tokio::time::timeout(Duration::from_millis(300), pair.acceptor_rx.recv())

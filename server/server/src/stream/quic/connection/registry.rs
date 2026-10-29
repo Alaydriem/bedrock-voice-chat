@@ -1,6 +1,7 @@
 use common::curia;
 use common::PlayerEnum;
 use common::net::PositionCadence;
+use common::structs::relay::wire::datagram::GroupScope;
 use common::structs::packet::{
     PacketSender, PacketType, PlayerDataPacket, QuicNetworkPacket, QuicNetworkPacketData,
     ServerErrorPacket, ServerErrorType,
@@ -40,6 +41,9 @@ pub struct ConnectionRegistry {
     // Channels whose audio is end-to-end encrypted. Their members' frames route to the channel
     // only, and only sealed.
     protected_channels: DashSet<Arc<str>>,
+    // Channels linked to a NORMAL or ISOLATED Simple Voice Chat group. Their members' speech
+    // routes to the channel only, never by proximity.
+    members_only_channels: DashSet<Arc<str>>,
     // certificate fingerprint -> connection id. Revocation addresses a live session by the
     // credential it was opened with, so one identity holding two connections on two
     // certificates loses only the revoked one.
@@ -92,6 +96,7 @@ impl ConnectionRegistry {
             name_index: DashMap::new(),
             player_channel: DashMap::new(),
             protected_channels: DashSet::new(),
+            members_only_channels: DashSet::new(),
             fingerprint_index: DashMap::new(),
             metrics: OnceLock::new(),
             route_rejections: RouteRejectionCounts::new(),
@@ -185,7 +190,10 @@ impl ConnectionRegistry {
     /// unknown cannot be scoped to a relay world, so it does not leave.
     pub fn forward_local_to_peers(&self, packet: &QuicNetworkPacket, speaker: Option<&PlayerEnum>) {
         if let (Some(plane), Some(speaker)) = (self.peer_plane.get(), speaker) {
-            plane.forward_local(packet, speaker);
+            let group = packet
+                .sender_key()
+                .and_then(|sender| self.group_scope_for(sender.as_str()));
+            plane.forward_local(packet, speaker, group);
         }
     }
 
@@ -737,6 +745,7 @@ impl ConnectionRegistry {
     pub fn remove_channel(&self, channel_id: &str) {
         self.player_channel.retain(|_, v| v.as_ref() != channel_id);
         self.protected_channels.remove(channel_id);
+        self.members_only_channels.remove(channel_id);
         self.push_gauges();
     }
 
@@ -746,6 +755,27 @@ impl ConnectionRegistry {
 
     pub fn is_protected_channel(&self, channel_id: &str) -> bool {
         self.protected_channels.contains(channel_id)
+    }
+
+    pub fn mark_members_only(&self, channel_id: &str) {
+        self.members_only_channels.insert(Arc::from(channel_id));
+    }
+
+    pub fn is_members_only_channel(&self, channel_id: &str) -> bool {
+        self.members_only_channels.contains(channel_id)
+    }
+
+    /// The group marker a peer link carries for this sender's speech: their channel, when it
+    /// is not protected. A protected channel's frames are sealed and never leave this server.
+    pub fn group_scope_for(&self, sender_identity: &str) -> Option<GroupScope> {
+        let channel = self.player_channel.get(sender_identity)?.clone();
+        if self.is_protected_channel(&channel) {
+            return None;
+        }
+        Some(GroupScope {
+            members_only: self.is_members_only_channel(&channel),
+            channel: channel.to_string(),
+        })
     }
 
     // The precomputed reach hash for a locally-connected player. `None` means the
@@ -769,10 +799,13 @@ impl ConnectionRegistry {
     /// Supplied rather than read off the frame, because the frame carries only a position and
     /// proximity needs a whole player — dimension, world and spectator. `player_cache` is still
     /// needed here, for the recipients.
+    ///
+    /// `group` is the linked group a peer frame claims. Local frames pass `None`.
     pub async fn route_audio_frame(
         &self,
         packet: &QuicNetworkPacket,
         speaker: Option<&PlayerEnum>,
+        group: Option<&GroupScope>,
         player_cache: &Arc<Cache<String, Arc<PlayerEnum>>>,
         broadcast_range: f32,
         whisper_distance: f32,
@@ -810,6 +843,22 @@ impl ConnectionRegistry {
             self.reject(RouteRejection::UnsealedInProtectedChannel);
             return;
         }
+
+        // A claimed group is accepted only from a member of it. An unverified members-only claim
+        // is dropped rather than routed by proximity, which would leak the group's speech to
+        // whoever stands nearby: a speaker whose membership has not arrived yet, or a peer
+        // server's speaker, whose channel this server does not have. An unverified OPEN claim
+        // is plain speech, because OPEN speech is heard nearby anyway.
+        let verified_group =
+            group.filter(|g| sender_channel.as_deref() == Some(g.channel.as_str()));
+        if group.is_some_and(|g| g.members_only) && verified_group.is_none() {
+            self.reject(RouteRejection::GroupClaimUnverified);
+            return;
+        }
+        let members_only = verified_group.is_some_and(|g| g.members_only)
+            || sender_channel
+                .as_deref()
+                .is_some_and(|channel| self.is_members_only_channel(channel));
 
         let original_spatial = audio_frame.spatial;
         let has_sender = speaker.is_some();
@@ -939,6 +988,9 @@ impl ConnectionRegistry {
                 (true, InteractionRoute::Channel)
             } else if sealed {
                 report.reject(RouteRejection::SealedOutsideChannel);
+                continue;
+            } else if members_only {
+                report.reject(RouteRejection::MembersOnlyOutsideChannel);
                 continue;
             } else {
                 // Proximity is the only branch that needs coordinates, so both sides

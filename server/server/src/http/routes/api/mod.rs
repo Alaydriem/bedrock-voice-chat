@@ -5,6 +5,7 @@ pub mod channel;
 pub mod clients;
 pub mod control;
 pub(crate) mod gamerpic;
+pub mod group_link;
 pub mod health;
 pub(crate) mod chat;
 pub(crate) mod positions;
