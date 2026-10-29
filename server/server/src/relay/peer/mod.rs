@@ -6,6 +6,7 @@ pub mod links;
 pub mod local_clients;
 pub mod plane;
 pub mod sink;
+pub mod ticket_cache;
 
 pub use advertised::AdvertisedAddress;
 pub use block::PeerBlock;
@@ -15,3 +16,4 @@ pub use links::PeerLinks;
 pub use local_clients::LocalClients;
 pub use plane::PeerPlane;
 pub use sink::PeerSink;
+pub use ticket_cache::PeerTicketCache;

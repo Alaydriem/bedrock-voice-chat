@@ -51,7 +51,7 @@ pub async fn get_config(
     // the unauthorized-connection budget.
     let peer_link = match plane.inner() {
         Some(plane) => plane
-            .cached_ticket(crate::config::Registry::peerlink(), config.peer_port)
+            .advertised_ticket(crate::config::Registry::peerlink(), config.peer_port)
             .await
             .inspect_err(|e| {
                 curia::warn!(format!("could not mint this server's peer link: {e}"));
