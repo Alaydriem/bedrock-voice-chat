@@ -314,6 +314,7 @@ impl SessionSpawner {
                                     .route_audio_frame(
                                         &updated_packet,
                                         speaker.as_ref(),
+                                        None,
                                         &player_cache,
                                         broadcast_range,
                                         whisper_distance,

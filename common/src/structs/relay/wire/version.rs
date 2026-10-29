@@ -18,7 +18,10 @@ pub struct WireVersion(pub u16);
 
 impl WireVersion {
     // Every version this build can speak, ascending.
-    pub const SUPPORTED: &'static [WireVersion] = &[WireVersion(1)];
+    pub const SUPPORTED: &'static [WireVersion] = &[WireVersion(1), WireVersion(2)];
+
+    // The first version that carries `Datagram::GroupVoice`.
+    pub const GROUP_SCOPE: WireVersion = WireVersion(2);
 
     // The highest version both sides can speak, or `None` when they share none.
     //

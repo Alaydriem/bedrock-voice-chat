@@ -3,10 +3,16 @@ package com.alaydriem.bedrockvoicechat.svc
 import de.maxhenkel.voicechat.api.VoicechatApi
 import de.maxhenkel.voicechat.api.VoicechatPlugin
 import de.maxhenkel.voicechat.api.VoicechatServerApi
+import com.alaydriem.bedrockvoicechat.svc.link.SvcLinkEvents
+import de.maxhenkel.voicechat.api.events.CreateGroupEvent
 import de.maxhenkel.voicechat.api.events.EventRegistration
+import de.maxhenkel.voicechat.api.events.JoinGroupEvent
+import de.maxhenkel.voicechat.api.events.LeaveGroupEvent
 import de.maxhenkel.voicechat.api.events.MicrophonePacketEvent
+import de.maxhenkel.voicechat.api.events.RemoveGroupEvent
 import de.maxhenkel.voicechat.api.events.VoicechatServerStartedEvent
 import org.slf4j.LoggerFactory
+import uniffi.bvc_relay_sdk.SdkGroupScope
 
 /**
  * The bridge, as Simple Voice Chat sees it.
@@ -20,8 +26,10 @@ import org.slf4j.LoggerFactory
  */
 class SvcBridge(
     private val outbound: OutboundTranslator,
+    private val gate: SvcGroupGate,
     private val onFrame: (uniffi.bvc_relay_sdk.SdkFrame) -> Unit,
-    private val onServerApi: (VoicechatServerApi) -> Unit
+    private val onServerApi: (VoicechatServerApi) -> Unit,
+    private val linkEvents: SvcLinkEvents? = null
 ) : VoicechatPlugin {
 
     override fun getPluginId(): String = PLUGIN_ID
@@ -33,6 +41,34 @@ class SvcBridge(
     override fun registerEvents(registration: EventRegistration) {
         registration.registerEvent(VoicechatServerStartedEvent::class.java, this::onServerStarted)
         registration.registerEvent(MicrophonePacketEvent::class.java, this::onMicrophonePacket)
+        registration.registerEvent(CreateGroupEvent::class.java, this::onCreateGroup)
+        registration.registerEvent(JoinGroupEvent::class.java, this::onJoinGroup)
+        registration.registerEvent(LeaveGroupEvent::class.java, this::onLeaveGroup)
+        registration.registerEvent(RemoveGroupEvent::class.java, this::onRemoveGroup)
+    }
+
+    // Group events are observed, never cancelled, and passed on as values: the linker runs on its
+    // own thread and must not hold SVC objects. They fire before SVC applies the change, for the
+    // bridge's own calls too.
+    fun onCreateGroup(event: CreateGroupEvent) {
+        val group = event.group ?: return
+        linkEvents?.created(SvcGroupViews.of(group), event.connection?.player?.uuid)
+    }
+
+    fun onJoinGroup(event: JoinGroupEvent) {
+        val group = event.group ?: return
+        val player = event.connection?.player?.uuid ?: return
+        linkEvents?.joined(group.id, player)
+    }
+
+    fun onLeaveGroup(event: LeaveGroupEvent) {
+        val player = event.connection?.player?.uuid ?: return
+        linkEvents?.left(player, event.group?.id)
+    }
+
+    fun onRemoveGroup(event: RemoveGroupEvent) {
+        val group = event.group ?: return
+        linkEvents?.removed(group.id)
     }
 
     /**
@@ -54,7 +90,14 @@ class SvcBridge(
      * deliver them instead and SVC players would go silent to each other.
      */
     fun onMicrophonePacket(event: MicrophonePacketEvent) {
-        val speaker = event.senderConnection?.player?.uuid ?: return
+        val sender = event.senderConnection ?: return
+        val speaker = sender.player?.uuid ?: return
+
+        val group = when (val route = gate.route(sender.group?.let(SvcGroupViews::of))) {
+            GroupRoute.Drop -> return
+            GroupRoute.Proximity -> null
+            is GroupRoute.Group -> SdkGroupScope(route.channel, route.membersOnly)
+        }
 
         // Announced once. A speaker Simple Voice Chat knows about and this server
         // cannot locate produces no frame at all, which is indistinguishable from
@@ -66,7 +109,8 @@ class SvcBridge(
         val frame = outbound.translate(
             speaker,
             event.packet.opusEncodedData,
-            System.currentTimeMillis()
+            System.currentTimeMillis(),
+            group
         )
 
         if (frame == null) {

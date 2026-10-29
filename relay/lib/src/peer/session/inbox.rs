@@ -2,7 +2,6 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use common::structs::relay::wire::datagram::VoiceFrame;
 use tokio::sync::Notify;
 
 // Inbound voice waiting to be read, bounded and drop-oldest.
@@ -15,14 +14,14 @@ use tokio::sync::Notify;
 // This is not a jitter buffer. It reorders nothing, waits for nothing, and holds
 // no playout deadline — the consumer has its own buffering, and two in series is
 // two sets of latency.
-pub struct Inbox {
-    frames: Mutex<VecDeque<VoiceFrame>>,
+pub struct Inbox<T> {
+    frames: Mutex<VecDeque<T>>,
     capacity: usize,
     closed: AtomicBool,
     ready: Notify,
 }
 
-impl Inbox {
+impl<T> Inbox<T> {
     pub fn new(capacity: usize) -> Self {
         let capacity = capacity.max(1);
 
@@ -34,7 +33,7 @@ impl Inbox {
         }
     }
 
-    pub fn push(&self, frame: VoiceFrame) {
+    pub fn push(&self, frame: T) {
         if self.closed.load(Ordering::SeqCst) {
             return;
         }
@@ -55,7 +54,7 @@ impl Inbox {
     // The queue is checked before the closed flag so a close does not discard
     // frames that already arrived: the caller asked to stop reading, not to throw
     // away what it had.
-    pub async fn next(&self) -> Option<VoiceFrame> {
+    pub async fn next(&self) -> Option<T> {
         loop {
             // Registered before the queue is inspected. Registering after would
             // lose a push or a close landing in between, parking a reader that

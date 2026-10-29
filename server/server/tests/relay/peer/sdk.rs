@@ -4,11 +4,12 @@ use std::time::Duration;
 
 use bvc_relay::node::{NodeIdentity, PeerTicket};
 use bvc_relay::peer::PeerEndpoint;
-use bvc_relay_sdk::{BvcPeer, SdkConfig, SdkFrame};
+use bvc_relay_sdk::{BvcPeer, SdkConfig, SdkFrame, SdkGroupScope};
 use bvc_server_lib::config::PeerConfig;
 use bvc_server_lib::relay::{GrantTable, LocalClients, PeerPlane, PeerSink};
 use common::game_data::Dimension;
 use common::structs::packet::{PacketType, QuicNetworkPacket, QuicNetworkPacketData};
+use common::structs::relay::wire::datagram::GroupScope;
 use common::traits::player_data::PlayerData;
 use iroh::EndpointAddr;
 use tempfile::TempDir;
@@ -24,11 +25,16 @@ impl LocalClients for NoLocals {
     }
 }
 
-struct ChannelSink(mpsc::UnboundedSender<QuicNetworkPacket>);
+// The group claim goes to its own channel, so the tests that read only packets stay as they are.
+struct ChannelSink {
+    packets: mpsc::UnboundedSender<QuicNetworkPacket>,
+    groups: mpsc::UnboundedSender<Option<GroupScope>>,
+}
 
 impl PeerSink for ChannelSink {
-    fn publish(&self, packet: QuicNetworkPacket) {
-        let _ = self.0.send(packet);
+    fn publish(&self, packet: QuicNetworkPacket, group: Option<GroupScope>) {
+        let _ = self.packets.send(packet);
+        let _ = self.groups.send(group);
     }
 }
 
@@ -64,6 +70,7 @@ fn loopback_addr(endpoint: &PeerEndpoint) -> EndpointAddr {
 struct Bridged {
     peer: Arc<BvcPeer>,
     server_rx: mpsc::UnboundedReceiver<QuicNetworkPacket>,
+    groups_rx: mpsc::UnboundedReceiver<Option<GroupScope>>,
     // The receiving server's position cache. The plane publishes every relayed speaker into
     // it, and the position feed reads presence back out of it, so it is where a bridged
     // speaker's record can be observed as the rest of the server sees it.
@@ -88,13 +95,17 @@ async fn bridged(granted: &[&str]) -> Bridged {
         NodeIdentity::load_or_create(sdk_dir.path().to_str().expect("path")).expect("identity");
 
     let (tx, server_rx) = mpsc::unbounded_channel();
+    let (groups_tx, groups_rx) = mpsc::unbounded_channel();
     let speakers = Arc::new(moka::future::Cache::new(16));
 
     let server = PeerPlane::bind(
         &server_identity,
         grants_for(sdk_identity.node_id(), granted),
         Arc::new(NoLocals),
-        Arc::new(ChannelSink(tx)),
+        Arc::new(ChannelSink {
+            packets: tx,
+            groups: groups_tx,
+        }),
         Arc::clone(&speakers),
         None,
     )
@@ -125,6 +136,7 @@ async fn bridged(granted: &[&str]) -> Bridged {
     Bridged {
         peer,
         server_rx,
+        groups_rx,
         speakers,
         _server: server,
         _dirs: (server_dir, sdk_dir),
@@ -144,7 +156,35 @@ fn outbound(world: &str) -> SdkFrame {
         timestamp_ms: 1234,
         spatial: true,
         jukebox: None,
+        group: None,
     }
+}
+
+// A Java speaker in a linked NORMAL group: the claim has to survive the crossing, or the
+// receiving server routes the speech to whoever stands nearby.
+#[tokio::test]
+async fn a_group_scope_sent_through_the_sdk_reaches_the_router() {
+    let mut bridged = bridged(&[WORLD]).await;
+
+    let mut frame = outbound(WORLD);
+    frame.group = Some(SdkGroupScope {
+        channel: "ABCD-1234".to_string(),
+        members_only: true,
+    });
+    bridged.peer.send(frame).expect("send");
+
+    let group = tokio::time::timeout(Duration::from_secs(10), bridged.groups_rx.recv())
+        .await
+        .expect("the server must publish within the timeout")
+        .expect("a publish");
+
+    assert_eq!(
+        group,
+        Some(GroupScope {
+            channel: "ABCD-1234".to_string(),
+            members_only: true,
+        })
+    );
 }
 
 // What a bridge is for, end to end: a frame the consumer built through the SDK's

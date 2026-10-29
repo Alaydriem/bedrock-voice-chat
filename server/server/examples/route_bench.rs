@@ -222,7 +222,7 @@ impl RouteBench {
                     }
                     let started = Instant::now();
                     registry
-                        .route_audio_frame(&packet, Some(&speaker), &cache, range, 5.0)
+                        .route_audio_frame(&packet, Some(&speaker), None, &cache, range, 5.0)
                         .await;
                     latencies_ns.push(started.elapsed().as_nanos() as u64);
                 }

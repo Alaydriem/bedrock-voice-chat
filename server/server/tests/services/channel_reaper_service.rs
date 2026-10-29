@@ -1,7 +1,7 @@
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use bvc_server_lib::services::ChannelReaperService;
+use bvc_server_lib::services::{ChannelReaperService, GroupLinkLeases};
 use bvc_server_lib::stream::quic::connection::ConnectionRegistry;
 use bvc_server_lib::stream::quic::{PacketOrigin, WebhookReceiver};
 use common::structs::channel::{Channel, ChannelCollection, ChannelEvents};
@@ -47,7 +47,12 @@ async fn a_group_with_a_connected_member_is_never_pruned() {
     let registry = Arc::new(ConnectionRegistry::new());
     let (packets, _rx) = mpsc::unbounded_channel();
     let reaper =
-        ChannelReaperService::new(channels.clone(), registry.clone(), WebhookReceiver::new(packets));
+        ChannelReaperService::new(
+            channels.clone(),
+            registry.clone(),
+            WebhookReceiver::new(packets),
+            GroupLinkLeases::new_shared(),
+        );
 
     let alice = identity("Alice");
     connect(&registry, 1, &alice);
@@ -72,7 +77,12 @@ async fn a_group_without_a_connected_member_survives_until_the_timeout() {
     let registry = Arc::new(ConnectionRegistry::new());
     let (packets, mut rx) = mpsc::unbounded_channel::<(QuicNetworkPacket, PacketOrigin)>();
     let reaper =
-        ChannelReaperService::new(channels.clone(), registry.clone(), WebhookReceiver::new(packets));
+        ChannelReaperService::new(
+            channels.clone(),
+            registry.clone(),
+            WebhookReceiver::new(packets),
+            GroupLinkLeases::new_shared(),
+        );
 
     let id = group_with(&channels, &[identity("Ghost")]).await;
 
@@ -100,7 +110,12 @@ async fn a_group_past_the_timeout_is_removed_and_a_delete_is_fanned() {
     let registry = Arc::new(ConnectionRegistry::new());
     let (packets, mut rx) = mpsc::unbounded_channel::<(QuicNetworkPacket, PacketOrigin)>();
     let reaper =
-        ChannelReaperService::new(channels.clone(), registry.clone(), WebhookReceiver::new(packets));
+        ChannelReaperService::new(
+            channels.clone(),
+            registry.clone(),
+            WebhookReceiver::new(packets),
+            GroupLinkLeases::new_shared(),
+        );
 
     let owner = identity("Ghost");
     let id = group_with(&channels, &[owner.clone()]).await;
@@ -136,7 +151,12 @@ async fn an_empty_group_is_pruned_by_the_same_rule() {
     let registry = Arc::new(ConnectionRegistry::new());
     let (packets, _rx) = mpsc::unbounded_channel();
     let reaper =
-        ChannelReaperService::new(channels.clone(), registry.clone(), WebhookReceiver::new(packets));
+        ChannelReaperService::new(
+            channels.clone(),
+            registry.clone(),
+            WebhookReceiver::new(packets),
+            GroupLinkLeases::new_shared(),
+        );
 
     let channel = Channel::new("abandoned".to_string(), identity("Owner"));
     let id = channel.id();
@@ -159,7 +179,12 @@ async fn a_member_returning_mid_grace_restarts_the_clock() {
     let registry = Arc::new(ConnectionRegistry::new());
     let (packets, _rx) = mpsc::unbounded_channel();
     let reaper =
-        ChannelReaperService::new(channels.clone(), registry.clone(), WebhookReceiver::new(packets));
+        ChannelReaperService::new(
+            channels.clone(),
+            registry.clone(),
+            WebhookReceiver::new(packets),
+            GroupLinkLeases::new_shared(),
+        );
 
     let bob = identity("Bob");
     let id = group_with(&channels, &[bob.clone()]).await;
@@ -190,4 +215,58 @@ async fn a_member_returning_mid_grace_restarts_the_clock() {
         channels.get(&id).await.is_none(),
         "the restarted grace still expires"
     );
+}
+
+/// A group linked to a Simple Voice Chat group can hold only Java players, who never hold a
+/// BVC client. The bridge's lease is what keeps it.
+#[tokio::test]
+async fn leased_channel_is_not_reaped() {
+    let channels = Arc::new(ChannelCollection::new(16));
+    let registry = Arc::new(ConnectionRegistry::new());
+    let leases = GroupLinkLeases::new_shared();
+    let (packets, _rx) = mpsc::unbounded_channel();
+    let reaper = ChannelReaperService::new(
+        channels.clone(),
+        registry.clone(),
+        WebhookReceiver::new(packets),
+        leases.clone(),
+    );
+
+    let id = group_with(&channels, &[identity("Steve")]).await;
+    leases.renew(&[id.clone()]);
+
+    let start = Instant::now();
+    reaper.sweep_at(start).await;
+    reaper
+        .sweep_at(start + ChannelReaperService::IDLE_TIMEOUT + Duration::from_secs(1))
+        .await;
+
+    assert!(channels.get(&id).await.is_some());
+}
+
+/// A bridge that stops renewing has gone, so its groups age out like any other.
+#[tokio::test]
+async fn unrenewed_lease_lets_the_channel_be_reaped() {
+    let channels = Arc::new(ChannelCollection::new(16));
+    let registry = Arc::new(ConnectionRegistry::new());
+    let leases = Arc::new(GroupLinkLeases::with_ttl(Duration::from_millis(50)));
+    let (packets, _rx) = mpsc::unbounded_channel();
+    let reaper = ChannelReaperService::new(
+        channels.clone(),
+        registry.clone(),
+        WebhookReceiver::new(packets),
+        leases.clone(),
+    );
+
+    let id = group_with(&channels, &[identity("Steve")]).await;
+    leases.renew(&[id.clone()]);
+    tokio::time::sleep(Duration::from_millis(150)).await;
+
+    let start = Instant::now();
+    reaper.sweep_at(start).await;
+    reaper
+        .sweep_at(start + ChannelReaperService::IDLE_TIMEOUT + Duration::from_secs(1))
+        .await;
+
+    assert!(channels.get(&id).await.is_none());
 }

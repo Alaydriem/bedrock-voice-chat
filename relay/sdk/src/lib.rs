@@ -8,6 +8,7 @@ pub mod config;
 pub mod enrol;
 pub mod error;
 pub mod frame;
+pub mod group;
 pub mod identity;
 pub mod peer;
 
@@ -15,6 +16,7 @@ pub use config::SdkConfig;
 pub use enrol::{SdkEnrolOutcome, bvc_enrol};
 pub use error::SdkError;
 pub use frame::SdkFrame;
+pub use group::SdkGroupScope;
 pub use identity::BvcIdentity;
 pub use peer::BvcPeer;
 

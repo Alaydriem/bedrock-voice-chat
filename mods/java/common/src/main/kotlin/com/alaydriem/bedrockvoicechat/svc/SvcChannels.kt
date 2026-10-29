@@ -39,7 +39,7 @@ class SvcChannels(
         // created — and a poisoned null would keep that speaker silent for the
         // rest of the run.
         val opened = open(frame) ?: return null
-        opened.setFilter(speakers.filter())
+        opened.setFilter(speakers.filter(key))
 
         // Playback gets its own volume category so a listener can turn music down
         // without turning people down. Speech is left uncategorised, which is SVC's
