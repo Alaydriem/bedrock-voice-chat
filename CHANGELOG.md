@@ -1,3 +1,10 @@
+# [1.0.0-beta.26](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.25...v1.0.0-beta.26) (2026-10-29)
+
+
+### Bug Fixes
+
+* **registry:** advertise a public address in the enrollment link ([#279](https://github.com/Alaydriem/bedrock-voice-chat/issues/279)) ([b75f8ee](https://github.com/Alaydriem/bedrock-voice-chat/commit/b75f8eefa4b5dd92eeec2dac9d76f4f4e77d660a))
+
 # [1.0.0-beta.25](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.24...v1.0.0-beta.25) (2026-10-28)
 
 # [1.0.0-beta.24](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.23...v1.0.0-beta.24) (2026-10-27)
