@@ -25,8 +25,9 @@ This does not apply to a Bedrock Dedicated Server or a Java server. On these ser
 | 1.26.45 | `v2169` |
 | 1.26.50 | `v2192` |
 | 1.26.50 | `v2193` |
+| 1.26.60 | `v2225` |
 
-**1.26.50 is the newest supported release.**
+**1.26.60 is the newest supported release.**
 
 ## Not supported
 
