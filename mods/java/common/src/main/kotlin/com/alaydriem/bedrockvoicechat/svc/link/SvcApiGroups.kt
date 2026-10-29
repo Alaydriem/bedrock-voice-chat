@@ -110,11 +110,13 @@ class SvcApiGroups(
             ?.id
     }
 
-    // Read back, because a join another plugin cancelled leaves the player where they were.
+    // Read back, because a join another plugin cancelled leaves the player where they were. From a
+    // fresh connection: a VoicechatConnection is a snapshot, so the one just written to still
+    // reports the old group, and every join would read as refused.
     override fun setGroup(player: UUID, group: UUID?): Boolean = onServer {
         val connection = api.getConnectionOf(player) ?: return@onServer false
         connection.group = group?.let { api.getGroup(it) ?: return@onServer false }
-        connection.group?.id == group
+        api.getConnectionOf(player)?.group?.id == group
     }
 
     override fun remove(group: UUID): Boolean = onServer { api.removeGroup(group) }

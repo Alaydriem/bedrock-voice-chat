@@ -413,7 +413,12 @@ class SvcBridgeHost(
      * sides and renews the leases that keep Java-only groups from BVC's reaper.
      */
     private fun startLinking(groups: SvcApiGroups) {
-        val bvc = groupLink ?: return
+        val bvc = groupLink
+        if (bvc == null) {
+            logger.info("Group linking is off: no BVC group link transport")
+            return
+        }
+        logger.info("Linking Simple Voice Chat groups with BVC")
         if (linkThread != null) {
             return
         }
