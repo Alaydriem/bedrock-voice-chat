@@ -1,6 +1,6 @@
 {
-  "latest": 2225,
-  "released_latest": 2193,
+  "latest": 2238,
+  "released_latest": 2225,
   "versions": [
     {
       "protocol": 422,
@@ -142,6 +142,18 @@
     },
     {
       "protocol": 2225,
+      "client_version": "1.26.60",
+      "has_codec": true,
+      "released": true
+    },
+    {
+      "protocol": 2235,
+      "client_version": null,
+      "has_codec": true,
+      "released": false
+    },
+    {
+      "protocol": 2238,
       "client_version": null,
       "has_codec": true,
       "released": false
