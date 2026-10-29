@@ -12,12 +12,14 @@ pub use websocket_ticket_cache::{TicketIdentity, WebsocketTicketCache};
 
 use common::curia;
 use crate::services::client_action_service::GroupOutcome;
-use crate::services::{BedrockEventService, ClientActionService};
+use crate::services::{
+    BedrockEventService, ClientActionService, GroupLinkFeed, GroupLinkLeases, GroupLinkService,
+};
 use crate::stream::quic::connection::ConnectionRegistry;
 use crate::stream::quic::webhook_receiver::WebhookReceiver;
 use anyhow::Error;
 use common::structs::channel::{ChannelCollection, ChannelEvents};
-use common::structs::control::PreferenceKey;
+use common::structs::control::{GroupLinkEventKind, PreferenceKey};
 use common::structs::packet::{
     ChatSendPacket,
     BedrockEventPacket, ChannelEventPacket, ClientActionPacket, PacketDirection, PacketType,
@@ -36,6 +38,11 @@ pub struct CacheManager {
     // Fan-out sender for group ClientActions arriving ServerBound over QUIC
     // (the no-net path); the HTTP control route receives its own via State.
     webhook_receiver: Option<WebhookReceiver>,
+    // The Simple Voice Chat bridge's view of channel changes, and the leases it holds on linked
+    // channels. Here because every channel change passes through this type, and both the HTTP
+    // routes and the FFI already hold it.
+    group_link_feed: Arc<GroupLinkFeed>,
+    group_link_leases: Arc<GroupLinkLeases>,
     player_state: PlayerStateCache,
     preferences: PlayerPreferenceCache,
     websocket_tickets: WebsocketTicketCache,
@@ -60,6 +67,8 @@ impl CacheManager {
             bedrock_event_service: None,
             chat_service: None,
             webhook_receiver: None,
+            group_link_feed: GroupLinkFeed::new_shared(GroupLinkFeed::CAPACITY),
+            group_link_leases: GroupLinkLeases::new_shared(),
             player_state: PlayerStateCache::new(),
             preferences: PlayerPreferenceCache::new(),
             websocket_tickets: WebsocketTicketCache::new(),
@@ -169,7 +178,7 @@ impl CacheManager {
         }
     }
 
-    pub(crate) fn set_connection_registry(&mut self, registry: Arc<ConnectionRegistry>) {
+    pub fn set_connection_registry(&mut self, registry: Arc<ConnectionRegistry>) {
         self.connection_registry = Some(registry);
     }
 
@@ -191,6 +200,46 @@ impl CacheManager {
 
     pub fn get_connection_registry(&self) -> Option<Arc<ConnectionRegistry>> {
         self.connection_registry.clone()
+    }
+
+    pub fn group_link_leases(&self) -> Arc<GroupLinkLeases> {
+        self.group_link_leases.clone()
+    }
+
+    pub fn group_link_service(&self, webhook: WebhookReceiver) -> GroupLinkService {
+        GroupLinkService::new(
+            self.channel_collection.clone(),
+            webhook,
+            self.group_link_leases.clone(),
+            self.group_link_feed.clone(),
+        )
+    }
+
+    // Read after the arm has applied the change, so a Join or Create sees the channel as it now
+    // stands. A protected channel is silenced rather than published.
+    async fn publish_group_link(&self, kind: GroupLinkEventKind, data: &ChannelEventPacket) {
+        let channel = self.channel_collection.get(&data.channel).await;
+        if channel.as_ref().is_some_and(|c| c.is_protected()) {
+            match kind {
+                GroupLinkEventKind::Create => self.group_link_feed.silence(&data.channel),
+                _ => self.group_link_feed.publish(
+                    GroupLinkEventKind::Protected,
+                    &data.channel,
+                    None,
+                    None,
+                    false,
+                ),
+            }
+            return;
+        }
+
+        self.group_link_feed.publish(
+            kind,
+            &data.channel,
+            data.channel_name.clone(),
+            Some(data.name.gamertag().to_string()),
+            channel.as_ref().is_some_and(|c| c.is_members_only()),
+        );
     }
 
     // Every guard below anchors to `packet.sender_identity()`, which the QUIC ingress
@@ -282,15 +331,17 @@ impl CacheManager {
                                         &channel_data.name.to_string(),
                                         &channel_data.channel,
                                     );
-                                    let protected = self
-                                        .channel_collection
-                                        .get(&channel_data.channel)
-                                        .await
-                                        .is_some_and(|channel| channel.is_protected());
-                                    if protected {
+                                    let channel =
+                                        self.channel_collection.get(&channel_data.channel).await;
+                                    if channel.as_ref().is_some_and(|c| c.is_protected()) {
                                         registry.mark_protected(&channel_data.channel);
                                     }
+                                    if channel.as_ref().is_some_and(|c| c.is_members_only()) {
+                                        registry.mark_members_only(&channel_data.channel);
+                                    }
                                 }
+                                self.publish_group_link(GroupLinkEventKind::Join, &channel_data)
+                                    .await;
 
                                 curia::info!(
                                     "Player {} joined channel {}",
@@ -309,6 +360,8 @@ impl CacheManager {
                                 if let Some(registry) = &self.connection_registry {
                                     registry.remove_player_channel(&channel_data.name.to_string());
                                 }
+                                self.publish_group_link(GroupLinkEventKind::Leave, &channel_data)
+                                    .await;
 
                                 curia::info!(
                                     "Player {} left channel {}",
@@ -326,6 +379,8 @@ impl CacheManager {
                                         .map(|c| c.to_string())
                                         .unwrap_or_else(|| "unknown".to_string())
                                 );
+                                self.publish_group_link(GroupLinkEventKind::Create, &channel_data)
+                                    .await;
                             }
                             ChannelEvents::Delete => {
                                 self.channel_collection.remove(&channel_data.channel).await;
@@ -333,6 +388,8 @@ impl CacheManager {
                                 if let Some(registry) = &self.connection_registry {
                                     registry.remove_channel(&channel_data.channel);
                                 }
+                                self.publish_group_link(GroupLinkEventKind::Delete, &channel_data)
+                                    .await;
 
                                 curia::info!("Channel {} deleted", channel_data.channel);
                             }
@@ -348,6 +405,14 @@ impl CacheManager {
                                     && let Some(registry) = &self.connection_registry
                                 {
                                     registry.mark_protected(&channel_data.channel);
+                                }
+                                // A plain rename is not synced: SVC cannot rename a group.
+                                if protected {
+                                    self.publish_group_link(
+                                        GroupLinkEventKind::Protected,
+                                        &channel_data,
+                                    )
+                                    .await;
                                 }
                             }
                         }

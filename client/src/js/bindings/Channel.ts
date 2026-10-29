@@ -5,4 +5,9 @@ export type Channel = { id: string, name: string, players: Array<string>, creato
  * End-to-end encrypted. The server only routes and lists it; it never holds the password.
  * A server that predates this field sends nothing, which reads as unprotected.
  */
-protected: boolean, };
+protected: boolean, 
+/**
+ * Set only by the Simple Voice Chat bridge, for a channel linked to a NORMAL or ISOLATED
+ * SVC group. Speech in it reaches channel members only, never nearby players.
+ */
+members_only: boolean, };

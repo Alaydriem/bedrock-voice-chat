@@ -11,6 +11,7 @@ mod channel_membership_service;
 mod channel_reaper_service;
 mod chat_service;
 mod group_key_relay_service;
+mod group_link_service;
 mod host_capability;
 mod host_kind;
 mod interaction_tracker;

@@ -19,7 +19,7 @@ async fn an_unresolved_speaker_is_counted_once_per_proximity_recipient() {
     let cache = RoutingFixture::player_cache(&[RoutingFixture::player("Bob", 0.0, false)]).await;
     let packet = RoutingFixture::audio_packet_without_position("minecraft:Alice");
 
-    reg.route_audio_frame(&packet, None, &cache, RANGE, DEAFEN).await;
+    reg.route_audio_frame(&packet, None, None, &cache, RANGE, DEAFEN).await;
 
     assert_eq!(reg.route_rejections().get(RouteRejection::SpeakerUnresolved), 1);
     assert!(RoutingFixture::delivered_frame(&mut bob_rx).await.is_none());
@@ -37,7 +37,7 @@ async fn out_of_range_is_its_own_reason() {
     let cache = RoutingFixture::player_cache(&[alice.clone(), bob]).await;
     let packet = RoutingFixture::audio_packet(alice.clone(), "minecraft:Alice");
 
-    reg.route_audio_frame(&packet, Some(&alice), &cache, RANGE, DEAFEN).await;
+    reg.route_audio_frame(&packet, Some(&alice), None, &cache, RANGE, DEAFEN).await;
 
     assert_eq!(reg.route_rejections().get(RouteRejection::OutOfRange), 1);
     assert_eq!(reg.route_rejections().get(RouteRejection::SpeakerUnresolved), 0);
@@ -58,7 +58,7 @@ async fn a_channel_delivery_counts_no_rejection() {
     let cache = RoutingFixture::player_cache(&[]).await;
     let packet = RoutingFixture::audio_packet_without_position("minecraft:Alice");
 
-    reg.route_audio_frame(&packet, None, &cache, RANGE, DEAFEN).await;
+    reg.route_audio_frame(&packet, None, None, &cache, RANGE, DEAFEN).await;
 
     assert!(RoutingFixture::delivered_frame(&mut bob_rx).await.is_some());
     for reason in RouteRejection::ALL {
@@ -86,7 +86,7 @@ async fn a_frame_refusing_several_recipients_for_one_reason_counts_each() {
     let cache = RoutingFixture::player_cache(&players).await;
     let packet = RoutingFixture::audio_packet(alice.clone(), "minecraft:Alice");
 
-    reg.route_audio_frame(&packet, Some(&alice), &cache, RANGE, DEAFEN).await;
+    reg.route_audio_frame(&packet, Some(&alice), None, &cache, RANGE, DEAFEN).await;
 
     assert_eq!(reg.route_rejections().get(RouteRejection::OutOfRange), 3);
 }
@@ -98,7 +98,7 @@ async fn a_frame_with_no_routable_sender_is_counted_once() {
     let mut packet = RoutingFixture::audio_packet_without_position("minecraft:Alice");
     packet.sender = None;
 
-    reg.route_audio_frame(&packet, None, &cache, RANGE, DEAFEN).await;
+    reg.route_audio_frame(&packet, None, None, &cache, RANGE, DEAFEN).await;
 
     assert_eq!(reg.route_rejections().get(RouteRejection::SenderUnknown), 1);
 }
