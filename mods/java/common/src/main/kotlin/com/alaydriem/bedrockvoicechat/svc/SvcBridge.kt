@@ -51,7 +51,11 @@ class SvcBridge(
     // own thread and must not hold SVC objects. They fire before SVC applies the change, for the
     // bridge's own calls too.
     fun onCreateGroup(event: CreateGroupEvent) {
-        val group = event.group ?: return
+        val group = event.group
+        if (group == null) {
+            logger.info("SVC CreateGroupEvent carried no group")
+            return
+        }
         linkEvents?.created(SvcGroupViews.of(group), event.connection?.player?.uuid)
     }
 

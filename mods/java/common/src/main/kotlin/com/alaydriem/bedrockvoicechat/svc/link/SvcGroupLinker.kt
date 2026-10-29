@@ -46,14 +46,27 @@ class SvcGroupLinker(
     // own group of the same name. A group with no creator was made by another plugin; resync
     // links it under its first member.
     fun onSvcCreate(group: SvcGroupView, creator: UUID?) {
+        logger.info("SVC group created: {} ({}) by {}", group.name, group.type, creator)
         if (table.bySvc(group.id) != null) return
-        if (!group.linkable) return
-        val creatorName = creator?.let(actorIdOf) ?: return
-        linkNewSvcGroup(group, creatorName)
+        if (!group.linkable) {
+            logger.info("Not linking SVC group {}: it has a password or is hidden", group.name)
+            return
+        }
+        val creatorName = creator?.let(actorIdOf)
+        if (creatorName == null) {
+            logger.info("SVC group {} has no known creator yet; the next resync links it", group.name)
+            return
+        }
+        val channel = linkNewSvcGroup(group, creatorName) ?: return
+        // SVC puts the creator in the group directly and fires no JoinGroupEvent for it.
+        if (sides.of(creator) == PlayerSide.SVC) {
+            joinBvc(creatorName, channel)
+        }
     }
 
     fun onSvcJoin(group: UUID, player: UUID) {
         if (echo.consume("svc:join:$player:$group")) return
+        logger.info("SVC join: {} into {} (side {}, linked {})", player, group, sides.of(player), table.bySvc(group) != null)
         if (sides.of(player) != PlayerSide.SVC) return
         val name = actorIdOf(player) ?: return
         val entry = table.bySvc(group)
@@ -131,6 +144,9 @@ class SvcGroupLinker(
 
     private fun resyncPass() {
         if (!svc.groupsEnabled()) {
+            if (table.all().isNotEmpty()) {
+                logger.info("Simple Voice Chat groups are disabled; unlinking every group")
+            }
             table.all().forEach(table::remove)
             return
         }
@@ -261,15 +277,26 @@ class SvcGroupLinker(
         }
     }
 
-    private fun linkNewSvcGroup(group: SvcGroupView, creatorName: String) {
-        val channel = bvc.createLinked(creatorName, group.name, group.membersOnly) ?: return
+    private fun linkNewSvcGroup(group: SvcGroupView, creatorName: String): String? {
+        val channel = bvc.createLinked(creatorName, group.name, group.membersOnly)
+        if (channel == null) {
+            logger.warn("BVC did not create a channel for SVC group {}; the next resync retries", group.name)
+            return null
+        }
         table.put(LinkEntry(group.id, channel, group.membersOnly, LinkEntry.Origin.SVC))
+        logger.info("Linked SVC group {} to new BVC channel {} (members only: {})", group.name, channel, group.membersOnly)
+        return channel
     }
 
     private fun linkNewBvcChannel(channel: String, name: String): UUID? {
         // Persistent, so SVC's cleanup of empty groups cannot end a group BVC owns.
-        val group = svc.create(name, SvcGroupType.OPEN, persistent = true) ?: return null
+        val group = svc.create(name, SvcGroupType.OPEN, persistent = true)
+        if (group == null) {
+            logger.warn("SVC did not create a group for BVC channel {}; the next resync retries", channel)
+            return null
+        }
         table.put(LinkEntry(group, channel, membersOnly = false, origin = LinkEntry.Origin.BVC))
+        logger.info("Linked BVC channel {} to new SVC group {}", channel, name)
         return group
     }
 
@@ -316,7 +343,12 @@ class SvcGroupLinker(
         }
 
         for (group in svcLeft) {
-            val creatorName = svc.membersOf(group.id).firstNotNullOfOrNull(actorIdOf) ?: continue
+            val members = svc.membersOf(group.id)
+            val creatorName = members.firstNotNullOfOrNull(actorIdOf)
+            if (creatorName == null) {
+                logger.info("Resync: SVC group {} has no named member ({} members); not linking yet", group.name, members.size)
+                continue
+            }
             linkNewSvcGroup(group, creatorName)
         }
         for (channel in bvcLeft) {
