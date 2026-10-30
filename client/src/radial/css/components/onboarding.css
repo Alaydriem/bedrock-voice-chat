@@ -153,14 +153,18 @@
  * scrolling inside a pane that was already scrolling.
  */
 
+/* A wide but short pane (a phone held sideways, a short desktop window) keeps the split
+   layout, so the matrix scrolls rather than clipping. It stops above the caption, and
+   `safe` keeps an overflowing column from being pushed past the top. */
 .rad-matrix {
     position: absolute;
-    inset: 0;
+    inset: 0 0 66px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: safe center;
     gap: 14px;
-    padding: 28px 26px 66px;
+    padding: 28px 26px 12px;
+    overflow-y: auto;
 }
 
 .rad-matrix__group {

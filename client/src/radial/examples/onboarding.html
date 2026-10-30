@@ -49,6 +49,7 @@
                         <button data-screen="login">Sign in</button>
                         <button data-screen="code">Sign-in code</button>
                         <button data-screen="notyet">Not yet</button>
+                        <button data-screen="nodecraft">Nodecraft</button>
                     </span>
                     <span class="g-seg" data-g-device="ob-frame">
                         <button data-g-size="desktop" aria-pressed="true">Desktop</button>
@@ -477,69 +478,75 @@
                                 <span class="rad-label">Server check</span>
                             </div>
 
-                            <div class="rad-gate-head rad-rise" style="--d: 30">
-                                <span class="rad-label">Before you sign in</span>
-                                <h2 class="rad-gate-head__question">
-                                    Is a BVC server already set up for <b>your world?</b>
-                                </h2>
-                                <p class="rad-gate-head__note">
-                                    Your world needs a BVC server running somewhere before anyone
-                                    can talk. If that is already done, all you need is its address.
-                                </p>
-                            </div>
-
-                            <div class="rad-gate">
-                                <button
-                                    class="rad-gate__option rad-rise"
-                                    style="--d: 70"
-                                    data-rad-goto="login"
-                                >
-                                    <span class="rad-ring"
-                                        ><canvas
-                                            data-rad-ring="live"
-                                            data-rad-id="gate-live"
-                                        ></canvas
-                                    ></span>
-                                    <span class="rad-gate__copy">
-                                        <span class="rad-label"
-                                            >Yes &middot; I have an address</span
-                                        >
-                                        <span class="rad-gate__title"
-                                            >Someone already set it up</span
-                                        >
-                                        <span class="rad-gate__note">
-                                            A BVC server is running for your world and you have its
-                                            address. Sign in with the Microsoft account you play
-                                            Minecraft with.
+                            <div class="rad-split">
+                                <div class="rad-visual-pane">
+                                    <div class="rad-visual">
+                                        <canvas data-rad-ring="lock"></canvas>
+                                        <span class="rad-caption">
+                                            <span class="rad-label">Your world</span>
+                                            <span class="rad-caption__value"
+                                                >WAITING ON YOUR ANSWER</span
+                                            >
                                         </span>
-                                        <span class="rad-gate__action">Sign in &rarr;</span>
-                                    </span>
-                                </button>
-                                <button
-                                    class="rad-gate__option rad-rise"
-                                    style="--d: 170"
-                                    data-rad-goto="notyet"
-                                >
-                                    <span class="rad-ring"
-                                        ><canvas data-rad-ring="empty"></canvas
-                                    ></span>
-                                    <span class="rad-gate__copy">
-                                        <span class="rad-label">No &middot; or I am not sure</span>
-                                        <span class="rad-gate__title"
-                                            >Nobody has set it up yet</span
-                                        >
-                                        <span class="rad-gate__note">
-                                            Voice chat needs a BVC server plus a mod on the world.
-                                            It's a one-time install &mdash; see what's involved.
-                                        </span>
-                                        <span class="rad-gate__action">Show me how &rarr;</span>
-                                    </span>
-                                </button>
+                                    </div>
+                                </div>
+                                <div class="rad-content-pane">
+                                    <span class="rad-label rad-rise" style="--d: 50"
+                                        >Before you sign in</span
+                                    >
+                                    <h2
+                                        class="rad-display rad-rise"
+                                        style="--d: 120; margin-top: 12px; font-size: 2rem"
+                                    >
+                                        Is a BVC server already set up for <b>your world?</b>
+                                    </h2>
+                                    <p class="rad-body rad-rise" style="--d: 200">
+                                        Your world needs a BVC server running somewhere before
+                                        anyone can talk. If that is already done, all you need is
+                                        its address.
+                                    </p>
+                                    <div class="rad-choices rad-rise" style="--d: 290">
+                                        <button class="rad-choice" data-rad-goto="login">
+                                            <span>
+                                                <span class="rad-label"
+                                                    >Yes &middot; I have an address</span
+                                                >
+                                                <span class="rad-choice__title"
+                                                    >Someone already set it up</span
+                                                >
+                                                <span class="rad-choice__note">
+                                                    A BVC server is running for your world and you
+                                                    have its address. Sign in with the Microsoft
+                                                    account you play Minecraft with.
+                                                </span>
+                                            </span>
+                                            <span class="rad-choice__action">Sign in &rarr;</span>
+                                        </button>
+                                        <button class="rad-choice" data-rad-goto="notyet">
+                                            <span>
+                                                <span class="rad-label"
+                                                    >No &middot; or I am not sure</span
+                                                >
+                                                <span class="rad-choice__title"
+                                                    >Nobody has set it up yet</span
+                                                >
+                                                <span class="rad-choice__note">
+                                                    Voice chat needs a BVC server plus a mod on the
+                                                    world. It's a one-time install &mdash; see
+                                                    what's involved.
+                                                </span>
+                                            </span>
+                                            <span class="rad-choice__action"
+                                                >Show me how &rarr;</span
+                                            >
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             <div class="rad-footbar">
-                                <span class="rad-label"
-                                    >BVC server + world mod &middot; installed once</span
-                                >
+                                <button class="rad-btn rad-btn--quiet" data-rad-goto="intro">
+                                    &larr; Introduction
+                                </button>
                                 <span class="rad-label">Device setup continues after sign-in</span>
                             </div>
                         </section>
@@ -602,7 +609,12 @@
                                 </div>
                             </div>
                             <div class="rad-footbar">
-                                <span class="rad-label">Privacy notice</span>
+                                <span class="rad-footbar__actions">
+                                    <button class="rad-btn rad-btn--quiet" data-rad-goto="intro">
+                                        &larr; Introduction
+                                    </button>
+                                    <button class="rad-btn rad-btn--quiet">Privacy notice</button>
+                                </span>
                                 <span class="rad-label rad-num">v1.0.0-beta.7</span>
                             </div>
                         </section>
@@ -696,10 +708,67 @@
                             <div class="rad-split">
                                 <div class="rad-visual-pane">
                                     <div class="rad-visual">
-                                        <canvas data-rad-ring="empty"></canvas>
+                                        <div class="rad-matrix">
+                                            <div class="rad-matrix__group">
+                                                <div class="rad-matrix__head">
+                                                    Hosted on Nodecraft
+                                                </div>
+                                                <div class="rad-matrix__row">
+                                                    <span class="rad-matrix__blocks"
+                                                        ><i style="background: #8239d8"></i
+                                                        ><i style="background: #6a50e9"></i
+                                                        ><i style="background: #466cf3"></i
+                                                    ></span>
+                                                    <span>Your world and BVC on one server</span
+                                                    ><span
+                                                        class="rad-matrix__tag rad-matrix__tag--yes"
+                                                        >Hosted</span
+                                                    >
+                                                </div>
+                                                <div class="rad-matrix__row">
+                                                    <span class="rad-matrix__blocks"
+                                                        ><i style="background: #28bae1"></i
+                                                        ><i style="background: #21d8d8"></i
+                                                        ><i style="background: #26ddcd"></i
+                                                    ></span>
+                                                    <span>Bedrock, Fabric or PaperMC</span
+                                                    ><span
+                                                        class="rad-matrix__tag rad-matrix__tag--yes"
+                                                        >Supported</span
+                                                    >
+                                                </div>
+                                                <div class="rad-matrix__row">
+                                                    <span class="rad-matrix__blocks"
+                                                        ><i style="background: #34d8a0"></i
+                                                        ><i style="background: #3bd869"></i
+                                                        ><i style="background: #6fd846"></i
+                                                    ></span>
+                                                    <span>Step-by-step setup in this app</span
+                                                    ><span
+                                                        class="rad-matrix__tag rad-matrix__tag--yes"
+                                                        >Guided</span
+                                                    >
+                                                </div>
+                                            </div>
+                                            <p class="rad-matrix__note">
+                                                <span
+                                                    ><b>Get 30% off your first month with this
+                                                    exclusive BVC deal.</b></span
+                                                >
+                                            </p>
+                                            <button
+                                                class="rad-btn rad-btn--primary rad-btn--lg"
+                                                style="align-self: flex-start"
+                                                data-rad-goto="nodecraft"
+                                            >
+                                                Set up on Nodecraft &rarr;
+                                            </button>
+                                        </div>
                                         <span class="rad-caption">
-                                            <span class="rad-label">Nothing in range</span>
-                                            <span class="rad-caption__value">ONE INSTALL AWAY</span>
+                                            <span class="rad-label">Nodecraft</span>
+                                            <span class="rad-caption__value"
+                                                >30% OFF &middot; FIRST MONTH</span
+                                            >
                                         </span>
                                     </div>
                                 </div>
@@ -732,8 +801,7 @@
                                                     >Run the BVC server</span
                                                 >
                                                 <span class="rad-step__note"
-                                                    >On a machine you control &mdash; your PC, a
-                                                    VPS, or a home box</span
+                                                    >On Nodecraft, or a machine you control</span
                                                 ></span
                                             >
                                         </div>
@@ -762,7 +830,7 @@
                                     <span
                                         class="rad-label rad-rise"
                                         style="--d: 320; display: block; margin-top: 28px"
-                                        >Which one are you?</span
+                                        >Other options</span
                                     >
                                     <div class="rad-choices rad-rise" style="--d: 350">
                                         <button
@@ -771,12 +839,11 @@
                                         >
                                             <span>
                                                 <span class="rad-choice__title"
-                                                    >I run the server</span
+                                                    >I want to run my own</span
                                                 >
                                                 <span class="rad-choice__note">
-                                                    Do both installs yourself. The guide covers the
-                                                    server and the mod, start to finish, in about
-                                                    fifteen minutes.
+                                                    On your PC, a VPS, or a home server. The guide
+                                                    shows how to install the server and the mod.
                                                 </span>
                                             </span>
                                             <span class="rad-choice__action"
@@ -800,21 +867,6 @@
                                                 >Copy message &rarr;</span
                                             >
                                         </button>
-                                        <button
-                                            class="rad-choice"
-                                            data-toast="Opens bedrockvoicechat.com"
-                                        >
-                                            <span>
-                                                <span class="rad-choice__title"
-                                                    >I'm just looking</span
-                                                >
-                                                <span class="rad-choice__note">
-                                                    Watch the setup walkthrough and see it running
-                                                    before you commit to anything.
-                                                </span>
-                                            </span>
-                                            <span class="rad-choice__action">Watch it &rarr;</span>
-                                        </button>
                                     </div>
 
                                     <div class="rad-swatchrow" style="margin-top: 22px">
@@ -835,9 +887,192 @@
                                 </div>
                             </div>
                             <div class="rad-footbar">
-                                <span class="rad-label"
-                                    >Come back any time from the sign-in screen</span
-                                >
+                                <button class="rad-btn rad-btn--quiet" data-rad-goto="intro">
+                                    &larr; Introduction
+                                </button>
+                                <button class="rad-btn rad-btn--lg" data-rad-goto="login">
+                                    I have an address &mdash; sign in
+                                </button>
+                            </div>
+                        </section>
+
+                        <!-- ============ NODECRAFT ============ -->
+                        <section class="rad-screen" data-rad-screen="nodecraft">
+                            <div class="rad-topbar">
+                                <span class="rad-brand">
+                                    <canvas data-rad-mark></canvas>
+                                    <span class="rad-wordmark">Bedrock Voice Chat</span>
+                                </span>
+                                <span class="rad-label">Run it on Nodecraft</span>
+                            </div>
+                            <div class="rad-split">
+                                <div class="rad-visual-pane">
+                                    <div class="rad-visual">
+                                        <div class="rad-matrix">
+                                            <div class="rad-matrix__group">
+                                                <div class="rad-matrix__head">
+                                                    You need
+                                                </div>
+                                                <button
+                                                    class="rad-checkbox"
+                                                    role="checkbox"
+                                                    aria-checked="false"
+                                                    data-nc-need
+                                                >
+                                                    <span
+                                                        class="rad-checkbox__box"
+                                                        data-rad-icon="check"
+                                                    ></span>
+                                                    <span class="rad-checkbox__label"
+                                                        >A domain name</span
+                                                    >
+                                                    <span class="rad-checkbox__note"
+                                                        >From any registrar. An IP address does not
+                                                        work.</span
+                                                    >
+                                                </button>
+                                                <button
+                                                    class="rad-checkbox"
+                                                    role="checkbox"
+                                                    aria-checked="false"
+                                                    data-nc-need
+                                                >
+                                                    <span
+                                                        class="rad-checkbox__box"
+                                                        data-rad-icon="check"
+                                                    ></span>
+                                                    <span class="rad-checkbox__label"
+                                                        >A Cloudflare account</span
+                                                    >
+                                                    <span class="rad-checkbox__note"
+                                                        >Free plan works</span
+                                                    >
+                                                </button>
+                                                <button
+                                                    class="rad-checkbox"
+                                                    role="checkbox"
+                                                    aria-checked="false"
+                                                    data-nc-need
+                                                >
+                                                    <span
+                                                        class="rad-checkbox__box"
+                                                        data-rad-icon="check"
+                                                    ></span>
+                                                    <span class="rad-checkbox__label"
+                                                        >A Nodecraft Pro server</span
+                                                    >
+                                                    <span class="rad-checkbox__note"
+                                                        >Bedrock Dedicated Server</span
+                                                    >
+                                                </button>
+                                            </div>
+                                            <p class="rad-matrix__note">
+                                                <span
+                                                    >BVC uses your domain and Cloudflare to get a
+                                                    TLS certificate.</span
+                                                >
+                                            </p>
+                                        </div>
+                                        <span class="rad-caption">
+                                            <span class="rad-label">You need</span>
+                                            <span class="rad-caption__value"
+                                                >3 THINGS</span
+                                            >
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="rad-content-pane rad-content-pane--top">
+                                    <span class="rad-label rad-rise" style="--d: 50"
+                                        >Run it on Nodecraft</span
+                                    >
+                                    <h2
+                                        class="rad-display rad-rise"
+                                        style="--d: 120; margin-top: 12px; font-size: 2rem"
+                                    >
+                                        Before you start,<br /><b>you need three things.</b>
+                                    </h2>
+                                    <p class="rad-body rad-rise" style="--d: 200">
+                                        Nodecraft runs your Bedrock server and BVC on the same
+                                        machine. Get these three things, then follow the guide.
+                                    </p>
+
+                                    <div class="rad-callout rad-rise" style="--d: 320">
+                                        <span>
+                                            <b>Get 30% off your first month on Nodecraft.</b>
+                                            Signing up with this link also helps fund BVC.
+                                        </span>
+                                    </div>
+                                    <button
+                                        class="rad-btn rad-btn--primary rad-btn--lg rad-rise"
+                                        style="--d: 350; margin-top: 14px"
+                                        data-toast="Opens nodecraft.com/r/alaydriem"
+                                    >
+                                        Get a Nodecraft server &rarr;
+                                    </button>
+
+                                    <span
+                                        class="rad-label rad-rise"
+                                        style="--d: 380; display: block; margin-top: 28px"
+                                        >Then set up BVC</span
+                                    >
+                                    <div class="rad-steps rad-rise" style="--d: 410">
+                                        <div class="rad-step">
+                                            <span class="rad-step__n">1</span>
+                                            <span
+                                                ><span class="rad-step__title"
+                                                    >Move your domain's DNS to Cloudflare</span
+                                                >
+                                                <span class="rad-step__note"
+                                                    >Then create an API token for BVC</span
+                                                ></span
+                                            >
+                                        </div>
+                                        <div class="rad-step">
+                                            <span class="rad-step__n">2</span>
+                                            <span
+                                                ><span class="rad-step__title"
+                                                    >Install BVC on your Nodecraft server</span
+                                                >
+                                                <span class="rad-step__note"
+                                                    >Follow the Bedrock on Nodecraft guide</span
+                                                ></span
+                                            >
+                                        </div>
+                                        <div class="rad-step">
+                                            <span class="rad-step__n">3</span>
+                                            <span
+                                                ><span class="rad-step__title"
+                                                    >Sign in with your server address</span
+                                                ></span
+                                            >
+                                        </div>
+                                    </div>
+
+                                    <div class="rad-swatchrow" style="margin-top: 22px">
+                                        <button
+                                            class="rad-pill-link"
+                                            data-toast="Opens /wiki/platforms/nodecraft/bedrock/"
+                                        >
+                                            Bedrock on Nodecraft guide
+                                            <span class="rad-pill-link__ext">&#8599;</span>
+                                        </button>
+                                        <button
+                                            class="rad-pill-link"
+                                            data-toast="Opens /wiki/platforms/nodecraft/"
+                                        >
+                                            Java guides
+                                            <span class="rad-pill-link__ext">&#8599;</span>
+                                        </button>
+                                        <button class="rad-pill-link" data-toast="Opens Discord">
+                                            Discord <span class="rad-pill-link__ext">&#8599;</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rad-footbar">
+                                <button class="rad-btn rad-btn--quiet" data-rad-goto="notyet">
+                                    &larr; Other options
+                                </button>
                                 <button class="rad-btn rad-btn--lg" data-rad-goto="login">
                                     I have an address &mdash; sign in
                                 </button>

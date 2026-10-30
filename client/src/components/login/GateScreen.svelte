@@ -7,8 +7,9 @@
     interface Props {
         onhaveserver: () => void;
         onnoserver: () => void;
+        onintro: () => void;
     }
-    let { onhaveserver, onnoserver }: Props = $props();
+    let { onhaveserver, onnoserver, onintro }: Props = $props();
 
     /**
      * Which answer is being considered, or null while the question is open.
@@ -105,7 +106,9 @@
     </div>
 
     {#snippet footbar()}
-        <span class="rad-label">{I18n.t("BVC server + world mod · installed once")}</span>
+        <button class="rad-btn rad-btn--quiet" onclick={onintro}
+            >{I18n.t("← Introduction")}</button
+        >
         <span class="rad-label">{I18n.t("Device setup continues after sign-in")}</span>
     {/snippet}
 </RadScreen>

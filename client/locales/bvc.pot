@@ -114,12 +114,22 @@ msgstr[1] ""
 msgid "← expected 48.0"
 msgstr ""
 
+#: src/components/login/GateScreen.svelte:110
+#: src/components/login/NoServerScreen.svelte:174
+#: src/components/login/SignInScreen.svelte:121
+msgid "← Introduction"
+msgstr ""
+
 #: src/js/app/dashboard/DiagnosticsView.ts:55
 msgid "← nothing is being pushed to this window"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:50
 msgid "← nothing is going out"
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:160
+msgid "← Other options"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:55
@@ -142,15 +152,31 @@ msgstr ""
 msgid "19132 is the Minecraft game port. Ask the server owner for the voice server address"
 msgstr ""
 
+#: src/components/login/NodecraftScreen.svelte:82
+msgid "3 THINGS"
+msgstr ""
+
+#: src/components/login/NoServerScreen.svelte:82
+msgid "30% OFF · FIRST MONTH"
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:413
 msgid "A Bedrock add-on, or the Fabric or Paper mod for Java"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:76
+#: src/components/login/GateScreen.svelte:77
 msgid "A BVC server is running for your world and you have its address. Sign in with the Microsoft account you play Minecraft with."
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:92
+#: src/components/login/NodecraftScreen.svelte:26
+msgid "A Cloudflare account"
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:21
+msgid "A domain name"
+msgstr ""
+
+#: src/components/login/NoServerScreen.svelte:148
 msgid "A friend runs the server"
 msgstr ""
 
@@ -172,6 +198,10 @@ msgstr ""
 
 #: src/components/shell/UpdateOfferDialog.svelte:27
 msgid "A new version of Bedrock Voice Chat is ready to install. The app restarts when it is done."
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:31
+msgid "A Nodecraft Pro server"
 msgstr ""
 
 #: src/components/settings/panes/AudioPane.svelte:160
@@ -247,7 +277,7 @@ msgid "Add player"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:410
-#: src/components/login/NoServerScreen.svelte:57
+#: src/components/login/NoServerScreen.svelte:113
 msgid "Add the mod to your world"
 msgstr ""
 
@@ -473,6 +503,14 @@ msgstr ""
 msgid "Banned"
 msgstr ""
 
+#: src/components/login/NodecraftScreen.svelte:32
+msgid "Bedrock Dedicated Server"
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:146
+msgid "Bedrock on Nodecraft guide"
+msgstr ""
+
 #: src/js/app/managers/bedrock/connection/BedrockConnectErrorMapper.ts:21
 msgid "Bedrock server rejected the login"
 msgstr ""
@@ -489,8 +527,16 @@ msgstr ""
 msgid "Bedrock Voice Chat needs access to your microphone to enable voice communication. Please grant microphone permissions in your system settings and return to the dashboard."
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:53
+#: src/components/login/NoServerScreen.svelte:49
+msgid "Bedrock, Fabric or PaperMC"
+msgstr ""
+
+#: src/components/login/GateScreen.svelte:54
 msgid "Before you sign in"
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:89
+msgid "Before you start,"
 msgstr ""
 
 #: src/js/app/serverList/PlateView.ts:64
@@ -517,8 +563,8 @@ msgstr ""
 msgid "BVC needs"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:108
-msgid "BVC server + world mod · installed once"
+#: src/components/login/NodecraftScreen.svelte:74
+msgid "BVC uses your domain and Cloudflare to get a TLS certificate."
 msgstr ""
 
 #: src/components/settings/panes/ManagePlayersPane.svelte:475
@@ -554,7 +600,7 @@ msgstr ""
 #: src/components/settings/ProxyServerEditor.svelte:153
 #: src/components/settings/XboxSignIn.svelte:103
 #: src/js/app/serverList/AddServerRoute.ts:31
-#: src/routes/login/+page.svelte:281
+#: src/routes/login/+page.svelte:283
 msgid "Cancel"
 msgstr ""
 
@@ -769,10 +815,6 @@ msgstr ""
 msgid "Code {code}"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:129
-msgid "Come back any time from the sign-in screen"
-msgstr ""
-
 #: src/components/settings/panes/WebSocketPane.svelte:240
 msgid "Commands"
 msgstr ""
@@ -832,8 +874,8 @@ msgstr ""
 msgid "connected, last frame {ms}ms ago"
 msgstr ""
 
-#: src/routes/login/+page.svelte:246
-#: src/routes/login/+page.svelte:268
+#: src/routes/login/+page.svelte:248
+#: src/routes/login/+page.svelte:270
 msgid "Connecting"
 msgstr ""
 
@@ -861,7 +903,7 @@ msgstr ""
 msgid "Contact your server operator."
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:202
+#: src/routes/uireview/+page.svelte:203
 msgid "Container queries, so these are faithful. Scroll each frame — the footbar must stay on screen at every step."
 msgstr ""
 
@@ -899,7 +941,7 @@ msgstr ""
 msgid "Copy id for {name}"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:99
+#: src/components/login/NoServerScreen.svelte:155
 msgid "Copy message →"
 msgstr ""
 
@@ -1017,7 +1059,7 @@ msgstr ""
 msgid "Device"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:109
+#: src/components/login/GateScreen.svelte:112
 msgid "Device setup continues after sign-in"
 msgstr ""
 
@@ -1057,10 +1099,6 @@ msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:160
 msgid "DNS Resolution Failed"
-msgstr ""
-
-#: src/components/login/NoServerScreen.svelte:83
-msgid "Do both installs yourself. The guide covers the server and the mod, start to finish, in about fifteen minutes."
 msgstr ""
 
 #: src/components/dashboard/SafetyCodeDialog.svelte:58
@@ -1200,6 +1238,10 @@ msgstr ""
 msgid "Finish setup"
 msgstr ""
 
+#: src/components/login/NodecraftScreen.svelte:130
+msgid "Follow the Bedrock on Nodecraft guide"
+msgstr ""
+
 #: src/components/settings/panes/AboutPane.svelte:227
 msgid "For a bug report. Written to your Documents folder."
 msgstr ""
@@ -1220,6 +1262,14 @@ msgstr ""
 msgid "FORMAT UNSUPPORTED"
 msgstr ""
 
+#: src/components/login/NodecraftScreen.svelte:27
+msgid "Free plan works"
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:22
+msgid "From any registrar. An IP address does not work."
+msgstr ""
+
 #: src/components/settings/panes/ConnectPane.svelte:292
 msgid "From your server"
 msgstr ""
@@ -1236,6 +1286,18 @@ msgstr ""
 #: src/components/settings/panes/ManagePlayersPane.svelte:439
 #: src/components/settings/panes/ManagePlayersPane.svelte:440
 msgid "Gamertag"
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:99
+msgid "Get 30% off your first month on Nodecraft."
+msgstr ""
+
+#: src/components/login/NoServerScreen.svelte:68
+msgid "Get 30% off your first month with this exclusive BVC deal."
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:106
+msgid "Get a Nodecraft server →"
 msgstr ""
 
 #: src/components/audio/AudioDeviceSelector.svelte:93
@@ -1263,6 +1325,10 @@ msgstr ""
 #: src/components/dashboard/DashboardScreen.svelte:283
 #: src/components/dashboard/DashboardScreen.svelte:424
 msgid "Groups"
+msgstr ""
+
+#: src/components/login/NoServerScreen.svelte:61
+msgid "Guided"
 msgstr ""
 
 #: src/js/app/serverList/preflight/PreflightStepLabel.ts:11
@@ -1297,6 +1363,14 @@ msgstr ""
 msgid "Hold"
 msgstr ""
 
+#: src/components/login/NoServerScreen.svelte:41
+msgid "Hosted"
+msgstr ""
+
+#: src/components/login/NoServerScreen.svelte:33
+msgid "Hosted on Nodecraft"
+msgstr ""
+
 #: src/js/app/error/FaultCatalog.ts:326
 msgid "How do I unlock this?"
 msgstr ""
@@ -1317,16 +1391,13 @@ msgstr ""
 msgid "HTTP connection succeeded but the voice connection (QUIC/UDP) was blocked. This usually means a firewall is blocking UDP traffic on the voice port. Check your firewall settings or contact your server administrator."
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:131
+#: src/components/login/NodecraftScreen.svelte:162
+#: src/components/login/NoServerScreen.svelte:177
 msgid "I have an address — sign in"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:81
-msgid "I run the server"
-msgstr ""
-
-#: src/components/login/NoServerScreen.svelte:103
-msgid "I'm just looking"
+#: src/components/login/NoServerScreen.svelte:137
+msgid "I want to run my own"
 msgstr ""
 
 #: src/js/app/error/FaultCatalog.ts:211
@@ -1391,7 +1462,11 @@ msgstr ""
 msgid "Install"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:88
+#: src/components/login/NodecraftScreen.svelte:127
+msgid "Install BVC on your Nodecraft server"
+msgstr ""
+
+#: src/components/login/NoServerScreen.svelte:144
 msgid "Install guide →"
 msgstr ""
 
@@ -1399,7 +1474,7 @@ msgstr ""
 msgid "Interface"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:55
+#: src/components/login/GateScreen.svelte:56
 msgid "Is a BVC server already set up for"
 msgstr ""
 
@@ -1421,6 +1496,10 @@ msgstr ""
 
 #: src/js/app/login/InviteMessage.ts:20
 msgid "It's a one-time setup on your side: run the BVC server on any machine you control, and add a small mod to the world. The guide walks through both:"
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:150
+msgid "Java guides"
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:36
@@ -1618,6 +1697,10 @@ msgstr ""
 msgid "Moderator controls"
 msgstr ""
 
+#: src/components/login/NodecraftScreen.svelte:117
+msgid "Move your domain's DNS to Cloudflare"
+msgstr ""
+
 #: src/components/dashboard/StatusPanel.svelte:200
 #: src/components/dashboard/StatusPanel.svelte:202
 msgid "MS RTT"
@@ -1678,7 +1761,7 @@ msgstr ""
 msgid "Next page"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:93
+#: src/components/login/GateScreen.svelte:94
 msgid "No · or I am not sure"
 msgstr ""
 
@@ -1801,8 +1884,8 @@ msgstr ""
 msgid "No server has that name. Check the spelling"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:17
-#: src/components/login/NoServerScreen.svelte:29
+#: src/components/login/NoServerScreen.svelte:27
+#: src/components/login/NoServerScreen.svelte:87
 msgid "No server yet"
 msgstr ""
 
@@ -1826,7 +1909,7 @@ msgstr ""
 msgid "No world to send to yet"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:94
+#: src/components/login/GateScreen.svelte:95
 msgid "Nobody has set it up yet"
 msgstr ""
 
@@ -1848,6 +1931,10 @@ msgstr ""
 
 #: src/js/app/settings/PlayersView.ts:165
 msgid "Nobody you have changed has that name."
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:92
+msgid "Nodecraft runs your Bedrock server and BVC on the same machine. Get these three things, then follow the guide."
 msgstr ""
 
 #: src/components/settings/NoiseGate.svelte:67
@@ -1880,7 +1967,7 @@ msgstr ""
 msgid "not answering right now"
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:197
+#: src/routes/uireview/+page.svelte:198
 msgid "Not available in a release build."
 msgstr ""
 
@@ -1967,10 +2054,6 @@ msgstr ""
 msgid "Nothing changed yet"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:23
-msgid "Nothing in range"
-msgstr ""
-
 #: src/components/settings/SettingsScreen.svelte:190
 msgid "Nothing is connected"
 msgstr ""
@@ -2040,12 +2123,16 @@ msgstr ""
 msgid "Offline"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:48
-msgid "On a machine you control — your PC, a VPS, or a home box"
+#: src/components/login/NoServerScreen.svelte:106
+msgid "On Nodecraft, or a machine you control"
 msgstr ""
 
 #: src/components/login/IntroScreen.svelte:436
 msgid "On separate tracks."
+msgstr ""
+
+#: src/components/login/NoServerScreen.svelte:139
+msgid "On your PC, a VPS, or a home server. The guide shows how to install the server and the mod."
 msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:47
@@ -2054,10 +2141,6 @@ msgstr ""
 
 #: src/js/app/dashboard/DiagnosticsCopy.ts:46
 msgid "on, open (passing audio)"
-msgstr ""
-
-#: src/components/login/NoServerScreen.svelte:24
-msgid "ONE INSTALL AWAY"
 msgstr ""
 
 #: src/components/setup/NotificationsScreen.svelte:88
@@ -2115,6 +2198,10 @@ msgstr ""
 
 #: src/js/app/settings/NoiseGateModel.ts:42
 msgid "Opens above"
+msgstr ""
+
+#: src/components/login/NoServerScreen.svelte:132
+msgid "Other options"
 msgstr ""
 
 #: src/js/app/serverList/PlateView.ts:140
@@ -2258,7 +2345,7 @@ msgstr ""
 msgid "Previous page"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:121
+#: src/components/login/SignInScreen.svelte:124
 msgid "Privacy notice"
 msgstr ""
 
@@ -2348,7 +2435,7 @@ msgstr ""
 msgid "Reach"
 msgstr ""
 
-#: src/routes/login/+page.svelte:276
+#: src/routes/login/+page.svelte:278
 msgid "Reaching"
 msgstr ""
 
@@ -2578,8 +2665,13 @@ msgstr ""
 msgid "Run"
 msgstr ""
 
+#: src/components/login/NodecraftScreen.svelte:52
+#: src/components/login/NodecraftScreen.svelte:87
+msgid "Run it on Nodecraft"
+msgstr ""
+
 #: src/components/login/IntroScreen.svelte:400
-#: src/components/login/NoServerScreen.svelte:46
+#: src/components/login/NoServerScreen.svelte:104
 msgid "Run the BVC server"
 msgstr ""
 
@@ -2702,7 +2794,7 @@ msgstr ""
 msgid "Server chat"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:40
+#: src/components/login/GateScreen.svelte:41
 msgid "Server check"
 msgstr ""
 
@@ -2778,8 +2870,12 @@ msgstr ""
 msgid "Session"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:31
+#: src/components/login/NoServerScreen.svelte:89
 msgid "Set it up once."
+msgstr ""
+
+#: src/components/login/NoServerScreen.svelte:77
+msgid "Set up on Nodecraft →"
 msgstr ""
 
 #: src/components/dashboard/ServerRail.svelte:52
@@ -2792,7 +2888,7 @@ msgstr ""
 msgid "Settings for {name}"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:69
+#: src/components/login/NoServerScreen.svelte:125
 msgid "Share the address — everyone talks"
 msgstr ""
 
@@ -2808,7 +2904,7 @@ msgstr ""
 msgid "Show debug"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:101
+#: src/components/login/GateScreen.svelte:102
 msgid "Show me how →"
 msgstr ""
 
@@ -2822,7 +2918,7 @@ msgstr ""
 msgid "Sign in"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:81
+#: src/components/login/GateScreen.svelte:82
 msgid "Sign in →"
 msgstr ""
 
@@ -2839,7 +2935,7 @@ msgstr ""
 msgid "Sign in to Xbox again"
 msgstr ""
 
-#: src/routes/login/+page.svelte:274
+#: src/routes/login/+page.svelte:276
 msgid "Sign in using your browser"
 msgstr ""
 
@@ -2857,11 +2953,15 @@ msgstr ""
 msgid "Sign in with the code shown to get back to your worlds."
 msgstr ""
 
+#: src/components/login/NodecraftScreen.svelte:138
+msgid "Sign in with your server address"
+msgstr ""
+
 #: src/components/settings/panes/AccountPane.svelte:143
 msgid "Sign out"
 msgstr ""
 
-#: src/routes/login/+page.svelte:262
+#: src/routes/login/+page.svelte:264
 msgid "Sign out and start over"
 msgstr ""
 
@@ -2889,8 +2989,12 @@ msgstr ""
 msgid "Signed out"
 msgstr ""
 
-#: src/routes/login/+page.svelte:296
+#: src/routes/login/+page.svelte:298
 msgid "Signing in with the account you play on"
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:100
+msgid "Signing up with this link also helps fund BVC."
 msgstr ""
 
 #: src/components/settings/panes/LibraryPane.svelte:198
@@ -2910,7 +3014,7 @@ msgstr ""
 msgid "Slow enough to hear as a fade, fast enough not to clip a word."
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:74
+#: src/components/login/GateScreen.svelte:75
 msgid "Someone already set it up"
 msgstr ""
 
@@ -2948,7 +3052,7 @@ msgstr ""
 msgid "Split-track recording"
 msgstr ""
 
-#: src/routes/uireview/+page.svelte:461
+#: src/routes/uireview/+page.svelte:476
 msgid "Starting up"
 msgstr ""
 
@@ -2966,9 +3070,13 @@ msgstr ""
 msgid "Stay on This Version"
 msgstr ""
 
+#: src/components/login/NoServerScreen.svelte:59
+msgid "Step-by-step setup in this app"
+msgstr ""
+
 #: src/components/login/ConnectErrorScreen.svelte:70
 #: src/routes/error/+page.svelte:185
-#: src/routes/uireview/+page.svelte:421
+#: src/routes/uireview/+page.svelte:436
 msgid "Still stuck?"
 msgstr ""
 
@@ -2997,6 +3105,7 @@ msgstr ""
 #: src/components/login/IntroScreen.svelte:228
 #: src/components/login/IntroScreen.svelte:238
 #: src/components/login/IntroScreen.svelte:248
+#: src/components/login/NoServerScreen.svelte:51
 msgid "Supported"
 msgstr ""
 
@@ -3154,7 +3263,11 @@ msgstr ""
 msgid "Their gamertag, spelled as Xbox spells it. Only players on this list can sign in to this server."
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:31
+#: src/components/login/NodecraftScreen.svelte:119
+msgid "Then create an API token for BVC"
+msgstr ""
+
+#: src/components/login/NoServerScreen.svelte:89
 msgid "Then everyone just signs in."
 msgstr ""
 
@@ -3162,7 +3275,11 @@ msgstr ""
 msgid "Then go to"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:94
+#: src/components/login/NodecraftScreen.svelte:110
+msgid "Then set up BVC"
+msgstr ""
+
+#: src/components/login/NoServerScreen.svelte:150
 msgid "They only have to do it once. Copy a short message with the guide link and send it over."
 msgstr ""
 
@@ -3447,11 +3564,11 @@ msgstr ""
 msgid "Voice Chat Connect"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:96
+#: src/components/login/GateScreen.svelte:97
 msgid "Voice chat needs a BVC server plus a mod on the world. It's a one-time install — see what's involved."
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:34
+#: src/components/login/NoServerScreen.svelte:92
 msgid "Voice chat needs two things: a mod on your world, and a BVC server running somewhere you control. Nothing at all on your players' machines."
 msgstr ""
 
@@ -3515,14 +3632,6 @@ msgstr ""
 msgid "Walk up to someone."
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:110
-msgid "Watch it →"
-msgstr ""
-
-#: src/components/login/NoServerScreen.svelte:105
-msgid "Watch the setup walkthrough and see it running before you commit to anything."
-msgstr ""
-
 #: src/components/settings/XboxSignIn.svelte:90
 msgid "Watching for your sign-in."
 msgstr ""
@@ -3548,10 +3657,6 @@ msgstr ""
 msgid "WebSocket server"
 msgstr ""
 
-#: src/components/login/SignInScreen.svelte:124
-msgid "What is this?"
-msgstr ""
-
 #: src/js/app/dashboard/DiagnosticsCopy.ts:22
 msgid "What you hear"
 msgstr ""
@@ -3560,7 +3665,7 @@ msgstr ""
 msgid "What you heard"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:40
+#: src/components/login/NoServerScreen.svelte:98
 msgid "What's involved"
 msgstr ""
 
@@ -3580,12 +3685,8 @@ msgstr ""
 msgid "Where your world can live — the mod goes here"
 msgstr ""
 
-#: src/components/login/NoServerScreen.svelte:59
+#: src/components/login/NoServerScreen.svelte:115
 msgid "Wherever your world is hosted, including Aternos and Realms"
-msgstr ""
-
-#: src/components/login/NoServerScreen.svelte:76
-msgid "Which one are you?"
 msgstr ""
 
 #: src/components/settings/panes/PlayersPane.svelte:195
@@ -3605,10 +3706,10 @@ msgid "Who can join"
 msgstr ""
 
 #: src/components/login/ConnectErrorScreen.svelte:74
-#: src/components/login/NoServerScreen.svelte:116
+#: src/components/login/NoServerScreen.svelte:161
 #: src/components/settings/panes/AboutPane.svelte:290
 #: src/routes/error/+page.svelte:189
-#: src/routes/uireview/+page.svelte:425
+#: src/routes/uireview/+page.svelte:440
 msgid "Wiki"
 msgstr ""
 
@@ -3624,7 +3725,7 @@ msgstr ""
 msgid "Xbox Live could not be reached. Please try again in a moment."
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:73
+#: src/components/login/GateScreen.svelte:74
 msgid "Yes · I have an address"
 msgstr ""
 
@@ -3674,6 +3775,15 @@ msgstr ""
 
 #: src/components/dashboard/ChatComposer.svelte:66
 msgid "You moved out of {world} — that message was not sent"
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:58
+#: src/components/login/NodecraftScreen.svelte:81
+msgid "You need"
+msgstr ""
+
+#: src/components/login/NodecraftScreen.svelte:89
+msgid "you need three things."
 msgstr ""
 
 #: src/components/settings/panes/ManagePlayersPane.svelte:218
@@ -3759,11 +3869,15 @@ msgstr ""
 msgid "Your sign-in for this server is still valid, but its voice connection presented a certificate this device cannot verify. Only the server operator can fix this. Your saved sign-in has been kept."
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:46
+#: src/components/login/GateScreen.svelte:47
 msgid "Your world"
 msgstr ""
 
-#: src/components/login/GateScreen.svelte:58
+#: src/components/login/NoServerScreen.svelte:39
+msgid "Your world and BVC on one server"
+msgstr ""
+
+#: src/components/login/GateScreen.svelte:59
 msgid "Your world needs a BVC server running somewhere before anyone can talk. If that is already done, all you need is its address."
 msgstr ""
 

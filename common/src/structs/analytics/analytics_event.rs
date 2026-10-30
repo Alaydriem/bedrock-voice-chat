@@ -45,6 +45,10 @@ pub enum AnalyticsEvent {
     NoServerClicked,
     WikiCtaClicked,
     HostingCtaClicked,
+    NodecraftSetupOpened,
+    NodecraftPrerequisiteToggled,
+    NodecraftSignupClicked,
+    NodecraftGuideClicked,
     // Voice arrived: the first time in a session that audio from another player reached
     // this client. The end of the funnel, and the only step in it no amount of UI can
     // fake — every earlier event says someone got somewhere, this one says it worked.
@@ -99,6 +103,10 @@ impl AnalyticsEvent {
             Self::NoServerClicked => "NoServerClicked",
             Self::WikiCtaClicked => "WikiCtaClicked",
             Self::HostingCtaClicked => "HostingCtaClicked",
+            Self::NodecraftSetupOpened => "NodecraftSetupOpened",
+            Self::NodecraftPrerequisiteToggled => "NodecraftPrerequisiteToggled",
+            Self::NodecraftSignupClicked => "NodecraftSignupClicked",
+            Self::NodecraftGuideClicked => "NodecraftGuideClicked",
             Self::Activated => "Activated",
             Self::VoiceTransportOutcome => "VoiceTransportOutcome",
         }
