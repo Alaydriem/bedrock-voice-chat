@@ -1,3 +1,10 @@
+# [1.0.0-beta.27](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.26...v1.0.0-beta.27) (2026-10-30)
+
+
+### Bug Fixes
+
+* 26.60 realms connectivity issue ([c3222a7](https://github.com/Alaydriem/bedrock-voice-chat/commit/c3222a7a67d8470119ee3e7e2348517a75153cb0))
+
 # [1.0.0-beta.26](https://github.com/Alaydriem/bedrock-voice-chat/compare/v1.0.0-beta.25...v1.0.0-beta.26) (2026-10-29)
 
 
