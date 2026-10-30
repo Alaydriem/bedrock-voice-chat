@@ -7,7 +7,7 @@
       "name": "Repository",
       "url": "https://github.com/alaydriem/bedrock-voice-chat"
     },
-    "version": "1.0.0-beta.25"
+    "version": "1.0.0-beta.26"
   },
   "paths": {
     "/api/control": {
