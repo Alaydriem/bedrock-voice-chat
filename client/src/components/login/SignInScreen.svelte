@@ -117,11 +117,11 @@
             {#if onback && backLabel}
                 <button class="rad-btn rad-btn--quiet" onclick={onback}>{backLabel}</button>
             {/if}
+            <button class="rad-btn rad-btn--quiet" onclick={onrevisit}
+                >{I18n.t("← Introduction")}</button
+            >
             <button class="rad-btn rad-btn--quiet" onclick={onprivacy}
                 >{I18n.t("Privacy notice")}</button
-            >
-            <button class="rad-btn rad-btn--quiet" onclick={onrevisit}
-                >{I18n.t("What is this?")}</button
             >
         </span>
         <span class="rad-label rad-num">v{appVersion}</span>

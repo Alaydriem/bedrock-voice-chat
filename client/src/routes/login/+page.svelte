@@ -11,7 +11,9 @@
     import IntroScreen from "../../components/login/IntroScreen.svelte";
     import GateScreen from "../../components/login/GateScreen.svelte";
     import NoServerScreen from "../../components/login/NoServerScreen.svelte";
+    import NodecraftScreen from "../../components/login/NodecraftScreen.svelte";
     import InviteMessage from "../../js/app/login/InviteMessage";
+    import HelpLinks from "../../js/app/HelpLinks";
     import { invoke } from "@tauri-apps/api/core";
     import { openUrl } from "@tauri-apps/plugin-opener";
     import Login, { CONNECTING_STATUS_PHRASES, type LoginState } from "../../js/app/login.ts";
@@ -21,7 +23,7 @@
     import ScreenFlow from "../../js/app/shell/ScreenFlow";
     import Analytics from "../../js/app/analytics";
 
-    const SCREENS = ["intro", "gate", "login", "code", "notyet"] as const;
+    const SCREENS = ["intro", "gate", "login", "code", "notyet", "nodecraft"] as const;
 
     let app: Login | null = null;
     let code: LoginCode | null = null;
@@ -182,7 +184,7 @@
     }
 
     async function copyInvite(): Promise<void> {
-        Analytics.track("WikiCtaClicked");
+        Analytics.track("WikiCtaClicked", { source: "invite" });
         await navigator.clipboard?.writeText(InviteMessage.TEXT).catch(() => {});
     }
 
@@ -326,23 +328,50 @@
                 Analytics.track("NoServerClicked");
                 flow?.go("notyet");
             }}
+            onintro={() => flow?.go("intro")}
         />
     {:else if screen === "notyet"}
         <NoServerScreen
+            onnodecraft={() => {
+                Analytics.track("NodecraftSetupOpened");
+                flow?.go("nodecraft");
+            }}
             onguide={() => {
-                Analytics.track("WikiCtaClicked");
+                Analytics.track("WikiCtaClicked", { source: "run_own" });
                 void openUrl(INSTALL_GUIDE_URL);
             }}
             oncopyinvite={() => void copyInvite()}
-            onwatch={() => {
+            onsite={() => {
                 Analytics.track("HostingCtaClicked");
                 void openUrl(SITE_URL);
             }}
             onwiki={() => {
-                Analytics.track("WikiCtaClicked");
+                Analytics.track("WikiCtaClicked", { source: "wiki_pill" });
                 void app?.openWiki();
             }}
             ondiscord={() => void app?.openDiscord()}
+            onsignin={() => flow?.go("login")}
+            onintro={() => flow?.go("intro")}
+        />
+    {:else if screen === "nodecraft"}
+        <NodecraftScreen
+            ontoggle={(item, checked) =>
+                Analytics.track("NodecraftPrerequisiteToggled", {
+                    item,
+                    state: checked ? "checked" : "unchecked",
+                })}
+            onsignup={(prerequisitesChecked) => {
+                Analytics.track("NodecraftSignupClicked", {
+                    prerequisites_checked: prerequisitesChecked,
+                });
+                void HelpLinks.openNodecraftReferral();
+            }}
+            onguide={(guide) => {
+                Analytics.track("NodecraftGuideClicked", { guide });
+                void HelpLinks.openNodecraftGuide(guide);
+            }}
+            ondiscord={() => void app?.openDiscord()}
+            onback={() => flow?.go("notyet")}
             onsignin={() => flow?.go("login")}
         />
     {:else if screen === "code"}

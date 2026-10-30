@@ -1,4 +1,4 @@
-use bvc_server_lib::config::{AcmeProviderKind, ApplicationConfig};
+use bvc_server_lib::config::{Acme, AcmeProviderKind, ApplicationConfig};
 use bvc_server_lib::runtime::ca_cert::SanKeySet;
 use bvc_server_lib::runtime::enrollment::EnrollmentStep;
 
@@ -89,4 +89,38 @@ fn the_san_set_built_from_an_applied_assignment_contains_the_name() {
             .any(|entry| entry.contains("assigned.bedrockvc.stream")),
         "the assigned name must be in the CA's SAN set on the first boot, not the second"
     );
+}
+
+// An operator who configured Cloudflare keeps it. Applying an assignment over it would
+// replace the whole acme block and drop the token and domains without a word.
+#[test]
+fn an_operator_configured_provider_takes_precedence_over_an_assignment() {
+    let mut config = ApplicationConfig::default();
+    config.server.tls.acme = Some(Acme {
+        provider: Some(AcmeProviderKind::Cloudflare),
+        ..Acme::default()
+    });
+
+    assert_eq!(
+        EnrollmentStep::configured_provider(&config),
+        Some(AcmeProviderKind::Cloudflare)
+    );
+}
+
+// The relay provider is what an assignment installs, so it never blocks the next
+// boot from re-applying the stored name.
+#[test]
+fn the_relay_provider_does_not_block_an_assignment() {
+    let mut config = ApplicationConfig::default();
+    EnrollmentStep::apply(&mut config, "assigned.bedrockvc.stream".to_string());
+
+    assert_eq!(EnrollmentStep::configured_provider(&config), None);
+}
+
+// No acme block at all is the ordinary enrollment case.
+#[test]
+fn no_acme_block_does_not_block_an_assignment() {
+    let config = ApplicationConfig::default();
+
+    assert_eq!(EnrollmentStep::configured_provider(&config), None);
 }

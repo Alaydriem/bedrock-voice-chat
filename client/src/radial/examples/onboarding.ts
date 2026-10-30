@@ -401,4 +401,10 @@ for (const button of document.querySelectorAll<HTMLElement>("[data-toast]")) {
     });
 }
 
+for (const need of frame.querySelectorAll<HTMLElement>("[data-nc-need]")) {
+    need.addEventListener("click", () => {
+        need.setAttribute("aria-checked", String(need.getAttribute("aria-checked") !== "true"));
+    });
+}
+
 renderChannels();

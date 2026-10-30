@@ -8,6 +8,7 @@
     import SignInScreen from "../../components/login/SignInScreen.svelte";
     import CodeScreen from "../../components/login/CodeScreen.svelte";
     import NoServerScreen from "../../components/login/NoServerScreen.svelte";
+    import NodecraftScreen from "../../components/login/NodecraftScreen.svelte";
     import ConnectErrorScreen from "../../components/login/ConnectErrorScreen.svelte";
     import MicrophoneScreen from "../../components/setup/MicrophoneScreen.svelte";
     import NotificationsScreen from "../../components/setup/NotificationsScreen.svelte";
@@ -246,7 +247,7 @@
 
         {@render pair("Gate", gateBody)}
         {#snippet gateBody()}
-            <GateScreen onhaveserver={noop} onnoserver={noop} />
+            <GateScreen onhaveserver={noop} onnoserver={noop} onintro={noop} />
         {/snippet}
 
         {@render pair("Sign in · reachable", signInOkBody)}
@@ -290,11 +291,25 @@
         {@render pair("Nobody has set it up", noServerBody)}
         {#snippet noServerBody()}
             <NoServerScreen
+                onnodecraft={noop}
                 onguide={noop}
                 oncopyinvite={noop}
-                onwatch={noop}
+                onsite={noop}
                 onwiki={noop}
                 ondiscord={noop}
+                onsignin={noop}
+                onintro={noop}
+            />
+        {/snippet}
+
+        {@render pair("Run it on Nodecraft", nodecraftBody)}
+        {#snippet nodecraftBody()}
+            <NodecraftScreen
+                onsignup={noop}
+                ontoggle={noop}
+                onguide={noop}
+                ondiscord={noop}
+                onback={noop}
                 onsignin={noop}
             />
         {/snippet}

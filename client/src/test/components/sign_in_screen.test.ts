@@ -108,8 +108,17 @@ describe("SignInScreen", () => {
     it("offers a way back into the introduction", async () => {
         const onrevisit = vi.fn();
         render(SignInScreen, { props: props({ onrevisit }) });
-        await userEvent.click(screen.getByRole("button", { name: /what is this/i }));
+        await userEvent.click(screen.getByRole("button", { name: /introduction/i }));
         expect(onrevisit).toHaveBeenCalledOnce();
+        expect(screen.queryByRole("button", { name: /what is this/i })).toBeNull();
+    });
+
+    it("keeps the dashboard back button first in add-server mode", () => {
+        render(SignInScreen, { props: props({ onback: vi.fn(), backLabel: "Back to Dashboard" }) });
+        const names = screen.getAllByRole("button").map((b) => b.textContent?.trim() ?? "");
+        expect(names.indexOf("Back to Dashboard")).toBeLessThan(
+            names.findIndex((n) => /introduction/i.test(n)),
+        );
     });
 
     // Reached from "Add a server" on a device that is already signed in somewhere. Without a

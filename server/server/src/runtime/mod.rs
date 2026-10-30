@@ -1070,7 +1070,21 @@ impl ServerRuntime {
             return Ok(None);
         }
 
-        if let Some(name) = assigned_name::AssignedNameStore::read(conn).await? {
+        let stored_name = assigned_name::AssignedNameStore::read(conn).await?;
+
+        if let Some(provider) =
+            crate::runtime::enrollment::EnrollmentStep::configured_provider(&self.config)
+        {
+            if let Some(name) = stored_name {
+                curia::warn!(
+                    "tls.acme names its own provider, so the stored assigned name is not applied",
+                    { "provider": provider.to_string(), "name": name }
+                );
+            }
+            return Ok(None);
+        }
+
+        if let Some(name) = stored_name {
             return Ok(Some(name));
         }
 

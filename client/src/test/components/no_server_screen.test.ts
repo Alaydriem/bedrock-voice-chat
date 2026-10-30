@@ -5,12 +5,14 @@ import NoServerScreen from "../../components/login/NoServerScreen.svelte";
 
 function props(overrides: Record<string, unknown> = {}) {
     return {
+        onnodecraft: vi.fn(),
         onguide: vi.fn(),
         oncopyinvite: vi.fn(),
-        onwatch: vi.fn(),
+        onsite: vi.fn(),
         onwiki: vi.fn(),
         ondiscord: vi.fn(),
         onsignin: vi.fn(),
+        onintro: vi.fn(),
         ...overrides,
     };
 }
@@ -22,19 +24,33 @@ describe("NoServerScreen", () => {
         expect(screen.getByText(/add the mod to your world/i)).toBeInTheDocument();
     });
 
-    // Three different people arrive here and only one of them wants a guide.
-    it("offers a route out for each kind of visitor", () => {
-        render(NoServerScreen, { props: props() });
-        expect(screen.getByText(/i run the server/i)).toBeInTheDocument();
-        expect(screen.getByText(/a friend runs the server/i)).toBeInTheDocument();
-        expect(screen.getByText(/i'm just looking/i)).toBeInTheDocument();
+    it("leads with the Nodecraft offer", async () => {
+        const onnodecraft = vi.fn();
+        render(NoServerScreen, { props: props({ onnodecraft }) });
+        expect(screen.getByText(/30% off your first month/i)).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: /set up on nodecraft/i }));
+        expect(onnodecraft).toHaveBeenCalledOnce();
     });
 
-    it("opens the install guide for someone doing it themselves", async () => {
+    it("keeps the self-host and friend routes, and drops 'just looking'", () => {
+        render(NoServerScreen, { props: props() });
+        expect(screen.getByText(/i want to run my own/i)).toBeInTheDocument();
+        expect(screen.getByText(/a friend runs the server/i)).toBeInTheDocument();
+        expect(screen.queryByText(/i'm just looking/i)).toBeNull();
+    });
+
+    it("opens the install guide for someone running their own", async () => {
         const onguide = vi.fn();
         render(NoServerScreen, { props: props({ onguide }) });
-        await userEvent.click(screen.getByText(/i run the server/i));
+        await userEvent.click(screen.getByText(/i want to run my own/i));
         expect(onguide).toHaveBeenCalledOnce();
+    });
+
+    it("goes back to the introduction", async () => {
+        const onintro = vi.fn();
+        render(NoServerScreen, { props: props({ onintro }) });
+        await userEvent.click(screen.getByRole("button", { name: /introduction/i }));
+        expect(onintro).toHaveBeenCalledOnce();
     });
 
     it("copies an invite when the friend route is taken", async () => {

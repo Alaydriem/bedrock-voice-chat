@@ -13,6 +13,19 @@ use crate::config::{Acme, AcmeProviderKind, ApplicationConfig};
 pub struct EnrollmentStep;
 
 impl EnrollmentStep {
+    // The DNS provider the operator configured, when it is one other than the relay.
+    // An assignment must not be applied over it: `apply` replaces the whole `tls.acme`
+    // block, so the operator's credentials and domains would be dropped without a word.
+    pub fn configured_provider(config: &ApplicationConfig) -> Option<AcmeProviderKind> {
+        config
+            .server
+            .tls
+            .acme
+            .as_ref()
+            .and_then(|acme| acme.provider)
+            .filter(|kind| *kind != AcmeProviderKind::BvcRelay)
+    }
+
     // Idempotent. A server re-reads its stored name on every boot, and a duplicate
     // entry in the SAN set would read to `SanKeySet` as drift and re-sign the CA on
     // every start.
