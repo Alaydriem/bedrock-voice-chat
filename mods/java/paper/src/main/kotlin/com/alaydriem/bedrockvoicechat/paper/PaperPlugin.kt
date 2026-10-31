@@ -35,6 +35,7 @@ import com.alaydriem.bedrockvoicechat.svc.LiveClients
 import com.alaydriem.bedrockvoicechat.svc.RelayWorld
 import com.alaydriem.bedrockvoicechat.svc.SvcAvailability
 import com.alaydriem.bedrockvoicechat.svc.SvcBridgeHost
+import com.alaydriem.bedrockvoicechat.svc.SvcDimensionResolver
 import de.maxhenkel.voicechat.api.BukkitVoicechatService
 import java.io.File
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
@@ -164,7 +165,9 @@ class PaperPlugin : JavaPlugin(), Listener {
             onlinePlayers = { server.onlinePlayers.map { it.uniqueId } },
             onServerThread = { task -> server.scheduler.runTask(this, task) },
             channelFactory = { api ->
-                PaperSvcChannelFactory(api, server, playerDataProvider::findByIdentity)
+                PaperSvcChannelFactory(
+                    api, server, playerDataProvider::findByIdentity, SvcDimensionResolver.native()
+                )
             },
             groupLink = groupLink,
             // The name the control plane already uses for this player, so BVC resolves it to

@@ -179,16 +179,5 @@ class PaperPlayerDataProvider(
 
     override fun getGameType(): GameType = GameType.MINECRAFT
 
-    private fun getDimension(world: World?): Dimension {
-        if (world == null) {
-            return Dimension.Minecraft.OVERWORLD
-        }
-
-        return when (world.environment) {
-            World.Environment.NORMAL -> Dimension.Minecraft.OVERWORLD
-            World.Environment.NETHER -> Dimension.Minecraft.NETHER
-            World.Environment.THE_END -> Dimension.Minecraft.THE_END
-            World.Environment.CUSTOM -> Dimension.Custom(world.name)
-        }
-    }
+    private fun getDimension(world: World?): Dimension = PaperDimensions.of(world)
 }

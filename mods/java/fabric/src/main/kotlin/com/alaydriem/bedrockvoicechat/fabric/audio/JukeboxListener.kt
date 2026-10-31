@@ -1,5 +1,6 @@
 package com.alaydriem.bedrockvoicechat.fabric.audio
 
+import com.alaydriem.bedrockvoicechat.dto.Dimension
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents
 import net.fabricmc.fabric.api.event.player.UseBlockCallback
@@ -269,13 +270,10 @@ class JukeboxListener(
             return listener.audioPlayerManager.hasActivePlayback(key)
         }
 
-        fun getDimensionId(world: Level): String {
-            val path = world.dimension().identifier().path
-            return when (path) {
-                "the_nether" -> "nether"
-                else -> path
-            }
-        }
+        // The same mapping positions use, so a disc and the players beside it are gated as
+        // one dimension.
+        fun getDimensionId(world: Level): String =
+            Dimension.fromIdentifier(world.dimension().identifier().toString()).toApiString()
 
         fun isBvcDisc(stack: ItemStack): Boolean {
             if (stack.item != Items.MUSIC_DISC_5) return false

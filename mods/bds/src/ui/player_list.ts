@@ -8,6 +8,7 @@ import {
 } from '@minecraft/server-ui';
 import { DataDrivenScreenClosedReason } from '@minecraft/server-ui';
 import { JUKEBOX_TARGET, MAX_LEVEL } from '../control/jukebox';
+import { Dimension } from '../dto/dimension';
 import type { ControlSender } from '../control/sender';
 import type { PlayerPreference, StateCache } from '../state/state_cache';
 import { FormShow } from './form_show';
@@ -103,7 +104,7 @@ export class PlayerVolumesView {
       if (other.name === owner.name) {
         continue;
       }
-      if (other.dimension.id !== owner.dimension.id) {
+      if (!Dimension.of(other.dimension.id).equals(Dimension.of(owner.dimension.id))) {
         continue;
       }
       const dx = other.location.x - owner.location.x;
