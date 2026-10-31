@@ -11,6 +11,7 @@ mod connect;
 mod control_mute;
 mod control_state_report;
 mod downlink_loss;
+mod floodgate_gamertags;
 mod dual_stack;
 mod jukebox;
 mod library;

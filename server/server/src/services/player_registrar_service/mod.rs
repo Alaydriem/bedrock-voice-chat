@@ -30,6 +30,9 @@ pub struct PlayerRegistrarService {
     db: Arc<DatabaseConnection>,
     cert_service: Arc<CertificateService>,
     cache: RegisteredPlayersCache,
+    // Serializes check-and-create. The FFI path spawns a registration per position tick, and
+    // the gamertag index is not unique, so two overlapping first ticks would insert twice.
+    register_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl PlayerRegistrarService {
@@ -43,6 +46,7 @@ impl PlayerRegistrarService {
             db,
             cert_service,
             cache: RegisteredPlayersCache::new(),
+            register_lock: Arc::new(tokio::sync::Mutex::new(())),
         }
     }
 
@@ -82,6 +86,15 @@ impl PlayerRegistrarService {
             return;
         }
 
+        let _registering = self.register_lock.lock().await;
+        let players_to_check: Vec<String> = players_to_check
+            .into_iter()
+            .filter(|name| !self.cache.contains(name))
+            .collect();
+        if players_to_check.is_empty() {
+            return;
+        }
+
         // Batch query the database for existing players
         match player::Entity::find()
             .filter(player::Column::Gamertag.is_in(players_to_check.clone()))
@@ -117,7 +130,9 @@ impl PlayerRegistrarService {
                 // Create new player records
                 for player_name in new_players {
                     let uuid = uuid_map.get(&player_name).map(|s| s.as_str());
-                    let _ = self.create(&player_name, &game_type, uuid).await;
+                    if let Err(e) = self.create(&player_name, &game_type, uuid).await {
+                        curia::error!("failed to register a player", { "gamertag": player_name.to_string(), "error": e.to_string() });
+                    }
                 }
             }
             Err(e) => {

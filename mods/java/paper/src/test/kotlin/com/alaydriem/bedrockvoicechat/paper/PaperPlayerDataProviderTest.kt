@@ -2,6 +2,7 @@ package com.alaydriem.bedrockvoicechat.paper
 
 import org.mockbukkit.mockbukkit.MockBukkit
 import org.mockbukkit.mockbukkit.ServerMock
+import org.mockbukkit.mockbukkit.entity.PlayerMock
 import com.alaydriem.bedrockvoicechat.dto.GameType
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -9,13 +10,21 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import java.util.UUID
 
 /**
  * Tests for PaperPlayerDataProvider using MockBukkit.
+ *
+ * MockBukkit gives players random v4 UUIDs, which read as a linked player's Java UUID.
+ * Every unlinked Floodgate player here is built with Floodgate's own UUID shape,
+ * UUID(0, xuid), or the test exercises the linked branch without saying so.
  */
 class PaperPlayerDataProviderTest {
     private lateinit var server: ServerMock
     private lateinit var provider: PaperPlayerDataProvider
+
+    private val floodgate = UUID(0L, 2535428000000001L)
+    private val floodgate2 = UUID(0L, 2535428000000002L)
 
     @BeforeEach
     fun setUp() {
@@ -29,6 +38,18 @@ class PaperPlayerDataProviderTest {
         MockBukkit.unmock()
     }
 
+    private fun providerWith(gamertags: Map<UUID, String>): PaperPlayerDataProvider {
+        val p = PaperPlayerDataProvider(xboxGamertagOf = gamertags::get)
+        p.server = server
+        return p
+    }
+
+    private fun floodgatePlayer(javaName: String, uuid: UUID = floodgate): PlayerMock {
+        val player = PlayerMock(server, javaName, uuid)
+        server.addPlayer(player)
+        return player
+    }
+
     @Test
     fun `collectPlayers returns empty list when no players tracked`() {
         val players = provider.collectPlayers()
@@ -37,14 +58,11 @@ class PaperPlayerDataProviderTest {
 
     @Test
     fun `collectPlayers returns correct player data after addPlayer`() {
-        // Create world and add player
         val world = server.addSimpleWorld("world")
         val player = server.addPlayer("TestPlayer")
 
-        // Set position
         player.teleport(world.spawnLocation.add(100.0, 64.0, 200.0))
 
-        // Add player to provider
         provider.addPlayer(player)
 
         val players = provider.collectPlayers()
@@ -59,11 +77,9 @@ class PaperPlayerDataProviderTest {
         val player1 = server.addPlayer("Player1")
         val player2 = server.addPlayer("Player2")
 
-        // Set positions
         player1.teleport(world.spawnLocation.add(100.0, 64.0, 200.0))
         player2.teleport(world.spawnLocation.add(50.0, 70.0, 150.0))
 
-        // Add players to provider
         provider.addPlayer(player1)
         provider.addPlayer(player2)
 
@@ -92,10 +108,8 @@ class PaperPlayerDataProviderTest {
         provider.addPlayer(player)
         assertEquals(1, provider.collectPlayers().size)
 
-        // Disconnect player (makes isOnline return false)
         player.disconnect()
 
-        // Should be filtered out by isOnline check
         assertEquals(0, provider.collectPlayers().size)
     }
 
@@ -121,21 +135,16 @@ class PaperPlayerDataProviderTest {
     }
 
     /**
-     * A linked Bedrock player answers to two names and we cannot tell which one their
-     * BVC client registered under: the mod sends their Java account name while the
-     * client authenticates against Xbox Live. Offering only one of them misses that
-     * player whichever is chosen.
+     * The BVC client always signs in with the Xbox gamertag, so the server indexes a
+     * linked player under it alone. Their Java name is not a second key.
      */
     @Test
-    fun `a linked player offers both their java name and their gamertag`() {
-        val provider = PaperPlayerDataProvider(xboxGamertagOf = { "XboxTag" })
-        provider.server = server
+    fun `a linked player is keyed by their gamertag`() {
         val player = server.addPlayer("JavaName")
+        val linked = providerWith(mapOf(player.uniqueId to "XboxTag"))
 
-        val keys = provider.resolveMembershipKeys(player)
-
-        assertTrue(keys.contains("minecraft:JavaName"), "java name missing from $keys")
-        assertTrue(keys.contains("minecraft:XboxTag"), "gamertag missing from $keys")
+        assertEquals("XboxTag", linked.resolveCanonicalName(player))
+        assertEquals(listOf("minecraft:XboxTag"), linked.resolveMembershipKeys(player))
     }
 
     /**
@@ -145,17 +154,59 @@ class PaperPlayerDataProviderTest {
      */
     @Test
     fun `a prefixed bedrock player offers only their gamertag`() {
-        val provider = PaperPlayerDataProvider(xboxGamertagOf = { "XboxTag" })
-        provider.server = server
-        val player = server.addPlayer(".XboxTag")
+        val provider = providerWith(mapOf(floodgate to "XboxTag"))
+        val player = floodgatePlayer(".XboxTag")
 
         assertEquals(listOf("minecraft:XboxTag"), provider.resolveMembershipKeys(player))
     }
 
-    /**
-     * One name in, one key out. A player whose two names agree must not be offered
-     * twice, or every lookup for them costs two.
-     */
+    // Floodgate's default replace-spaces turns "TTV 3RICtion" into ".TTV_3RICtion".
+    // That is still the prefixed form of the gamertag, not a linked Java account. The
+    // quit phantom (PaperPlugin.onPlayerQuit) takes this same name.
+    @Test
+    fun `a prefixed bedrock player whose gamertag has a space is known by their gamertag`() {
+        val provider = providerWith(mapOf(floodgate to "TTV 3RICtion"))
+        val player = floodgatePlayer(".TTV_3RICtion")
+
+        assertEquals("TTV 3RICtion", provider.resolveCanonicalName(player))
+        assertEquals(listOf("minecraft:TTV 3RICtion"), provider.resolveMembershipKeys(player))
+    }
+
+    // Floodgate cuts prefix + gamertag to 16 characters.
+    @Test
+    fun `a prefixed bedrock player whose name was truncated is known by their gamertag`() {
+        val provider = providerWith(mapOf(floodgate to "LongGamertag123"))
+        val player = floodgatePlayer("BE_LongGamertag1")
+
+        assertEquals("LongGamertag123", provider.resolveCanonicalName(player))
+    }
+
+    @Test
+    fun `an unlinked floodgate player is reported under their gamertag`() {
+        val provider = providerWith(mapOf(floodgate to "TTV 3RICtion"))
+        val player = floodgatePlayer(".TTV_3RICtion")
+        provider.addPlayer(player)
+
+        val reported = provider.collectPlayers().single()
+
+        assertEquals("TTV 3RICtion", reported.name)
+        assertNull(reported.alternativeIdentity)
+    }
+
+    // The shape beta.27 sent, so an older server behaves as it did and a newer one keeps
+    // the Java name as an alias.
+    @Test
+    fun `a linked player is reported in the beta27 shape`() {
+        val player = server.addPlayer("JavaName")
+        val provider = providerWith(mapOf(player.uniqueId to "XboxTag"))
+        provider.addPlayer(player)
+
+        val reported = provider.collectPlayers().single()
+
+        assertEquals("JavaName", reported.name)
+        assertEquals("XboxTag", reported.alternativeIdentity)
+    }
+
     /**
      * The name a frame carries came out of [PaperPlayerDataProvider.resolveCanonicalName],
      * so it must go back in. Looking a speaker up by their raw profile name is a
@@ -177,9 +228,8 @@ class PaperPlayerDataProviderTest {
     // bridge exists to carry.
     @Test
     fun `a prefixed bedrock player is found by their gamertag`() {
-        val provider = PaperPlayerDataProvider(xboxGamertagOf = { "XboxTag" })
-        provider.server = server
-        val player = server.addPlayer(".XboxTag")
+        val provider = providerWith(mapOf(floodgate to "XboxTag"))
+        val player = floodgatePlayer(".XboxTag")
 
         assertEquals(player.uniqueId, provider.findByIdentity("XboxTag")?.uniqueId)
     }
@@ -188,12 +238,25 @@ class PaperPlayerDataProviderTest {
     // gamertag on the far side, so both have to come back to the same body.
     @Test
     fun `a linked player is found by either of their names`() {
-        val provider = PaperPlayerDataProvider(xboxGamertagOf = { "XboxTag" })
-        provider.server = server
         val player = server.addPlayer("JavaName")
+        val provider = providerWith(mapOf(player.uniqueId to "XboxTag"))
 
         assertEquals(player.uniqueId, provider.findByIdentity("JavaName")?.uniqueId)
         assertEquals(player.uniqueId, provider.findByIdentity("XboxTag")?.uniqueId)
+    }
+
+    // A linked player's Java name may be another online player's gamertag. The owner of
+    // the gamertag must be found, or SVC places their audio at the linked player's body.
+    @Test
+    fun `a gamertag finds its owner before a linked players java name`() {
+        val linked = server.addPlayer("Notch")
+        val bedrock = floodgatePlayer(".Notch", floodgate2)
+        val provider = providerWith(
+            mapOf(linked.uniqueId to "LongGamertag123", floodgate2 to "Notch")
+        )
+
+        assertEquals(bedrock.uniqueId, provider.findByIdentity("Notch")?.uniqueId)
+        assertEquals(linked.uniqueId, provider.findByIdentity("LongGamertag123")?.uniqueId)
     }
 
     // A speaker on another server has no body here, and inventing one would attach
@@ -205,11 +268,14 @@ class PaperPlayerDataProviderTest {
         assertNull(provider.findByIdentity("SomeoneElse"))
     }
 
+    /**
+     * One name in, one key out. A player whose two names agree must not be offered
+     * twice, or every lookup for them costs two.
+     */
     @Test
     fun `a player whose names agree is offered once`() {
-        val provider = PaperPlayerDataProvider(xboxGamertagOf = { "SameName" })
-        provider.server = server
         val player = server.addPlayer("SameName")
+        val provider = providerWith(mapOf(player.uniqueId to "SameName"))
 
         assertEquals(listOf("minecraft:SameName"), provider.resolveMembershipKeys(player))
     }
