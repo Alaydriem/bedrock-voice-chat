@@ -323,6 +323,24 @@ class BvcServerManager(
     }
 
     @Synchronized
+    fun groupLinkAction(json: String): ControlSendResult {
+        val h = handle ?: return ControlSendResult(false)
+        return BvcNative.groupLinkAction(h, json)
+    }
+
+    @Synchronized
+    fun groupLinkDrain(after: Long): String? {
+        val h = handle ?: return null
+        return BvcNative.groupLinkDrain(h, after)
+    }
+
+    @Synchronized
+    fun groupLinkChannels(): String? {
+        val h = handle ?: return null
+        return BvcNative.groupLinkChannels(h)
+    }
+
+    @Synchronized
     override fun chatDrain(): String? {
         val h = handle ?: return null
         return BvcNative.chatDrain(h)

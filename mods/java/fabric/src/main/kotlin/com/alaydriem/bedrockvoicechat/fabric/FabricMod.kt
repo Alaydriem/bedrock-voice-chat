@@ -6,6 +6,8 @@ import com.alaydriem.bedrockvoicechat.chat.ChatChannel
 import com.alaydriem.bedrockvoicechat.chat.ChatTransport
 import com.alaydriem.bedrockvoicechat.chat.FfiChatTransport
 import com.alaydriem.bedrockvoicechat.control.ControlSender
+import com.alaydriem.bedrockvoicechat.control.GroupLinkApi
+import com.alaydriem.bedrockvoicechat.control.GroupLinkClient
 import com.alaydriem.bedrockvoicechat.fabric.chat.FabricChatListener
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
 import com.alaydriem.bedrockvoicechat.dto.Dimension
@@ -85,6 +87,9 @@ class FabricMod : ModInitializer {
         )
     }
     private var svcBridgeHost: SvcBridgeHost? = null
+
+    // The BVC side of the SVC bridge's group links, built with the control sender.
+    private var groupLink: GroupLinkApi? = null
 
     // One instance: it caches its answer and logs on first resolve, so a second
     // instance reports the same detection a second time.
@@ -173,7 +178,12 @@ class FabricMod : ModInitializer {
             onServerThread = { task -> server.execute(task) },
             channelFactory = { api ->
                 FabricSvcChannelFactory(api, server, provider::findByIdentity)
-            }
+            },
+            groupLink = groupLink,
+            // The name the control plane already uses for this player, so BVC resolves it to
+            // the identity its own position feed keys on.
+            actorIdOf = { id -> server.playerList.getPlayer(id)?.let(provider::resolveCanonicalName) },
+            playerOf = { name -> provider.findByIdentity(name)?.uuid }
         )
         svcBridgeHost = host
 
@@ -280,6 +290,7 @@ class FabricMod : ModInitializer {
             val audioEventSender = AudioEventSender(null, embeddedServer)
             audioPlayerManager = FabricAudioPlayerManager(audioEventSender, relayWorld)
             controlSender = ControlSender(null, embeddedServer)
+            groupLink = GroupLinkClient(null, embeddedServer, controlSender)
 
             val quicPort = embeddedServer?.effectiveConfig()?.server?.quicPort
             logger.info("Bedrock Voice Chat using embedded server (QUIC port: {})", quicPort)
@@ -290,6 +301,7 @@ class FabricMod : ModInitializer {
             val audioEventSender = AudioEventSender(httpHandler, null)
             audioPlayerManager = FabricAudioPlayerManager(audioEventSender, relayWorld)
             controlSender = ControlSender(httpHandler, null)
+            groupLink = GroupLinkClient(httpHandler, null, controlSender)
 
             logger.info("Bedrock Voice Chat will connect to: {}", config.bvcServer)
         }

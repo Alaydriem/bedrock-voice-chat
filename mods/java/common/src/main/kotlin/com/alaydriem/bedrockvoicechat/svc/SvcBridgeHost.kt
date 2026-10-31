@@ -1,12 +1,25 @@
 package com.alaydriem.bedrockvoicechat.svc
 
+import com.alaydriem.bedrockvoicechat.control.GroupLinkApi
+import com.alaydriem.bedrockvoicechat.svc.link.EchoGuard
+import com.alaydriem.bedrockvoicechat.svc.link.LinkRefusals
+import com.alaydriem.bedrockvoicechat.svc.link.PlayerSides
+import com.alaydriem.bedrockvoicechat.svc.link.SvcApiGroups
+import com.alaydriem.bedrockvoicechat.svc.link.SvcGroupLinker
+import com.alaydriem.bedrockvoicechat.svc.link.SvcGroupView
+import com.alaydriem.bedrockvoicechat.svc.link.SvcLinkEvents
+import com.alaydriem.bedrockvoicechat.svc.link.SvcLinkTable
 import de.maxhenkel.voicechat.api.VoicechatServerApi
+import de.maxhenkel.voicechat.api.audiochannel.AudioChannel
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import uniffi.bvc_relay_sdk.BvcPeer
 import uniffi.bvc_relay_sdk.SdkConfig
 import java.io.File
+import java.nio.charset.StandardCharsets
 import java.util.UUID
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 
 /**
  * Owns the bridge's session and pumps frames in both directions.
@@ -25,7 +38,13 @@ class SvcBridgeHost(
     private val identitiesOf: (UUID) -> List<String>,
     private val onlinePlayers: () -> List<UUID>,
     private val onServerThread: (Runnable) -> Unit,
-    private val channelFactory: (VoicechatServerApi) -> SvcChannelFactory
+    private val channelFactory: (VoicechatServerApi) -> SvcChannelFactory,
+    // The BVC side of group links; null leaves groups unlinked.
+    private val groupLink: GroupLinkApi? = null,
+    // A player's in-game name, as BVC resolves an actor. Called on the server thread.
+    private val actorIdOf: (UUID) -> String? = { null },
+    // The online player a BVC gamertag names. Called on the server thread.
+    private val playerOf: (String) -> UUID? = { null }
 ) {
     @Volatile
     private var peer: BvcPeer? = null
@@ -49,6 +68,36 @@ class SvcBridgeHost(
 
     private val announcedFirstFrame = java.util.concurrent.atomic.AtomicBoolean(false)
 
+    // SVC groups linked to BVC channels. Read by the audio gate and filled by the group linker.
+    private val linkTable = SvcLinkTable()
+
+    @Volatile
+    private var linkThread: Thread? = null
+
+    @Volatile
+    private var linker: SvcGroupLinker? = null
+
+    // SVC group events, run in order on the link thread.
+    private val linkQueue = LinkedBlockingQueue<() -> Unit>()
+
+    private val linkEvents = object : SvcLinkEvents {
+        override fun created(group: SvcGroupView, creator: UUID?) {
+            linkQueue.offer { linker?.onSvcCreate(group, creator) }
+        }
+
+        override fun joined(group: UUID, player: UUID) {
+            linkQueue.offer { linker?.onSvcJoin(group, player) }
+        }
+
+        override fun left(player: UUID, group: UUID?) {
+            linkQueue.offer { linker?.onSvcLeave(player, group) }
+        }
+
+        override fun removed(group: UUID) {
+            linkQueue.offer { linker?.onSvcRemove(group) }
+        }
+    }
+
     /**
      * Builds the plugin SVC will register.
      *
@@ -63,8 +112,10 @@ class SvcBridgeHost(
 
         return SvcBridge(
             outbound = outbound,
+            gate = SvcGroupGate(linkTable),
             onFrame = { frame -> send(frame) },
-            onServerApi = { api -> onServerApi(api, serverPeerlink) }
+            onServerApi = { api -> onServerApi(api, serverPeerlink) },
+            linkEvents = linkEvents
         )
     }
 
@@ -185,12 +236,23 @@ class SvcBridgeHost(
 
         // Resolved per delivery rather than per channel, so a player who opens or
         // closes their BVC client mid-session is handled without reopening anything.
-        val speakerFilter = SvcSpeakers(::hasLiveBvcClient)
+        val groups = SvcApiGroups(api, onlinePlayers, onServerThread, actorIdOf)
+        val speakerFilter = SvcSpeakers(groupOf = groups::groupOf, hasLiveBvcClient = ::hasLiveBvcClient)
 
         startReconciling(api)
+        startLinking(groups)
 
         val channels = SvcChannels(channelFactory(api), speakerFilter)
-        val inbound = InboundTranslator(channels, SampleRateGuard())
+        val groupAudio = SvcGroupAudio(
+            table = linkTable,
+            speakers = speakerFilter,
+            membersOf = groups::membersOf,
+            staticChannelFor = { listener, key -> staticChannel(api, listener, key) },
+            // A Bedrock speaker in the group holds a BVC client, which hearsThroughBvc already
+            // excludes, so no body lookup is needed on the audio path.
+            speakerOf = { null },
+        )
+        val inbound = InboundTranslator(channels, SampleRateGuard(), groupAudio)
 
         val session = runBlocking {
             BvcPeer.open(
@@ -333,7 +395,86 @@ class SvcBridgeHost(
         }
     }
 
+    // Non-spatial, so a group member hears the speaker at any distance. The id is derived from
+    // the pair, so a reopened channel is the same channel to SVC.
+    private fun staticChannel(api: VoicechatServerApi, listener: UUID, key: String): AudioChannel? {
+        val connection = api.getConnectionOf(listener) ?: return null
+        val level = connection.player?.serverLevel ?: return null
+        val id = UUID.nameUUIDFromBytes("bvc-group:$listener:$key".toByteArray(StandardCharsets.UTF_8))
+        return api.createStaticAudioChannel(id, level, connection)
+    }
+
+    /**
+     * Keeps SVC groups and BVC channels linked, on a thread of its own.
+     *
+     * The linker's BVC calls block, so they never run on the server thread; its SVC calls hop to
+     * the server thread and wait. Each tick runs the queued SVC events, drains BVC's channel
+     * events and refreshes the SVC snapshot; every [RESYNC_INTERVAL_MS] it also resyncs both
+     * sides and renews the leases that keep Java-only groups from BVC's reaper.
+     */
+    private fun startLinking(groups: SvcApiGroups) {
+        val bvc = groupLink
+        if (bvc == null) {
+            logger.info("Group linking is off: no BVC group link transport")
+            return
+        }
+        logger.info("Linking Simple Voice Chat groups with BVC")
+        if (linkThread != null) {
+            return
+        }
+
+        linker = SvcGroupLinker(
+            svc = groups,
+            bvc = bvc,
+            table = linkTable,
+            sides = PlayerSides(hasLiveBvcClient = ::hasLiveBvcClient, hasSvcInstalled = groups::isInstalled),
+            echo = EchoGuard(),
+            refusals = LinkRefusals(),
+            actorIdOf = groups::nameOf,
+            playerOf = { name -> groups.onServer { playerOf(name) } },
+        )
+
+        linkThread = Thread({
+            var started = false
+            var lastResync = 0L
+            while (!Thread.currentThread().isInterrupted) {
+                try {
+                    groups.refresh()
+                    val now = System.currentTimeMillis()
+                    if (!started) {
+                        // Skips BVC's event history: the first resync is the starting state.
+                        linker?.start()
+                        linker?.renewLeases()
+                        started = true
+                        lastResync = now
+                    } else if (now - lastResync >= RESYNC_INTERVAL_MS) {
+                        lastResync = now
+                        linker?.resync()
+                        linker?.renewLeases()
+                    }
+                    linker?.pollBvc()
+
+                    var event = linkQueue.poll(LINK_TICK_MS, TimeUnit.MILLISECONDS)
+                    while (event != null) {
+                        event()
+                        event = linkQueue.poll()
+                    }
+                } catch (e: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                } catch (e: Exception) {
+                    logger.warn("Group link pass failed: {}", e.toString())
+                }
+            }
+        }, "bvc-svc-group-link").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
     fun shutdown() {
+        linkThread?.interrupt()
+        linkThread = null
+        linker = null
         reconciler?.interrupt()
         reconciler = null
         serverApi = null
@@ -352,6 +493,13 @@ class SvcBridgeHost(
         private const val INBOX_CAPACITY: UInt = 64u
 
         private const val RECONCILE_INTERVAL_MS: Long = 2000
+
+        // How often the link thread drains BVC's channel events and refreshes its SVC snapshot.
+        private const val LINK_TICK_MS: Long = 250
+
+        // Catches an event either side missed. Also the lease renewal interval: three renewals
+        // fit in the server's 30 second lease.
+        private const val RESYNC_INTERVAL_MS: Long = 10_000
 
         // Fifteen seconds in total. An embedded server that has not bound a peer
         // endpoint by then is not slow, it is misconfigured — and the warning that

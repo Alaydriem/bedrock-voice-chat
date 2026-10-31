@@ -1,5 +1,7 @@
 package com.alaydriem.bedrockvoicechat.svc
 
+import com.alaydriem.bedrockvoicechat.svc.link.SvcGroupType
+import com.alaydriem.bedrockvoicechat.svc.link.SvcGroupView
 import de.maxhenkel.voicechat.api.Position
 import de.maxhenkel.voicechat.api.ServerLevel
 import de.maxhenkel.voicechat.api.ServerPlayer
@@ -60,5 +62,46 @@ class SvcSuppressionTest {
         assertTrue(filter.test(FakePlayer(dualStack)))
         running = true
         assertFalse(filter.test(FakePlayer(dualStack)))
+    }
+
+    private val group = UUID.randomUUID()
+
+    private fun view(type: SvcGroupType) = SvcGroupView(group, "Raid", type, hasPassword = false, hidden = false)
+
+    // A member of the speaker's linked group already hears them on a group channel; the proximity
+    // copy would play them twice.
+    @Test
+    fun `group_member_is_excluded_from_proximity_copy`() {
+        val speakers = SvcSpeakers(groupOf = { view(SvcGroupType.OPEN) }) { false }
+        speakers.note("Alex", group)
+
+        assertFalse(speakers.filter("Alex").test(FakePlayer(javaOnly)))
+        assertTrue(speakers.filter("Bob").test(FakePlayer(javaOnly)))
+    }
+
+    // SVC keeps an ISOLATED group's members from hearing nearby non-members; the bridge's
+    // proximity injection honours that for Java players.
+    @Test
+    fun `isolated_listener_does_not_hear_non_member`() {
+        val speakers = SvcSpeakers(groupOf = { view(SvcGroupType.ISOLATED) }) { false }
+
+        assertFalse(speakers.filter("Bob").test(FakePlayer(javaOnly)))
+    }
+
+    @Test
+    fun `a normal group listener still hears nearby speakers`() {
+        val speakers = SvcSpeakers(groupOf = { view(SvcGroupType.NORMAL) }) { false }
+
+        assertTrue(speakers.filter("Bob").test(FakePlayer(javaOnly)))
+    }
+
+    // A speaker who leaves the linked group is heard nearby again.
+    @Test
+    fun `a cleared note restores the proximity copy`() {
+        val speakers = SvcSpeakers(groupOf = { view(SvcGroupType.OPEN) }) { false }
+        speakers.note("Alex", group)
+        speakers.note("Alex", null)
+
+        assertTrue(speakers.filter("Alex").test(FakePlayer(javaOnly)))
     }
 }

@@ -3,8 +3,12 @@ package com.alaydriem.bedrockvoicechat.fabric.svc
 import com.alaydriem.bedrockvoicechat.svc.SvcBridge
 import de.maxhenkel.voicechat.api.VoicechatApi
 import de.maxhenkel.voicechat.api.VoicechatPlugin
+import de.maxhenkel.voicechat.api.events.CreateGroupEvent
 import de.maxhenkel.voicechat.api.events.EventRegistration
+import de.maxhenkel.voicechat.api.events.JoinGroupEvent
+import de.maxhenkel.voicechat.api.events.LeaveGroupEvent
 import de.maxhenkel.voicechat.api.events.MicrophonePacketEvent
+import de.maxhenkel.voicechat.api.events.RemoveGroupEvent
 import de.maxhenkel.voicechat.api.events.VoicechatServerStartedEvent
 import org.slf4j.LoggerFactory
 
@@ -40,6 +44,13 @@ class FabricSvcPlugin : VoicechatPlugin {
             // a server start, when nobody is in the world to be heard.
             bridge?.onMicrophonePacket(event)
         }
+
+        // Dropped until the bridge exists, like microphone packets. The first resync after the
+        // bridge starts links whatever these would have told it.
+        registration.registerEvent(CreateGroupEvent::class.java) { event -> bridge?.onCreateGroup(event) }
+        registration.registerEvent(JoinGroupEvent::class.java) { event -> bridge?.onJoinGroup(event) }
+        registration.registerEvent(LeaveGroupEvent::class.java) { event -> bridge?.onLeaveGroup(event) }
+        registration.registerEvent(RemoveGroupEvent::class.java) { event -> bridge?.onRemoveGroup(event) }
     }
 
     companion object {

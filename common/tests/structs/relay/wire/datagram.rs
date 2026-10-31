@@ -77,7 +77,9 @@ fn a_jukebox_event_id_survives_the_round_trip() {
     .to_datagram()
     .expect("encode");
 
-    let Datagram::Voice(decoded) = Datagram::from_datagram(&encoded).expect("decode");
+    let Datagram::Voice(decoded) = Datagram::from_datagram(&encoded).expect("decode") else {
+        panic!("a plain voice datagram must decode as plain voice");
+    };
 
     assert_eq!(decoded.jukebox, Some("evt-1234".to_string()));
 }

@@ -2,6 +2,7 @@ use common::curia;
 use std::sync::Arc;
 
 use common::structs::packet::QuicNetworkPacket;
+use common::structs::relay::wire::datagram::GroupScope;
 use iroh::{EndpointAddr, PublicKey};
 
 use bvc_relay::node::NodeIdentity;
@@ -169,13 +170,15 @@ impl PeerPlane {
     // Sends a local-origin packet to every peer granted the sender's relay world.
     // Returns how many took it; zero is the ordinary answer for traffic that is
     // not peer traffic.
+    /// `group` is the speaker's linked group, from `ConnectionRegistry::group_scope_for`.
     pub fn forward_local(
         &self,
         packet: &QuicNetworkPacket,
         speaker: &common::PlayerEnum,
+        group: Option<GroupScope>,
     ) -> usize {
         match PeerEgress::frame_from(packet, speaker) {
-            Some((world, frame)) => self.links.broadcast_world(&world, &frame),
+            Some((world, frame)) => self.links.broadcast_world(&world, &frame, group.as_ref()),
             None => 0,
         }
     }
@@ -193,7 +196,7 @@ impl PeerPlane {
             .map_err(|e| PeerError::Transport(e.to_string()))?;
 
         let accepted = Handshake::dial(&conn, worlds).await?;
-        let link = PeerLink::establish(conn, accepted.worlds)?;
+        let link = PeerLink::establish(conn, accepted.worlds, accepted.version)?;
 
         self.spawn_pump(link);
         Ok(())
@@ -247,7 +250,7 @@ impl PeerPlane {
             }
         };
 
-        match PeerLink::establish(conn, accepted.worlds) {
+        match PeerLink::establish(conn, accepted.worlds, accepted.version) {
             Ok(link) => {
                 let label = self
                     .grants
@@ -284,22 +287,22 @@ impl PeerPlane {
             let node = link.node();
 
             loop {
-                let frame = match link.recv().await {
-                    Ok(frame) => frame,
+                let voice = match link.recv().await {
+                    Ok(voice) => voice,
                     Err(e) => {
                         curia::info!(format!("peer link ended: {e}"), { "node": node.to_string() });
                         break;
                     }
                 };
 
-                match plane.ingest.admit(&node, frame) {
-                    Ok((packet, speaker)) => {
+                match plane.ingest.admit_voice(&node, voice) {
+                    Ok((packet, speaker, group)) => {
                         // Published before the packet, so routing never sees a relayed frame
                         // whose speaker it cannot resolve.
                         if let Some(key) = packet.sender_key() {
                             plane.speakers.insert(key, Arc::new(speaker)).await;
                         }
-                        plane.sink.publish(packet);
+                        plane.sink.publish(packet, group);
                     }
                     Err(rejection) => {
                         curia::warn!(format!("dropping a peer frame: {rejection}"), { "node": node.to_string() })

@@ -2,7 +2,8 @@ use common::errors::communication::{CommunicationError, GameError, MinecraftComm
 
 /// Why `route_audio_frame` withheld a frame: from every recipient, or from one.
 ///
-/// The first two are whole-frame; every other variant is per recipient. Self-echo (the
+/// `SenderUnknown`, `NotAudio`, `UnsealedInProtectedChannel` and `GroupClaimUnverified` are
+/// whole-frame; every other variant is per recipient. Self-echo (the
 /// sender appearing in its own recipient snapshot) is not listed, because it happens on every
 /// frame by construction and counting it would swamp the rest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -25,10 +26,15 @@ pub enum RouteRejection {
     UnsealedInProtectedChannel,
     /// A sealed frame offered to a recipient outside the sender's group.
     SealedOutsideChannel,
+    /// Speech from a members-only group offered to a recipient outside it.
+    MembersOnlyOutsideChannel,
+    /// A frame claiming a linked group its speaker is not a member of. Whole-frame: it is
+    /// neither delivered to the group nor routed by proximity.
+    GroupClaimUnverified,
 }
 
 impl RouteRejection {
-    pub const ALL: [RouteRejection; 16] = [
+    pub const ALL: [RouteRejection; 18] = [
         Self::SenderUnknown,
         Self::NotAudio,
         Self::SpeakerUnresolved,
@@ -45,6 +51,8 @@ impl RouteRejection {
         Self::RecipientClosed,
         Self::UnsealedInProtectedChannel,
         Self::SealedOutsideChannel,
+        Self::MembersOnlyOutsideChannel,
+        Self::GroupClaimUnverified,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -65,6 +73,8 @@ impl RouteRejection {
             Self::RecipientClosed => "recipient_closed",
             Self::UnsealedInProtectedChannel => "unsealed_in_protected_channel",
             Self::SealedOutsideChannel => "sealed_outside_channel",
+            Self::MembersOnlyOutsideChannel => "members_only_outside_channel",
+            Self::GroupClaimUnverified => "group_claim_unverified",
         }
     }
 

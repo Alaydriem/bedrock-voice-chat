@@ -1,7 +1,8 @@
 use bvc_relay::node::NodeIdentity;
 use bvc_relay::peer::{PeerEndpoint, PeerLink};
 use common::game_data::Dimension;
-use common::structs::relay::wire::datagram::VoiceFrame;
+use common::structs::relay::wire::WireVersion;
+use common::structs::relay::wire::datagram::{GroupScope, VoiceFrame};
 use common::traits::player_data::PlayerData;
 use common::{Coordinate, MinecraftPlayer, Orientation, PlayerEnum};
 use iroh::EndpointAddr;
@@ -66,8 +67,8 @@ async fn a_voice_frame_crosses_a_link_intact() {
     let server = tokio::spawn(async move {
         let incoming = listening.accept().await.expect("incoming");
         let conn = incoming.await.expect("connection");
-        let link = PeerLink::establish(conn, vec!["W1".to_string()]).expect("establish");
-        let received = link.recv().await.expect("receive");
+        let link = PeerLink::establish(conn, vec!["W1".to_string()], WireVersion(1)).expect("establish");
+        let received = link.recv().await.expect("receive").frame;
         (received, link)
     });
 
@@ -76,8 +77,8 @@ async fn a_voice_frame_crosses_a_link_intact() {
         .connect(addr, PeerEndpoint::ALPN)
         .await
         .expect("dial");
-    let link = PeerLink::establish(conn, vec!["W1".to_string()]).expect("establish");
-    link.send(frame("Alice")).expect("send");
+    let link = PeerLink::establish(conn, vec!["W1".to_string()], WireVersion(1)).expect("establish");
+    link.send(frame("Alice"), None).expect("send");
 
     let (received, _held) = server.await.expect("join");
 
@@ -102,7 +103,45 @@ async fn the_speakers_position_crosses_with_the_frame() {
     let server = tokio::spawn(async move {
         let incoming = listening.accept().await.expect("incoming");
         let conn = incoming.await.expect("connection");
-        let link = PeerLink::establish(conn, vec!["W1".to_string()]).expect("establish");
+        let link = PeerLink::establish(conn, vec!["W1".to_string()], WireVersion(1)).expect("establish");
+        let received = link.recv().await.expect("receive").frame;
+        (received, link)
+    });
+
+    let conn = dialer
+        .endpoint()
+        .connect(addr, PeerEndpoint::ALPN)
+        .await
+        .expect("dial");
+    let link = PeerLink::establish(conn, vec!["W1".to_string()], WireVersion(1)).expect("establish");
+    link.send(frame("Alice"), None).expect("send");
+
+    let (received, _held) = server.await.expect("join");
+
+    assert_eq!(
+        received.speaker.world_identifier(),
+        Some("W1"),
+        "the world the frame is scoped to must survive the crossing"
+    );
+}
+
+// The bridge delivers group audio by the channel id the frame carries, so the marker has to
+// arrive as sent, not only the audio.
+#[tokio::test]
+async fn a_marked_frame_crosses_a_v2_link_with_its_group() {
+    let a_dir = TempDir::new().expect("tempdir");
+    let b_dir = TempDir::new().expect("tempdir");
+    let acceptor = endpoint(&a_dir).await;
+    let dialer = endpoint(&b_dir).await;
+
+    let addr = loopback_addr(&acceptor);
+    let listening = acceptor.endpoint().clone();
+
+    let server = tokio::spawn(async move {
+        let incoming = listening.accept().await.expect("incoming");
+        let conn = incoming.await.expect("connection");
+        let link = PeerLink::establish(conn, vec!["W1".to_string()], WireVersion::GROUP_SCOPE)
+            .expect("establish");
         let received = link.recv().await.expect("receive");
         (received, link)
     });
@@ -112,14 +151,16 @@ async fn the_speakers_position_crosses_with_the_frame() {
         .connect(addr, PeerEndpoint::ALPN)
         .await
         .expect("dial");
-    let link = PeerLink::establish(conn, vec!["W1".to_string()]).expect("establish");
-    link.send(frame("Alice")).expect("send");
+    let link = PeerLink::establish(conn, vec!["W1".to_string()], WireVersion::GROUP_SCOPE)
+        .expect("establish");
+    let group = GroupScope {
+        channel: "ABCD-1234".to_string(),
+        members_only: true,
+    };
+    assert!(link.send(frame("Alice"), Some(group.clone())).expect("send"));
 
     let (received, _held) = server.await.expect("join");
 
-    assert_eq!(
-        received.speaker.world_identifier(),
-        Some("W1"),
-        "the world the frame is scoped to must survive the crossing"
-    );
+    assert_eq!(received.group, Some(group));
+    assert_eq!(received.frame.speaker.get_name(), "Alice");
 }
