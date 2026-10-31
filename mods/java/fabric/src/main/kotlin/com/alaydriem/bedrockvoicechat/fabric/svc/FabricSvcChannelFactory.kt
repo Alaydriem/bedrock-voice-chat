@@ -1,6 +1,7 @@
 package com.alaydriem.bedrockvoicechat.fabric.svc
 
 import com.alaydriem.bedrockvoicechat.svc.SvcChannelFactory
+import com.alaydriem.bedrockvoicechat.svc.SvcDimensionResolver
 import de.maxhenkel.voicechat.api.VoicechatServerApi
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel
 import net.minecraft.server.MinecraftServer
@@ -22,7 +23,8 @@ class FabricSvcChannelFactory(
     // profile name here instead is not the same lookup, and it fails silently:
     // the speaker falls back to a fixed position, which sounds almost right and
     // animates nobody.
-    private val bodyOf: (String) -> ServerPlayer?
+    private val bodyOf: (String) -> ServerPlayer?,
+    private val dimensions: SvcDimensionResolver
 ) : SvcChannelFactory {
 
     override fun entityChannel(speaker: String): AudioChannel? {
@@ -52,9 +54,25 @@ class FabricSvcChannelFactory(
             "overworld" -> "minecraft:overworld"
             "nether" -> "minecraft:the_nether"
             "the_end" -> "minecraft:the_end"
-            else -> return null
+            else -> customKeyFor(dimension) ?: return null
         }
 
         return server.allLevels.firstOrNull { it.dimension().identifier().toString() == key }
+    }
+
+    // A modded level is named on the wire by the hash of its full identifier, the same
+    // identifier the position feed sends for it.
+    private fun customKeyFor(dimension: String): String? {
+        if (!dimension.startsWith(CUSTOM_PREFIX)) {
+            return null
+        }
+
+        val keys = server.allLevels.map { it.dimension().identifier().toString() }
+
+        return dimensions.resolve(dimension, keys)
+    }
+
+    private companion object {
+        const val CUSTOM_PREFIX = "custom:"
     }
 }
