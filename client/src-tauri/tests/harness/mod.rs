@@ -11,5 +11,6 @@ pub mod proxy_driver;
 pub mod proxy_scale;
 pub mod proxy_world;
 pub mod rebinding_relay;
+pub mod reported_position;
 pub mod server;
 pub mod udp_blackhole;

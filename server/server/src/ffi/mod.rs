@@ -31,7 +31,6 @@ use crate::stream::quic::WebhookReceiver;
 
 use common::Game;
 use common::request::admin::AdminPermissionRequest;
-use common::traits::player_data::PlayerData;
 use sea_orm::DatabaseConnection;
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
@@ -532,40 +531,33 @@ pub unsafe extern "C" fn bvc_update_positions(
     let mut players = game_data.players;
 
     tokio_rt.block_on(async {
-        // Resolve in-game names to canonical gamertags
-        if let Some(ref id_service) = identity_service {
-            // Process any alternative_identity fields from Floodgate-aware mods
-            for player in &players {
-                let alt = player.get_alternative_identity();
-
-                if let Some(alt_identity) = alt {
-                    let name = player.get_name();
-                    if let Some(player_id) = id_service
-                        .find_player_id_by_gamertag(alt_identity, &game_type)
-                        .await
-                    {
-                        let _ = id_service
-                            .create_alias(player_id, name, &game_type, "floodgate")
-                            .await;
-                    }
-                }
+        // Name every entry by the gamertag its player signs in with
+        let claims = match identity_service {
+            Some(ref id_service) => {
+                id_service
+                    .canonicalize_roster(&mut players, &game_type)
+                    .await
             }
-
-            id_service
-                .resolve_and_remap_players(&mut players, &game_type)
-                .await;
-        }
+            None => Vec::new(),
+        };
 
         // Process player registration
         if let Some(registrar) = player_registrar {
             let players_clone = players.clone();
             let game_type_clone = game_type.clone();
+            let id_service = identity_service.clone();
             // Fire-and-forget player registration in background task
             // This ensures bvc_update_positions returns immediately without waiting for DB operations
             tokio::spawn(async move {
                 registrar
-                    .process_players(&players_clone, game_type_clone)
+                    .process_players(&players_clone, game_type_clone.clone())
                     .await;
+                // Aliases point at the gamertag's record, so they wait for registration.
+                if let Some(id_service) = id_service {
+                    id_service
+                        .record_alias_claims(&claims, &game_type_clone)
+                        .await;
+                }
             });
         } else {
             curia::warn!(

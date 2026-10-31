@@ -58,14 +58,20 @@ impl CertificateService {
             .unwrap();
         params.not_after = OffsetDateTime::now_utc() + Duration::days(90);
 
-        params.subject_alt_names = vec![
-            SanType::DnsName(san_host.to_string().try_into()?),
+        let mut subject_alt_names = Vec::new();
+        // A DNS name is IA5 (ASCII) only. Modern gamertags may use other scripts; the
+        // identity is carried by the Common Name, so those certificates simply omit it.
+        if san_host.is_ascii() {
+            subject_alt_names.push(SanType::DnsName(san_host.to_string().try_into()?));
+        }
+        subject_alt_names.extend([
             SanType::DnsName(String::from("localhost").try_into()?),
             SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))),
             SanType::IpAddress(std::net::IpAddr::V6(std::net::Ipv6Addr::new(
                 0, 0, 0, 0, 0, 0, 0, 1,
             ))),
-        ];
+        ]);
+        params.subject_alt_names = subject_alt_names;
 
         let key_pair = KeyPair::generate()?;
         match params.signed_by(&key_pair, &self.issuer) {

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use common::Game;
-use common::traits::player_data::PlayerData;
 use rocket::{State, http::Status, serde::json::Json};
 use rocket_okapi::openapi;
 
@@ -61,28 +60,16 @@ pub async fn update_position(
         }
     }
 
-    for player in &all_players {
-        let alt = player.get_alternative_identity();
-
-        if let Some(alt_identity) = alt {
-            let name = player.get_name();
-            if let Some(player_id) = identity_service
-                .find_player_id_by_gamertag(alt_identity, &game_type)
-                .await
-            {
-                let _ = identity_service
-                    .create_alias(player_id, name, &game_type, "floodgate")
-                    .await;
-            }
-        }
-    }
-
-    identity_service
-        .resolve_and_remap_players(&mut all_players, &game_type)
+    let claims = identity_service
+        .canonicalize_roster(&mut all_players, &game_type)
         .await;
 
     player_registrar
-        .process_players(&all_players, game_type)
+        .process_players(&all_players, game_type.clone())
+        .await;
+
+    identity_service
+        .record_alias_claims(&claims, &game_type)
         .await;
 
     position_updater::PositionUpdater::broadcast_positions(all_players, webhook_receiver).await;

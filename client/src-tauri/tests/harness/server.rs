@@ -8,6 +8,7 @@ use bvc_client_lib::testkit::PortPool;
 use serde_json::json;
 
 use crate::harness::ffi::{SendHandle, ServerLibrary};
+use crate::harness::reported_position::ReportedPosition;
 
 /// A real BVC server booted in-process for integration tests by loading the
 /// server's C FFI cdylib (`bvc_server_lib`) with `libloading` — the same
@@ -492,6 +493,69 @@ impl EmbeddedServer {
         if rc != 0 {
             let err = Self::last_error(&self.lib);
             panic!("bvc_update_positions returned {rc}: {err}");
+        }
+    }
+
+    /// Drive positions through `bvc_update_positions` with the identity fields a
+    /// Floodgate-aware Java mod sends. The shape is otherwise `update_positions`'s.
+    pub fn update_reported_positions(&self, players: &[ReportedPosition]) {
+        let player_jsons: Vec<serde_json::Value> = players
+            .iter()
+            .map(|p| {
+                let mut player = json!({
+                    "name": p.name,
+                    "coordinates": { "x": p.x, "y": p.y, "z": p.z },
+                    "orientation": { "x": 0.0, "y": 0.0 },
+                    "dimension": "overworld",
+                    "deafen": false,
+                    "spectator": false
+                });
+                if let Some(alt) = &p.alternative_identity {
+                    player["alternative_identity"] = json!(alt);
+                }
+                if let Some(uuid) = &p.player_uuid {
+                    player["player_uuid"] = json!(uuid);
+                }
+                player
+            })
+            .collect();
+
+        let payload = json!({ "game": "minecraft", "players": player_jsons });
+        let c_json = CString::new(payload.to_string()).expect("position json contains no nul byte");
+
+        let rc = unsafe { (self.lib.update_positions)(self.handle.0, c_json.as_ptr()) };
+        if rc != 0 {
+            let err = Self::last_error(&self.lib);
+            panic!("bvc_update_positions returned {rc}: {err}");
+        }
+    }
+
+    /// Whether the server holds a record for `gamertag`, without creating one.
+    ///
+    /// `login_code` provisions the record it codes for, so it cannot tell whether the game
+    /// server's roster registered a player. `bvc_admin` revoke only looks the player up:
+    /// `1` (nothing to revoke) means the record exists, `2` means it does not.
+    pub fn player_exists(&self, gamertag: &str) -> bool {
+        let request = json!({ "gamertag": gamertag, "game": "minecraft", "action": "revoke" });
+        match self.admin(&request.to_string()) {
+            (0 | 1, _) => true,
+            (2, _) => false,
+            (code, err) => panic!("bvc_admin revoke returned {code}: {err:?}"),
+        }
+    }
+
+    /// Polls `player_exists` until it holds or `timeout` passes. FFI registration runs in a
+    /// background task, so a record appears shortly after the positions that create it.
+    pub fn await_player_exists(&self, gamertag: &str, timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if self.player_exists(gamertag) {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(50));
         }
     }
 
