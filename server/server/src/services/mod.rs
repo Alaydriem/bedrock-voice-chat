@@ -56,7 +56,7 @@ pub use metrics_service::MetricsService;
 pub use metrics_service::host_capability::HostCapability;
 pub use metrics_service::host_kind::HostKind;
 pub use pairing_service::PairingService;
-pub use player_identity_service::PlayerIdentityService;
+pub use player_identity_service::{AliasClaim, PlayerIdentityService};
 pub use player_registrar_service::{PlayerRegistrarService, RegisteredPlayersCache};
 pub use position_feed::{GridCell, PositionFeedService, WorldIndex};
 pub use position_service::{FAR_TIER_MAX, PositionService};
