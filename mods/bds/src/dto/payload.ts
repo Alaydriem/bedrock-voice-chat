@@ -1,5 +1,6 @@
-import { Player as MinecraftPlayer } from '@minecraft/server';
-import { Player } from './player';
+import type { Player as MinecraftPlayer } from '@minecraft/server';
+import type { Player } from './player';
+import { PlayerFactory } from './player_factory';
 
 export class Payload {
   constructor(
@@ -20,8 +21,8 @@ export class Payload {
   ): Payload {
     const playerDtos = players.map((p) =>
       deadPlayers.has(p.id)
-        ? Player.fromMinecraftPlayerDead(p, worldUuid)
-        : Player.fromMinecraftPlayer(p, worldUuid),
+        ? PlayerFactory.fromMinecraftPlayerDead(p, worldUuid)
+        : PlayerFactory.fromMinecraftPlayer(p, worldUuid),
     );
     return new Payload('minecraft', playerDtos);
   }

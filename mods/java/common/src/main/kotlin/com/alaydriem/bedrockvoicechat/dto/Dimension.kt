@@ -31,6 +31,19 @@ sealed interface Dimension {
 
     companion object {
         /**
+         * The dimension a namespaced level identifier names, as Fabric reports it.
+         *
+         * A modded identifier is kept whole: the BVC server hashes it, and two mods may
+         * use the same path under different namespaces.
+         */
+        fun fromIdentifier(identifier: String): Dimension = when (identifier) {
+            "minecraft:overworld" -> Minecraft.OVERWORLD
+            "minecraft:the_nether" -> Minecraft.NETHER
+            "minecraft:the_end" -> Minecraft.THE_END
+            else -> Custom(identifier)
+        }
+
+        /**
          * Parse a dimension from a platform-specific string.
          *
          * @param game The game type

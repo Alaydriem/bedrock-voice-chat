@@ -1,10 +1,15 @@
+mod bounded_log_text;
 pub mod minecraft;
+mod rejected_record_log;
+
+pub use bounded_log_text::BoundedLogText;
 
 use crate::Game;
 use crate::players::{MinecraftPlayer, PlayerEnum};
 use serde::{Deserialize, Deserializer, Serialize};
 
-pub use minecraft::Dimension;
+pub use minecraft::{Dimension, DimensionHash};
+use rejected_record_log::RejectedRecordLog;
 
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
@@ -18,8 +23,6 @@ impl<'de> Deserialize<'de> for GameDataCollection {
     where
         D: Deserializer<'de>,
     {
-        use serde::de::Error;
-
         // Helper struct for deserializing JSON from legacy clients
         #[derive(Deserialize)]
         struct LegacyFormat {
@@ -30,20 +33,25 @@ impl<'de> Deserialize<'de> for GameDataCollection {
         let legacy = LegacyFormat::deserialize(deserializer)?;
         let game_type = legacy.game.clone().unwrap_or(Game::Minecraft);
 
-        // Convert players based on the game type
-        let players: Result<Vec<PlayerEnum>, _> = legacy
+        // Each player parses on its own: one bad record drops that player, not the batch,
+        // which would leave every position on the server stale for as long as it repeats.
+        let players: Vec<PlayerEnum> = legacy
             .players
             .into_iter()
-            .map(|value| match game_type {
-                Game::Minecraft => serde_json::from_value::<MinecraftPlayer>(value)
-                    .map(PlayerEnum::Minecraft)
-                    .map_err(D::Error::custom),
+            .filter_map(|value| match game_type {
+                Game::Minecraft => match serde_json::from_value::<MinecraftPlayer>(value) {
+                    Ok(player) => Some(PlayerEnum::Minecraft(player)),
+                    Err(e) => {
+                        RejectedRecordLog::observe(&e.to_string());
+                        None
+                    }
+                },
             })
             .collect();
 
         Ok(GameDataCollection {
             game: legacy.game,
-            players: players?,
+            players,
         })
     }
 }

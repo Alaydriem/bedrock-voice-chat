@@ -2,7 +2,7 @@ use common::bedrock_protocol::PlayerAuthInputPacket;
 use common::bedrock_protocol::StartGamePacket;
 use common::bedrock_protocol::protocol::types::generated::PlayerAuthInputData;
 use common::bedrock_protocol::protocol::packets::generated::misc::change_dimension::ChangeDimensionPacket;
-use common::game_data::Dimension;
+use common::game_data::{Dimension, DimensionHash};
 use common::players::PlayerEnum;
 use common::players::minecraft::MinecraftPlayer;
 use common::structs::bedrock::BedrockWorldId;
@@ -147,7 +147,20 @@ impl BedrockSessionState {
     }
 
     pub fn dimension(&self) -> Dimension {
-        self.dimension.clone()
+        self.dimension
+    }
+
+    /// The dimension a jukebox-bus sound names, as this session should gate it.
+    ///
+    /// A vanilla name is taken as given. Any other name falls back to this session's own
+    /// dimension: the session only knows a custom dimension by its integer id, so a hash of
+    /// the string would never match it, and the BDS sender only delivers the sound to a
+    /// player already standing in the jukebox's dimension.
+    pub fn resolve_bus_dimension(&self, raw: &str) -> Dimension {
+        match Dimension::parse(raw) {
+            Dimension::Other(_) => self.dimension,
+            known => known,
+        }
     }
 
     pub fn coordinates(&self) -> Coordinate {
@@ -167,7 +180,9 @@ impl BedrockSessionState {
             0 => Dimension::Overworld,
             1 => Dimension::TheNether,
             2 => Dimension::TheEnd,
-            _ => Dimension::Overworld,
+            // An add-on dimension. Isolated under its own id rather than merged into
+            // Overworld, where it would hear players at the same coordinates.
+            other => Dimension::Other(DimensionHash::of(&format!("bedrock:{other}"))),
         }
     }
 

@@ -10,7 +10,9 @@ use common::bedrock_protocol::protocol::packets::generated::misc::play_sound::{
     PlaySoundPacketAny, PlaySoundPacketV897,
 };
 use common::bedrock_protocol::protocol::types::primitives::BlockPos;
+use common::game_data::{Dimension, DimensionHash};
 use common::structs::control::{ClientAction, ClientActionType};
+use common::structs::game::BlockCoordinate;
 use common::structs::packet::{BedrockEvent, PacketType, QuicNetworkPacketData};
 
 fn make_emitter() -> (Arc<BedrockEventEmitter>, flume::Receiver<NetworkPacket>) {
@@ -64,6 +66,96 @@ fn drive_with_control(
     }
     .handle(&packet(name, pos), &mut state, Some(&emitter));
     (rx.try_recv().ok(), control_rx, bus_rx)
+}
+
+// Drives a jukebox sound through the handler with the session in a given Bedrock
+// dimension id, against a cache the caller may have seeded.
+fn drive_in_dimension(
+    name: &str,
+    pos: BlockPos,
+    dimension_id: i32,
+    beacon_cache: &JukeboxBeaconCache,
+) -> Option<NetworkPacket> {
+    let (emitter, rx) = make_emitter();
+    let (control_tx, _control_rx) = ControlActionSender::channel();
+    let mut state = BedrockSessionState::new("Alice".to_string(), Some("xuid-1".to_string()));
+    state.set_world_uuid_for_test("world-1".to_string());
+    state.apply_change_dimension(dimension_id);
+    PlaySoundHandler {
+        beacon_cache,
+        player_name: "Alice",
+        control_tx,
+        state_bus: ControlStateBus::new(),
+    }
+    .handle(&packet(name, pos), &mut state, Some(&emitter));
+    rx.try_recv().ok()
+}
+
+fn inserted_dimension(queued: Option<NetworkPacket>) -> Dimension {
+    let queued = queued.expect("JukeboxInsert should be queued");
+    match queued.data.data {
+        QuicNetworkPacketData::BedrockEvent(ep) => match ep.event {
+            BedrockEvent::JukeboxInsert { dimension, .. } => dimension,
+            other => panic!("expected JukeboxInsert, got {:?}", other),
+        },
+        other => panic!("expected BedrockEvent packet, got {:?}", other),
+    }
+}
+
+// The listener's dimension in full proxy mode comes from the integer id, so a jukebox
+// hashed from its string id would never match it. The BDS sender only delivers the
+// sound to a player already in the jukebox's dimension, so the session's own is right.
+#[test]
+fn a_custom_bus_dimension_resolves_to_the_session_dimension() {
+    let queued = drive_in_dimension(
+        "bvc:play:track:mypack:aether",
+        BlockPos::new(80, 512, 40),
+        7,
+        &JukeboxBeaconCache::default(),
+    );
+
+    assert_eq!(
+        inserted_dimension(queued),
+        Dimension::Other(DimensionHash::of("bedrock:7"))
+    );
+}
+
+#[test]
+fn a_vanilla_bus_dimension_wins_over_a_custom_session() {
+    let queued = drive_in_dimension(
+        "bvc:play:track:minecraft:nether",
+        BlockPos::new(80, 512, 40),
+        7,
+        &JukeboxBeaconCache::default(),
+    );
+
+    assert_eq!(inserted_dimension(queued), Dimension::TheNether);
+}
+
+#[test]
+fn eject_resolves_a_custom_bus_dimension_the_same_way() {
+    let cache = JukeboxBeaconCache::default();
+    cache.observe(
+        BlockCoordinate::new(10, 64, 5),
+        Dimension::Other(DimensionHash::of("bedrock:7")),
+        "evt-custom",
+    );
+
+    let queued = drive_in_dimension(
+        "bvc:eject:mypack:aether",
+        BlockPos::new(80, 512, 40),
+        7,
+        &cache,
+    )
+    .expect("JukeboxEject should be queued");
+
+    match queued.data.data {
+        QuicNetworkPacketData::BedrockEvent(ep) => match ep.event {
+            BedrockEvent::JukeboxEject { event_id, .. } => assert_eq!(event_id, "evt-custom"),
+            other => panic!("expected JukeboxEject, got {:?}", other),
+        },
+        other => panic!("expected BedrockEvent packet, got {:?}", other),
+    }
 }
 
 #[test]

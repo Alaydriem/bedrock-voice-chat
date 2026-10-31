@@ -1,6 +1,7 @@
 package com.alaydriem.bedrockvoicechat.paper.svc
 
 import com.alaydriem.bedrockvoicechat.svc.SvcChannelFactory
+import com.alaydriem.bedrockvoicechat.svc.SvcDimensionResolver
 import de.maxhenkel.voicechat.api.VoicechatServerApi
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel
 import org.bukkit.Server
@@ -22,7 +23,8 @@ class PaperSvcChannelFactory(
     // profile name here instead is not the same lookup, and it fails silently:
     // the speaker falls back to a fixed position, which sounds almost right and
     // animates nobody.
-    private val bodyOf: (String) -> Player?
+    private val bodyOf: (String) -> Player?,
+    private val dimensions: SvcDimensionResolver
 ) : SvcChannelFactory {
 
     override fun entityChannel(speaker: String): AudioChannel? {
@@ -61,9 +63,27 @@ class PaperSvcChannelFactory(
             "overworld" -> World.Environment.NORMAL
             "nether" -> World.Environment.NETHER
             "the_end" -> World.Environment.THE_END
-            else -> return null
+            else -> return customWorldFor(dimension)
         }
 
         return server.worlds.firstOrNull { it.environment == environment }
+    }
+
+    // A custom world is named on the wire by the hash of `world.name`, the same name the
+    // position feed sends for it.
+    private fun customWorldFor(dimension: String): World? {
+        if (!dimension.startsWith(CUSTOM_PREFIX)) {
+            return null
+        }
+
+        val names = server.worlds
+            .filter { it.environment == World.Environment.CUSTOM }
+            .map { it.name }
+
+        return dimensions.resolve(dimension, names)?.let { server.getWorld(it) }
+    }
+
+    private companion object {
+        const val CUSTOM_PREFIX = "custom:"
     }
 }
