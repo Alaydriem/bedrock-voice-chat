@@ -41,8 +41,8 @@ import com.alaydriem.bedrockvoicechat.svc.LiveClients
 import com.alaydriem.bedrockvoicechat.svc.RelayWorld
 import com.alaydriem.bedrockvoicechat.svc.SvcAvailability
 import com.alaydriem.bedrockvoicechat.svc.SvcBridgeHost
-import com.alaydriem.bedrockvoicechat.svc.SvcDimensionResolver
 import net.minecraft.server.MinecraftServer
+import uniffi.bvc_relay_sdk.BvcDimensionCodec
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
 import com.alaydriem.bedrockvoicechat.server.BvcServerManager
 import net.fabricmc.api.ModInitializer
@@ -179,7 +179,7 @@ class FabricMod : ModInitializer {
             onServerThread = { task -> server.execute(task) },
             channelFactory = { api ->
                 FabricSvcChannelFactory(
-                    api, server, provider::findByIdentity, SvcDimensionResolver.native()
+                    api, server, provider::findByIdentity, BvcDimensionCodec()::wireForm
                 )
             },
             groupLink = groupLink,

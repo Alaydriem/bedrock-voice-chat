@@ -36,6 +36,6 @@ fn a_custom_dimension_record_is_accepted() {
     assert_eq!(collection.players.len(), 1);
     assert_eq!(
         collection.players[0].dimension(),
-        Some(Dimension::parse("twilightforest:twilight_forest"))
+        Some(Dimension::from("twilightforest:twilight_forest"))
     );
 }

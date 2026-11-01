@@ -199,6 +199,6 @@ class FabricPlayerDataProvider(
     }
 
     private fun getDimensionFromPlayer(player: ServerPlayer): Dimension {
-        return Dimension.fromIdentifier(player.level().dimension().identifier().toString())
+        return Dimension.fromString(GameType.MINECRAFT, player.level().dimension().identifier().toString())!!
     }
 }

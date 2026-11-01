@@ -1,13 +1,13 @@
 package com.alaydriem.bedrockvoicechat.fabric.svc
 
 import com.alaydriem.bedrockvoicechat.svc.SvcChannelFactory
-import com.alaydriem.bedrockvoicechat.svc.SvcDimensionResolver
 import de.maxhenkel.voicechat.api.VoicechatServerApi
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Opens SVC channels against Minecraft's levels and players.
@@ -24,8 +24,13 @@ class FabricSvcChannelFactory(
     // the speaker falls back to a fixed position, which sounds almost right and
     // animates nobody.
     private val bodyOf: (String) -> ServerPlayer?,
-    private val dimensions: SvcDimensionResolver
+    // The relay codec: a raw dimension name to the form frames carry.
+    private val wireForm: (String) -> String
 ) : SvcChannelFactory {
+
+    // One entry per level identifier. A failed open is retried on every frame, so without it
+    // a speaker in a dimension this server lacks costs a codec call per level per frame.
+    private val forms = ConcurrentHashMap<String, String>()
 
     override fun entityChannel(speaker: String): AudioChannel? {
         val player = bodyOf(speaker) ?: return null
@@ -49,30 +54,11 @@ class FabricSvcChannelFactory(
         )
     }
 
-    private fun levelFor(dimension: String): ServerLevel? {
-        val key = when (dimension) {
-            "overworld" -> "minecraft:overworld"
-            "nether" -> "minecraft:the_nether"
-            "the_end" -> "minecraft:the_end"
-            else -> customKeyFor(dimension) ?: return null
+    // The level whose identifier, as the server's codec writes it, is the frame's dimension.
+    // The position feed sends the same identifier for it.
+    private fun levelFor(dimension: String): ServerLevel? =
+        server.allLevels.firstOrNull { level ->
+            val identifier = level.dimension().identifier().toString()
+            forms.getOrPut(identifier) { wireForm(identifier) } == dimension
         }
-
-        return server.allLevels.firstOrNull { it.dimension().identifier().toString() == key }
-    }
-
-    // A modded level is named on the wire by the hash of its full identifier, the same
-    // identifier the position feed sends for it.
-    private fun customKeyFor(dimension: String): String? {
-        if (!dimension.startsWith(CUSTOM_PREFIX)) {
-            return null
-        }
-
-        val keys = server.allLevels.map { it.dimension().identifier().toString() }
-
-        return dimensions.resolve(dimension, keys)
-    }
-
-    private companion object {
-        const val CUSTOM_PREFIX = "custom:"
-    }
 }

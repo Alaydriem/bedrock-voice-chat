@@ -19,6 +19,6 @@ impl BvcDimensionCodec {
 
     // The wire form of a raw dimension name: "nether", "custom:<hex>", …
     pub fn wire_form(&self, raw: String) -> String {
-        Dimension::parse(&raw).wire_form().into_owned()
+        Dimension::from(raw.as_str()).as_api_str().into_owned()
     }
 }

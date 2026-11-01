@@ -35,8 +35,8 @@ import com.alaydriem.bedrockvoicechat.svc.LiveClients
 import com.alaydriem.bedrockvoicechat.svc.RelayWorld
 import com.alaydriem.bedrockvoicechat.svc.SvcAvailability
 import com.alaydriem.bedrockvoicechat.svc.SvcBridgeHost
-import com.alaydriem.bedrockvoicechat.svc.SvcDimensionResolver
 import de.maxhenkel.voicechat.api.BukkitVoicechatService
+import uniffi.bvc_relay_sdk.BvcDimensionCodec
 import java.io.File
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
 import com.alaydriem.bedrockvoicechat.paper.audio.JukeboxListener
@@ -166,7 +166,7 @@ class PaperPlugin : JavaPlugin(), Listener {
             onServerThread = { task -> server.scheduler.runTask(this, task) },
             channelFactory = { api ->
                 PaperSvcChannelFactory(
-                    api, server, playerDataProvider::findByIdentity, SvcDimensionResolver.native()
+                    api, server, playerDataProvider::findByIdentity, BvcDimensionCodec()::wireForm
                 )
             },
             groupLink = groupLink,

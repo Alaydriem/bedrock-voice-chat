@@ -1,5 +1,4 @@
-import type { Coordinates } from './coordinates';
-import type { Dimension } from './dimension';
+import { Coordinates } from './coordinates';
 
 /**
  * Request to start audio playback at specific world coordinates.
@@ -8,7 +7,7 @@ export class AudioPlayRequest {
   constructor(
     public readonly audio_file_id: string,
     public readonly coordinates: Coordinates,
-    public readonly dimension: Dimension,
+    public readonly dimension: string,
     public readonly world_uuid: string,
   ) {}
 
@@ -18,7 +17,7 @@ export class AudioPlayRequest {
       game: {
         game: 'minecraft',
         coordinates: this.coordinates.toJSON(),
-        dimension: this.dimension.toApiString(),
+        dimension: this.dimension,
         world_uuid: this.world_uuid,
       },
     };

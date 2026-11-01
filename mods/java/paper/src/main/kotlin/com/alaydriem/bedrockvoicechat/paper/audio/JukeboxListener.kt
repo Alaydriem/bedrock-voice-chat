@@ -1,6 +1,6 @@
 package com.alaydriem.bedrockvoicechat.paper.audio
 
-import com.alaydriem.bedrockvoicechat.paper.PaperDimensions
+import com.alaydriem.bedrockvoicechat.paper.PaperPlayerDataProvider
 import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
@@ -232,7 +232,8 @@ class JukeboxListener(
 
     // The same mapping positions use, so a disc and the players beside it are gated as one
     // dimension.
-    private fun getDimensionId(world: World): String = PaperDimensions.of(world).toApiString()
+    private fun getDimensionId(world: World): String =
+        PaperPlayerDataProvider.dimensionOf(world).toApiString()
 
     companion object {
         @Suppress("UnstableApiUsage")

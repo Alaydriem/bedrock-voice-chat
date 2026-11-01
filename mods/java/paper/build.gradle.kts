@@ -25,6 +25,7 @@ dependencies {
     // so a matched paper-api is provided on the test classpath (one minor behind the 26.2 ship target)
     testImplementation("io.papermc.paper:paper-api:26.1.2.build.+")
     testImplementation("org.mockbukkit.mockbukkit:mockbukkit-v26.1.2:4.113.2")
+    testImplementation("de.maxhenkel.voicechat:voicechat-api:$voicechatApiVersion")
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.0")
 }

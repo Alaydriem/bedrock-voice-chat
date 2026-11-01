@@ -157,7 +157,7 @@ impl BedrockSessionState {
     /// the string would never match it, and the BDS sender only delivers the sound to a
     /// player already standing in the jukebox's dimension.
     pub fn resolve_bus_dimension(&self, raw: &str) -> Dimension {
-        match Dimension::parse(raw) {
+        match Dimension::from(raw) {
             Dimension::Other(_) => self.dimension,
             known => known,
         }

@@ -2,7 +2,6 @@ import { world, system } from '@minecraft/server';
 import type { Player } from '@minecraft/server';
 import type { AudioPlayerState } from '../player_state';
 import type { AudioSender } from './audio_sender';
-import { Dimension } from '../../dto/dimension';
 import { JukeboxBusProtocol } from './protocol';
 
 export class NoNetAudioSender implements AudioSender {
@@ -17,7 +16,7 @@ export class NoNetAudioSender implements AudioSender {
 
     const c = state.coordinates;
     fulfiller.playSound(
-      JukeboxBusProtocol.playName(state.audioId, Dimension.of(state.dimensionId)),
+      `${JukeboxBusProtocol.PLAY}${state.audioId}:${state.dimensionId}`,
       {
         location: { x: c.x, y: c.y, z: c.z },
         volume: 0.1,
@@ -34,7 +33,7 @@ export class NoNetAudioSender implements AudioSender {
     }
 
     const c = state.coordinates;
-    fulfiller.playSound(JukeboxBusProtocol.ejectName(Dimension.of(state.dimensionId)), {
+    fulfiller.playSound(`${JukeboxBusProtocol.EJECT}${state.dimensionId}`, {
       location: { x: c.x, y: c.y, z: c.z },
       volume: 0.1,
     });
@@ -65,7 +64,7 @@ export class NoNetAudioSender implements AudioSender {
     let bestId = '';
 
     for (const p of world.getAllPlayers()) {
-      if (!Dimension.of(p.dimension.id).equals(Dimension.of(state.dimensionId))) {
+      if (p.dimension.id !== state.dimensionId) {
         continue;
       }
 

@@ -1,9 +1,9 @@
 mod auth;
 mod encoding;
 mod game_data;
+mod logging;
 mod net;
 mod players;
-mod request;
 mod response;
 mod structs;
 mod traits;

@@ -1,13 +1,14 @@
 package com.alaydriem.bedrockvoicechat.paper.svc
 
+import com.alaydriem.bedrockvoicechat.paper.PaperPlayerDataProvider
 import com.alaydriem.bedrockvoicechat.svc.SvcChannelFactory
-import com.alaydriem.bedrockvoicechat.svc.SvcDimensionResolver
 import de.maxhenkel.voicechat.api.VoicechatServerApi
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel
 import org.bukkit.Server
 import org.bukkit.World
 import org.bukkit.entity.Player
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Opens SVC channels against Bukkit's worlds and players.
@@ -24,8 +25,13 @@ class PaperSvcChannelFactory(
     // the speaker falls back to a fixed position, which sounds almost right and
     // animates nobody.
     private val bodyOf: (String) -> Player?,
-    private val dimensions: SvcDimensionResolver
+    // The relay codec: a raw dimension name to the form frames carry.
+    private val wireForm: (String) -> String
 ) : SvcChannelFactory {
+
+    // One entry per world name. A failed open is retried on every frame, so without it a
+    // speaker in a dimension this server lacks costs a codec call per world per frame.
+    private val forms = ConcurrentHashMap<String, String>()
 
     override fun entityChannel(speaker: String): AudioChannel? {
         val player = bodyOf(speaker) ?: return null
@@ -50,7 +56,8 @@ class PaperSvcChannelFactory(
     }
 
     /**
-     * The first world of the matching environment.
+     * The first world whose wire form is the frame's dimension: the name the position
+     * feed sends for that world, as the server's codec writes it.
      *
      * A server with several worlds of one environment has no way to tell which the
      * speaker meant: the frame carries a dimension, not a world. Picking the first
@@ -58,32 +65,9 @@ class PaperSvcChannelFactory(
      * right — and it only affects speakers who are not on this server, since a
      * speaker who is here gets an entity channel instead.
      */
-    private fun worldFor(dimension: String): World? {
-        val environment = when (dimension) {
-            "overworld" -> World.Environment.NORMAL
-            "nether" -> World.Environment.NETHER
-            "the_end" -> World.Environment.THE_END
-            else -> return customWorldFor(dimension)
+    private fun worldFor(dimension: String): World? =
+        server.worlds.firstOrNull { world ->
+            val name = PaperPlayerDataProvider.dimensionOf(world).toApiString()
+            forms.getOrPut(name) { wireForm(name) } == dimension
         }
-
-        return server.worlds.firstOrNull { it.environment == environment }
-    }
-
-    // A custom world is named on the wire by the hash of `world.name`, the same name the
-    // position feed sends for it.
-    private fun customWorldFor(dimension: String): World? {
-        if (!dimension.startsWith(CUSTOM_PREFIX)) {
-            return null
-        }
-
-        val names = server.worlds
-            .filter { it.environment == World.Environment.CUSTOM }
-            .map { it.name }
-
-        return dimensions.resolve(dimension, names)?.let { server.getWorld(it) }
-    }
-
-    private companion object {
-        const val CUSTOM_PREFIX = "custom:"
-    }
 }

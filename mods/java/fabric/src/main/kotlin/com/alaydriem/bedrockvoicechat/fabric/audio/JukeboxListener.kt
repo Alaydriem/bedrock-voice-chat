@@ -1,6 +1,7 @@
 package com.alaydriem.bedrockvoicechat.fabric.audio
 
 import com.alaydriem.bedrockvoicechat.dto.Dimension
+import com.alaydriem.bedrockvoicechat.dto.GameType
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents
 import net.fabricmc.fabric.api.event.player.UseBlockCallback
@@ -273,7 +274,7 @@ class JukeboxListener(
         // The same mapping positions use, so a disc and the players beside it are gated as
         // one dimension.
         fun getDimensionId(world: Level): String =
-            Dimension.fromIdentifier(world.dimension().identifier().toString()).toApiString()
+            Dimension.fromString(GameType.MINECRAFT, world.dimension().identifier().toString())!!.toApiString()
 
         fun isBvcDisc(stack: ItemStack): Boolean {
             if (stack.item != Items.MUSIC_DISC_5) return false

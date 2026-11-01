@@ -1,15 +1,19 @@
-mod bounded_log_text;
 pub mod minecraft;
-mod rejected_record_log;
 
-pub use bounded_log_text::BoundedLogText;
+use std::sync::LazyLock;
+use std::time::Duration;
 
 use crate::Game;
+use crate::logging::LogThrottle;
 use crate::players::{MinecraftPlayer, PlayerEnum};
 use serde::{Deserialize, Deserializer, Serialize};
 
 pub use minecraft::{Dimension, DimensionHash};
-use rejected_record_log::RejectedRecordLog;
+
+// A mod sends its batch every tick, so one bad record would otherwise log the same line
+// many times a second.
+static REJECTED_RECORD_LOG: LazyLock<LogThrottle> =
+    LazyLock::new(|| LogThrottle::new(Duration::from_secs(60)));
 
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
@@ -42,7 +46,15 @@ impl<'de> Deserialize<'de> for GameDataCollection {
                 Game::Minecraft => match serde_json::from_value::<MinecraftPlayer>(value) {
                     Ok(player) => Some(PlayerEnum::Minecraft(player)),
                     Err(e) => {
-                        RejectedRecordLog::observe(&e.to_string());
+                        if let Some(suppressed) = REJECTED_RECORD_LOG.should_log() {
+                            // serde embeds the offending value in its message, which a mod
+                            // can make as large as the request body.
+                            let error: String = e.to_string().chars().take(128).collect();
+                            crate::curia::warn!("dropped a player record that did not parse", {
+                                "error": error,
+                                "suppressed": suppressed,
+                            });
+                        }
                         None
                     }
                 },
