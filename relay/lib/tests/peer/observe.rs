@@ -66,6 +66,63 @@ async fn a_node_is_told_the_address_it_was_seen_at() {
     responder.await.expect("join");
 }
 
+// A registry that accepts and then says nothing is the worst case for a caller: nothing
+// fails, so nothing ends the wait. The observation has to give up on its own budget,
+// because `/api/config` and every other caller sit behind it.
+#[tokio::test]
+async fn a_registry_that_never_answers_fails_within_the_budget() {
+    let registry_dir = TempDir::new().expect("tempdir");
+    let client_dir = TempDir::new().expect("tempdir");
+
+    let registry_identity =
+        NodeIdentity::load_or_create(registry_dir.path().to_str().expect("path"))
+            .expect("identity");
+    let client_identity =
+        NodeIdentity::load_or_create(client_dir.path().to_str().expect("path")).expect("identity");
+
+    let registry = PeerEndpoint::bind_with_alpns(
+        &registry_identity,
+        None,
+        vec![AddressObserver::ALPN.to_vec()],
+    )
+    .await
+    .expect("bind registry");
+    let client =
+        PeerEndpoint::bind_with_alpns(&client_identity, None, vec![AddressObserver::ALPN.to_vec()])
+            .await
+            .expect("bind client");
+
+    let listening = registry.endpoint().clone();
+    let silent = tokio::spawn(async move {
+        let conn = listening
+            .accept()
+            .await
+            .expect("incoming")
+            .await
+            .expect("connection");
+        // Held open and never answered.
+        conn.closed().await;
+    });
+
+    let addr = PeerTicket::parse(&registry.ticket().await.expect("ticket")).expect("parse");
+    let started = std::time::Instant::now();
+    let outcome = tokio::time::timeout(
+        AddressObserver::TIMEOUT + Duration::from_secs(5),
+        AddressObserver::observe(client.endpoint(), addr),
+    )
+    .await
+    .expect("the observation gives up on its own budget");
+
+    assert!(outcome.is_err(), "a silent registry must not yield an address");
+    assert!(
+        started.elapsed() >= AddressObserver::TIMEOUT,
+        "the budget is spent before giving up, got {:?}",
+        started.elapsed()
+    );
+
+    silent.abort();
+}
+
 // The ALPN is a cross-version contract with every deployed server. Changing it stops
 // address observation working, and the symptom is a dial that times out rather than
 // one that reports a mismatch.

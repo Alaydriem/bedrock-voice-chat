@@ -496,6 +496,10 @@ impl ServerRuntime {
                 }
             });
 
+            // Started now so the first `/api/config` usually finds the observed link. It runs
+            // in the background, so a registry that is down costs the boot nothing.
+            plane.refresh_ticket(crate::config::Registry::peerlink(), self.config.server.peer_port);
+
             plane.spawn_accept_loop();
             connection_registry.set_peer_plane(plane.clone());
             peer_plane = Some(plane);
