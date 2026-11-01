@@ -1,7 +1,7 @@
 import { mkdir, writeFile, exists, readFile, stat } from "@tauri-apps/plugin-fs";
 import { appCacheDir } from "@tauri-apps/api/path";
 import { debug } from "@charlesportwoodii/tauri-plugin-curia";
-import axios from "axios";
+import { invoke } from "@tauri-apps/api/core";
 
 // @ts-ignore
 import murmurHash3 from "murmurhash3js";
@@ -38,8 +38,10 @@ export default class ImageCache {
         }
 
         try {
-            const response = await axios.get(options.url, { responseType: "arraybuffer" });
-            const imageData = new Uint8Array(response.data);
+            // Fetched by Rust: the webview cannot validate a play-zone certificate.
+            const imageData = new Uint8Array(
+                await invoke<ArrayBuffer>("read_remote_image", { url: options.url }),
+            );
             if (imageData.length === 0) {
                 return "";
             }

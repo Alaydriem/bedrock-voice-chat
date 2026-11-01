@@ -17,6 +17,7 @@ pub mod client_action_service;
 pub mod group_key_relay_service;
 pub mod certificate_revocation_service;
 pub mod certificate_service;
+pub mod play;
 pub mod relay_enrollment;
 pub mod session_authorization_service;
 pub mod gamerpic_decoder;

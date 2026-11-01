@@ -24,4 +24,7 @@ class Tls {
     @SerializedName("acme")
     var acme: Acme? = null
 
+    @SerializedName("play")
+    var play: PlayTls? = null
+
 }

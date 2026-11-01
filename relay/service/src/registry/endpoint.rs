@@ -7,12 +7,13 @@ use common::curia;
 use common::structs::relay::enroll::{EnrollFrame, EnrollRefuseReason, EnrollVersion};
 use common::structs::relay::wire::Framing;
 use iroh::PublicKey;
-use iroh::endpoint::{Connection, RecvStream, SendStream};
+use iroh::endpoint::{Connection, IncomingAddr, RecvStream, SendStream};
 
 use crate::budget::WeeklyBudget;
 use crate::dns::ZoneWriter;
 use crate::entity::RegistrationState;
-use crate::registry::RegistryService;
+use crate::play::PlayPlane;
+use crate::registry::{RegistryError, RegistryService};
 use crate::scheduler::DailyScheduler;
 
 use crate::enroll::EnrollError;
@@ -24,10 +25,15 @@ pub struct RegistryEndpoint {
     budget: Arc<WeeklyBudget>,
     scheduler: Arc<DailyScheduler>,
     admission: AdmissionControl,
+    // Absent when the registry is not configured for play names.
+    play: Option<Arc<PlayPlane>>,
 }
 
 impl RegistryEndpoint {
     pub const ALPN: &'static [u8] = b"bvc-enroll/1";
+
+    // The first enrollment version that carries play frames.
+    const PLAY_VERSION: EnrollVersion = EnrollVersion(3);
 
     // Sized above the peer plane's 64 so enrollments cannot starve voice peering.
     pub const MAX_UNAUTHORIZED: usize = 256;
@@ -46,6 +52,7 @@ impl RegistryEndpoint {
         budget: Arc<WeeklyBudget>,
         scheduler: Arc<DailyScheduler>,
         port: Option<u16>,
+        play: Option<Arc<PlayPlane>>,
     ) -> Result<Arc<Self>, EnrollError> {
         let endpoint = PeerEndpoint::bind_with_alpns(
             identity,
@@ -62,6 +69,7 @@ impl RegistryEndpoint {
             budget,
             scheduler,
             admission: AdmissionControl::new(Self::MAX_UNAUTHORIZED),
+            play,
         }))
     }
 
@@ -123,12 +131,26 @@ impl RegistryEndpoint {
             return;
         }
 
-        if let Err(e) = self.serve(&conn, node).await {
+        // Only a direct connection has an address to rate-limit and probe by.
+        let observed_ip = match observed {
+            IncomingAddr::Ip(address) => Some(address.ip()),
+            _ => None,
+        };
+
+        if let Err(e) = self.serve(&conn, node, observed_ip).await {
             curia::debug!("an enrollment connection ended", { "node": node.to_string(), "error": e.to_string() });
         }
     }
 
-    async fn serve(&self, conn: &Connection, node: PublicKey) -> Result<(), EnrollError> {
+    async fn serve(
+        self: &Arc<Self>,
+        conn: &Connection,
+        node: PublicKey,
+        observed: Option<IpAddr>,
+    ) -> Result<(), EnrollError> {
+        // What this connection's Hello agreed. Zero until it says Hello.
+        let mut version = EnrollVersion(0);
+
         loop {
             let (mut send, mut recv) = conn
                 .accept_bi()
@@ -136,13 +158,20 @@ impl RegistryEndpoint {
                 .map_err(|e| EnrollError::Transport(e.to_string()))?;
 
             let frame = Self::read_frame(&mut recv).await?;
-            self.dispatch(node, frame, &mut send).await?;
+            if let EnrollFrame::Hello { versions } = &frame
+                && let Some(agreed) = EnrollVersion::negotiate(EnrollVersion::SUPPORTED, versions)
+            {
+                version = agreed;
+            }
+            self.dispatch(node, observed, version, frame, &mut send).await?;
         }
     }
 
     async fn dispatch(
-        &self,
+        self: &Arc<Self>,
         node: PublicKey,
+        observed: Option<IpAddr>,
+        version: EnrollVersion,
         frame: EnrollFrame,
         send: &mut SendStream,
     ) -> Result<(), EnrollError> {
@@ -166,7 +195,18 @@ impl RegistryEndpoint {
                 }
             }
             EnrollFrame::PublishTxt { name, value } => self.publish_txt(node, name, value, send).await,
-            EnrollFrame::CheckIn { address, port } => self.check_in(node, address, port, send).await,
+            EnrollFrame::CheckIn { address, port } => {
+                self.check_in(node, observed, version, address, port, send).await
+            }
+            EnrollFrame::PlayClaim | EnrollFrame::PlayCertificate { .. }
+                if version < Self::PLAY_VERSION =>
+            {
+                Self::refuse(send, EnrollRefuseReason::PlayUnavailable).await
+            }
+            EnrollFrame::PlayClaim => self.play_claim(node, observed, send).await,
+            EnrollFrame::PlayCertificate { csr_der } => {
+                self.play_certificate(node, csr_der, send).await
+            }
             EnrollFrame::Challenge { .. }
             | EnrollFrame::ChallengeReply { .. }
             | EnrollFrame::DeclareAddress { .. } => {
@@ -214,9 +254,55 @@ impl RegistryEndpoint {
         }
     }
 
-    async fn check_in(
+    async fn play_claim(
         &self,
         node: PublicKey,
+        observed: Option<IpAddr>,
+        send: &mut SendStream,
+    ) -> Result<(), EnrollError> {
+        let Some(play) = &self.play else {
+            return Self::refuse(send, EnrollRefuseReason::PlayUnavailable).await;
+        };
+        let Some(observed) = observed else {
+            curia::info!("refusing a play claim: no direct address was observed", { "node": node.to_string() });
+            return Self::refuse(send, EnrollRefuseReason::Internal).await;
+        };
+
+        match play.claim(&node.to_string(), observed).await {
+            Ok(name) => Self::write(send, &EnrollFrame::PlayAssigned { name }).await,
+            Err(e) => {
+                curia::info!("refusing a play claim", { "node": node.to_string(), "reason": e.to_string() });
+                Self::refuse(send, e.refuse_reason()).await
+            }
+        }
+    }
+
+    async fn play_certificate(
+        &self,
+        node: PublicKey,
+        csr_der: Vec<u8>,
+        send: &mut SendStream,
+    ) -> Result<(), EnrollError> {
+        let Some(play) = &self.play else {
+            return Self::refuse(send, EnrollRefuseReason::PlayUnavailable).await;
+        };
+
+        match play.issue(&node.to_string(), &csr_der).await {
+            Ok(chain_pem) => Self::write(send, &EnrollFrame::PlayIssued { chain_pem }).await,
+            Err(e) => {
+                curia::info!("refusing a play certificate request", { "node": node.to_string(), "reason": e.to_string() });
+                Self::refuse(send, e.refuse_reason()).await
+            }
+        }
+    }
+
+    // A node with a registration takes the registered path; one with a play name takes the
+    // play path; one with neither is not registered.
+    async fn check_in(
+        self: &Arc<Self>,
+        node: PublicKey,
+        observed: Option<IpAddr>,
+        version: EnrollVersion,
         address: Option<String>,
         port: u16,
         send: &mut SendStream,
@@ -232,6 +318,12 @@ impl RegistryEndpoint {
         let node_id = node.to_string();
         let record = match self.registry.record_check_in(&node_id, address, port).await {
             Ok(record) => record,
+            Err(RegistryError::NotRegistered) => {
+                if version < Self::PLAY_VERSION {
+                    return Self::refuse(send, EnrollRefuseReason::NotRegistered).await;
+                }
+                return self.play_check_in(node, observed, address, port, send).await;
+            }
             Err(e) => return Self::refuse(send, e.refuse_reason()).await,
         };
         let reply = EnrollFrame::CheckedIn {
@@ -254,6 +346,40 @@ impl RegistryEndpoint {
         }
 
         Self::write(send, &reply).await
+    }
+
+    // The candidate address is the one the node declared, else the one it connected from.
+    async fn play_check_in(
+        self: &Arc<Self>,
+        node: PublicKey,
+        observed: Option<IpAddr>,
+        address: Option<IpAddr>,
+        port: u16,
+        send: &mut SendStream,
+    ) -> Result<(), EnrollError> {
+        // Without play configured the registry cannot say whether this node ever held a
+        // name, so the answer must not read as a lost one.
+        let Some(play) = &self.play else {
+            return Self::refuse(send, EnrollRefuseReason::PlayUnavailable).await;
+        };
+        let Some(candidate) = address.or(observed) else {
+            return Self::refuse(send, EnrollRefuseReason::Internal).await;
+        };
+
+        let node_id = node.to_string();
+        let check_in = match play.check_in(&node_id, candidate, port).await {
+            Ok(check_in) => check_in,
+            Err(e) => return Self::refuse(send, e.refuse_reason()).await,
+        };
+
+        // Replied first so the server holds the nonce before the probe arrives.
+        let reply = EnrollFrame::CheckedIn {
+            nonce: check_in.nonce.clone().into_bytes(),
+        };
+        Self::write(send, &reply).await?;
+
+        play.verify_and_publish(node_id, check_in, candidate, port);
+        Ok(())
     }
 
     // The nonce is already stored, so a DNS fault must not cost the node its reply.

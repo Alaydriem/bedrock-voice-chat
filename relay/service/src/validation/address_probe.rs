@@ -1,7 +1,12 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-pub struct LiveAddressProbe;
+use reqwest::Certificate;
+
+pub struct LiveAddressProbe {
+    // When set, only these roots are trusted and the platform's are not.
+    roots: Option<Vec<Certificate>>,
+}
 
 impl LiveAddressProbe {
     pub const DEFAULT_PORT: u16 = 443;
@@ -9,7 +14,16 @@ impl LiveAddressProbe {
     const PATH: &'static str = "/health/enrollment-nonce";
 
     pub fn new() -> Self {
-        Self
+        Self { roots: None }
+    }
+
+    // A probe that trusts only the certificates in `roots_pem`. The play zone's server
+    // certificates chain to a root that is never added to a general store, so the
+    // platform's roots would reject them and must not be accepted in its place.
+    pub fn with_roots(roots_pem: &str) -> Result<Self, reqwest::Error> {
+        Ok(Self {
+            roots: Some(Certificate::from_pem_bundle(roots_pem.as_bytes())?),
+        })
     }
 
     pub async fn serves_nonce(&self, name: &str, address: &str, port: u16, nonce: &str) -> bool {
@@ -18,11 +32,16 @@ impl LiveAddressProbe {
         };
 
         // `resolve` keeps the certificate validated against the name, not the address.
-        let Ok(client) = reqwest::Client::builder()
+        let mut builder = reqwest::Client::builder()
             .timeout(Self::TIMEOUT)
-            .resolve(name, SocketAddr::new(ip, port))
-            .build()
-        else {
+            .resolve(name, SocketAddr::new(ip, port));
+        if let Some(roots) = &self.roots {
+            builder = builder.tls_built_in_root_certs(false);
+            for root in roots {
+                builder = builder.add_root_certificate(root.clone());
+            }
+        }
+        let Ok(client) = builder.build() else {
             return false;
         };
 

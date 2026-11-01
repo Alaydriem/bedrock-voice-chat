@@ -12,4 +12,8 @@ pub enum EnrollRefuseReason {
     Suspended,
     NameNotOwned,
     Internal,
+    RateLimited,
+    NoPlayName,
+    CsrRejected,
+    PlayUnavailable,
 }

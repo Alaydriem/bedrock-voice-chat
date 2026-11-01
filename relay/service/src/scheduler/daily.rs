@@ -9,6 +9,7 @@ use crate::config::DiscordConfig;
 use crate::discord::MemberSource;
 use crate::dns::ZoneWriter;
 use crate::entity::{RegistrationState, registration};
+use crate::play::PlayPlane;
 use crate::registry::{ClaimService, RegistryEndpoint, RegistryError, RegistryService};
 use crate::validation::{
     AddressVerifier, LiveAddressProbe, RoutableAddress, ValidationChecker, ValidationError,
@@ -25,6 +26,8 @@ pub struct DailyScheduler {
     claims: Arc<ClaimService>,
     members: MemberSource,
     discord: DiscordConfig,
+    // Absent when the registry is not configured for play names.
+    play: Option<Arc<PlayPlane>>,
 }
 
 impl DailyScheduler {
@@ -43,6 +46,7 @@ impl DailyScheduler {
         claims: Arc<ClaimService>,
         members: MemberSource,
         discord: DiscordConfig,
+        play: Option<Arc<PlayPlane>>,
     ) -> Self {
         Self {
             conn,
@@ -53,6 +57,7 @@ impl DailyScheduler {
             claims,
             members,
             discord,
+            play,
         }
     }
 
@@ -66,9 +71,10 @@ impl DailyScheduler {
         claims: Arc<ClaimService>,
         members: MemberSource,
         discord: DiscordConfig,
+        play: Option<Arc<PlayPlane>>,
     ) -> Arc<Self> {
         Arc::new(Self::new(
-            conn, checker, verifier, registry, zone, claims, members, discord,
+            conn, checker, verifier, registry, zone, claims, members, discord, play,
         ))
     }
 
@@ -91,6 +97,7 @@ impl DailyScheduler {
         self.withdraw_suspended().await;
         self.withdraw_revoked_addresses().await;
         self.sweep_claims(now).await;
+        self.release_play_names().await;
         match self.run_due(now).await {
             Ok(evaluated) if evaluated > 0 => {
                 curia::info!("validated registrations that were due", { "evaluated": evaluated });
@@ -183,6 +190,16 @@ impl DailyScheduler {
             if let Err(e) = withdrawn {
                 curia::warn!("withdrawing a revoked registration's address failed", { "node": row.node_id.clone(), "error": e.to_string() });
             }
+        }
+    }
+
+    async fn release_play_names(&self) {
+        let Some(play) = &self.play else {
+            return;
+        };
+
+        if let Err(e) = play.release_stale().await {
+            curia::warn!("releasing stale play names failed", { "error": e.to_string() });
         }
     }
 

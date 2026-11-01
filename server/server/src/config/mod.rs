@@ -16,6 +16,7 @@ pub use app::Meridian;
 pub use app::Permissions;
 pub use app::Enrollment;
 pub use app::PeerConfig;
+pub use app::PlayTls;
 pub use app::Registry;
 pub use app::Server;
 pub use app::Voice;

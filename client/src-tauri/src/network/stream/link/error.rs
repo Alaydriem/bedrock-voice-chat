@@ -21,16 +21,10 @@ pub enum VoiceLinkError {
     #[error("this player's identity contains no private key")]
     MissingPrivateKey,
 
-    #[error("adding the server's certificate authority to the trust roots")]
-    TrustRoot {
-        #[source]
-        source: rustls::Error,
-    },
-
     #[error("building the TLS configuration for the voice transport")]
-    TlsConfig {
+    Tls {
         #[source]
-        source: rustls::Error,
+        source: common::errors::PlayZoneError,
     },
 
     #[error("{url} is not a usable WebSocket address")]

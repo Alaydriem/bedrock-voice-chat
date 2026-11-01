@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use bvc_relay::node::NodeIdentity;
 use common::curia;
+use sea_orm::DatabaseConnection;
 use tokio_util::sync::CancellationToken;
 
 use crate::acme::CertificateIssuer;
@@ -12,6 +13,10 @@ use crate::db::Db;
 use crate::discord::{DiscordBotClient, DiscordOAuthClient, IdentitySource, MemberSource};
 use crate::dns::{CloudflareApi, CloudflareClient, ZoneWriter};
 use crate::http::{HttpServer, HttpState, Router as HttpRouter};
+use crate::play::{
+    PlayAddressProbe, PlayDnsServer, PlayIssuanceService, PlayNameService, PlayPlane, PlaySigner,
+    PlayZone, PlayZoneNotifier, StepCaSigner,
+};
 use crate::registry::ClaimService;
 use crate::registry::RegistryEndpoint;
 use crate::registry::RegistryService;
@@ -69,6 +74,12 @@ impl ServiceRuntime {
         let verifier =
             AddressVerifier::new_shared(AddressProbe::Live(LiveAddressProbe::new()), zone.clone());
         let claims = ClaimService::new_shared(conn.clone());
+        let cancel = CancellationToken::new();
+
+        // Fatal when the DNS port cannot be bound: a registry that carried on would hand
+        // out play names no resolver can answer.
+        let play = self.start_play(&conn, &cancel).await?;
+
         let scheduler = DailyScheduler::new_shared(
             conn.clone(),
             checker,
@@ -78,6 +89,7 @@ impl ServiceRuntime {
             claims.clone(),
             MemberSource::Bot(DiscordBotClient::new(&self.config.discord)),
             self.config.discord.clone(),
+            play.clone(),
         );
 
         let advertised = self.config.advertised_address()?;
@@ -89,6 +101,7 @@ impl ServiceRuntime {
             budget,
             scheduler.clone(),
             Some(self.config.enroll_port),
+            play,
         )
         .await?;
         enroll.spawn_accept_loop();
@@ -104,7 +117,6 @@ impl ServiceRuntime {
 
         let registry_for_http = registry;
 
-        let cancel = CancellationToken::new();
         scheduler.spawn(cancel.clone());
 
         curia::info!("relay registry started", { "zone": self.config.zone.clone(), "enroll_port": self.config.enroll_port, "weekly_certificate_ceiling": self.config.weekly_certificate_ceiling });
@@ -165,5 +177,37 @@ impl ServiceRuntime {
         cancel.cancel();
 
         Ok(())
+    }
+
+    // The play plane, or `None` when the configuration has no `play` block.
+    async fn start_play(
+        &self,
+        conn: &Arc<DatabaseConnection>,
+        cancel: &CancellationToken,
+    ) -> Result<Option<Arc<PlayPlane>>> {
+        let Some(config) = &self.config.play else {
+            return Ok(None);
+        };
+
+        let names = PlayNameService::new_shared(conn.clone(), config.clone());
+        let zone = PlayZone::new_shared(config.zone.clone(), config.dns.clone());
+        zone.load(names.published().await?, names.serial().await?);
+
+        let dns = PlayDnsServer::bind(zone.clone(), &config.dns.bind)
+            .await
+            .context("starting the play zone DNS server")?;
+        let bound: Vec<String> = dns.local_addrs().iter().map(|a| a.to_string()).collect();
+        dns.spawn(cancel.clone());
+
+        // After the load, so the first NOTIFY is for a change and not for start-up.
+        PlayZoneNotifier::new(zone.clone(), config.dns.clone()).spawn(cancel.clone());
+
+        let signer = PlaySigner::StepCa(StepCaSigner::new(&config.ca)?);
+        let issuance = PlayIssuanceService::new_shared(names.clone(), signer);
+        let probe = PlayAddressProbe::live(&config.ca)?;
+
+        curia::info!("play names enabled", { "zone": config.zone.clone(), "dns": bound.join(",") });
+
+        Ok(Some(PlayPlane::new_shared(names, issuance, zone, probe)))
     }
 }

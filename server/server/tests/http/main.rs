@@ -9,5 +9,6 @@ mod config;
 mod control;
 mod guards;
 mod health;
+mod loopback_routes;
 mod metrics;
 mod websocket;

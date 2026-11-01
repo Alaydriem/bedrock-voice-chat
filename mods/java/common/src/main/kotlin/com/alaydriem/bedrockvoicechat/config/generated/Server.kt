@@ -48,4 +48,7 @@ class Server {
     @SerializedName("peer_port")
     var peerPort: Int? = null
 
+    @SerializedName("mod_loopback")
+    var modLoopback: Boolean? = null
+
 }
