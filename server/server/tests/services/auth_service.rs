@@ -84,22 +84,22 @@ async fn every_gamertag_survives_the_upgrade_on_one_database() {
     assert!(failures.is_empty(), "{failures:#?}");
 }
 
-// Floodgate's default `replace-spaces` turns "TTV 3RICtion" into ".TTV_3RICtion".
+// Floodgate's default `replace-spaces` turns "Player One" into ".Player_One".
 #[tokio::test]
 async fn a_floodgate_player_whose_gamertag_has_a_space_can_sign_in() {
     let report = GameServerReport::new().await;
 
     report
         .ingest(vec![GameServerReport::player(
-            ".TTV_3RICtion",
-            Some("TTV 3RICtion"),
+            ".Player_One",
+            Some("Player One"),
             Some(FLOODGATE_UUID),
         )])
         .await;
 
     assert_eq!(
-        report.sign_in("TTV 3RICtion").await,
-        Ok("TTV 3RICtion".to_string())
+        report.sign_in("Player One").await,
+        Ok("Player One".to_string())
     );
 }
 
@@ -145,12 +145,12 @@ async fn a_bedrock_player_reported_by_gamertag_can_sign_in() {
     let report = GameServerReport::new().await;
 
     report
-        .ingest(vec![GameServerReport::player("TTV 3RICtion", None, None)])
+        .ingest(vec![GameServerReport::player("Player One", None, None)])
         .await;
 
     assert_eq!(
-        report.sign_in("TTV 3RICtion").await,
-        Ok("TTV 3RICtion".to_string())
+        report.sign_in("Player One").await,
+        Ok("Player One".to_string())
     );
 }
 
@@ -170,18 +170,18 @@ async fn a_bedrock_player_known_from_bds_then_joining_through_floodgate() {
     let report = GameServerReport::new().await;
 
     report
-        .ingest(vec![GameServerReport::player("TTV 3RICtion", None, Some(FLOODGATE_UUID))])
+        .ingest(vec![GameServerReport::player("Player One", None, Some(FLOODGATE_UUID))])
         .await;
     report
         .ingest(vec![GameServerReport::player(
-            ".TTV_3RICtion",
-            Some("TTV 3RICtion"),
+            ".Player_One",
+            Some("Player One"),
             Some(FLOODGATE_UUID),
         )])
         .await;
 
-    assert!(report.sign_in("TTV 3RICtion").await.is_ok());
-    assert!(report.record(".TTV_3RICtion").await.is_none());
+    assert!(report.sign_in("Player One").await.is_ok());
+    assert!(report.record(".Player_One").await.is_none());
 }
 
 // A server that ran a beta.27 mod already holds a record under the Floodgate name.
@@ -190,23 +190,23 @@ async fn an_orphan_record_from_an_older_mod_resolves_to_the_gamertag() {
     let report = GameServerReport::new().await;
     report
         .registrar
-        .create(".TTV_3RICtion", &common::Game::Minecraft, Some(FLOODGATE_UUID))
+        .create(".Player_One", &common::Game::Minecraft, Some(FLOODGATE_UUID))
         .await
         .expect("orphan");
 
     report
         .ingest(vec![GameServerReport::player(
-            ".TTV_3RICtion",
-            Some("TTV 3RICtion"),
+            ".Player_One",
+            Some("Player One"),
             Some(FLOODGATE_UUID),
         )])
         .await;
 
     assert_eq!(
-        report.sign_in("TTV 3RICtion").await,
-        Ok("TTV 3RICtion".to_string())
+        report.sign_in("Player One").await,
+        Ok("Player One".to_string())
     );
-    assert_eq!(report.resolve(".TTV_3RICtion").await, "TTV 3RICtion");
+    assert_eq!(report.resolve(".Player_One").await, "Player One");
 }
 
 // After a Floodgate session the server knows the linked player's Java name. When they join

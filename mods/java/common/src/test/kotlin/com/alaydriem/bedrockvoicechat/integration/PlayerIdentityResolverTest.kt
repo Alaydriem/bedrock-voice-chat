@@ -31,17 +31,17 @@ class PlayerIdentityResolverTest {
         @JvmStatic
         fun gateRows(): List<GateRow> = listOf(
             GateRow("G01", "Steve", null, ".", true, "Steve" to null, "Steve"),
-            GateRow("G02", "TTV 3RICtion", null, ".", true, "TTV 3RICtion" to null, "TTV 3RICtion"),
+            GateRow("G02", "Player One", null, ".", true, "Player One" to null, "Player One"),
             GateRow("G03", "A B C D", null, ".", true, "A B C D" to null, "A B C D"),
             GateRow("G04", "Lord Of Pixels1", null, ".", true, "Lord Of Pixels1" to null, "Lord Of Pixels1"),
             GateRow("G05", "LongGamertag123", null, ".", true, "LongGamertag123" to null, "LongGamertag123"),
             GateRow("G06", "LongGamertag123", null, "BE_", true, "LongGamertag123" to null, "LongGamertag123"),
             GateRow("G07", "Steve", null, "BE_", true, "Steve" to null, "Steve"),
-            GateRow("G08", "TTV 3RICtion", null, ".", false, "TTV 3RICtion" to null, "TTV 3RICtion"),
+            GateRow("G08", "Player One", null, ".", false, "Player One" to null, "Player One"),
             GateRow("G09", "Steve", null, "", true, "Steve" to null, "Steve"),
-            GateRow("G10", "TTV 3RICtion", null, "", true, "TTV 3RICtion" to null, "TTV 3RICtion"),
+            GateRow("G10", "Player One", null, "", true, "Player One" to null, "Player One"),
             GateRow("G11", "テスト ユーザー", null, ".", true, "テスト ユーザー" to null, "テスト ユーザー"),
-            GateRow("G12", "TTV 3RICtion", "Eric_J", "", false, "Eric_J" to "TTV 3RICtion", "TTV 3RICtion"),
+            GateRow("G12", "Player One", "Linked_Java", "", false, "Linked_Java" to "Player One", "Player One"),
             GateRow("G13", "Steve", "Steve", "", false, "Steve" to null, "Steve"),
             GateRow("G14", "LongGamertag123", "Notch", "", false, "Notch" to "LongGamertag123", "LongGamertag123"),
             GateRow("G17", "Notch", "TheNotch", "", false, "Notch" to null, "Notch")
@@ -64,7 +64,7 @@ class PlayerIdentityResolverTest {
 
     @Test
     fun `the floodgate name fixture matches floodgate`() {
-        assertEquals(".TTV_3RICtion", FloodgateJavaName.of("TTV 3RICtion", ".", true))
+        assertEquals(".Player_One", FloodgateJavaName.of("Player One", ".", true))
         assertEquals("BE_LongGamertag1", FloodgateJavaName.of("LongGamertag123", "BE_", true))
     }
 
@@ -100,9 +100,9 @@ class PlayerIdentityResolverTest {
     // Java name is available.
     @Test
     fun `a floodgate player on a server without the floodgate api keeps their java name`() {
-        val identity = PlayerIdentityResolver { null }.resolve(FLOODGATE, ".TTV_3RICtion")
+        val identity = PlayerIdentityResolver { null }.resolve(FLOODGATE, ".Player_One")
 
-        assertEquals(PlayerIdentity(".TTV_3RICtion", null, false), identity)
+        assertEquals(PlayerIdentity(".Player_One", null, false), identity)
     }
 
     // A linked player's Java name may be someone else's gamertag. The owner of the gamertag
@@ -124,7 +124,7 @@ class PlayerIdentityResolverTest {
     @Test
     fun `the playerdata factory projects the wire for linked and unlinked players`() {
         val linked = PlayerData(
-            PlayerIdentity("TTV 3RICtion", "Eric_J", true),
+            PlayerIdentity("Player One", "Linked_Java", true),
             0.0, 64.0, 0.0, 0f, 0f, Dimension.Minecraft.OVERWORLD, false
         )
         val unlinked = PlayerData(
@@ -132,7 +132,7 @@ class PlayerIdentityResolverTest {
             0.0, 64.0, 0.0, 0f, 0f, Dimension.Minecraft.OVERWORLD, false
         )
 
-        assertEquals("Eric_J" to "TTV 3RICtion", linked.name to linked.alternativeIdentity)
+        assertEquals("Linked_Java" to "Player One", linked.name to linked.alternativeIdentity)
         assertEquals("Steve" to null, unlinked.name to unlinked.alternativeIdentity)
     }
 }
