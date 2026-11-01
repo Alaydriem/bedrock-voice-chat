@@ -163,12 +163,12 @@ async fn every_gamertag_in_the_gate_is_heard_and_hears() {
             let decoy = match row.id {
                 "G10" => {
                     roster.push(GameServerReport::player_at(
-                        "TTV_3RICtion",
+                        "Player_One",
                         None,
                         Some(GateRows::JAVA_UUID_2),
                         2.0,
                     ));
-                    Some("TTV_3RICtion")
+                    Some("Player_One")
                 }
                 "G14" => {
                     roster.push(GameServerReport::player_at(
@@ -198,19 +198,19 @@ async fn every_alias_path_is_heard() {
     let report = GameServerReport::new().await;
     report
         .registrar
-        .create(".TTV_3RICtion", &common::Game::Minecraft, Some(GateRows::FLOODGATE_UUID))
+        .create(".Player_One", &common::Game::Minecraft, Some(GateRows::FLOODGATE_UUID))
         .await
         .expect("orphan");
     let roster = vec![
         GameServerReport::player_at(
-            ".TTV_3RICtion",
-            Some("TTV 3RICtion"),
+            ".Player_One",
+            Some("Player One"),
             Some(GateRows::FLOODGATE_UUID),
             0.0,
         ),
         RoutingGate::listener(),
     ];
-    failures.extend(RoutingGate::check(&report, "D2", roster, "TTV 3RICtion", None).await);
+    failures.extend(RoutingGate::check(&report, "D2", roster, "Player One", None).await);
 
     // After a Floodgate session, the linked player joins from Java Edition directly.
     let report = GameServerReport::new().await;
@@ -233,23 +233,23 @@ async fn every_alias_path_is_heard() {
     let report = GameServerReport::new().await;
     report
         .ingest(vec![GameServerReport::player(
-            "TTV_3RICtion",
-            Some("TTV 3RICtion"),
+            "Player_One",
+            Some("Player One"),
             Some(GateRows::FLOODGATE_UUID),
         )])
         .await;
     report
         .ingest(vec![GameServerReport::player(
-            "TTV_3RICtion",
+            "Player_One",
             None,
             Some(GateRows::JAVA_UUID_2),
         )])
         .await;
     let roster = vec![
-        GameServerReport::player_at("TTV_3RICtion", None, Some(GateRows::JAVA_UUID_2), 0.0),
+        GameServerReport::player_at("Player_One", None, Some(GateRows::JAVA_UUID_2), 0.0),
         RoutingGate::listener(),
     ];
-    failures.extend(RoutingGate::check(&report, "K03", roster, "TTV_3RICtion", None).await);
+    failures.extend(RoutingGate::check(&report, "K03", roster, "Player_One", None).await);
 
     assert!(failures.is_empty(), "{failures:#?}");
 }
@@ -278,8 +278,8 @@ async fn a_roster_with_two_players_named_alike_routes_the_xbox_verified_one() {
 async fn the_gate_detects_a_mismatched_name() {
     let roster = vec![
         GameServerReport::player_at(
-            ".TTV_3RICtion",
-            Some("TTV 3RICtion"),
+            ".Player_One",
+            Some("Player One"),
             Some(GateRows::FLOODGATE_UUID),
             0.0,
         ),
@@ -287,10 +287,10 @@ async fn the_gate_detects_a_mismatched_name() {
     ];
     let cache = RoutingFixture::player_cache(&roster).await;
 
-    assert!(cache.get("minecraft:TTV 3RICtion").await.is_none());
+    assert!(cache.get("minecraft:Player One").await.is_none());
     let delivered = RoutingGate::route(
         &cache,
-        &["minecraft:TTV 3RICtion", "minecraft:Listener"],
+        &["minecraft:Player One", "minecraft:Listener"],
         "minecraft:Listener",
     )
     .await
