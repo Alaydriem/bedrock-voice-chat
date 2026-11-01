@@ -21,8 +21,8 @@ const JAVA_UUID_2: &str = GateRows::JAVA_UUID_2;
 async fn a_player_with_an_alternative_identity_is_renamed_to_it() {
     let report = GameServerReport::new().await;
     let mut roster = vec![GameServerReport::player(
-        ".TTV_3RICtion",
-        Some("TTV 3RICtion"),
+        ".Player_One",
+        Some("Player One"),
         Some(FLOODGATE_UUID),
     )];
 
@@ -31,11 +31,11 @@ async fn a_player_with_an_alternative_identity_is_renamed_to_it() {
         .canonicalize_roster(&mut roster, &Game::Minecraft)
         .await;
 
-    assert_eq!(roster[0].get_name(), "TTV 3RICtion");
+    assert_eq!(roster[0].get_name(), "Player One");
     assert_eq!(roster[0].get_alternative_identity(), None);
     assert_eq!(
         claims,
-        vec![AliasClaim::new(".TTV_3RICtion", "TTV 3RICtion", Some(FLOODGATE_UUID))]
+        vec![AliasClaim::new(".Player_One", "Player One", Some(FLOODGATE_UUID))]
     );
 }
 
@@ -109,20 +109,20 @@ async fn a_java_player_who_shares_the_floodgate_name_keeps_their_record() {
     let report = GameServerReport::new().await;
     report
         .registrar
-        .create("TTV_3RICtion", &Game::Minecraft, Some(JAVA_UUID_2))
+        .create("Player_One", &Game::Minecraft, Some(JAVA_UUID_2))
         .await
         .expect("java account");
 
     report
         .ingest(vec![GameServerReport::player(
-            "TTV_3RICtion",
-            Some("TTV 3RICtion"),
+            "Player_One",
+            Some("Player One"),
             Some(FLOODGATE_UUID),
         )])
         .await;
 
-    assert_eq!(report.resolve("TTV_3RICtion").await, "TTV_3RICtion");
-    assert!(report.sign_in("TTV 3RICtion").await.is_ok());
+    assert_eq!(report.resolve("Player_One").await, "Player_One");
+    assert!(report.sign_in("Player One").await.is_ok());
 }
 
 // The same names in the other order: the claim lands first, then the real Java
@@ -132,18 +132,18 @@ async fn a_java_player_who_joins_after_a_floodgate_claim_is_not_remapped() {
     let report = GameServerReport::new().await;
     report
         .ingest(vec![GameServerReport::player(
-            "TTV_3RICtion",
-            Some("TTV 3RICtion"),
+            "Player_One",
+            Some("Player One"),
             Some(FLOODGATE_UUID),
         )])
         .await;
 
     let roster = report
-        .ingest(vec![GameServerReport::player("TTV_3RICtion", None, Some(JAVA_UUID_2))])
+        .ingest(vec![GameServerReport::player("Player_One", None, Some(JAVA_UUID_2))])
         .await;
 
-    assert_eq!(roster[0].get_name(), "TTV_3RICtion");
-    assert!(report.record("TTV_3RICtion").await.is_some());
+    assert_eq!(roster[0].get_name(), "Player_One");
+    assert!(report.record("Player_One").await.is_some());
 }
 
 // Registering the Java player binds their UUID to a record under the alias's name. That
@@ -153,17 +153,17 @@ async fn a_java_player_who_joins_after_a_floodgate_claim_stays_themselves_on_lat
     let report = GameServerReport::new().await;
     report
         .ingest(vec![GameServerReport::player(
-            "TTV_3RICtion",
-            Some("TTV 3RICtion"),
+            "Player_One",
+            Some("Player One"),
             Some(FLOODGATE_UUID),
         )])
         .await;
 
     for _ in 0..3 {
         let roster = report
-            .ingest(vec![GameServerReport::player("TTV_3RICtion", None, Some(JAVA_UUID_2))])
+            .ingest(vec![GameServerReport::player("Player_One", None, Some(JAVA_UUID_2))])
             .await;
-        assert_eq!(roster[0].get_name(), "TTV_3RICtion");
+        assert_eq!(roster[0].get_name(), "Player_One");
     }
 }
 
@@ -277,16 +277,16 @@ async fn a_floodgate_claim_does_not_move_an_alias_owned_by_another_player() {
 #[tokio::test]
 async fn an_accepted_claim_is_not_rewritten_every_tick() {
     let report = GameServerReport::new().await;
-    let claim = AliasClaim::new(".TTV_3RICtion", "TTV 3RICtion", Some(FLOODGATE_UUID));
+    let claim = AliasClaim::new(".Player_One", "Player One", Some(FLOODGATE_UUID));
     report
         .ingest(vec![GameServerReport::player(
-            ".TTV_3RICtion",
-            Some("TTV 3RICtion"),
+            ".Player_One",
+            Some("Player One"),
             Some(FLOODGATE_UUID),
         )])
         .await;
     let alias = player_identity::Entity::find()
-        .filter(player_identity::Column::Alias.eq(".TTV_3RICtion"))
+        .filter(player_identity::Column::Alias.eq(".Player_One"))
         .one(&report.db.connection)
         .await
         .expect("query")
@@ -299,7 +299,7 @@ async fn an_accepted_claim_is_not_rewritten_every_tick() {
         .await;
 
     let again = player_identity::Entity::find()
-        .filter(player_identity::Column::Alias.eq(".TTV_3RICtion"))
+        .filter(player_identity::Column::Alias.eq(".Player_One"))
         .one(&report.db.connection)
         .await
         .expect("query");
@@ -313,14 +313,14 @@ async fn a_refused_claim_is_not_reevaluated_every_tick() {
     let report = GameServerReport::new().await;
     let java = report
         .registrar
-        .create("TTV_3RICtion", &Game::Minecraft, Some(JAVA_UUID_2))
+        .create("Player_One", &Game::Minecraft, Some(JAVA_UUID_2))
         .await
         .expect("java account");
-    let claim = AliasClaim::new("TTV_3RICtion", "TTV 3RICtion", Some(FLOODGATE_UUID));
+    let claim = AliasClaim::new("Player_One", "Player One", Some(FLOODGATE_UUID));
     report
         .ingest(vec![GameServerReport::player(
-            "TTV_3RICtion",
-            Some("TTV 3RICtion"),
+            "Player_One",
+            Some("Player One"),
             Some(FLOODGATE_UUID),
         )])
         .await;
@@ -339,5 +339,5 @@ async fn a_refused_claim_is_not_reevaluated_every_tick() {
         .record_alias_claims(&[claim], &Game::Minecraft)
         .await;
 
-    assert_eq!(report.resolve("TTV_3RICtion").await, "TTV_3RICtion");
+    assert_eq!(report.resolve("Player_One").await, "Player_One");
 }

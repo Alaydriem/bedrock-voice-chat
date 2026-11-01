@@ -160,16 +160,16 @@ class PaperPlayerDataProviderTest {
         assertEquals(listOf("minecraft:XboxTag"), provider.resolveMembershipKeys(player))
     }
 
-    // Floodgate's default replace-spaces turns "TTV 3RICtion" into ".TTV_3RICtion".
+    // Floodgate's default replace-spaces turns "Player One" into ".Player_One".
     // That is still the prefixed form of the gamertag, not a linked Java account. The
     // quit phantom (PaperPlugin.onPlayerQuit) takes this same name.
     @Test
     fun `a prefixed bedrock player whose gamertag has a space is known by their gamertag`() {
-        val provider = providerWith(mapOf(floodgate to "TTV 3RICtion"))
-        val player = floodgatePlayer(".TTV_3RICtion")
+        val provider = providerWith(mapOf(floodgate to "Player One"))
+        val player = floodgatePlayer(".Player_One")
 
-        assertEquals("TTV 3RICtion", provider.resolveCanonicalName(player))
-        assertEquals(listOf("minecraft:TTV 3RICtion"), provider.resolveMembershipKeys(player))
+        assertEquals("Player One", provider.resolveCanonicalName(player))
+        assertEquals(listOf("minecraft:Player One"), provider.resolveMembershipKeys(player))
     }
 
     // Floodgate cuts prefix + gamertag to 16 characters.
@@ -183,13 +183,13 @@ class PaperPlayerDataProviderTest {
 
     @Test
     fun `an unlinked floodgate player is reported under their gamertag`() {
-        val provider = providerWith(mapOf(floodgate to "TTV 3RICtion"))
-        val player = floodgatePlayer(".TTV_3RICtion")
+        val provider = providerWith(mapOf(floodgate to "Player One"))
+        val player = floodgatePlayer(".Player_One")
         provider.addPlayer(player)
 
         val reported = provider.collectPlayers().single()
 
-        assertEquals("TTV 3RICtion", reported.name)
+        assertEquals("Player One", reported.name)
         assertNull(reported.alternativeIdentity)
     }
 

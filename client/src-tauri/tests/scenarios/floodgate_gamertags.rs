@@ -13,8 +13,8 @@ use crate::harness::server::EmbeddedServer;
 ///
 /// Real clients, the real server library, and positions through `bvc_update_positions`,
 /// the FFI path an embedded Java mod uses. Each scenario plays the mod upgrade: first the
-/// roster a beta.27 mod sends (`.TTV_3RICtion` plus the gamertag as `alternative_identity`),
-/// then the current mod's (`TTV 3RICtion`), on one server with the same clients.
+/// roster a beta.27 mod sends (`.Player_One` plus the gamertag as `alternative_identity`),
+/// then the current mod's (`Player One`), on one server with the same clients.
 ///
 /// * The roster alone registers the player under their gamertag, and nothing under the
 ///   Java name. Checked with `player_exists` before `login_code`, which would otherwise
@@ -280,7 +280,7 @@ async fn g01_plain_gamertag() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn g02_space_with_replace_spaces() {
-    FloodgateGate::run(GateCase { id: "G02", gamertag: "TTV 3RICtion", beta27: (".TTV_3RICtion", Some("TTV 3RICtion")), new: ("TTV 3RICtion", None), uuid: FLOODGATE_UUID, decoy: None }).await;
+    FloodgateGate::run(GateCase { id: "G02", gamertag: "Player One", beta27: (".Player_One", Some("Player One")), new: ("Player One", None), uuid: FLOODGATE_UUID, decoy: None }).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -310,7 +310,7 @@ async fn g07_prefix_be() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn g08_space_without_replace_spaces() {
-    FloodgateGate::run(GateCase { id: "G08", gamertag: "TTV 3RICtion", beta27: ("TTV 3RICtion", None), new: ("TTV 3RICtion", None), uuid: FLOODGATE_UUID, decoy: None }).await;
+    FloodgateGate::run(GateCase { id: "G08", gamertag: "Player One", beta27: ("Player One", None), new: ("Player One", None), uuid: FLOODGATE_UUID, decoy: None }).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -320,7 +320,7 @@ async fn g09_empty_prefix() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn g10_empty_prefix_space_beside_a_java_account() {
-    FloodgateGate::run(GateCase { id: "G10", gamertag: "TTV 3RICtion", beta27: ("TTV_3RICtion", Some("TTV 3RICtion")), new: ("TTV 3RICtion", None), uuid: FLOODGATE_UUID, decoy: Some(("TTV_3RICtion", JAVA_UUID_2)) }).await;
+    FloodgateGate::run(GateCase { id: "G10", gamertag: "Player One", beta27: ("Player_One", Some("Player One")), new: ("Player One", None), uuid: FLOODGATE_UUID, decoy: Some(("Player_One", JAVA_UUID_2)) }).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -330,7 +330,7 @@ async fn g11_non_latin() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn g12_linked_java_name() {
-    FloodgateGate::run(GateCase { id: "G12", gamertag: "TTV 3RICtion", beta27: ("Eric_J", Some("TTV 3RICtion")), new: ("Eric_J", Some("TTV 3RICtion")), uuid: JAVA_UUID, decoy: None }).await;
+    FloodgateGate::run(GateCase { id: "G12", gamertag: "Player One", beta27: ("Linked_Java", Some("Player One")), new: ("Linked_Java", Some("Player One")), uuid: JAVA_UUID, decoy: None }).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
