@@ -4,6 +4,11 @@ node = "24"
 # and `--frozen-lockfile`. Nothing else pinned it: CI relies on the runner's
 # preinstalled yarn, and locally it arrived with whichever node manager was on PATH.
 yarn = "1.22.22"
+# The play-zone certificate authority, run locally by `mise run play-ca`. The aqua
+# registry lists smallstep/certificates (not smallstep/step-ca) and ships native
+# Windows, Linux and macOS builds of both.
+"aqua:smallstep/cli" = "0.30.6"
+"aqua:smallstep/certificates" = "0.30.2"
 
 # Every task sets `shell` explicitly. mise ignores windows_default_inline_shell_args
 # in a non-global config, so a project file cannot set the default; and mise's own
@@ -532,6 +537,103 @@ if (-not (Test-Path $config)) {
 # only "unable to open database file". The node key and certificates land here too.
 New-Item -ItemType Directory -Force .local | Out-Null
 cargo run -p bvc-relay-service -- $config
+'''
+
+[tasks.play-ca-init]
+description = "Create the local play-zone CA under relay/service/.play-ca: name-constrained root and intermediate, the registry JWK provisioner, and ca.json. Refuses to run over an existing directory."
+dir = "relay/service"
+shell = "pwsh -NoLogo -Command"
+run = '''
+$ErrorActionPreference = "Stop"
+$ca = ".play-ca"
+if ((Test-Path $ca) -and (Get-ChildItem -Force $ca | Select-Object -First 1)) {
+  Write-Host "relay/service/.play-ca is not empty, so play-ca-init will not touch it."
+  Write-Host "If an earlier play-ca-init failed part-way, the directory holds a partial CA; remove it the same way."
+  Write-Host "To start over, stop step-ca and run:  Remove-Item -Recurse -Force relay/service/.play-ca"
+  Write-Host "A new CA has a new root. Every client and registry that trusted the old one must take the new root."
+  exit 1
+}
+foreach ($d in "certs", "secrets", "db", "config") {
+  New-Item -ItemType Directory -Force (Join-Path $ca $d) | Out-Null
+}
+# step reads forward slashes on Windows, and ca.json is JSON, where a backslash is an escape.
+$abs = (Resolve-Path $ca).Path.Replace([string][char]92, '/')
+$leaf = (Resolve-Path "play-ca/leaf.tpl").Path.Replace([string][char]92, '/')
+
+$rootCrt = "$abs/certs/root_ca.crt"
+$rootKey = "$abs/secrets/root_ca_key"
+$rootPw = "$abs/secrets/root_password"
+$interCrt = "$abs/certs/intermediate_ca.crt"
+$interKey = "$abs/secrets/intermediate_ca_key"
+$interPw = "$abs/secrets/intermediate_password"
+$provPw = "$abs/secrets/provisioner_password"
+$provPub = "$abs/secrets/provisioner_public.jwk"
+$provEnc = "$abs/secrets/provisioner.jwk"
+$provPem = "$abs/secrets/provisioner_key.pem"
+
+foreach ($pw in $rootPw, $interPw, $provPw) {
+  $bytes = New-Object byte[] 24
+  [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+  [System.IO.File]::WriteAllText($pw, [Convert]::ToBase64String($bytes))
+}
+
+step certificate create "BVC Play Root CA 2026 (DEVELOPMENT)" $rootCrt $rootKey --template play-ca/root.tpl --not-after 87600h --password-file $rootPw --force
+if ($LASTEXITCODE -ne 0) { Write-Host "FAIL  could not create the root"; exit 1 }
+step certificate create "BVC Play Intermediate CA 2026 (DEVELOPMENT)" $interCrt $interKey --template play-ca/intermediate.tpl --ca $rootCrt --ca-key $rootKey --ca-password-file $rootPw --password-file $interPw --not-after 8760h --force
+if ($LASTEXITCODE -ne 0) { Write-Host "FAIL  could not create the intermediate"; exit 1 }
+
+step crypto jwk create $provPub $provEnc --kty EC --curve P-256 --use sig --password-file $provPw --force
+if ($LASTEXITCODE -ne 0) { Write-Host "FAIL  could not create the provisioner key"; exit 1 }
+# The registry signs tokens with this key. Flags follow the key file here: this step
+# CLI mis-parses `format --pem <file>`.
+step crypto key format $provEnc --pem --pkcs8 --password-file $provPw --no-password --insecure --out $provPem --force
+if ($LASTEXITCODE -ne 0) { Write-Host "FAIL  could not write the provisioner PEM"; exit 1 }
+$encryptedKey = (Get-Content -Raw $provEnc | step crypto jose format).Trim()
+if ($LASTEXITCODE -ne 0 -or -not $encryptedKey) { Write-Host "FAIL  could not compact the provisioner key"; exit 1 }
+
+$publicJwk = (Get-Content -Raw $provPub).Trim()
+$kid = ($publicJwk | ConvertFrom-Json).kid
+$json = (Get-Content -Raw "play-ca/ca.json.template").
+  Replace("@@ROOT_CRT@@", $rootCrt).
+  Replace("@@INTERMEDIATE_CRT@@", $interCrt).
+  Replace("@@INTERMEDIATE_KEY@@", $interKey).
+  Replace("@@DB_DIR@@", "$abs/db").
+  Replace("@@LEAF_TEMPLATE@@", $leaf).
+  Replace("@@PUBLIC_JWK@@", $publicJwk).
+  Replace("@@ENCRYPTED_KEY@@", $encryptedKey)
+try { $null = $json | ConvertFrom-Json } catch { Write-Host "FAIL  generated ca.json is not valid JSON: $_"; exit 1 }
+Set-Content -Path "$abs/config/ca.json" -Value $json -NoNewline
+
+Write-Host ""
+Write-Host "Local play-zone CA created in relay/service/.play-ca"
+Write-Host ""
+Write-Host "Registry play.ca values:"
+Write-Host "  url          https://ca.play.bedrockvc.stream:9000  (resolve ca.play.bedrockvc.stream to 127.0.0.1)"
+Write-Host "  provisioner  registry"
+Write-Host "  key id       $kid"
+Write-Host "  key file     $provPem"
+Write-Host "  root file    $rootCrt"
+Write-Host ""
+Write-Host "Provisioner password (for step ca token): $provPw"
+Write-Host "Provisioner JWK (encrypted):              $provEnc"
+Write-Host "Start the CA with:  mise run play-ca"
+'''
+
+[tasks.play-ca]
+description = "Run the local play-zone step-ca in the foreground on 127.0.0.1:9000. Needs play-ca-init first."
+dir = "relay/service"
+shell = "pwsh -NoLogo -Command"
+run = '''
+$config = ".play-ca/config/ca.json"
+if (-not (Test-Path $config)) {
+  Write-Host "No $config in relay/service. Run:  mise run play-ca-init"
+  exit 1
+}
+if (-not (Test-Path ".play-ca/secrets/intermediate_password")) {
+  Write-Host "No intermediate password file in relay/service/.play-ca/secrets. Run:  mise run play-ca-init"
+  exit 1
+}
+step-ca $config --password-file .play-ca/secrets/intermediate_password
 '''
 
 [tasks.bindings]

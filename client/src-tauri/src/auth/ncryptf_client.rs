@@ -1,4 +1,5 @@
 use common::ncryptflib::ExportableEncryptionKeyData;
+use common::rustls::{BvcClientTls, VerifierMode};
 
 use common::structs::reachability::AddressFamilyPreference;
 use tauri_plugin_http::reqwest;
@@ -32,23 +33,13 @@ impl NcryptfClient {
     pub(crate) fn get_reqwest_client(preference: AddressFamilyPreference) -> reqwest::Client {
         let config = LoginClientConfig::new(preference);
 
-        let mut builder = reqwest::Client::builder()
-            .use_rustls_tls()
+        let mut builder = BvcClientTls::http_client_builder(None, None, VerifierMode::for_build())
+            .expect("the built-in TLS configuration must build")
             .timeout(config.timeout())
-            .connect_timeout(config.connect_timeout())
-            .danger_accept_invalid_certs(false);
+            .connect_timeout(config.connect_timeout());
 
         if let Some(local) = config.local_address() {
             builder = builder.local_address(local);
-        }
-
-        // Matches `api::Client`. A development server presents a certificate no root signed,
-        // and a debug build that can reach the API but cannot sign in is a difference that
-        // serves nobody. `debug_assertions` is the cfg cargo actually sets; the `dev` this
-        // replaced is not one, so the branch never compiled.
-        #[cfg(debug_assertions)]
-        {
-            builder = builder.danger_accept_invalid_certs(true);
         }
 
         builder.build().unwrap()

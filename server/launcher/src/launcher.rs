@@ -4,7 +4,8 @@ use std::time::Duration;
 
 use crate::Console;
 use crate::LauncherPaths;
-use crate::config::BvcConfig;
+use crate::config::{BvcConfig, PlayDefaults};
+use crate::fs_util::AtomicWrite;
 use crate::release::{ReleaseDownloader, ReleaseSources};
 use crate::setup::{
     BvcPackIds, InstalledPacks, PackInstaller, PermissionsFile, ServerProperties, VariablesFile,
@@ -18,6 +19,8 @@ pub struct Launcher {
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     bds_args: Vec<OsString>,
     sources: ReleaseSources,
+    // The `BVC_ENROLLMENT_TOKEN` value the server will also read.
+    enrollment_token: Option<String>,
 }
 
 impl Launcher {
@@ -26,22 +29,64 @@ impl Launcher {
     const MINT_ATTEMPTS: u32 = 30;
     const MINT_DELAY: Duration = Duration::from_secs(1);
 
+    pub const ENROLLMENT_TOKEN_VARIABLE: &'static str = "BVC_ENROLLMENT_TOKEN";
+
     pub fn new(root: PathBuf, bds_args: Vec<OsString>, sources: ReleaseSources) -> Self {
+        Self::new_with_enrollment_token(
+            root,
+            bds_args,
+            sources,
+            std::env::var(Self::ENROLLMENT_TOKEN_VARIABLE).ok(),
+        )
+    }
+
+    pub fn new_with_enrollment_token(
+        root: PathBuf,
+        bds_args: Vec<OsString>,
+        sources: ReleaseSources,
+        enrollment_token: Option<String>,
+    ) -> Self {
         Self {
             paths: LauncherPaths::new(root),
             bds_args,
             sources,
+            enrollment_token,
         }
     }
 
     pub fn run(&self) -> i32 {
         let config = self.paths.config_file();
         if !config.exists() {
-            Console::error(&format!(
-                "{} not found. Create it, then start the server again. BDS and BVC were not started.",
+            // An enrollment token and play mode are mutually exclusive; the operator chose a
+            // mode, so the config is theirs to write.
+            if BvcConfig::is_set(self.enrollment_token.as_deref()) {
+                Console::error(&format!(
+                    "{} not found. {} is set, which play mode excludes. Create it, then start the server again. BDS and BVC were not started.",
+                    config.display(),
+                    Self::ENROLLMENT_TOKEN_VARIABLE
+                ));
+                return 1;
+            }
+            if let Some(warning) =
+                PlayDefaults::port_warning(std::env::var(PlayDefaults::PORT_VARIABLE).ok().as_deref())
+            {
+                Console::warn(&warning);
+            }
+            let (port, address) = PlayDefaults::from_env();
+            let rendered = PlayDefaults::render(port, address.as_deref());
+            if let Err(e) = AtomicWrite::write(&config, rendered.as_bytes()) {
+                Console::error(&format!(
+                    "{} not found and could not be written: {e:#}. BDS and BVC were not started.",
+                    config.display()
+                ));
+                return 1;
+            }
+            Console::info(&format!(
+                "Wrote {} in play mode on port {port}",
                 config.display()
             ));
-            return 1;
+        } else {
+            self.warn_without_certificate_source(&config);
         }
 
         self.update();
@@ -49,6 +94,14 @@ impl Launcher {
         self.ensure_permissions();
         let world_exists = self.prepare_world(packs.as_ref());
         self.supervise(world_exists, packs.as_ref())
+    }
+
+    fn warn_without_certificate_source(&self, config: &Path) {
+        if let Ok(parsed) = BvcConfig::load(config)
+            && let Some(warning) = parsed.certificate_source_warning(self.enrollment_token.as_deref())
+        {
+            Console::warn(warning);
+        }
     }
 
     fn update(&self) {

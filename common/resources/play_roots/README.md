@@ -1,0 +1,1 @@
+`bvc-play-root-dev.pem` is a DEVELOPMENT root from `mise run play-ca-init` (subject `BVC Play Root CA 2026 (DEVELOPMENT)`). `PlayRoots::builtin` compiles it in only when `debug_assertions` is on, so a release build trusts no play root until the production ceremony adds its root here and to `PlayRoots::BUILTIN`.

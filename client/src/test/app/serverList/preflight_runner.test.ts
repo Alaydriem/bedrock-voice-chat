@@ -5,20 +5,15 @@ import type { PreflightStep } from "../../../js/app/serverList/preflight/Preflig
 
 /** The unauthenticated config read, which decides why a handshake failed. */
 let answering = true;
-vi.mock("@tauri-apps/plugin-http", () => ({
-    fetch: vi.fn(async () => {
-        if (!answering) throw new Error("connection refused");
-        return {
-            status: 200,
-            json: async () => ({
-                protocol_version: "2.1.0",
-                quic_port: 443,
-                quic_ports: [443],
-                voice_websocket: true,
-            }),
-        };
-    }),
-}));
+function publicConfig() {
+    if (!answering) throw new Error("connection refused");
+    return {
+        protocol_version: "2.1.0",
+        quic_port: 443,
+        quic_ports: [443],
+        voice_websocket: true,
+    };
+}
 
 const CREDENTIALS = {
     gamertag: "Alaydriem",
@@ -91,6 +86,7 @@ function ipc(overrides: Record<string, (args: never) => unknown> = {}) {
         api_pool_client: () => null,
         api_get_config: () => config(),
         probe_server: () => reachability("Ready"),
+        read_public_server_config: () => publicConfig(),
         ...overrides,
     });
 }

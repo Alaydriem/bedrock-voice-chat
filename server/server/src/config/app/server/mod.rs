@@ -7,6 +7,7 @@ pub mod meridian;
 pub mod minecraft;
 pub mod enrollment;
 pub mod peer;
+pub mod play;
 pub mod registry;
 pub mod tls;
 
@@ -20,6 +21,7 @@ pub use meridian::Meridian;
 pub use minecraft::Minecraft;
 pub use enrollment::Enrollment;
 pub use peer::PeerConfig;
+pub use play::PlayTls;
 pub use registry::Registry;
 pub use tls::Tls;
 
@@ -111,6 +113,21 @@ pub struct Server {
     // `0` asks for an ephemeral port back, the same way `quic_port` reads it.
     #[serde(default = "default_peer_port")]
     pub peer_port: Option<u16>,
+
+    // Accepts plain HTTP from this machine on the public port, for the game mods that
+    // run beside the server. Off unless asked for: the branch answers loopback peers
+    // only, but it is a way into the API with no TLS, and a server whose mods are not
+    // local has no use for it.
+    //
+    // "Loopback" is the address the connection arrives from. A TCP forwarder on this same
+    // machine that relays the public port without speaking TLS to it, such as socat,
+    // `ssh -L`, an nginx `stream` block without PROXY protocol, Windows `netsh interface
+    // portproxy` or WSL2 localhost forwarding, makes every remote client arrive as
+    // 127.0.0.1. Behind one of those, this branch answers the Internet, and the mods'
+    // access token crosses the network in plain text. Leave it off on such a host.
+    // Meridian is not one of those: it forwards only after a TLS ClientHello.
+    #[serde(default)]
+    pub mod_loopback: bool,
 }
 
 impl Default for Server {
@@ -132,6 +149,7 @@ impl Default for Server {
             peering: true,
             enrollment: Enrollment::default(),
             peer_port: default_peer_port(),
+            mod_loopback: false,
         }
     }
 }
@@ -161,6 +179,29 @@ impl Server {
         let manual = !self.tls.certificate.is_empty() || !self.tls.key.is_empty();
         let acme = self.tls.acme.is_some();
         let enrollment = self.enrollment.token().is_some();
+        let play = self.tls.play.is_some();
+
+        // Play is checked first: it names a source of its own, and the registry's name and
+        // certificate would otherwise be silently overridden by whichever source won.
+        if play {
+            if manual {
+                return Some(
+                    "tls.play and tls.certificate/tls.key are mutually exclusive; remove one"
+                        .to_string(),
+                );
+            }
+            if acme {
+                return Some(
+                    "tls.play and tls.acme are mutually exclusive; remove one".to_string(),
+                );
+            }
+            if enrollment {
+                return Some(
+                    "tls.play and server.enrollment.token are mutually exclusive; remove one"
+                        .to_string(),
+                );
+            }
+        }
 
         match (enrollment, manual, acme) {
             (true, true, _) => Some(
@@ -178,6 +219,11 @@ impl Server {
             ),
             _ => None,
         }
+    }
+
+    // What is wrong with the play block's own values, if anything.
+    pub fn tls_play_address_problem(&self) -> Option<String> {
+        self.tls.play.as_ref().and_then(|play| play.problem())
     }
 
     // A bare IPv6 address needs brackets before a port is appended. An address an

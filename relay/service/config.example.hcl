@@ -98,3 +98,51 @@ http {
     api_token = "${env.BVC_REGISTRY_CLOUDFLARE_TOKEN}"
   }
 }
+
+// Play names: <label>.play.bedrockvc.stream, answered by this registry's own DNS
+// server and certified by a step-ca reachable only on loopback. Absent turns all of it
+// off.
+play {
+  zone = "play.bedrockvc.stream"
+
+  // New play names per observed source address per 24 hours, and across the registry
+  // per hour. A name with no check-in for release_after_days is released.
+  claims_per_address_per_day = 3
+  claims_per_hour            = 200
+  release_after_days         = 30
+
+  dns {
+    // Required, with no wildcard default: systemd-resolved holds 127.0.0.53:53, and a
+    // wildcard bind collides with it. The registry refuses to start if an address here
+    // is taken.
+    bind = ["203.0.113.10:53"]
+
+    // The public NS set. Equal to the NS records delegating the zone at its parent.
+    nameservers = ["ns1.bedrockvc.stream.", "ns2.example.net."]
+
+    // The SOA mname: this registry's own NS name, listed above or hidden.
+    primary    = "ns1.bedrockvc.stream."
+    hostmaster = "hostmaster.bedrockvc.stream."
+    ttl        = 60
+
+    // Secondaries hold a full copy, pulled by AXFR after a NOTIFY. Each one needs the
+    // tsig block below.
+    secondaries = [
+      { transfer_from = ["198.51.100.20"], notify = "198.51.100.20:53" },
+    ]
+
+    tsig {
+      name   = "play-transfer"
+      secret = "${env.BVC_RELAY_PLAY_TSIG_SECRET}"
+    }
+  }
+
+  ca {
+    url             = "https://ca.play.bedrockvc.stream:9000"
+    connect         = "127.0.0.1:9000"
+    provisioner     = "registry"
+    provisioner_kid = "${env.BVC_RELAY_PLAY_PROVISIONER_KID}"
+    provisioner_key = "${env.BVC_RELAY_PLAY_PROVISIONER_KEY}"
+    root            = "/var/lib/bvc-relay/play-root.pem"
+  }
+}

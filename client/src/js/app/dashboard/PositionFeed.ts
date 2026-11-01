@@ -2,16 +2,17 @@ import { invoke } from "@tauri-apps/api/core";
 import { debug, info, warn } from "@charlesportwoodii/tauri-plugin-curia";
 import type { PositionSnapshot } from "../../bindings/PositionSnapshot";
 import type { WebsocketTicketResponse } from "../../bindings/WebsocketTicketResponse";
+import { RustWebSocket } from "./RustWebSocket";
 
 export type SnapshotListener = (snapshot: PositionSnapshot) => void;
 
 /**
  * The server's view of who is around you, as a stream of snapshots.
  *
- * Opened from the webview rather than from Rust, which is why the ticket exists at all: a
- * browser socket can present neither a client certificate nor a request header, so identity
- * is exchanged for a ticket over mTLS first and offered here as a subprotocol. A ticket in
- * the URL would land in every access log on the way.
+ * The socket is opened by Rust (`RustWebSocket`), because the webview cannot validate a
+ * play-zone certificate. The ticket exists because the socket presents no client
+ * certificate: identity is exchanged for a ticket over mTLS first and offered here as a
+ * subprotocol. A ticket in the URL would land in every access log on the way.
  *
  * One ticket, one socket, held open. Tickets are single-use and issuing one revokes the
  * identity's previous, so two attempts in flight together are not merely wasteful — the
@@ -62,7 +63,7 @@ export class PositionFeed {
     private readonly server: string;
     private readonly onSnapshot: SnapshotListener;
 
-    private socket: WebSocket | null = null;
+    private socket: RustWebSocket | null = null;
     private retry: ReturnType<typeof setTimeout> | null = null;
     private opening: ReturnType<typeof setTimeout> | null = null;
     private backoff = PositionFeed.BACKOFF_MIN_MS;
@@ -135,12 +136,12 @@ export class PositionFeed {
 
         const url = `${this.server.replace(/^http/, "ws").replace(/\/$/, "")}/api/websocket/positions`;
 
-        let socket: WebSocket;
+        let socket: RustWebSocket;
         try {
             // Two subprotocols: the credential and the feed. The server echoes the feed's,
             // because echoing the ticket back would hand it to anything watching the
             // response.
-            socket = new WebSocket(url, [`ticket.${ticket.ticket}`, PositionFeed.PROTOCOL]);
+            socket = new RustWebSocket(url, [`ticket.${ticket.ticket}`, PositionFeed.PROTOCOL]);
         } catch (e) {
             if (current()) {
                 this.report(`could not open ${url}: ${e}`);
@@ -245,7 +246,7 @@ export class PositionFeed {
      * All four, not just `onclose`: a retired socket that still delivers a message would be
      * treated as proof that the attempt replacing it had reached the server.
      */
-    private static detach(socket: WebSocket): void {
+    private static detach(socket: RustWebSocket): void {
         socket.onopen = null;
         socket.onmessage = null;
         socket.onclose = null;

@@ -1,0 +1,30 @@
+{
+  "root": "@@ROOT_CRT@@",
+  "federatedRoots": [],
+  "crt": "@@INTERMEDIATE_CRT@@",
+  "key": "@@INTERMEDIATE_KEY@@",
+  "address": "127.0.0.1:9000",
+  "insecureAddress": "",
+  "dnsNames": ["ca.play.bedrockvc.stream"],
+  "db": { "type": "badgerv2", "dataSource": "@@DB_DIR@@" },
+  "authority": {
+    "enableAdmin": false,
+    "provisioners": [
+      {
+        "type": "JWK",
+        "name": "registry",
+        "key": @@PUBLIC_JWK@@,
+        "encryptedKey": "@@ENCRYPTED_KEY@@",
+        "claims": {
+          "minTLSCertDuration": "5m",
+          "maxTLSCertDuration": "360h",
+          "defaultTLSCertDuration": "360h",
+          "disableRenewal": true
+        },
+        "options": { "x509": { "templateFile": "@@LEAF_TEMPLATE@@" } }
+      }
+    ]
+  },
+  "crl": { "enabled": false },
+  "tls": { "minVersion": 1.2, "maxVersion": 1.3, "renegotiation": false }
+}

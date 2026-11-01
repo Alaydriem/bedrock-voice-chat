@@ -4,6 +4,7 @@ mod m20260824_000001_registry;
 mod m20260825_000001_claim;
 mod m20260825_000002_storage;
 mod m20261025_000001_check_in;
+mod m20261031_000001_play_name;
 
 pub struct Migrator;
 
@@ -15,6 +16,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260825_000001_claim::Migration),
             Box::new(m20260825_000002_storage::Migration),
             Box::new(m20261025_000001_check_in::Migration),
+            Box::new(m20261031_000001_play_name::Migration),
         ]
     }
 }

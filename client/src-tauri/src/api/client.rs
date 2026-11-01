@@ -1,20 +1,46 @@
-use common::reqwest::Client as ReqwestClient;
+use common::reqwest::{Client as ReqwestClient, ClientBuilder};
+use common::rustls::{BvcClientTls, PlayRoots, VerifierMode};
 use common::structs::reachability::AddressFamilyPreference;
+use rustls::pki_types::CertificateDer;
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 
-use anyhow::anyhow;
-use tauri_plugin_http::reqwest::{self, Certificate, Identity};
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct Client {
+pub struct Client {
     ca_cert: String,
     pem: String,
+    // The roots a play-zone name is checked against. `None` is the roots built into this
+    // client; only a test supplies others.
+    #[serde(skip)]
+    play_roots: Option<Vec<CertificateDer<'static>>>,
+    // `None` follows the build: permissive in a debug build, strict in a release build.
+    #[serde(skip)]
+    mode: Option<VerifierMode>,
 }
 
 impl Client {
     pub fn new(ca_cert: String, pem: String) -> Self {
-        Self { ca_cert, pem }
+        Self {
+            ca_cert,
+            pem,
+            play_roots: None,
+            mode: None,
+        }
+    }
+
+    /// A client that checks play-zone names against `play_roots` and validates strictly in
+    /// every build, so a test can observe the release behaviour from a debug binary.
+    pub fn new_strict_with_play_roots(
+        ca_cert: String,
+        pem: String,
+        play_roots: Vec<CertificateDer<'static>>,
+    ) -> Self {
+        Self {
+            ca_cert,
+            pem,
+            play_roots: Some(play_roots),
+            mode: Some(VerifierMode::Strict),
+        }
     }
 
     /// The server's CA and this player's certificate and key, for sockets reqwest does not open.
@@ -22,22 +48,8 @@ impl Client {
         (&self.ca_cert, &self.pem)
     }
 
-    fn get_ca_cert(&self) -> Result<Certificate, anyhow::Error> {
-        let buf = self.ca_cert.as_bytes();
-
-        match reqwest::Certificate::from_pem(&buf) {
-            Ok(cert) => Ok(cert),
-            Err(e) => Err(anyhow!(e.to_string())),
-        }
-    }
-
-    fn get_client_cert(&self) -> Result<Identity, anyhow::Error> {
-        let buf = self.pem.as_bytes();
-
-        match reqwest::Identity::from_pem(&buf) {
-            Ok(cert) => Ok(cert),
-            Err(e) => Err(anyhow!(e.to_string())),
-        }
+    fn verifier_mode(&self) -> VerifierMode {
+        self.mode.unwrap_or(VerifierMode::for_build())
     }
 
     // Under PreferIpv4 the local socket is pinned to IPv4, which is what every
@@ -50,25 +62,33 @@ impl Client {
     // Happy Eyeballs: IPv6 first, IPv4 racing 300ms behind. The pin is lifted only
     // for a host where a probe has already seen IPv6 answering, so that fallback
     // delay is the exception rather than something every request pays.
-    pub(crate) fn get_client(&self, preference: AddressFamilyPreference) -> ReqwestClient {
-        let mut builder = ReqwestClient::builder()
-            .use_rustls_tls()
+    pub fn client_builder(&self, preference: AddressFamilyPreference) -> ClientBuilder {
+        let identity = BvcClientTls::identity_from_pem(&self.pem)
+            .expect("this player's certificate and key must parse");
+        let play_roots = match &self.play_roots {
+            Some(roots) => roots.clone(),
+            None => PlayRoots::builtin().expect("the built-in play roots must parse"),
+        };
+        let mut builder = BvcClientTls::http_client_builder_with_play_roots(
+            play_roots,
+            Some(&self.ca_cert),
+            Some(identity),
+            self.verifier_mode(),
+        )
+        .expect("the TLS configuration must build from the server's certificate authority")
             .timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(5))
             .tcp_keepalive(Duration::from_secs(30))
-            .pool_idle_timeout(Duration::from_secs(90))
-            .add_root_certificate(self.get_ca_cert().unwrap())
-            .identity(self.get_client_cert().unwrap());
+            .pool_idle_timeout(Duration::from_secs(90));
 
         if matches!(preference, AddressFamilyPreference::PreferIpv4) {
             builder = builder.local_address(IpAddr::V4(Ipv4Addr::UNSPECIFIED));
         }
 
-        #[cfg(debug_assertions)]
-        {
-            builder = builder.danger_accept_invalid_certs(true);
-        }
+        builder
+    }
 
-        builder.build().unwrap()
+    pub(crate) fn get_client(&self, preference: AddressFamilyPreference) -> ReqwestClient {
+        self.client_builder(preference).build().unwrap()
     }
 }

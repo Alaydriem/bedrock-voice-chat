@@ -1,3 +1,9 @@
+mod listener;
+mod loopback_routes;
+
+pub use listener::RocketListener;
+pub use loopback_routes::LoopbackRoutes;
+
 use common::curia;
 use crate::{
     config::ApplicationConfig,
@@ -21,6 +27,9 @@ use std::sync::{Arc, Mutex};
 /// Manager for the Rocket HTTP server
 pub struct RocketManager {
     config: ApplicationConfig,
+    /// Whether this is the TLS listener with the whole API or the plain-HTTP one for the
+    /// mods on this machine.
+    listener: RocketListener,
     /// Where this listener binds, which is loopback: the public port belongs to the TLS
     /// demultiplexer. Shared with the demultiplexer rather than copied, so a port this
     /// has to re-pick is one the demultiplexer relays to rather than one it has lost.
@@ -58,6 +67,7 @@ pub struct RocketManager {
 impl RocketManager {
     pub fn new(
         config: ApplicationConfig,
+        listener: RocketListener,
         bind: crate::demux::ApiBind,
         webhook_receiver: WebhookReceiver,
         cache_manager: CacheManager,
@@ -77,6 +87,7 @@ impl RocketManager {
     ) -> Self {
         Self {
             config,
+            listener,
             bind,
             webhook_receiver,
             cache_manager,
@@ -107,7 +118,7 @@ impl RocketManager {
         // between this line and Rocket's own bind.
         let bind = self.bind.claim_for_bind()?;
 
-        curia::info!("Starting Rocket HTTP server manager", { "bind": bind.to_string() });
+        curia::info!("Starting Rocket HTTP server manager", { "bind": bind.to_string(), "listener": format!("{:?}", self.listener) });
 
         // Ensure the assets directory exists
         let assets_path = std::path::Path::new(&self.config.server.assets_path);
@@ -121,7 +132,12 @@ impl RocketManager {
             }
         }
 
-        match self.config.get_rocket_config(bind) {
+        let figment = match self.listener {
+            RocketListener::Public => self.config.get_rocket_config(bind),
+            RocketListener::ModLoopback => self.config.get_plain_rocket_config(bind),
+        };
+
+        match figment {
             Ok(figment) => {
                 let cache = cached::TimedCache::with_lifespan_and_refresh(
                     std::time::Duration::from_secs(3600),
@@ -159,9 +175,12 @@ impl RocketManager {
                     )
                     .scope_range(),
                 );
-                position_feed
-                    .clone()
-                    .spawn(self.cache_manager.clone(), self.feed_cancel.clone());
+                // The loopback listener serves no position socket, so it runs no ticker.
+                if self.listener == RocketListener::Public {
+                    position_feed
+                        .clone()
+                        .spawn(self.cache_manager.clone(), self.feed_cancel.clone());
+                }
 
                 let rocket = rocket::custom(figment)
                     .manage(position_feed)
@@ -195,36 +214,53 @@ impl RocketManager {
                 // peer-link endpoints two servers sharing a realm use directly.
                 // Discovery is decentralized (in-realm `!bvca` announce); there is no
                 // central relay role to mount. Present whenever the relay plane built.
-                let mut rocket = rocket
-                    .attach(AppDb::init())
-                    .attach(cors.to_cors().unwrap())
-                    .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", RocketManager::migrate))
-                    .mount(
-                        "/assets",
-                        rocket::fs::FileServer::from(&self.config.server.assets_path),
-                    )
-                    .mount(
-                        "/assets",
-                        routes![routes::assets::get_avatar, routes::assets::get_canvas,],
-                    )
-                    .mount("/ncryptf", routes![routes::ncryptf::ncryptf_ek_route])
-                    .mount("/metrics", routes![routes::metrics::metrics])
-                    // Mounted directly rather than through the OpenAPI spec: an
-                    // upgrade is not a JSON route and has no response schema.
-                    .mount(
-                        "/api",
-                        routes![
-                            routes::api::websocket::positions::positions,
-                            routes::api::websocket::chat::chat,
-                            routes::api::websocket::group::group_key_socket,
-                        ],
-                    );
+                let rocket = rocket.attach(AppDb::init());
 
-                for (prefix, route_list) in crate::http::openapi::OpenApiSpec::routes() {
-                    rocket = rocket.mount(prefix, route_list);
-                }
+                let mut rocket = match self.listener {
+                    RocketListener::Public => {
+                        let mut rocket = rocket
+                            .attach(cors.to_cors().unwrap())
+                            .attach(rocket::fairing::AdHoc::try_on_ignite("Migrations", RocketManager::migrate))
+                            .mount(
+                                "/assets",
+                                rocket::fs::FileServer::from(&self.config.server.assets_path),
+                            )
+                            .mount(
+                                "/assets",
+                                routes![routes::assets::get_avatar, routes::assets::get_canvas,],
+                            )
+                            .mount("/ncryptf", routes![routes::ncryptf::ncryptf_ek_route])
+                            .mount("/metrics", routes![routes::metrics::metrics])
+                            // Mounted directly rather than through the OpenAPI spec: an
+                            // upgrade is not a JSON route and has no response schema.
+                            .mount(
+                                "/api",
+                                routes![
+                                    routes::api::websocket::positions::positions,
+                                    routes::api::websocket::chat::chat,
+                                    routes::api::websocket::group::group_key_socket,
+                                ],
+                            );
 
-                if self.config.server.features.openapi_docs {
+                        for (prefix, route_list) in crate::http::openapi::OpenApiSpec::routes() {
+                            rocket = rocket.mount(prefix, route_list);
+                        }
+
+                        rocket
+                    }
+                    RocketListener::ModLoopback => {
+                        let mut rocket = rocket;
+                        for (prefix, route_list) in LoopbackRoutes::routes() {
+                            rocket = rocket.mount(prefix, route_list);
+                        }
+
+                        rocket
+                    }
+                };
+
+                if self.listener == RocketListener::Public
+                    && self.config.server.features.openapi_docs
+                {
                     let spec = crate::http::openapi::OpenApiSpec::generate();
                     let spec_route = rocket_okapi::handlers::OpenApiHandler::new(spec)
                         .into_route("/openapi.json");

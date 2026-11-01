@@ -23,7 +23,9 @@ class FakeSocket {
     close(): void {}
 }
 
-vi.stubGlobal("WebSocket", FakeSocket);
+// The feed's socket is opened by Rust; the test stands in for it. The factory runs when the
+// manager is imported below, after FakeSocket exists.
+vi.mock("../../../js/app/dashboard/RustWebSocket", () => ({ RustWebSocket: FakeSocket }));
 
 vi.mock("@tauri-apps/api/webviewWindow", () => ({
     getCurrentWebviewWindow: () => ({

@@ -9,7 +9,7 @@ pub mod secret_store;
 pub mod position_updater;
 pub mod state;
 use crate::config::ApplicationConfig;
-use crate::http::manager::RocketManager;
+use crate::http::manager::{RocketListener, RocketManager};
 use crate::services::{
     AdminPermissionService, AudioPlaybackService, BedrockEventService, CertificateService, ChannelReaperService,
     EjectScheduler, MeridianService, PlayerIdentityService, PlayerRegistrarService,
@@ -201,6 +201,9 @@ impl ServerRuntime {
         if let Some(conflict) = self.config.server.tls_source_conflict() {
             return Err(anyhow!(conflict));
         }
+        if let Some(problem) = self.config.server.tls_play_address_problem() {
+            return Err(anyhow!(problem));
+        }
 
         // Resolved whether or not peering is configured. Deferring this to the peering
         // branch below would mean an operator who enables peering later has already lost the
@@ -218,9 +221,84 @@ impl ServerRuntime {
         let assigned_name = self
             .resolve_assignment(db_conn.as_ref(), &node_secret)
             .await?;
+        // Before the enrolled name switches the server to the registry's ACME provider: play
+        // and an enrolled name cannot share a server, and the second would run beside the
+        // first rather than instead of it.
+        crate::services::play::EnrolledNameGuard::check(
+            self.config.server.tls.play.is_some(),
+            assigned_name.as_deref(),
+        )?;
         if let Some(name) = assigned_name.clone() {
             crate::runtime::enrollment::EnrollmentStep::apply(&mut self.config, name.clone());
             curia::info!("this server is reachable at its assigned name", { "url": format!("https://{name}") });
+        }
+
+        let relay_check_in_cancel = tokio_util::sync::CancellationToken::new();
+        let _relay_check_in_guard = relay_check_in_cancel.clone().drop_guard();
+
+        // A play name and certificate from the registry. Both are in hand before anything
+        // below reads `tls.*`, because the CA's names, the HTTPS listener and the WebSocket
+        // listener all take them from the config.
+        let mut play_renewal: Option<(Arc<crate::services::play::PlayService>, String)> = None;
+        // The client, the address to declare, the port to probe and the `name:port` players
+        // type.
+        let mut play_check_in: Option<(
+            Arc<crate::services::RelayEnrollmentClient>,
+            Option<String>,
+            u16,
+            String,
+        )> = None;
+        // Notified by the play check-in when the registry no longer holds the name.
+        let play_name_lost = Arc::new(tokio::sync::Notify::new());
+        if let Some(play) = self.config.server.tls.play.clone() {
+            let Some(boot) = self.boot_play(&node_secret, db_conn.clone()).await? else {
+                self.state = RuntimeState::Stopped;
+                return Ok(());
+            };
+
+            let (service, name, paths) = boot;
+            self.config.server.tls.certificate = paths.certificate;
+            self.config.server.tls.key = paths.key;
+            self.config.server.tls.names = vec![name.clone()];
+
+            // The registry's address probe needs the port players dial, which is
+            // `server.port` unless a proxy answers on another.
+            let port = self
+                .config
+                .server
+                .enrollment
+                .port(self.config.server.port)
+                .ok_or_else(|| {
+                    anyhow!(
+                        "server.port = {} does not fit a port number; set server.enrollment.port",
+                        self.config.server.port
+                    )
+                })?;
+
+            let client = self
+                .relay_session(db_conn.as_ref(), &node_secret)
+                .await?
+                .ok_or_else(|| anyhow!("server.tls.play needs a build with a registry"))?;
+
+            match play.address() {
+                Some(address) => {
+                    curia::info!("checking in this server's address for its play name", { "address": address.to_string() });
+                }
+                None => curia::info!(
+                    "no address declared; the registry uses the address it sees this server check in from"
+                ),
+            }
+
+            // The check-in starts once the public port is listening (below). The registry
+            // probes the address it is given the moment it hears it, and a probe that finds
+            // nothing listening withdraws the record.
+            play_check_in = Some((
+                client,
+                play.address().map(str::to_string),
+                port,
+                format!("{name}:{port}"),
+            ));
+            play_renewal = Some((service, name));
         }
 
         // Database-backed, materialised to disk. The TLS stacks take file paths and read them
@@ -251,9 +329,6 @@ impl ServerRuntime {
         access_token_service.reload().await?;
         let access_token_cancel = tokio_util::sync::CancellationToken::new();
         access_token_service.spawn_refresh(access_token_cancel.clone());
-
-        let relay_check_in_cancel = tokio_util::sync::CancellationToken::new();
-        let _relay_check_in_guard = relay_check_in_cancel.clone().drop_guard();
 
         // ACME DNS-01. Issuance must complete before Rocket starts — the HTTPS
         // listener cannot exist without a certificate.
@@ -615,6 +690,14 @@ impl ServerRuntime {
         // so it relays to wherever the listener actually landed.
         let api_bind = crate::demux::ApiBind::reserve()?;
 
+        // The mods' plain-HTTP listener, reserved the same way. It has no certificate, so
+        // nothing about it changes when the TLS listener is bounced for a renewal.
+        let mod_loopback_bind = if self.config.server.mod_loopback {
+            Some(crate::demux::ApiBind::reserve()?)
+        } else {
+            None
+        };
+
         // Built before the managers take ownership of the webhook and the cache manager,
         // and driven from the reap arm of the main loop below.
         let channel_reaper = ChannelReaperService::new_shared(
@@ -623,9 +706,36 @@ impl ServerRuntime {
             webhook_receiver.clone(),
         );
 
+        // Built first, from clones, because the TLS manager below takes ownership of the
+        // originals. Every `.manage(...)` is the same `Arc`, so a mod and a player see the
+        // same state.
+        let loopback_manager = mod_loopback_bind.clone().map(|bind| {
+            RocketManager::new(
+                self.config.clone(),
+                RocketListener::ModLoopback,
+                bind,
+                webhook_receiver.clone(),
+                cache_manager.clone(),
+                player_registrar.clone(),
+                identity_service.clone(),
+                audio_playback_service.clone(),
+                bedrock_event_service.clone(),
+                chat_service.clone(),
+                cert_service.clone(),
+                certificate_revocations.clone(),
+                Some(audio_stream_token_cache.clone()),
+                metrics.clone(),
+                readiness_state.clone(),
+                enrollment_nonce.clone(),
+                peer_plane.clone(),
+                access_token_service.clone(),
+            )
+        });
+
         // Create Rocket manager
         let rocket_manager = RocketManager::new(
             self.config.clone(),
+            RocketListener::Public,
             api_bind.clone(),
             webhook_receiver,
             cache_manager,
@@ -699,17 +809,28 @@ impl ServerRuntime {
         let _shutdown_flag = self.shutdown_flag.clone();
         let shutdown_notify = self.shutdown_notify.clone();
 
-        // Renewal plumbing: the ACME task signals here after re-issuing; the
-        // loop below gracefully bounces only the Rocket listener. With ACME
-        // off, the sender drops immediately and the arm never fires.
-        let acme_cancel = tokio_util::sync::CancellationToken::new();
-        let (acme_renewed_tx, mut acme_renewed_rx) = tokio::sync::mpsc::channel::<()>(1);
-        let mut acme_renewal_task: Option<tokio::task::JoinHandle<()>> = None;
+        // Renewal plumbing: the ACME or play task signals here after re-issuing; the loop
+        // below gracefully bounces only the Rocket listener and reloads the WebSocket
+        // certificate. The two sources exclude each other. With neither, the sender drops
+        // immediately and the arm never fires.
+        let certificate_cancel = tokio_util::sync::CancellationToken::new();
+        let (certificate_renewed_tx, mut certificate_renewed_rx) =
+            tokio::sync::mpsc::channel::<()>(1);
+        let mut certificate_renewal_task: Option<tokio::task::JoinHandle<()>> = None;
         if let Some(service) = &acme_service {
-            acme_renewal_task =
-                Some(service.clone().spawn_renewal(acme_cancel.clone(), acme_renewed_tx));
+            certificate_renewal_task = Some(
+                service
+                    .clone()
+                    .spawn_renewal(certificate_cancel.clone(), certificate_renewed_tx),
+            );
+        } else if let Some((service, name)) = play_renewal {
+            certificate_renewal_task = Some(service.spawn_renewal(
+                name,
+                certificate_cancel.clone(),
+                certificate_renewed_tx,
+            ));
         } else {
-            drop(acme_renewed_tx);
+            drop(certificate_renewed_tx);
         }
 
         // The public TLS port. A peer of QUIC and Rocket rather than an optional extra:
@@ -746,13 +867,70 @@ impl ServerRuntime {
         )
         .await?;
         websocket_listener.set_metrics(metrics.clone());
+        // Taken before `start` consumes the listener, so a renewal can swap the certificate
+        // the voice transport presents.
+        let websocket_certificates = websocket_listener.certificates();
         curia::info!("WebSocket voice transport bound", { "bind": websocket_bind.to_string() });
 
         let demux = crate::demux::AlpnDemux::new(
             std::net::SocketAddr::new(public_listen_ip, public_port),
             api_bind,
             Some(websocket_bind),
+            mod_loopback_bind,
         );
+
+        // Once the public port accepts connections, tell the operator the address players
+        // type, and let the registry probe it. The launcher passes this process's output
+        // through to the panel console, so the line is what the operator sees.
+        //
+        // The line says where players connect, not that the name resolves yet: the registry
+        // verifies the address after this check-in. Its answer is logged by the check-in.
+        if let Some((client, declared, port, address)) = play_check_in {
+            let mut listening = demux.listening();
+            let cancel = relay_check_in_cancel.clone();
+            tokio::spawn({
+                let cancel = cancel.clone();
+                async move {
+                    tokio::select! {
+                        _ = cancel.cancelled() => {}
+                        ready = listening.wait_for(|ready| *ready) => {
+                            if ready.is_ok() {
+                                curia::info!("players connect to this server at", { "address": address });
+                            }
+                        }
+                    }
+                }
+            });
+
+            crate::services::RelayCheckIn::spawn_with_follow_up(
+                client,
+                declared,
+                port,
+                enrollment_nonce.clone(),
+                cancel.clone(),
+                // Outside the registry's one-per-minute window, so an address that changed
+                // across a fast restart is probed.
+                crate::services::RelayCheckIn::REGISTRY_WINDOW
+                    + std::time::Duration::from_secs(5),
+                demux.listening(),
+                play_name_lost.clone(),
+            );
+
+            // The listeners cannot change name while running, so a released name is
+            // forgotten and the next start claims a new one.
+            let lost = play_name_lost.clone();
+            let conn = db_conn.clone();
+            tokio::spawn(async move {
+                tokio::select! {
+                    _ = cancel.cancelled() => {}
+                    _ = lost.notified() => {
+                        if let Err(e) = crate::services::play::PlayNameStore::clear(conn.as_ref()).await {
+                            curia::warn!("could not forget the released play name", { "error": e.to_string() });
+                        }
+                    }
+                }
+            });
+        }
 
         // Main event loop: run QUIC + Rocket + the demultiplexer until one stops or
         // shutdown is requested, with the low-cadence channel reaper as a structured arm.
@@ -767,6 +945,13 @@ impl ServerRuntime {
         let websocket = websocket_listener.start();
         tokio::pin!(websocket);
         let mut rocket = Box::pin(rocket_manager.start());
+        // Pending forever when the mods' listener is off, so its arm never fires.
+        let mut loopback = Box::pin(async {
+            match &loopback_manager {
+                Some(manager) => manager.start().await,
+                None => std::future::pending().await,
+            }
+        });
         let mut relaunch_rocket = false;
         let mut reap_interval = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
@@ -805,8 +990,17 @@ impl ServerRuntime {
                         break;
                     }
                 }
-                Some(_) = acme_renewed_rx.recv() => {
-                    curia::info!("ACME certificate renewed; bouncing the HTTP listener");
+                result = loopback.as_mut() => {
+                    match result {
+                        Ok(_) => curia::info!("Mod loopback listener stopped normally"),
+                        Err(e) => curia::error!("Mod loopback listener error", { "error": e.to_string() }),
+                    }
+                    break;
+                }
+                Some(_) = certificate_renewed_rx.recv() => {
+                    curia::info!("Certificate renewed; bouncing the HTTP listener");
+                    // Logged inside; a failed reload leaves the previous certificate serving.
+                    let _ = websocket_certificates.reload();
                     relaunch_rocket = true;
                     if let Err(e) = rocket_manager.stop().await {
                         curia::error!("Failed to stop Rocket for certificate reload: {}", e);
@@ -824,8 +1018,8 @@ impl ServerRuntime {
         }
         }
 
-        acme_cancel.cancel();
-        if let Some(handle) = acme_renewal_task {
+        certificate_cancel.cancel();
+        if let Some(handle) = certificate_renewal_task {
             let _ = tokio::time::timeout(std::time::Duration::from_secs(2), handle).await;
         }
 
@@ -869,6 +1063,12 @@ impl ServerRuntime {
 
         if let Err(e) = rocket_manager.stop().await {
             curia::error!("Error stopping Rocket server: {}", e);
+        }
+
+        if let Some(manager) = &loopback_manager {
+            if let Err(e) = manager.stop().await {
+                curia::error!("Error stopping the mod loopback listener", { "error": e.to_string() });
+            }
         }
 
         self.state = RuntimeState::Stopped;
@@ -1097,6 +1297,60 @@ impl ServerRuntime {
         );
 
         Ok(Some(name))
+    }
+
+    /// Claims a play name and obtains a certificate for it, before any listener exists.
+    ///
+    /// `None` when shutdown was requested first, so Ctrl+C during a wait for the registry
+    /// ends the process quietly rather than as a failure.
+    ///
+    /// Holds no database connection or transaction while it waits on the registry: the
+    /// service takes the pool for the length of one query, so another process using the same
+    /// database, such as `admin token mint --local`, is never blocked by this wait.
+    async fn boot_play(
+        &self,
+        node_secret: &[u8; 32],
+        db_conn: Arc<DatabaseConnection>,
+    ) -> Result<
+        Option<(
+            Arc<crate::services::play::PlayService>,
+            String,
+            crate::services::acme::AcmeCertPaths,
+        )>,
+        anyhow::Error,
+    > {
+        if crate::config::Registry::peerlink().is_none() {
+            return Err(anyhow!("server.tls.play needs a build with a registry"));
+        }
+
+        let client = self
+            .dial_registry(node_secret)
+            .await?
+            .ok_or_else(|| anyhow!("server.tls.play needs a build with a registry"))?;
+        let service = crate::services::play::PlayService::new_shared(
+            crate::services::play::PlayAuthority::Relay(client),
+            db_conn,
+            &self.config.server.tls.certs_path,
+        );
+
+        curia::info!("requesting a play name and certificate from the registry");
+
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let boot = service.boot(&cancel);
+        tokio::pin!(boot);
+
+        tokio::select! {
+            result = &mut boot => {
+                let (name, paths) = result?;
+                curia::info!("this server holds a play name and certificate", { "name": name.clone() });
+                Ok(Some((service.clone(), name, paths)))
+            }
+            _ = self.shutdown_notify.notified() => {
+                cancel.cancel();
+                curia::info!("shutdown requested before the play certificate was ready");
+                Ok(None)
+            }
+        }
     }
 
     async fn relay_session<C: sea_orm::ConnectionTrait>(
