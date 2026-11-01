@@ -1,10 +1,19 @@
 pub mod minecraft;
 
+use std::sync::LazyLock;
+use std::time::Duration;
+
 use crate::Game;
+use crate::logging::LogThrottle;
 use crate::players::{MinecraftPlayer, PlayerEnum};
 use serde::{Deserialize, Deserializer, Serialize};
 
-pub use minecraft::Dimension;
+pub use minecraft::{Dimension, DimensionHash};
+
+// A mod sends its batch every tick, so one bad record would otherwise log the same line
+// many times a second.
+static REJECTED_RECORD_LOG: LazyLock<LogThrottle> =
+    LazyLock::new(|| LogThrottle::new(Duration::from_secs(60)));
 
 #[derive(Clone, Debug, Serialize)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
@@ -18,8 +27,6 @@ impl<'de> Deserialize<'de> for GameDataCollection {
     where
         D: Deserializer<'de>,
     {
-        use serde::de::Error;
-
         // Helper struct for deserializing JSON from legacy clients
         #[derive(Deserialize)]
         struct LegacyFormat {
@@ -30,20 +37,33 @@ impl<'de> Deserialize<'de> for GameDataCollection {
         let legacy = LegacyFormat::deserialize(deserializer)?;
         let game_type = legacy.game.clone().unwrap_or(Game::Minecraft);
 
-        // Convert players based on the game type
-        let players: Result<Vec<PlayerEnum>, _> = legacy
+        // Each player parses on its own: one bad record drops that player, not the batch,
+        // which would leave every position on the server stale for as long as it repeats.
+        let players: Vec<PlayerEnum> = legacy
             .players
             .into_iter()
-            .map(|value| match game_type {
-                Game::Minecraft => serde_json::from_value::<MinecraftPlayer>(value)
-                    .map(PlayerEnum::Minecraft)
-                    .map_err(D::Error::custom),
+            .filter_map(|value| match game_type {
+                Game::Minecraft => match serde_json::from_value::<MinecraftPlayer>(value) {
+                    Ok(player) => Some(PlayerEnum::Minecraft(player)),
+                    Err(e) => {
+                        if let Some(suppressed) = REJECTED_RECORD_LOG.should_log() {
+                            // serde embeds the offending value in its message, which a mod
+                            // can make as large as the request body.
+                            let error: String = e.to_string().chars().take(128).collect();
+                            crate::curia::warn!("dropped a player record that did not parse", {
+                                "error": error,
+                                "suppressed": suppressed,
+                            });
+                        }
+                        None
+                    }
+                },
             })
             .collect();
 
         Ok(GameDataCollection {
             game: legacy.game,
-            players: players?,
+            players,
         })
     }
 }

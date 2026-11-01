@@ -5,6 +5,7 @@ use bvc_server_lib::stream::quic::WebhookReceiver;
 use bvc_server_lib::stream::quic::connection::{ConnectionRegistry, RoutedPacket};
 use common::Game;
 use common::PlayerEnum;
+use common::game_data::Dimension;
 use common::structs::packet::{MAX_DATAGRAM_SIZE, QuicNetworkPacket, QuicNetworkPacketData};
 use common::traits::player_data::PlayerData;
 use tokio::sync::mpsc;
@@ -223,6 +224,36 @@ async fn hundred_player_mod_payload_anchors_every_client() {
             );
         }
     }
+}
+
+/// A player in a modded dimension arrives in the same batch as everyone else. The batch
+/// must not be rejected, and that player must be anchored in their own dimension.
+#[tokio::test]
+async fn a_custom_dimension_player_is_anchored_like_any_other() {
+    let payload = PositionFixture::mod_payload_json(10, PositionFixture::WORLD_FORMS[0])
+        .replacen(r#""dimension":"overworld""#, r#""dimension":"mypack:aether""#, 1);
+
+    let collection: common::GameDataCollection =
+        serde_json::from_str(&payload).expect("a batch with a custom dimension parses");
+    assert_eq!(collection.players.len(), 10);
+
+    // The replacement hit the first player, and `pick_listeners` always takes index 0.
+    let explorer = collection.players[0].get_name().to_string();
+    let listeners = pick_listeners(&collection.players);
+    assert!(listeners.contains(&explorer));
+
+    let delivered = deliver(&collection.players, &listeners).await;
+
+    for name in &listeners {
+        assert!(
+            delivered[name].contains_key(name),
+            "{name} never received its own position"
+        );
+    }
+    assert_eq!(
+        delivered[&explorer][&explorer].dimension(),
+        Some(Dimension::from("mypack:aether"))
+    );
 }
 
 // Spreads the listeners across the roster so the selection is not clustered at

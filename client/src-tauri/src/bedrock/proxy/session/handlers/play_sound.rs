@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use common::bedrock_protocol::protocol::packets::generated::misc::play_sound::PlaySoundPacketAny;
 use common::bedrock_protocol::protocol::types::primitives::BlockPos;
-use common::game_data::Dimension;
 use common::structs::game::{BlockCoordinate, Coordinate};
 use common::structs::packet::BedrockEvent;
 use tauri_plugin_curia::curia;
@@ -147,7 +146,7 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
                     BedrockEvent::JukeboxInsert {
                         audio_id,
                         block_pos: pos,
-                        dimension: Dimension::from(dimension.as_str()),
+                        dimension: state.resolve_bus_dimension(&dimension),
                         player_xuid,
                         relay_world_uuid: Some(world_uuid.clone()),
                     },
@@ -156,7 +155,7 @@ impl<'a> BedrockPacketHandler for PlaySoundHandler<'a> {
             }
             JukeboxCommand::Eject { pos, dimension } => {
                 let block_pos = BlockCoordinate::from(&pos);
-                let dim = Dimension::from(dimension.as_str());
+                let dim = state.resolve_bus_dimension(&dimension);
                 let event_id = match self.beacon_cache.resolve_for_eject(block_pos, dim) {
                     Some(id) => id,
                     None => {

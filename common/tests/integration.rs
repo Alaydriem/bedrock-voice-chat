@@ -1,5 +1,7 @@
 mod auth;
 mod encoding;
+mod game_data;
+mod logging;
 mod net;
 mod players;
 mod response;

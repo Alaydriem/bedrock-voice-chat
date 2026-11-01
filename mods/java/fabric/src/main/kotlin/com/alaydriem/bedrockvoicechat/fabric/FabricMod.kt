@@ -42,6 +42,7 @@ import com.alaydriem.bedrockvoicechat.svc.RelayWorld
 import com.alaydriem.bedrockvoicechat.svc.SvcAvailability
 import com.alaydriem.bedrockvoicechat.svc.SvcBridgeHost
 import net.minecraft.server.MinecraftServer
+import uniffi.bvc_relay_sdk.BvcDimensionCodec
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
 import com.alaydriem.bedrockvoicechat.server.BvcServerManager
 import net.fabricmc.api.ModInitializer
@@ -177,7 +178,9 @@ class FabricMod : ModInitializer {
             onlinePlayers = { server.playerList.players.map { it.uuid } },
             onServerThread = { task -> server.execute(task) },
             channelFactory = { api ->
-                FabricSvcChannelFactory(api, server, provider::findByIdentity)
+                FabricSvcChannelFactory(
+                    api, server, provider::findByIdentity, BvcDimensionCodec()::wireForm
+                )
             },
             groupLink = groupLink,
             // The name the control plane already uses for this player, so BVC resolves it to

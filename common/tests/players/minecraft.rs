@@ -1,4 +1,6 @@
+use common::MinecraftPlayer;
 use common::errors::{CommunicationError, GameError, MinecraftCommunicationError};
+use common::game_data::Dimension;
 
 use super::fixture::PlayerFixture;
 
@@ -68,6 +70,45 @@ fn relay_world_uuid_none_both_world_uuid_equal_allows_communication() {
     let a = PlayerFixture::make_with_relay(Some("world-a"), None);
     let b = PlayerFixture::make_with_relay(Some("world-a"), None);
     assert!(a.can_communicate_with(&b, 100.0).is_ok());
+}
+
+fn in_dimension(dimension: Dimension) -> MinecraftPlayer {
+    MinecraftPlayer {
+        dimension,
+        ..PlayerFixture::make(None)
+    }
+}
+
+fn is_dimension_mismatch(err: &CommunicationError) -> bool {
+    matches!(
+        err,
+        CommunicationError::Game(GameError::Minecraft(
+            MinecraftCommunicationError::DimensionMismatch { .. }
+        ))
+    )
+}
+
+#[test]
+fn different_custom_dimensions_cannot_hear_each_other() {
+    let a = in_dimension(Dimension::from("mypack:aether"));
+    let b = in_dimension(Dimension::from("other:aether"));
+    let err = a.can_communicate_with(&b, 100.0).unwrap_err();
+    assert!(is_dimension_mismatch(&err), "{err:?}");
+}
+
+#[test]
+fn the_same_custom_dimension_in_range_can() {
+    let a = in_dimension(Dimension::from("mypack:aether"));
+    let b = in_dimension(Dimension::from("mypack:aether"));
+    assert!(a.can_communicate_with(&b, 100.0).is_ok());
+}
+
+#[test]
+fn a_custom_dimension_cannot_hear_overworld() {
+    let a = in_dimension(Dimension::from("mypack:aether"));
+    let b = in_dimension(Dimension::Overworld);
+    let err = a.can_communicate_with(&b, 100.0).unwrap_err();
+    assert!(is_dimension_mismatch(&err), "{err:?}");
 }
 
 // Mods and servers are released on their own schedules. An old server rejects a player whose

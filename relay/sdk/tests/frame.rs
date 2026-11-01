@@ -2,6 +2,7 @@ use bvc_relay::peer::PeerVoice;
 use bvc_relay_sdk::{SdkFrame, SdkGroupScope};
 use common::game_data::Dimension;
 use common::structs::relay::wire::datagram::{GroupScope, VoiceFrame};
+use common::traits::player_data::PlayerData;
 use common::{Coordinate, MinecraftPlayer, Orientation, PlayerEnum};
 
 fn wire(world: Option<&str>) -> VoiceFrame {
@@ -111,17 +112,20 @@ fn a_frame_carries_the_speakers_dimension_across_both_conversions() {
     );
 }
 
-// An unrecognised dimension resolves rather than failing: a bridge for a modded
-// dimension must still be audible somewhere, and the wire type has no variant for
-// "unknown".
+// An unrecognised dimension resolves rather than failing, and into a dimension of its
+// own: merged into Overworld it would be audible to listeners a world away.
 #[test]
-fn an_unrecognised_dimension_falls_back_rather_than_failing() {
+fn an_unrecognised_dimension_is_isolated_rather_than_failing() {
     let mut frame = SdkFrame::from(wire(Some("W1")));
     frame.dimension = "someones_custom_dim".to_string();
 
     let back = VoiceFrame::from(frame);
 
     assert_eq!(
+        back.speaker.as_minecraft().expect("minecraft").dimension,
+        Dimension::from("someones_custom_dim")
+    );
+    assert_ne!(
         back.speaker.as_minecraft().expect("minecraft").dimension,
         Dimension::Overworld
     );
@@ -195,4 +199,19 @@ fn sent_frame_scope_reaches_the_link() {
             members_only: true,
         })
     );
+}
+
+// A speaker in a modded dimension crosses the bridge as `custom:<hex>` and must come back
+// as the same dimension, not as Overworld.
+#[test]
+fn a_custom_dimension_survives_the_sdk_frame() {
+    let dimension = Dimension::from("mypack:aether");
+    let mut original = wire(Some("W1"));
+    if let PlayerEnum::Minecraft(player) = &mut original.speaker {
+        player.dimension = dimension;
+    }
+
+    let back = VoiceFrame::from(SdkFrame::from(original));
+
+    assert_eq!(back.speaker.dimension(), Some(dimension));
 }

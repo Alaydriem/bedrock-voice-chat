@@ -16,7 +16,9 @@ pub struct SdkFrame {
     pub speaker: String,
     pub world: Option<String>,
 
-    // The api form: "overworld", "nether", "the_end".
+    // The api form: "overworld", "nether", "the_end", or "custom:<hex>" for a dimension
+    // without a variant. Outbound, a bridge may send the raw name instead; the receiving
+    // side hashes it. `BvcDimensionCodec` gives the form for a raw name.
     //
     // Carried because the dimension gate on the receiving side is unconditional,
     // so a frame that omits it does not merely lack a field — it asserts a wrong
@@ -81,14 +83,14 @@ impl From<VoiceFrame> for SdkFrame {
         let position = frame.speaker.get_position().clone();
 
         // A speaker whose game reports no dimension resolves to the default rather
-        // than to an empty string, which `Dimension::from` would read as Overworld
-        // anyway — this keeps that decision in one place.
+        // than to an empty string, which `Dimension::from` would isolate as a
+        // dimension of its own.
         let dimension = frame
             .speaker
             .dimension()
             .unwrap_or_default()
             .as_api_str()
-            .to_string();
+            .into_owned();
 
         Self {
             speaker,
@@ -122,9 +124,8 @@ impl From<SdkFrame> for VoiceFrame {
                     z: frame.z,
                 },
                 orientation: Orientation { x: 0.0, y: 0.0 },
-                // An unrecognised name resolves to Overworld rather than failing:
-                // a modded dimension must still be audible somewhere, and the wire
-                // type has no variant meaning "unknown".
+                // An unrecognised name is hashed into a dimension of its own, never
+                // merged into Overworld, where it would be audible a world away.
                 dimension: Dimension::from(frame.dimension.as_str()),
                 whispering: false,
                 spectator: false,

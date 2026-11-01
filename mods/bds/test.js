@@ -1,6 +1,9 @@
 // Runs the add-on's unit tests: bundles each tests/**/*.test.ts with esbuild into .test-out/
-// and runs them with Node's own test runner. Only modules that import nothing from
-// @minecraft/* can be tested this way; keep the logic under test in such modules.
+// and runs them with Node's own test runner.
+//
+// @minecraft/server ships type declarations only; its runtime exists inside Bedrock. Tests
+// resolve it to tests/stubs/minecraft_server.ts, which exports the values the modules
+// under test read. A test that needs another value adds it there.
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
@@ -9,6 +12,15 @@ const { spawnSync } = require('child_process');
 const root = __dirname;
 const testsDir = path.join(root, 'tests');
 const outDir = path.join(root, '.test-out');
+
+const minecraftServerStub = {
+  name: 'minecraft-server-stub',
+  setup(build) {
+    build.onResolve({ filter: /^@minecraft\/server$/ }, () => ({
+      path: path.join(testsDir, 'stubs', 'minecraft_server.ts'),
+    }));
+  },
+};
 
 function findTests(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -37,6 +49,7 @@ async function run() {
     format: 'esm',
     target: 'node18',
     logLevel: 'warning',
+    plugins: [minecraftServerStub],
   });
   const outputs = findTests(testsDir).map((file) =>
     path.join(outDir, path.relative(testsDir, file).replace(/\.ts$/, '.mjs')),

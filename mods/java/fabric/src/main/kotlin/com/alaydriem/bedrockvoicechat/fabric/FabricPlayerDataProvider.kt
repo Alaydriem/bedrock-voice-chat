@@ -199,13 +199,6 @@ class FabricPlayerDataProvider(
     }
 
     private fun getDimensionFromPlayer(player: ServerPlayer): Dimension {
-        val dimensionId = player.level().dimension().identifier().toString()
-
-        return when (dimensionId) {
-            "minecraft:overworld" -> Dimension.Minecraft.OVERWORLD
-            "minecraft:the_nether" -> Dimension.Minecraft.NETHER
-            "minecraft:the_end" -> Dimension.Minecraft.THE_END
-            else -> Dimension.Custom(dimensionId)
-        }
+        return Dimension.fromString(GameType.MINECRAFT, player.level().dimension().identifier().toString())!!
     }
 }

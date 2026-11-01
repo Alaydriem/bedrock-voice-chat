@@ -41,9 +41,6 @@ class PaperSvcWiring(
         )
     }
 
-    private fun dimensionOf(world: World?): String = when (world?.environment) {
-        World.Environment.NETHER -> "nether"
-        World.Environment.THE_END -> "the_end"
-        else -> "overworld"
-    }
+    private fun dimensionOf(world: World?): String =
+        PaperPlayerDataProvider.dimensionOf(world).toApiString()
 }

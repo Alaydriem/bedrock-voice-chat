@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import uniffi.bvc_relay_sdk.BvcDimensionCodec
 import uniffi.bvc_relay_sdk.BvcPeer
 import uniffi.bvc_relay_sdk.SdkConfig
 import uniffi.bvc_relay_sdk.SdkException
@@ -212,6 +213,16 @@ class SdkSmokeTest {
         assertEquals("evt-77", echoed!!.jukebox)
 
         peer.shutdown()
+    }
+
+    // The bridge matches a `custom:<hex>` frame to a level by hashing level names through
+    // this codec, so it must give the same value as the server: the literal is the one
+    // `common`'s locked hash test pins.
+    @Test
+    fun `the dimension codec matches the locked hash`() {
+        val form = BvcDimensionCodec().use { it.wireForm("twilightforest:twilight_forest") }
+
+        assertEquals("custom:2805eb64d4e16523", form)
     }
 
     // Refused rather than queued, and the refusal has to reach Kotlin as an

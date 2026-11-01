@@ -5,6 +5,7 @@
 //! generated files rather than a second implementation.
 
 pub mod config;
+pub mod dimension;
 pub mod enrol;
 pub mod error;
 pub mod frame;
@@ -13,6 +14,7 @@ pub mod identity;
 pub mod peer;
 
 pub use config::SdkConfig;
+pub use dimension::BvcDimensionCodec;
 pub use enrol::{SdkEnrolOutcome, bvc_enrol};
 pub use error::SdkError;
 pub use frame::SdkFrame;
