@@ -8,14 +8,14 @@ use std::time::{Duration, Instant};
 /// same inputs, so an unguarded `error!` on that path emits at the source's
 /// full rate -- a position feed at 4Hz produced ~12,000 identical lines in
 /// under an hour, which buries every other line in the log.
-pub(crate) struct LogThrottle {
+pub struct LogThrottle {
     interval: Duration,
     last_emitted: Mutex<Option<Instant>>,
     suppressed: AtomicU64,
 }
 
 impl LogThrottle {
-    pub(crate) fn new(interval: Duration) -> Self {
+    pub fn new(interval: Duration) -> Self {
         Self {
             interval,
             last_emitted: Mutex::new(None),
@@ -25,7 +25,7 @@ impl LogThrottle {
 
     /// Returns how many occurrences were suppressed since the last emission
     /// when the caller should log now, or `None` when it should stay quiet.
-    pub(crate) fn should_log(&self) -> Option<u64> {
+    pub fn should_log(&self) -> Option<u64> {
         let now = Instant::now();
 
         let mut last = match self.last_emitted.lock() {

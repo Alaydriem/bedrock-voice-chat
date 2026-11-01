@@ -1,6 +1,7 @@
 package com.alaydriem.bedrockvoicechat.fabric.svc
 
 import com.alaydriem.bedrockvoicechat.dto.Dimension
+import com.alaydriem.bedrockvoicechat.dto.GameType
 import com.alaydriem.bedrockvoicechat.fabric.FabricPlayerDataProvider
 import com.alaydriem.bedrockvoicechat.svc.SpeakerSnapshot
 import net.minecraft.server.MinecraftServer
@@ -36,5 +37,6 @@ class FabricSvcWiring(
         )
     }
 
-    private fun dimensionOf(key: String): String = Dimension.fromIdentifier(key).toApiString()
+    private fun dimensionOf(key: String): String =
+        Dimension.fromString(GameType.MINECRAFT, key)!!.toApiString()
 }

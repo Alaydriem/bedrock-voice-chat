@@ -1,4 +1,5 @@
 use common::curia;
+use common::logging::LogThrottle;
 use std::sync::Arc;
 
 use common::structs::packet::QuicNetworkPacket;
@@ -10,7 +11,6 @@ use bvc_relay::peer::{AdmissionControl, Handshake, PeerEndpoint, PeerError, Peer
 
 use crate::relay::grant::GrantTable;
 use crate::relay::peer::{AdvertisedAddress, PeerTicketCache};
-use crate::stream::quic::log_throttle::LogThrottle;
 
 use super::egress::PeerEgress;
 use super::ingest::PeerIngest;

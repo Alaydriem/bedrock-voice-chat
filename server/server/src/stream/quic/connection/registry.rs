@@ -1,4 +1,5 @@
 use common::curia;
+use common::logging::LogThrottle;
 use common::PlayerEnum;
 use common::net::PositionCadence;
 use common::structs::relay::wire::datagram::GroupScope;
@@ -22,7 +23,6 @@ use crate::services::metrics_service::interaction::InteractionRoute;
 use crate::services::metrics_service::interaction::RouteRejection;
 use crate::services::metrics_service::interaction::InteractionTracker;
 use crate::services::metrics_service::route::RouteFrameReport;
-use crate::stream::quic::log_throttle::LogThrottle;
 use crate::stream::session::WebSocketDeviceId;
 
 const OVERSIZED_BROADCAST_LOG_INTERVAL: Duration = Duration::from_secs(30);

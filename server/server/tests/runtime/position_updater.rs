@@ -252,7 +252,7 @@ async fn a_custom_dimension_player_is_anchored_like_any_other() {
     }
     assert_eq!(
         delivered[&explorer][&explorer].dimension(),
-        Some(Dimension::parse("mypack:aether"))
+        Some(Dimension::from("mypack:aether"))
     );
 }
 

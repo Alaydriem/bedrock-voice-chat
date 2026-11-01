@@ -26,7 +26,7 @@ pub struct SdkFrame {
     //
     // A string rather than a generated enum because both sides already speak this
     // vocabulary: Kotlin's `Dimension.toApiString()` emits it and
-    // `Dimension::parse` accepts it. A third representation would be a third
+    // `Dimension::from(&str)` accepts it. A third representation would be a third
     // thing to keep in step.
     pub dimension: String,
     pub x: f32,
@@ -83,13 +83,13 @@ impl From<VoiceFrame> for SdkFrame {
         let position = frame.speaker.get_position().clone();
 
         // A speaker whose game reports no dimension resolves to the default rather
-        // than to an empty string, which `Dimension::parse` would isolate as a
+        // than to an empty string, which `Dimension::from` would isolate as a
         // dimension of its own.
         let dimension = frame
             .speaker
             .dimension()
             .unwrap_or_default()
-            .wire_form()
+            .as_api_str()
             .into_owned();
 
         Self {
@@ -126,7 +126,7 @@ impl From<SdkFrame> for VoiceFrame {
                 orientation: Orientation { x: 0.0, y: 0.0 },
                 // An unrecognised name is hashed into a dimension of its own, never
                 // merged into Overworld, where it would be audible a world away.
-                dimension: Dimension::parse(&frame.dimension),
+                dimension: Dimension::from(frame.dimension.as_str()),
                 whispering: false,
                 spectator: false,
                 world_uuid: None,

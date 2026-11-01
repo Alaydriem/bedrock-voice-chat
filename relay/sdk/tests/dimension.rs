@@ -7,7 +7,7 @@ fn the_codec_agrees_with_common() {
     for raw in ["minecraft:the_nether", "mypack:aether", ""] {
         assert_eq!(
             codec.wire_form(raw.to_string()),
-            Dimension::parse(raw).wire_form(),
+            Dimension::from(raw).as_api_str(),
             "{raw}"
         );
     }

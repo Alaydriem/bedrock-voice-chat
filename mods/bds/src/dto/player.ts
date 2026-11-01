@@ -1,23 +1,52 @@
+import { Player as MinecraftPlayer, GameMode } from '@minecraft/server';
 import { Coordinates } from './coordinates';
 import { Orientation } from './orientation';
 import { Dimension } from './dimension';
 
-/**
- * One player's position record, as posted to the BVC server.
- *
- * Imports nothing from `@minecraft/*` so it can be tested outside Bedrock; building one
- * from a live player is `PlayerFactory`'s job.
- */
 export class Player {
   constructor(
     public readonly name: string,
-    public readonly dimension: Dimension,
+    public readonly dimension: string,
     public readonly coordinates: Coordinates,
     public readonly whispering: boolean,
     public readonly orientation: Orientation,
     public readonly spectator: boolean = false,
     public readonly world_uuid: string | undefined = undefined,
   ) {}
+
+  static fromMinecraftPlayer(
+    player: MinecraftPlayer,
+    worldUuid?: string,
+  ): Player {
+    return new Player(
+      player.name,
+      player.dimension.id.replace('minecraft:', ''),
+      Coordinates.fromMinecraftLocation(player.location),
+      player.isSneaking,
+      Orientation.fromMinecraftRotation(player.getRotation()),
+      player.getGameMode() === GameMode.Spectator,
+      worldUuid,
+    );
+  }
+
+  /**
+   * Create a player DTO with death dimension override.
+   * Dead players are placed at origin (0,0,0) in the "death" dimension.
+   */
+  static fromMinecraftPlayerDead(
+    player: MinecraftPlayer,
+    worldUuid?: string,
+  ): Player {
+    return new Player(
+      player.name,
+      Dimension.DEATH,
+      new Coordinates(0, 0, 0),
+      player.isSneaking,
+      Orientation.fromMinecraftRotation(player.getRotation()),
+      false,
+      worldUuid,
+    );
+  }
 
   /**
    * Create a phantom player DTO for a player who has disconnected.
@@ -39,7 +68,7 @@ export class Player {
   toJSON() {
     return {
       name: this.name,
-      dimension: this.dimension.toApiString(),
+      dimension: this.dimension,
       coordinates: this.coordinates.toJSON(),
       // Keyed `deafen` on the wire: BVC servers of either version read that key.
       deafen: this.whispering,

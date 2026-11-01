@@ -9,6 +9,7 @@ pub use serde::{Deserialize, Serialize};
 
 pub mod consts;
 pub mod game_data;
+pub mod logging;
 #[cfg(feature = "net")]
 pub mod net;
 pub mod players;
