@@ -90,22 +90,22 @@ fn is_dimension_mismatch(err: &CommunicationError) -> bool {
 
 #[test]
 fn different_custom_dimensions_cannot_hear_each_other() {
-    let a = in_dimension(Dimension::parse("mypack:aether"));
-    let b = in_dimension(Dimension::parse("other:aether"));
+    let a = in_dimension(Dimension::from("mypack:aether"));
+    let b = in_dimension(Dimension::from("other:aether"));
     let err = a.can_communicate_with(&b, 100.0).unwrap_err();
     assert!(is_dimension_mismatch(&err), "{err:?}");
 }
 
 #[test]
 fn the_same_custom_dimension_in_range_can() {
-    let a = in_dimension(Dimension::parse("mypack:aether"));
-    let b = in_dimension(Dimension::parse("mypack:aether"));
+    let a = in_dimension(Dimension::from("mypack:aether"));
+    let b = in_dimension(Dimension::from("mypack:aether"));
     assert!(a.can_communicate_with(&b, 100.0).is_ok());
 }
 
 #[test]
 fn a_custom_dimension_cannot_hear_overworld() {
-    let a = in_dimension(Dimension::parse("mypack:aether"));
+    let a = in_dimension(Dimension::from("mypack:aether"));
     let b = in_dimension(Dimension::Overworld);
     let err = a.can_communicate_with(&b, 100.0).unwrap_err();
     assert!(is_dimension_mismatch(&err), "{err:?}");

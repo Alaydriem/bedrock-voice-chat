@@ -1,6 +1,5 @@
 package com.alaydriem.bedrockvoicechat.paper.svc
 
-import com.alaydriem.bedrockvoicechat.paper.PaperDimensions
 import com.alaydriem.bedrockvoicechat.paper.PaperPlayerDataProvider
 import com.alaydriem.bedrockvoicechat.svc.SpeakerSnapshot
 import org.bukkit.Server
@@ -42,5 +41,6 @@ class PaperSvcWiring(
         )
     }
 
-    private fun dimensionOf(world: World?): String = PaperDimensions.of(world).toApiString()
+    private fun dimensionOf(world: World?): String =
+        PaperPlayerDataProvider.dimensionOf(world).toApiString()
 }

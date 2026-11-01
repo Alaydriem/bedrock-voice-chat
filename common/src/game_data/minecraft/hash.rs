@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DimensionHash([u8; 8]);
 
-// Hex, the same text the name log prints, so a mismatch in an error or debug log can be
-// matched to the dimension behind it.
+// Hex, the same text the `custom:<hex>` wire form carries, so a mismatch in an error or
+// debug log can be matched to the dimension behind it.
 impl std::fmt::Debug for DimensionHash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "DimensionHash({})", self.to_hex())

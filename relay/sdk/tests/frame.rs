@@ -123,7 +123,7 @@ fn an_unrecognised_dimension_is_isolated_rather_than_failing() {
 
     assert_eq!(
         back.speaker.as_minecraft().expect("minecraft").dimension,
-        Dimension::parse("someones_custom_dim")
+        Dimension::from("someones_custom_dim")
     );
     assert_ne!(
         back.speaker.as_minecraft().expect("minecraft").dimension,
@@ -205,7 +205,7 @@ fn sent_frame_scope_reaches_the_link() {
 // as the same dimension, not as Overworld.
 #[test]
 fn a_custom_dimension_survives_the_sdk_frame() {
-    let dimension = Dimension::parse("mypack:aether");
+    let dimension = Dimension::from("mypack:aether");
     let mut original = wire(Some("W1"));
     if let PlayerEnum::Minecraft(player) = &mut original.speaker {
         player.dimension = dimension;

@@ -1,20 +1,21 @@
 mod hash;
-mod name_log;
-mod wire;
 
 use std::borrow::Cow;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub use hash::DimensionHash;
-pub use name_log::DimensionNameLog;
-use wire::DimensionWire;
 
 /// Minecraft world dimensions.
 ///
 /// JSON carries a bare string (`overworld`, `nether`, `custom:<hex>`, …). Postcard carries
-/// the variant index, plus the hash for `Other`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
+/// the variant index, plus the hash for `Other`, so the variant order is the wire contract:
+/// append, never reorder.
+//
+// `remote = "Self"` makes the derive emit inherent `serialize`/`deserialize` functions
+// instead of the traits; the trait impls below use them for the binary form.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default, Serialize, Deserialize)]
+#[serde(remote = "Self")]
 pub enum Dimension {
     #[default]
     Overworld,
@@ -32,9 +33,25 @@ impl Dimension {
     const MINECRAFT_PREFIX: &'static str = "minecraft:";
     const CUSTOM_PREFIX: &'static str = "custom:";
 
-    /// The one parse every producer path shares. Never returns `Overworld` for a name it
-    /// does not know: an unknown dimension is isolated, not merged into another.
-    pub fn parse(raw: &str) -> Self {
+    /// The string form JSON and the relay frame carry: a vanilla name (`overworld`,
+    /// `nether`, `the_end`, `death`, `the_sift`) or `custom:<hex>`. `From<&str>` reads it
+    /// back to the same value.
+    pub fn as_api_str(&self) -> Cow<'static, str> {
+        match self {
+            Self::Overworld => Cow::Borrowed("overworld"),
+            Self::TheNether => Cow::Borrowed("nether"),
+            Self::TheEnd => Cow::Borrowed("the_end"),
+            Self::Death => Cow::Borrowed("death"),
+            Self::TheSift => Cow::Borrowed("the_sift"),
+            Self::Other(hash) => Cow::Owned(format!("{}{}", Self::CUSTOM_PREFIX, hash.to_hex())),
+        }
+    }
+}
+
+// The one parse every producer path shares. Never returns `Overworld` for a name it does
+// not know: an unknown dimension is isolated, not merged into another.
+impl From<&str> for Dimension {
+    fn from(raw: &str) -> Self {
         if let Some(hash) = raw
             .strip_prefix(Self::CUSTOM_PREFIX)
             .and_then(DimensionHash::from_hex)
@@ -48,40 +65,18 @@ impl Dimension {
             "nether" | "the_nether" => Self::TheNether,
             "the_end" => Self::TheEnd,
             "death" => Self::Death,
-            _ => {
-                let hash = DimensionHash::of(canonical);
-                DimensionNameLog::observe(raw, hash);
-                Self::Other(hash)
-            }
+            _ => Self::Other(DimensionHash::of(canonical)),
         }
-    }
-
-    /// The JSON string form, which `parse` reads back to the same value.
-    pub fn wire_form(&self) -> Cow<'static, str> {
-        match self {
-            Self::Overworld => Cow::Borrowed("overworld"),
-            Self::TheNether => Cow::Borrowed("nether"),
-            Self::TheEnd => Cow::Borrowed("the_end"),
-            Self::Death => Cow::Borrowed("death"),
-            Self::TheSift => Cow::Borrowed("the_sift"),
-            Self::Other(hash) => Cow::Owned(format!("{}{}", Self::CUSTOM_PREFIX, hash.to_hex())),
-        }
-    }
-}
-
-impl From<&str> for Dimension {
-    fn from(value: &str) -> Self {
-        Self::parse(value)
     }
 }
 
 impl Serialize for Dimension {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if serializer.is_human_readable() {
-            return serializer.serialize_str(&self.wire_form());
+            return serializer.serialize_str(&self.as_api_str());
         }
 
-        DimensionWire::from(*self).serialize(serializer)
+        Self::serialize(self, serializer)
     }
 }
 
@@ -89,10 +84,10 @@ impl<'de> Deserialize<'de> for Dimension {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         if deserializer.is_human_readable() {
             let raw = Cow::<'de, str>::deserialize(deserializer)?;
-            return Ok(Self::parse(&raw));
+            return Ok(Self::from(raw.as_ref()));
         }
 
-        DimensionWire::deserialize(deserializer).map(Self::from)
+        Self::deserialize(deserializer)
     }
 }
 

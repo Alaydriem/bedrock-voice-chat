@@ -1,6 +1,6 @@
 import { system } from '@minecraft/server';
 import type { Player } from '@minecraft/server';
-import { AudioPlayRequest, Dimension } from '../../dto';
+import { AudioPlayRequest } from '../../dto';
 import type { AudioEventResponse } from '../../dto';
 import { httpClient } from '../../net';
 import type { ServerAdminConfig } from '../../config';
@@ -18,7 +18,7 @@ export class NetAudioSender implements AudioSender {
     const request = new AudioPlayRequest(
       state.audioId,
       state.coordinates,
-      Dimension.of(state.dimensionId),
+      state.dimensionId.replace('minecraft:', ''),
       state.worldUuid,
     );
     const body = JSON.stringify(request.toJSON());
