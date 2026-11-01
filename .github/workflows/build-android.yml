@@ -258,6 +258,14 @@ jobs:
           # Sanity check: stdlib.h should exist here
           test -f "$ANDROID_SYSROOT/usr/include/stdlib.h" && echo "Found stdlib.h in sysroot" || (echo "Missing stdlib.h"; exit 1)
 
+          # libclang for bindgen comes from whichever LLVM libclang-dev installed. The
+          # version follows the runner image, so the path is read rather than written down.
+          LLVM_LIBDIR="$(llvm-config --libdir)"
+          ls "$LLVM_LIBDIR"/libclang*.so* > /dev/null || (echo "No libclang in $LLVM_LIBDIR"; exit 1)
+          echo "Using libclang from $LLVM_LIBDIR"
+          echo "LIBCLANG_PATH=$LLVM_LIBDIR" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$LLVM_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> $GITHUB_ENV
+
           echo "CARGO_NDK_PLATFORM=35" >> $GITHUB_ENV
           echo "ANDROID_PLATFORM=android-35" >> $GITHUB_ENV
           echo "CMAKE_ANDROID_API=35" >> $GITHUB_ENV
@@ -413,10 +421,6 @@ jobs:
           # job via a cargo profile override so desktop/server release binaries and the
           # auto-updater downloads stay stripped. AGP still strips the runtime .so.
           CARGO_PROFILE_RELEASE_STRIP: "false"
-
-          # libclang - keep using the system libclang 17
-          LIBCLANG_PATH: /usr/lib/llvm-17/lib/
-          LD_LIBRARY_PATH: /usr/lib/llvm-17/lib/:$LD_LIBRARY_PATH
 
           # NDK env
           ANDROID_NDK_HOME: "$ANDROID_NDK_ROOT"
