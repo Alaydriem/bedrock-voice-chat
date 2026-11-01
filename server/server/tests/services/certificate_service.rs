@@ -29,7 +29,7 @@ fn a_gamertag_with_a_space_keeps_its_dns_name() {
 
     let (cert, _key) = certs
         .service
-        .sign_player_cert("TTV 3RICtion", &Game::Minecraft)
+        .sign_player_cert("Player One", &Game::Minecraft)
         .expect("a certificate for a gamertag with a space");
 
     let (_, parsed) = x509_parser::parse_x509_certificate(cert.der()).expect("parse");
@@ -48,7 +48,7 @@ fn a_gamertag_with_a_space_keeps_its_dns_name() {
         .collect();
 
     assert!(
-        dns_names.contains(&"TTV 3RICtion"),
+        dns_names.contains(&"Player One"),
         "dns names were {dns_names:?}"
     );
 }
