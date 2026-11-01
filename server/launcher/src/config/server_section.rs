@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::TlsSection;
+use super::{EnrollmentSection, TlsSection};
 
 fn default_port() -> u32 {
     443
@@ -12,6 +12,10 @@ pub struct ServerSection {
     pub port: u32,
     #[serde(default)]
     pub tls: TlsSection,
+    #[serde(default)]
+    pub enrollment: EnrollmentSection,
+    #[serde(default)]
+    pub mod_loopback: bool,
 }
 
 impl Default for ServerSection {
@@ -19,6 +23,8 @@ impl Default for ServerSection {
         Self {
             port: default_port(),
             tls: TlsSection::default(),
+            enrollment: EnrollmentSection::default(),
+            mod_loopback: false,
         }
     }
 }

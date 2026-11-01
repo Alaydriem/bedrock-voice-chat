@@ -28,6 +28,7 @@ fn start(port: u16, api: SocketAddr) -> JoinHandle<Result<(), DemuxError>> {
         SocketAddr::from((Ipv4Addr::LOCALHOST, port)),
         ApiBind::new(api.port()),
         None,
+        None,
     );
     tokio::spawn(async move { demux.start().await })
 }

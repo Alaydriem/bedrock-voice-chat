@@ -1,10 +1,11 @@
 use super::VoiceLinkError;
+use common::rustls::{BvcClientTls, VerifierMode};
+use rustls::ClientConfig;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use rustls::{ClientConfig, RootCertStore};
-use std::sync::Arc;
 
 /// The TLS client configuration every socket to the server uses: the public roots plus the
-/// server's own CA, presenting this player's certificate.
+/// server's own CA, presenting this player's certificate. A play-zone name is validated
+/// against the built-in play roots instead.
 ///
 /// ALPN is the caller's: the voice link offers the voice protocol so the demultiplexer routes
 /// it to the voice listener, and a protected group's key socket offers `http/1.1` so the same
@@ -21,40 +22,13 @@ impl MtlsClientConfig {
         key: &str,
         alpn: &[&[u8]],
     ) -> Result<ClientConfig, VoiceLinkError> {
-        let mut roots = RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-        for certificate in Self::parse_certificates(ca_cert)? {
-            roots
-                .add(certificate)
-                .map_err(|source| VoiceLinkError::TrustRoot { source })?;
-        }
-
-        // Named explicitly rather than taken from the process default: whether one is
-        // installed depends on which other component initialised rustls first, and
-        // `ClientConfig::builder` panics rather than erroring when none is.
-        let builder = ClientConfig::builder_with_provider(Arc::new(
-            rustls::crypto::aws_lc_rs::default_provider(),
-        ))
-        .with_safe_default_protocol_versions()
-        .map_err(|source| VoiceLinkError::TlsConfig { source })?
-        .with_root_certificates(roots);
-
-        let mut config = builder
-            .with_client_auth_cert(Self::parse_certificates(cert)?, Self::parse_key(key)?)
-            .map_err(|source| VoiceLinkError::TlsConfig { source })?;
-
-        config.alpn_protocols = alpn.iter().map(|protocol| protocol.to_vec()).collect();
-
-        // Matches the HTTP client, which sets `danger_accept_invalid_certs` under the same
-        // condition. Development and the end-to-end harness both run servers whose
-        // certificates no root will vouch for; a release build validates normally.
-        #[cfg(debug_assertions)]
-        {
-            config
-                .dangerous()
-                .set_certificate_verifier(Arc::new(super::PermissiveServerVerifier::new()));
-        }
-
-        Ok(config)
+        BvcClientTls::config(
+            Some(ca_cert),
+            Some((Self::parse_certificates(cert)?, Self::parse_key(key)?)),
+            alpn,
+            VerifierMode::for_build(),
+        )
+        .map_err(|source| VoiceLinkError::Tls { source })
     }
 
     fn parse_certificates(pem: &str) -> Result<Vec<CertificateDer<'static>>, VoiceLinkError> {

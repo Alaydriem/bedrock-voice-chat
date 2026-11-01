@@ -10,6 +10,7 @@ mod http;
 mod migration;
 mod naming;
 mod observe;
+mod play;
 mod registry;
 mod runtime;
 mod scheduler;

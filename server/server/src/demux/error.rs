@@ -61,6 +61,11 @@ pub enum DemuxError {
     #[error("{peer} asked for the voice transport, which is not enabled here")]
     VoiceTransportUnavailable { peer: SocketAddr },
 
+    /// The first byte was not a TLS record and the peer may not use the plain branch: it is
+    /// either off or the peer is not on this machine. Closed with nothing written.
+    #[error("{peer} sent plain traffic to the public port, which is not accepted from it")]
+    PlainRefused { peer: SocketAddr },
+
     #[error("dialling backend {addr} for {peer}")]
     BackendDial {
         peer: SocketAddr,
@@ -111,6 +116,7 @@ impl DemuxError {
                 | Self::HandshakeTooLarge { .. }
                 | Self::HandshakeIncomplete { .. }
                 | Self::MalformedHello { .. }
+                | Self::PlainRefused { .. }
                 | Self::Read { .. }
                 | Self::Relay { .. }
         )

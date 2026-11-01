@@ -106,6 +106,7 @@ fn scheduler_with(
         ClaimService::new_shared(conn),
         members,
         discord_config(),
+        None,
     )
 }
 

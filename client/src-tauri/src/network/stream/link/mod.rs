@@ -3,16 +3,10 @@ mod mtls_client_config;
 mod recv_failure;
 mod ws;
 
-#[cfg(debug_assertions)]
-mod permissive_server_verifier;
-
 pub(crate) use error::VoiceLinkError;
 pub(crate) use mtls_client_config::MtlsClientConfig;
 pub(crate) use recv_failure::RecvFailure;
 pub(crate) use ws::WsLink;
-
-#[cfg(debug_assertions)]
-pub(crate) use permissive_server_verifier::PermissiveServerVerifier;
 
 use bytes::Bytes;
 use common::s2n_quic::Connection;

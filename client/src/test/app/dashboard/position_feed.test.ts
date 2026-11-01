@@ -24,7 +24,9 @@ class FakeSocket {
     }
 }
 
-vi.stubGlobal("WebSocket", FakeSocket);
+// The feed's socket is opened by Rust; the test stands in for it. The factory runs when the
+// feed is imported below, after FakeSocket exists.
+vi.mock("../../../js/app/dashboard/RustWebSocket", () => ({ RustWebSocket: FakeSocket }));
 
 const { PositionFeed } = await import("../../../js/app/dashboard/PositionFeed");
 

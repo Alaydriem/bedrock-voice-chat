@@ -25,6 +25,9 @@ pub mod android;
 pub use analytics::InstallMarker;
 pub use analytics::PlatformId;
 mod api;
+// Re-exported for the integration test crate to reach a play-named server through the
+// API client's TLS configuration.
+pub use api::ApiClient;
 pub use api::EndpointBreaker;
 pub use api::FetchCache;
 pub use api::GamerpicGate;
@@ -296,6 +299,10 @@ pub fn run() {
             crate::commands::recordings::rename_recording_session,
             crate::commands::recordings::export_recording,
             // Stream Information
+            crate::commands::network::read_public_server_config,
+            crate::commands::network::read_remote_image,
+            crate::commands::network::position_socket_open,
+            crate::commands::network::position_socket_close,
             crate::commands::network::stop_network_stream,
             crate::commands::network::change_network_stream,
             crate::commands::network::connected_voice_server,
@@ -684,6 +691,7 @@ pub fn run() {
             // replace it without a restart.
             let platform_id = analytics::PlatformId::new_shared(install_id.clone());
             app.manage(platform_id.clone());
+            app.manage(crate::network::PositionSocketRegistry::new_shared());
 
             // Analytics service with provider pattern
             let mut analytics_service = analytics::AnalyticsService::new(

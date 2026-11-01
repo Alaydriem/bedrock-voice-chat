@@ -12,6 +12,43 @@ use tauri::async_runtime::Mutex;
 use tauri_plugin_curia::curia;
 
 #[tauri::command]
+pub(crate) async fn read_public_server_config(
+    server: String,
+) -> Result<common::response::ApiConfigResponse, String> {
+    crate::network::PublicServerConfigReader::read(&server)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub(crate) async fn read_remote_image(url: String) -> Result<tauri::ipc::Response, String> {
+    let fetcher = crate::network::RemoteImageFetcher::shared().map_err(|e| e.to_string())?;
+    fetcher
+        .fetch(&url)
+        .await
+        .map(tauri::ipc::Response::new)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub(crate) fn position_socket_open(
+    url: String,
+    protocols: Vec<String>,
+    on_event: tauri::ipc::Channel<common::structs::websocket::PositionSocketEvent>,
+    registry: State<'_, Arc<crate::network::PositionSocketRegistry>>,
+) -> u32 {
+    registry.inner().open(url, protocols, on_event)
+}
+
+#[tauri::command]
+pub(crate) fn position_socket_close(
+    id: u32,
+    registry: State<'_, Arc<crate::network::PositionSocketRegistry>>,
+) {
+    registry.close(id);
+}
+
+#[tauri::command]
 pub(crate) async fn stop_network_stream(
     app: tauri::AppHandle,
     network_stream: State<'_, Mutex<NetworkStreamManager>>,

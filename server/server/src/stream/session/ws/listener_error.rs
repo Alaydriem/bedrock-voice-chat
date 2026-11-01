@@ -38,6 +38,12 @@ pub enum WebSocketListenerError {
         source: rustls::server::VerifierBuilderError,
     },
 
+    #[error("loading the WebSocket server certificate")]
+    Certificate {
+        #[source]
+        source: anyhow::Error,
+    },
+
     #[error("building the WebSocket TLS configuration")]
     TlsConfig {
         #[source]

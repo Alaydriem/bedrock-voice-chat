@@ -2,7 +2,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
 };
 
-use crate::entity::{registration, retired_name};
+use crate::entity::{play_name, registration, retired_name};
 
 use super::error::NamingError;
 use super::word_list::WordList;
@@ -19,6 +19,8 @@ impl NameGenerator {
     // a space that is orders of magnitude larger than the population effectively never
     // collides; the scan exists so exhaustion reports itself rather than looping.
     const RANDOM_ATTEMPTS: usize = 30;
+    // Numeric suffixes 0000 to 9999.
+    const PLAY_SUFFIXES: usize = 10_000;
 
     pub fn new() -> Self {
         Self
@@ -40,6 +42,21 @@ impl NameGenerator {
                         return Ok(candidate);
                     }
                 }
+            }
+        }
+
+        Err(NamingError::Exhausted)
+    }
+
+    // A play label: the three words of an assigned name plus four digits. The extra part
+    // gives play names a space of their own, 10,000 times larger, so free servers can
+    // never use up the labels entitled enrollment draws from, and the two shapes can
+    // never be equal. Drawn at random a bounded number of times; there is no scan.
+    pub async fn assign_play<C: ConnectionTrait>(&self, conn: &C) -> Result<String, NamingError> {
+        for _ in 0..Self::RANDOM_ATTEMPTS {
+            let candidate = format!("{}-{:04}", Self::draw(), Self::index(Self::PLAY_SUFFIXES));
+            if Self::is_available(conn, &candidate).await? {
+                return Ok(candidate);
             }
         }
 
@@ -89,7 +106,18 @@ impl NameGenerator {
             .one(conn)
             .await?;
 
-        Ok(held.is_none())
+        if held.is_some() {
+            return Ok(false);
+        }
+
+        // A play name shares the label space, so the two never collide in a
+        // certificate or a resolver's cache. A released play name stays in the table.
+        let play_held = play_name::Entity::find()
+            .filter(play_name::Column::Name.eq(name))
+            .one(conn)
+            .await?;
+
+        Ok(play_held.is_none())
     }
 
     fn draw() -> String {

@@ -58,3 +58,19 @@ fn negotiation_picks_the_highest_shared_version() {
         Some(EnrollVersion(2))
     );
 }
+
+// Captured from the encoder before the play frames were appended. A change here
+// means a deployed peer would mis-decode the frame.
+#[test]
+fn existing_frames_keep_their_encoding() {
+    let bytes = Framing::encode(&EnrollFrame::CheckIn {
+        address: Some("1.2.3.4".into()),
+        port: 443,
+    })
+    .expect("a check-in frame encodes");
+
+    assert_eq!(
+        bytes,
+        vec![0, 0, 0, 12, 10, 1, 7, b'1', b'.', b'2', b'.', b'3', b'.', b'4', 0xbb, 0x03]
+    );
+}

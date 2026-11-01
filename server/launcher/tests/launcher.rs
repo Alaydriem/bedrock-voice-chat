@@ -1,16 +1,72 @@
-use std::fs;
+use std::time::Duration;
 
-use bvc_launcher::Launcher;
-use bvc_launcher::release::ReleaseSources;
+use bvc_launcher::config::BvcConfig;
+use bvc_launcher::release::{ReleaseChannel, ReleaseSources};
+use bvc_launcher::{Launcher, LauncherPaths};
+
+use crate::support::HttpFixture;
 
 #[test]
-fn a_missing_config_exits_with_code_1_and_writes_nothing() {
+fn a_missing_config_is_written_and_the_launcher_continues() {
+    let dir = tempfile::tempdir().unwrap();
+    // The update step dials it and gets 404s, so the run stays offline.
+    let http = HttpFixture::start();
+    let sources = ReleaseSources::new(
+        http.url("/updater"),
+        http.url("/releases/download"),
+        Duration::from_secs(2),
+        ReleaseChannel::Stable,
+    );
+
+    // The run goes on past the config check and stops later, with no BDS to start.
+    let code =
+        Launcher::new_with_enrollment_token(dir.path().to_path_buf(), Vec::new(), sources, None)
+            .run();
+
+    let written = LauncherPaths::new(dir.path().to_path_buf()).config_file();
+    assert!(written.exists());
+    let config = BvcConfig::load(&written).unwrap();
+    assert!(config.is_play_mode());
+    assert!(config.server_url().unwrap().starts_with("http://127.0.0.1:"));
+    assert_eq!(code, 1);
+}
+
+#[test]
+fn a_missing_config_with_an_enrollment_token_exits_with_code_1_and_writes_nothing() {
     let dir = tempfile::tempdir().unwrap();
 
-    let code = Launcher::new(dir.path().to_path_buf(), Vec::new(), ReleaseSources::default()).run();
+    let code = Launcher::new_with_enrollment_token(
+        dir.path().to_path_buf(),
+        Vec::new(),
+        ReleaseSources::default(),
+        Some("token".to_string()),
+    )
+    .run();
 
     assert_eq!(code, 1);
-    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn a_blank_enrollment_token_does_not_block_the_default_config() {
+    let dir = tempfile::tempdir().unwrap();
+    let http = HttpFixture::start();
+    let sources = ReleaseSources::new(
+        http.url("/updater"),
+        http.url("/releases/download"),
+        Duration::from_secs(2),
+        ReleaseChannel::Stable,
+    );
+
+    Launcher::new_with_enrollment_token(
+        dir.path().to_path_buf(),
+        Vec::new(),
+        sources,
+        Some("  ".to_string()),
+    )
+    .run();
+
+    assert!(LauncherPaths::new(dir.path().to_path_buf()).config_file().exists());
 }
 
 #[cfg(target_os = "linux")]

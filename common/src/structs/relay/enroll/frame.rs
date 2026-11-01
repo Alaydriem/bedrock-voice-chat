@@ -29,4 +29,13 @@ pub enum EnrollFrame {
     Refuse { reason: EnrollRefuseReason },
     CheckIn { address: Option<String>, port: u16 },
     CheckedIn { nonce: Vec<u8> },
+    // Version 3. The node key is the only credential.
+    PlayClaim,
+    // `name` is the fully qualified domain name.
+    PlayAssigned { name: String },
+    PlayCertificate {
+        #[serde(with = "serde_bytes")]
+        csr_der: Vec<u8>,
+    },
+    PlayIssued { chain_pem: String },
 }

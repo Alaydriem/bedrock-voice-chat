@@ -18,6 +18,7 @@ pub use server::Meridian;
 pub use server::Minecraft;
 pub use server::Enrollment;
 pub use server::PeerConfig;
+pub use server::PlayTls;
 pub use server::Registry;
 pub use server::Server;
 pub use server::Tls;
@@ -158,6 +159,25 @@ impl ApplicationConfig {
             ));
         }
 
+        let figment = self
+            .get_plain_rocket_config(bind)?
+            .merge(("tls.certs", &self.server.tls.certificate))
+            .merge(("tls.key", &self.server.tls.key))
+            .merge((
+                "tls.mutual.ca_certs",
+                format!("{}/ca.crt", &self.server.tls.certs_path),
+            ))
+            .merge(("tls.mutual.mandatory", false));
+
+        Ok(figment)
+    }
+
+    /// The Rocket configuration for a listener that speaks plain HTTP.
+    ///
+    /// The same figment as `get_rocket_config` without any `tls.*` key and without the
+    /// certificate file checks, so it works on a server that has no certificate yet. This is
+    /// the listener the mods on this machine reach through the demultiplexer.
+    pub fn get_plain_rocket_config(&self, bind: SocketAddr) -> Result<Figment, anyhow::Error> {
         self.database.validate()?;
         curia::info!("Database: {}", self.database.get_redacted_dsn());
         let figment = rocket::Config::figment()
@@ -169,13 +189,6 @@ impl ApplicationConfig {
             .merge(("address", bind.ip().to_string()))
             .merge(("limits", Limits::new().limit("json", (10).megabytes())))
             .merge(("secret_key", randombytes_buf(32)))
-            .merge(("tls.certs", &self.server.tls.certificate))
-            .merge(("tls.key", &self.server.tls.key))
-            .merge((
-                "tls.mutual.ca_certs",
-                format!("{}/ca.crt", &self.server.tls.certs_path),
-            ))
-            .merge(("tls.mutual.mandatory", false))
             .merge(("shutdown.ctrlc", false))
             .merge((
                 "minecraft.access_token",

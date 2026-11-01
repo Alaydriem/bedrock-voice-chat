@@ -4,6 +4,11 @@ mod discord;
 mod error;
 mod http;
 mod logger;
+mod play;
+mod play_ca;
+mod play_dns;
+mod play_secondary;
+mod play_tsig;
 
 pub use acme::AcmeConfig;
 pub use cloudflare::CloudflareConfig;
@@ -11,6 +16,11 @@ pub use discord::DiscordConfig;
 pub use error::ConfigError;
 pub use http::HttpConfig;
 pub use logger::LoggerConfig;
+pub use play::PlayConfig;
+pub use play_ca::PlayCaConfig;
+pub use play_dns::PlayDnsConfig;
+pub use play_secondary::PlaySecondaryConfig;
+pub use play_tsig::PlayTsigConfig;
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
@@ -50,6 +60,11 @@ pub struct RelayConfig {
     // Empty is the same as absent.
     #[serde(default)]
     pub advertise_address: Option<String>,
+
+    // Play names, the play-zone DNS server and the play certificate authority.
+    // Absent leaves all three off.
+    #[serde(default)]
+    pub play: Option<PlayConfig>,
 }
 
 impl RelayConfig {
@@ -106,7 +121,12 @@ impl RelayConfig {
 
         let value: serde_json::Value =
             hcl::eval::from_str(source, &ctx).map_err(|e| ConfigError::Parse(e.to_string()))?;
-        serde_json::from_value(value).map_err(|e| ConfigError::Parse(e.to_string()))
+        let config: Self =
+            serde_json::from_value(value).map_err(|e| ConfigError::Parse(e.to_string()))?;
+        if let Some(play) = &config.play {
+            play.validate()?;
+        }
+        Ok(config)
     }
 
     /// Parses an HCL document, exposing the full process environment as the `env`

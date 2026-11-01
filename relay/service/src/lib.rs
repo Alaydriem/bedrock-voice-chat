@@ -11,6 +11,7 @@ pub mod logging;
 pub mod migration;
 pub mod naming;
 pub mod observe;
+pub mod play;
 pub mod registry;
 pub mod runtime;
 pub mod scheduler;

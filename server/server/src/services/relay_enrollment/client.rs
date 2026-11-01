@@ -17,6 +17,9 @@ pub struct RelayEnrollmentClient {
 impl RelayEnrollmentClient {
     pub const ALPN: &'static [u8] = b"bvc-enroll/1";
 
+    // The first enrollment version that carries the play frames.
+    const PLAY_VERSION: EnrollVersion = EnrollVersion(3);
+
     pub async fn new(
         identity: &NodeIdentity,
         registry: EndpointAddr,
@@ -80,11 +83,65 @@ impl RelayEnrollmentClient {
         }
     }
 
+    /// Asks the registry for a play-zone name, and returns the fully qualified domain name.
+    ///
+    /// Idempotent on the registry's side: a node that already holds a name is given the same
+    /// one back.
+    pub async fn claim_play_name(&self) -> Result<String, EnrollmentError> {
+        match self
+            .exchange_at_least(&EnrollFrame::PlayClaim, Self::PLAY_VERSION)
+            .await?
+        {
+            EnrollFrame::PlayAssigned { name } => Ok(name),
+            EnrollFrame::Refuse { reason } => Err(EnrollmentError::refused(reason)),
+            _ => Err(EnrollmentError::Unexpected {
+                expected: "PlayAssigned",
+            }),
+        }
+    }
+
+    /// Sends a certificate request for the play name this node holds and returns the signed
+    /// chain as PEM, leaf first.
+    pub async fn request_play_certificate(
+        &self,
+        csr_der: Vec<u8>,
+    ) -> Result<String, EnrollmentError> {
+        match self
+            .exchange_at_least(&EnrollFrame::PlayCertificate { csr_der }, Self::PLAY_VERSION)
+            .await?
+        {
+            EnrollFrame::PlayIssued { chain_pem } => Ok(chain_pem),
+            EnrollFrame::Refuse { reason } => Err(EnrollmentError::refused(reason)),
+            _ => Err(EnrollmentError::Unexpected {
+                expected: "PlayIssued",
+            }),
+        }
+    }
+
     pub async fn close(&self) {
         self.endpoint.close().await;
     }
 
     async fn exchange(&self, frame: &EnrollFrame) -> Result<EnrollFrame, EnrollmentError> {
+        self.exchange_with(frame, None).await
+    }
+
+    // The registry refuses play frames on a connection that negotiated an older version,
+    // and a registry that predates them cannot decode the frame at all. The version it
+    // answers `Hello` with is therefore checked before a play frame is sent.
+    async fn exchange_at_least(
+        &self,
+        frame: &EnrollFrame,
+        minimum: EnrollVersion,
+    ) -> Result<EnrollFrame, EnrollmentError> {
+        self.exchange_with(frame, Some(minimum)).await
+    }
+
+    async fn exchange_with(
+        &self,
+        frame: &EnrollFrame,
+        minimum: Option<EnrollVersion>,
+    ) -> Result<EnrollFrame, EnrollmentError> {
         let conn = self
             .endpoint
             .endpoint()
@@ -92,7 +149,7 @@ impl RelayEnrollmentClient {
             .await
             .map_err(|e| EnrollmentError::Connect(e.to_string()))?;
 
-        let result = Self::negotiate_and_request(&conn, frame).await;
+        let result = Self::negotiate_and_request(&conn, frame, minimum).await;
         conn.close(0u32.into(), b"done");
         result
     }
@@ -100,12 +157,19 @@ impl RelayEnrollmentClient {
     async fn negotiate_and_request(
         conn: &Connection,
         frame: &EnrollFrame,
+        minimum: Option<EnrollVersion>,
     ) -> Result<EnrollFrame, EnrollmentError> {
         let hello = EnrollFrame::Hello {
             versions: EnrollVersion::SUPPORTED.to_vec(),
         };
         match Self::request(conn, &hello).await? {
-            EnrollFrame::Ready { .. } => {}
+            EnrollFrame::Ready { version } => {
+                if let Some(minimum) = minimum
+                    && version < minimum
+                {
+                    return Err(EnrollmentError::PlayNotOffered { version: version.0 });
+                }
+            }
             EnrollFrame::Refuse { .. } => return Err(EnrollmentError::NoCommonVersion),
             _ => return Err(EnrollmentError::Unexpected { expected: "Ready" }),
         }
