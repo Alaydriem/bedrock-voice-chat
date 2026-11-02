@@ -1,5 +1,6 @@
 package com.alaydriem.bedrockvoicechat.dto
 
+import com.alaydriem.bedrockvoicechat.integration.PlayerIdentity
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -67,6 +68,35 @@ data class PlayerData(
         whispering = whispering,
         spectator = spectator,
         alternativeIdentity = alternativeIdentity,
+        playerUuid = playerUuid,
+        relayWorldUuid = relayWorldUuid,
+        bridgedVoice = bridgedVoice
+    )
+
+    /**
+     * Constructor for a resolved identity. The reported name and alternative come from
+     * [PlayerIdentity], so every platform sends the same wire for the same player.
+     */
+    constructor(
+        identity: PlayerIdentity,
+        x: Double, y: Double, z: Double,
+        yaw: Float, pitch: Float,
+        dimension: Dimension?,
+        whispering: Boolean,
+        spectator: Boolean = false,
+        worldUuid: String? = null,
+        playerUuid: String? = null,
+        relayWorldUuid: String? = null,
+        bridgedVoice: Boolean = false
+    ) : this(
+        name = identity.reportedName,
+        x = x, y = y, z = z,
+        yaw = yaw, pitch = pitch,
+        dimension = dimension,
+        whispering = whispering,
+        spectator = spectator,
+        worldUuid = worldUuid,
+        alternativeIdentity = identity.reportedAlternative,
         playerUuid = playerUuid,
         relayWorldUuid = relayWorldUuid,
         bridgedVoice = bridgedVoice
