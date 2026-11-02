@@ -1,5 +1,7 @@
+pub mod group_scope;
 pub mod voice;
 
+pub use group_scope::GroupScope;
 pub use voice::VoiceFrame;
 
 use serde::{Deserialize, Serialize};
@@ -14,6 +16,8 @@ use crate::structs::packet::MAX_DATAGRAM_SIZE;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Datagram {
     Voice(VoiceFrame),
+    // Version 2 and later. A frame from a speaker in a linked group.
+    GroupVoice { frame: VoiceFrame, group: GroupScope },
 }
 
 impl Datagram {

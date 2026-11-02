@@ -100,7 +100,7 @@ async fn same_channel_recipient_receives_channel_variant_at_any_distance() {
 
     let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 50.0, 5.0).await;
 
     assert_eq!(
         RoutingFixture::delivered_spatial(&mut bob_rx).await,
@@ -129,7 +129,7 @@ async fn same_channel_members_hear_each_other_without_position_data() {
 
     let speaker: Option<common::PlayerEnum> = None;
     let packet = RoutingFixture::audio_packet_without_position("minecraft:Alice");
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 50.0, 5.0).await;
 
     assert_eq!(
         RoutingFixture::delivered_spatial(&mut bob_rx).await,
@@ -153,7 +153,7 @@ async fn positionless_sender_outside_a_channel_is_not_routed() {
 
     let speaker: Option<common::PlayerEnum> = None;
     let packet = RoutingFixture::audio_packet_without_position("minecraft:Alice");
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 50.0, 5.0).await;
 
     assert_eq!(
         RoutingFixture::delivered_spatial(&mut bob_rx).await,
@@ -174,7 +174,7 @@ async fn in_range_recipient_receives_spatial_variant() {
 
     let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 50.0, 5.0).await;
 
     assert_eq!(
         RoutingFixture::delivered_spatial(&mut bob_rx).await,
@@ -195,7 +195,7 @@ async fn out_of_range_recipient_receives_nothing() {
 
     let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 50.0, 5.0).await;
 
     assert_eq!(RoutingFixture::delivered_spatial(&mut bob_rx).await, None);
 }
@@ -211,7 +211,7 @@ async fn sender_does_not_receive_own_frame() {
 
     let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 50.0, 5.0).await;
 
     assert_eq!(RoutingFixture::delivered_spatial(&mut alice_rx).await, None);
 }
@@ -229,7 +229,7 @@ async fn a_whispering_sender_is_limited_to_the_whisper_distance() {
 
     let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 10.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 50.0, 10.0).await;
 
     assert_eq!(RoutingFixture::delivered_spatial(&mut bob_rx).await, None);
 }
@@ -273,7 +273,7 @@ async fn synthetic_sender_audio_is_not_counted_as_an_interaction() {
 
     let speaker = Some(jukebox.clone());
     let packet = RoutingFixture::audio_packet(jukebox, "Jukebox");
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 30.0, 0.0).await;
 
     // The frame still reaches Bob; only the measurement declines to count it.
     assert!(
@@ -308,7 +308,7 @@ async fn audio_between_two_connected_players_counts_both() {
 
     let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 30.0, 0.0).await;
 
     assert!(RoutingFixture::delivered_spatial(&mut bob_rx).await.is_some());
     metrics.flush_route_telemetry();
@@ -341,7 +341,7 @@ async fn a_delivery_is_counted_only_once_the_telemetry_is_flushed() {
 
     let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 30.0, 0.0).await;
     assert!(RoutingFixture::delivered_spatial(&mut bob_rx).await.is_some());
 
     let reached = || metrics.interactions().counts(InteractionRoute::Proximity).reached;
@@ -405,11 +405,11 @@ async fn sender_attaches_on_heartbeat_not_every_frame() {
     let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
 
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 50.0, 5.0).await;
     tokio::time::sleep(common::net::PositionCadence::INTERVAL + std::time::Duration::from_millis(25))
         .await;
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 50.0, 5.0).await;
 
     let first = RoutingFixture::delivered_frame(&mut bob_rx).await.unwrap();
     let second = RoutingFixture::delivered_frame(&mut bob_rx).await.unwrap();
@@ -662,7 +662,7 @@ async fn a_frame_between_heartbeats_carries_only_the_device() {
     let speaker = Some(alice.clone());
     let packet = RoutingFixture::audio_packet(alice, "minecraft:Alice");
 
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 30.0, 0.0).await;
     let first = RoutingFixture::delivered_envelope(&mut bob_rx)
         .await
         .expect("first frame delivered");
@@ -671,7 +671,7 @@ async fn a_frame_between_heartbeats_carries_only_the_device() {
         "the first frame from a speaker always attaches the identity"
     );
 
-    reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
+    reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 30.0, 0.0).await;
     let second = RoutingFixture::delivered_envelope(&mut bob_rx)
         .await
         .expect("second frame delivered");
@@ -704,7 +704,7 @@ async fn injected_audio_keeps_its_full_sender() {
     let packet = RoutingFixture::audio_packet(jukebox, "Jukebox");
 
     for round in 0..2 {
-        reg.route_audio_frame(&packet, speaker.as_ref(), &cache, 30.0, 0.0).await;
+        reg.route_audio_frame(&packet, speaker.as_ref(), None, &cache, 30.0, 0.0).await;
         let delivered = RoutingFixture::delivered_envelope(&mut bob_rx)
             .await
             .expect("injected audio delivered");
@@ -733,7 +733,7 @@ async fn sealed_frame_reaches_same_channel_member_only() {
     reg.mark_protected("vault");
 
     let packet = RoutingFixture::sealed_audio_packet("minecraft:Alice");
-    reg.route_audio_frame(&packet, Some(&alice), &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, Some(&alice), None, &cache, 50.0, 5.0).await;
 
     let delivered = RoutingFixture::delivered_frame(&mut bob_rx).await.expect("member receives");
     assert!(delivered.is_sealed());
@@ -756,7 +756,7 @@ async fn unsealed_frame_from_protected_member_reaches_nobody() {
     reg.mark_protected("vault");
 
     let packet = RoutingFixture::audio_packet(alice.clone(), "minecraft:Alice");
-    reg.route_audio_frame(&packet, Some(&alice), &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, Some(&alice), None, &cache, 50.0, 5.0).await;
 
     assert!(RoutingFixture::delivered_frame(&mut bob_rx).await.is_none());
     assert!(RoutingFixture::delivered_frame(&mut carol_rx).await.is_none());
@@ -772,7 +772,7 @@ async fn sealed_frame_from_unprotected_sender_is_rejected_outside_channel() {
     reg.try_register(3, "minecraft:Carol".into(), "fp-3".into(), carol_tx).expect("admitted");
 
     let packet = RoutingFixture::sealed_audio_packet("minecraft:Alice");
-    reg.route_audio_frame(&packet, Some(&alice), &cache, 50.0, 5.0).await;
+    reg.route_audio_frame(&packet, Some(&alice), None, &cache, 50.0, 5.0).await;
 
     assert!(RoutingFixture::delivered_frame(&mut carol_rx).await.is_none());
 }
@@ -814,4 +814,213 @@ fn the_attach_query_does_not_consume_the_interval() {
         !reg.sender_attach_pending("minecraft:Alaydriem", now),
         "and the gate now agrees it is spent"
     );
+}
+
+mod group_scope {
+    use bvc_server_lib::services::metrics_service::interaction::RouteRejection;
+    use bvc_server_lib::stream::quic::connection::ConnectionRegistry;
+    use common::structs::relay::wire::datagram::GroupScope;
+    use tokio::sync::mpsc;
+
+    use crate::harness::RoutingFixture;
+
+    const RANGE: f32 = 16.0;
+    const WHISPER: f32 = 4.0;
+
+    fn scope(channel: &str, members_only: bool) -> GroupScope {
+        GroupScope {
+            channel: channel.to_string(),
+            members_only,
+        }
+    }
+
+    // Alice speaks; Bob and Carol stand beside her. Returns the receivers in that order.
+    fn three_players(
+        reg: &ConnectionRegistry,
+    ) -> (
+        mpsc::Receiver<bvc_server_lib::stream::quic::connection::RoutedPacket>,
+        mpsc::Receiver<bvc_server_lib::stream::quic::connection::RoutedPacket>,
+    ) {
+        let (alice_tx, _alice_rx) = mpsc::channel(8);
+        let (bob_tx, bob_rx) = mpsc::channel(8);
+        let (carol_tx, carol_rx) = mpsc::channel(8);
+        reg.try_register(1, "minecraft:Alice".into(), "fp-1".into(), alice_tx)
+            .expect("admitted");
+        reg.try_register(2, "minecraft:Bob".into(), "fp-2".into(), bob_tx)
+            .expect("admitted");
+        reg.try_register(3, "minecraft:Carol".into(), "fp-3".into(), carol_tx)
+            .expect("admitted");
+        (bob_rx, carol_rx)
+    }
+
+    #[tokio::test]
+    async fn members_only_sender_reaches_channel_members() {
+        let reg = ConnectionRegistry::new();
+        let (mut bob_rx, _carol_rx) = three_players(&reg);
+        reg.update_player_channel("minecraft:Alice", "grp");
+        reg.update_player_channel("minecraft:Bob", "grp");
+        reg.mark_members_only("grp");
+        let alice = RoutingFixture::player("Alice", 0.0, false);
+        let cache = RoutingFixture::player_cache(&[
+            alice.clone(),
+            RoutingFixture::player("Bob", 1.0, false),
+        ])
+        .await;
+        let packet = RoutingFixture::audio_packet(alice.clone(), "minecraft:Alice");
+
+        reg.route_audio_frame(&packet, Some(&alice), None, &cache, RANGE, WHISPER)
+            .await;
+
+        assert!(RoutingFixture::delivered_frame(&mut bob_rx).await.is_some());
+    }
+
+    // The leak members-only channels exist to prevent: a NORMAL group's speech heard by a
+    // player who is merely standing nearby.
+    #[tokio::test]
+    async fn members_only_sender_is_rejected_for_nearby_non_member() {
+        let reg = ConnectionRegistry::new();
+        let (_bob_rx, mut carol_rx) = three_players(&reg);
+        reg.update_player_channel("minecraft:Alice", "grp");
+        reg.update_player_channel("minecraft:Bob", "grp");
+        reg.mark_members_only("grp");
+        let alice = RoutingFixture::player("Alice", 0.0, false);
+        let cache = RoutingFixture::player_cache(&[
+            alice.clone(),
+            RoutingFixture::player("Bob", 1.0, false),
+            RoutingFixture::player("Carol", 1.0, false),
+        ])
+        .await;
+        let packet = RoutingFixture::audio_packet(alice.clone(), "minecraft:Alice");
+
+        reg.route_audio_frame(&packet, Some(&alice), None, &cache, RANGE, WHISPER)
+            .await;
+
+        assert!(RoutingFixture::delivered_frame(&mut carol_rx).await.is_none());
+        assert_eq!(
+            reg.route_rejections()
+                .get(RouteRejection::MembersOnlyOutsideChannel),
+            1
+        );
+    }
+
+    // A Java speaker's first frames in a NORMAL group can arrive before BVC has their
+    // membership. The claim cannot be checked, so the frame goes nowhere rather than nearby.
+    #[tokio::test]
+    async fn group_claim_from_non_member_is_dropped_for_everyone() {
+        let reg = ConnectionRegistry::new();
+        let (mut bob_rx, mut carol_rx) = three_players(&reg);
+        let alice = RoutingFixture::player("Alice", 0.0, false);
+        let cache = RoutingFixture::player_cache(&[
+            alice.clone(),
+            RoutingFixture::player("Bob", 1.0, false),
+            RoutingFixture::player("Carol", 1.0, false),
+        ])
+        .await;
+        let packet = RoutingFixture::audio_packet(alice.clone(), "minecraft:Alice");
+
+        reg.route_audio_frame(
+            &packet,
+            Some(&alice),
+            Some(&scope("grp", true)),
+            &cache,
+            RANGE,
+            WHISPER,
+        )
+        .await;
+
+        assert!(RoutingFixture::delivered_frame(&mut bob_rx).await.is_none());
+        assert!(RoutingFixture::delivered_frame(&mut carol_rx).await.is_none());
+        assert_eq!(
+            reg.route_rejections()
+                .get(RouteRejection::GroupClaimUnverified),
+            1
+        );
+    }
+
+    // OPEN speech is heard nearby on both sides, so an OPEN claim this server cannot check (a
+    // peer server's speaker, whose channel it does not have) routes as plain speech.
+    #[tokio::test]
+    async fn unverified_open_claim_routes_by_proximity() {
+        let reg = ConnectionRegistry::new();
+        let (mut bob_rx, _carol_rx) = three_players(&reg);
+        let alice = RoutingFixture::player("Alice", 0.0, false);
+        let cache = RoutingFixture::player_cache(&[
+            alice.clone(),
+            RoutingFixture::player("Bob", 1.0, false),
+        ])
+        .await;
+        let packet = RoutingFixture::audio_packet(alice.clone(), "minecraft:Alice");
+
+        reg.route_audio_frame(
+            &packet,
+            Some(&alice),
+            Some(&scope("elsewhere", false)),
+            &cache,
+            RANGE,
+            WHISPER,
+        )
+        .await;
+
+        assert!(RoutingFixture::delivered_frame(&mut bob_rx).await.is_some());
+        assert_eq!(
+            reg.route_rejections()
+                .get(RouteRejection::GroupClaimUnverified),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn open_group_claim_from_member_keeps_proximity_for_outsiders() {
+        let reg = ConnectionRegistry::new();
+        let (mut bob_rx, mut carol_rx) = three_players(&reg);
+        reg.update_player_channel("minecraft:Alice", "grp");
+        reg.update_player_channel("minecraft:Bob", "grp");
+        let alice = RoutingFixture::player("Alice", 0.0, false);
+        let cache = RoutingFixture::player_cache(&[
+            alice.clone(),
+            RoutingFixture::player("Bob", 1.0, false),
+            RoutingFixture::player("Carol", 1.0, false),
+        ])
+        .await;
+        let packet = RoutingFixture::audio_packet(alice.clone(), "minecraft:Alice");
+
+        reg.route_audio_frame(
+            &packet,
+            Some(&alice),
+            Some(&scope("grp", false)),
+            &cache,
+            RANGE,
+            WHISPER,
+        )
+        .await;
+
+        assert!(RoutingFixture::delivered_frame(&mut bob_rx).await.is_some());
+        assert!(RoutingFixture::delivered_frame(&mut carol_rx).await.is_some());
+    }
+
+    #[test]
+    fn protected_channel_frames_carry_no_marker() {
+        let reg = ConnectionRegistry::new();
+        reg.update_player_channel("minecraft:Alice", "sec");
+        reg.mark_protected("sec");
+        reg.update_player_channel("minecraft:Bob", "grp");
+        reg.mark_members_only("grp");
+
+        assert_eq!(reg.group_scope_for("minecraft:Alice"), None);
+        assert_eq!(
+            reg.group_scope_for("minecraft:Bob"),
+            Some(scope("grp", true))
+        );
+        assert_eq!(reg.group_scope_for("minecraft:Carol"), None);
+    }
+
+    #[test]
+    fn remove_channel_clears_members_only() {
+        let reg = ConnectionRegistry::new();
+        reg.mark_members_only("grp");
+
+        reg.remove_channel("grp");
+
+        assert!(!reg.is_members_only_channel("grp"));
+    }
 }

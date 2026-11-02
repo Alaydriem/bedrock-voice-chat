@@ -8,6 +8,8 @@ import com.alaydriem.bedrockvoicechat.chat.FfiChatTransport
 import com.alaydriem.bedrockvoicechat.config.ModConfig
 import com.alaydriem.bedrockvoicechat.config.generated.EmbeddedServerConfig
 import com.alaydriem.bedrockvoicechat.control.ControlSender
+import com.alaydriem.bedrockvoicechat.control.GroupLinkApi
+import com.alaydriem.bedrockvoicechat.control.GroupLinkClient
 import com.alaydriem.bedrockvoicechat.paper.chat.PaperChatListener
 import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.Payload
@@ -74,6 +76,9 @@ class PaperPlugin : JavaPlugin(), Listener {
     private var positionSender: PositionSender? = null
     private var audioEventSender: AudioEventSender? = null
     private var controlSender: ControlSender? = null
+
+    // The BVC side of the SVC bridge's group links, built with the control sender.
+    private var groupLink: GroupLinkApi? = null
     private var chatChannel: ChatTransport? = null
     private var chatSocket: ChatChannel? = null
     private var audioPlayerManager: PaperAudioPlayerManager? = null
@@ -160,7 +165,12 @@ class PaperPlugin : JavaPlugin(), Listener {
             onServerThread = { task -> server.scheduler.runTask(this, task) },
             channelFactory = { api ->
                 PaperSvcChannelFactory(api, server, playerDataProvider::findByIdentity)
-            }
+            },
+            groupLink = groupLink,
+            // The name the control plane already uses for this player, so BVC resolves it to
+            // the identity its own position feed keys on.
+            actorIdOf = { id -> server.getPlayer(id)?.let(playerDataProvider::resolveCanonicalName) },
+            playerOf = { name -> playerDataProvider.findByIdentity(name)?.uniqueId }
         )
         svcBridgeHost = host
 
@@ -282,6 +292,7 @@ class PaperPlugin : JavaPlugin(), Listener {
             positionSender = PositionSender(null, embeddedServer)
             audioEventSender = AudioEventSender(null, embeddedServer)
             controlSender = ControlSender(null, embeddedServer)
+            groupLink = GroupLinkClient(null, embeddedServer, controlSender!!)
 
             val quicPort = embeddedServer?.effectiveConfig()?.server?.quicPort
             logger.info("Bedrock Voice Chat using embedded server (QUIC port: $quicPort)")
@@ -292,6 +303,7 @@ class PaperPlugin : JavaPlugin(), Listener {
             positionSender = PositionSender(httpHandler, null)
             audioEventSender = AudioEventSender(httpHandler, null)
             controlSender = ControlSender(httpHandler, null)
+            groupLink = GroupLinkClient(httpHandler, null, controlSender!!)
 
             logger.info("Bedrock Voice Chat will connect to: ${config.bvcServer}")
         }

@@ -1,4 +1,4 @@
-use common::structs::relay::wire::datagram::VoiceFrame;
+use common::structs::relay::wire::datagram::{GroupScope, VoiceFrame};
 use dashmap::DashMap;
 use iroh::PublicKey;
 
@@ -58,11 +58,18 @@ impl PeerLinks {
     //
     // A send failure counts as not delivered and does not abort the rest: one
     // peer's dead link must not stop the others hearing a speaker.
-    pub fn broadcast_world(&self, world: &str, frame: &VoiceFrame) -> usize {
+    //
+    // A link whose version cannot carry `group` safely is skipped and not counted.
+    pub fn broadcast_world(
+        &self,
+        world: &str,
+        frame: &VoiceFrame,
+        group: Option<&GroupScope>,
+    ) -> usize {
         self.links
             .iter()
             .filter(|entry| entry.carries_world(world))
-            .filter(|entry| entry.send(frame.clone()).is_ok())
+            .filter(|entry| matches!(entry.send(frame.clone(), group.cloned()), Ok(true)))
             .count()
     }
 }

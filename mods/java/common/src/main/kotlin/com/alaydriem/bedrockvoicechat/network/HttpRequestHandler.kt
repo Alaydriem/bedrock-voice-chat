@@ -2,6 +2,7 @@ package com.alaydriem.bedrockvoicechat.network
 
 import com.alaydriem.bedrockvoicechat.control.ControlOutcome
 import com.alaydriem.bedrockvoicechat.control.ControlSendResult
+import com.alaydriem.bedrockvoicechat.control.GroupLinkClient
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -162,6 +163,53 @@ class HttpRequestHandler(
                 LOGGER.debug("Failed to send host capability report: {}", ex.message)
                 null
             }
+    }
+
+    /**
+     * POSTs a group link action and waits for the answer. groupCode carries the new channel id
+     * after a CreateLinked. Called from the bridge's link thread, never the server thread.
+     */
+    fun groupLinkAction(actionJson: String): ControlSendResult {
+        val request = jsonRequestBuilder("$serverUrl/api/group-link")
+            .POST(HttpRequest.BodyPublishers.ofString(actionJson))
+            .build()
+
+        return try {
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() !in 200..299) {
+                LOGGER.warn("BVC server refused a group link action: {}", response.statusCode())
+                return ControlSendResult(false)
+            }
+            ControlSendResult(true, GroupLinkClient.parseCreatedId(response.body()))
+        } catch (e: Exception) {
+            LOGGER.warn("Failed to send a group link action: {}", e.toString())
+            ControlSendResult(false)
+        }
+    }
+
+    /** The JSON `GroupLinkDrain` after [after], or null when the server cannot be read. */
+    fun groupLinkEvents(after: Long): String? = getBody("$serverUrl/api/group-link/events?after=$after")
+
+    /** The JSON array of non-protected channels, or null when the server cannot be read. */
+    fun groupLinkChannels(): String? = getBody("$serverUrl/api/group-link/channels")
+
+    private fun getBody(url: String): String? {
+        val request = requestBuilder(url)
+            .header("Accept", "application/json")
+            .GET()
+            .build()
+
+        return try {
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() !in 200..299) {
+                LOGGER.debug("BVC server returned {} for {}", response.statusCode(), url)
+                return null
+            }
+            response.body()
+        } catch (e: Exception) {
+            LOGGER.debug("Failed to read {}: {}", url, e.toString())
+            null
+        }
     }
 
     /**

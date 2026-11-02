@@ -9,6 +9,7 @@ mod channel_membership_service;
 mod channel_reaper_service;
 mod chat_service;
 mod group_key_relay_service;
+mod group_link_service;
 mod host_capability;
 mod interaction_tracker;
 mod meridian_service;
