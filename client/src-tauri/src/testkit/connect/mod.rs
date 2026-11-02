@@ -381,6 +381,14 @@ impl Connector {
         ))
     }
 
+    // Returns the listen scope the e2e bin manages: every proxy socket stays on
+    // loopback, so the bin never causes a Windows Defender Firewall prompt. The
+    // harness client dials with `IceScope::LoopbackOnly` to match.
+    #[cfg(feature = "bedrock-protocol")]
+    pub fn listen_scope() -> crate::bedrock::BedrockListenScope {
+        crate::bedrock::BedrockListenScope::Loopback
+    }
+
     // Returns a freshly-constructed `JukeboxBeaconCache` for state registration.
     #[cfg(feature = "bedrock-protocol")]
     pub fn beacon_cache() -> Arc<crate::bedrock::JukeboxBeaconCache> {

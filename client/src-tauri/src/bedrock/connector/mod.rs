@@ -23,8 +23,8 @@ use websocket_types::{ActiveConnection, ConnectTargetId, ConnectTargetKind, Conn
 
 use crate::bedrock::{
     AddonModeResolver, AdvertisedVersionResolver, BedrockAuthService, BedrockChatChannel,
-    BedrockConnectErrorChannel, BedrockEventEmitter, BedrockProxyManager, BedrockState,
-    BedrockTargetService, ChatInjector, JukeboxBeaconCache, JukeboxEjectInjector,
+    BedrockConnectErrorChannel, BedrockEventEmitter, BedrockListenScope, BedrockProxyManager,
+    BedrockState, BedrockTargetService, ChatInjector, JukeboxBeaconCache, JukeboxEjectInjector,
     ProtocolGatingService, ProxyDeps, SessionName,
 };
 use crate::control::ControlActionSender;
@@ -476,6 +476,12 @@ impl BedrockConnector {
                 .state::<crate::control::ControlStateBus>()
                 .inner()
                 .clone(),
+            // `try_state`: only the e2e binary manages a scope, so the app run
+            // path finds none and keeps the network binds.
+            self.app_handle
+                .try_state::<BedrockListenScope>()
+                .map(|scope| *scope.inner())
+                .unwrap_or_default(),
         )
     }
 

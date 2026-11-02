@@ -158,6 +158,7 @@ fn main() {
                 app.manage(Connector::connect_error_channel());
                 app.manage(Connector::chat_channel());
                 app.manage(Connector::chat_injector());
+                app.manage(Connector::listen_scope());
             }
 
             AppBuilder::build_managed_state(

@@ -1144,8 +1144,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-client"
-version = "26.60.1"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.60.1#bed88620e9b8ad2c7ee63f66f3434ec34d3f2792"
+version = "26.60.3"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.60.3#b14231295760661031a9cd7169cf4697a082afbb"
 dependencies = [
  "base64 0.22.1",
  "bedrock-network",
@@ -1162,8 +1162,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-network"
-version = "26.60.1"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.60.1#bed88620e9b8ad2c7ee63f66f3434ec34d3f2792"
+version = "26.60.3"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.60.3#b14231295760661031a9cd7169cf4697a082afbb"
 dependencies = [
  "aes 0.9.3",
  "base64 0.23.1",
@@ -1189,8 +1189,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-protocol"
-version = "26.60.1"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.60.1#bed88620e9b8ad2c7ee63f66f3434ec34d3f2792"
+version = "26.60.3"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.60.3#b14231295760661031a9cd7169cf4697a082afbb"
 dependencies = [
  "aes 0.9.3",
  "aes-gcm 0.11.1",
@@ -1229,8 +1229,8 @@ dependencies = [
 
 [[package]]
 name = "bedrock-server"
-version = "26.60.1"
-source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.60.1#bed88620e9b8ad2c7ee63f66f3434ec34d3f2792"
+version = "26.60.3"
+source = "git+https://github.com/alaydriem/bedrock-protocol-rs?tag=26.60.3#b14231295760661031a9cd7169cf4697a082afbb"
 dependencies = [
  "base64 0.22.1",
  "bedrock-network",

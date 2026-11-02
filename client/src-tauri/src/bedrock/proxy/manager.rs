@@ -220,6 +220,7 @@ impl BedrockProxyManager {
         let control_tx = self.deps.control_tx.clone();
         let query_state_injector = Arc::clone(&self.deps.query_state_injector);
         let state_bus = self.deps.state_bus.clone();
+        let listen_scope = self.deps.listen_scope;
         let advertised_version = self.advertised_version.clone();
         let addon_mode = self.addon_mode;
         let world = self.world.clone();
@@ -229,20 +230,7 @@ impl BedrockProxyManager {
         let process_events = !addon_mode.relays_only();
 
         let handle = tokio::spawn(async move {
-            // `[::]`, not `0.0.0.0`: the listener is dual-stack, so this one
-            // socket answers both the IPv6 dial that follows LAN discovery and a
-            // manually typed `127.0.0.1:<port>`. Binding IPv4-only leaves the
-            // discovered entry unjoinable.
-            let bind_addr: SocketAddr = match format!("[::]:{}", listen_port).parse() {
-                Ok(a) => a,
-                Err(e) => {
-                    curia::error!("Bedrock listener has an invalid bind address", {
-                        port: listen_port,
-                        error: e.to_string(),
-                    });
-                    return;
-                }
-            };
+            let bind_addr = listen_scope.listen_addr(listen_port);
 
             // Advert fields 2 and 7, which are the two lines Minecraft's Friends tab
             // renders. The world leads because it is what the user picked; the owner
@@ -285,7 +273,7 @@ impl BedrockProxyManager {
                 Backend::Realm { .. } => None,
             };
 
-            let config = ProxyConfig {
+            let config = listen_scope.restrict(ProxyConfig {
                 frontend: FrontendProtocol::Nethernet,
                 listen: bind_addr,
                 realm: proxy_config_realm,
@@ -299,7 +287,7 @@ impl BedrockProxyManager {
                 advertised_version,
                 backend_probe_addr: direct_target_addr,
                 ..Default::default()
-            };
+            });
 
             let mut proxy = match Proxy::new(config.clone()).await {
                 Ok(p) => p,
@@ -980,15 +968,19 @@ mod tests {
             crate::control::ControlActionSender::channel().0,
             crate::bedrock::QueryStateInjector::new_shared(),
             crate::control::ControlStateBus::new(),
+            crate::bedrock::BedrockListenScope::Loopback,
         )
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn start_stop_start_does_not_leak_port() {
-        // Acquire an OS-assigned free UDP port rather than a hardcoded one so the
+        // Acquire an OS-assigned free TCP port rather than a hardcoded one so the
         // test never collides with a parallel test or a leftover socket under CI.
+        // TCP on loopback, because that is what a `Loopback` proxy's signaling
+        // listener binds.
         let port: u16 = {
-            let scout = std::net::UdpSocket::bind(("0.0.0.0", 0)).expect("acquire ephemeral port");
+            let scout =
+                std::net::TcpListener::bind(("127.0.0.1", 0)).expect("acquire ephemeral port");
             scout.local_addr().expect("ephemeral local addr").port()
         };
         let auth_cache = moka::future::Cache::builder()
@@ -1020,7 +1012,7 @@ mod tests {
         // bindable rather than probing exactly once.
         let mut probe = None;
         for _ in 0..50 {
-            match tokio::net::UdpSocket::bind(("0.0.0.0", port)).await {
+            match tokio::net::TcpListener::bind(("127.0.0.1", port)).await {
                 Ok(sock) => {
                     probe = Some(sock);
                     break;

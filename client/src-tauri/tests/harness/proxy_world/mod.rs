@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use bedrock_client::BedrockClient;
-use common::bedrock_protocol::AuthInfo;
 use common::bedrock_protocol::version::ProtocolVersion;
+use common::bedrock_protocol::{AuthInfo, IceScope};
 use common::structs::bedrock::AddonMode;
 use tempfile::TempDir;
 
@@ -54,8 +54,14 @@ impl ProxyWorld {
         version: ProtocolVersion,
         upstream: &mut FakeBedrockUpstream,
     ) -> (bedrock_client::ClientConnection, String) {
-        let connect =
-            BedrockClient::connect_nethernet(proxy_addr, AuthInfo::offline(name), version);
+        // Loopback-only ICE, matching the e2e bin's proxy. Neither process then
+        // listens off loopback, so no rebuilt binary triggers a firewall prompt.
+        let connect = BedrockClient::connect_nethernet_scoped(
+            proxy_addr,
+            AuthInfo::offline(name),
+            version,
+            IceScope::LoopbackOnly,
+        );
         let accept = upstream.accept_player();
         tokio::pin!(connect);
         tokio::pin!(accept);
