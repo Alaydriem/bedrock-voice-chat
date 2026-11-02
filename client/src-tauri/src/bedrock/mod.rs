@@ -31,8 +31,8 @@ pub use gating::ProtocolGatingService;
 pub use protocol_version_catalog::ProtocolVersionCatalog;
 pub(crate) use proxy::ProxyDeps;
 pub use proxy::{
-    BedrockChatChannel, BedrockConnectErrorChannel, BedrockEventEmitter, BedrockPlayerStateCache,
-    BedrockProxyManager, ChatCodec, ChatInjector, ChatLine, DiscNbt, JukeboxBeaconCache,
+    BedrockChatChannel, BedrockConnectErrorChannel, BedrockEventEmitter, BedrockListenScope,
+    BedrockPlayerStateCache, BedrockProxyManager, ChatCodec, ChatInjector, ChatLine, DiscNbt, JukeboxBeaconCache,
     JukeboxEjectInjector, MinecraftTranslation, PendingEject, PendingQueryState,
     QueryStateInjector,
 };

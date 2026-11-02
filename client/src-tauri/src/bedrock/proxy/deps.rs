@@ -4,6 +4,7 @@ use super::chat::{BedrockChatChannel, ChatInjector};
 use super::connect_error_channel::BedrockConnectErrorChannel;
 use super::event_emitter::BedrockEventEmitter;
 use super::jukebox::{JukeboxBeaconCache, JukeboxEjectInjector};
+use super::listen_scope::BedrockListenScope;
 use super::player_state_cache::BedrockPlayerStateCache;
 use super::presence::QueryStateInjector;
 use crate::bedrock::ProtocolGatingService;
@@ -24,6 +25,7 @@ pub(crate) struct ProxyDeps {
     pub(crate) control_tx: ControlActionSender,
     pub(crate) query_state_injector: Arc<QueryStateInjector>,
     pub(crate) state_bus: ControlStateBus,
+    pub(crate) listen_scope: BedrockListenScope,
 }
 
 impl ProxyDeps {
@@ -40,6 +42,7 @@ impl ProxyDeps {
         control_tx: ControlActionSender,
         query_state_injector: Arc<QueryStateInjector>,
         state_bus: ControlStateBus,
+        listen_scope: BedrockListenScope,
     ) -> Self {
         Self {
             player_state_cache,
@@ -53,6 +56,7 @@ impl ProxyDeps {
             control_tx,
             query_state_injector,
             state_bus,
+            listen_scope,
         }
     }
 }
