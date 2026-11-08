@@ -1,3 +1,4 @@
+pub mod device;
 pub mod dtos;
 pub mod install_marker;
 pub mod level;
@@ -8,6 +9,7 @@ pub mod provider;
 pub mod sentry;
 pub mod service;
 
+pub use device::DeviceProbe;
 pub use install_marker::InstallMarker;
 pub use level::AnalyticsLevel;
 pub use platform_id::PlatformId;

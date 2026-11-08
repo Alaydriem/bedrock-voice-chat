@@ -781,7 +781,7 @@ msgstr ""
 msgid "Commit"
 msgstr ""
 
-#: src/js/app/managers/settings/AboutManager.ts:66
+#: src/js/app/managers/settings/AboutManager.ts:67
 msgid "Community discussions and help"
 msgstr ""
 
@@ -1192,7 +1192,7 @@ msgstr ""
 msgid "Favourite {name}"
 msgstr ""
 
-#: src/js/app/managers/settings/AboutManager.ts:196
+#: src/js/app/managers/settings/AboutManager.ts:199
 msgid "Feature flags refreshed."
 msgstr ""
 
@@ -2084,7 +2084,7 @@ msgstr ""
 msgid "Open {name}"
 msgstr ""
 
-#: src/js/app/managers/settings/AboutManager.ts:60
+#: src/js/app/managers/settings/AboutManager.ts:61
 msgid "Open a bug report on GitHub"
 msgstr ""
 
@@ -2262,7 +2262,7 @@ msgstr ""
 msgid "Privacy notice"
 msgstr ""
 
-#: src/js/app/managers/settings/AboutManager.ts:71
+#: src/js/app/managers/settings/AboutManager.ts:72
 msgid "Privacy Notice"
 msgstr ""
 
@@ -2498,7 +2498,7 @@ msgstr ""
 msgid "Rendering {track} — {index} of {total}"
 msgstr ""
 
-#: src/js/app/managers/settings/AboutManager.ts:59
+#: src/js/app/managers/settings/AboutManager.ts:60
 msgid "Report a Bug"
 msgstr ""
 
@@ -3421,7 +3421,7 @@ msgstr ""
 msgid "View FAQ"
 msgstr ""
 
-#: src/js/app/managers/settings/AboutManager.ts:72
+#: src/js/app/managers/settings/AboutManager.ts:73
 msgid "View privacy statement"
 msgstr ""
 

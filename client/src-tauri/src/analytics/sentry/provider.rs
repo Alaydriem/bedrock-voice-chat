@@ -30,14 +30,9 @@ impl AnalyticsProvider for Provider {
         });
     }
 
-    fn set_user(&self, user_id: &str) {
-        sentry::configure_scope(|scope| {
-            scope.set_user(Some(sentry::User {
-                id: Some(user_id.to_string()),
-                ..Default::default()
-            }));
-        });
-    }
+    // `SentryEnricher` reads the shared `PlatformId` on every send, so there is no user to set
+    // on a scope.
+    fn set_user(&self, _user_id: &str) {}
 
     fn breadcrumb(&self, category: &str, message: &str, level: AnalyticsLevel) {
         sentry::add_breadcrumb(sentry::Breadcrumb {

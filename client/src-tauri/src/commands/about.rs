@@ -1,4 +1,4 @@
-use common::structs::app::AppInfo;
+use common::structs::app::{AppInfo, DeviceInfo};
 use std::env;
 use std::fs;
 use std::sync::Arc;
@@ -7,6 +7,7 @@ use tauri::{Manager, State};
 use tauri_plugin_curia::curia;
 use tauri_plugin_opener::OpenerExt;
 
+use crate::analytics::sentry::SentryEnricher;
 use crate::analytics::{AnalyticsService, PlatformId};
 use crate::commands::env::get_variant;
 use crate::feature_flags::FeatureFlagService;
@@ -56,6 +57,15 @@ pub(crate) async fn get_platform_id(
     Ok(platform_id.get())
 }
 
+/// The mobile OS and hardware description the Rust side reports to Sentry, so the webview SDK
+/// reports the same. `None` on desktop.
+#[tauri::command]
+pub(crate) async fn get_device_info(
+    enricher: State<'_, Arc<SentryEnricher>>,
+) -> Result<Option<DeviceInfo>, String> {
+    Ok(enricher.device())
+}
+
 /// Replaces the anonymous identity everything reports under, and returns the
 /// replacement.
 ///
@@ -82,7 +92,7 @@ pub(crate) async fn refresh_platform_id(
     platform_id.set(next.clone());
     analytics.set_user(&next);
     curia::info!("platform ID replaced", {
-        platform_id: next.clone(),
+        user_id: next.clone(),
     });
 
     // Registers the new identity with Flagsmith and re-evaluates every flag under it.

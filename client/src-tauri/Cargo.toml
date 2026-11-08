@@ -133,6 +133,10 @@ windows-targets = { version = "^0.53.0" }
 jni = "0.21"
 ndk-context = "0.1"
 
+# System properties (Android) and sysctl (iOS), read by `DeviceProbe` for Sentry.
+[target."cfg(any(target_os = \"android\", target_os = \"ios\"))".dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 libloading = { version = "^0.8" }
 tempfile = { version = "^3" }

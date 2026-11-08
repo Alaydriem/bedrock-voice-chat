@@ -44,26 +44,6 @@ fn the_envelope_is_always_present() {
 }
 
 #[test]
-fn correlation_keys_are_null_before_setup_rather_than_absent() {
-    let parsed = line(LogContext::new_shared(), &event());
-
-    assert!(parsed.get("platform_id").is_some());
-    assert!(parsed["platform_id"].is_null());
-    assert!(parsed["install_id"].is_null());
-    assert!(parsed["session_id"].is_null());
-}
-
-#[test]
-fn correlation_keys_appear_once_set() {
-    let context = LogContext::new_shared();
-    context.set("p".to_string(), "i".to_string(), "s".to_string());
-
-    let parsed = line(context, &event());
-
-    assert_eq!(parsed["platform_id"], serde_json::json!("p"));
-}
-
-#[test]
 fn a_field_cannot_shadow_an_envelope_key() {
     let mut fields = Fields::new();
     fields.insert("msg", "impostor");

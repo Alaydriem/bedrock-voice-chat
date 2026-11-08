@@ -143,23 +143,29 @@ pub fn run() {
     _ = common::s2n_quic::provider::tls::rustls::rustls::crypto::aws_lc_rs::default_provider()
         .install_default();
 
+    // Created empty ahead of Sentry so the enricher holds the one identity analytics and feature
+    // flags share. Setup fills it in once the store is readable.
+    let platform_id = analytics::PlatformId::new_shared(String::new());
+    let sentry_enricher =
+        analytics::sentry::SentryEnricher::new_shared(platform_id.clone(), analytics::DeviceProbe::current());
+
+    let mut sentry_options = sentry::ClientOptions {
+        release: Some(env!("SENTRY_RELEASE").into()),
+        enable_logs: true,
+        traces_sample_rate: 0.1,
+        environment: Some(
+            match Variant::get() {
+                Variant::Dev => "development",
+                Variant::Release => "production",
+            }
+            .into(),
+        ),
+        ..Default::default()
+    };
+    sentry_enricher.install(&mut sentry_options);
+
     #[allow(unused_variables)]
-    let sentry_guard = sentry::init((
-        option_env!("SENTRY_DSN").unwrap_or(""),
-        sentry::ClientOptions {
-            release: Some(env!("SENTRY_RELEASE").into()),
-            enable_logs: true,
-            traces_sample_rate: 0.1,
-            environment: Some(
-                match Variant::get() {
-                    Variant::Dev => "development",
-                    Variant::Release => "production",
-                }
-                .into(),
-            ),
-            ..Default::default()
-        },
-    ));
+    let sentry_guard = sentry::init((option_env!("SENTRY_DSN").unwrap_or(""), sentry_options));
 
     sentry::configure_scope(|scope| {
         scope.set_tag("version", env!("CARGO_PKG_VERSION"));
@@ -245,6 +251,7 @@ pub fn run() {
             crate::commands::about::get_telemetry,
             crate::commands::about::set_telemetry,
             crate::commands::about::get_platform_id,
+            crate::commands::about::get_device_info,
             crate::commands::about::refresh_platform_id,
             // Authentication
             crate::auth::commands::check_server,
@@ -464,6 +471,8 @@ pub fn run() {
 
             let telemetry = Arc::new(crate::logging::Telemetry::new(store.get("telemetry").and_then(|v| v.as_bool()).unwrap_or(true)));
 
+            app.manage(sentry_enricher.clone());
+
             let log_context = crate::logging::LogContext::new_shared();
 
             let mut sinks = vec![crate::logging::LogSinkType::Console(
@@ -677,12 +686,12 @@ pub fn run() {
             }
             let install_id = marker.install_id.clone();
             curia::debug!("platform ID", {
-                platform_id: install_id.clone(),
+                user_id: install_id.clone(),
             });
 
-            // One identity, shared by analytics and feature flags, so the About pane can
-            // replace it without a restart.
-            let platform_id = analytics::PlatformId::new_shared(install_id.clone());
+            // One identity, shared by analytics, feature flags and Sentry, so the About pane
+            // can replace it without a restart.
+            platform_id.set(install_id.clone());
             app.manage(platform_id.clone());
 
             // Analytics service with provider pattern

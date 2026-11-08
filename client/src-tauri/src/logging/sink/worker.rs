@@ -92,9 +92,8 @@ impl SentryWorker {
         }
     }
 
-    fn deliver(queued: &QueuedEvent, context: &LogContext) {
+    fn deliver(queued: &QueuedEvent, _context: &LogContext) {
         let routed = Vocabulary::route(&queued.event.fields);
-        let keys = context.snapshot();
 
         let mut body = queued.event.message.clone();
         if queued.suppressed > 0 {
@@ -120,15 +119,6 @@ impl SentryWorker {
         }
 
         attributes.insert("logger.target".into(), queued.event.target.clone().into());
-        if let Some(platform_id) = keys.platform_id.clone() {
-            attributes.insert("platform_id".into(), platform_id.into());
-        }
-        if let Some(install_id) = keys.install_id.clone() {
-            attributes.insert("install_id".into(), install_id.into());
-        }
-        if let Some(session_id) = keys.session_id.clone() {
-            attributes.insert("session_id".into(), session_id.into());
-        }
 
         // Ordering matters: breadcrumbs are attached to whatever Issue is
         // captured after them, so both run on this one thread rather than
