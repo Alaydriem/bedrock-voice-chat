@@ -1,3 +1,4 @@
+mod context;
 mod defect;
 mod fields;
 mod format;
@@ -6,6 +7,7 @@ mod smoke;
 pub mod telemetry;
 mod throttle;
 
+pub use self::context::{CorrelationKeys, LogContext};
 pub use self::defect::Defect;
 pub use self::fields::{Destination, FieldSpec, RoutedFields, Vocabulary};
 pub use self::format::{HumanFormatter, JsonFormatter};

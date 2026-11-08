@@ -6,7 +6,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 use tauri_plugin_curia::curia;
 
-use crate::logging::{Defect, Vocabulary};
+use crate::logging::{Defect, LogContext, Vocabulary};
 
 use super::QueuedEvent;
 
@@ -20,7 +20,11 @@ pub struct SentryWorker {
 impl SentryWorker {
     // start_paused removes a race in tests: pausing after spawn lets the worker
     // drain the queue before it observes the flag.
-    pub fn spawn(rx: flume::Receiver<QueuedEvent>, start_paused: bool) -> Self {
+    pub fn spawn(
+        rx: flume::Receiver<QueuedEvent>,
+        context: Arc<LogContext>,
+        start_paused: bool,
+    ) -> Self {
         let paused = Arc::new(AtomicBool::new(start_paused));
         let stop = Arc::new(AtomicBool::new(false));
         let panics = Arc::new(AtomicU64::new(0));
@@ -39,7 +43,7 @@ impl SentryWorker {
                     }
 
                     match rx.recv_timeout(Duration::from_millis(100)) {
-                        Ok(queued) => Self::deliver_guarded(&queued, &worker_panics),
+                        Ok(queued) => Self::deliver_guarded(&queued, &context, &worker_panics),
                         Err(flume::RecvTimeoutError::Timeout) => continue,
                         Err(flume::RecvTimeoutError::Disconnected) => break,
                     }
@@ -48,7 +52,7 @@ impl SentryWorker {
                 // Drain before exiting, or the last events of a session are lost
                 // and those are the interesting ones.
                 while let Ok(queued) = rx.try_recv() {
-                    Self::deliver_guarded(&queued, &worker_panics);
+                    Self::deliver_guarded(&queued, &context, &worker_panics);
                 }
             })
             .ok();
@@ -64,8 +68,8 @@ impl SentryWorker {
     // The worker must outlive any single bad event. A panic inside the Sentry
     // SDK kills only this delivery; the loop continues and the count is kept so
     // the failure is visible rather than silent.
-    fn deliver_guarded(queued: &QueuedEvent, panics: &AtomicU64) {
-        let result = catch_unwind(AssertUnwindSafe(|| Self::deliver(queued)));
+    fn deliver_guarded(queued: &QueuedEvent, context: &LogContext, panics: &AtomicU64) {
+        let result = catch_unwind(AssertUnwindSafe(|| Self::deliver(queued, context)));
 
         if result.is_err() {
             panics.fetch_add(1, Ordering::Relaxed);
@@ -88,7 +92,7 @@ impl SentryWorker {
         }
     }
 
-    fn deliver(queued: &QueuedEvent) {
+    fn deliver(queued: &QueuedEvent, _context: &LogContext) {
         let routed = Vocabulary::route(&queued.event.fields);
 
         let mut body = queued.event.message.clone();

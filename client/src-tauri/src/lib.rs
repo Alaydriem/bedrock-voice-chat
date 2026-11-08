@@ -473,6 +473,8 @@ pub fn run() {
 
             app.manage(sentry_enricher.clone());
 
+            let log_context = crate::logging::LogContext::new_shared();
+
             let mut sinks = vec![crate::logging::LogSinkType::Console(
                 tauri_plugin_curia::ConsoleSink::new(
                     curia::Level::Info,
@@ -488,7 +490,7 @@ pub fn run() {
                     dir,
                     "bedrock-voice-chat".to_string(),
                     curia::Level::Info,
-                    crate::logging::JsonFormatter::new().formatter(),
+                    crate::logging::JsonFormatter::new(log_context.clone()).formatter(),
                     crate::logging::LOG_MAX_FILE_SIZE,
                     tauri_plugin_curia::RotationStrategy::KeepSome(
                         crate::logging::LOG_ARCHIVES_KEPT,
@@ -507,6 +509,7 @@ pub fn run() {
             if sentry_enabled {
                 let sentry_sink = Arc::new(crate::logging::SentrySink::new(
                     telemetry.clone(),
+                    log_context.clone(),
                     curia::Level::Info,
                 ));
                 app.manage(sentry_sink.clone());

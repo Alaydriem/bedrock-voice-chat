@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use tauri_plugin_curia::curia::{Level, LogEvent, Sink};
 
-use crate::logging::{LogThrottle, Telemetry, ThrottleDecision};
+use crate::logging::{LogContext, LogThrottle, Telemetry, ThrottleDecision};
 
 use super::{QueuedEvent, SentryWorker};
 
@@ -36,18 +36,19 @@ pub struct SentrySink {
 }
 
 impl SentrySink {
-    pub fn new(telemetry: Arc<Telemetry>, level: Level) -> Self {
-        Self::with_capacity(telemetry, level, QUEUE_CAPACITY, false)
+    pub fn new(telemetry: Arc<Telemetry>, context: Arc<LogContext>, level: Level) -> Self {
+        Self::with_capacity(telemetry, context, level, QUEUE_CAPACITY, false)
     }
 
     pub fn with_capacity(
         telemetry: Arc<Telemetry>,
+        context: Arc<LogContext>,
         level: Level,
         capacity: usize,
         start_paused: bool,
     ) -> Self {
         let (tx, rx) = flume::bounded::<QueuedEvent>(capacity);
-        let worker = SentryWorker::spawn(rx, start_paused);
+        let worker = SentryWorker::spawn(rx, context, start_paused);
 
         Self {
             telemetry,

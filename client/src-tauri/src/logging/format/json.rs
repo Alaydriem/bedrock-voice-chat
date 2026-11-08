@@ -4,13 +4,16 @@ use serde_json::{Map, Value};
 use tauri_plugin_curia::LineFormatter;
 use tauri_plugin_curia::curia::LogEvent;
 
-use crate::logging::Vocabulary;
+use crate::logging::{LogContext, Vocabulary};
 
-pub struct JsonFormatter;
+pub struct JsonFormatter {
+    #[allow(dead_code)]
+    context: Arc<LogContext>,
+}
 
 impl JsonFormatter {
-    pub fn new() -> Self {
-        Self
+    pub fn new(context: Arc<LogContext>) -> Self {
+        Self { context }
     }
 
     pub fn formatter(self) -> LineFormatter {
@@ -46,11 +49,5 @@ impl JsonFormatter {
         serde_json::to_string(&Value::Object(line)).unwrap_or_else(|e| {
             format!(r#"{{"level":"error","msg":"log serialization failed: {e}"}}"#)
         })
-    }
-}
-
-impl Default for JsonFormatter {
-    fn default() -> Self {
-        Self::new()
     }
 }
