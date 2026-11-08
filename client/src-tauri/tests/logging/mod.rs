@@ -1,4 +1,3 @@
-mod context;
 mod defect;
 mod fields;
 mod format;

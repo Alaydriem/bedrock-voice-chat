@@ -56,6 +56,7 @@ export type { ConnectionHealth } from './ConnectionHealth';
 export type { CreateUserRequest } from './CreateUserRequest';
 export type { CreatedUserResponse } from './CreatedUserResponse';
 export type { DeepLink } from './DeepLink';
+export type { DeviceInfo } from './DeviceInfo';
 export type { DiscordLinkStatus } from './DiscordLinkStatus';
 export type { EndpointReachability } from './EndpointReachability';
 export type { EntitlementState } from './EntitlementState';

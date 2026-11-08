@@ -5,6 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { error } from "@charlesportwoodii/tauri-plugin-curia";
 import { Store } from "@tauri-apps/plugin-store";
 import Analytics from "../../analytics";
+import { SentryManager } from "../../../sentry";
 import PlatformDetector from "../../utils/PlatformDetector";
 import FeatureFlagService from "../../services/FeatureFlagService";
 import type { AppInfo } from "../../../bindings/AppInfo";
@@ -179,7 +180,9 @@ export class AboutManager {
         this.isRefreshingPlatformIdStore.set(true);
         this.platformIdErrorStore.set("");
         try {
-            this.platformIdStore.set(await invoke<string>("refresh_platform_id"));
+            const next = await invoke<string>("refresh_platform_id");
+            this.platformIdStore.set(next);
+            SentryManager.setUser(next);
         } catch (e) {
             this.platformIdErrorStore.set(String(e));
             error(`Failed to refresh the platform ID: ${e}`);

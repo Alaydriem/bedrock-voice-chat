@@ -76,17 +76,7 @@ const DECLARED: &[FieldSpec] = &[
         variants: &[],
     },
     FieldSpec {
-        name: "platform_id",
-        destination: Destination::Attribute,
-        variants: &[],
-    },
-    FieldSpec {
-        name: "install_id",
-        destination: Destination::Attribute,
-        variants: &[],
-    },
-    FieldSpec {
-        name: "session_id",
+        name: "user_id",
         destination: Destination::Attribute,
         variants: &[],
     },

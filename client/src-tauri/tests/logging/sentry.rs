@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use bvc_client_lib::logging::{LogContext, SentrySink, Telemetry};
+use bvc_client_lib::logging::{SentrySink, Telemetry};
 use tauri_plugin_curia::curia::{Fields, Level, LogEvent, Sink};
 
 fn event(message: &str) -> LogEvent {
@@ -19,7 +19,6 @@ fn event(message: &str) -> LogEvent {
 fn telemetry_disabled_short_circuits_before_the_throttle() {
     let sink = SentrySink::with_capacity(
         Arc::new(Telemetry::new(false)),
-        LogContext::new_shared(),
         Level::Info,
         4,
         true,
@@ -37,7 +36,6 @@ fn telemetry_disabled_short_circuits_before_the_throttle() {
 fn a_full_queue_drops_and_counts_rather_than_blocking() {
     let sink = SentrySink::with_capacity(
         Arc::new(Telemetry::new(true)),
-        LogContext::new_shared(),
         Level::Info,
         4,
         true,
@@ -57,7 +55,6 @@ fn a_full_queue_drops_and_counts_rather_than_blocking() {
 fn the_throttle_runs_before_the_queue() {
     let sink = SentrySink::with_capacity(
         Arc::new(Telemetry::new(true)),
-        LogContext::new_shared(),
         Level::Info,
         4,
         true,
@@ -77,7 +74,6 @@ fn the_throttle_runs_before_the_queue() {
 fn quiet_traffic_is_queued_as_a_breadcrumb_rather_than_discarded() {
     let sink = SentrySink::with_capacity(
         Arc::new(Telemetry::new(true)),
-        LogContext::new_shared(),
         Level::Debug,
         64,
         true,
@@ -97,7 +93,6 @@ fn quiet_traffic_is_queued_as_a_breadcrumb_rather_than_discarded() {
 fn quiet_traffic_is_not_throttled() {
     let sink = SentrySink::with_capacity(
         Arc::new(Telemetry::new(true)),
-        LogContext::new_shared(),
         Level::Debug,
         64,
         true,
@@ -118,7 +113,6 @@ fn quiet_traffic_is_not_throttled() {
 fn a_repeated_warning_is_throttled_on_the_log_path() {
     let sink = SentrySink::with_capacity(
         Arc::new(Telemetry::new(true)),
-        LogContext::new_shared(),
         Level::Debug,
         64,
         true,
