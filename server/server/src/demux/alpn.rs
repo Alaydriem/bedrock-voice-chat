@@ -1,5 +1,5 @@
 use common::curia;
-use super::{BufferedHello, DemuxError, TlsAlert};
+use super::{BufferedHello, DemuxError, PeerClass, TlsAlert};
 use common::structs::network::VoiceProtocol;
 use rustls::server::Acceptor;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -28,9 +28,19 @@ pub struct AlpnDemux {
     // would relay to an address nothing is listening on.
     api: super::api_bind::ApiBind,
     websocket: Option<SocketAddr>,
+    // The plain-HTTP backend for the game mods. `None` unless the operator turned the
+    // branch on. Only a loopback peer is ever relayed to it.
+    plain: Option<super::api_bind::ApiBind>,
+    // Reads true once the public socket accepts connections, for work that must not begin
+    // before then. A watch rather than a notification, so any number of waiters see it,
+    // including one that arrives late.
+    listening: Arc<tokio::sync::watch::Sender<bool>>,
 }
 
 impl AlpnDemux {
+    // The first byte of a TLS record is the handshake content type.
+    const TLS_HANDSHAKE_RECORD: u8 = 0x16;
+
     // A peer that connects and sends nothing otherwise pins a socket and a task without
     // ever identifying itself. Both bounds are on the unauthenticated path, so they are
     // the only thing standing between an idle connection and an unbounded one.
@@ -48,20 +58,29 @@ impl AlpnDemux {
         listen: SocketAddr,
         api: super::api_bind::ApiBind,
         websocket: Option<SocketAddr>,
+        plain: Option<super::api_bind::ApiBind>,
     ) -> Self {
         Self {
             listen,
             api,
             websocket,
+            plain,
+            listening: Arc::new(tokio::sync::watch::channel(false).0),
         }
+    }
+
+    /// Reads true once the public socket is bound and accepting.
+    pub fn listening(&self) -> tokio::sync::watch::Receiver<bool> {
+        self.listening.subscribe()
     }
 
     pub fn new_shared(
         listen: SocketAddr,
         api: super::api_bind::ApiBind,
         websocket: Option<SocketAddr>,
+        plain: Option<super::api_bind::ApiBind>,
     ) -> Arc<Self> {
-        Arc::new(Self::new(listen, api, websocket))
+        Arc::new(Self::new(listen, api, websocket, plain))
     }
 
     pub async fn start(&self) -> Result<(), DemuxError> {
@@ -73,7 +92,8 @@ impl AlpnDemux {
 
         let listener = Self::bind_listener(self.listen)?;
 
-        curia::info!("TLS demultiplexer listening", { "listen": self.listen.to_string(), "api": self.api.addr().to_string(), "websocket": format!("{:?}", self.websocket) });
+        curia::info!("TLS demultiplexer listening", { "listen": self.listen.to_string(), "api": self.api.addr().to_string(), "websocket": format!("{:?}", self.websocket), "plain": format!("{:?}", self.plain.as_ref().map(|plain| plain.addr())) });
+        self.listening.send_replace(true);
 
         loop {
             let (stream, peer) = match listener.accept().await {
@@ -86,8 +106,9 @@ impl AlpnDemux {
 
             let api = self.api.addr();
             let websocket = self.websocket;
+            let plain = self.plain.as_ref().map(|plain| plain.addr());
             tokio::spawn(async move {
-                if let Err(e) = Self::handle_connection(stream, peer, api, websocket).await {
+                if let Err(e) = Self::handle_connection(stream, peer, api, websocket, plain).await {
                     if e.is_routine() {
                         curia::debug!(format!("demuxed connection ended: {e}"), { "peer": peer.to_string() });
                     } else {
@@ -106,13 +127,16 @@ impl AlpnDemux {
         // listener may still be settling on a port while this waits for it to
         // answer. The WebSocket listener is already bound by the time this runs,
         // so its address is fixed.
-        let backends: [Option<Box<dyn Fn() -> SocketAddr + Send>>; 2] = [
+        let backends: [Option<Box<dyn Fn() -> SocketAddr + Send>>; 3] = [
             Some(Box::new({
                 let api = self.api.clone();
                 move || api.addr()
             })),
             self.websocket
                 .map(|addr| Box::new(move || addr) as Box<dyn Fn() -> SocketAddr + Send>),
+            self.plain.clone().map(|plain| {
+                Box::new(move || plain.addr()) as Box<dyn Fn() -> SocketAddr + Send>
+            }),
         ];
 
         for resolve in backends.into_iter().flatten() {
@@ -143,9 +167,42 @@ impl AlpnDemux {
         peer: SocketAddr,
         api: SocketAddr,
         websocket: Option<SocketAddr>,
+        plain: Option<SocketAddr>,
     ) -> Result<(), DemuxError> {
-        let hello = match timeout(
-            Self::HANDSHAKE_TIMEOUT,
+        // One budget for identifying the peer, however it is spent. Peeking and reading the
+        // hello under separate timeouts would let a peer hold the socket for twice as long.
+        let deadline = tokio::time::Instant::now() + Self::HANDSHAKE_TIMEOUT;
+
+        let first = match tokio::time::timeout_at(deadline, Self::peek_first_byte(&stream, peer))
+            .await
+        {
+            Ok(Ok(first)) => first,
+            Ok(Err(e)) => return Err(e),
+            Err(_) => {
+                Self::reject(&mut stream, TlsAlert::HANDSHAKE_FAILURE).await;
+                return Err(DemuxError::HandshakeTimeout {
+                    peer,
+                    timeout: Self::HANDSHAKE_TIMEOUT,
+                });
+            }
+        };
+
+        if first != Self::TLS_HANDSHAKE_RECORD {
+            return match plain {
+                Some(plain) if PeerClass::is_loopback(peer.ip()) => {
+                    Self::relay_plain(stream, peer, plain).await
+                }
+                // Nothing is written: a TLS alert or an HTTP error would answer a peer
+                // that has no business on this port with more than it asked for.
+                _ => {
+                    let _ = stream.shutdown().await;
+                    Err(DemuxError::PlainRefused { peer })
+                }
+            };
+        }
+
+        let hello = match tokio::time::timeout_at(
+            deadline,
             Self::read_client_hello(&mut stream, peer),
         )
         .await
@@ -206,6 +263,59 @@ impl AlpnDemux {
             .map_err(|source| DemuxError::Relay {
                 peer,
                 addr: backend,
+                source,
+            })?;
+
+        Ok(())
+    }
+
+    // Looks at the first byte without consuming it, so whichever path follows reads the
+    // stream from its start.
+    async fn peek_first_byte(stream: &TcpStream, peer: SocketAddr) -> Result<u8, DemuxError> {
+        let mut first = [0u8; 1];
+        let peeked = stream
+            .peek(&mut first)
+            .await
+            .map_err(|source| DemuxError::Read { peer, source })?;
+
+        if peeked == 0 {
+            return Err(DemuxError::HandshakeIncomplete { peer, read: 0 });
+        }
+
+        Ok(first[0])
+    }
+
+    // Relays a plain-HTTP connection from this machine to the mods' backend. No byte has
+    // been consumed, so the backend sees the request exactly as the mod sent it.
+    async fn relay_plain(
+        mut stream: TcpStream,
+        peer: SocketAddr,
+        plain: SocketAddr,
+    ) -> Result<(), DemuxError> {
+        let mut backend_stream = match timeout(Self::DIAL_TIMEOUT, TcpStream::connect(plain)).await
+        {
+            Ok(Ok(s)) => s,
+            Ok(Err(source)) => {
+                return Err(DemuxError::BackendDial {
+                    peer,
+                    addr: plain,
+                    source,
+                });
+            }
+            Err(_) => {
+                return Err(DemuxError::BackendDialTimeout {
+                    peer,
+                    addr: plain,
+                    timeout: Self::DIAL_TIMEOUT,
+                });
+            }
+        };
+
+        tokio::io::copy_bidirectional(&mut stream, &mut backend_stream)
+            .await
+            .map_err(|source| DemuxError::Relay {
+                peer,
+                addr: plain,
                 source,
             })?;
 

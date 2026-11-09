@@ -26,6 +26,9 @@ pub struct Tls {
     pub ips: Vec<String>,
     #[serde(default)]
     pub acme: Option<super::acme::Acme>,
+    // Take a name and a certificate from the BVC registry's play zone instead.
+    #[serde(default)]
+    pub play: Option<super::play::PlayTls>,
 }
 
 impl Default for Tls {
@@ -37,6 +40,7 @@ impl Default for Tls {
             names: default_tls_names(),
             ips: default_tls_ips(),
             acme: None,
+            play: None,
         }
     }
 }

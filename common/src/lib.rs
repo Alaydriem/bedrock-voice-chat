@@ -14,7 +14,7 @@ pub mod net;
 pub mod players;
 pub mod request;
 pub mod response;
-#[cfg(feature = "quic")]
+#[cfg(any(feature = "quic", feature = "net"))]
 pub mod rustls;
 pub mod structs;
 pub mod tls;

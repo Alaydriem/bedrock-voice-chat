@@ -38,3 +38,10 @@ relay/service/config.local.hcl
 # Build-time secrets read by server/server/build.rs and the client. Baked into the
 # binary via cargo:rustc-env, so the file never ships but its contents do.
 .env.local
+
+# The local play-zone CA: development root and intermediate keys, passwords, badger db.
+relay/service/.play-ca/
+
+# The built-in play roots are public certificates compiled into common, so the blanket
+# *.pem rule above must not hide them.
+!common/resources/play_roots/*.pem

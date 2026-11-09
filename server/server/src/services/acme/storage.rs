@@ -25,6 +25,7 @@ const ACME_ROW_ID: i32 = 1;
 /// re-issuance against a provider that rate-limits both.
 pub struct AcmeStorage {
     dir: PathBuf,
+    row_id: i32,
     conn: Arc<DatabaseConnection>,
     directory_url: String,
     names: String,
@@ -37,11 +38,28 @@ impl AcmeStorage {
         directory_url: String,
         names: Vec<String>,
     ) -> Self {
+        Self::new_in_slot(certs_path, "acme", ACME_ROW_ID, conn, directory_url, names)
+    }
+
+    /// Storage in a directory and database row of its own.
+    ///
+    /// A second certificate source, play mode, must not touch the ACME account row or the
+    /// files ACME materialises: ACME parses its row as an account, and would fail on every
+    /// boot if another source had left something else there.
+    pub fn new_in_slot(
+        certs_path: &str,
+        dir_name: &str,
+        row_id: i32,
+        conn: Arc<DatabaseConnection>,
+        directory_url: String,
+        names: Vec<String>,
+    ) -> Self {
         // Sorted so the order the operator wrote the domains in is not mistaken for a change.
         let mut sorted = names;
         sorted.sort();
         Self {
-            dir: PathBuf::from(certs_path).join("acme"),
+            dir: PathBuf::from(certs_path).join(dir_name),
+            row_id,
             conn,
             directory_url,
             names: sorted.join(","),
@@ -183,7 +201,7 @@ impl AcmeStorage {
     }
 
     async fn row(&self) -> Result<Option<acme_credential::Model>> {
-        Ok(acme_credential::Entity::find_by_id(ACME_ROW_ID)
+        Ok(acme_credential::Entity::find_by_id(self.row_id)
             .one(self.conn.as_ref())
             .await?)
     }
@@ -196,7 +214,7 @@ impl AcmeStorage {
     ) -> Result<()> {
         let now = Self::now();
         let model = acme_credential::ActiveModel {
-            id: ActiveValue::Set(ACME_ROW_ID),
+            id: ActiveValue::Set(self.row_id),
             account_json: ActiveValue::Set(account_json.to_string()),
             certificate_pem: ActiveValue::Set(certificate_pem),
             key_pem: ActiveValue::Set(key_pem),

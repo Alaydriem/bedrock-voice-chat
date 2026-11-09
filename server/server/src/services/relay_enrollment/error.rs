@@ -6,10 +6,18 @@ pub enum EnrollmentError {
     Connect(String),
     #[error("relay transport: {0}")]
     Transport(String),
-    #[error("the relay refused this server: {0}")]
-    Refused(String),
+    #[error("the relay refused this server: {explanation}")]
+    Refused {
+        reason: EnrollRefuseReason,
+        explanation: String,
+    },
     #[error("the relay speaks no enrollment version this build supports")]
     NoCommonVersion,
+    #[error(
+        "the relay speaks enrollment version {version}, which has no play names; \
+         it needs version 3 or later"
+    )]
+    PlayNotOffered { version: u16 },
     #[error("expected {expected} from the relay")]
     Unexpected { expected: &'static str },
     #[error(transparent)]
@@ -49,8 +57,28 @@ impl EnrollmentError {
             EnrollRefuseReason::Internal => {
                 "the relay could not complete the request; try again later"
             }
+            EnrollRefuseReason::RateLimited => {
+                "the relay is limiting new play names from this address; try again later"
+            }
+            EnrollRefuseReason::NoPlayName => "this server holds no play name with the relay",
+            EnrollRefuseReason::CsrRejected => {
+                "the relay refused the certificate request for this server's play name"
+            }
+            EnrollRefuseReason::PlayUnavailable => "the relay does not offer play names",
         };
 
-        Self::Refused(explanation.to_string())
+        Self::Refused {
+            reason,
+            explanation: explanation.to_string(),
+        }
+    }
+
+    // The registry's reason, when this is a refusal. Callers act on the reason rather than
+    // on the sentence.
+    pub fn reason(&self) -> Option<EnrollRefuseReason> {
+        match self {
+            Self::Refused { reason, .. } => Some(*reason),
+            _ => None,
+        }
     }
 }

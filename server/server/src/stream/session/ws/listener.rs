@@ -1,5 +1,5 @@
 use common::curia;
-use super::{WebSocketListenerError, WsLink};
+use super::{ReloadableCertResolver, WebSocketListenerError, WsLink};
 use common::structs::network::VoiceProtocol;
 use crate::stream::session::{SessionLink, SessionSpawner, WebSocketDeviceId};
 use bytes::Bytes;
@@ -26,6 +26,9 @@ use tokio_tungstenite::tungstenite::Message;
 pub struct WebSocketListener {
     listener: TcpListener,
     acceptor: TlsAcceptor,
+    /// The server certificate every handshake presents. Held so the runtime can reload it
+    /// when a renewal replaces the files, without rebuilding the listener.
+    certificates: Arc<ReloadableCertResolver>,
     spawner: Arc<SessionSpawner>,
     /// The same instance the QUIC handshake and the HTTP guard hold, so a revocation is
     /// visible on every ingress rather than only the one that wrote it.
@@ -73,17 +76,16 @@ impl WebSocketListener {
         // Named explicitly rather than taken from the process default: whether one is
         // installed depends on which other component initialised rustls first, and
         // `ServerConfig::builder` panics rather than erroring when none is.
+        let certificates = ReloadableCertResolver::load(certificate_path, key_path)
+            .map_err(|source| WebSocketListenerError::Certificate { source })?;
+
         let mut config = ServerConfig::builder_with_provider(Arc::new(
             rustls::crypto::aws_lc_rs::default_provider(),
         ))
         .with_safe_default_protocol_versions()
         .map_err(|source| WebSocketListenerError::TlsConfig { source })?
         .with_client_cert_verifier(Self::client_verifier(ca_path)?)
-            .with_single_cert(
-                Self::load_certificates(certificate_path)?,
-                Self::load_key(key_path)?,
-            )
-            .map_err(|source| WebSocketListenerError::TlsConfig { source })?;
+        .with_cert_resolver(certificates.clone());
 
         config.alpn_protocols = vec![VoiceProtocol::ALPN.to_vec()];
 
@@ -98,6 +100,7 @@ impl WebSocketListener {
             Self {
                 listener,
                 acceptor: TlsAcceptor::from(Arc::new(config)),
+                certificates,
                 spawner,
                 authorization,
                 database,
@@ -106,6 +109,11 @@ impl WebSocketListener {
             },
             addr,
         ))
+    }
+
+    /// The certificate handle for the runtime, which calls `reload` after a renewal.
+    pub fn certificates(&self) -> Arc<ReloadableCertResolver> {
+        self.certificates.clone()
     }
 
     /// Installs the metrics service, so a refusal here is visible to the operator watching
@@ -314,7 +322,7 @@ impl WebSocketListener {
             .map_err(|source| WebSocketListenerError::ClientVerifier { source })
     }
 
-    fn load_certificates(
+    pub(super) fn load_certificates(
         path: &str,
     ) -> Result<Vec<CertificateDer<'static>>, WebSocketListenerError> {
         let pem = std::fs::read(path).map_err(|source| WebSocketListenerError::ReadFile {
@@ -329,7 +337,7 @@ impl WebSocketListener {
             })
     }
 
-    fn load_key(path: &str) -> Result<PrivateKeyDer<'static>, WebSocketListenerError> {
+    pub(super) fn load_key(path: &str) -> Result<PrivateKeyDer<'static>, WebSocketListenerError> {
         let pem = std::fs::read(path).map_err(|source| WebSocketListenerError::ReadFile {
             path: path.to_string(),
             source,

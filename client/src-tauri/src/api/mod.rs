@@ -13,6 +13,7 @@ mod credential_verdict;
 mod fetch_cache;
 mod gamerpic;
 
+pub use client::Client as ApiClient;
 pub use fetch_cache::FetchCache;
 
 pub use circuit_breaker::EndpointBreaker;

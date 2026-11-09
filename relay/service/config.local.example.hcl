@@ -85,3 +85,28 @@ http {
     directory = "https://acme-staging-v02.api.letsencrypt.org/directory"
   }
 }
+
+// Play names against the local step-ca from `mise run play-ca` (docs/runbooks/play-ca-local.md).
+// The values for ca come from `mise run play-ca-init`. DNS binds an unprivileged
+// loopback port; query it with `dig -p 5300 @127.0.0.1`. Port 5353 is multicast DNS on
+// Windows and macOS and cannot be bound.
+play {
+  // A check-in from loopback is refused without this. Never set it on a public registry.
+  allow_private_probe_targets = true
+
+  dns {
+    bind        = ["127.0.0.1:5300"]
+    nameservers = ["ns1.bedrockvc.stream."]
+    primary     = "ns1.bedrockvc.stream."
+    hostmaster  = "hostmaster.bedrockvc.stream."
+  }
+
+  ca {
+    url             = "https://ca.play.bedrockvc.stream:9000"
+    connect         = "127.0.0.1:9000"
+    provisioner     = "registry"
+    provisioner_kid = "REPLACE_WITH_KID"
+    provisioner_key = "REPLACE_WITH_PKCS8_PEM"
+    root            = ".play-ca/certs/root_ca.crt"
+  }
+}

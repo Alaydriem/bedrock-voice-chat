@@ -3,6 +3,7 @@ use crate::network::stream::link::DatagramLink;
 use bytes::Bytes;
 use common::consts::version::PROTOCOL_VERSION;
 use common::response::{ApiConfigCheckResponse, ApiConfigResponse};
+use common::rustls::{BvcClientTls, VerifierMode};
 use common::structs::network::ConnectionHealth;
 use common::structs::packet::{
     HealthCheckPacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
@@ -291,19 +292,19 @@ impl ConnectionHealthManager {
         );
     }
 
+    /// The unauthenticated HTTP client both probes use. It trusts the built-in play roots for
+    /// play-zone names and the public roots for everything else.
+    fn probe_client() -> Result<common::reqwest::Client, anyhow::Error> {
+        Ok(BvcClientTls::http_client_builder(None, None, VerifierMode::for_build())?
+            .timeout(Duration::from_secs(5))
+            .build()?)
+    }
+
     /// Fetch the server's advertised protocol version from `/api/config`,
     /// returning the version string and whether this client is the older side.
     /// Falls back to `("unknown", false)` when the config cannot be read.
     async fn fetch_server_version(server_url: &str) -> (String, bool) {
-        #[allow(unused_mut)]
-        let mut builder = common::reqwest::Client::builder().timeout(Duration::from_secs(5));
-
-        #[cfg(dev)]
-        {
-            builder = builder.danger_accept_invalid_certs(true);
-        }
-
-        let client = match builder.build() {
+        let client = match Self::probe_client() {
             Ok(c) => c,
             Err(_) => return ("unknown".to_string(), false),
         };
@@ -336,15 +337,7 @@ impl ConnectionHealthManager {
 
     /// Probe the server's HTTP endpoint to check availability and version compatibility
     async fn probe_server(server_url: &str) -> ProbeResult {
-        #[allow(unused_mut)]
-        let mut builder = common::reqwest::Client::builder().timeout(Duration::from_secs(5));
-
-        #[cfg(dev)]
-        {
-            builder = builder.danger_accept_invalid_certs(true);
-        }
-
-        let client = match builder.build() {
+        let client = match Self::probe_client() {
             Ok(c) => c,
             Err(e) => {
                 curia::warn!("failed to build the HTTP client for a probe", {

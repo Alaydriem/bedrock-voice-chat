@@ -8,7 +8,11 @@ use bvc_relay_service::config::DiscordConfig;
 use bvc_relay_service::db::Db;
 use bvc_relay_service::discord::{FixedMemberSource, MemberSource};
 use bvc_relay_service::dns::{CloudflareApi, RecordingApi, ZoneWriter};
-use bvc_relay_service::entity::registration;
+use bvc_relay_service::entity::{play_name, registration};
+use bvc_relay_service::play::{
+    LocalSigner, PlayAddressProbe, PlayIssuanceService, PlayNameService, PlayPlane, PlaySigner,
+    PlayZone,
+};
 use bvc_relay_service::registry::{ClaimService, RegistryEndpoint, RegistryService};
 use bvc_relay_service::scheduler::DailyScheduler;
 use bvc_relay_service::validation::{AddressProbe, AddressVerifier, ValidationChecker};
@@ -17,6 +21,8 @@ use common::structs::relay::wire::Framing;
 use iroh::endpoint::Connection;
 use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait};
 use tempfile::TempDir;
+
+use crate::harness::{CsrFixture, PlayFixture};
 
 fn discord_config() -> DiscordConfig {
     DiscordConfig {
@@ -45,6 +51,8 @@ pub struct Harness {
     conn: Connection,
     pub ticket: String,
     _endpoint: Arc<RegistryEndpoint>,
+    play_zone: Option<Arc<PlayZone>>,
+    play_names: Option<Arc<PlayNameService>>,
 }
 
 // A live registry, for tests that need one but none of the enrollment state.
@@ -63,6 +71,20 @@ impl Harness {
 
     // `scheduler_roles` are what a check-in's evaluation sees, as opposed to enrollment.
     pub async fn start_with(roles: Vec<String>, scheduler_roles: Vec<String>, ceiling: u32) -> Self {
+        Self::boot(roles, scheduler_roles, ceiling, false).await
+    }
+
+    // A registry with the play plane: a local signing CA and a probe that always succeeds.
+    pub async fn start_with_play(roles: Vec<String>) -> Self {
+        Self::boot(roles.clone(), roles, 50, true).await
+    }
+
+    async fn boot(
+        roles: Vec<String>,
+        scheduler_roles: Vec<String>,
+        ceiling: u32,
+        with_play: bool,
+    ) -> Self {
         let dir = TempDir::new().expect("tempdir");
         let client_dir = TempDir::new().expect("tempdir");
 
@@ -78,6 +100,25 @@ impl Harness {
             CloudflareApi::Recording(recording.clone()),
             "bedrockvc.stream".to_string(),
         ));
+        let mut play_zone = None;
+        let mut play_names = None;
+        let play = with_play.then(|| {
+            let config = PlayFixture::config();
+            let names = PlayNameService::new_shared(db.clone(), config.clone());
+            let zone = PlayZone::new_shared(config.zone.clone(), config.dns.clone());
+            let issuance = PlayIssuanceService::new_shared(
+                names.clone(),
+                PlaySigner::Local(LocalSigner::new()),
+            );
+            let probe = PlayAddressProbe::new(
+                AddressProbe::Fixed(true),
+                vec![Duration::from_millis(10)],
+            );
+            play_zone = Some(zone.clone());
+            play_names = Some(names.clone());
+            PlayPlane::new_shared(names, issuance, zone, probe)
+        });
+
         let scheduler = DailyScheduler::new_shared(
             db.clone(),
             ValidationChecker::new_shared(db.clone(), registry.clone(), zone.clone()),
@@ -87,19 +128,37 @@ impl Harness {
             ClaimService::new_shared(db.clone()),
             MemberSource::Fixed(FixedMemberSource::new(scheduler_roles)),
             discord_config(),
+            play.clone(),
         );
 
         let identity =
             NodeIdentity::load_or_create(dir.path().to_str().expect("path")).expect("identity");
         let budget = WeeklyBudget::new_shared(db.clone(), ceiling);
-        let endpoint =
-            RegistryEndpoint::bind(&identity, registry.clone(), zone, budget, scheduler, None)
-                .await
-                .expect("binds");
+        let endpoint = RegistryEndpoint::bind(
+            &identity,
+            registry.clone(),
+            zone,
+            budget,
+            scheduler,
+            None,
+            play,
+        )
+        .await
+        .expect("binds");
         endpoint.spawn_accept_loop();
 
         let ticket = endpoint.ticket().await.expect("ticket");
         let (client, conn) = Self::dial(&ticket, &client_dir).await;
+        if with_play {
+            // Play frames need version 3, which the connection agrees with a Hello.
+            Self::request_on(
+                &conn,
+                &EnrollFrame::Hello {
+                    versions: EnrollVersion::SUPPORTED.to_vec(),
+                },
+            )
+            .await;
+        }
 
         Self {
             _dir: dir,
@@ -111,6 +170,8 @@ impl Harness {
             conn,
             ticket,
             _endpoint: endpoint,
+            play_zone,
+            play_names,
         }
     }
 
@@ -204,6 +265,33 @@ impl Harness {
             .expect("registered")
     }
 
+    fn play_names(&self) -> &Arc<PlayNameService> {
+        self.play_names.as_ref().expect("a harness with a play plane")
+    }
+
+    fn play_zone(&self) -> &Arc<PlayZone> {
+        self.play_zone.as_ref().expect("a harness with a play plane")
+    }
+
+    async fn play_row(&self, node_id: &str) -> play_name::Model {
+        play_name::Entity::find_by_id(node_id)
+            .one(self.db.as_ref())
+            .await
+            .expect("reads")
+            .expect("holds a play name")
+    }
+
+    // The probe runs in the background after the reply.
+    async fn eventually(&self, mut condition: impl FnMut() -> bool) -> bool {
+        for _ in 0..100 {
+            if condition() {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        false
+    }
+
     async fn sql(&self, statement: &str) {
         self.db
             .execute_unprepared(statement)
@@ -216,6 +304,225 @@ impl Harness {
 #[test]
 fn the_enrollment_alpn_is_pinned() {
     assert_eq!(RegistryEndpoint::ALPN, b"bvc-enroll/1");
+}
+
+#[tokio::test]
+async fn a_play_claim_over_iroh_returns_a_play_fqdn() {
+    let harness = Harness::start_with_play(vec!["role-a".to_string()]).await;
+
+    let name = match harness.request(&EnrollFrame::PlayClaim).await {
+        EnrollFrame::PlayAssigned { name } => name,
+        other => panic!("expected a play name, got {other:?}"),
+    };
+
+    assert!(name.ends_with(&format!(".{}", PlayFixture::ZONE)), "{name}");
+    assert_eq!(
+        harness.play_names().name_for(&harness.node_id()).await.expect("reads"),
+        harness.play_names().label_of(&name)
+    );
+}
+
+#[tokio::test]
+async fn a_play_certificate_over_iroh_returns_a_chain_for_that_name() {
+    let harness = Harness::start_with_play(vec!["role-a".to_string()]).await;
+    let name = match harness.request(&EnrollFrame::PlayClaim).await {
+        EnrollFrame::PlayAssigned { name } => name,
+        other => panic!("expected a play name, got {other:?}"),
+    };
+
+    let chain = match harness
+        .request(&EnrollFrame::PlayCertificate {
+            csr_der: CsrFixture::for_names(&[&name]),
+        })
+        .await
+    {
+        EnrollFrame::PlayIssued { chain_pem } => chain_pem,
+        other => panic!("expected a chain, got {other:?}"),
+    };
+
+    let (_, pem) = x509_parser::pem::parse_x509_pem(chain.as_bytes()).expect("a certificate");
+    let leaf = pem.parse_x509().expect("parses");
+    let san = leaf
+        .subject_alternative_name()
+        .expect("parses")
+        .expect("has a SAN");
+    assert_eq!(san.value.general_names.len(), 1);
+    assert!(matches!(
+        &san.value.general_names[0],
+        x509_parser::extensions::GeneralName::DNSName(dns) if *dns == name
+    ));
+}
+
+#[tokio::test]
+async fn a_play_certificate_for_another_name_is_refused_csr_rejected() {
+    let harness = Harness::start_with_play(vec!["role-a".to_string()]).await;
+    harness.request(&EnrollFrame::PlayClaim).await;
+
+    let reply = harness
+        .request(&EnrollFrame::PlayCertificate {
+            csr_der: CsrFixture::for_names(&["brave-otter-mesa.play.bedrockvc.stream"]),
+        })
+        .await;
+
+    assert_eq!(
+        reply,
+        EnrollFrame::Refuse {
+            reason: EnrollRefuseReason::CsrRejected
+        }
+    );
+}
+
+#[tokio::test]
+async fn a_play_certificate_without_a_claim_is_refused_no_play_name() {
+    let harness = Harness::start_with_play(vec!["role-a".to_string()]).await;
+
+    let reply = harness
+        .request(&EnrollFrame::PlayCertificate {
+            csr_der: CsrFixture::for_names(&["brave-otter-mesa.play.bedrockvc.stream"]),
+        })
+        .await;
+
+    assert_eq!(
+        reply,
+        EnrollFrame::Refuse {
+            reason: EnrollRefuseReason::NoPlayName
+        }
+    );
+}
+
+#[tokio::test]
+async fn play_frames_are_refused_on_a_connection_that_agreed_version_two() {
+    let harness = Harness::start_with_play(vec!["role-a".to_string()]).await;
+    let conn = harness.redial().await;
+    let hello = Harness::request_on(
+        &conn,
+        &EnrollFrame::Hello {
+            versions: vec![EnrollVersion(2)],
+        },
+    )
+    .await;
+    assert_eq!(hello, EnrollFrame::Ready { version: EnrollVersion(2) });
+
+    let claim = Harness::request_on(&conn, &EnrollFrame::PlayClaim).await;
+    let certificate = Harness::request_on(
+        &conn,
+        &EnrollFrame::PlayCertificate { csr_der: vec![1] },
+    )
+    .await;
+
+    let refused = EnrollFrame::Refuse {
+        reason: EnrollRefuseReason::PlayUnavailable,
+    };
+    assert_eq!(claim, refused);
+    assert_eq!(certificate, refused);
+}
+
+#[tokio::test]
+async fn a_play_claim_without_a_play_plane_is_refused_play_unavailable() {
+    let harness = Harness::start(vec!["role-a".to_string()]).await;
+
+    let reply = harness.request(&EnrollFrame::PlayClaim).await;
+
+    assert_eq!(
+        reply,
+        EnrollFrame::Refuse {
+            reason: EnrollRefuseReason::PlayUnavailable
+        }
+    );
+}
+
+// The same assertions as the check-in test without a plane: a registered node's
+// check-in does not notice that play names exist.
+#[tokio::test]
+async fn an_entitled_node_check_in_is_unchanged() {
+    let harness = Harness::start_with_play(vec!["role-a".to_string()]).await;
+    let name = harness.enroll().await;
+
+    let nonce = match harness.check_in(Some("8.8.8.8"), 8443).await {
+        EnrollFrame::CheckedIn { nonce } => nonce,
+        other => panic!("expected a check-in reply, got {other:?}"),
+    };
+
+    let row = harness.row().await;
+    assert_eq!(row.checkin_nonce.map(String::into_bytes), Some(nonce));
+    assert_eq!(row.declared_port, Some(8443));
+    assert_eq!(
+        harness.recording.created_records(),
+        vec![("A".to_string(), name, "8.8.8.8".to_string())]
+    );
+    assert!(harness.play_zone().snapshot().1.is_empty());
+}
+
+#[tokio::test]
+async fn a_play_node_check_in_publishes_its_name_after_the_probe() {
+    let harness = Harness::start_with_play(vec!["role-a".to_string()]).await;
+    let name = match harness.request(&EnrollFrame::PlayClaim).await {
+        EnrollFrame::PlayAssigned { name } => name,
+        other => panic!("expected a play name, got {other:?}"),
+    };
+    let label = harness.play_names().label_of(&name).expect("a label");
+
+    let reply = harness.check_in(Some("198.51.100.4"), 19132).await;
+
+    assert!(matches!(reply, EnrollFrame::CheckedIn { .. }));
+    assert!(harness.eventually(|| harness.play_zone().lookup(&label).is_some()).await);
+    assert_eq!(
+        harness.play_zone().lookup(&label),
+        Some("198.51.100.4".parse().expect("an address"))
+    );
+    assert!(harness.recording.created_records().is_empty());
+}
+
+// With no declared address the candidate is the address the node connected from.
+#[tokio::test]
+async fn a_check_in_without_an_address_uses_the_observed_ip() {
+    let harness = Harness::start_with_play(vec!["role-a".to_string()]).await;
+    let name = match harness.request(&EnrollFrame::PlayClaim).await {
+        EnrollFrame::PlayAssigned { name } => name,
+        other => panic!("expected a play name, got {other:?}"),
+    };
+    let label = harness.play_names().label_of(&name).expect("a label");
+
+    harness.check_in(None, 19132).await;
+
+    assert!(harness.eventually(|| harness.play_zone().lookup(&label).is_some()).await);
+    let published = harness.play_zone().lookup(&label).expect("published");
+    let declared = harness
+        .play_row(&harness.node_id())
+        .await
+        .declared_address
+        .expect("the candidate was recorded");
+    assert_eq!(declared, published.to_string());
+}
+
+#[tokio::test]
+async fn a_node_with_neither_a_registration_nor_a_play_name_has_no_play_name() {
+    let harness = Harness::start_with_play(vec!["role-a".to_string()]).await;
+
+    let reply = harness.check_in(Some("198.51.100.4"), 19132).await;
+
+    assert_eq!(
+        reply,
+        EnrollFrame::Refuse {
+            reason: EnrollRefuseReason::NoPlayName
+        }
+    );
+}
+
+#[tokio::test]
+async fn a_registry_with_play_off_does_not_say_a_name_was_lost() {
+    let harness = Harness::start(vec!["role-a".to_string()]).await;
+    // Agrees version 3, which is what sends a check-in down the play path.
+    harness.barrier().await;
+
+    let reply = harness.check_in(Some("198.51.100.4"), 19132).await;
+
+    assert_eq!(
+        reply,
+        EnrollFrame::Refuse {
+            reason: EnrollRefuseReason::PlayUnavailable
+        }
+    );
 }
 
 #[tokio::test]

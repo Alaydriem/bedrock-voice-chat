@@ -109,6 +109,7 @@ export type { PlayerKey } from './PlayerKey';
 export type { PlayerSettingsRow } from './PlayerSettingsRow';
 export type { PlayerSource } from './PlayerSource';
 export type { PositionSnapshot } from './PositionSnapshot';
+export type { PositionSocketEvent } from './PositionSocketEvent';
 export type { PresenceKind } from './PresenceKind';
 export type { ProtectedGroupCheckingNotice } from './ProtectedGroupCheckingNotice';
 export type { ProtectedGroupCodeNotice } from './ProtectedGroupCodeNotice';

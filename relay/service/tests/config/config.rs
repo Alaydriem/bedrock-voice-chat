@@ -268,3 +268,158 @@ fn an_unparseable_advertised_address_is_refused() {
             .is_err()
     );
 }
+
+const PLAY_CA: &str = r#"
+    ca {
+        url = "https://ca.play.bedrockvc.stream:9000"
+        connect = "127.0.0.1:9000"
+        provisioner = "registry"
+        provisioner_kid = "kid"
+        provisioner_key = "key"
+        root = "/etc/play/root.pem"
+    }
+"#;
+
+fn with_play(dns: &str) -> String {
+    format!("{SAMPLE}\nplay {{\n{dns}\n{PLAY_CA}\n}}\n")
+}
+
+const PLAY_DNS_BODY: &str = r#"
+        nameservers = ["ns1.bedrockvc.stream."]
+        primary = "ns1.bedrockvc.stream."
+        hostmaster = "hostmaster.bedrockvc.stream."
+"#;
+
+// No wildcard default: a wildcard bind collides with the host's stub resolver, and the
+// operator must name the address on purpose.
+#[test]
+fn a_play_block_without_dns_bind_fails_to_parse() {
+    let source = with_play(&format!("dns {{\n{PLAY_DNS_BODY}\n}}"));
+
+    assert!(RelayConfig::from_hcl(&source).is_err());
+}
+
+#[test]
+fn secondaries_without_tsig_fail_to_parse() {
+    let source = with_play(&format!(
+        r#"dns {{
+        bind = ["127.0.0.1:53"]
+        {PLAY_DNS_BODY}
+        secondaries = [{{ transfer_from = ["192.0.2.10"], notify = "192.0.2.10:53" }}]
+    }}"#
+    ));
+
+    assert!(RelayConfig::from_hcl(&source).is_err());
+}
+
+#[test]
+fn secondaries_with_tsig_parse_and_take_the_documented_defaults() {
+    let source = with_play(&format!(
+        r#"dns {{
+        bind = ["127.0.0.1:53"]
+        {PLAY_DNS_BODY}
+        secondaries = [{{ transfer_from = ["192.0.2.10"], notify = "192.0.2.10:53" }}]
+        tsig {{
+            name = "transfer"
+            secret = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+        }}
+    }}"#
+    ));
+
+    let play = RelayConfig::from_hcl(&source)
+        .expect("parses")
+        .play
+        .expect("a play block");
+
+    assert_eq!(play.zone, "play.bedrockvc.stream");
+    assert_eq!(play.claims_per_address_per_day, 3);
+    assert_eq!(play.claims_per_hour, 200);
+    assert_eq!(play.release_after_days, 30);
+    assert_eq!(play.dns.ttl, 60);
+    assert_eq!(play.dns.notify_delay_secs, 5);
+}
+
+fn play_with_dns(body: &str) -> String {
+    with_play(&format!("dns {{\n{PLAY_DNS_BODY}\n{body}\n}}"))
+}
+
+// A registry that bound nothing would run without DNS behind a healthy-looking process.
+#[test]
+fn an_empty_dns_bind_list_is_refused() {
+    assert!(RelayConfig::from_hcl(&play_with_dns("bind = []")).is_err());
+}
+
+#[test]
+fn an_empty_nameserver_list_is_refused() {
+    let source = with_play(
+        r#"dns {
+        bind = ["127.0.0.1:53"]
+        nameservers = []
+        primary = "ns1.bedrockvc.stream."
+        hostmaster = "hostmaster.bedrockvc.stream."
+    }"#,
+    );
+
+    assert!(RelayConfig::from_hcl(&source).is_err());
+}
+
+#[test]
+fn a_tsig_secret_shorter_than_32_bytes_is_refused() {
+    let source = play_with_dns(
+        r#"bind = ["127.0.0.1:53"]
+        tsig {
+            name = "transfer"
+            secret = "c2VjcmV0"
+        }"#,
+    );
+
+    assert!(RelayConfig::from_hcl(&source).is_err());
+}
+
+#[test]
+fn a_ca_url_that_names_another_host_or_port_is_refused() {
+    let valid = play_with_dns(r#"bind = ["127.0.0.1:53"]"#);
+    assert!(RelayConfig::from_hcl(&valid).is_ok());
+
+    let other_host = valid.replace("ca.play.bedrockvc.stream:9000", "example.com:9000");
+    let other_port = valid.replace("ca.play.bedrockvc.stream:9000", "ca.play.bedrockvc.stream:9443");
+
+    assert!(RelayConfig::from_hcl(&other_host).is_err());
+    assert!(RelayConfig::from_hcl(&other_port).is_err());
+}
+
+// The play roots, the CA's name constraints and the CA host are fixed to one zone, so a
+// registry that hands out names elsewhere would fail every issuance with no clear cause.
+#[test]
+fn a_play_zone_other_than_the_fixed_one_is_refused() {
+    let valid = play_with_dns(r#"bind = ["127.0.0.1:53"]"#);
+
+    let other_zone = valid.replace("play {\n", "play {\nzone = \"play.example.net\"\n");
+
+    assert_ne!(other_zone, valid);
+    assert!(RelayConfig::from_hcl(&other_zone).is_err());
+}
+
+// A stray `{:?}` must not write the signing keys into a log.
+#[test]
+fn the_debug_form_of_the_play_config_redacts_both_secrets() {
+    let source = play_with_dns(
+        r#"bind = ["127.0.0.1:53"]
+        tsig {
+            name = "transfer"
+            secret = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+        }"#,
+    )
+    .replace("provisioner_key = \"key\"", "provisioner_key = \"PRIVATE-KEY-TEXT\"");
+    let config = RelayConfig::from_hcl(&source).expect("parses");
+
+    let debug = format!("{:?}", config.play.expect("a play block"));
+
+    assert!(!debug.contains("PRIVATE-KEY-TEXT"));
+    assert!(!debug.contains("MDEyMzQ1"));
+}
+
+#[test]
+fn a_config_without_a_play_block_has_no_play_plane() {
+    assert!(RelayConfig::from_hcl(SAMPLE).expect("parses").play.is_none());
+}
