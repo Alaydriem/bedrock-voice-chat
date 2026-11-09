@@ -24,7 +24,7 @@ serde = { version = "^1", features = ["derive"] }
 serde_json = { version = "^1", features = ["preserve_order"] }
 hcl-rs = { version = "^0.19" }
 reqwest = { version = "^0.12", default-features = false, features = ["blocking", "rustls-tls", "json"] }
-zip = { version = "^4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "^9.0.5",default-features = false, features = ["deflate-flate2-zlib-rs"] }
 zuri_nbt = { version = "^0.5" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
