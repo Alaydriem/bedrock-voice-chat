@@ -298,6 +298,43 @@ mod group_link {
         assert!(registry.is_members_only_channel(&id));
     }
 
+    // Marked when it is made, so the first member's first frame already routes to members only.
+    #[tokio::test]
+    async fn a_members_only_channel_is_marked_when_it_is_created_not_when_it_is_joined() {
+        let (cm, registry, webhook, mut rx) = manager();
+        let channels = cm.get_channel_collection();
+        let id = ChannelMembershipService::create_linked(
+            &channels,
+            &webhook,
+            "Raid".to_string(),
+            Game::Minecraft.membership_key("Steve"),
+            true,
+        )
+        .await;
+
+        apply_fanned(&cm, &mut rx).await;
+
+        assert!(registry.is_members_only_channel(&id));
+    }
+
+    #[tokio::test]
+    async fn an_open_linked_channel_is_not_marked() {
+        let (cm, registry, webhook, mut rx) = manager();
+        let channels = cm.get_channel_collection();
+        let id = ChannelMembershipService::create_linked(
+            &channels,
+            &webhook,
+            "Raid".to_string(),
+            Game::Minecraft.membership_key("Steve"),
+            false,
+        )
+        .await;
+
+        apply_fanned(&cm, &mut rx).await;
+
+        assert!(!registry.is_members_only_channel(&id));
+    }
+
     #[tokio::test]
     async fn channel_changes_reach_the_group_link_feed() {
         let (cm, _registry, webhook, mut rx) = manager();

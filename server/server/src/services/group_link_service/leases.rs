@@ -17,21 +17,18 @@ impl GroupLinkLeases {
     pub const TTL: Duration = Duration::from_secs(30);
     const CAPACITY: u64 = 4096;
 
-    pub fn new() -> Self {
-        Self::with_ttl(Self::TTL)
-    }
-
-    pub fn new_shared() -> Arc<Self> {
-        Arc::new(Self::new())
-    }
-
-    pub fn with_ttl(ttl: Duration) -> Self {
+    /// `ttl` is `Self::TTL` everywhere but a test that has to see a lease lapse.
+    pub fn new(ttl: Duration) -> Self {
         Self {
             leased: Cache::builder()
                 .time_to_live(ttl)
                 .max_capacity(Self::CAPACITY)
                 .build(),
         }
+    }
+
+    pub fn new_shared(ttl: Duration) -> Arc<Self> {
+        Arc::new(Self::new(ttl))
     }
 
     /// The caller filters out protected channels: they are never linked.
@@ -43,11 +40,5 @@ impl GroupLinkLeases {
 
     pub fn is_leased(&self, channel_id: &str) -> bool {
         self.leased.contains_key(channel_id)
-    }
-}
-
-impl Default for GroupLinkLeases {
-    fn default() -> Self {
-        Self::new()
     }
 }

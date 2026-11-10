@@ -11,8 +11,9 @@ interface GroupLinkApi {
     fun createLinked(creator: String, name: String, membersOnly: Boolean): String?
     fun close(channel: String): Boolean
     fun lease(channels: List<String>): Boolean
-    fun join(player: String, channel: String)
-    fun leave(player: String)
+    /** False when BVC refused the join or could not be reached. */
+    fun join(player: String, channel: String): Boolean
+    fun leave(player: String): Boolean
     fun drain(after: Long): GroupLinkDrainJson?
     fun channels(): List<LinkedChannelJson>?
 }

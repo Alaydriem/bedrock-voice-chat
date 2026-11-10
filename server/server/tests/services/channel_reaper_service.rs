@@ -51,7 +51,7 @@ async fn a_group_with_a_connected_member_is_never_pruned() {
             channels.clone(),
             registry.clone(),
             WebhookReceiver::new(packets),
-            GroupLinkLeases::new_shared(),
+            GroupLinkLeases::new_shared(GroupLinkLeases::TTL),
         );
 
     let alice = identity("Alice");
@@ -81,7 +81,7 @@ async fn a_group_without_a_connected_member_survives_until_the_timeout() {
             channels.clone(),
             registry.clone(),
             WebhookReceiver::new(packets),
-            GroupLinkLeases::new_shared(),
+            GroupLinkLeases::new_shared(GroupLinkLeases::TTL),
         );
 
     let id = group_with(&channels, &[identity("Ghost")]).await;
@@ -114,7 +114,7 @@ async fn a_group_past_the_timeout_is_removed_and_a_delete_is_fanned() {
             channels.clone(),
             registry.clone(),
             WebhookReceiver::new(packets),
-            GroupLinkLeases::new_shared(),
+            GroupLinkLeases::new_shared(GroupLinkLeases::TTL),
         );
 
     let owner = identity("Ghost");
@@ -155,7 +155,7 @@ async fn an_empty_group_is_pruned_by_the_same_rule() {
             channels.clone(),
             registry.clone(),
             WebhookReceiver::new(packets),
-            GroupLinkLeases::new_shared(),
+            GroupLinkLeases::new_shared(GroupLinkLeases::TTL),
         );
 
     let channel = Channel::new("abandoned".to_string(), identity("Owner"));
@@ -183,7 +183,7 @@ async fn a_member_returning_mid_grace_restarts_the_clock() {
             channels.clone(),
             registry.clone(),
             WebhookReceiver::new(packets),
-            GroupLinkLeases::new_shared(),
+            GroupLinkLeases::new_shared(GroupLinkLeases::TTL),
         );
 
     let bob = identity("Bob");
@@ -223,7 +223,7 @@ async fn a_member_returning_mid_grace_restarts_the_clock() {
 async fn leased_channel_is_not_reaped() {
     let channels = Arc::new(ChannelCollection::new(16));
     let registry = Arc::new(ConnectionRegistry::new());
-    let leases = GroupLinkLeases::new_shared();
+    let leases = GroupLinkLeases::new_shared(GroupLinkLeases::TTL);
     let (packets, _rx) = mpsc::unbounded_channel();
     let reaper = ChannelReaperService::new(
         channels.clone(),
@@ -249,7 +249,7 @@ async fn leased_channel_is_not_reaped() {
 async fn unrenewed_lease_lets_the_channel_be_reaped() {
     let channels = Arc::new(ChannelCollection::new(16));
     let registry = Arc::new(ConnectionRegistry::new());
-    let leases = Arc::new(GroupLinkLeases::with_ttl(Duration::from_millis(50)));
+    let leases = GroupLinkLeases::new_shared(Duration::from_millis(50));
     let (packets, _rx) = mpsc::unbounded_channel();
     let reaper = ChannelReaperService::new(
         channels.clone(),

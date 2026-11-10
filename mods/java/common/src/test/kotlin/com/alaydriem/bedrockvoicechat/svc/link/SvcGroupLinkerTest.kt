@@ -23,16 +23,20 @@ class SvcGroupLinkerTest {
     private val bvc = FakeGroupLinkApi()
     private val table = SvcLinkTable()
     private val refusals = LinkRefusals()
+    private val echo = EchoGuard()
     private val linker = SvcGroupLinker(
         svc = svc,
         bvc = bvc,
         table = table,
         sides = PlayerSides(hasLiveBvcClient = { it == bob }, hasSvcInstalled = { it == steve }),
-        echo = EchoGuard(),
+        echo = echo,
         refusals = refusals,
         actorIdOf = { names[it] },
-        playerOf = { name -> names.entries.firstOrNull { it.value == name }?.key },
+        playerOf = { name -> names.entries.firstOrNull { it.value == name && name !in offline }?.key },
     )
+
+    // Names of players who have left the Minecraft server.
+    private val offline = HashSet<String>()
 
     private var seq = 0L
 
@@ -526,6 +530,188 @@ class SvcGroupLinkerTest {
         bvcEvents(epoch = 2L)
 
         assertNotNull(table.bySvc(view.id))
+    }
+
+    // A call SVC ran and refused fails the same way on every read. Waiting on it would hold every
+    // later BVC event behind it for good.
+    @Test
+    fun `a create that always fails does not hold back later events`() {
+        svc.failCreateFor.add("Bad")
+        val bad = bvc.add("Bad", "Bob")
+        val good = bvc.add("Good", "Bob")
+
+        bvcEvents(
+            event(GroupLinkEventKind.Create, bad, "Bob", name = "Bad"),
+            event(GroupLinkEventKind.Create, good, "Bob", name = "Good"),
+        )
+        linker.pollBvc()
+
+        assertNull(table.byBvc(bad))
+        assertNotNull(table.byBvc(good))
+        assertEquals(seq, bvc.drainedAfter.last())
+    }
+
+    @Test
+    fun `a group that cannot be made does not stop member correction`() {
+        val (view, channel) = linkedSvcGroup()
+        svc.memberOf[steve] = view.id
+        bvc.channels[channel] = bvc.channels[channel]!!.copy(players = emptyList())
+        bvc.calls.clear()
+        svc.failCreateFor.add("Bad")
+        bvc.add("Bad", "Bob")
+
+        linker.resync()
+
+        assertTrue("join:Steve:$channel" in bvc.calls)
+    }
+
+    // A newer server may send a kind this build has no name for.
+    @Test
+    fun `an event of an unknown kind is skipped`() {
+        val good = bvc.add("Good", "Bob")
+
+        bvcEvents(
+            GroupLinkEventJson(++seq, null, "X", null, null, false),
+            event(GroupLinkEventKind.Create, good, "Bob", name = "Good"),
+        )
+
+        assertNotNull(table.byBvc(good))
+    }
+
+    // No answer is not a failure: the event may still apply, so it is read again.
+    @Test
+    fun `an unanswered event is read again`() {
+        val good = bvc.add("Good", "Bob")
+        svc.unavailable = true
+        bvcEvents(event(GroupLinkEventKind.Create, good, "Bob", name = "Good"))
+        svc.unavailable = false
+
+        linker.pollBvc()
+
+        assertEquals(0L, bvc.drainedAfter.last())
+    }
+
+    // A restarted server whose feed is as long as the old cursor returns no events and no reset.
+    // The cursor must stay at the feed's end, or the next poll replays the whole history.
+    @Test
+    fun `a new epoch with no events keeps the cursor at the feed's latest`() {
+        bvc.nextDrain = GroupLinkDrainJson(emptyList(), reset = false, epoch = 1L, latest = 5L)
+        linker.start()
+        bvc.nextDrain = GroupLinkDrainJson(emptyList(), reset = false, epoch = 2L, latest = 5L)
+        linker.pollBvc()
+
+        linker.pollBvc()
+
+        assertEquals(5L, bvc.drainedAfter.last())
+    }
+
+    @Test
+    fun `a start that cannot reach bvc reports it and builds nothing`() {
+        bvc.add("Raid", "Bob")
+        bvc.nextDrain = null
+
+        assertFalse(linker.start())
+
+        assertTrue(svc.calls.none { it.startsWith("create:") })
+    }
+
+    @Test
+    fun `a drain from a server without latest falls back to the last event`() {
+        bvcEvents(event(GroupLinkEventKind.Join, "C9", "Bob"), reset = true)
+
+        linker.pollBvc()
+
+        assertEquals(seq, bvc.drainedAfter.last())
+    }
+
+    // No connection closes for a Java member and, once they are offline, no SVC event names them.
+    @Test
+    fun `a member the bridge joined who went offline leaves bvc at resync`() {
+        val (_, channel) = linkedSvcGroup()
+        offline.add("Steve")
+        bvc.channels[channel] = bvc.channels[channel]!!.copy(
+            players = listOf("Steve"),
+            clientless = listOf("Steve"),
+        )
+
+        linker.resync()
+
+        assertTrue("leave:Steve" in bvc.calls)
+    }
+
+    // A player with no client who joined from the in-game panel on another server of the same
+    // BVC instance was never this bridge's member.
+    @Test
+    fun `a clientless member the bridge did not join is left alone`() {
+        val (_, channel) = linkedSvcGroup()
+        bvc.channels[channel] = bvc.channels[channel]!!.copy(
+            players = listOf("Panel"),
+            clientless = listOf("Panel"),
+        )
+
+        linker.resync()
+
+        assertFalse("leave:Panel" in bvc.calls)
+    }
+
+    // A removal that throws must not end the pass for every other group, now and on each
+    // later resync.
+    @Test
+    fun `a pending removal that throws is given up and the pass goes on`() {
+        val doomed = bvc.add("Doomed", "Bob")
+        bvcEvents(event(GroupLinkEventKind.Create, doomed, "Bob", name = "Doomed"))
+        svc.removeFailures = 1
+        bvc.channels.remove(doomed)
+        bvcEvents(event(GroupLinkEventKind.Delete, doomed, name = null))
+        assertTrue(table.byBvc(doomed)!!.pendingRemove)
+        val other = svc.add("Other")
+        svc.memberOf[steve] = other.id
+        svc.removeThrows = true
+
+        linker.resync()
+
+        assertNull(table.byBvc(doomed))
+        assertNotNull(table.bySvc(other.id))
+    }
+
+    // A Bedrock player on another server of the same BVC instance is a member in their own right.
+    @Test
+    fun `an offline member with a live client is left alone`() {
+        val (_, channel) = linkedSvcGroup()
+        bvc.channels[channel] = bvc.channels[channel]!!.copy(players = listOf("Remote"))
+
+        linker.resync()
+
+        assertFalse("leave:Remote" in bvc.calls)
+    }
+
+    @Test
+    fun `an online member with no client is left to the side rule`() {
+        val (view, channel) = linkedSvcGroup()
+        svc.memberOf[steve] = view.id
+        bvc.channels[channel] = bvc.channels[channel]!!.copy(
+            players = listOf("Steve"),
+            clientless = listOf("Steve"),
+        )
+
+        linker.resync()
+
+        assertFalse("leave:Steve" in bvc.calls)
+    }
+
+    // A join BVC did not apply fires no event. An expectation left for it would absorb the
+    // player's real join later.
+    @Test
+    fun `a failed join leaves no echo expectation`() {
+        val (view, channel) = linkedSvcGroup()
+        // The creator's own join, made when the group was linked.
+        assertTrue(echo.consume("bvc:join:Steve:$channel"))
+        bvc.failJoins = true
+
+        linker.onSvcJoin(view.id, steve)
+
+        assertEquals("join:Steve:$channel", bvc.calls.last())
+        assertFalse(echo.consume("bvc:join:Steve:$channel"))
     }
 
     // Pairs nothing, so the next resync is not the first pass.

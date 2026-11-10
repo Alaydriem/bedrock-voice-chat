@@ -190,6 +190,11 @@ impl ConnectionRegistry {
     /// unknown cannot be scoped to a relay world, so it does not leave.
     pub fn forward_local_to_peers(&self, packet: &QuicNetworkPacket, speaker: Option<&PlayerEnum>) {
         if let (Some(plane), Some(speaker)) = (self.peer_plane.get(), speaker) {
+            // Every local frame passes here. With no peer to take it, the sender key and the
+            // group marker would be built for nothing.
+            if plane.links().is_empty() {
+                return;
+            }
             let group = packet
                 .sender_key()
                 .and_then(|sender| self.group_scope_for(sender.as_str()));

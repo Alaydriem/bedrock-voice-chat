@@ -16,6 +16,12 @@ class FakeSvcGroups : SvcGroupsPort {
     // The server thread did not answer in time: every call throws, as SvcApiGroups does.
     var unavailable = false
 
+    // SVC ran the create and threw, as it does for a name it will not take.
+    val failCreateFor = HashSet<String>()
+
+    // SVC ran the remove and threw.
+    var removeThrows = false
+
     // The create runs on the server thread after the caller has already given up waiting.
     var createLandsButTimesOut = false
 
@@ -46,6 +52,7 @@ class FakeSvcGroups : SvcGroupsPort {
 
     override fun create(name: String, type: SvcGroupType, persistent: Boolean): UUID? {
         answer()
+        if (name in failCreateFor) throw SvcCallFailedException(IllegalStateException("refused name"))
         val view = add(name, type)
         if (persistent) this.persistent.add(view.id)
         calls.add("create:$name")
@@ -64,6 +71,7 @@ class FakeSvcGroups : SvcGroupsPort {
     override fun remove(group: UUID): Boolean {
         answer()
         removeCalls.add(group)
+        if (removeThrows) throw SvcCallFailedException(IllegalStateException("remove failed"))
         calls.add("remove:$group")
         if (memberOf.containsValue(group) || removeFailures > 0) {
             if (removeFailures > 0) removeFailures--

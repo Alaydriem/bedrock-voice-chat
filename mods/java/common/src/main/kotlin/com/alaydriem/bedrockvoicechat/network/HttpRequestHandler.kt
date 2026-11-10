@@ -181,6 +181,10 @@ class HttpRequestHandler(
                 return ControlSendResult(false)
             }
             ControlSendResult(true, GroupLinkClient.parseCreatedId(response.body()))
+        } catch (e: InterruptedException) {
+            // Kept for the link thread, which reads it to stop.
+            Thread.currentThread().interrupt()
+            ControlSendResult(false)
         } catch (e: Exception) {
             LOGGER.warn("Failed to send a group link action: {}", e.toString())
             ControlSendResult(false)
@@ -206,6 +210,10 @@ class HttpRequestHandler(
                 return null
             }
             response.body()
+        } catch (e: InterruptedException) {
+            // Kept for the link thread, which reads it to stop.
+            Thread.currentThread().interrupt()
+            null
         } catch (e: Exception) {
             LOGGER.debug("Failed to read {}: {}", url, e.toString())
             null
@@ -242,6 +250,37 @@ class HttpRequestHandler(
                 onResult?.invoke(ControlSendResult(false))
                 null
             }
+    }
+
+    /**
+     * POSTs a ClientAction and waits for the answer. For a caller that needs its actions applied
+     * in the order it sent them, which [controlAsync] does not promise. Never the server thread.
+     */
+    fun controlBlocking(clientActionJson: String): ControlSendResult {
+        val request = jsonRequestBuilder("$serverUrl/api/control")
+            .POST(HttpRequest.BodyPublishers.ofString(clientActionJson))
+            .build()
+
+        return try {
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            val status = response.statusCode()
+            val outcome = ControlOutcome.fromHttpStatus(status)
+            if (outcome != null) {
+                return ControlSendResult(outcome == ControlOutcome.FORWARDED, outcome = outcome)
+            }
+            val ok = status in 200..299
+            if (!ok) {
+                LOGGER.warn("BVC server returned error on control: {} - {}", status, response.body())
+            }
+            ControlSendResult(ok, if (ok) parseGroupCode(response.body()) else null)
+        } catch (e: InterruptedException) {
+            // Kept for the link thread, which reads it to stop.
+            Thread.currentThread().interrupt()
+            ControlSendResult(false)
+        } catch (e: Exception) {
+            LOGGER.warn("Failed to send control action: {}", e.toString())
+            ControlSendResult(false)
+        }
     }
 
     // The control route replies with the new group's share code (a bare JSON

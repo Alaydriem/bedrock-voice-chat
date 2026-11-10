@@ -11,6 +11,9 @@ class FakeGroupLinkApi : GroupLinkApi {
     val leased = ArrayList<List<String>>()
     var nextDrain: GroupLinkDrainJson? = null
     val drainedAfter = ArrayList<Long>()
+
+    // BVC refused the join or could not be reached: the call is recorded and changes nothing.
+    var failJoins = false
     private var nextId = 1
 
     fun add(name: String, vararg players: String, membersOnly: Boolean = false): String {
@@ -34,19 +37,22 @@ class FakeGroupLinkApi : GroupLinkApi {
         return true
     }
 
-    override fun join(player: String, channel: String) {
+    override fun join(player: String, channel: String): Boolean {
         calls.add("join:$player:$channel")
+        if (failJoins) return false
         channels.replaceAll { id, c ->
             when {
                 id == channel -> c.copy(players = (c.players - player) + player)
                 else -> c.copy(players = c.players - player)
             }
         }
+        return true
     }
 
-    override fun leave(player: String) {
+    override fun leave(player: String): Boolean {
         calls.add("leave:$player")
         channels.replaceAll { _, c -> c.copy(players = c.players - player) }
+        return true
     }
 
     override fun drain(after: Long): GroupLinkDrainJson? {

@@ -1,8 +1,11 @@
-use std::collections::{HashSet, VecDeque};
+mod state;
+
 use std::sync::{Arc, Mutex};
 
 use common::structs::control::{GroupLinkDrain, GroupLinkEvent, GroupLinkEventKind};
 use rand::RngExt;
+
+use state::FeedState;
 
 /// BVC channel changes, kept for the Simple Voice Chat bridge to drain.
 ///
@@ -19,12 +22,6 @@ pub struct GroupLinkFeed {
     epoch: u64,
 }
 
-struct FeedState {
-    next_seq: u64,
-    events: VecDeque<GroupLinkEvent>,
-    silenced: HashSet<String>,
-}
-
 impl GroupLinkFeed {
     /// About four minutes of the busiest realistic server at the bridge's 250 ms drain.
     pub const CAPACITY: usize = 1024;
@@ -32,11 +29,7 @@ impl GroupLinkFeed {
     pub fn new(capacity: usize) -> Self {
         let capacity = capacity.max(1);
         Self {
-            state: Mutex::new(FeedState {
-                next_seq: 1,
-                events: VecDeque::with_capacity(capacity),
-                silenced: HashSet::new(),
-            }),
+            state: Mutex::new(FeedState::new(capacity)),
             capacity,
             // 52 random bits with the low one set: never zero, and exact as a JSON number.
             epoch: (rand::rng().random::<u64>() >> 12) | 1,
@@ -113,6 +106,7 @@ impl GroupLinkFeed {
             events,
             reset,
             epoch: self.epoch,
+            latest,
         }
     }
 }

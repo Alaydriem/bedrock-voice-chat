@@ -1,6 +1,7 @@
 package com.alaydriem.bedrockvoicechat.svc.link
 
 import com.alaydriem.bedrockvoicechat.control.GroupLinkApi
+import com.alaydriem.bedrockvoicechat.control.GroupLinkDrainJson
 import com.alaydriem.bedrockvoicechat.control.GroupLinkEventJson
 import com.alaydriem.bedrockvoicechat.control.GroupLinkEventKind
 import com.alaydriem.bedrockvoicechat.control.LinkedChannelJson
@@ -40,6 +41,9 @@ class SvcGroupLinker(
 
     // The server start the cursor belongs to. A new one means the sequence started over.
     private var epoch: Long? = null
+
+    // The in-game names this bridge has put in a BVC channel and not taken out again.
+    private val joinedHere = HashSet<String>()
 
     // The bridge's own creates need no echo key: the create call returns the id, and the table
     // holds it before the event the call fired is processed. A name key would swallow a player's
@@ -104,17 +108,28 @@ class SvcGroupLinker(
         val restarted = epoch != null && epoch != drain.epoch
         epoch = drain.epoch
         if (drain.reset || restarted) {
-            after = drain.events.lastOrNull()?.seq ?: 0
+            after = cursorAt(drain)
             resync()
             return
         }
-        try {
-            for (event in drain.events) {
+        for (event in drain.events) {
+            try {
                 onBvcEvent(event)
-                after = event.seq
+            } catch (e: SvcUnavailableException) {
+                logger.debug("Simple Voice Chat did not answer; the rest of the BVC events wait")
+                return
+            } catch (e: Exception) {
+                // A failure that is not a missing answer repeats on every read, so the event is
+                // passed over. Resync corrects what it would have changed.
+                logger.warn(
+                    "Skipping BVC event {} ({} for {}): {}",
+                    event.seq,
+                    event.kind,
+                    event.channel,
+                    e.toString(),
+                )
             }
-        } catch (e: SvcUnavailableException) {
-            logger.debug("Simple Voice Chat did not answer; the rest of the BVC events wait")
+            after = event.seq
         }
     }
 
@@ -122,13 +137,21 @@ class SvcGroupLinker(
      * Resync builds the starting state, so the feed's history is skipped rather than replayed on
      * top of it: old events would move players through groups that ended long ago.
      */
-    fun start() {
-        bvc.drain(after)?.let { drain ->
-            epoch = drain.epoch
-            after = drain.events.lastOrNull()?.seq ?: after
-        }
+    //
+    // False when BVC could not be read. Nothing is built then: a resync with no cursor would be
+    // followed by the whole history on the first poll that works.
+    fun start(): Boolean {
+        val drain = bvc.drain(after) ?: return false
+        epoch = drain.epoch
+        after = cursorAt(drain)
         resync()
+        return true
     }
+
+    // Where the feed stands. A server that predates `latest` sends 0, and the last event it
+    // returned is then the best answer there is.
+    private fun cursorAt(drain: GroupLinkDrainJson): Long =
+        drain.latest.takeIf { it > 0 } ?: drain.events.lastOrNull()?.seq ?: 0
 
     /**
      * A pass SVC does not answer changes nothing. "No answer" is not "no groups", and acting on it
@@ -139,6 +162,20 @@ class SvcGroupLinker(
             resyncPass()
         } catch (e: SvcUnavailableException) {
             logger.info("Simple Voice Chat did not answer; skipping this group resync")
+        } catch (e: SvcCallFailedException) {
+            logger.warn("Simple Voice Chat could not list its groups; skipping this group resync")
+        }
+    }
+
+    // One group's failure must not end the pass for the others. A missing answer still does:
+    // every later call would wait for the same timeout.
+    private inline fun perItem(label: String, block: () -> Unit) {
+        try {
+            block()
+        } catch (e: SvcUnavailableException) {
+            throw e
+        } catch (e: Exception) {
+            logger.warn("Group resync skipped {}: {}", label, e.toString())
         }
     }
 
@@ -159,7 +196,7 @@ class SvcGroupLinker(
         // closes or tears down; only the rest is a leftover.
         val known = table.all()
         for (entry in known) {
-            reconcileEntry(entry, groups, channels)
+            perItem("the link for channel ${entry.bvcChannel}") { reconcileEntry(entry, groups, channels) }
         }
         val knownGroups = known.map { it.svcGroup }.toSet()
         val knownChannels = known.map { it.bvcChannel }.toSet()
@@ -170,7 +207,8 @@ class SvcGroupLinker(
 
         val latest = bvc.channels()?.associateBy { it.id } ?: return
         for (entry in table.all().filterNot { it.pendingRemove }) {
-            latest[entry.bvcChannel]?.let { correctMembers(entry, it) }
+            val channel = latest[entry.bvcChannel] ?: continue
+            perItem("the members of channel ${entry.bvcChannel}") { correctMembers(entry, channel) }
         }
     }
 
@@ -202,6 +240,7 @@ class SvcGroupLinker(
                 table.byBvc(event.channel)?.let(::onBvcSideGone)
             }
             GroupLinkEventKind.Protected -> table.byBvc(event.channel)?.let(::tearDownSvc)
+            null -> logger.warn("Skipping BVC event {}: this build does not know its kind", event.seq)
         }
     }
 
@@ -343,24 +382,28 @@ class SvcGroupLinker(
         }
 
         for (group in svcLeft) {
-            val members = svc.membersOf(group.id)
-            val creatorName = members.firstNotNullOfOrNull(actorIdOf)
-            if (creatorName == null) {
-                logger.info("Resync: SVC group {} has no named member ({} members); not linking yet", group.name, members.size)
-                continue
+            perItem("SVC group ${group.name}") {
+                val members = svc.membersOf(group.id)
+                val creatorName = members.firstNotNullOfOrNull(actorIdOf)
+                if (creatorName == null) {
+                    logger.info("Resync: SVC group {} has no named member ({} members); not linking yet", group.name, members.size)
+                } else {
+                    linkNewSvcGroup(group, creatorName)
+                }
             }
-            linkNewSvcGroup(group, creatorName)
         }
         for (channel in bvcLeft) {
-            if (channel.membersOnly) {
-                // Only the bridge makes a members-only channel, for a private SVC group. With no
-                // such group left it has ended; re-creating it as an OPEN SVC group would open a
-                // private group to every Java player and to nearby listeners.
-                echo.expect("bvc:delete:${channel.id}")
-                bvc.close(channel.id)
-                continue
+            perItem("BVC channel ${channel.id}") {
+                if (channel.membersOnly) {
+                    // Only the bridge makes a members-only channel, for a private SVC group. With
+                    // no such group left it has ended; re-creating it as an OPEN SVC group would
+                    // open a private group to every Java player and to nearby listeners.
+                    echo.expect("bvc:delete:${channel.id}")
+                    bvc.close(channel.id)
+                } else {
+                    linkNewBvcChannel(channel.id, channel.name)
+                }
             }
-            linkNewBvcChannel(channel.id, channel.name)
         }
     }
 
@@ -382,16 +425,37 @@ class SvcGroupLinker(
                 PlayerSide.NONE -> Unit
             }
         }
+
+        // A member this bridge joined holds no BVC client. Offline, nothing else will ever take
+        // them out: no connection closes for them, and no SVC event names them again. A member
+        // with no client that this bridge did not join came by another road, such as the
+        // in-game panel on another server, and is not this bridge's to remove.
+        for (name in channel.clientless.orEmpty()) {
+            if (name in joinedHere && playerOf(name) == null) {
+                leaveBvc(name)
+            }
+        }
     }
 
+    // The expectation is recorded after the call answers. The link thread is the only reader of
+    // BVC's events, so the event cannot be seen before it; and a call that failed fires no event,
+    // so an expectation for it would wait to absorb a real one.
     private fun joinBvc(name: String, channel: String) {
-        echo.expect("bvc:join:$name:$channel")
-        bvc.join(name, channel)
+        if (bvc.join(name, channel)) {
+            joinedHere.add(name)
+            echo.expect("bvc:join:$name:$channel")
+        } else {
+            logger.warn("BVC did not join {} to channel {}; the next resync retries", name, channel)
+        }
     }
 
     private fun leaveBvc(name: String) {
-        echo.expect("bvc:leave:$name")
-        bvc.leave(name)
+        if (bvc.leave(name)) {
+            joinedHere.remove(name)
+            echo.expect("bvc:leave:$name")
+        } else {
+            logger.warn("BVC did not take {} out of their channel; the next resync retries", name)
+        }
     }
 
     private fun setSvcGroup(player: UUID, group: UUID) {
@@ -424,11 +488,18 @@ class SvcGroupLinker(
 
     private fun retryPendingRemoves() {
         for (entry in table.all().filter { it.pendingRemove }) {
-            for (member in svc.membersOf(entry.svcGroup)) {
-                clearSvcGroup(member)
+            // A removal SVC ran and threw on counts as the second refusal. Left to propagate, it
+            // would end this pass, and every pass after it, before any group was looked at.
+            val removed = try {
+                for (member in svc.membersOf(entry.svcGroup)) {
+                    clearSvcGroup(member)
+                }
+                echo.expect("svc:remove:${entry.svcGroup}")
+                svc.remove(entry.svcGroup)
+            } catch (e: SvcCallFailedException) {
+                false
             }
-            echo.expect("svc:remove:${entry.svcGroup}")
-            if (!svc.remove(entry.svcGroup)) {
+            if (!removed) {
                 logger.warn("Could not remove linked SVC group {}; giving up", entry.svcGroup)
             }
             table.remove(entry)

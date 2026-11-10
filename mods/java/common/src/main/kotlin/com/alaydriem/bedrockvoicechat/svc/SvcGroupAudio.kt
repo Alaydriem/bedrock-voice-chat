@@ -43,6 +43,14 @@ class SvcGroupAudio(
         return !(scope.membersOnly || entry.membersOnly)
     }
 
+    /**
+     * Lets go of every channel whose listener is not in [online]. A channel holds the listener's
+     * connection from when it was opened, so one kept past a disconnect is of no use again.
+     */
+    fun retain(online: Set<UUID>) {
+        channels.keys.removeIf { (listener, _) -> listener !in online }
+    }
+
     private fun channelFor(listener: UUID, speaker: String): AudioChannel? {
         val key = listener to speaker
         channels[key]?.let { existing ->
