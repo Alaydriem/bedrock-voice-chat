@@ -1,6 +1,7 @@
 package com.alaydriem.bedrockvoicechat.control
 
 import com.google.gson.Gson
+import java.util.UUID
 
 /**
  * An in-game control action. This mod does not share types with the Rust `common`
@@ -47,8 +48,20 @@ sealed class ControlAction {
     // `game` labels the actor the same way the /api/position body does, so the server
     // builds this player's canonical `game:gamertag` key from a declared value instead
     // of assuming one. A Java mod player is always Minecraft.
-    fun toClientActionJson(actorId: String): String =
-        GSON.toJson(mapOf("id" to actorId, "game" to "minecraft", "action" to actionJson()))
+    //
+    // `player_uuid` is the actor's platform UUID. The server uses it to decide whether an
+    // alias on the actor's name is theirs; without it the server follows the alias.
+    fun toClientActionJson(actorId: String, actorUuid: UUID?): String =
+        GSON.toJson(
+            buildMap {
+                put("id", actorId)
+                put("game", "minecraft")
+                put("action", actionJson())
+                if (actorUuid != null) {
+                    put("player_uuid", actorUuid.toString())
+                }
+            }
+        )
 
     companion object {
         private val GSON = Gson()

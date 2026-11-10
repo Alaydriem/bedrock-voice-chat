@@ -14,6 +14,7 @@ use bvc_server_lib::http::pool::AppDb;
 use bvc_server_lib::http::routes;
 use bvc_server_lib::services::{
     CertificateRevocationService, CertificateService, PlayerIdentityService,
+    PlayerRegistrarService,
 };
 use common::curia;
 use common::ncryptflib as ncryptf;
@@ -28,6 +29,8 @@ impl RocketHarness {
         config: ApplicationConfig,
         cert_service: Arc<CertificateService>,
         identity_service: PlayerIdentityService,
+        // The admin user route creates players through the server's shared registrar.
+        player_registrar: PlayerRegistrarService,
         readiness: Arc<bvc_server_lib::runtime::ReadinessState>,
         // Passed in rather than built here so the test holds the same instance Rocket does.
         // Two instances would each carry their own cache, and a revocation written by a test
@@ -134,6 +137,7 @@ impl RocketHarness {
             .manage(control_cache_manager)
             .manage(control_webhook)
             .manage(identity_service)
+            .manage(player_registrar)
             .manage(server_state)
             .manage(features)
             .manage(voice)

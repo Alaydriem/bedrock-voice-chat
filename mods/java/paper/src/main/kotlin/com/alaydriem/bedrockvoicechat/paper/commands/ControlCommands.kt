@@ -153,7 +153,7 @@ class ControlCommands(
         }
         // Adventure audiences are thread-safe, so replying from the HTTP
         // executor thread is fine.
-        sender.send(action, canonicalName(executor)) { result ->
+        sender.send(action, canonicalName(executor), executor.uniqueId) { result ->
             // A protected group continues in the player's BVC app; say where.
             val reply = (action as? ControlAction.JoinGroup)?.let { JoinReply.forResult(result, it.channel) }
             if (reply != null) {
@@ -174,7 +174,7 @@ class ControlCommands(
             executor.sendMessage(Component.text("This command must be run by a player"))
             return 0
         }
-        sender.send(ControlAction.CreateGroup, canonicalName(executor)) { result ->
+        sender.send(ControlAction.CreateGroup, canonicalName(executor), executor.uniqueId) { result ->
             val code = result.groupCode
             if (result.ok && code != null) {
                 executor.sendMessage(

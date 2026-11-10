@@ -169,7 +169,7 @@ object ControlCommands {
         // The result callback can arrive on the HTTP executor thread; hop back to
         // the server thread before touching the player.
         val server = ctx.source.server
-        sender.send(action, canonicalName(player)) { result ->
+        sender.send(action, canonicalName(player), player.getUUID()) { result ->
             // A protected group continues in the player's BVC app; say where.
             val reply = (action as? ControlAction.JoinGroup)?.let { JoinReply.forResult(result, it.channel) }
             if (reply != null) {
@@ -197,7 +197,7 @@ object ControlCommands {
             return 0
         }
         val server = ctx.source.server
-        sender.send(ControlAction.CreateGroup, canonicalName(player)) { result ->
+        sender.send(ControlAction.CreateGroup, canonicalName(player), player.getUUID()) { result ->
             val code = result.groupCode
             server.execute {
                 if (result.ok && code != null) {

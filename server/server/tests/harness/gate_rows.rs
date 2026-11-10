@@ -35,7 +35,7 @@ impl GateRows {
         GateRow { id: "G11", gamertag: "テスト ユーザー", beta27: (".テスト_ユーザー", Some("テスト ユーザー")), new: ("テスト ユーザー", None), uuid: Self::FLOODGATE_UUID },
         GateRow { id: "G12", gamertag: "Player One", beta27: ("Linked_Java", Some("Player One")), new: ("Linked_Java", Some("Player One")), uuid: Self::JAVA_UUID },
         GateRow { id: "G13", gamertag: "Steve", beta27: ("Steve", None), new: ("Steve", None), uuid: Self::JAVA_UUID },
-        GateRow { id: "G14", gamertag: "LongGamertag123", beta27: ("Notch", Some("LongGamertag123")), new: ("Notch", Some("LongGamertag123")), uuid: Self::JAVA_UUID },
-        GateRow { id: "G17", gamertag: "Notch", beta27: ("Notch", None), new: ("Notch", None), uuid: Self::JAVA_UUID },
+        GateRow { id: "G14", gamertag: "LongGamertag123", beta27: ("Builder", Some("LongGamertag123")), new: ("Builder", Some("LongGamertag123")), uuid: Self::JAVA_UUID },
+        GateRow { id: "G17", gamertag: "Builder", beta27: ("Builder", None), new: ("Builder", Some("Builder")), uuid: Self::JAVA_UUID },
     ];
 }

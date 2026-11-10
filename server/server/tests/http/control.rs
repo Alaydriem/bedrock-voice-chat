@@ -1,5 +1,9 @@
 use crate::harness::TestServer;
+use crate::harness::fixtures::PlayerFixture;
+use common::Game;
 use common::structs::control::{ClientAction, ClientActionType};
+use entity::player_identity;
+use sea_orm::{ActiveModelTrait, ActiveValue};
 
 const TOKEN: &str = "test-mc-token";
 
@@ -42,6 +46,88 @@ async fn control_create_group_with_token_returns_ok() {
         .await
         .unwrap();
     assert_eq!(resp.status(), 200);
+}
+
+// A Java mod names the actor's platform UUID beside the action. The body is still one flat
+// object, so the action must be read from it as before.
+#[tokio::test]
+async fn control_accepts_an_action_that_names_the_actor_uuid() {
+    let env = TestServer::start().await.unwrap();
+    let client = env.noauth_client().unwrap();
+    let body = serde_json::json!({
+        "id": "Alice",
+        "game": "minecraft",
+        "action": "CreateGroup",
+        "player_uuid": "3c9a1b77-2d44-4e18-8b6c-000000000002",
+    });
+    let resp = client
+        .post(format!("{}/api/control", env.base_url))
+        .header("Authorization", format!("Bearer {TOKEN}"))
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+}
+
+// "Builder" is recorded as a linked player's Java name, an alias of "LongGamertag123". An
+// Xbox player whose gamertag is Builder creates a group. The platform UUID in the body is
+// not the alias owner's, so the group must be theirs and not the linked player's.
+#[tokio::test]
+async fn control_acts_on_the_actor_and_not_on_the_owner_of_an_alias_on_their_name() {
+    let env = TestServer::start().await.unwrap();
+    let client = env.noauth_client().unwrap();
+    let linked = PlayerFixture::insert(
+        &env.db,
+        &env.cert_service,
+        "LongGamertag123",
+        &Game::Minecraft,
+    )
+    .await
+    .unwrap();
+    let now = common::ncryptflib::rocket::Utc::now().timestamp();
+    player_identity::ActiveModel {
+        id: ActiveValue::NotSet,
+        player_id: ActiveValue::Set(linked.id),
+        alias: ActiveValue::Set("Builder".to_string()),
+        game: ActiveValue::Set(Game::Minecraft),
+        alias_type: ActiveValue::Set("floodgate".to_string()),
+        created_at: ActiveValue::Set(now),
+        updated_at: ActiveValue::Set(now),
+    }
+    .insert(&env.db)
+    .await
+    .unwrap();
+
+    let body = serde_json::json!({
+        "id": "Builder",
+        "game": "minecraft",
+        "action": "CreateGroup",
+        "player_uuid": "00000000-0000-0000-0009-01f2a3b4c5d7",
+    });
+    let created = client
+        .post(format!("{}/api/control", env.base_url))
+        .header("Authorization", format!("Bearer {TOKEN}"))
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(created.status(), 200);
+
+    let channels = client
+        .get(format!("{}/api/channel", env.base_url))
+        .header("Authorization", format!("Bearer {TOKEN}"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(channels.contains("minecraft:Builder"), "channels were {channels}");
+    assert!(
+        !channels.contains("minecraft:LongGamertag123"),
+        "channels were {channels}"
+    );
 }
 
 #[tokio::test]

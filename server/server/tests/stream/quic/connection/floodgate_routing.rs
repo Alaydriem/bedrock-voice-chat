@@ -172,12 +172,12 @@ async fn every_gamertag_in_the_gate_is_heard_and_hears() {
                 }
                 "G14" => {
                     roster.push(GameServerReport::player_at(
-                        "Notch",
+                        "Builder",
                         None,
                         Some(GateRows::FLOODGATE_UUID_2),
                         2.0,
                     ));
-                    Some("Notch")
+                    Some("Builder")
                 }
                 _ => None,
             };

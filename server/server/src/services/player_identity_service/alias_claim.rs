@@ -1,7 +1,8 @@
 /// A game server's statement that the name it reported for a player is an alias of the
 /// gamertag that player signs in with.
 ///
-/// Made when a roster entry carries `alternative_identity`. Recorded only after the gamertag
+/// Made when a roster entry carries `alternative_identity`. When the alias and the gamertag
+/// are equal, the gamertag claims its own name. Recorded only after the gamertag
 /// is registered, and only when the platform UUID shows the alias is not someone else's.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AliasClaim {

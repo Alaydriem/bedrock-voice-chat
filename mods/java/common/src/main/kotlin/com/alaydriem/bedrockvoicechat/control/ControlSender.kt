@@ -3,6 +3,7 @@ package com.alaydriem.bedrockvoicechat.control
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
 import com.alaydriem.bedrockvoicechat.server.BvcServerManager
 import org.slf4j.LoggerFactory
+import java.util.UUID
 
 /**
  * Routes control actions to either FFI (embedded server) or HTTP `/api/control`
@@ -20,8 +21,13 @@ class ControlSender(
      * Routes the action; [onResult] (optional) receives the outcome — synchronously
      * for the FFI path, from the HTTP client's executor for the external path.
      */
-    fun send(action: ControlAction, actorId: String, onResult: ((ControlSendResult) -> Unit)? = null) {
-        val json = action.toClientActionJson(actorId)
+    fun send(
+        action: ControlAction,
+        actorId: String,
+        actorUuid: UUID?,
+        onResult: ((ControlSendResult) -> Unit)? = null
+    ) {
+        val json = action.toClientActionJson(actorId, actorUuid)
         when {
             embeddedServer != null && embeddedServer.isRunning -> {
                 val result = embeddedServer.clientAction(json)

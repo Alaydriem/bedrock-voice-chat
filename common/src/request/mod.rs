@@ -2,11 +2,13 @@ pub mod admin;
 pub mod audio;
 pub mod channel;
 pub mod code_login_request;
+pub mod control;
 pub mod link_java_identity_request;
 pub mod login;
 
 pub use audio::{AudioFileListQuery, AudioPlayRequest, AudioStopRequest, GameAudioContext};
 pub use code_login_request::CodeLoginRequest;
+pub use control::ClientActionRequest;
 pub use link_java_identity_request::LinkJavaIdentityRequest;
 pub use login::LoginRequest;
 

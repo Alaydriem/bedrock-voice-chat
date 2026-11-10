@@ -53,6 +53,30 @@ async fn concurrent_first_reports_create_one_record() {
     assert_eq!(rows, 1);
 }
 
+// An admin registers a gamertag at the moment the game server first reports it. Both go
+// through one registrar, so the name still gets one record.
+#[tokio::test]
+async fn an_admin_create_and_a_first_report_create_one_record() {
+    let db = DatabaseFixture::create().await.expect("db fixture");
+    let certs = CertificateFixture::create().expect("cert fixture");
+    let registrar =
+        PlayerRegistrarService::new(Arc::new(db.connection.clone()), certs.service.clone());
+    let roster = [RoutingFixture::player("Steve", 0.0, false)];
+
+    let (created, _) = tokio::join!(
+        registrar.create("Steve", &Game::Minecraft, None),
+        registrar.process_players(&roster, Game::Minecraft)
+    );
+
+    created.expect("create");
+    let rows = player::Entity::find()
+        .filter(player::Column::Gamertag.eq("Steve"))
+        .count(&db.connection)
+        .await
+        .expect("count");
+    assert_eq!(rows, 1);
+}
+
 #[tokio::test]
 async fn creating_an_existing_player_returns_it_without_a_second_row() {
     let db = DatabaseFixture::create().await.expect("db fixture");

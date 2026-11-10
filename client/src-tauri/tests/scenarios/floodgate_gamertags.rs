@@ -340,12 +340,12 @@ async fn g13_linked_same_name() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn g14_linked_java_name_beside_a_bedrock_player_of_that_name() {
-    FloodgateGate::run(GateCase { id: "G14", gamertag: "LongGamertag123", beta27: ("Notch", Some("LongGamertag123")), new: ("Notch", Some("LongGamertag123")), uuid: JAVA_UUID, decoy: Some(("Notch", FLOODGATE_UUID_2)) }).await;
+    FloodgateGate::run(GateCase { id: "G14", gamertag: "LongGamertag123", beta27: ("Builder", Some("LongGamertag123")), new: ("Builder", Some("LongGamertag123")), uuid: JAVA_UUID, decoy: Some(("Builder", FLOODGATE_UUID_2)) }).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn g17_linked_java_name_ending_with_the_gamertag() {
-    FloodgateGate::run(GateCase { id: "G17", gamertag: "Notch", beta27: ("Notch", None), new: ("Notch", None), uuid: JAVA_UUID, decoy: None }).await;
+    FloodgateGate::run(GateCase { id: "G17", gamertag: "Builder", beta27: ("Builder", None), new: ("Builder", Some("Builder")), uuid: JAVA_UUID, decoy: None }).await;
 }
 
 // A Java account named Steve stands 10 000 blocks away; the Floodgate player whose
