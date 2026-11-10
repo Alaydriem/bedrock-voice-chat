@@ -1,8 +1,12 @@
 use std::net::{IpAddr, SocketAddr};
+use std::sync::Arc;
+use std::time::Duration;
 
 use bvc_relay_service::config::{
     PlayCaConfig, PlayConfig, PlayDnsConfig, PlaySecondaryConfig, PlayTsigConfig,
 };
+use bvc_relay_service::play::{PlayPreflightLimiter, PlayPreflightService};
+use bvc_relay_service::validation::AddressProbe;
 use hickory_proto::rr::TSigner;
 
 // A play configuration for tests: loopback DNS on an ephemeral port, no secondaries,
@@ -42,13 +46,29 @@ impl PlayFixture {
             },
             ca: PlayCaConfig {
                 url: "https://ca.play.bedrockvc.stream:9000".to_string(),
-                connect: "127.0.0.1:9000".parse().expect("a socket address"),
+                connect: "127.0.0.1:9000".parse().expect("an endpoint"),
                 provisioner: "registry".to_string(),
                 provisioner_kid: "kid".to_string(),
                 provisioner_key: String::new(),
                 root: String::new(),
             },
         }
+    }
+
+    // A preflight service whose probe always gives the same answer, that accepts private
+    // targets and takes one short attempt.
+    pub fn preflight(answers: bool) -> Arc<PlayPreflightService> {
+        PlayPreflightService::new_shared(
+            AddressProbe::Fixed(answers),
+            vec![Duration::from_millis(10)],
+            PlayPreflightLimiter::new(
+                PlayPreflightLimiter::NODE_WINDOW,
+                PlayPreflightLimiter::PER_ADDRESS_PER_HOUR,
+            ),
+            true,
+            PlayPreflightService::MAX_CONCURRENT_PROBES,
+            Vec::new(),
+        )
     }
 
     // One secondary that may pull from `transfer_from` and is notified at `notify`, with

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use bvc_relay::node::NodeIdentity;
@@ -14,8 +15,9 @@ use crate::discord::{DiscordBotClient, DiscordOAuthClient, IdentitySource, Membe
 use crate::dns::{CloudflareApi, CloudflareClient, ZoneWriter};
 use crate::http::{HttpServer, HttpState, Router as HttpRouter};
 use crate::play::{
-    PlayAddressProbe, PlayDnsServer, PlayIssuanceService, PlayNameService, PlayPlane, PlaySigner,
-    PlayZone, PlayZoneNotifier, StepCaSigner,
+    OwnAddresses, PlayAddressProbe, PlayDnsServer, PlayIssuanceService, PlayNameService, PlayPlane,
+    PlayPreflightLimiter, PlayPreflightService, PlaySigner, PlayZone, PlayZoneNotifier,
+    StepCaSigner,
 };
 use crate::registry::ClaimService;
 use crate::registry::RegistryEndpoint;
@@ -206,8 +208,23 @@ impl ServiceRuntime {
         let issuance = PlayIssuanceService::new_shared(names.clone(), signer);
         let probe = PlayAddressProbe::live(&config.ca)?;
 
-        curia::info!("play names enabled", { "zone": config.zone.clone(), "dns": bound.join(",") });
+        curia::info!("Play names enabled", { "zone": config.zone.clone(), "dns": bound.join(",") });
 
-        Ok(Some(PlayPlane::new_shared(names, issuance, zone, probe)))
+        let preflight = PlayPreflightService::new_shared(
+            AddressProbe::Live(LiveAddressProbe::reachability(
+                Duration::from_secs(5),
+                Duration::from_secs(8),
+            )),
+            PlayPreflightService::PRODUCTION_DELAYS.to_vec(),
+            PlayPreflightLimiter::new(
+                PlayPreflightLimiter::NODE_WINDOW,
+                PlayPreflightLimiter::PER_ADDRESS_PER_HOUR,
+            ),
+            config.allow_private_probe_targets,
+            PlayPreflightService::MAX_CONCURRENT_PROBES,
+            OwnAddresses::collect(self.config.advertised_address()?),
+        );
+
+        Ok(Some(PlayPlane::new_shared(names, issuance, zone, probe, preflight)))
     }
 }

@@ -92,7 +92,7 @@ impl PlayZoneNotifier {
             // Together, so a secondary that never answers does not hold up the others.
             let attempts = self.dns.secondaries.iter().map(|secondary| async move {
                 if !self.notify(secondary.notify, serial).await {
-                    curia::warn!("a secondary did not acknowledge NOTIFY", { "secondary": secondary.notify.to_string(), "serial": serial.to_string() });
+                    curia::warn!("Play zone secondary did not acknowledge NOTIFY", { "secondary": secondary.notify.to_string(), "serial": serial.to_string() });
                 }
             });
             tokio::select! {

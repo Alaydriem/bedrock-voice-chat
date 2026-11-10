@@ -10,13 +10,18 @@ impl PlayRoots {
     pub const SUFFIX: &'static str = ".play.bedrockvc.stream";
 
     // Every root is listed here by name; a file added to the directory but not to this
-    // list is not trusted. Only the development root exists so far, so a release build
-    // lists none and refuses every play name.
+    // list is not trusted. The production root ships in every build. The development root
+    // is added in debug builds only, and never replaces the production root.
+    const PRODUCTION: &'static [u8] =
+        include_bytes!("../../../resources/play_roots/bvc-play-root-2026.pem");
+
     #[cfg(debug_assertions)]
-    const BUILTIN: &'static [&'static [u8]] =
-        &[include_bytes!("../../../resources/play_roots/bvc-play-root-dev.pem")];
+    const BUILTIN: &'static [&'static [u8]] = &[
+        Self::PRODUCTION,
+        include_bytes!("../../../resources/play_roots/bvc-play-root-dev.pem"),
+    ];
     #[cfg(not(debug_assertions))]
-    const BUILTIN: &'static [&'static [u8]] = &[];
+    const BUILTIN: &'static [&'static [u8]] = &[Self::PRODUCTION];
 
     /// The roots that ship with the client. An entry that does not parse is an error, not
     /// an omission.

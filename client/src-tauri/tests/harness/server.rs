@@ -7,6 +7,8 @@ use std::time::{Duration, Instant};
 use bvc_client_lib::testkit::PortPool;
 use serde_json::json;
 
+#[cfg(debug_assertions)]
+use crate::harness::dev_trust::DevTrust;
 use crate::harness::ffi::{SendHandle, ServerLibrary};
 
 /// A real BVC server booted in-process for integration tests by loading the
@@ -304,6 +306,8 @@ impl EmbeddedServer {
         };
 
         server.await_ready().await;
+        #[cfg(debug_assertions)]
+        DevTrust::register(&server.ca_pem());
         server
     }
 
@@ -803,6 +807,11 @@ impl Drop for EmbeddedServer {
     /// matters: `bvc_server_destroy` must not run while `bvc_server_start` is
     /// still on the thread, so the join comes first.
     fn drop(&mut self) {
+        // Read directly: `ca_pem` waits for the file and panics, which a drop must not do.
+        #[cfg(debug_assertions)]
+        if let Ok(ca_pem) = std::fs::read_to_string(self.certs_path.join("ca.crt")) {
+            DevTrust::unregister(&ca_pem);
+        }
         unsafe { (self.lib.stop)(self.handle.0) };
 
         if let Some(thread) = self.server_thread.take() {

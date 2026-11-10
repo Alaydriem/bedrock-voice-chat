@@ -3,7 +3,7 @@ use crate::network::stream::link::DatagramLink;
 use bytes::Bytes;
 use common::consts::version::PROTOCOL_VERSION;
 use common::response::{ApiConfigCheckResponse, ApiConfigResponse};
-use common::rustls::{BvcClientTls, VerifierMode};
+use common::rustls::BvcClientTls;
 use common::structs::network::ConnectionHealth;
 use common::structs::packet::{
     HealthCheckPacket, PacketType, QuicNetworkPacket, QuicNetworkPacketData,
@@ -295,7 +295,7 @@ impl ConnectionHealthManager {
     /// The unauthenticated HTTP client both probes use. It trusts the built-in play roots for
     /// play-zone names and the public roots for everything else.
     fn probe_client() -> Result<common::reqwest::Client, anyhow::Error> {
-        Ok(BvcClientTls::http_client_builder(None, None, VerifierMode::for_build())?
+        Ok(BvcClientTls::http_client_builder(None, None)?
             .timeout(Duration::from_secs(5))
             .build()?)
     }

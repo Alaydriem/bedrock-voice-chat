@@ -1,15 +1,18 @@
 use std::fmt;
-use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
 
-// How the registry reaches the loopback step-ca that signs play certificates.
+use super::play_ca_endpoint::PlayCaEndpoint;
+
+// How the registry reaches the private step-ca that signs play certificates.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PlayCaConfig {
     // The CA's API base, e.g. https://ca.play.bedrockvc.stream:9000
     pub url: String,
-    // Where that name actually connects: the CA's loopback listener.
-    pub connect: SocketAddr,
+    // Where that name actually connects: `127.0.0.1:9000` on one host, or a compose
+    // service such as `play-ca:9000`. The name in `url` is never looked up; `connect` is
+    // resolved with the system resolver.
+    pub connect: PlayCaEndpoint,
     pub provisioner: String,
     pub provisioner_kid: String,
     // PKCS#8 PEM of the provisioner's ES256 key.

@@ -137,6 +137,10 @@ play {
     }
   }
 
+  // The URL's host is fixed and never looked up in public DNS: it connects to `connect`
+  // instead. `connect` is `127.0.0.1:9000` when step-ca shares the host's network, or the
+  // compose service name (`play-ca:9000`) on a Docker bridge. A name is looked up again
+  // for every new connection. The URL's port has to equal the port in `connect`.
   ca {
     url             = "https://ca.play.bedrockvc.stream:9000"
     connect         = "127.0.0.1:9000"

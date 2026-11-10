@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use base64::Engine;
 use common::curia;
+use common::structs::network::AddressClass;
 use sea_orm::sea_query::Expr;
 use tokio::sync::Mutex;
 use sea_orm::{
@@ -16,7 +17,6 @@ use crate::naming::NameGenerator;
 
 use super::check_in::PlayCheckIn;
 use super::error::PlayError;
-use super::probe_target::ProbeTarget;
 
 // Who holds which play name, and the zone serial those names move.
 //
@@ -91,7 +91,7 @@ impl PlayNameService {
 
             match self.store_claim(node_id, &label, observed).await {
                 Ok(()) => {
-                    curia::info!("assigned a play name", { "name": label.clone() });
+                    curia::info!("Play name assigned", { "name": label.clone() });
                     return Ok(label);
                 }
                 Err(e) => {
@@ -125,9 +125,18 @@ impl PlayNameService {
     ) -> Result<PlayCheckIn, PlayError> {
         let row = Self::live_row(self.conn.as_ref(), node_id).await?;
 
-        if !self.config.allow_private_probe_targets && !ProbeTarget::is_global(address) {
-            curia::info!("refusing a play check-in for a non-global address", { "node": node_id.to_string(), "address": address.to_string() });
-            return Err(PlayError::AddressRefused(address));
+        if !self.config.allow_private_probe_targets {
+            match AddressClass::of(address) {
+                AddressClass::Public => {}
+                AddressClass::Cgnat => {
+                    curia::info!("Play check-in refused: address is behind CGNAT", { "node": node_id.to_string(), "address": address.to_string() });
+                    return Err(PlayError::AddressCgnat(address));
+                }
+                _ => {
+                    curia::info!("Play check-in refused: address is not public", { "node": node_id.to_string(), "address": address.to_string() });
+                    return Err(PlayError::AddressRefused(address));
+                }
+            }
         }
 
         let now = Self::now();
@@ -174,7 +183,7 @@ impl PlayNameService {
             .count(self.conn.as_ref())
             .await?;
         if issued >= u64::from(self.config.issuances_per_node_per_day) {
-            curia::warn!("refusing a play certificate request over the daily limit", { "node": node_id.to_string() });
+            curia::warn!("Play certificate refused: daily limit reached", { "node": node_id.to_string() });
             return Err(PlayError::RateLimited);
         }
 
@@ -364,7 +373,7 @@ impl PlayNameService {
             .count(self.conn.as_ref())
             .await?;
         if from_address >= u64::from(self.config.claims_per_address_per_day) {
-            curia::warn!("refusing a play name claim over the per-address limit", { "address": observed.to_string() });
+            curia::warn!("Play claim refused: per-address limit reached", { "address": observed.to_string() });
             return Err(PlayError::RateLimited);
         }
 
@@ -373,7 +382,7 @@ impl PlayNameService {
             .count(self.conn.as_ref())
             .await?;
         if in_hour >= u64::from(self.config.claims_per_hour) {
-            curia::warn!("refusing a play name claim over the hourly limit", { "address": observed.to_string() });
+            curia::warn!("Play claim refused: hourly limit reached", { "address": observed.to_string() });
             return Err(PlayError::RateLimited);
         }
 
@@ -501,7 +510,7 @@ impl PlayNameService {
         }
     }
 
-    fn mint_nonce() -> String {
+    pub(crate) fn mint_nonce() -> String {
         let mut bytes = [0u8; Self::NONCE_BYTES];
         getrandom::fill(&mut bytes).expect("the system random source is available");
         base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)

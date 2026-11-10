@@ -32,7 +32,7 @@ impl PlayDnsHandler {
         let mac = match self.transfer.verify(request) {
             Ok(mac) => mac,
             Err(e) => {
-                curia::warn!("refusing a signed play DNS request", { "source": request.src().to_string(), "error": e.to_string() });
+                curia::warn!("Play DNS request refused: signature rejected", { "source": request.src().to_string(), "error": e.to_string() });
                 return self.reply(request, &mut handle, None, true, ResponseCode::Refused, Vec::new(), Vec::new()).await;
             }
         };
@@ -117,7 +117,7 @@ impl PlayDnsHandler {
         mac: Option<&[u8]>,
     ) -> ResponseInfo {
         if !self.transfer.permits(request, mac.is_some()) {
-            curia::warn!("refusing a zone transfer", { "source": request.src().to_string(), "signed": mac.is_some().to_string() });
+            curia::warn!("Play zone transfer refused", { "source": request.src().to_string(), "signed": mac.is_some().to_string() });
             return self.reply(request, handle, mac, true, ResponseCode::Refused, Vec::new(), Vec::new()).await;
         }
 

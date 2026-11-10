@@ -10,6 +10,7 @@ use tokio::time::MissedTickBehavior;
 use tokio_util::sync::CancellationToken;
 
 use super::client::RelayEnrollmentClient;
+use super::error::EnrollmentError;
 use super::nonce::CurrentNonce;
 
 const CHECK_IN_INTERVAL: Duration = Duration::from_secs(3600);
@@ -125,11 +126,15 @@ impl RelayCheckIn {
         nonce: &CurrentNonce,
         name_lost: Option<&Notify>,
     ) {
+        if name_lost.is_some() {
+            curia::info!("Sending play check-in", { "address": address.unwrap_or("observed"), "port": port });
+        }
+
         match tokio::time::timeout(CHECK_IN_TIMEOUT, client.check_in(address, port)).await {
             Ok(Ok(value)) => {
                 nonce.set(value);
                 if name_lost.is_some() {
-                    curia::info!("the registry accepted this server's play check-in and is verifying its address");
+                    curia::info!("Play check-in accepted");
                 }
             }
             Ok(Err(e)) => {
@@ -141,16 +146,24 @@ impl RelayCheckIn {
                     .is_some_and(|reason| matches!(reason, EnrollRefuseReason::NoPlayName));
                 match (name_lost, lost) {
                     (Some(name_lost), true) => {
-                        curia::error!("the registry holds no play name for this server; restart the server to claim a new one", { "error": e.to_string() });
+                        curia::error!("Registry holds no play name for this server. Restart the server to claim a new one.", { "error": e.to_string() });
                         name_lost.notify_one();
                     }
-                    (Some(_), false) => {
-                        curia::error!("the registry refused this server's play check-in; players cannot reach it by name until it accepts", { "error": e.to_string() });
-                    }
-                    (None, _) => curia::warn!("relay check-in failed", { "error": e.to_string() }),
+                    (Some(_), false) => match &e {
+                        EnrollmentError::Refused { explanation, .. } => {
+                            curia::error!("Play check-in refused", { "reason": explanation.clone() });
+                        }
+                        other => {
+                            curia::warn!("Play check-in failed", { "error": other.to_string() });
+                        }
+                    },
+                    (None, _) => curia::warn!("Registry check-in failed", { "error": e.to_string() }),
                 }
             }
-            Err(_) => curia::warn!("relay check-in timed out"),
+            Err(_) => match name_lost {
+                Some(_) => curia::warn!("Play check-in timed out", { "timeout_secs": CHECK_IN_TIMEOUT.as_secs() }),
+                None => curia::warn!("Registry check-in timed out", { "timeout_secs": CHECK_IN_TIMEOUT.as_secs() }),
+            },
         }
     }
 }

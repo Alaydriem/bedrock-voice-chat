@@ -250,16 +250,46 @@ impl ServerRuntime {
         )> = None;
         // Notified by the play check-in when the registry no longer holds the name.
         let play_name_lost = Arc::new(tokio::sync::Notify::new());
+
+        // The public TLS port. A peer of QUIC and Rocket rather than an optional extra:
+        // nothing reaches the API or the voice transport if this cannot bind, so it is an
+        // arm of the loop below and its failure stops the server rather than being logged
+        // into a server that then serves nobody. Resolved here because the play preflight
+        // answers the registry's probe on this address before the demultiplexer binds it.
+        let public_listen_ip: std::net::IpAddr = self
+            .config
+            .server
+            .unbracketed_listen()
+            .parse()
+            .map_err(|e| {
+                anyhow!(
+                    "server.listen = \"{}\" is not an IP address: {e}",
+                    self.config.server.listen
+                )
+            })?;
+        let public_port = u16::try_from(self.config.server.port).map_err(|_| {
+            anyhow!(
+                "server.port = {} is outside the range of a TCP port",
+                self.config.server.port
+            )
+        })?;
+
         if let Some(play) = self.config.server.tls.play.clone() {
-            let Some(boot) = self.boot_play(&node_secret, db_conn.clone()).await? else {
+            // `PlayTls::problem` has already rejected a value that is not an IP address.
+            let configured = play
+                .address()
+                .and_then(|address| address.parse::<std::net::IpAddr>().ok());
+            if let Err(problem) = crate::services::play::PlayAddressCheck::check(configured) {
+                crate::services::play::PlayPreflightReport::log_problem(&problem);
                 self.state = RuntimeState::Stopped;
                 return Ok(());
-            };
-
-            let (service, name, paths) = boot;
-            self.config.server.tls.certificate = paths.certificate;
-            self.config.server.tls.key = paths.key;
-            self.config.server.tls.names = vec![name.clone()];
+            }
+            if let Some(problem) = crate::services::play::PlayAddressCheck::advisory(
+                configured,
+                crate::services::play::PlayAddressCheck::default_route_ipv4(),
+            ) {
+                crate::services::play::PlayPreflightReport::log_problem(&problem);
+            }
 
             // The registry's address probe needs the port players dial, which is
             // `server.port` unless a proxy answers on another.
@@ -274,6 +304,32 @@ impl ServerRuntime {
                         self.config.server.port
                     )
                 })?;
+            let quic_port = self
+                .config
+                .server
+                .quic_ports()
+                .first()
+                .and_then(|port| u16::try_from(*port).ok())
+                .unwrap_or(port);
+            let preflight = crate::services::play::PlayPreflightRequest {
+                address: play.address().map(str::to_string),
+                port,
+                quic_port,
+                listen: std::net::SocketAddr::new(public_listen_ip, public_port),
+            };
+
+            let Some(boot) = self
+                .boot_play(&node_secret, db_conn.clone(), &preflight)
+                .await?
+            else {
+                self.state = RuntimeState::Stopped;
+                return Ok(());
+            };
+
+            let (service, name, paths) = boot;
+            self.config.server.tls.certificate = paths.certificate;
+            self.config.server.tls.key = paths.key;
+            self.config.server.tls.names = vec![name.clone()];
 
             let client = self
                 .relay_session(db_conn.as_ref(), &node_secret)
@@ -282,11 +338,9 @@ impl ServerRuntime {
 
             match play.address() {
                 Some(address) => {
-                    curia::info!("checking in this server's address for its play name", { "address": address.to_string() });
+                    curia::info!("Play address declared", { "address": address.to_string() });
                 }
-                None => curia::info!(
-                    "no address declared; the registry uses the address it sees this server check in from"
-                ),
+                None => curia::info!("No play address declared. The registry uses the address it sees."),
             }
 
             // The check-in starts once the public port is listening (below). The registry
@@ -833,27 +887,6 @@ impl ServerRuntime {
             drop(certificate_renewed_tx);
         }
 
-        // The public TLS port. A peer of QUIC and Rocket rather than an optional extra:
-        // nothing reaches the API or the voice transport if this cannot bind, so it is an
-        // arm of the loop below and its failure stops the server rather than being logged
-        // into a server that then serves nobody.
-        let public_listen_ip: std::net::IpAddr = self
-            .config
-            .server
-            .unbracketed_listen()
-            .parse()
-            .map_err(|e| {
-                anyhow!(
-                    "server.listen = \"{}\" is not an IP address: {e}",
-                    self.config.server.listen
-                )
-            })?;
-        let public_port = u16::try_from(self.config.server.port).map_err(|_| {
-            anyhow!(
-                "server.port = {} is outside the range of a TCP port",
-                self.config.server.port
-            )
-        })?;
         // The WebSocket voice transport. Bound before the demultiplexer so the address is
         // known when it is handed over, and so its readiness gate has something to wait
         // for rather than a port nothing will ever answer on.
@@ -895,7 +928,7 @@ impl ServerRuntime {
                         _ = cancel.cancelled() => {}
                         ready = listening.wait_for(|ready| *ready) => {
                             if ready.is_ok() {
-                                curia::info!("players connect to this server at", { "address": address });
+                                curia::info!("Players connect at", { "address": address });
                             }
                         }
                     }
@@ -925,7 +958,7 @@ impl ServerRuntime {
                     _ = cancel.cancelled() => {}
                     _ = lost.notified() => {
                         if let Err(e) = crate::services::play::PlayNameStore::clear(conn.as_ref()).await {
-                            curia::warn!("could not forget the released play name", { "error": e.to_string() });
+                            curia::warn!("Released play name could not be forgotten", { "error": e.to_string() });
                         }
                     }
                 }
@@ -1311,6 +1344,7 @@ impl ServerRuntime {
         &self,
         node_secret: &[u8; 32],
         db_conn: Arc<DatabaseConnection>,
+        preflight: &crate::services::play::PlayPreflightRequest,
     ) -> Result<
         Option<(
             Arc<crate::services::play::PlayService>,
@@ -1333,21 +1367,21 @@ impl ServerRuntime {
             &self.config.server.tls.certs_path,
         );
 
-        curia::info!("requesting a play name and certificate from the registry");
+        curia::info!("Requesting play name from registry");
 
         let cancel = tokio_util::sync::CancellationToken::new();
-        let boot = service.boot(&cancel);
+        let boot = service.boot(preflight, &cancel);
         tokio::pin!(boot);
 
         tokio::select! {
             result = &mut boot => {
                 let (name, paths) = result?;
-                curia::info!("this server holds a play name and certificate", { "name": name.clone() });
+                curia::info!("Play name and certificate ready", { "name": name.clone() });
                 Ok(Some((service.clone(), name, paths)))
             }
             _ = self.shutdown_notify.notified() => {
                 cancel.cancel();
-                curia::info!("shutdown requested before the play certificate was ready");
+                curia::info!("Shutdown requested before the play certificate was ready");
                 Ok(None)
             }
         }

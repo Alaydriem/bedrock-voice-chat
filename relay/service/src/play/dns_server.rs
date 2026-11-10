@@ -87,7 +87,7 @@ impl PlayDnsServer {
             });
 
             if let Err(e) = self.server.block_until_done().await {
-                curia::error!("the play DNS server stopped", { "error": e.to_string() });
+                curia::error!("Play DNS server stopped", { "error": e.to_string() });
             }
         })
     }

@@ -2,7 +2,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use common::reqwest::{self, redirect::Policy};
-use common::rustls::{BvcClientTls, VerifierMode};
+use common::rustls::BvcClientTls;
 use url::Url;
 
 /// Fetches an image the webview wants to show: a server's avatar and canvas art, and
@@ -26,7 +26,7 @@ impl RemoteImageFetcher {
     pub const MAX_BYTES: usize = 10 * 1024 * 1024;
 
     pub fn new() -> Result<Self, anyhow::Error> {
-        let client = BvcClientTls::http_client_builder(None, None, VerifierMode::for_build())?
+        let client = BvcClientTls::http_client_builder(None, None)?
             .timeout(Self::TIMEOUT)
             .redirect(Policy::custom(|attempt| {
                 if attempt.previous().len() >= Self::MAX_REDIRECTS {

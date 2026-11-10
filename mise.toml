@@ -362,6 +362,33 @@ usage = 'arg "[target]" help="Tauri target to run on, e.g. android or ios. Omit 
 run = '''
 $target = $env:usage_target
 
+# Development trust: the client accepts the dev server's own CA. The `dev-trust` feature
+# below compiles it in (debug builds only). BVC_DEV_TRUST_ROOTS is the CA file for a desktop
+# client, read at run time. BVC_DEV_TRUST_ROOTS_PEM is the same CA as text, baked into the
+# binary at compile time, because an Android or iOS app never sees a host environment
+# variable. The CA is the dev server's tls.certs_path, from BVC_TLS_CERTS_PATH or
+# server/server/config.hcl, else the default ./certificates, relative to server/server.
+$serverDir = Join-Path $env:MISE_PROJECT_ROOT "server/server"
+$certsPath = $env:BVC_TLS_CERTS_PATH
+if (-not $certsPath) {
+  $hcl = Join-Path $serverDir "config.hcl"
+  if (Test-Path $hcl) {
+    $match = Select-String -Path $hcl -Pattern '^\s*certs_path\s*=\s*"([^"]+)"' | Select-Object -First 1
+    if ($match) { $certsPath = $match.Matches[0].Groups[1].Value }
+  }
+}
+if (-not $certsPath) { $certsPath = "./certificates" }
+$caFile = Join-Path $serverDir (Join-Path $certsPath "ca.crt")
+if ([System.IO.Path]::IsPathRooted($certsPath)) { $caFile = Join-Path $certsPath "ca.crt" }
+
+if (Test-Path $caFile) {
+  $env:BVC_DEV_TRUST_ROOTS = (Resolve-Path $caFile).Path
+  $env:BVC_DEV_TRUST_ROOTS_PEM = Get-Content -Raw $caFile
+  Write-Host "ok    dev trust on: $caFile"
+} else {
+  Write-Host "note  dev trust is off: the dev server CA $caFile does not exist yet. Start 'mise run dev-server' once, then re-run."
+}
+
 if ($target -eq "android") {
   mise run android-network-config
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -403,11 +430,11 @@ if ($target -eq "android") {
   # Same JAVA_HOME problem the mod dev tasks have: gradlew otherwise takes
   # whatever java is first on PATH, and the Android Gradle Plugin needs the
   # temurin-21 that client/mise.toml pins. Change both together.
-  mise x java@temurin-21 -- yarn tauri android dev
+  mise x java@temurin-21 -- yarn tauri android dev --features dev-trust
 } elseif ($target) {
-  yarn tauri $target dev
+  yarn tauri $target dev --features dev-trust
 } else {
-  yarn tauri dev
+  yarn tauri dev --features dev-trust
 }
 exit $LASTEXITCODE
 '''
@@ -489,9 +516,9 @@ shell = "pwsh -NoLogo -Command"
 run = "cargo test -j4"
 
 [tasks.test-common]
-description = "Run tests for the shared crate"
+description = "Run tests for the shared crate, including the debug-only dev-trust tests"
 shell = "pwsh -NoLogo -Command"
-run = "cargo test -p common"
+run = "cargo test -p common --features dev-trust"
 
 [tasks.test-relay]
 description = "Run tests for the relay registry service"

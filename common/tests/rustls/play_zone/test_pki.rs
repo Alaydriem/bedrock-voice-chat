@@ -1,5 +1,7 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
+use base64::Engine;
 use common::rustls::PlayZoneVerifier;
 use rcgen::{
     BasicConstraints, CertificateParams, CidrSubnet, DnType, GeneralSubtree, IsCa, Issuer, KeyPair,
@@ -76,6 +78,19 @@ impl TestPki {
         self.root.clone()
     }
 
+    /// The root as a PEM document.
+    pub fn root_pem(&self) -> String {
+        let body = base64::engine::general_purpose::STANDARD.encode(self.root.as_ref());
+        let lines = body
+            .as_bytes()
+            .chunks(64)
+            .map(|line| std::str::from_utf8(line).unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        format!("-----BEGIN CERTIFICATE-----\n{lines}\n-----END CERTIFICATE-----\n")
+    }
+
     /// A leaf whose SANs are exactly `names`; an entry that parses as an IP address
     /// becomes an IP SAN.
     pub fn leaf(&self, names: &[&str]) -> CertificateDer<'static> {
@@ -113,6 +128,34 @@ impl TestPki {
         name: &str,
     ) -> Result<ServerCertVerified, rustls::Error> {
         Self::verify_via(verifier, leaf, &[], name)
+    }
+
+    /// Verifies a leaf with no intermediates through any verifier, discarding the success value.
+    pub fn verify_any(
+        verifier: &dyn ServerCertVerifier,
+        leaf: &CertificateDer<'_>,
+        name: &str,
+    ) -> Result<(), rustls::Error> {
+        verifier
+            .verify_server_cert(
+                leaf,
+                &[],
+                &ServerName::try_from(name).unwrap(),
+                &[],
+                UnixTime::now(),
+            )
+            .map(|_| ())
+    }
+
+    /// Writes `contents` to a file in the temp directory that is unique to this process and
+    /// `tag`, and returns its path.
+    pub fn bundle_file(tag: &str, contents: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "bvc-dev-trust-roots-{}-{tag}.pem",
+            std::process::id()
+        ));
+        std::fs::write(&path, contents).unwrap();
+        path
     }
 
     pub fn verify_via(

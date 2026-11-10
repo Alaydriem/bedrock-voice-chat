@@ -4,7 +4,10 @@ use std::sync::Arc;
 use bvc_relay::node::NodeIdentity;
 use bvc_relay::peer::{AddressObserver, AdmissionControl, PeerEndpoint};
 use common::curia;
-use common::structs::relay::enroll::{EnrollFrame, EnrollRefuseReason, EnrollVersion};
+use common::structs::network::AddressClass;
+use common::structs::relay::enroll::{
+    EnrollFrame, EnrollRefuseReason, EnrollVersion, PlayPreflightOutcome,
+};
 use common::structs::relay::wire::Framing;
 use iroh::PublicKey;
 use iroh::endpoint::{Connection, IncomingAddr, RecvStream, SendStream};
@@ -198,10 +201,15 @@ impl RegistryEndpoint {
             EnrollFrame::CheckIn { address, port } => {
                 self.check_in(node, observed, version, address, port, send).await
             }
-            EnrollFrame::PlayClaim | EnrollFrame::PlayCertificate { .. }
+            EnrollFrame::PlayClaim
+            | EnrollFrame::PlayCertificate { .. }
+            | EnrollFrame::PlayPreflight { .. }
                 if version < Self::PLAY_VERSION =>
             {
                 Self::refuse(send, EnrollRefuseReason::PlayUnavailable).await
+            }
+            EnrollFrame::PlayPreflight { address, port } => {
+                self.play_preflight(node, observed, address, port, send).await
             }
             EnrollFrame::PlayClaim => self.play_claim(node, observed, send).await,
             EnrollFrame::PlayCertificate { csr_der } => {
@@ -264,15 +272,76 @@ impl RegistryEndpoint {
             return Self::refuse(send, EnrollRefuseReason::PlayUnavailable).await;
         };
         let Some(observed) = observed else {
-            curia::info!("refusing a play claim: no direct address was observed", { "node": node.to_string() });
-            return Self::refuse(send, EnrollRefuseReason::Internal).await;
+            curia::info!("Play claim refused: no direct address observed", { "node": node.to_string() });
+            return Self::refuse(send, EnrollRefuseReason::NoObservedAddress).await;
         };
+
+        if !play.preflight().has_passed(&node.to_string()) {
+            curia::info!("Play claim refused: no passed preflight", { "node": node.to_string() });
+            return Self::refuse(send, EnrollRefuseReason::PreflightRequired).await;
+        }
 
         match play.claim(&node.to_string(), observed).await {
             Ok(name) => Self::write(send, &EnrollFrame::PlayAssigned { name }).await,
             Err(e) => {
-                curia::info!("refusing a play claim", { "node": node.to_string(), "reason": e.to_string() });
+                curia::info!("Play claim refused", { "node": node.to_string(), "reason": e.to_string() });
                 Self::refuse(send, e.refuse_reason()).await
+            }
+        }
+    }
+
+    // The candidate address is the one the node declared, else the one it connected from.
+    // The nonce reaches the node before the probe starts, so it can answer the probe.
+    async fn play_preflight(
+        &self,
+        node: PublicKey,
+        observed: Option<IpAddr>,
+        address: Option<String>,
+        port: u16,
+        send: &mut SendStream,
+    ) -> Result<(), EnrollError> {
+        let Some(play) = &self.play else {
+            return Self::refuse(send, EnrollRefuseReason::PlayUnavailable).await;
+        };
+
+        let declared = match address.as_deref().map(str::parse::<IpAddr>).transpose() {
+            Ok(declared) => declared,
+            Err(_) => {
+                let outcome = PlayPreflightOutcome::AddressNotPublic {
+                    address: address.unwrap_or_default(),
+                };
+                return Self::write(send, &EnrollFrame::PlayPreflightResult { outcome }).await;
+            }
+        };
+        let Some(candidate) = declared.or(observed) else {
+            curia::info!("Play preflight refused: no address declared or observed", { "node": node.to_string() });
+            return Self::refuse(send, EnrollRefuseReason::NoObservedAddress).await;
+        };
+
+        if declared.is_none()
+            && !play.preflight().allows_private_targets()
+            && !AddressClass::of(candidate).is_public()
+        {
+            curia::warn!("Play preflight saw a private observed address. The registry may be behind NAT that rewrites source addresses.", { "address": candidate.to_string() });
+        }
+
+        let node_id = node.to_string();
+        let preflight = play.preflight();
+        match preflight.prepare(&node_id, candidate, observed, port) {
+            Err(outcome) => {
+                curia::info!("Play preflight refused", { "node": node_id.clone(), "outcome": outcome.kind(), "address": candidate.to_string() });
+                Self::write(send, &EnrollFrame::PlayPreflightResult { outcome }).await
+            }
+            Ok(ticket) => {
+                Self::write_open(
+                    send,
+                    &EnrollFrame::PlayPreflightNonce {
+                        nonce: ticket.nonce.clone(),
+                    },
+                )
+                .await?;
+                let outcome = preflight.run(&node_id, &ticket).await;
+                Self::write(send, &EnrollFrame::PlayPreflightResult { outcome }).await
             }
         }
     }
@@ -290,7 +359,7 @@ impl RegistryEndpoint {
         match play.issue(&node.to_string(), &csr_der).await {
             Ok(chain_pem) => Self::write(send, &EnrollFrame::PlayIssued { chain_pem }).await,
             Err(e) => {
-                curia::info!("refusing a play certificate request", { "node": node.to_string(), "reason": e.to_string() });
+                curia::info!("Play certificate refused", { "node": node.to_string(), "reason": e.to_string() });
                 Self::refuse(send, e.refuse_reason()).await
             }
         }
@@ -363,7 +432,7 @@ impl RegistryEndpoint {
             return Self::refuse(send, EnrollRefuseReason::PlayUnavailable).await;
         };
         let Some(candidate) = address.or(observed) else {
-            return Self::refuse(send, EnrollRefuseReason::Internal).await;
+            return Self::refuse(send, EnrollRefuseReason::NoObservedAddress).await;
         };
 
         let node_id = node.to_string();
@@ -428,10 +497,15 @@ impl RegistryEndpoint {
         Self::write(send, &EnrollFrame::Refuse { reason }).await
     }
 
-    async fn write(send: &mut SendStream, frame: &EnrollFrame) -> Result<(), EnrollError> {
+    // Writes a frame and leaves the stream open for the next one.
+    async fn write_open(send: &mut SendStream, frame: &EnrollFrame) -> Result<(), EnrollError> {
         send.write_all(&Framing::encode(frame)?)
             .await
-            .map_err(|e| EnrollError::Transport(e.to_string()))?;
+            .map_err(|e| EnrollError::Transport(e.to_string()))
+    }
+
+    async fn write(send: &mut SendStream, frame: &EnrollFrame) -> Result<(), EnrollError> {
+        Self::write_open(send, frame).await?;
         send.finish()
             .map_err(|e| EnrollError::Transport(e.to_string()))?;
         Ok(())

@@ -1,5 +1,6 @@
 use common::rustls::PlayRoots;
 use rustls::pki_types::{ServerName, UnixTime};
+use sha2::Digest;
 use x509_parser::extensions::GeneralName;
 
 use super::test_pki::TestPki;
@@ -62,6 +63,41 @@ fn a_non_play_name_rejects_a_chain_to_a_play_root() {
 
     assert!(TestPki::verify(&verifier, &public_leaf, "example.test").is_ok());
     assert!(TestPki::verify(&verifier, &play_leaf, "example.test").is_err());
+}
+
+#[test]
+fn a_public_chain_with_an_unparsable_certificate_is_accepted() {
+    let play = TestPki::play_root("Test Play Root");
+    let public = TestPki::unconstrained_root("Test Public Root");
+    let fallback = TestPki::fallback_trusting(vec![public.root()]);
+    let verifier = TestPki::verifier(vec![play.root()], fallback.clone());
+
+    let leaf = public.leaf(&["example.test"]);
+    let unparsable = rustls::pki_types::CertificateDer::from(vec![0x30, 0x03, 0x01, 0x02, 0x03]);
+    let name = ServerName::try_from("example.test").unwrap();
+
+    // The fallback alone accepts the chain; the extra certificate must not turn that into a
+    // refusal.
+    assert!(
+        fallback
+            .verify_server_cert(
+                &leaf,
+                std::slice::from_ref(&unparsable),
+                &name,
+                &[],
+                UnixTime::now()
+            )
+            .is_ok()
+    );
+    assert!(
+        TestPki::verify_via(
+            &verifier,
+            &leaf,
+            std::slice::from_ref(&unparsable),
+            "example.test"
+        )
+        .is_ok()
+    );
 }
 
 #[test]
@@ -183,12 +219,13 @@ fn the_zone_apex_is_not_a_play_name() {
 }
 
 // A built-in root without its name constraint would let the BVC play CA vouch for any
-// name at all, so this is checked on the shipped bytes. A release build ships none until
-// the production ceremony, and must then list none.
+// name at all, so this is checked on the shipped bytes. Every permitted subtree must be the
+// play zone, and every IP address must be excluded.
 #[test]
 fn builtin_roots_parse_and_are_name_constrained() {
     let roots = PlayRoots::builtin().unwrap();
-    assert_eq!(roots.is_empty(), !cfg!(debug_assertions));
+    let expected = if cfg!(debug_assertions) { 2 } else { 1 };
+    assert_eq!(roots.len(), expected);
 
     for root in roots {
         let (_, cert) = x509_parser::parse_x509_certificate(root.as_ref()).unwrap();
@@ -196,9 +233,33 @@ fn builtin_roots_parse_and_are_name_constrained() {
 
         assert!(constraints.critical);
         let permitted = constraints.value.permitted_subtrees.as_ref().unwrap();
-        assert!(permitted.iter().any(|subtree| matches!(
+        assert!(!permitted.is_empty());
+        assert!(permitted.iter().all(|subtree| matches!(
             &subtree.base,
             GeneralName::DNSName(name) if *name == "play.bedrockvc.stream"
         )));
+
+        let excluded = constraints.value.excluded_subtrees.as_ref().unwrap();
+        for all_addresses in [&[0u8; 8][..], &[0u8; 32][..]] {
+            assert!(excluded.iter().any(|subtree| matches!(
+                &subtree.base,
+                GeneralName::IPAddress(range) if *range == all_addresses
+            )));
+        }
     }
+}
+
+// The production root is a trust anchor for every installed client. Replacing it by
+// accident would strand every play-named server, so its exact bytes are pinned here.
+#[test]
+fn the_production_root_is_pinned_in_every_build() {
+    const PRODUCTION_SHA256: &str =
+        "55e2bfb347175f4832875a674d1f5725bbad44950ec97f0340461153057e7960";
+
+    let found = PlayRoots::builtin().unwrap().iter().any(|root| {
+        let digest = sha2::Sha256::digest(root.as_ref());
+        digest.iter().map(|b| format!("{b:02x}")).collect::<String>() == PRODUCTION_SHA256
+    });
+
+    assert!(found, "the production play root is missing or changed");
 }

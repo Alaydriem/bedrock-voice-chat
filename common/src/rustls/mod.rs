@@ -11,4 +11,6 @@ pub mod play_zone;
 pub use http_client::MtlsHttpClient;
 #[cfg(feature = "quic")]
 pub use mtls_provider::MtlsProvider;
-pub use play_zone::{BvcClientTls, PlayRoots, PlayZoneVerifier, VerifierMode};
+#[cfg(all(debug_assertions, feature = "dev-trust"))]
+pub use play_zone::DevTrustRoots;
+pub use play_zone::{BvcClientTls, PlayRoots, PlayZoneVerifier};

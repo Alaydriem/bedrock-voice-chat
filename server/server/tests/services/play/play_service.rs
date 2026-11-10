@@ -10,8 +10,9 @@ use std::time::Duration;
 
 use bvc_server_lib::services::acme::{AcmeStorage, CertificateExpiry};
 use bvc_server_lib::services::play::{
-    PlayAuthority, PlayNameStore, PlayService, ScriptedPlayAuthority,
+    PlayAuthority, PlayNameStore, PlayPreflightRequest, PlayService, ScriptedPlayAuthority,
 };
+use common::structs::relay::enroll::{EnrollRefuseReason, PlayPreflightOutcome};
 use rcgen::{CertificateParams, CertificateSigningRequestParams, KeyPair, SanType};
 use rustls::pki_types::CertificateSigningRequestDer;
 use tempfile::TempDir;
@@ -47,6 +48,38 @@ impl Rig {
             Arc::new(self.db.connection.clone()),
             self.certs_path(),
         )
+    }
+
+    // Binds an ephemeral loopback port for the preflight responder.
+    fn request() -> PlayPreflightRequest {
+        PlayPreflightRequest {
+            address: None,
+            port: 443,
+            quic_port: 443,
+            listen: "127.0.0.1:0".parse().unwrap(),
+        }
+    }
+
+    // Lets virtual time pass until the authority has been asked `count` times. A fixed sleep
+    // would race the database, whose real I/O lets the paused clock jump ahead.
+    async fn wait_for_preflights(authority: &ScriptedPlayAuthority, count: u32) {
+        for _ in 0..600 {
+            if authority.preflights() >= count {
+                return;
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        panic!("only {} preflights happened", authority.preflights());
+    }
+
+    // Runs `boot` in the background so a test can cancel it after virtual time passes.
+    fn boot_in_background(
+        service: PlayService,
+        cancel: &CancellationToken,
+    ) -> tokio::task::JoinHandle<anyhow::Result<(String, bvc_server_lib::services::acme::AcmeCertPaths)>>
+    {
+        let cancel = cancel.clone();
+        tokio::spawn(async move { service.boot(&Rig::request(), &cancel).await })
     }
 
     fn storage(&self) -> AcmeStorage {
@@ -120,7 +153,7 @@ async fn a_valid_stored_certificate_returns_without_issuing() {
     assert!(Path::new(&paths.key).exists());
 }
 
-// Review focus 4: a certificate that expired while the server was stopped is replaced before
+// A certificate that expired while the server was stopped is replaced before
 // any listener starts, rather than served or crash-looped on.
 #[tokio::test]
 async fn an_expired_stored_certificate_reissues_before_returning() {
@@ -297,7 +330,7 @@ async fn a_name_the_registry_released_is_claimed_again() {
     tokio::time::pause();
 
     let (name, paths) = service
-        .boot(&CancellationToken::new())
+        .boot(&Rig::request(), &CancellationToken::new())
         .await
         .expect("boot recovers");
 
@@ -374,6 +407,110 @@ async fn renewal_fires_at_two_thirds_and_signals() {
     );
 }
 
+fn timed_out() -> PlayPreflightOutcome {
+    PlayPreflightOutcome::TimedOut {
+        address: "203.0.113.9".to_string(),
+        port: 443,
+    }
+}
+
+// Nothing the registry hands out may be requested until the registry has reached this server.
+#[tokio::test]
+async fn a_failed_preflight_claims_nothing() {
+    let rig = Rig::new().await;
+    let authority = ScriptedPlayAuthority::new(NAME, 0).with_preflight(vec![timed_out()]);
+    let cancel = CancellationToken::new();
+    tokio::time::pause();
+
+    let boot = Rig::boot_in_background(rig.service(&authority), &cancel);
+    Rig::wait_for_preflights(&authority, 2).await;
+    cancel.cancel();
+
+    boot.await.unwrap().expect_err("a cancelled boot is an error");
+    assert!(authority.preflights() >= 2, "{}", authority.preflights());
+    assert_eq!(authority.claimed(), 0);
+    assert_eq!(authority.issued(), 0);
+}
+
+#[tokio::test]
+async fn a_passed_preflight_claims_and_issues() {
+    let rig = Rig::new().await;
+    let authority = ScriptedPlayAuthority::new(NAME, 0);
+    tokio::time::pause();
+
+    let (name, paths) = rig
+        .service(&authority)
+        .boot(&Rig::request(), &CancellationToken::new())
+        .await
+        .expect("boot succeeds");
+
+    assert_eq!(name, NAME);
+    assert!(Path::new(&paths.certificate).exists());
+    assert_eq!(authority.preflights(), 1);
+    assert_eq!(authority.claimed(), 1);
+    assert_eq!(authority.issued(), 1);
+}
+
+#[tokio::test]
+async fn a_valid_stored_certificate_skips_preflight() {
+    let rig = Rig::new().await;
+    PlayNameStore::write(&rig.db.connection, NAME).await.unwrap();
+    rig.store_certificate(time::Duration::days(1), time::Duration::days(14))
+        .await;
+    // Any preflight would fail, so a boot that returns proves none ran.
+    let authority = ScriptedPlayAuthority::new(NAME, 0).with_preflight(vec![timed_out()]);
+
+    rig.service(&authority)
+        .boot(&Rig::request(), &CancellationToken::new())
+        .await
+        .expect("boot succeeds");
+
+    assert_eq!(authority.preflights(), 0);
+    assert_eq!(authority.claimed(), 0);
+    assert_eq!(authority.issued(), 0);
+}
+
+// A name is no proof the network still works. An expired certificate on a
+// network the registry can no longer reach must not be replaced.
+#[tokio::test]
+async fn expired_certificate_on_an_unreachable_network_issues_nothing() {
+    let rig = Rig::new().await;
+    PlayNameStore::write(&rig.db.connection, NAME).await.unwrap();
+    rig.store_certificate(time::Duration::days(16), time::Duration::days(-1))
+        .await;
+    let authority = ScriptedPlayAuthority::new(NAME, 0).with_preflight(vec![timed_out()]);
+    let cancel = CancellationToken::new();
+    tokio::time::pause();
+
+    let boot = Rig::boot_in_background(rig.service(&authority), &cancel);
+    Rig::wait_for_preflights(&authority, 2).await;
+    cancel.cancel();
+
+    boot.await.unwrap().expect_err("a cancelled boot is an error");
+    assert_eq!(authority.issued(), 0);
+}
+
+// The registry forgets passed preflights when it restarts. The claim is
+// refused for it, and the server recovers without the operator.
+#[tokio::test]
+async fn preflight_required_on_claim_runs_preflight_again() {
+    let rig = Rig::new().await;
+    let authority = ScriptedPlayAuthority::new(NAME, 0)
+        .refusing_claims(EnrollRefuseReason::PreflightRequired, 1);
+    tokio::time::pause();
+
+    let (name, _) = rig
+        .service(&authority)
+        .boot(&Rig::request(), &CancellationToken::new())
+        .await
+        .expect("boot recovers");
+
+    assert_eq!(name, NAME);
+    assert_eq!(authority.preflights(), 2);
+    assert_eq!(authority.claimed(), 2);
+    assert_eq!(authority.issued(), 1);
+}
+
 #[tokio::test]
 async fn a_stored_name_is_reused_without_a_claim() {
     let rig = Rig::new().await;
@@ -412,4 +549,110 @@ async fn a_claimed_name_is_stored_and_not_claimed_again() {
     assert_eq!(second, NAME);
     // One refused claim and one that succeeded. The second boot made none.
     assert_eq!(authority.claimed(), 2);
+}
+
+// The registry named how long to wait. Asking sooner spends the allowance it is protecting.
+#[tokio::test]
+async fn a_rate_limited_preflight_waits_the_time_the_registry_names() {
+    let rig = Rig::new().await;
+    let reachable = PlayPreflightOutcome::Reachable {
+        address: "203.0.113.9".to_string(),
+        port: 443,
+    };
+    let authority = ScriptedPlayAuthority::new(NAME, 0).with_preflight(vec![
+        PlayPreflightOutcome::RateLimited {
+            retry_after_secs: 120,
+        },
+        reachable,
+    ]);
+    tokio::time::pause();
+    let started = tokio::time::Instant::now();
+
+    rig.service(&authority)
+        .preflight(&Rig::request(), &CancellationToken::new())
+        .await
+        .expect("the second preflight passes");
+
+    assert_eq!(authority.preflights(), 2);
+    assert!(started.elapsed() >= Duration::from_secs(120));
+}
+
+// The registry counts its per-node window from admission. A retry inside it is refused, so
+// the first retry must land outside it.
+#[tokio::test]
+async fn the_first_preflight_retry_waits_out_the_registrys_node_window() {
+    let rig = Rig::new().await;
+    let refused = PlayPreflightOutcome::Refused {
+        address: "203.0.113.9".to_string(),
+        port: 443,
+    };
+    let reachable = PlayPreflightOutcome::Reachable {
+        address: "203.0.113.9".to_string(),
+        port: 443,
+    };
+    let authority =
+        ScriptedPlayAuthority::new(NAME, 0).with_preflight(vec![refused, reachable]);
+    tokio::time::pause();
+    let started = tokio::time::Instant::now();
+
+    rig.service(&authority)
+        .preflight(&Rig::request(), &CancellationToken::new())
+        .await
+        .expect("the second preflight passes");
+
+    // The registry's node window is 15 s.
+    assert!(started.elapsed() >= Duration::from_secs(15));
+}
+
+// A request refused for want of a free probe has still opened the node window, so the wait
+// is never shorter than the window.
+#[test]
+fn a_short_rate_limit_wait_is_raised_to_the_node_window() {
+    assert_eq!(PlayService::rate_limited_wait(5), Duration::from_secs(15));
+    assert_eq!(PlayService::rate_limited_wait(0), Duration::from_secs(15));
+    assert_eq!(PlayService::rate_limited_wait(120), Duration::from_secs(120));
+}
+
+// A registry that passes preflight and still refuses the claim must not be asked in a tight
+// loop. The first repeat is at once, and each one after it waits.
+#[tokio::test]
+async fn a_repeated_preflight_required_backs_off() {
+    let rig = Rig::new().await;
+    let authority = ScriptedPlayAuthority::new(NAME, 0)
+        .refusing_claims(EnrollRefuseReason::PreflightRequired, 3);
+    tokio::time::pause();
+    let started = tokio::time::Instant::now();
+
+    rig.service(&authority)
+        .boot(&Rig::request(), &CancellationToken::new())
+        .await
+        .expect("boot recovers once the registry accepts the claim");
+
+    assert_eq!(authority.preflights(), 4);
+    // The second and third repeats wait 5 s and then 10 s.
+    assert!(started.elapsed() >= Duration::from_secs(15));
+}
+
+// The registry accepted the request and went quiet. Cancelling must not wait out the
+// request's own timeout while the responder holds the port.
+#[tokio::test]
+async fn cancelling_during_the_preflight_request_returns_at_once() {
+    let rig = Rig::new().await;
+    let authority = ScriptedPlayAuthority::new(NAME, 0).with_hanging_preflight();
+    let cancel = CancellationToken::new();
+    tokio::time::pause();
+    let started = tokio::time::Instant::now();
+
+    let service = rig.service(&authority);
+    let task = tokio::spawn({
+        let cancel = cancel.clone();
+        async move { service.preflight(&Rig::request(), &cancel).await }
+    });
+    Rig::wait_for_preflights(&authority, 1).await;
+    cancel.cancel();
+
+    task.await
+        .unwrap()
+        .expect_err("a cancelled preflight is an error");
+    assert!(started.elapsed() < PlayService::PREFLIGHT_TIMEOUT);
 }

@@ -1,8 +1,9 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use bvc_relay::node::NodeIdentity;
 use bvc_relay::peer::PeerEndpoint;
-use common::structs::relay::enroll::{EnrollFrame, EnrollVersion};
+use common::structs::relay::enroll::{EnrollFrame, EnrollVersion, PlayPreflightOutcome};
 use common::structs::relay::wire::Framing;
 use iroh::EndpointAddr;
 use iroh::endpoint::{Connection, RecvStream, SendStream};
@@ -16,6 +17,10 @@ pub struct RelayEnrollmentClient {
 
 impl RelayEnrollmentClient {
     pub const ALPN: &'static [u8] = b"bvc-enroll/1";
+
+    // How long the registry may take to probe this server and report. It retries the probe
+    // at intervals and each attempt can run to its own timeout.
+    pub const PREFLIGHT_RESULT_TIMEOUT: Duration = Duration::from_secs(45);
 
     // The first enrollment version that carries the play frames.
     const PLAY_VERSION: EnrollVersion = EnrollVersion(3);
@@ -118,8 +123,78 @@ impl RelayEnrollmentClient {
         }
     }
 
+    /// Asks the registry whether the internet can reach `port` on `address`, or on the
+    /// address it sees this server connect from when `address` is `None`.
+    ///
+    /// The registry replies with a nonce when it will probe, and `on_nonce` receives it so
+    /// the caller can serve it before the probe arrives. The outcome follows on the same
+    /// stream. A registry that refuses before probing answers with the outcome alone.
+    pub async fn play_preflight<F: FnOnce(String) + Send>(
+        &self,
+        address: Option<&str>,
+        port: u16,
+        on_nonce: F,
+    ) -> Result<PlayPreflightOutcome, EnrollmentError> {
+        let conn = self
+            .endpoint
+            .endpoint()
+            .connect(self.registry.clone(), Self::ALPN)
+            .await
+            .map_err(|e| EnrollmentError::Connect(e.to_string()))?;
+
+        let frame = EnrollFrame::PlayPreflight {
+            address: address.map(str::to_string),
+            port,
+        };
+        let result = Self::preflight_exchange(&conn, &frame, on_nonce).await;
+        conn.close(0u32.into(), b"done");
+        result
+    }
+
     pub async fn close(&self) {
         self.endpoint.close().await;
+    }
+
+    async fn preflight_exchange<F: FnOnce(String) + Send>(
+        conn: &Connection,
+        frame: &EnrollFrame,
+        on_nonce: F,
+    ) -> Result<PlayPreflightOutcome, EnrollmentError> {
+        Self::negotiate(conn, Some(Self::PLAY_VERSION)).await?;
+
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| EnrollmentError::Transport(e.to_string()))?;
+        Self::write(&mut send, frame).await?;
+
+        match Self::read_frame(&mut recv).await? {
+            EnrollFrame::PlayPreflightResult { outcome } => Ok(outcome),
+            EnrollFrame::Refuse { reason } => Err(EnrollmentError::refused(reason)),
+            EnrollFrame::PlayPreflightNonce { nonce } => {
+                on_nonce(nonce);
+                let next = tokio::time::timeout(
+                    Self::PREFLIGHT_RESULT_TIMEOUT,
+                    Self::read_frame(&mut recv),
+                )
+                .await
+                .map_err(|_| {
+                    EnrollmentError::Transport(
+                        "timed out waiting for the preflight result".to_string(),
+                    )
+                })??;
+                match next {
+                    EnrollFrame::PlayPreflightResult { outcome } => Ok(outcome),
+                    EnrollFrame::Refuse { reason } => Err(EnrollmentError::refused(reason)),
+                    _ => Err(EnrollmentError::Unexpected {
+                        expected: "PlayPreflightResult",
+                    }),
+                }
+            }
+            _ => Err(EnrollmentError::Unexpected {
+                expected: "PlayPreflightNonce or PlayPreflightResult",
+            }),
+        }
     }
 
     async fn exchange(&self, frame: &EnrollFrame) -> Result<EnrollFrame, EnrollmentError> {
@@ -159,6 +234,14 @@ impl RelayEnrollmentClient {
         frame: &EnrollFrame,
         minimum: Option<EnrollVersion>,
     ) -> Result<EnrollFrame, EnrollmentError> {
+        Self::negotiate(conn, minimum).await?;
+        Self::request(conn, frame).await
+    }
+
+    async fn negotiate(
+        conn: &Connection,
+        minimum: Option<EnrollVersion>,
+    ) -> Result<(), EnrollmentError> {
         let hello = EnrollFrame::Hello {
             versions: EnrollVersion::SUPPORTED.to_vec(),
         };
@@ -169,12 +252,11 @@ impl RelayEnrollmentClient {
                 {
                     return Err(EnrollmentError::PlayNotOffered { version: version.0 });
                 }
+                Ok(())
             }
-            EnrollFrame::Refuse { .. } => return Err(EnrollmentError::NoCommonVersion),
-            _ => return Err(EnrollmentError::Unexpected { expected: "Ready" }),
+            EnrollFrame::Refuse { .. } => Err(EnrollmentError::NoCommonVersion),
+            _ => Err(EnrollmentError::Unexpected { expected: "Ready" }),
         }
-
-        Self::request(conn, frame).await
     }
 
     async fn request(

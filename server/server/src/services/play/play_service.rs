@@ -3,15 +3,18 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result, anyhow, bail};
 use common::curia;
-use common::structs::relay::enroll::EnrollRefuseReason;
+use common::structs::relay::enroll::{EnrollRefuseReason, PlayPreflightOutcome};
 use rcgen::{CertificateParams, DistinguishedName, KeyPair, PKCS_ECDSA_P256_SHA256};
 use sea_orm::DatabaseConnection;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use super::{PlayAuthority, PlayBackoff, PlayNameStore};
-use crate::services::EnrollmentError;
+use super::{
+    PlayAuthority, PlayBackoff, PlayNameStore, PlayPreflightReport, PlayPreflightRequest,
+    PlayPreflightResponder, PreflightLogGate,
+};
+use crate::services::{CurrentNonce, EnrollmentError};
 use crate::services::acme::{AcmeCertPaths, AcmeStorage, CertificateExpiry};
 
 /// Takes a play-zone name and a certificate for it from the registry, and renews it.
@@ -52,6 +55,21 @@ impl PlayService {
     // A registry that accepts a connection and never answers must not stall boot or renewal.
     const AUTHORITY_TIMEOUT: Duration = Duration::from_secs(30);
 
+    // The registry probes at intervals and reports after the last attempt, and the client
+    // waits up to 45 s for that report.
+    pub const PREFLIGHT_TIMEOUT: Duration = Duration::from_secs(60);
+
+    // The registry lets a node ask for a preflight once in this long, counted from when it
+    // admits the request. A retry sooner than that is refused as rate limited.
+    pub const PREFLIGHT_BACKOFF_INITIAL: Duration = Duration::from_secs(15);
+
+    /// How long to wait after the registry answers `RateLimited`. Never less than the
+    /// registry's per-node window: a request refused for want of a free probe has still
+    /// started that window.
+    pub fn rate_limited_wait(retry_after_secs: u64) -> Duration {
+        Duration::from_secs(retry_after_secs.max(1)).max(Self::PREFLIGHT_BACKOFF_INITIAL)
+    }
+
     pub fn new(authority: PlayAuthority, conn: Arc<DatabaseConnection>, certs_path: &str) -> Self {
         Self {
             authority,
@@ -90,20 +108,125 @@ impl PlayService {
     /// a month without a check-in, the stored name is forgotten and a new one is claimed. The
     /// registry answers a claim from a node that still holds a name with that same name, so
     /// the extra claim costs nothing in the ordinary case.
-    pub async fn boot(&self, cancel: &CancellationToken) -> Result<(String, AcmeCertPaths)> {
+    pub async fn boot(
+        &self,
+        request: &PlayPreflightRequest,
+        cancel: &CancellationToken,
+    ) -> Result<(String, AcmeCertPaths)> {
         let mut backoff = PlayBackoff::new(Self::BOOT_BACKOFF_INITIAL, Self::BOOT_BACKOFF_CAP);
+        let mut preflighted = false;
         loop {
-            let name = self.name(cancel).await?;
+            if !preflighted && self.needs_preflight().await? {
+                self.preflight(request, cancel).await?;
+                preflighted = true;
+            }
+
+            let name = self.claim_name(Some(request), cancel).await?;
             match self.ensure_certificate(&name, cancel).await {
                 Ok(paths) => return Ok((name, paths)),
                 Err(error) if Self::name_forgotten(&error) => {
                     PlayNameStore::clear(self.conn.as_ref()).await?;
                     let retry_in = backoff.next();
-                    curia::warn!("the registry holds no play name for this server; claiming again", { "name": name, "retry_in": retry_in.as_secs() });
+                    curia::warn!("Registry released the play name. Claiming a new one.", { "name": name, "retry_in": retry_in.as_secs() });
                     Self::wait(retry_in, cancel, "claiming a play name again").await?;
                 }
                 Err(error) => return Err(error),
             }
+        }
+    }
+
+    /// True unless a stored name and a stored certificate that has not expired both exist.
+    ///
+    /// A server with both is already known to the registry and needs nothing new from it.
+    /// Anything else is a request for a name or a certificate, and the registry hands
+    /// neither to a server it cannot reach.
+    pub async fn needs_preflight(&self) -> Result<bool> {
+        let Some(name) = PlayNameStore::read(self.conn.as_ref()).await? else {
+            return Ok(true);
+        };
+
+        Ok(match self.storage(&name).load_certificate_any().await? {
+            Some(pem) => CertificateExpiry::is_expired(&pem).unwrap_or(true),
+            None => true,
+        })
+    }
+
+    /// Proves the registry can reach this server, and returns once it has.
+    ///
+    /// Binds `request.listen` to answer the registry's probe and releases it before
+    /// returning, so the listeners can bind the same port. Retries with backoff until the
+    /// probe passes or `cancel` fires: a failure here is the network, and the operator fixes
+    /// it while this waits.
+    pub async fn preflight(
+        &self,
+        request: &PlayPreflightRequest,
+        cancel: &CancellationToken,
+    ) -> Result<()> {
+        let nonce = CurrentNonce::new_shared();
+        let responder = PlayPreflightResponder::start(request.listen, nonce.clone()).await?;
+        let result = self.preflight_until_reachable(request, &nonce, cancel).await;
+        responder.stop().await;
+        result
+    }
+
+    async fn preflight_until_reachable(
+        &self,
+        request: &PlayPreflightRequest,
+        nonce: &CurrentNonce,
+        cancel: &CancellationToken,
+    ) -> Result<()> {
+        let mut backoff =
+            PlayBackoff::new(Self::PREFLIGHT_BACKOFF_INITIAL, Self::BOOT_BACKOFF_CAP);
+        let mut gate = PreflightLogGate::new();
+        let mut rate_limit_noted = false;
+        let declared = request.address.is_some();
+        loop {
+            let timed = tokio::time::timeout(
+                Self::PREFLIGHT_TIMEOUT,
+                self.authority
+                    .preflight(request.address.as_deref(), request.port, nonce),
+            );
+            let asked = tokio::select! {
+                biased;
+                _ = cancel.cancelled() => bail!("cancelled while asking for a play preflight"),
+                asked = timed => asked,
+            };
+
+            let retry_in = match asked {
+                Ok(Ok(outcome @ PlayPreflightOutcome::Reachable { .. })) => {
+                    PlayPreflightReport::log_outcome(&outcome, request.quic_port, declared);
+                    return Ok(());
+                }
+                Ok(Ok(outcome)) => {
+                    let rate_limited = matches!(outcome, PlayPreflightOutcome::RateLimited { .. });
+                    if gate.should_log(&outcome) || (rate_limited && !rate_limit_noted) {
+                        rate_limit_noted |= rate_limited;
+                        PlayPreflightReport::log_outcome(&outcome, request.quic_port, declared);
+                    }
+                    match outcome {
+                        PlayPreflightOutcome::RateLimited { retry_after_secs } => {
+                            Self::rate_limited_wait(retry_after_secs)
+                        }
+                        _ => backoff.next(),
+                    }
+                }
+                Ok(Err(error)) => {
+                    let retry_in = backoff.next();
+                    Self::log_failure("Play preflight request failed. Retrying.", &error, retry_in);
+                    retry_in
+                }
+                Err(_) => {
+                    let retry_in = backoff.next();
+                    Self::log_failure(
+                        "Play preflight request failed. Retrying.",
+                        &anyhow!("the registry did not answer within {:?}", Self::PREFLIGHT_TIMEOUT),
+                        retry_in,
+                    );
+                    retry_in
+                }
+            };
+
+            Self::wait(retry_in, cancel, "waiting for a play preflight").await?;
         }
     }
 
@@ -112,26 +235,52 @@ impl PlayService {
     /// Retries with backoff until the registry answers or `cancel` fires: a server that has
     /// no name has nothing to listen as.
     pub async fn name(&self, cancel: &CancellationToken) -> Result<String> {
+        self.claim_name(None, cancel).await
+    }
+
+    // With a request, a claim the registry refuses for want of a passed preflight runs
+    // preflight again: the registry keeps passes in memory and forgets them when it restarts.
+    async fn claim_name(
+        &self,
+        request: Option<&PlayPreflightRequest>,
+        cancel: &CancellationToken,
+    ) -> Result<String> {
         if let Some(name) = PlayNameStore::read(self.conn.as_ref()).await? {
             return Ok(name);
         }
 
         let mut backoff = PlayBackoff::new(Self::BOOT_BACKOFF_INITIAL, Self::BOOT_BACKOFF_CAP);
+        let mut preflight_reran = false;
         loop {
             let error = match tokio::time::timeout(Self::AUTHORITY_TIMEOUT, self.authority.claim())
                 .await
             {
                 Ok(Ok(name)) => {
                     PlayNameStore::write(self.conn.as_ref(), &name).await?;
-                    curia::info!("this server claimed a play name", { "name": name.clone() });
+                    curia::info!("Play name assigned", { "name": name.clone() });
                     return Ok(name);
                 }
                 Ok(Err(e)) => e,
                 Err(_) => anyhow!("the registry did not answer within {:?}", Self::AUTHORITY_TIMEOUT),
             };
 
+            if let Some(request) = request
+                && Self::preflight_required(&error)
+            {
+                curia::info!("Registry has no passed play preflight. Running it again.");
+                // The first repeat runs at once, because a restarted registry forgot the
+                // pass. A repeat after that means the registry keeps refusing, so it waits.
+                if preflight_reran {
+                    let retry_in = backoff.next();
+                    Self::wait(retry_in, cancel, "running the play preflight again").await?;
+                }
+                preflight_reran = true;
+                self.preflight(request, cancel).await?;
+                continue;
+            }
+
             let retry_in = backoff.next();
-            Self::log_failure("could not claim a play name; retrying", &error, retry_in);
+            Self::log_failure("Play name claim failed. Retrying.", &error, retry_in);
             Self::wait(retry_in, cancel, "claiming a play name").await?;
         }
     }
@@ -159,25 +308,25 @@ impl PlayService {
                         return Ok(Self::paths(&storage));
                     }
 
-                    curia::info!("the stored play certificate is due for renewal; requesting a new one", { "name": name });
+                    curia::info!("Stored play certificate is due for renewal. Requesting a new one.", { "name": name });
                     return match self.issue(name).await {
                         Ok(()) => Ok(Self::paths(&storage)),
                         Err(error) if Self::name_forgotten(&error) => Err(error),
                         Err(error) => {
-                            curia::warn!("could not renew the play certificate; serving the stored one", { "error": format!("{error:#}"), "name": name });
+                            curia::warn!("Play certificate renewal failed. Serving the stored one.", { "error": format!("{error:#}"), "name": name });
                             Ok(Self::paths(&storage))
                         }
                     };
                 }
                 Ok(true) => {
-                    curia::info!("the stored play certificate has expired; requesting a new one", { "name": name });
+                    curia::info!("Stored play certificate expired. Requesting a new one.", { "name": name });
                 }
                 Err(e) => {
-                    curia::warn!("the stored play certificate cannot be read; requesting a new one", { "error": e.to_string(), "name": name });
+                    curia::warn!("Stored play certificate is unreadable. Requesting a new one.", { "error": e.to_string(), "name": name });
                 }
             },
             None => {
-                curia::info!("no play certificate is stored; requesting one", { "name": name });
+                curia::info!("No play certificate is stored. Requesting one.", { "name": name });
             }
         }
 
@@ -188,7 +337,7 @@ impl PlayService {
                 Err(error) if Self::name_forgotten(&error) => return Err(error),
                 Err(error) => {
                     let retry_in = backoff.next();
-                    Self::log_failure("could not obtain a play certificate; retrying", &error, retry_in);
+                    Self::log_failure("Play certificate request failed. Retrying.", &error, retry_in);
                     Self::wait(retry_in, cancel, "obtaining a play certificate").await?;
                 }
             }
@@ -231,8 +380,23 @@ impl PlayService {
             .store_certificate(&chain_pem, &key.serialize_pem())
             .await?;
 
-        curia::info!("play certificate stored", { "name": name });
+        curia::info!("Play certificate saved", { "name": name, "expires": Self::expires(&chain_pem) });
         Ok(())
+    }
+
+    // When the leaf expires, for the log. A chain that does not parse was rejected before
+    // this is called, so the fallback is never seen in practice.
+    fn expires(chain_pem: &str) -> String {
+        use x509_parser::prelude::*;
+
+        x509_parser::pem::parse_x509_pem(chain_pem.as_bytes())
+            .ok()
+            .and_then(|(_, pem)| {
+                X509Certificate::from_der(&pem.contents)
+                    .ok()
+                    .map(|(_, leaf)| leaf.validity().not_after.to_datetime().to_string())
+            })
+            .unwrap_or_default()
     }
 
     /// Renews the certificate two thirds of the way through its life and signals `renewed_tx`
@@ -253,13 +417,13 @@ impl PlayService {
                 let wait = match self.renewal_wait(&name).await {
                     Ok(wait) => wait,
                     Err(e) => {
-                        curia::warn!("could not read the play certificate's renewal time; renewing", { "error": format!("{e:#}") });
+                        curia::warn!("Play certificate renewal time is unreadable. Renewing now.", { "error": format!("{e:#}") });
                         Duration::ZERO
                     }
                 };
                 let wait = wait.max(Self::MIN_RENEWAL_GAP);
 
-                curia::info!("play certificate renewal scheduled", { "name": name.clone(), "in_hours": wait.as_secs() / 3600 });
+                curia::info!("Play certificate renewal scheduled", { "name": name.clone(), "in_hours": wait.as_secs() / 3600 });
                 if Self::wait(wait, &cancel, "waiting to renew").await.is_err() {
                     return;
                 }
@@ -275,11 +439,11 @@ impl PlayService {
                             if Self::name_forgotten(&error) && !name_cleared {
                                 name_cleared = true;
                                 if let Err(e) = PlayNameStore::clear(self.conn.as_ref()).await {
-                                    curia::warn!("could not forget the released play name", { "error": e.to_string() });
+                                    curia::warn!("Released play name could not be forgotten", { "error": e.to_string() });
                                 }
-                                curia::error!("the registry no longer holds this server's play name; restart the server to claim a new one", { "name": name.clone() });
+                                curia::error!("Registry no longer holds the play name. Restart the server to claim a new one.", { "name": name.clone() });
                             } else {
-                                Self::log_failure("play certificate renewal failed; retrying", &error, retry_in);
+                                Self::log_failure("Play certificate renewal failed. Retrying.", &error, retry_in);
                             }
                             if Self::wait(retry_in, &cancel, "retrying a renewal").await.is_err() {
                                 return;
@@ -288,7 +452,7 @@ impl PlayService {
                     }
                 }
 
-                curia::info!("play certificate renewed", { "name": name.clone() });
+                curia::info!("Play certificate renewed", { "name": name.clone() });
                 tokio::select! {
                     biased;
                     _ = cancel.cancelled() => return,
@@ -322,6 +486,14 @@ impl PlayService {
         CertificateExpiry::renew_at(pem).is_ok_and(|at| at <= SystemTime::now())
     }
 
+    // The registry answered, and said it has no passed preflight for this server.
+    fn preflight_required(error: &anyhow::Error) -> bool {
+        error
+            .downcast_ref::<EnrollmentError>()
+            .and_then(EnrollmentError::reason)
+            == Some(EnrollRefuseReason::PreflightRequired)
+    }
+
     // The registry answered, and said it holds no play name for this server's key.
     fn name_forgotten(error: &anyhow::Error) -> bool {
         error
@@ -334,12 +506,12 @@ impl PlayService {
     fn permanent_cause(error: &anyhow::Error) -> Option<&'static str> {
         match error.downcast_ref::<EnrollmentError>()? {
             EnrollmentError::PlayNotOffered { .. } => {
-                Some("the registry is older than enrollment version 3 and has no play names; it must be upgraded")
+                Some("Registry is older than enrollment version 3 and has no play names. Upgrade the registry.")
             }
             EnrollmentError::Refused {
                 reason: EnrollRefuseReason::PlayUnavailable,
                 ..
-            } => Some("the registry does not offer play names"),
+            } => Some("Registry does not offer play names."),
             _ => None,
         }
     }

@@ -1,5 +1,5 @@
 use common::reqwest::{Client as ReqwestClient, ClientBuilder};
-use common::rustls::{BvcClientTls, PlayRoots, VerifierMode};
+use common::rustls::{BvcClientTls, PlayRoots};
 use common::structs::reachability::AddressFamilyPreference;
 use rustls::pki_types::CertificateDer;
 use std::net::{IpAddr, Ipv4Addr};
@@ -13,9 +13,6 @@ pub struct Client {
     // client; only a test supplies others.
     #[serde(skip)]
     play_roots: Option<Vec<CertificateDer<'static>>>,
-    // `None` follows the build: permissive in a debug build, strict in a release build.
-    #[serde(skip)]
-    mode: Option<VerifierMode>,
 }
 
 impl Client {
@@ -24,13 +21,12 @@ impl Client {
             ca_cert,
             pem,
             play_roots: None,
-            mode: None,
         }
     }
 
-    /// A client that checks play-zone names against `play_roots` and validates strictly in
-    /// every build, so a test can observe the release behaviour from a debug binary.
-    pub fn new_strict_with_play_roots(
+    /// A client that checks play-zone names against `play_roots`, so a test can serve a
+    /// play-named server from a chain it built.
+    pub fn new_with_play_roots(
         ca_cert: String,
         pem: String,
         play_roots: Vec<CertificateDer<'static>>,
@@ -39,17 +35,12 @@ impl Client {
             ca_cert,
             pem,
             play_roots: Some(play_roots),
-            mode: Some(VerifierMode::Strict),
         }
     }
 
     /// The server's CA and this player's certificate and key, for sockets reqwest does not open.
     pub(crate) fn tls_material(&self) -> (&str, &str) {
         (&self.ca_cert, &self.pem)
-    }
-
-    fn verifier_mode(&self) -> VerifierMode {
-        self.mode.unwrap_or(VerifierMode::for_build())
     }
 
     // Under PreferIpv4 the local socket is pinned to IPv4, which is what every
@@ -73,7 +64,6 @@ impl Client {
             play_roots,
             Some(&self.ca_cert),
             Some(identity),
-            self.verifier_mode(),
         )
         .expect("the TLS configuration must build from the server's certificate authority")
             .timeout(Duration::from_secs(10))

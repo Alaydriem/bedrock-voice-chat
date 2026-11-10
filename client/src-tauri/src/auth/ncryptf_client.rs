@@ -1,5 +1,5 @@
 use common::ncryptflib::ExportableEncryptionKeyData;
-use common::rustls::{BvcClientTls, VerifierMode};
+use common::rustls::BvcClientTls;
 
 use common::structs::reachability::AddressFamilyPreference;
 use tauri_plugin_http::reqwest;
@@ -33,7 +33,7 @@ impl NcryptfClient {
     pub(crate) fn get_reqwest_client(preference: AddressFamilyPreference) -> reqwest::Client {
         let config = LoginClientConfig::new(preference);
 
-        let mut builder = BvcClientTls::http_client_builder(None, None, VerifierMode::for_build())
+        let mut builder = BvcClientTls::http_client_builder(None, None)
             .expect("the built-in TLS configuration must build")
             .timeout(config.timeout())
             .connect_timeout(config.connect_timeout());

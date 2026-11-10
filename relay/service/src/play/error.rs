@@ -12,6 +12,8 @@ pub enum PlayError {
     CsrRejected(String),
     #[error("{0} is not a global unicast address")]
     AddressRefused(std::net::IpAddr),
+    #[error("{0} is behind carrier-grade NAT")]
+    AddressCgnat(std::net::IpAddr),
     #[error("signing the certificate failed: {0}")]
     Signer(String),
     #[error("binding the play DNS server on {address}: {source}")]
@@ -34,6 +36,8 @@ impl PlayError {
             Self::RateLimited => EnrollRefuseReason::RateLimited,
             Self::NoPlayName => EnrollRefuseReason::NoPlayName,
             Self::CsrRejected(_) => EnrollRefuseReason::CsrRejected,
+            Self::AddressRefused(_) => EnrollRefuseReason::AddressNotPublic,
+            Self::AddressCgnat(_) => EnrollRefuseReason::AddressCgnat,
             _ => EnrollRefuseReason::Internal,
         }
     }

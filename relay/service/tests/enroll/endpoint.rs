@@ -16,7 +16,9 @@ use bvc_relay_service::play::{
 use bvc_relay_service::registry::{ClaimService, RegistryEndpoint, RegistryService};
 use bvc_relay_service::scheduler::DailyScheduler;
 use bvc_relay_service::validation::{AddressProbe, AddressVerifier, ValidationChecker};
-use common::structs::relay::enroll::{EnrollFrame, EnrollRefuseReason, EnrollVersion};
+use common::structs::relay::enroll::{
+    EnrollFrame, EnrollRefuseReason, EnrollVersion, PlayPreflightOutcome,
+};
 use common::structs::relay::wire::Framing;
 use iroh::endpoint::Connection;
 use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait};
@@ -71,12 +73,17 @@ impl Harness {
 
     // `scheduler_roles` are what a check-in's evaluation sees, as opposed to enrollment.
     pub async fn start_with(roles: Vec<String>, scheduler_roles: Vec<String>, ceiling: u32) -> Self {
-        Self::boot(roles, scheduler_roles, ceiling, false).await
+        Self::boot(roles, scheduler_roles, ceiling, false, false).await
     }
 
     // A registry with the play plane: a local signing CA and a probe that always succeeds.
     pub async fn start_with_play(roles: Vec<String>) -> Self {
-        Self::boot(roles.clone(), roles, 50, true).await
+        Self::boot(roles.clone(), roles, 50, true, true).await
+    }
+
+    // A registry with the play plane where no node has passed a preflight yet.
+    pub async fn start_with_play_unpreflighted(roles: Vec<String>) -> Self {
+        Self::boot(roles.clone(), roles, 50, true, false).await
     }
 
     async fn boot(
@@ -84,6 +91,7 @@ impl Harness {
         scheduler_roles: Vec<String>,
         ceiling: u32,
         with_play: bool,
+        preflighted: bool,
     ) -> Self {
         let dir = TempDir::new().expect("tempdir");
         let client_dir = TempDir::new().expect("tempdir");
@@ -116,7 +124,7 @@ impl Harness {
             );
             play_zone = Some(zone.clone());
             play_names = Some(names.clone());
-            PlayPlane::new_shared(names, issuance, zone, probe)
+            PlayPlane::new_shared(names, issuance, zone, probe, PlayFixture::preflight(true))
         });
 
         let scheduler = DailyScheduler::new_shared(
@@ -158,6 +166,18 @@ impl Harness {
                 },
             )
             .await;
+        }
+        if preflighted {
+            let frames = Self::frames_on(&conn, &Self::preflight_frame(), 2).await;
+            assert!(
+                matches!(
+                    frames.last(),
+                    Some(EnrollFrame::PlayPreflightResult {
+                        outcome: PlayPreflightOutcome::Reachable { .. }
+                    })
+                ),
+                "{frames:?}"
+            );
         }
 
         Self {
@@ -210,23 +230,47 @@ impl Harness {
         self._client.node_id().to_string()
     }
 
+    async fn frames(&self, frame: &EnrollFrame, count: usize) -> Vec<EnrollFrame> {
+        Self::frames_on(&self.conn, frame, count).await
+    }
+
     async fn request(&self, frame: &EnrollFrame) -> EnrollFrame {
         Self::request_on(&self.conn, frame).await
     }
 
     async fn request_on(conn: &Connection, frame: &EnrollFrame) -> EnrollFrame {
+        Self::frames_on(conn, frame, 1)
+            .await
+            .pop()
+            .expect("one reply frame")
+    }
+
+    // Reads `count` reply frames from one stream.
+    async fn frames_on(conn: &Connection, frame: &EnrollFrame, count: usize) -> Vec<EnrollFrame> {
         let (mut send, mut recv) = conn.open_bi().await.expect("opens a stream");
         send.write_all(&Framing::encode(frame).expect("encodes"))
             .await
             .expect("writes");
         send.finish().expect("finishes");
 
-        let mut header = [0u8; Framing::HEADER_LEN];
-        recv.read_exact(&mut header).await.expect("reads a header");
-        let len = Framing::payload_len(&header).expect("a valid length");
-        let mut payload = vec![0u8; len];
-        recv.read_exact(&mut payload).await.expect("reads a body");
-        Framing::decode(&payload).expect("decodes")
+        let mut frames = Vec::new();
+        for _ in 0..count {
+            let mut header = [0u8; Framing::HEADER_LEN];
+            recv.read_exact(&mut header).await.expect("reads a header");
+            let len = Framing::payload_len(&header).expect("a valid length");
+            let mut payload = vec![0u8; len];
+            recv.read_exact(&mut payload).await.expect("reads a body");
+            frames.push(Framing::decode(&payload).expect("decodes"));
+        }
+        frames
+    }
+
+    // Declares a documentation address: the fixture registry allows private targets.
+    fn preflight_frame() -> EnrollFrame {
+        EnrollFrame::PlayPreflight {
+            address: Some("203.0.113.9".to_string()),
+            port: 443,
+        }
     }
 
     async fn enroll(&self) -> String {
@@ -415,6 +459,112 @@ async fn play_frames_are_refused_on_a_connection_that_agreed_version_two() {
     };
     assert_eq!(claim, refused);
     assert_eq!(certificate, refused);
+}
+
+#[tokio::test]
+async fn a_claim_without_a_passed_preflight_is_refused() {
+    let harness = Harness::start_with_play_unpreflighted(vec!["role-a".to_string()]).await;
+
+    let reply = harness.request(&EnrollFrame::PlayClaim).await;
+
+    assert_eq!(
+        reply,
+        EnrollFrame::Refuse {
+            reason: EnrollRefuseReason::PreflightRequired
+        }
+    );
+    assert_eq!(
+        harness.play_names().name_for(&harness.node_id()).await.expect("reads"),
+        None
+    );
+}
+
+#[tokio::test]
+async fn a_claim_after_a_passed_preflight_is_assigned() {
+    let harness = Harness::start_with_play_unpreflighted(vec!["role-a".to_string()]).await;
+
+    let frames = harness.frames(&Harness::preflight_frame(), 2).await;
+    assert!(matches!(frames[0], EnrollFrame::PlayPreflightNonce { .. }), "{frames:?}");
+    assert!(
+        matches!(
+            frames[1],
+            EnrollFrame::PlayPreflightResult {
+                outcome: PlayPreflightOutcome::Reachable { .. }
+            }
+        ),
+        "{frames:?}"
+    );
+
+    assert!(matches!(
+        harness.request(&EnrollFrame::PlayClaim).await,
+        EnrollFrame::PlayAssigned { .. }
+    ));
+}
+
+#[tokio::test]
+async fn a_preflight_assigns_no_play_name() {
+    let harness = Harness::start_with_play_unpreflighted(vec!["role-a".to_string()]).await;
+
+    let frames = harness.frames(&Harness::preflight_frame(), 2).await;
+
+    assert!(
+        matches!(
+            frames[1],
+            EnrollFrame::PlayPreflightResult {
+                outcome: PlayPreflightOutcome::Reachable { .. }
+            }
+        ),
+        "{frames:?}"
+    );
+    assert_eq!(
+        harness.play_names().name_for(&harness.node_id()).await.expect("reads"),
+        None
+    );
+    assert!(harness.play_names().published().await.expect("reads").is_empty());
+}
+
+#[tokio::test]
+async fn a_preflight_with_a_declared_address_that_is_not_an_ip_is_not_public() {
+    let harness = Harness::start_with_play_unpreflighted(vec!["role-a".to_string()]).await;
+
+    let reply = harness
+        .request(&EnrollFrame::PlayPreflight {
+            address: Some("not-an-ip".to_string()),
+            port: 443,
+        })
+        .await;
+
+    assert_eq!(
+        reply,
+        EnrollFrame::PlayPreflightResult {
+            outcome: PlayPreflightOutcome::AddressNotPublic {
+                address: "not-an-ip".to_string()
+            }
+        }
+    );
+}
+
+#[tokio::test]
+async fn a_preflight_on_a_connection_that_agreed_version_two_is_refused() {
+    let harness = Harness::start_with_play_unpreflighted(vec!["role-a".to_string()]).await;
+    let conn = harness.redial().await;
+    let hello = Harness::request_on(
+        &conn,
+        &EnrollFrame::Hello {
+            versions: vec![EnrollVersion(2)],
+        },
+    )
+    .await;
+    assert_eq!(hello, EnrollFrame::Ready { version: EnrollVersion(2) });
+
+    let reply = Harness::request_on(&conn, &Harness::preflight_frame()).await;
+
+    assert_eq!(
+        reply,
+        EnrollFrame::Refuse {
+            reason: EnrollRefuseReason::PlayUnavailable
+        }
+    );
 }
 
 #[tokio::test]

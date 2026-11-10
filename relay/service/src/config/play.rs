@@ -108,8 +108,8 @@ impl PlayConfig {
         self.validate_ca_url()
     }
 
-    // The CA is reached by a fixed name that is resolved to `connect`, and reqwest uses
-    // the URL's port rather than the socket address's. A URL naming another host would be
+    // The CA is reached by a fixed name that is resolved to `connect`, and the connection
+    // uses the URL's port rather than the endpoint's. A URL naming another host would be
     // resolved by public DNS; another port would silently ignore `connect`.
     fn validate_ca_url(&self) -> Result<(), ConfigError> {
         let url = url::Url::parse(&self.ca.url)
