@@ -99,4 +99,44 @@ class SvcGroupAudioTest {
 
         assertEquals(1, opens)
     }
+
+    // A channel holds the listener's connection from the moment it was opened. One kept past a
+    // disconnect would carry audio to a connection that is gone, and never be let go.
+    @Test
+    fun `a listener who went offline gets a new channel when they return`() {
+        link(membersOnly = true)
+        var opens = 0
+        val counting = SvcGroupAudio(
+            table = table,
+            speakers = SvcSpeakers { false },
+            membersOf = { listOf(steve) },
+            staticChannelFor = { _, _ -> opens++; FakeAudioChannel(UUID.randomUUID()) },
+            speakerOf = { null },
+        )
+        counting.deliver(TestFrames.speech("Alex", group = scope(true)))
+
+        counting.retain(emptySet())
+        counting.deliver(TestFrames.speech("Alex", group = scope(true)))
+
+        assertEquals(2, opens)
+    }
+
+    @Test
+    fun `a listener who is still online keeps their channel`() {
+        link(membersOnly = true)
+        var opens = 0
+        val counting = SvcGroupAudio(
+            table = table,
+            speakers = SvcSpeakers { false },
+            membersOf = { listOf(steve) },
+            staticChannelFor = { _, _ -> opens++; FakeAudioChannel(UUID.randomUUID()) },
+            speakerOf = { null },
+        )
+        counting.deliver(TestFrames.speech("Alex", group = scope(true)))
+
+        counting.retain(setOf(steve))
+        counting.deliver(TestFrames.speech("Alex", group = scope(true)))
+
+        assertEquals(1, opens)
+    }
 }

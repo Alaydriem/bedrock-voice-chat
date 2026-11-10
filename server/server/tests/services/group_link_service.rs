@@ -3,6 +3,7 @@ use std::sync::Arc;
 use bvc_server_lib::services::{
     ChannelMembershipService, GroupLinkFeed, GroupLinkLeases, GroupLinkService,
 };
+use bvc_server_lib::stream::quic::connection::ConnectionRegistry;
 use bvc_server_lib::stream::quic::{PacketOrigin, WebhookReceiver};
 use common::structs::channel::ChannelCollection;
 use common::structs::control::{GroupLinkAction, GroupLinkEventKind};
@@ -29,12 +30,13 @@ struct Fixture {
 fn fixture() -> Fixture {
     let channels = Arc::new(ChannelCollection::new(16));
     let webhook = quiet_webhook();
-    let leases = GroupLinkLeases::new_shared();
+    let leases = GroupLinkLeases::new_shared(GroupLinkLeases::TTL);
     let service = GroupLinkService::new(
         channels.clone(),
         webhook.clone(),
         leases.clone(),
         GroupLinkFeed::new_shared(GroupLinkFeed::CAPACITY),
+        None,
     );
     Fixture {
         channels,
@@ -105,6 +107,20 @@ fn a_caught_up_drain_is_empty_and_not_reset() {
     assert!(drain.events.is_empty());
 }
 
+// A bridge that resyncs has to place its cursor even when the drain carries no events.
+#[test]
+fn a_drain_reports_the_latest_sequence_when_it_returns_no_events() {
+    let feed = GroupLinkFeed::new(8);
+    publish_join(&feed, "A", "Bob");
+    publish_join(&feed, "A", "Ann");
+
+    let drain = feed.drain(2);
+
+    assert!(drain.events.is_empty());
+    assert_eq!(drain.latest, 2);
+    assert_eq!(GroupLinkFeed::new(8).drain(0).latest, 0);
+}
+
 #[test]
 fn protected_channel_publishes_protected_then_nothing() {
     let feed = GroupLinkFeed::new(16);
@@ -150,6 +166,49 @@ async fn create_linked_returns_the_new_channel_id() {
     let channel = fx.channels.get(&id).await.expect("created");
     assert!(channel.is_members_only());
     assert_eq!(channel.creator, identity("Steve"));
+}
+
+// The name is whatever a player typed into Simple Voice Chat. Counted in characters, so a cut
+// never lands inside one.
+#[tokio::test]
+async fn create_linked_cuts_a_long_name_to_the_limit() {
+    let fx = fixture();
+
+    let id = fx
+        .service
+        .apply(GroupLinkAction::CreateLinked {
+            creator: "Steve".to_string(),
+            name: "é".repeat(100),
+            members_only: false,
+        })
+        .await
+        .expect("applied")
+        .expect("an id");
+
+    let name = fx.channels.get(&id).await.expect("created").name;
+    assert_eq!(name.chars().count(), GroupLinkService::MAX_NAME_CHARS);
+}
+
+// Refusing would have the bridge ask again on every resync.
+#[tokio::test]
+async fn create_linked_names_a_blank_group() {
+    let fx = fixture();
+
+    let id = fx
+        .service
+        .apply(GroupLinkAction::CreateLinked {
+            creator: "Steve".to_string(),
+            name: "   ".to_string(),
+            members_only: false,
+        })
+        .await
+        .expect("applied")
+        .expect("an id");
+
+    assert_eq!(
+        fx.channels.get(&id).await.expect("created").name,
+        GroupLinkService::UNNAMED
+    );
 }
 
 #[tokio::test]
@@ -220,6 +279,57 @@ async fn channels_lists_non_protected_only() {
     assert_eq!(views.len(), 1);
     assert_eq!(views[0].id, open);
     assert_eq!(views[0].players, vec!["Steve".to_string()]);
+}
+
+// A Java member holds no BVC client, so no connection close ever removes them. The bridge
+// needs to know which members those are to take the ones who have gone out of the channel.
+#[tokio::test]
+async fn channels_names_the_members_with_no_live_client() {
+    let channels = Arc::new(ChannelCollection::new(16));
+    let webhook = quiet_webhook();
+    let registry = Arc::new(ConnectionRegistry::new());
+    let (tx, _rx) = mpsc::channel(4);
+    registry
+        .try_register(1, identity("Bob").to_string().into(), "fp-1".into(), tx)
+        .expect("admitted");
+    let service = GroupLinkService::new(
+        channels.clone(),
+        webhook.clone(),
+        GroupLinkLeases::new_shared(GroupLinkLeases::TTL),
+        GroupLinkFeed::new_shared(GroupLinkFeed::CAPACITY),
+        Some(registry),
+    );
+    let id = ChannelMembershipService::create(
+        &channels,
+        &webhook,
+        "Raid".to_string(),
+        identity("Bob"),
+    )
+    .await;
+    channels.add_player_to_channel(&identity("Bob"), &id).await;
+    channels.add_player_to_channel(&identity("Steve"), &id).await;
+
+    let view = service.channels().into_iter().next().expect("one channel");
+
+    assert_eq!(view.players.len(), 2);
+    assert_eq!(view.clientless, vec!["Steve".to_string()]);
+}
+
+// Without a registry nothing is known about clients, and a guess of "none" would have the
+// bridge take every absent member out.
+#[tokio::test]
+async fn channels_names_no_clientless_member_without_a_registry() {
+    let fx = fixture();
+    let id = ChannelMembershipService::create(
+        &fx.channels,
+        &fx.webhook,
+        "Raid".to_string(),
+        identity("Steve"),
+    )
+    .await;
+    fx.channels.add_player_to_channel(&identity("Steve"), &id).await;
+
+    assert!(fx.service.channels()[0].clientless.is_empty());
 }
 
 #[tokio::test]

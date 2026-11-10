@@ -14,4 +14,8 @@ pub struct GroupLinkDrain {
     /// Random per server start, and below 2^53 so every JSON reader keeps it exact. A bridge
     /// that sees it change knows the sequence numbers started over, and resyncs.
     pub epoch: u64,
+    /// The highest sequence number the feed has given out, 0 before its first event. A bridge
+    /// that resyncs moves its cursor here, which `events` alone cannot tell it when it is empty.
+    #[serde(default)]
+    pub latest: u64,
 }

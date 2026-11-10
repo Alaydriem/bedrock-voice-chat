@@ -1,6 +1,7 @@
 mod advertised;
 mod block;
 mod egress;
+mod group_claim;
 mod ingest;
 mod jukebox;
 mod links;

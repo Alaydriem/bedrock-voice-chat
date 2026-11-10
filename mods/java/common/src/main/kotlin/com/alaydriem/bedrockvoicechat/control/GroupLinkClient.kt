@@ -8,7 +8,8 @@ import org.slf4j.LoggerFactory
 
 /**
  * Routes group link calls to the embedded server over FFI or to an external one over HTTP, the
- * way [ControlSender] routes control actions. Joins and leaves are ordinary control actions.
+ * way [ControlSender] routes control actions. Joins and leaves are ordinary control actions, but
+ * sent here and not through [ControlSender], whose HTTP path does not wait for an answer.
  *
  * The JSON is built by hand because this mod shares no types with Rust's `common`; the shapes are
  * pinned on both sides by contract tests.
@@ -16,7 +17,6 @@ import org.slf4j.LoggerFactory
 class GroupLinkClient(
     private val httpHandler: HttpRequestHandler?,
     private val embeddedServer: BvcServerManager?,
-    private val control: ControlSender,
 ) : GroupLinkApi {
     companion object {
         private val logger = LoggerFactory.getLogger("BVC Group Link")
@@ -72,9 +72,25 @@ class GroupLinkClient(
 
     override fun lease(channels: List<String>): Boolean = action(leaseJson(channels))?.ok == true
 
-    override fun join(player: String, channel: String) = control.send(ControlAction.JoinGroup(channel), player)
+    override fun join(player: String, channel: String): Boolean =
+        control(ControlAction.JoinGroup(channel).toClientActionJson(player))
 
-    override fun leave(player: String) = control.send(ControlAction.LeaveGroup, player)
+    override fun leave(player: String): Boolean = control(ControlAction.LeaveGroup.toClientActionJson(player))
+
+    // Blocking on both transports, so a leave and the join after it reach BVC in that order. An
+    // outcome means the action was handed on or refused for a protected group, not applied.
+    private fun control(json: String): Boolean {
+        val embedded = embedded
+        val result = when {
+            embedded != null -> embedded.clientAction(json)
+            httpHandler != null -> httpHandler.controlBlocking(json)
+            else -> {
+                logger.warn("No group link transport available (neither embedded nor HTTP configured)")
+                return false
+            }
+        }
+        return result.ok && result.outcome == null
+    }
 
     override fun drain(after: Long): GroupLinkDrainJson? {
         val embedded = embedded
