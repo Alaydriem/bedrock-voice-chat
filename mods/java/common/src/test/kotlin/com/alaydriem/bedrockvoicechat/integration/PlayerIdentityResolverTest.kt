@@ -43,8 +43,8 @@ class PlayerIdentityResolverTest {
             GateRow("G11", "テスト ユーザー", null, ".", true, "テスト ユーザー" to null, "テスト ユーザー"),
             GateRow("G12", "Player One", "Linked_Java", "", false, "Linked_Java" to "Player One", "Player One"),
             GateRow("G13", "Steve", "Steve", "", false, "Steve" to null, "Steve"),
-            GateRow("G14", "LongGamertag123", "Notch", "", false, "Notch" to "LongGamertag123", "LongGamertag123"),
-            GateRow("G17", "Notch", "TheNotch", "", false, "Notch" to null, "Notch")
+            GateRow("G14", "LongGamertag123", "Builder", "", false, "Builder" to "LongGamertag123", "LongGamertag123"),
+            GateRow("G17", "Builder", "TheBuilder", "", false, "Builder" to "Builder", "Builder")
         )
     }
 
@@ -82,18 +82,38 @@ class PlayerIdentityResolverTest {
 
         assertEquals("XboxTag", identity.name)
         assertEquals("JavaName" to "XboxTag", identity.reportedName to identity.reportedAlternative)
-        assertEquals(listOf("XboxTag", "JavaName"), identity.names)
     }
 
-    // beta.27 read this player as "prefixed" and reported (Notch, -). Keeping that output
-    // means an old server still registers them under the name their client signs in with.
+    // beta.27 read this player as "prefixed" and reported them under the gamertag. The name
+    // is kept so an old server still registers them under the name their client signs in
+    // with; the alternative equal to it is the proof a Java account UUID cannot give.
     @Test
-    fun `a linked player whose java name ends with the gamertag keeps the beta27 wire`() {
-        val identity = PlayerIdentityResolver { "Notch" }.resolve(JAVA, "TheNotch")
+    fun `a linked player whose java name ends with the gamertag reports the gamertag as its own proof`() {
+        val identity = PlayerIdentityResolver { "Builder" }.resolve(JAVA, "TheBuilder")
 
-        assertEquals("Notch", identity.name)
-        assertEquals("TheNotch", identity.javaName)
-        assertEquals("Notch" to null, identity.reportedName to identity.reportedAlternative)
+        assertEquals("Builder", identity.name)
+        assertEquals("TheBuilder", identity.javaName)
+        assertEquals("Builder" to "Builder", identity.reportedName to identity.reportedAlternative)
+    }
+
+    @Test
+    fun `bestMatch finds a gamertag without regard to case`() {
+        val resolver = PlayerIdentityResolver { null }
+        val candidates = listOf(1 to PlayerIdentity("XboxTag", null, false))
+
+        assertEquals(1, resolver.bestMatch("xboxtag", candidates))
+    }
+
+    // An exact Java name is a stronger match than a gamertag that only matches without case.
+    @Test
+    fun `bestMatch prefers an exact java name over a gamertag that differs in case`() {
+        val resolver = PlayerIdentityResolver { null }
+        val candidates = listOf(
+            1 to PlayerIdentity("Steve", null, false),
+            2 to PlayerIdentity("LongGamertag123", "steve", true)
+        )
+
+        assertEquals(2, resolver.bestMatch("steve", candidates))
     }
 
     // Floodgate on the proxy only: the backend has no API to ask, so nothing better than the
@@ -111,12 +131,12 @@ class PlayerIdentityResolverTest {
     fun `bestMatch prefers a gamertag over a java name`() {
         val resolver = PlayerIdentityResolver { null }
         val candidates = listOf(
-            1 to PlayerIdentity("LongGamertag123", "Notch", true),
-            2 to PlayerIdentity("Notch", ".Notch", false)
+            1 to PlayerIdentity("LongGamertag123", "Builder", true),
+            2 to PlayerIdentity("Builder", ".Builder", false)
         )
 
-        assertEquals(2, resolver.bestMatch("Notch", candidates))
-        assertEquals(2, resolver.bestMatch("notch", candidates))
+        assertEquals(2, resolver.bestMatch("Builder", candidates))
+        assertEquals(2, resolver.bestMatch("builder", candidates))
         assertEquals(1, resolver.bestMatch("LongGamertag123", candidates))
         assertNull(resolver.bestMatch("Nobody", candidates))
     }

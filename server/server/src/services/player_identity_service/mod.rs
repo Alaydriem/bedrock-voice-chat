@@ -27,8 +27,11 @@ pub struct PlayerIdentityService {
     refused_claims: Cache<(String, String, Game), ()>,
     // (name, dropped uuid) pairs already warned about.
     warned_duplicates: Cache<(String, String), ()>,
-    // Whether an entry (reported name, platform uuid, game) follows the alias on its name.
-    remap_decisions: Cache<(String, String, Game), bool>,
+    // Whether an entry (reported name, alias target, platform uuid, game) follows the alias
+    // on its name.
+    remap_decisions: Cache<(String, String, String, Game), bool>,
+    // Serializes the check-and-write of an alias claim.
+    claims_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl PlayerIdentityService {
@@ -36,6 +39,8 @@ impl PlayerIdentityService {
     // the reported name is that player's Xbox gamertag.
     const FLOODGATE_UUID_PREFIX: &'static str = "00000000-0000-0000-";
     const PLATFORM_UUID: &'static str = "platform_uuid";
+    // The alias type the sign-in routes record for a Java profile name Microsoft returned.
+    const MINECRAFT_SERVICES: &'static str = "minecraft_services";
 
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         let alias_cache = Cache::builder()
@@ -62,6 +67,7 @@ impl PlayerIdentityService {
             refused_claims,
             warned_duplicates,
             remap_decisions,
+            claims_lock: Arc::new(tokio::sync::Mutex::new(())),
         }
     }
 
@@ -70,7 +76,9 @@ impl PlayerIdentityService {
     ///
     /// An entry carrying `alternative_identity` takes it as its name, and the name it was
     /// reported under is returned as an [`AliasClaim`] for [`Self::record_alias_claims`] once
-    /// the gamertag is registered. Other entries follow a known alias, but only when their
+    /// the gamertag is registered. That holds when the two are equal too: the gamertag then
+    /// claims its own name, which keeps the name from becoming another player's alias. Other
+    /// entries follow a known alias, but only when their
     /// platform UUID belongs to the alias's target or to the record the alias names, so a
     /// stranger who shares a name is never moved onto someone else's gamertag. When two
     /// entries end with one name, the one whose name is an Xbox gamertag keeps it and the
@@ -94,9 +102,11 @@ impl PlayerIdentityService {
             player.clear_alternative_identity();
             verified[index] = true;
 
+            // A gamertag reported as its own alternative claims the name for itself. That
+            // record is what stops another player from taking the name as their alias.
             let reported = player.get_name().to_string();
+            claims.push(AliasClaim::new(&reported, &gamertag, player.get_player_uuid()));
             if gamertag != reported {
-                claims.push(AliasClaim::new(&reported, &gamertag, player.get_player_uuid()));
                 player.set_name(gamertag);
             }
         }
@@ -107,22 +117,40 @@ impl PlayerIdentityService {
             }
 
             let reported = player.get_name().to_string();
-            let target = self.resolve_name(&reported, game).await;
-            if target == reported {
-                continue;
-            }
-
-            let follows = match player.get_player_uuid() {
-                None => true,
-                Some(uuid) => self.remap_allowed(uuid, &target, &reported, game).await,
-            };
-            if follows {
-                player.set_name(target);
+            let canonical = self
+                .canonical_name(&reported, player.get_player_uuid(), game)
+                .await;
+            if canonical != reported {
+                player.set_name(canonical);
             }
         }
 
         self.drop_duplicate_names(players, &verified).await;
         claims
+    }
+
+    /// The gamertag a player reported as `reported` signs in with.
+    ///
+    /// An alias on the name is followed only when `player_uuid` shows the alias is this
+    /// player's, so a stranger who shares the name keeps it. Without a platform UUID there is
+    /// nothing to check and the alias is followed. Every path that takes a name from a game
+    /// server asks here, so positions and control actions land on the same player.
+    pub async fn canonical_name(
+        &self,
+        reported: &str,
+        player_uuid: Option<&str>,
+        game: &Game,
+    ) -> String {
+        let target = self.resolve_name(reported, game).await;
+        if target == reported {
+            return target;
+        }
+
+        let follows = match player_uuid {
+            None => true,
+            Some(uuid) => self.remap_allowed(uuid, &target, reported, game).await,
+        };
+        if follows { target } else { reported.to_string() }
     }
 
     /// Record the aliases [`Self::canonicalize_roster`] claimed, now that the roster's
@@ -131,19 +159,25 @@ impl PlayerIdentityService {
     /// A claim is refused when the alias names another player's record, or already points at
     /// another player, and the claimant's platform UUID does not prove the record is theirs.
     pub async fn record_alias_claims(&self, claims: &[AliasClaim], game: &Game) {
+        let mut pending = Vec::new();
         for claim in claims {
-            let cached = self
-                .alias_cache
-                .get(&(claim.alias.clone(), game.clone()))
-                .await;
-            if cached.as_deref() == Some(claim.gamertag.as_str()) {
+            if !self.claim_settled(claim, game).await {
+                pending.push(claim);
+            }
+        }
+        if pending.is_empty() {
+            return;
+        }
+
+        // The FFI path records claims from a task spawned on every position tick. The
+        // checks and the write below are one decision, so two ticks take turns.
+        let _recording = self.claims_lock.lock().await;
+        for claim in pending {
+            if self.claim_settled(claim, game).await {
                 continue;
             }
 
             let key = (claim.alias.clone(), claim.gamertag.clone(), game.clone());
-            if self.refused_claims.get(&key).await.is_some() {
-                continue;
-            }
 
             let Some(target_id) = self.find_player_id_by_gamertag(&claim.gamertag, game).await
             else {
@@ -156,14 +190,30 @@ impl PlayerIdentityService {
                 None => None,
             };
 
-            if let Some(alias_record) = self.find_player_id_by_gamertag(&claim.alias, game).await {
+            let alias_record = self.find_player_id_by_gamertag(&claim.alias, game).await;
+            let own_name = claim.alias == claim.gamertag;
+            if let Some(alias_record) = alias_record {
                 if claimant != Some(alias_record) {
                     self.refuse(key, claim, "the alias is another player's record").await;
+                    continue;
+                }
+                if !own_name
+                    && self
+                        .xbox_owner_other_than(alias_record, claim.player_uuid.as_deref(), game)
+                        .await
+                {
+                    self.refuse(key, claim, "the alias is an Xbox player's gamertag").await;
                     continue;
                 }
             }
 
             if let Some(holder) = self.alias_holder(&claim.alias, game).await {
+                // A name that is an alias of its own record was claimed by its owner as their
+                // gamertag. It cannot become another gamertag's alias.
+                if alias_record == Some(holder) && holder != target_id {
+                    self.refuse(key, claim, "the alias is an Xbox player's gamertag").await;
+                    continue;
+                }
                 if holder != target_id && claimant != Some(holder) {
                     self.refuse(key, claim, "the alias belongs to another player").await;
                     continue;
@@ -177,6 +227,20 @@ impl PlayerIdentityService {
                 curia::warn!("failed to record a floodgate alias", { "alias": claim.alias.clone(), "gamertag": claim.gamertag.clone(), "error": e.to_string() });
             }
         }
+    }
+
+    // Whether a claim needs no work: it is already recorded, or it was refused recently.
+    async fn claim_settled(&self, claim: &AliasClaim, game: &Game) -> bool {
+        let cached = self
+            .alias_cache
+            .get(&(claim.alias.clone(), game.clone()))
+            .await;
+        if cached.as_deref() == Some(claim.gamertag.as_str()) {
+            return true;
+        }
+
+        let key = (claim.alias.clone(), claim.gamertag.clone(), game.clone());
+        self.refused_claims.get(&key).await.is_some()
     }
 
     async fn refuse(&self, key: (String, String, Game), claim: &AliasClaim, reason: &str) {
@@ -232,24 +296,42 @@ impl PlayerIdentityService {
     // record named `reported` and bound before the alias existed: that record was the
     // claimant's own when the alias was granted. A UUID bound to that record afterwards
     // belongs to someone who registered under the name later, and proves nothing.
-    // Decisions are cached; positions arrive several times a second.
+    //
+    // An alias Microsoft vouched for needs no such proof while the UUID is on no record: the
+    // gamertag's account owned that Java profile name at sign-in. A Floodgate player can
+    // share the name, and a Java profile name can pass to another account, so a Floodgate
+    // UUID or a UUID already on another record does not follow it.
+    //
+    // Decisions are cached; positions arrive several times a second. The target is part of
+    // the key, so an alias that moves to another player is judged again.
     async fn remap_allowed(&self, uuid: &str, target: &str, reported: &str, game: &Game) -> bool {
-        let key = (reported.to_string(), uuid.to_string(), game.clone());
+        let key = (
+            reported.to_string(),
+            target.to_string(),
+            uuid.to_string(),
+            game.clone(),
+        );
         if let Some(decision) = self.remap_decisions.get(&key).await {
             return decision;
         }
 
+        let alias = self.alias_row(reported, game).await;
+        let microsoft_verified = alias
+            .as_ref()
+            .is_some_and(|alias| alias.alias_type == Self::MINECRAFT_SERVICES)
+            && !uuid.starts_with(Self::FLOODGATE_UUID_PREFIX);
+
         let decision = match self.platform_uuid_row(uuid, game).await {
-            None => false,
+            // A UUID no record holds has nothing against it, so Microsoft's word stands. A
+            // UUID bound to some other record is another player, whatever the name says.
+            None => microsoft_verified,
             Some(uuid_row) => {
                 if self.find_player_id_by_gamertag(target, game).await == Some(uuid_row.player_id) {
                     true
                 } else if self.find_player_id_by_gamertag(reported, game).await
                     == Some(uuid_row.player_id)
                 {
-                    self.alias_row(reported, game)
-                        .await
-                        .is_some_and(|alias| uuid_row.id < alias.id)
+                    alias.is_some_and(|alias| uuid_row.id < alias.id)
                 } else {
                     false
                 }
@@ -264,9 +346,32 @@ impl PlayerIdentityService {
         self.platform_uuid_row(uuid, game).await.map(|r| r.player_id)
     }
 
+    // Whether the record is proven to be an Xbox player's own gamertag by a Floodgate UUID
+    // other than `uuid`. Such a record's name cannot become anyone else's alias.
+    async fn xbox_owner_other_than(&self, record_id: i32, uuid: Option<&str>, game: &Game) -> bool {
+        let claimant = uuid.map(str::to_ascii_lowercase);
+        match player_identity::Entity::find()
+            .filter(player_identity::Column::PlayerId.eq(record_id))
+            .filter(player_identity::Column::AliasType.eq(Self::PLATFORM_UUID))
+            .filter(player_identity::Column::Game.eq(game.clone()))
+            .filter(player_identity::Column::Alias.starts_with(Self::FLOODGATE_UUID_PREFIX))
+            .all(self.db.as_ref())
+            .await
+        {
+            Ok(rows) => rows
+                .iter()
+                .any(|row| Some(row.alias.as_str()) != claimant.as_deref()),
+            Err(e) => {
+                curia::error!("failed to look up a record's platform uuids", { "error": e.to_string() });
+                false
+            }
+        }
+    }
+
+    // Platform UUIDs are stored in lower case.
     async fn platform_uuid_row(&self, uuid: &str, game: &Game) -> Option<player_identity::Model> {
         match player_identity::Entity::find()
-            .filter(player_identity::Column::Alias.eq(uuid))
+            .filter(player_identity::Column::Alias.eq(uuid.to_ascii_lowercase()))
             .filter(player_identity::Column::AliasType.eq(Self::PLATFORM_UUID))
             .filter(player_identity::Column::Game.eq(game.clone()))
             .one(self.db.as_ref())
@@ -330,17 +435,6 @@ impl PlayerIdentityService {
         }
 
         in_game_name.to_string()
-    }
-
-    /// Bulk resolve in-game names to canonical gamertags, mutating player names in place.
-    pub async fn resolve_and_remap_players(&self, players: &mut Vec<PlayerEnum>, game: &Game) {
-        for player in players.iter_mut() {
-            let current_name = player.get_name().to_string();
-            let resolved = self.resolve_name(&current_name, game).await;
-            if resolved != current_name {
-                player.set_name(resolved);
-            }
-        }
     }
 
     /// Create or update an alias mapping.
