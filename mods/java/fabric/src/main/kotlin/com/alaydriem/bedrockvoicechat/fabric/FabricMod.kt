@@ -291,7 +291,7 @@ class FabricMod : ModInitializer {
             val audioEventSender = AudioEventSender(null, embeddedServer)
             audioPlayerManager = JukeboxPlaybackService(audioEventSender, mainThreadScheduler) { relayWorld?.id() }
             controlSender = ControlSender(null, embeddedServer)
-            groupLink = GroupLinkClient(null, embeddedServer, controlSender)
+            groupLink = GroupLinkClient(null, embeddedServer)
 
             val quicPort = embeddedServer?.effectiveConfig()?.server?.quicPort
             logger.info("Bedrock Voice Chat using embedded server (QUIC port: {})", quicPort)
@@ -302,7 +302,7 @@ class FabricMod : ModInitializer {
             val audioEventSender = AudioEventSender(httpHandler, null)
             audioPlayerManager = JukeboxPlaybackService(audioEventSender, mainThreadScheduler) { relayWorld?.id() }
             controlSender = ControlSender(httpHandler, null)
-            groupLink = GroupLinkClient(httpHandler, null, controlSender)
+            groupLink = GroupLinkClient(httpHandler, null)
 
             logger.info("Bedrock Voice Chat will connect to: {}", config.bvcServer)
         }

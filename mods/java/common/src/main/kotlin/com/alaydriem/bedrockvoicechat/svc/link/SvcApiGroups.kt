@@ -6,7 +6,9 @@ import de.maxhenkel.voicechat.api.VoicechatServerApi
 import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * [SvcGroupsPort] over Simple Voice Chat's server API.
@@ -33,10 +35,11 @@ class SvcApiGroups(
         val groupOf: Map<UUID, SvcGroupView>,
         val installed: Set<UUID>,
         val names: Map<UUID, String>,
+        val online: Set<UUID>,
     )
 
     @Volatile
-    private var snapshot = Snapshot(emptyMap(), emptyMap(), emptySet(), emptyMap())
+    private var snapshot = Snapshot(emptyMap(), emptyMap(), emptySet(), emptyMap(), emptySet())
 
     fun <T> onServer(block: () -> T): T {
         val result = CompletableFuture<T>()
@@ -48,17 +51,28 @@ class SvcApiGroups(
                     result.completeExceptionally(e)
                 }
             })
+        } catch (e: Exception) {
+            // A stopping server refuses the task. Nothing ran.
+            logger.debug("The server thread refused a Simple Voice Chat group call: {}", e.toString())
+            throw SvcUnavailableException()
+        }
+        try {
             return result.get(CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
             throw SvcUnavailableException()
-        } catch (e: Exception) {
-            logger.debug("Simple Voice Chat group call did not answer: {}", e.toString())
+        } catch (e: TimeoutException) {
+            logger.debug("Simple Voice Chat group call did not answer in time")
             throw SvcUnavailableException()
+        } catch (e: ExecutionException) {
+            val cause = e.cause
+            if (cause is SvcUnavailableException) throw cause
+            logger.warn("Simple Voice Chat group call failed: {}", cause.toString())
+            throw SvcCallFailedException(cause)
         }
     }
 
-    /** Keeps the previous snapshot when SVC does not answer. */
+    /** Keeps the previous snapshot when SVC does not answer or the read fails. */
     fun refresh() {
         snapshot = try {
             onServer {
@@ -66,7 +80,9 @@ class SvcApiGroups(
                 val groupOf = HashMap<UUID, SvcGroupView>()
                 val installed = HashSet<UUID>()
                 val names = HashMap<UUID, String>()
+                val online = HashSet<UUID>()
                 for (player in onlinePlayers()) {
+                    online.add(player)
                     nameOf(player)?.let { names[player] = it }
                     val connection = api.getConnectionOf(player) ?: continue
                     if (connection.isInstalled) installed.add(player)
@@ -74,12 +90,17 @@ class SvcApiGroups(
                     members.getOrPut(group.id) { ArrayList() }.add(player)
                     groupOf[player] = SvcGroupViews.of(group)
                 }
-                Snapshot(members, groupOf, installed, names)
+                Snapshot(members, groupOf, installed, names, online)
             }
         } catch (e: SvcUnavailableException) {
             snapshot
+        } catch (e: SvcCallFailedException) {
+            snapshot
         }
     }
+
+    /** The players online at the last snapshot. */
+    fun online(): Set<UUID> = snapshot.online
 
     fun isInstalled(player: UUID): Boolean = player in snapshot.installed
 

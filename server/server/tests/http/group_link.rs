@@ -102,10 +102,25 @@ fn a_drain_encodes_to_the_shape_the_kotlin_bridge_reads() {
         }],
         reset: true,
         epoch: 4503599627370495,
+        latest: 7,
     };
 
     assert_eq!(
         serde_json::to_string(&drain).unwrap(),
-        r#"{"events":[{"seq":7,"kind":"Join","channel":"ABCD","channel_name":"Raid","player":"Alex","members_only":true}],"reset":true,"epoch":4503599627370495}"#
+        r#"{"events":[{"seq":7,"kind":"Join","channel":"ABCD","channel_name":"Raid","player":"Alex","members_only":true}],"reset":true,"epoch":4503599627370495,"latest":7}"#
     );
+}
+
+// A bridge of the build before `latest` and `clientless` sends and reads JSON without them.
+#[test]
+fn json_from_before_the_new_fields_still_decodes() {
+    let drain: GroupLinkDrain =
+        serde_json::from_str(r#"{"events":[],"reset":false,"epoch":3}"#).expect("an old drain");
+    let view: LinkedChannelView = serde_json::from_str(
+        r#"{"id":"ABCD","name":"Raid","players":["Steve"],"members_only":false}"#,
+    )
+    .expect("an old channel view");
+
+    assert_eq!(drain.latest, 0);
+    assert!(view.clientless.is_empty());
 }

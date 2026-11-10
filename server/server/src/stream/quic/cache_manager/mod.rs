@@ -68,7 +68,7 @@ impl CacheManager {
             chat_service: None,
             webhook_receiver: None,
             group_link_feed: GroupLinkFeed::new_shared(GroupLinkFeed::CAPACITY),
-            group_link_leases: GroupLinkLeases::new_shared(),
+            group_link_leases: GroupLinkLeases::new_shared(GroupLinkLeases::TTL),
             player_state: PlayerStateCache::new(),
             preferences: PlayerPreferenceCache::new(),
             websocket_tickets: WebsocketTicketCache::new(),
@@ -212,6 +212,7 @@ impl CacheManager {
             webhook,
             self.group_link_leases.clone(),
             self.group_link_feed.clone(),
+            self.connection_registry.clone(),
         )
     }
 
@@ -327,10 +328,9 @@ impl CacheManager {
                                     .await;
 
                                 if let Some(registry) = &self.connection_registry {
-                                    registry.update_player_channel(
-                                        &channel_data.name.to_string(),
-                                        &channel_data.channel,
-                                    );
+                                    // The marks go in before the member does. Audio routes on
+                                    // other tasks, and a member seen in a channel whose marks
+                                    // are not yet set would be routed as if it had none.
                                     let channel =
                                         self.channel_collection.get(&channel_data.channel).await;
                                     if channel.as_ref().is_some_and(|c| c.is_protected()) {
@@ -339,6 +339,10 @@ impl CacheManager {
                                     if channel.as_ref().is_some_and(|c| c.is_members_only()) {
                                         registry.mark_members_only(&channel_data.channel);
                                     }
+                                    registry.update_player_channel(
+                                        &channel_data.name.to_string(),
+                                        &channel_data.channel,
+                                    );
                                 }
                                 self.publish_group_link(GroupLinkEventKind::Join, &channel_data)
                                     .await;
@@ -379,6 +383,17 @@ impl CacheManager {
                                         .map(|c| c.to_string())
                                         .unwrap_or_else(|| "unknown".to_string())
                                 );
+                                // A channel's members-only flag is fixed when it is made, so it
+                                // is marked here, before anyone can be in it.
+                                if let Some(registry) = &self.connection_registry
+                                    && self
+                                        .channel_collection
+                                        .get(&channel_data.channel)
+                                        .await
+                                        .is_some_and(|c| c.is_members_only())
+                                {
+                                    registry.mark_members_only(&channel_data.channel);
+                                }
                                 self.publish_group_link(GroupLinkEventKind::Create, &channel_data)
                                     .await;
                             }
