@@ -17,8 +17,10 @@ use sea_orm::{
 
 use crate::services::CertificateService;
 
+mod bound_uuid_cache;
 mod cache;
 
+pub use bound_uuid_cache::BoundUuidCache;
 pub use cache::RegisteredPlayersCache;
 
 /// Service for player registration logic.
@@ -30,6 +32,7 @@ pub struct PlayerRegistrarService {
     db: Arc<DatabaseConnection>,
     cert_service: Arc<CertificateService>,
     cache: RegisteredPlayersCache,
+    bound_uuids: BoundUuidCache,
     // Serializes check-and-create. The FFI path spawns a registration per position tick, and
     // the gamertag index is not unique, so two overlapping first ticks would insert twice.
     register_lock: Arc<tokio::sync::Mutex<()>>,
@@ -46,6 +49,7 @@ impl PlayerRegistrarService {
             db,
             cert_service,
             cache: RegisteredPlayersCache::new(),
+            bound_uuids: BoundUuidCache::new(),
             register_lock: Arc::new(tokio::sync::Mutex::new(())),
         }
     }
@@ -71,6 +75,8 @@ impl PlayerRegistrarService {
                     .map(|uuid| (p.get_name().to_string(), uuid.to_string()))
             })
             .collect();
+
+        self.bind_unseen_uuids(&uuid_map, &game_type).await;
 
         // Collect all player names and filter out those we know are registered
         let player_names: Vec<String> = players.iter().map(|p| p.get_name().to_string()).collect();
@@ -130,7 +136,7 @@ impl PlayerRegistrarService {
                 // Create new player records
                 for player_name in new_players {
                     let uuid = uuid_map.get(&player_name).map(|s| s.as_str());
-                    if let Err(e) = self.create(&player_name, &game_type, uuid).await {
+                    if let Err(e) = self.create_unlocked(&player_name, &game_type, uuid).await {
                         curia::error!("failed to register a player", { "gamertag": player_name.to_string(), "error": e.to_string() });
                     }
                 }
@@ -153,9 +159,22 @@ impl PlayerRegistrarService {
     /// Returns the existing player for (gamertag, game), or mints its certificate and
     /// keypairs and inserts it. A `player_uuid` is recorded either way.
     ///
-    /// `idx_player_gamertag_game` is not unique, so two concurrent calls for the same new
-    /// gamertag can both insert.
+    /// `idx_player_gamertag_game` is not unique, so the check and the insert run under this
+    /// service's lock. Every caller in the server process must share one instance for that
+    /// to hold; a second instance, such as a CLI command's, can still insert a duplicate.
     pub async fn create(
+        &self,
+        player_name: &str,
+        game_type: &Game,
+        player_uuid: Option<&str>,
+    ) -> Result<player::Model, anyhow::Error> {
+        let _registering = self.register_lock.lock().await;
+        self.create_unlocked(player_name, game_type, player_uuid)
+            .await
+    }
+
+    // The body of `create`, for a caller that already holds `register_lock`.
+    async fn create_unlocked(
         &self,
         player_name: &str,
         game_type: &Game,
@@ -232,8 +251,45 @@ impl PlayerRegistrarService {
         Ok(inserted)
     }
 
+    // Binds the platform UUID of every entry whose name is already registered and whose
+    // UUID this process has not written yet. A name is registered once, but more than one
+    // player can arrive under it: a Java account and a Bedrock player whose gamertag is the
+    // same text. Each UUID is bound, so a later ownership check sees both.
+    async fn bind_unseen_uuids(&self, uuid_map: &HashMap<String, String>, game_type: &Game) {
+        let unseen: HashMap<&String, &String> = uuid_map
+            .iter()
+            .filter(|(name, uuid)| self.cache.contains(name) && !self.bound_uuids.contains(uuid))
+            .collect();
+        if unseen.is_empty() {
+            return;
+        }
+
+        let names: Vec<String> = unseen.keys().map(|name| (*name).clone()).collect();
+        match player::Entity::find()
+            .filter(player::Column::Gamertag.is_in(names))
+            .filter(player::Column::Game.eq(game_type.clone()))
+            .all(self.db.as_ref())
+            .await
+        {
+            Ok(records) => {
+                for record in records {
+                    let Some(uuid) = record.gamertag.as_ref().and_then(|name| unseen.get(name))
+                    else {
+                        continue;
+                    };
+                    self.store_platform_uuid(record.id, uuid, game_type).await;
+                }
+            }
+            Err(e) => {
+                curia::error!("failed to look up players for a platform uuid", { "error": e.to_string() });
+            }
+        }
+    }
+
     /// INSERT OR IGNORE a platform UUID into the player_identity table.
     async fn store_platform_uuid(&self, player_id: i32, uuid: &str, game_type: &Game) {
+        let uuid = uuid.to_ascii_lowercase();
+        let uuid = uuid.as_str();
         let now = Utc::now().timestamp();
         let identity = player_identity::ActiveModel {
             id: ActiveValue::NotSet,
@@ -245,7 +301,7 @@ impl PlayerRegistrarService {
             updated_at: ActiveValue::Set(now),
         };
 
-        if let Err(e) = player_identity::Entity::insert(identity)
+        match player_identity::Entity::insert(identity)
             .on_conflict(
                 OnConflict::columns([
                     player_identity::Column::Alias,
@@ -257,11 +313,15 @@ impl PlayerRegistrarService {
             .exec_without_returning(self.db.as_ref())
             .await
         {
-            curia::error!(
-                "Failed to store platform UUID for player_id {}: {}",
-                player_id,
-                e
-            );
+            // Remembered only after the write, so a failed write is tried again.
+            Ok(_) => self.bound_uuids.insert(uuid),
+            Err(e) => {
+                curia::error!(
+                    "Failed to store platform UUID for player_id {}: {}",
+                    player_id,
+                    e
+                );
+            }
         }
     }
 }

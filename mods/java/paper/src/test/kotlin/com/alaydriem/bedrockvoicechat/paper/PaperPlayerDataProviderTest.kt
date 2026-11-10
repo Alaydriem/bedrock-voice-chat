@@ -249,13 +249,13 @@ class PaperPlayerDataProviderTest {
     // the gamertag must be found, or SVC places their audio at the linked player's body.
     @Test
     fun `a gamertag finds its owner before a linked players java name`() {
-        val linked = server.addPlayer("Notch")
-        val bedrock = floodgatePlayer(".Notch", floodgate2)
+        val linked = server.addPlayer("Builder")
+        val bedrock = floodgatePlayer(".Builder", floodgate2)
         val provider = providerWith(
-            mapOf(linked.uniqueId to "LongGamertag123", floodgate2 to "Notch")
+            mapOf(linked.uniqueId to "LongGamertag123", floodgate2 to "Builder")
         )
 
-        assertEquals(bedrock.uniqueId, provider.findByIdentity("Notch")?.uniqueId)
+        assertEquals(bedrock.uniqueId, provider.findByIdentity("Builder")?.uniqueId)
         assertEquals(linked.uniqueId, provider.findByIdentity("LongGamertag123")?.uniqueId)
     }
 

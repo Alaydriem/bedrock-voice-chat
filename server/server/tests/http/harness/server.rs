@@ -143,6 +143,10 @@ impl TestServer {
 
         let identity_service =
             bvc_server_lib::services::PlayerIdentityService::new(Arc::new(db.clone()));
+        let player_registrar = bvc_server_lib::services::PlayerRegistrarService::new(
+            Arc::new(db.clone()),
+            cert_service.clone(),
+        );
         // The harness never boots QUIC, so the flag starts (and stays) false
         // unless a test raises it explicitly.
         let readiness = bvc_server_lib::runtime::ReadinessState::new_shared();
@@ -160,6 +164,7 @@ impl TestServer {
             config,
             cert_service.clone(),
             identity_service,
+            player_registrar,
             readiness.clone(),
             revocations.clone(),
             nonce.clone(),

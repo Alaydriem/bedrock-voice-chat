@@ -778,13 +778,15 @@ pub unsafe extern "C" fn bvc_client_action(
         }
     };
 
-    let mut action: common::structs::control::ClientAction = match serde_json::from_str(json) {
+    let request: common::request::ClientActionRequest = match serde_json::from_str(json) {
         Ok(a) => a,
         Err(e) => {
             FfiError::set_last_error(&format!("Invalid ClientAction JSON: {}", e));
             return -1;
         }
     };
+    let actor_uuid = request.player_uuid;
+    let mut action = request.action;
 
     let handle_ref = unsafe { &*handle };
 
@@ -813,9 +815,9 @@ pub unsafe extern "C" fn bvc_client_action(
         }
     };
 
-    // Resolve the in-game name to its canonical gamertag (Floodgate/Java aliases)
-    // before routing, matching the position ingress so control actions key on the
-    // same identity the voice plane uses.
+    // The rule the position ingress applies decides the actor's gamertag, so a control
+    // action keys on the identity the voice plane uses and never on a stranger who shares
+    // an alias name.
     let identity_service = {
         let g = match handle_ref.identity_service.read() {
             Ok(g) => g,
@@ -827,8 +829,11 @@ pub unsafe extern "C" fn bvc_client_action(
         g.as_ref().cloned()
     };
     if let Some(id_service) = identity_service {
-        let resolved =
-            tokio_rt.block_on(async { id_service.resolve_name(&action.id, &common::Game::Minecraft).await });
+        let resolved = tokio_rt.block_on(async {
+            id_service
+                .canonical_name(&action.id, actor_uuid.as_deref(), &common::Game::Minecraft)
+                .await
+        });
         action.id = resolved;
     }
 
