@@ -4,6 +4,7 @@ import de.maxhenkel.voicechat.api.ServerPlayer
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel
 import de.maxhenkel.voicechat.api.packets.MicrophonePacket
 import uniffi.bvc_relay_sdk.SdkFrame
+import uniffi.bvc_relay_sdk.SdkGroupScope
 import java.util.UUID
 import java.util.function.Predicate
 
@@ -102,7 +103,8 @@ object TestFrames {
         speaker: String,
         dimension: String = "overworld",
         sampleRate: UInt = 48000u,
-        opus: ByteArray = byteArrayOf(1, 2, 3)
+        opus: ByteArray = byteArrayOf(1, 2, 3),
+        group: SdkGroupScope? = null
     ) = SdkFrame(
         speaker = speaker,
         world = "W1",
@@ -114,7 +116,8 @@ object TestFrames {
         sampleRate = sampleRate,
         timestampMs = 1L,
         spatial = true,
-        jukebox = null
+        jukebox = null,
+        group = group
     )
 
     fun jukebox(speaker: String, eventId: String) = speech(speaker).copy(jukebox = eventId)

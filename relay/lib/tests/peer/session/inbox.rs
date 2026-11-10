@@ -62,7 +62,7 @@ async fn a_full_inbox_drops_the_oldest() {
 // parked read cannot be shut down.
 #[tokio::test]
 async fn close_wakes_a_parked_reader() {
-    let inbox = Arc::new(Inbox::new(4));
+    let inbox = Arc::new(Inbox::<VoiceFrame>::new(4));
 
     let reader = tokio::spawn({
         let inbox = Arc::clone(&inbox);

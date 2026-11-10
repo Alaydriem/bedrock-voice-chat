@@ -30,6 +30,24 @@ impl ChannelMembershipService {
         Self::insert_and_fan(channels, webhook, channel).await
     }
 
+    /// Creates the BVC side of a group linked to a Simple Voice Chat group and fans a `Create`.
+    /// The name is the SVC group's name. `members_only` is set for NORMAL and ISOLATED groups.
+    pub async fn create_linked(
+        channels: &ChannelCollection,
+        webhook: &WebhookReceiver,
+        name: String,
+        creator: common::PlayerIdentity,
+        members_only: bool,
+    ) -> String {
+        let channel = Channel::with_id(Self::free_code(channels).await, name, creator);
+        let channel = if members_only {
+            channel.into_members_only()
+        } else {
+            channel
+        };
+        Self::insert_and_fan(channels, webhook, channel).await
+    }
+
     /// Creates an empty end-to-end encrypted channel and fans a `Create`. The server records
     /// only that it is protected; it never sees the group's password or keys.
     pub async fn create_protected(

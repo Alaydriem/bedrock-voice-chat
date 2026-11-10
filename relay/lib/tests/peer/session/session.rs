@@ -73,14 +73,14 @@ async fn acceptor(dir: &TempDir, burst: usize) -> (String, Arc<PeerEndpoint>) {
                 let Ok(accept) = Handshake::accept(&conn, &AcceptsAnyone).await else {
                     return;
                 };
-                let Ok(link) = PeerLink::establish(conn, accept.worlds) else {
+                let Ok(link) = PeerLink::establish(conn, accept.worlds, accept.version) else {
                     return;
                 };
 
                 let mut ticker = tokio::time::interval(Duration::from_millis(50));
                 for counter in 0..burst {
                     ticker.tick().await;
-                    if link.send(frame(counter as u8 + 1)).is_err() {
+                    if link.send(frame(counter as u8 + 1), None).is_err() {
                         return;
                     }
                 }
@@ -119,12 +119,12 @@ async fn recording_acceptor(
                 let Ok(accept) = Handshake::accept(&conn, &AcceptsAnyone).await else {
                     return;
                 };
-                let Ok(link) = PeerLink::establish(conn, accept.worlds) else {
+                let Ok(link) = PeerLink::establish(conn, accept.worlds, accept.version) else {
                     return;
                 };
 
-                while let Ok(frame) = link.recv().await {
-                    sink.lock().expect("sink lock").push(frame);
+                while let Ok(voice) = link.recv().await {
+                    sink.lock().expect("sink lock").push(voice.frame);
                 }
             });
         }
@@ -172,7 +172,7 @@ async fn a_session_delivers_a_frame_from_the_peer() {
         .expect("a frame must arrive within the timeout")
         .expect("a frame");
 
-    assert!(!received.opus.is_empty());
+    assert!(!received.frame.opus.is_empty());
     session.close().await;
 }
 
@@ -269,7 +269,7 @@ async fn a_session_sends_a_frame_to_its_peer() {
         "the session never connected, so the send below would prove nothing"
     );
 
-    session.send(frame(42)).expect("send");
+    session.send(frame(42), None).expect("send");
 
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
     let got = loop {
@@ -308,7 +308,7 @@ async fn sending_without_a_link_is_refused_rather_than_queued() {
         .expect("open");
 
     assert!(!session.is_connected());
-    assert!(session.send(frame(1)).is_err());
+    assert!(session.send(frame(1), None).is_err());
 
     session.close().await;
 }

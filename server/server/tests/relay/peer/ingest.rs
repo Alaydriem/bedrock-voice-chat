@@ -6,7 +6,8 @@ use bvc_server_lib::config::PeerConfig;
 use bvc_server_lib::relay::{GrantTable, IngestRejection, LocalClients, PeerIngest};
 use common::game_data::Dimension;
 use common::structs::packet::PacketType;
-use common::structs::relay::wire::datagram::VoiceFrame;
+use bvc_relay::peer::PeerVoice;
+use common::structs::relay::wire::datagram::{GroupScope, VoiceFrame};
 use common::traits::player_data::PlayerData;
 use common::{Coordinate, MinecraftPlayer, Orientation, PlayerEnum};
 use iroh::{EndpointAddr, PublicKey, SecretKey};
@@ -164,4 +165,65 @@ fn a_peer_naming_a_player_we_do_not_serve_is_admitted() {
     );
 
     assert!(ingest.admit(&node, frame("Alice", Some("W1"))).is_ok());
+}
+
+// The router checks a peer frame's group claim, so ingest has to hand the claim on untouched.
+#[test]
+fn ingest_returns_the_frames_group_scope() {
+    let node = SecretKey::generate().public();
+    let ingest = PeerIngest::new(grants_for(node, &["W1"]), Arc::new(NoLocals));
+    let group = GroupScope {
+        channel: "ABCD-1234".to_string(),
+        members_only: true,
+    };
+
+    let (_packet, _speaker, scope) = ingest
+        .admit_voice(
+            &node,
+            PeerVoice {
+                frame: frame("Alice", Some("W1")),
+                group: Some(group.clone()),
+            },
+        )
+        .expect("admitted");
+
+    assert_eq!(scope, Some(group));
+}
+
+#[test]
+fn ingest_without_scope_returns_none() {
+    let node = SecretKey::generate().public();
+    let ingest = PeerIngest::new(grants_for(node, &["W1"]), Arc::new(NoLocals));
+
+    let (_packet, _speaker, scope) = ingest
+        .admit_voice(
+            &node,
+            PeerVoice {
+                frame: frame("Alice", Some("W1")),
+                group: None,
+            },
+        )
+        .expect("admitted");
+
+    assert_eq!(scope, None);
+}
+
+// A claim does not exempt a frame from the grant check.
+#[test]
+fn a_scoped_frame_for_an_ungranted_world_is_refused() {
+    let node = SecretKey::generate().public();
+    let ingest = PeerIngest::new(grants_for(node, &["W1"]), Arc::new(NoLocals));
+
+    let result = ingest.admit_voice(
+        &node,
+        PeerVoice {
+            frame: frame("Alice", Some("W2")),
+            group: Some(GroupScope {
+                channel: "ABCD-1234".to_string(),
+                members_only: false,
+            }),
+        },
+    );
+
+    assert!(matches!(result, Err(IngestRejection::NotGranted { .. })));
 }

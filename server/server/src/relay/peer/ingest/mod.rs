@@ -8,7 +8,8 @@ use common::structs::packet::{
     AudioFrameMetadata, AudioFramePacket, JukeboxMetadata, PacketSender, PacketType,
     QuicNetworkPacket, QuicNetworkPacketData,
 };
-use common::structs::relay::wire::datagram::VoiceFrame;
+use bvc_relay::peer::PeerVoice;
+use common::structs::relay::wire::datagram::{GroupScope, VoiceFrame};
 use common::traits::player_data::PlayerData;
 use iroh::PublicKey;
 
@@ -30,6 +31,18 @@ pub struct PeerIngest {
 impl PeerIngest {
     pub fn new(grants: Arc<GrantTable>, locals: Arc<dyn LocalClients>) -> Self {
         Self { grants, locals }
+    }
+
+    /// `admit`, plus the linked group the frame claims. The claim is not checked here: only
+    /// the router knows channel membership, and it refuses a claim from a non-member.
+    pub fn admit_voice(
+        &self,
+        node: &PublicKey,
+        voice: PeerVoice,
+    ) -> Result<(QuicNetworkPacket, common::PlayerEnum, Option<GroupScope>), IngestRejection>
+    {
+        let (packet, speaker) = self.admit(node, voice.frame)?;
+        Ok((packet, speaker, voice.group))
     }
 
     /// Returns the packet and the speaker it names.

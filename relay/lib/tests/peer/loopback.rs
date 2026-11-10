@@ -92,8 +92,8 @@ async fn a_ticket_reaches_a_peer_on_the_same_host_without_a_relay() {
         let accept = Handshake::accept(&conn, &AcceptsAnyone)
             .await
             .expect("accept");
-        let link = PeerLink::establish(conn, accept.worlds).expect("establish");
-        (arrived_at, link.recv().await.expect("receive"))
+        let link = PeerLink::establish(conn, accept.worlds, accept.version).expect("establish");
+        (arrived_at, link.recv().await.expect("receive").frame)
     });
 
     let conn = bridge
@@ -104,9 +104,9 @@ async fn a_ticket_reaches_a_peer_on_the_same_host_without_a_relay() {
     let accept = Handshake::dial(&conn, vec!["W1".to_string()])
         .await
         .expect("handshake");
-    let link = PeerLink::establish(conn, accept.worlds).expect("establish");
+    let link = PeerLink::establish(conn, accept.worlds, accept.version).expect("establish");
 
-    link.send(frame()).expect("send");
+    link.send(frame(), None).expect("send");
 
     let (arrived_at, received) = tokio::time::timeout(Duration::from_secs(5), accepted)
         .await

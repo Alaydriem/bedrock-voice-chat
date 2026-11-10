@@ -31,6 +31,7 @@ use crate::stream::quic::WebhookReceiver;
 
 use common::Game;
 use common::request::admin::AdminPermissionRequest;
+use common::structs::control::GroupLinkAction;
 use common::traits::player_data::PlayerData;
 use sea_orm::DatabaseConnection;
 use std::ffi::{CStr, CString, c_char, c_int};
@@ -1725,6 +1726,187 @@ pub unsafe extern "C" fn bvc_config_effective(handle: *mut RuntimeHandle) -> *mu
             Ok(cstr) => cstr.into_raw(),
             Err(e) => {
                 FfiError::set_last_error(&format!("Failed to create CString: {}", e));
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
+impl RuntimeHandle {
+    // The group link service over this handle's live state, and the runtime to drive it on.
+    fn group_link(
+        &self,
+    ) -> Result<(crate::services::GroupLinkService, &tokio::runtime::Runtime), String> {
+        let tokio_rt = self
+            .tokio_runtime
+            .as_ref()
+            .ok_or_else(|| "Tokio runtime not available".to_string())?;
+        let cache_manager = self
+            .cache_manager
+            .read()
+            .map_err(|e| format!("Failed to read cache_manager: {}", e))?
+            .clone()
+            .ok_or_else(|| "Server not started - cache_manager not available".to_string())?;
+        let webhook = self
+            .webhook_receiver
+            .read()
+            .map_err(|e| format!("Failed to read webhook_receiver: {}", e))?
+            .clone()
+            .ok_or_else(|| "Server not started - webhook_receiver not available".to_string())?;
+        Ok((cache_manager.group_link_service(webhook), tokio_rt))
+    }
+
+    fn json_out<T: serde::Serialize>(value: &T) -> *mut c_char {
+        let body = match serde_json::to_string(value) {
+            Ok(body) => body,
+            Err(e) => {
+                FfiError::set_last_error(&format!("Failed to encode JSON: {}", e));
+                return ptr::null_mut();
+            }
+        };
+        match CString::new(body) {
+            Ok(c) => c.into_raw(),
+            Err(e) => {
+                FfiError::set_last_error(&format!("Failed to build C string: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+}
+
+/// Apply a `GroupLinkAction` for the Simple Voice Chat bridge (embedded mode).
+///
+/// `id_out`, when non-null, receives the new channel id after a `CreateLinked` (free via
+/// `bvc_free_string`), and is set to null otherwise.
+///
+/// # Returns
+/// 0 on success, -1 on error (including a `Close` of a protected channel).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_group_link_action(
+    handle: *mut RuntimeHandle,
+    action_json: *const c_char,
+    id_out: *mut *mut c_char,
+) -> c_int {
+    ffi_guard!("bvc_group_link_action", -1, {
+        if !id_out.is_null() {
+            unsafe { *id_out = ptr::null_mut() };
+        }
+        if handle.is_null() || action_json.is_null() {
+            FfiError::set_last_error("handle or action_json is null");
+            return -1;
+        }
+        let json = match unsafe { CStr::from_ptr(action_json) }.to_str() {
+            Ok(s) => s,
+            Err(e) => {
+                FfiError::set_last_error(&format!("Invalid UTF-8 in action_json: {}", e));
+                return -1;
+            }
+        };
+        let action: GroupLinkAction = match serde_json::from_str(json) {
+            Ok(a) => a,
+            Err(e) => {
+                FfiError::set_last_error(&format!("Invalid GroupLinkAction JSON: {}", e));
+                return -1;
+            }
+        };
+
+        let handle_ref = unsafe { &*handle };
+        let (service, tokio_rt) = match handle_ref.group_link() {
+            Ok(parts) => parts,
+            Err(e) => {
+                FfiError::set_last_error(&e);
+                return -1;
+            }
+        };
+        let identity_service = handle_ref
+            .identity_service
+            .read()
+            .ok()
+            .and_then(|g| g.as_ref().cloned());
+
+        let result = tokio_rt.block_on(async {
+            // The creator is resolved like a ClientAction actor, so the channel keys on the
+            // identity the voice plane uses.
+            let action = match (action, identity_service) {
+                (
+                    GroupLinkAction::CreateLinked {
+                        creator,
+                        name,
+                        members_only,
+                    },
+                    Some(identities),
+                ) => GroupLinkAction::CreateLinked {
+                    creator: identities.resolve_name(&creator, &Game::Minecraft).await,
+                    name,
+                    members_only,
+                },
+                (other, _) => other,
+            };
+            service.apply(action).await
+        });
+
+        match result {
+            Ok(Some(id)) if !id_out.is_null() => match CString::new(id) {
+                Ok(c) => {
+                    unsafe { *id_out = c.into_raw() };
+                    0
+                }
+                Err(e) => {
+                    FfiError::set_last_error(&format!("Failed to create CString: {}", e));
+                    -1
+                }
+            },
+            Ok(_) => 0,
+            Err(e) => {
+                FfiError::set_last_error(&format!("group link action refused: {}", e));
+                -1
+            }
+        }
+    })
+}
+
+/// BVC channel changes after sequence number `after`, as a JSON `GroupLinkDrain`.
+///
+/// Polled by the bridge's own thread. Free the result with `bvc_free_string`.
+///
+/// # Returns
+/// Pointer to JSON, or null on error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_group_link_drain(handle: *mut RuntimeHandle, after: u64) -> *mut c_char {
+    ffi_guard!("bvc_group_link_drain", ptr::null_mut(), {
+        if handle.is_null() {
+            FfiError::set_last_error("handle is null");
+            return ptr::null_mut();
+        }
+        let handle_ref = unsafe { &*handle };
+        match handle_ref.group_link() {
+            Ok((service, _)) => RuntimeHandle::json_out(&service.feed().drain(after)),
+            Err(e) => {
+                FfiError::set_last_error(&e);
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
+/// Every non-protected BVC channel, as a JSON array of `LinkedChannelView`.
+///
+/// Free the result with `bvc_free_string`.
+///
+/// # Returns
+/// Pointer to JSON, or null on error.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_group_link_channels(handle: *mut RuntimeHandle) -> *mut c_char {
+    ffi_guard!("bvc_group_link_channels", ptr::null_mut(), {
+        if handle.is_null() {
+            FfiError::set_last_error("handle is null");
+            return ptr::null_mut();
+        }
+        let handle_ref = unsafe { &*handle };
+        match handle_ref.group_link() {
+            Ok((service, _)) => RuntimeHandle::json_out(&service.channels()),
+            Err(e) => {
+                FfiError::set_last_error(&e);
                 ptr::null_mut()
             }
         }

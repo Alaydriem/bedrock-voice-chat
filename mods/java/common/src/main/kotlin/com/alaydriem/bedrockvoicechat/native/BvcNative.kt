@@ -37,6 +37,9 @@ object BvcNative {
         fun bvc_chat_drain(handle: Pointer): Pointer?
         fun bvc_config_effective(handle: Pointer): Pointer?
         fun bvc_chat_unregister(handle: Pointer): Int
+        fun bvc_group_link_action(handle: Pointer, actionJson: String, idOut: PointerByReference?): Int
+        fun bvc_group_link_drain(handle: Pointer, after: Long): Pointer?
+        fun bvc_group_link_channels(handle: Pointer): Pointer?
         fun bvc_free_string(ptr: Pointer)
         fun bvc_get_last_error(): String?
         fun bvc_version(): String
@@ -202,6 +205,44 @@ object BvcNative {
         val ptr = codeOut.value ?: return ControlSendResult(true)
         try {
             return ControlSendResult(true, ptr.getString(0))
+        } finally {
+            getLib().bvc_free_string(ptr)
+        }
+    }
+
+    /**
+     * Apply a group link action for the Simple Voice Chat bridge.
+     * @return groupCode carries the new channel id after a CreateLinked
+     */
+    fun groupLinkAction(handle: Pointer, actionJson: String): ControlSendResult {
+        val idOut = PointerByReference()
+        if (getLib().bvc_group_link_action(handle, actionJson, idOut) != 0) {
+            logger.warn("Group link action refused: {}", getLastError())
+            return ControlSendResult(false)
+        }
+        val ptr = idOut.value ?: return ControlSendResult(true)
+        try {
+            return ControlSendResult(true, ptr.getString(0))
+        } finally {
+            getLib().bvc_free_string(ptr)
+        }
+    }
+
+    /** The JSON `GroupLinkDrain` after [after], or null on error. */
+    fun groupLinkDrain(handle: Pointer, after: Long): String? =
+        takeString(getLib().bvc_group_link_drain(handle, after))
+
+    /** The JSON array of non-protected channels, or null on error. */
+    fun groupLinkChannels(handle: Pointer): String? =
+        takeString(getLib().bvc_group_link_channels(handle))
+
+    private fun takeString(ptr: Pointer?): String? {
+        if (ptr == null) {
+            logger.warn("Group link read failed: {}", getLastError())
+            return null
+        }
+        try {
+            return ptr.getString(0)
         } finally {
             getLib().bvc_free_string(ptr)
         }

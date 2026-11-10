@@ -99,6 +99,7 @@ class SdkSmokeTest {
         timestampMs = 1234L,
         spatial = true,
         jukebox = jukebox,
+        group = null,
     )
 
     // An UnsatisfiedLinkError here means the native library is not resolvable, or
