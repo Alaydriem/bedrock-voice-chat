@@ -7,7 +7,7 @@ use crate::errors::PlayZoneError;
 pub struct PlayRoots;
 
 impl PlayRoots {
-    pub const SUFFIX: &'static str = ".play.bedrockvc.stream";
+    pub const SUFFIX: &'static str = crate::consts::PLAY_ZONE_SUFFIX;
 
     // Every root is listed here by name; a file added to the directory but not to this
     // list is not trusted. The production root ships in every build. The development root

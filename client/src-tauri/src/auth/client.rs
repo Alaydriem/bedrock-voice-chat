@@ -16,6 +16,8 @@ use common::structs::reachability::{
 };
 use tauri_plugin_curia::curia;
 
+/// Every `server` argument below is a resolved base URL (`https://host:port`), not the saved
+/// server string.
 pub struct AuthClient;
 
 impl AuthClient {
@@ -31,7 +33,7 @@ impl AuthClient {
         preference: AddressFamilyPreference,
     ) -> ServerCheckReport {
         let endpoint =
-            super::ServerEndpoint::join(&server, super::ncryptf_client::CONFIG_ENDPOINT);
+            super::ServerUrlPath::join(&server, super::ncryptf_client::CONFIG_ENDPOINT);
         let client = NcryptfClient::get_reqwest_client(preference);
 
         let response = match client.get(&endpoint).send().await {
@@ -104,7 +106,7 @@ impl AuthClient {
             HeaderValue::from_str(&general_purpose::STANDARD.encode(kp.get_public_key())).unwrap(),
         );
 
-        let endpoint = super::ServerEndpoint::join(&server, super::ncryptf_client::AUTH_ENDPOINT);
+        let endpoint = super::ServerUrlPath::join(&server, super::ncryptf_client::AUTH_ENDPOINT);
         let client = NcryptfClient::get_reqwest_client(preference);
 
         match client
@@ -201,7 +203,7 @@ impl AuthClient {
             HeaderValue::from_str(&general_purpose::STANDARD.encode(kp.get_public_key())).unwrap(),
         );
 
-        let endpoint = super::ServerEndpoint::join(&server, Self::CODE_AUTH_ENDPOINT);
+        let endpoint = super::ServerUrlPath::join(&server, Self::CODE_AUTH_ENDPOINT);
         let client = NcryptfClient::get_reqwest_client(preference);
 
         match client

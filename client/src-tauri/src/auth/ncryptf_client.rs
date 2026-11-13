@@ -13,11 +13,12 @@ pub const NCRYPTF_EK_ENDPOINT: &'static str = "ncryptf/ek";
 pub struct NcryptfClient;
 
 impl NcryptfClient {
+    // `server` is a resolved base URL.
     pub(crate) async fn get_ek(
         server: String,
         preference: AddressFamilyPreference,
     ) -> Result<ExportableEncryptionKeyData, anyhow::Error> {
-        let endpoint = super::ServerEndpoint::join(&server, NCRYPTF_EK_ENDPOINT);
+        let endpoint = super::ServerUrlPath::join(&server, NCRYPTF_EK_ENDPOINT);
 
         let client = Self::get_reqwest_client(preference);
         let ek: ExportableEncryptionKeyData = client

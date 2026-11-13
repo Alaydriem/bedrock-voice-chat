@@ -17,6 +17,7 @@ use crate::naming::NameGenerator;
 
 use super::check_in::PlayCheckIn;
 use super::error::PlayError;
+use super::zone_entry::PlayZoneEntry;
 
 // Who holds which play name, and the zone serial those names move.
 //
@@ -147,12 +148,14 @@ impl PlayNameService {
             return Ok(PlayCheckIn {
                 name: row.name,
                 nonce,
-                address_changed: false,
+                endpoint_changed: false,
                 throttled: true,
             });
         }
 
-        let address_changed = row.published_address.as_deref() != Some(&address.to_string());
+        // A row published before the port was stored has no port to differ from.
+        let endpoint_changed = row.published_address.as_deref() != Some(&address.to_string())
+            || row.published_port.is_some_and(|published| published != i32::from(port));
         let nonce = Self::mint_nonce();
         let name = row.name.clone();
 
@@ -166,7 +169,7 @@ impl PlayNameService {
         Ok(PlayCheckIn {
             name,
             nonce,
-            address_changed,
+            endpoint_changed,
             throttled: false,
         })
     }
@@ -198,30 +201,38 @@ impl PlayNameService {
         Ok(())
     }
 
-    // Returns the zone serial. Publishing the address already published leaves the
+    // Returns the zone serial. Publishing the endpoint already published leaves the
     // serial where it is, so a node that checks in every few minutes does not make
     // every secondary re-transfer the zone.
     //
     // `nonce` is the check-in the probe belonged to. The row changes only while that is
-    // still the node's latest check-in with that address; a probe from an earlier one
-    // finds it moved on and changes nothing. `None` means the check-in was superseded.
+    // still the node's latest check-in with that address and port; a probe from an
+    // earlier one finds it moved on and changes nothing. `None` means the check-in was
+    // superseded.
     pub async fn mark_published(
         &self,
         node_id: &str,
         address: IpAddr,
+        port: u16,
         nonce: &str,
     ) -> Result<Option<u32>, PlayError> {
         let txn = self.conn.begin().await?;
         let row = Self::live_row(&txn, node_id).await?;
         let text = address.to_string();
-        let unchanged = row.published_address.as_deref() == Some(text.as_str());
+        let unchanged = row.published_address.as_deref() == Some(text.as_str())
+            && row.published_port == Some(i32::from(port));
 
         let result = play_name::Entity::update_many()
             .col_expr(play_name::Column::PublishedAddress, Expr::value(text.clone()))
+            .col_expr(
+                play_name::Column::PublishedPort,
+                Expr::value(Some(i32::from(port))),
+            )
             .col_expr(play_name::Column::VerifiedAt, Expr::value(Some(Self::now())))
             .filter(play_name::Column::NodeId.eq(node_id))
             .filter(play_name::Column::CheckinNonce.eq(nonce))
             .filter(play_name::Column::DeclaredAddress.eq(text))
+            .filter(play_name::Column::DeclaredPort.eq(i32::from(port)))
             .filter(play_name::Column::ReleasedAt.is_null())
             .exec(&txn)
             .await?;
@@ -256,6 +267,10 @@ impl PlayNameService {
                 Expr::value(Option::<String>::None),
             )
             .col_expr(
+                play_name::Column::PublishedPort,
+                Expr::value(Option::<i32>::None),
+            )
+            .col_expr(
                 play_name::Column::VerifiedAt,
                 Expr::value(Option::<i64>::None),
             )
@@ -278,8 +293,8 @@ impl PlayNameService {
         Ok(Some(serial))
     }
 
-    // Every record the zone serves: label and address.
-    pub async fn published(&self) -> Result<Vec<(String, IpAddr)>, PlayError> {
+    // Every record the zone serves: label, address and the proven port.
+    pub async fn published(&self) -> Result<Vec<(String, PlayZoneEntry)>, PlayError> {
         let rows = play_name::Entity::find()
             .filter(play_name::Column::ReleasedAt.is_null())
             .filter(play_name::Column::PublishedAddress.is_not_null())
@@ -290,7 +305,8 @@ impl PlayNameService {
             .into_iter()
             .filter_map(|row| {
                 let address = row.published_address?.parse::<IpAddr>().ok()?;
-                Some((row.name, address))
+                let port = row.published_port.and_then(|p| u16::try_from(p).ok());
+                Some((row.name, PlayZoneEntry { address, port }))
             })
             .collect())
     }
@@ -330,6 +346,7 @@ impl PlayNameService {
             let mut model: play_name::ActiveModel = row.into();
             model.released_at = ActiveValue::Set(Some(now));
             model.published_address = ActiveValue::Set(None);
+            model.published_port = ActiveValue::Set(None);
             model.verified_at = ActiveValue::Set(None);
             model.update(&txn).await?;
 
@@ -421,6 +438,10 @@ impl PlayNameService {
                     Expr::value(Option::<String>::None),
                 )
                 .col_expr(
+                    play_name::Column::PublishedPort,
+                    Expr::value(Option::<i32>::None),
+                )
+                .col_expr(
                     play_name::Column::DeclaredAddress,
                     Expr::value(Option::<String>::None),
                 )
@@ -455,6 +476,7 @@ impl PlayNameService {
             declared_address: ActiveValue::Set(None),
             declared_port: ActiveValue::Set(None),
             published_address: ActiveValue::Set(None),
+            published_port: ActiveValue::Set(None),
             verified_at: ActiveValue::Set(None),
             checkin_nonce: ActiveValue::Set(None),
             checked_in_at: ActiveValue::Set(None),

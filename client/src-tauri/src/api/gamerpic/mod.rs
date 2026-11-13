@@ -46,7 +46,7 @@ impl Api {
 
         let url = format!(
             "{}/api/gamerpic/{}/{}",
-            self.endpoint,
+            self.base_url,
             game.as_str(),
             gamertag
         );
@@ -74,7 +74,7 @@ impl Api {
                 status => {
                     self.gamerpic.record_miss(game.as_str(), gamertag);
                     curia::debug!("gamerpic request failed", {
-                        connected_server: self.endpoint.clone(),
+                        connected_server: self.identity.clone(),
                         status: status.as_u16(),
                     });
                     Err(format!("Request failed with status: {}", status))
@@ -111,7 +111,7 @@ impl Api {
         }
 
         curia::warn!("gamerpic requests refused; stopping for this session", {
-            connected_server: self.endpoint.clone(),
+            connected_server: self.identity.clone(),
             status: status.as_u16(),
         });
 
@@ -123,7 +123,7 @@ impl Api {
             CredentialVerdict::Rejected => Ok(GamerpicOutcome::CredentialsRejected),
             verdict => {
                 curia::warn!("gamerpic refusal probe finished; credentials kept", {
-                    connected_server: self.endpoint.clone(),
+                    connected_server: self.identity.clone(),
                     verdict: format!("{:?}", verdict),
                 });
                 refused

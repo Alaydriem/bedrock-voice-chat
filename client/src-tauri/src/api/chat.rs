@@ -12,7 +12,7 @@ impl Api {
     /// world key at all, because the proxy session is the world.
     pub(crate) async fn chat_worlds(&self) -> Result<Vec<ChatWorld>, String> {
         let client = self.get_client();
-        let url = format!("{}/api/chat/worlds", self.endpoint);
+        let url = format!("{}/api/chat/worlds", self.base_url);
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bvc_relay_service::config::PlayConfig;
-use bvc_relay_service::play::{PlayZone, PlayZoneNotifier};
+use bvc_relay_service::play::{PlayZone, PlayZoneEntry, PlayZoneNotifier};
 use hickory_proto::op::{Message, MessageType};
 use hickory_proto::rr::RData;
 use tokio::net::UdpSocket;
@@ -11,8 +11,11 @@ use tokio_util::sync::CancellationToken;
 
 use crate::harness::{DnsProbe, PlayFixture};
 
-fn address(last: u8) -> IpAddr {
-    IpAddr::V4(Ipv4Addr::new(198, 51, 100, last))
+fn address(last: u8) -> PlayZoneEntry {
+    PlayZoneEntry {
+        address: IpAddr::V4(Ipv4Addr::new(198, 51, 100, last)),
+        port: None,
+    }
 }
 
 // A bound socket standing in for the secondary, and the notifier pointed at it.

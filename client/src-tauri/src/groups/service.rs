@@ -298,8 +298,13 @@ impl GroupService {
     ) -> Result<(), anyhow::Error> {
         let identity: common::PlayerIdentity = self.current_player().await?.parse()?;
         let (ca_cert, pem) = api.tls_material();
-        let (socket_tx, socket_events) =
-            KeySocket::connect(api.endpoint(), ca_cert, pem, &id).await?;
+        let endpoint = self
+            .app_handle
+            .state::<std::sync::Arc<crate::network::ServerEndpointService>>()
+            .resolve(api.identity())
+            .await
+            .map_err(|e| anyhow!(e))?;
+        let (socket_tx, socket_events) = KeySocket::connect(&endpoint, ca_cert, pem, &id).await?;
         let (event_tx, event_rx) = tokio::sync::mpsc::channel(64);
         let slot = self.protected_slot().await;
         let gate = slot.gate();

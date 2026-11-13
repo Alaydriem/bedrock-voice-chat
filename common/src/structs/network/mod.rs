@@ -1,9 +1,15 @@
 pub mod address_class;
+pub mod endpoint_source;
 pub mod quic_close_code;
 pub mod quic_port_selection;
+pub mod server_address;
+pub mod server_endpoint;
 pub mod voice_protocol;
 
 pub use address_class::AddressClass;
+pub use endpoint_source::EndpointSource;
+pub use server_address::ServerAddress;
+pub use server_endpoint::ServerEndpoint;
 pub use quic_close_code::QuicCloseCode;
 pub use quic_port_selection::QuicPortSelection;
 pub use voice_protocol::VoiceProtocol;

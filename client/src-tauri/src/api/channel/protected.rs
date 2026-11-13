@@ -8,7 +8,7 @@ impl Api {
     /// Turns this player's open channel into an end-to-end encrypted one. The error is the
     /// server's refusal code: `not_found`, `not_creator`, `not_alone` or `already_protected`.
     pub(crate) async fn protect_channel(&self, channel_id: String) -> Result<(), String> {
-        let url = format!("{}/api/channel/{}/protect", self.endpoint(), channel_id);
+        let url = format!("{}/api/channel/{}/protect", self.base_url(), channel_id);
         match self.send(self.get_client().put(url)).await {
             Ok(response) if response.status() == StatusCode::OK => Ok(()),
             Ok(response) => {
@@ -35,7 +35,7 @@ impl Api {
     /// Joins an end-to-end encrypted channel's routing. Admission to its keys happens between
     /// members, over the key socket.
     pub(crate) async fn join_protected_channel(&self, channel_id: String) -> Result<bool, String> {
-        let url = format!("{}/api/channel/{}/protected", self.endpoint(), channel_id);
+        let url = format!("{}/api/channel/{}/protected", self.base_url(), channel_id);
         match self.send(self.get_client().put(url)).await {
             Ok(response) => match response.status() {
                 StatusCode::OK => Ok(true),

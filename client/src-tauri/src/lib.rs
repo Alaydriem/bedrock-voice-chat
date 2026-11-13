@@ -40,7 +40,7 @@ mod auth;
 pub use auth::LoginClientConfig;
 pub use auth::LoginFailure;
 pub use auth::ServerCheckClassifier;
-pub use auth::ServerEndpoint;
+pub use auth::ServerUrlPath;
 #[cfg(feature = "bedrock-protocol")]
 pub mod bedrock;
 pub mod chat;
@@ -315,6 +315,7 @@ pub fn run() {
             crate::commands::network::connected_voice_server,
             crate::commands::network::probe_server,
             crate::commands::network::probe_voice_path,
+            crate::commands::network::server_websocket_url,
             crate::commands::network::check_protocol_compatibility,
             crate::commands::network::reset_nsm,
             // API implementation
@@ -882,6 +883,12 @@ pub fn run() {
                 keyring::KeyringService::warm(keyring_warm_handle).await;
             });
 
+            let endpoints = network::ServerEndpointService::new_shared(
+                common::net::srv::SrvResolver::new(
+                    common::net::srv::SrvResolverConfig::production(),
+                ),
+            );
+            app.manage(endpoints);
             let app_state = AppState::new(store.clone(), handle.clone());
             app.manage(telemetry);
             app.manage(Mutex::new(app_state));

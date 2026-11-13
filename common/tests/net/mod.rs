@@ -4,3 +4,5 @@ mod preference_cell;
 mod probe;
 mod reachability_planner;
 mod timeouts;
+#[cfg(feature = "srv")]
+mod srv;

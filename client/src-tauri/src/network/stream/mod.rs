@@ -19,6 +19,7 @@ use common::net::ConnectCandidate;
 use common::s2n_quic::Client;
 use common::s2n_quic::Connection;
 use common::s2n_quic::client::Connect;
+use common::structs::network::ServerEndpoint;
 use common::structs::metrics::TransportKind;
 use common::structs::reachability::VoiceChoice;
 use std::error::Error;
@@ -58,11 +59,15 @@ impl NetworkStreamManager {
         quic_stats_tx: watch::Sender<Arc<QuicLinkStats>>,
         link_session: Arc<LinkSession>,
         transport_stats: Arc<TransportStats>,
+        endpoints: Arc<crate::network::ServerEndpointService>,
     ) -> Self {
         // Built before the health manager, which records demotions into it.
         let transport_verdict = crate::network::TransportVerdict::new_shared();
-        let health_manager =
-            ConnectionHealthManager::new(app_handle.clone(), transport_verdict.clone());
+        let health_manager = ConnectionHealthManager::new(
+            app_handle.clone(),
+            transport_verdict.clone(),
+            endpoints,
+        );
 
         Self {
             producer: producer.clone(),
@@ -107,6 +112,7 @@ impl NetworkStreamManager {
         &mut self,
         server_fqdn: String,
         server_url: String,
+        endpoint: ServerEndpoint,
         plan: CandidatePlan,
         // Which transport the reachability report says to dial. The probe has already
         // measured both, so the choice costs nothing here — where dialling both to find
@@ -179,6 +185,7 @@ impl NetworkStreamManager {
                 &plan,
                 &server_fqdn,
                 &server_url,
+                &endpoint,
                 &ca_cert,
                 &cert,
                 &key,
@@ -271,6 +278,7 @@ impl NetworkStreamManager {
         plan: &CandidatePlan,
         server_fqdn: &str,
         server_url: &str,
+        endpoint: &ServerEndpoint,
         ca_cert: &str,
         cert: &str,
         key: &str,
@@ -284,6 +292,7 @@ impl NetworkStreamManager {
                 plan,
                 server_fqdn,
                 server_url,
+                endpoint,
                 ca_cert,
                 cert,
                 key,
@@ -312,6 +321,7 @@ impl NetworkStreamManager {
         plan: &CandidatePlan,
         server_fqdn: &str,
         server_url: &str,
+        endpoint: &ServerEndpoint,
         ca_cert: &str,
         cert: &str,
         key: &str,
@@ -343,7 +353,8 @@ impl NetworkStreamManager {
                 });
                 outcome.chose(TransportKind::WebSocket);
                 outcome.fell_back(FallbackReason::Demoted);
-                self.connect_websocket(server_url, ca_cert, cert, key).await
+                self.connect_websocket(server_url, endpoint, ca_cert, cert, key)
+                    .await
             }
 
             VoiceChoice::Quic => {
@@ -365,7 +376,8 @@ impl NetworkStreamManager {
                         });
                         self.transport_verdict.demote(server_fqdn);
                         outcome.fell_back(FallbackReason::QuicFailed);
-                        self.connect_websocket(server_url, ca_cert, cert, key).await
+                        self.connect_websocket(server_url, endpoint, ca_cert, cert, key)
+                            .await
                     }
                     Err(failure) => Err(failure),
                 }
@@ -373,7 +385,10 @@ impl NetworkStreamManager {
 
             VoiceChoice::WebSocket => {
                 outcome.chose(TransportKind::WebSocket);
-                match self.connect_websocket(server_url, ca_cert, cert, key).await {
+                match self
+                    .connect_websocket(server_url, endpoint, ca_cert, cert, key)
+                    .await
+                {
                     Ok(link) => Ok(link),
                     Err(failure) if failure.is_certificate() => Err(failure),
                     Err(failure) => {
@@ -444,16 +459,12 @@ impl NetworkStreamManager {
     async fn connect_websocket(
         &self,
         server_url: &str,
+        endpoint: &ServerEndpoint,
         ca_cert: &str,
         cert: &str,
         key: &str,
     ) -> Result<DatagramLink, ConnectFailure> {
-        let authority = server_url
-            .strip_prefix("https://")
-            .or_else(|| server_url.strip_prefix("http://"))
-            .unwrap_or(server_url)
-            .trim_end_matches('/');
-        let url = format!("wss://{authority}/voice");
+        let url = endpoint.wss_url("/voice");
 
         curia::info!("connecting the WebSocket voice transport", {
             transport: "wss",
@@ -489,26 +500,13 @@ impl NetworkStreamManager {
         // is the only port this transport ever uses.
         self.link_session.set(
             None,
-            Self::authority_port(authority),
+            endpoint.port(),
             common::structs::metrics::TransportKind::WebSocket,
             server_url.to_string(),
             ca_cert,
         );
 
         Ok(DatagramLink::WebSocket(link))
-    }
-
-    // The port a server authority names, or the HTTPS default when it names none.
-    fn authority_port(authority: &str) -> u16 {
-        let after_host = match authority.rfind(']') {
-            Some(end) => &authority[end + 1..],
-            None => authority,
-        };
-
-        after_host
-            .rsplit_once(':')
-            .and_then(|(_, port)| port.parse().ok())
-            .unwrap_or(443)
     }
 
     // Builds an endpoint bound to `bind`. The mTLS provider and the datagram

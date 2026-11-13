@@ -21,7 +21,7 @@ tauri-build = { version = "^2.4", features = [] }
 dotenvy = { version = "^0.15" }
 
 [dependencies]
-common = { path = "./../../common", features = ["quic", "audio", "browser", "net"] }
+common = { path = "./../../common", features = ["quic", "audio", "browser", "net", "srv"] }
 websocket-types = { path = "./../../common/websocket-types" }
 tokio = { version = "^1", features = ["full"] }
 dirs = { version = "^6", optional = true }
@@ -141,6 +141,7 @@ libloading = { version = "^0.8" }
 tempfile = { version = "^3" }
 hound = { version = "^3.5" }
 rcgen = { version = "^0.14", features = ["x509-parser"] }
+hickory-proto = "0.26"
 bedrock-server = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.60.3" }
 bedrock-client = { git = "https://github.com/alaydriem/bedrock-protocol-rs", tag = "26.60.3" }
 

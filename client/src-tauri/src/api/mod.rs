@@ -5,6 +5,7 @@ pub(crate) mod commands;
 use common::request::LinkJavaIdentityRequest;
 use common::response::ApiConfigResponse;
 use common::response::LinkJavaIdentityResponse;
+use common::structs::network::ServerEndpoint;
 use tauri_plugin_curia::curia;
 mod channel;
 mod circuit_breaker;
@@ -36,7 +37,8 @@ const RETRY_BASE_DELAY: Duration = Duration::from_millis(250);
 
 #[derive(Debug, Clone)]
 pub(crate) struct Api {
-    endpoint: String,
+    identity: String,
+    base_url: String,
     client: client::Client,
     // Shared, not copied: this Api is pooled per server and long-lived, so a
     // verdict captured at construction would freeze. The cell also bridges the
@@ -59,17 +61,28 @@ impl Api {
     const CONFIG_CAPACITY: u64 = 16;
 
     pub fn new(
-        endpoint: String,
+        identity: String,
+        endpoint: ServerEndpoint,
         ca_cert: String,
         pem: String,
         family_preference: Arc<common::net::FamilyPreferenceCell>,
     ) -> Self {
         Self {
-            endpoint,
+            identity,
+            base_url: endpoint.base_url(),
             client: client::Client::new(ca_cert, pem),
             family_preference,
             config: FetchCache::new(Self::CONFIG_TTL, Self::CONFIG_CAPACITY),
             gamerpic: GamerpicGate::new_shared(),
+        }
+    }
+
+    /// This client pointed at a different endpoint of the same server. The pool, breaker and
+    /// config cache keys do not change, so every other field is shared with the original.
+    pub(crate) fn rebased(&self, endpoint: &ServerEndpoint) -> Self {
+        Self {
+            base_url: endpoint.base_url(),
+            ..self.clone()
         }
     }
 
@@ -92,7 +105,7 @@ impl Api {
         &self,
         request: common::reqwest::RequestBuilder,
     ) -> Result<common::reqwest::Response, circuit_breaker::SendError> {
-        let breaker = circuit_breaker::EndpointBreaker::for_endpoint(&self.endpoint);
+        let breaker = circuit_breaker::EndpointBreaker::for_endpoint(&self.identity);
         if !breaker.allow() {
             return Err(circuit_breaker::SendError::Open);
         }
@@ -121,7 +134,7 @@ impl Api {
                     // reported by the final failure below. Neither is worth a record of
                     // its own; as a breadcrumb it still rides along on any real report.
                     curia::debug!("request attempt failed; retrying", {
-                        connected_server: self.endpoint.clone(),
+                        connected_server: self.identity.clone(),
                         attempt: attempt,
                         max_attempts: MAX_SEND_ATTEMPTS,
                         error: common::net::ErrorChain::render(&e),
@@ -140,13 +153,13 @@ impl Api {
                     // the first says nothing the first did not.
                     if report.first {
                         curia::error!("request failed", {
-                            connected_server: self.endpoint.clone(),
+                            connected_server: self.identity.clone(),
                             attempts: attempt,
                             error: chain,
                         });
                     } else {
                         curia::debug!("request failed", {
-                            connected_server: self.endpoint.clone(),
+                            connected_server: self.identity.clone(),
                             attempts: attempt,
                             error: chain,
                         });
@@ -154,7 +167,7 @@ impl Api {
 
                     if report.opened {
                         curia::debug!("repeated connection failures; backing off further requests", {
-                            connected_server: self.endpoint.clone(),
+                            connected_server: self.identity.clone(),
                         });
                     }
 
@@ -164,8 +177,14 @@ impl Api {
         }
     }
 
-    pub(crate) fn endpoint(&self) -> &str {
-        &self.endpoint
+    /// The saved server string: the key for the pool, the breaker and the config cache.
+    pub(crate) fn identity(&self) -> &str {
+        &self.identity
+    }
+
+    /// The resolved `https://host:port` every request URL starts with.
+    pub(crate) fn base_url(&self) -> &str {
+        &self.base_url
     }
 
     pub(crate) fn get_reqwest_client(&self) -> ReqwestClient {
@@ -180,7 +199,7 @@ impl Api {
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
         // Reconstruct full URL with resolved IP address
-        let url = format!("{}/api/ping", self.endpoint);
+        let url = format!("{}/api/ping", self.base_url);
 
         match self.send(client.get(url).headers(headers)).await {
             Ok(response) => match response.status() {
@@ -190,7 +209,7 @@ impl Api {
             Err(circuit_breaker::SendError::Open) => Err(false),
             Err(circuit_breaker::SendError::Transport(e)) => {
                 curia::error!("unable to connect to the BVC server", {
-                    connected_server: self.endpoint.clone(),
+                    connected_server: self.identity.clone(),
                     error: e.to_string(),
                 });
                 Err(false)
@@ -211,7 +230,7 @@ impl Api {
         headers.insert("Content-Type", HeaderValue::from_static("application/json"));
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
-        let url = format!("{}/api/auth/link-java", self.endpoint);
+        let url = format!("{}/api/auth/link-java", self.base_url);
         let payload = LinkJavaIdentityRequest {
             code,
             redirect_uri,
@@ -239,7 +258,7 @@ impl Api {
             }
             Err(circuit_breaker::SendError::Transport(e)) => {
                 curia::error!("failed to link the Java identity", {
-                    connected_server: self.endpoint.clone(),
+                    connected_server: self.identity.clone(),
                     error: e.to_string(),
                 });
                 Err(format!("Connection failed: {}", e))
@@ -264,7 +283,7 @@ impl Api {
         headers.insert("Content-Type", HeaderValue::from_static("application/json"));
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
-        let url = format!("{}/api/websocket/ticket", self.endpoint);
+        let url = format!("{}/api/websocket/ticket", self.base_url);
 
         let response = match self.send(client.post(url).headers(headers)).await {
             Ok(response) => response,
@@ -291,7 +310,7 @@ impl Api {
     /// on the screen the user is waiting on: the age gate, the port and spatial-audio
     /// refresh, the bedrock connection hints, and the connect path's candidate planning.
     pub(crate) async fn get_config(&self) -> Result<ApiConfigResponse, String> {
-        let endpoint = self.endpoint.clone();
+        let endpoint = self.identity.clone();
         self.config
             .get_or_fetch(&endpoint, || self.fetch_config())
             .await
@@ -299,7 +318,7 @@ impl Api {
 
     /// Drop this server's cached config so the next read goes to the network.
     pub(crate) async fn invalidate_config(&self) {
-        self.config.invalidate(&self.endpoint).await;
+        self.config.invalidate(&self.identity).await;
     }
 
     async fn fetch_config(&self) -> Result<ApiConfigResponse, String> {
@@ -309,7 +328,7 @@ impl Api {
         headers.insert("Content-Type", HeaderValue::from_static("application/json"));
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
-        let url = format!("{}/api/config", self.endpoint);
+        let url = format!("{}/api/config", self.base_url);
 
         match self.send(client.get(url).headers(headers)).await {
             Ok(response) => match response.status() {
@@ -331,7 +350,7 @@ impl Api {
 
                     if let Ok(legacy) = serde_json::from_str::<LegacyApiConfig>(&body) {
                         curia::warn!("config parsed via legacy fallback; the server predates the bedrock/protocol fields", {
-                            connected_server: self.endpoint.clone(),
+                            connected_server: self.identity.clone(),
                         });
                         return Ok(ApiConfigResponse {
                             status: legacy.status,
@@ -363,7 +382,7 @@ impl Api {
             }
             Err(circuit_breaker::SendError::Transport(e)) => {
                 curia::error!("unable to get config from the BVC server", {
-                    connected_server: self.endpoint.clone(),
+                    connected_server: self.identity.clone(),
                     error: e.to_string(),
                 });
                 Err(format!("Connection failed: {}", e))

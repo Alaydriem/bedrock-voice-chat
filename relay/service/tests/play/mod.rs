@@ -8,5 +8,6 @@ mod preflight_limiter;
 mod preflight_service;
 mod root_pin;
 mod step_ca_signer;
+mod zone;
 mod zone_notifier;
 mod zone_transfer;

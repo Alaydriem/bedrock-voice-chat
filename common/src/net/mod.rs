@@ -3,6 +3,8 @@ mod error_chain;
 mod position_cadence;
 mod preference_cell;
 pub mod probe;
+#[cfg(feature = "srv")]
+pub mod srv;
 mod reachability_planner;
 mod timeouts;
 

@@ -16,6 +16,7 @@ use tokio::task::AbortHandle;
 
 use super::stream_manager::HealthMonitorState;
 use crate::api::EndpointBreaker;
+use crate::network::ServerEndpointService;
 use tauri_plugin_curia::curia;
 
 mod health_config;
@@ -38,6 +39,8 @@ pub struct ConnectionHealthManager {
     app_handle: tauri::AppHandle,
     health_config: HealthConfig,
     reconnect_config: ReconnectConfig,
+    /// Turns the saved server string into the endpoint a probe is sent to.
+    endpoints: Arc<ServerEndpointService>,
 }
 
 impl ConnectionHealthManager {
@@ -45,8 +48,10 @@ impl ConnectionHealthManager {
     pub fn new(
         app_handle: tauri::AppHandle,
         transport_verdict: Arc<crate::network::TransportVerdict>,
+        endpoints: Arc<ServerEndpointService>,
     ) -> Self {
         Self {
+            endpoints,
             transport_verdict,
             health_state: Arc::new(HealthMonitorState::new()),
             shutdown: Arc::new(AtomicBool::new(false)),
@@ -80,12 +85,14 @@ impl ConnectionHealthManager {
         let health_config = self.health_config.clone();
         let reconnect_config = self.reconnect_config.clone();
         let transport_verdict = self.transport_verdict.clone();
+        let endpoints = self.endpoints.clone();
 
         let handle = tokio::spawn(async move {
             Self::run_health_monitor(
                 health_state,
                 link,
                 transport_verdict,
+                endpoints,
                 shutdown,
                 app_handle,
                 server_url,
@@ -111,6 +118,7 @@ impl ConnectionHealthManager {
         health_state: Arc<HealthMonitorState>,
         link: DatagramLink,
         transport_verdict: Arc<crate::network::TransportVerdict>,
+        endpoints: Arc<ServerEndpointService>,
         shutdown: Arc<AtomicBool>,
         app_handle: tauri::AppHandle,
         server_url: String,
@@ -148,7 +156,7 @@ impl ConnectionHealthManager {
                 curia::error!(
                     "datagram decode failures indicate an incompatible server protocol; tearing down the connection"
                 );
-                Self::emit_version_mismatch(&server_url, &app_handle).await;
+                Self::emit_version_mismatch(&endpoints, &server_url, &app_handle).await;
                 break;
             }
 
@@ -172,7 +180,13 @@ impl ConnectionHealthManager {
                         transport_verdict.demote(&server_url);
                     }
 
-                    Self::probe_and_reconnect(&server_url, &app_handle, &reconnect_config).await;
+                    Self::probe_and_reconnect(
+                        &endpoints,
+                        &server_url,
+                        &app_handle,
+                        &reconnect_config,
+                    )
+                    .await;
                     break;
                 } else if failures > 0 {
                     curia::debug!("health check timeout", {
@@ -205,6 +219,7 @@ impl ConnectionHealthManager {
 
     /// Probe server availability and trigger refresh when ready
     async fn probe_and_reconnect(
+        endpoints: &ServerEndpointService,
         server_url: &str,
         app_handle: &tauri::AppHandle,
         config: &ReconnectConfig,
@@ -217,7 +232,7 @@ impl ConnectionHealthManager {
         while attempt < config.max_attempts {
             HealthPublisher::publish(app_handle, ConnectionHealth::Reconnecting { attempt });
 
-            match Self::probe_server(server_url).await {
+            match Self::probe_server(endpoints, server_url).await {
                 ProbeResult::Available => {
                     curia::info!("server is back online; triggering refresh");
                     let _ = app_handle.emit("trigger_refresh", ());
@@ -275,8 +290,13 @@ impl ConnectionHealthManager {
     /// from `/api/config` for diagnostics; the mismatch is emitted regardless of
     /// what the semantic version comparison reports, because the decode failure
     /// is already authoritative proof the wire formats differ.
-    async fn emit_version_mismatch(server_url: &str, app_handle: &tauri::AppHandle) {
-        let (server_version, client_too_old) = Self::fetch_server_version(server_url).await;
+    async fn emit_version_mismatch(
+        endpoints: &ServerEndpointService,
+        server_url: &str,
+        app_handle: &tauri::AppHandle,
+    ) {
+        let (server_version, client_too_old) =
+            Self::fetch_server_version(endpoints, server_url).await;
         curia::warn!("protocol mismatch confirmed", {
             client_version: PROTOCOL_VERSION,
             server_version: server_version.clone(),
@@ -303,16 +323,18 @@ impl ConnectionHealthManager {
     /// Fetch the server's advertised protocol version from `/api/config`,
     /// returning the version string and whether this client is the older side.
     /// Falls back to `("unknown", false)` when the config cannot be read.
-    async fn fetch_server_version(server_url: &str) -> (String, bool) {
+    async fn fetch_server_version(
+        endpoints: &ServerEndpointService,
+        server_url: &str,
+    ) -> (String, bool) {
         let client = match Self::probe_client() {
             Ok(c) => c,
             Err(_) => return ("unknown".to_string(), false),
         };
 
-        let base_url = if server_url.starts_with("http://") || server_url.starts_with("https://") {
-            server_url.to_string()
-        } else {
-            format!("https://{}", server_url)
+        let base_url = match endpoints.resolve(server_url).await {
+            Ok(endpoint) => endpoint.base_url(),
+            Err(_) => return ("unknown".to_string(), false),
         };
 
         let url = format!("{}/api/config", base_url);
@@ -336,7 +358,7 @@ impl ConnectionHealthManager {
     }
 
     /// Probe the server's HTTP endpoint to check availability and version compatibility
-    async fn probe_server(server_url: &str) -> ProbeResult {
+    async fn probe_server(endpoints: &ServerEndpointService, server_url: &str) -> ProbeResult {
         let client = match Self::probe_client() {
             Ok(c) => c,
             Err(e) => {
@@ -347,10 +369,14 @@ impl ConnectionHealthManager {
             }
         };
 
-        let base_url = if server_url.starts_with("http://") || server_url.starts_with("https://") {
-            server_url.to_string()
-        } else {
-            format!("https://{}", server_url)
+        let base_url = match endpoints.resolve(server_url).await {
+            Ok(endpoint) => endpoint.base_url(),
+            Err(e) => {
+                curia::warn!("the server address could not be resolved for a probe", {
+                    error: e,
+                });
+                return ProbeResult::Unavailable;
+            }
         };
 
         let url = format!("{}/api/config", base_url);

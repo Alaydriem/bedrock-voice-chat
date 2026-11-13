@@ -73,18 +73,19 @@ impl PlayZoneTransfer {
     }
 
     // The records of a full transfer, split into messages: the SOA, the apex NS set, every
-    // address record, then the SOA again, all from one snapshot.
+    // address record with its SRV record, then the SOA again, all from one snapshot.
     pub fn stream(&self) -> Vec<(Vec<Record>, Vec<Record>)> {
         let (serial, records) = self.zone.snapshot();
 
         let mut all = Vec::with_capacity(records.len() + 4);
         all.push(self.zone.soa_record_at(serial));
         all.extend(self.zone.ns_records());
-        all.extend(
-            records
-                .into_iter()
-                .map(|(label, address)| self.zone.address_record(&label, address)),
-        );
+        for (label, entry) in records {
+            all.push(self.zone.address_record(&label, entry.address));
+            if let Some(port) = entry.port {
+                all.push(self.zone.service_record(&label, port));
+            }
+        }
         all.push(self.zone.soa_record_at(serial));
 
         let mut messages = Vec::new();

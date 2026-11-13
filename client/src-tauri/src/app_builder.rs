@@ -259,6 +259,10 @@ impl AppBuilder {
             quic_stats_tx,
             link_session.clone(),
             transport_stats.clone(),
+            handle
+                .state::<Arc<crate::network::ServerEndpointService>>()
+                .inner()
+                .clone(),
         );
         app.manage(Mutex::new(network_stream));
 

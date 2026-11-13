@@ -1,4 +1,5 @@
-use crate::api::Api;
+use crate::api::{Api, EndpointBreaker};
+use common::structs::network::ServerEndpoint;
 use crate::audio::{AudioDevice, AudioDeviceHost, AudioDeviceType};
 use crate::structs::StoredAudioDevice;
 use rodio::cpal::{
@@ -74,19 +75,51 @@ impl AppState {
 
     /// Initialize the API client with credentials
     /// Sets both the default api_client (for backwards compatibility) and adds to server_pool
-    pub async fn initialize_api_client(&mut self, endpoint: String, ca_cert: String, pem: String) {
+    ///
+    /// `endpoint` is resolved by the caller before it takes the state lock.
+    pub async fn initialize_api_client(
+        &mut self,
+        identity: String,
+        endpoint: ServerEndpoint,
+        ca_cert: String,
+        pem: String,
+    ) {
         let api = Api::new(
-            endpoint.clone(),
+            identity.clone(),
+            endpoint,
             ca_cert,
             pem,
             self.family_preference.clone(),
         );
 
         self.api_client = Some(api.clone());
-        self.current_server = Some(endpoint.clone());
+        self.current_server = Some(identity.clone());
 
         let mut pool = self.server_pool.write().await;
-        pool.insert(endpoint, api);
+        pool.insert(identity, api);
+    }
+
+    /// Point the pooled and current clients for `identity` at a freshly resolved endpoint.
+    ///
+    /// A client that moves to another base drops its cached config and its breaker state,
+    /// which were built from the old one.
+    pub(crate) async fn adopt_endpoint(&mut self, identity: &str, endpoint: &ServerEndpoint) {
+        let base_url = endpoint.base_url();
+        let mut pool = self.server_pool.write().await;
+        if let Some(api) = pool.get_mut(identity) {
+            if api.base_url() != base_url {
+                *api = api.rebased(endpoint);
+                api.invalidate_config().await;
+                EndpointBreaker::note_reachable(identity);
+            }
+        }
+        if let Some(api) = self.api_client.as_mut() {
+            if api.identity() == identity && api.base_url() != base_url {
+                *api = api.rebased(endpoint);
+                api.invalidate_config().await;
+                EndpointBreaker::note_reachable(identity);
+            }
+        }
     }
 
     /// Add a client to the pool without claiming the current server.
@@ -95,15 +128,22 @@ impl AppState {
     /// one commands called without an explicit endpoint act on. A status sweep over every
     /// saved server must leave it alone, or whichever check finishes last becomes the
     /// server a later action lands on.
-    pub async fn pool_api_client(&self, endpoint: String, ca_cert: String, pem: String) {
+    pub async fn pool_api_client(
+        &self,
+        identity: String,
+        endpoint: ServerEndpoint,
+        ca_cert: String,
+        pem: String,
+    ) {
         let api = Api::new(
-            endpoint.clone(),
+            identity.clone(),
+            endpoint,
             ca_cert,
             pem,
             self.family_preference.clone(),
         );
         let mut pool = self.server_pool.write().await;
-        pool.insert(endpoint, api);
+        pool.insert(identity, api);
     }
 
     /// Get the API client, returning an error if not initialized

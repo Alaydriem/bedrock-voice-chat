@@ -1377,6 +1377,10 @@ impl ServerRuntime {
             result = &mut boot => {
                 let (name, paths) = result?;
                 curia::info!("Play name and certificate ready", { "name": name.clone() });
+                curia::info!("Play name in use", {
+                    "connect": name.clone(),
+                    "connect_with_port": format!("{}:{}", name, preflight.port)
+                });
                 Ok(Some((service.clone(), name, paths)))
             }
             _ = self.shutdown_notify.notified() => {

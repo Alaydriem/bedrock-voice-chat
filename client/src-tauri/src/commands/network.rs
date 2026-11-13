@@ -14,8 +14,10 @@ use tauri_plugin_curia::curia;
 #[tauri::command]
 pub(crate) async fn read_public_server_config(
     server: String,
+    endpoints: State<'_, Arc<crate::network::ServerEndpointService>>,
 ) -> Result<common::response::ApiConfigResponse, String> {
-    crate::network::PublicServerConfigReader::read(&server)
+    let base_url = endpoints.resolve(&server).await?.base_url();
+    crate::network::PublicServerConfigReader::read(&base_url)
         .await
         .map_err(|e| e.to_string())
 }
@@ -76,7 +78,7 @@ pub(crate) async fn connected_voice_server(
 }
 
 #[tauri::command]
-#[tracing::instrument(skip(state, network_stream, data, analytics), fields(server = %server))]
+#[tracing::instrument(skip(state, network_stream, data, analytics, endpoints), fields(server = %server))]
 pub(crate) async fn change_network_stream(
     app: tauri::AppHandle,
     server: String,
@@ -84,16 +86,22 @@ pub(crate) async fn change_network_stream(
     state: State<'_, Mutex<AppState>>,
     network_stream: State<'_, Mutex<NetworkStreamManager>>,
     analytics: State<'_, Arc<AnalyticsService>>,
+    endpoints: State<'_, Arc<crate::network::ServerEndpointService>>,
 ) -> Result<(), String> {
     // Read before the disconnect below clears it. A player who moves between servers without
     // leaving the app is the only thing this separates from a first connect, and after the
     // clear there is nothing left to compare against.
     let previous_server = analytics.connected_server();
 
+    // A new session asks DNS again, so a port the operator has moved is found here rather
+    // than after the cached answer expires.
+    let endpoint = endpoints.refresh(&server).await?;
+
     // Short state lock — release before network I/O
     {
         let mut state = state.lock().await;
         state.current_server = Some(server.clone());
+        state.adopt_endpoint(&server, &endpoint).await;
     }
 
     // The keyring copy of the port is frozen at login. Ask the server what it
@@ -161,7 +169,7 @@ pub(crate) async fn change_network_stream(
     }
 
     let request = match ReachabilityPlanner::plan(
-        &server,
+        &endpoint,
         &advertised_ports,
         advertised_scalar,
         Some(&data.quic_connect_string),
@@ -242,6 +250,7 @@ pub(crate) async fn change_network_stream(
         .restart(
             server_fqdn.clone(),
             server.clone(),
+            endpoint.clone(),
             plan,
             choice,
             voice_websocket,
@@ -377,10 +386,13 @@ pub(crate) async fn probe_server(
     // for the same reason `quic_ports` is.
     voice_websocket: bool,
     state: State<'_, Mutex<AppState>>,
+    endpoints: State<'_, Arc<crate::network::ServerEndpointService>>,
 ) -> Result<ServerReachability, String> {
-    let request = ReachabilityPlanner::plan(&server, &quic_ports, quic_port, None, voice_websocket)
-        .await
-        .map_err(|e| e.to_string())?;
+    let endpoint = endpoints.resolve(&server).await?;
+    let request =
+        ReachabilityPlanner::plan(&endpoint, &quic_ports, quic_port, None, voice_websocket)
+            .await
+            .map_err(|e| e.to_string())?;
 
     let reachability = {
         let state = state.lock().await;
@@ -407,10 +419,13 @@ pub(crate) async fn probe_voice_path(
     quic_port: u32,
     voice_websocket: bool,
     state: State<'_, Mutex<AppState>>,
+    endpoints: State<'_, Arc<crate::network::ServerEndpointService>>,
 ) -> Result<ServerReachability, String> {
-    let request = ReachabilityPlanner::plan(&server, &quic_ports, quic_port, None, voice_websocket)
-        .await
-        .map_err(|e| e.to_string())?;
+    let endpoint = endpoints.resolve(&server).await?;
+    let request =
+        ReachabilityPlanner::plan(&endpoint, &quic_ports, quic_port, None, voice_websocket)
+            .await
+            .map_err(|e| e.to_string())?;
 
     let reachability = {
         let state = state.lock().await;
@@ -418,6 +433,17 @@ pub(crate) async fn probe_voice_path(
     };
 
     Ok(reachability.evaluate_any_voice_path(&request).await)
+}
+
+// The `wss` URL for a path on a saved server, with the port its SRV record names. The
+// webview builds no server URL of its own, because it has no SRV resolver.
+#[tauri::command]
+pub(crate) async fn server_websocket_url(
+    server: String,
+    path: String,
+    endpoints: State<'_, Arc<crate::network::ServerEndpointService>>,
+) -> Result<String, String> {
+    Ok(endpoints.resolve(&server).await?.wss_url(&path))
 }
 
 // Compatibility is a different axis from reachability, and both are needed before a

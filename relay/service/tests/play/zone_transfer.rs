@@ -1,7 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use bvc_relay_service::config::PlayConfig;
-use bvc_relay_service::play::{PlayDnsServer, PlayZone};
+use bvc_relay_service::play::{PlayDnsServer, PlayZone, PlayZoneEntry, PlayZoneTransfer};
 use hickory_proto::op::{Message, ResponseCode};
 use hickory_proto::rr::{RData, RecordType};
 use tokio_util::sync::CancellationToken;
@@ -22,7 +22,15 @@ async fn serve(config: PlayConfig, names: usize) -> (SocketAddr, CancellationTok
         .map(|i| {
             (
                 format!("name-{i}"),
-                IpAddr::V4(Ipv4Addr::new(10, (i / 65_536) as u8, (i / 256 % 256) as u8, (i % 256) as u8)),
+                PlayZoneEntry {
+                    address: IpAddr::V4(Ipv4Addr::new(
+                        10,
+                        (i / 65_536) as u8,
+                        (i / 256 % 256) as u8,
+                        (i % 256) as u8,
+                    )),
+                    port: None,
+                },
             )
         })
         .collect();
@@ -165,4 +173,64 @@ async fn a_signed_soa_query_gets_a_signed_answer() {
     let reply = Message::from_vec(&raw).expect("decodes");
 
     assert!(matches!(&reply.answers[0].data, RData::SOA(soa) if soa.serial == 1000));
+}
+
+#[test]
+fn a_transfer_carries_each_published_port_as_srv() {
+    let config = PlayFixture::config();
+    let zone = PlayZone::new_shared(config.zone.clone(), config.dns.clone());
+    zone.publish(
+        "name-a",
+        PlayZoneEntry {
+            address: loopback(),
+            port: Some(30001),
+        },
+        1000,
+    );
+    let transfer = PlayZoneTransfer::new(zone, config.dns.clone());
+
+    let records: Vec<_> = transfer.stream().into_iter().flat_map(|(answers, _)| answers).collect();
+
+    let srv: Vec<_> = records
+        .iter()
+        .filter_map(|r| match &r.data {
+            RData::SRV(srv) => Some((r.name.to_string(), r.ttl, srv.clone())),
+            _ => None,
+        })
+        .collect();
+    let position = records
+        .iter()
+        .position(|r| matches!(r.data, RData::SRV(_)))
+        .expect("an SRV record");
+    assert!(
+        matches!(records[position - 1].data, RData::A(_))
+            && records[position - 1].name.to_string() == "name-a.play.bedrockvc.stream."
+    );
+    assert_eq!(srv.len(), 1);
+    assert_eq!(srv[0].0, "_bvc._tcp.name-a.play.bedrockvc.stream.");
+    assert_eq!(srv[0].1, config.dns.ttl);
+    assert_eq!(srv[0].2.port, 30001);
+    assert_eq!(srv[0].2.priority, 0);
+    assert_eq!(srv[0].2.weight, 0);
+    assert_eq!(srv[0].2.target.to_string(), "name-a.play.bedrockvc.stream.");
+}
+
+#[test]
+fn a_label_without_a_port_has_no_srv_in_a_transfer() {
+    let config = PlayFixture::config();
+    let zone = PlayZone::new_shared(config.zone.clone(), config.dns.clone());
+    zone.publish(
+        "name-a",
+        PlayZoneEntry {
+            address: loopback(),
+            port: None,
+        },
+        1000,
+    );
+    let transfer = PlayZoneTransfer::new(zone, config.dns.clone());
+
+    let records: Vec<_> = transfer.stream().into_iter().flat_map(|(answers, _)| answers).collect();
+
+    assert!(records.iter().any(|r| matches!(r.data, RData::A(_))));
+    assert!(!records.iter().any(|r| matches!(r.data, RData::SRV(_))));
 }

@@ -1,7 +1,9 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 
-use bvc_relay_service::play::{PlayDnsServer, PlayError, PlayZone};
+use bvc_relay_service::play::{PlayDnsServer, PlayError, PlayZone, PlayZoneEntry};
+use common::net::srv::{SrvFallback, SrvResolver, SrvResolverConfig};
+use common::structs::network::{EndpointSource, ServerAddress};
 use hickory_proto::op::{Message, OpCode, ResponseCode};
 use hickory_proto::rr::{RData, RecordType};
 use tokio_util::sync::CancellationToken;
@@ -35,7 +37,7 @@ fn v4() -> IpAddr {
 #[tokio::test]
 async fn a_published_v4_name_answers_a_with_ttl_60_and_aa() {
     let zone = zone();
-    zone.publish(LABEL, v4(), 1);
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: None }, 1);
     let (server, _cancel) = running(zone).await;
 
     let reply = DnsProbe::ask(server, &name(LABEL), RecordType::A).await;
@@ -51,7 +53,7 @@ async fn a_published_v4_name_answers_a_with_ttl_60_and_aa() {
 async fn a_published_v6_name_answers_aaaa() {
     let zone = zone();
     let address = Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 7);
-    zone.publish(LABEL, IpAddr::V6(address), 1);
+    zone.publish(LABEL, PlayZoneEntry { address: IpAddr::V6(address), port: None }, 1);
     let (server, _cancel) = running(zone).await;
 
     let reply = DnsProbe::ask(server, &name(LABEL), RecordType::AAAA).await;
@@ -63,7 +65,7 @@ async fn a_published_v6_name_answers_aaaa() {
 #[tokio::test]
 async fn an_aaaa_query_for_a_v4_name_is_nodata_with_soa() {
     let zone = zone();
-    zone.publish(LABEL, v4(), 1);
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: None }, 1);
     let (server, _cancel) = running(zone).await;
 
     let reply = DnsProbe::ask(server, &name(LABEL), RecordType::AAAA).await;
@@ -77,7 +79,7 @@ async fn an_aaaa_query_for_a_v4_name_is_nodata_with_soa() {
 #[tokio::test]
 async fn an_any_query_returns_the_address_record() {
     let zone = zone();
-    zone.publish(LABEL, v4(), 1);
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: None }, 1);
     let (server, _cancel) = running(zone).await;
 
     let reply = DnsProbe::ask(server, &name(LABEL), RecordType::ANY).await;
@@ -98,9 +100,95 @@ async fn an_unknown_name_is_nxdomain_with_soa() {
 }
 
 #[tokio::test]
+async fn an_srv_query_returns_the_published_port() {
+    let zone = zone();
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: Some(30001) }, 1);
+    let (server, _cancel) = running(zone).await;
+
+    let reply = DnsProbe::ask(server, &PlayFixture::service_name(LABEL), RecordType::SRV).await;
+
+    assert_eq!(reply.metadata.response_code, ResponseCode::NoError);
+    assert!(reply.metadata.authoritative);
+    assert_eq!(reply.answers.len(), 1);
+    assert_eq!(reply.answers[0].ttl, 60);
+    assert!(matches!(
+        &reply.answers[0].data,
+        RData::SRV(srv) if srv.priority == 0
+            && srv.weight == 0
+            && srv.port == 30001
+            && srv.target.to_string() == name(LABEL)
+    ));
+}
+
+#[tokio::test]
+async fn an_srv_query_for_a_label_without_a_port_is_empty() {
+    let zone = zone();
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: None }, 1);
+    let (server, _cancel) = running(zone).await;
+
+    let reply = DnsProbe::ask(server, &PlayFixture::service_name(LABEL), RecordType::SRV).await;
+
+    assert_eq!(reply.metadata.response_code, ResponseCode::NoError);
+    assert!(reply.answers.is_empty());
+    assert!(matches!(reply.authorities[0].data, RData::SOA(_)));
+}
+
+#[tokio::test]
+async fn an_a_query_at_the_service_name_is_empty() {
+    let zone = zone();
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: Some(30001) }, 1);
+    let (server, _cancel) = running(zone).await;
+
+    let reply = DnsProbe::ask(server, &PlayFixture::service_name(LABEL), RecordType::A).await;
+
+    assert_eq!(reply.metadata.response_code, ResponseCode::NoError);
+    assert!(reply.answers.is_empty());
+    assert!(matches!(reply.authorities[0].data, RData::SOA(_)));
+}
+
+#[tokio::test]
+async fn the_tcp_node_of_a_published_label_is_empty() {
+    let zone = zone();
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: Some(30001) }, 1);
+    let (server, _cancel) = running(zone).await;
+
+    let reply = DnsProbe::ask(
+        server,
+        &format!("_tcp.{LABEL}.{}.", PlayFixture::ZONE),
+        RecordType::SRV,
+    )
+    .await;
+
+    assert_eq!(reply.metadata.response_code, ResponseCode::NoError);
+    assert!(reply.answers.is_empty());
+    assert!(matches!(reply.authorities[0].data, RData::SOA(_)));
+}
+
+#[tokio::test]
+async fn an_srv_query_for_an_unknown_label_is_nxdomain() {
+    let (server, _cancel) = running(zone()).await;
+
+    let reply = DnsProbe::ask(server, &PlayFixture::service_name("nobody"), RecordType::SRV).await;
+
+    assert_eq!(reply.metadata.response_code, ResponseCode::NXDomain);
+    assert!(matches!(reply.authorities[0].data, RData::SOA(_)));
+}
+
+#[tokio::test]
+async fn a_zone_transfer_at_a_service_name_is_refused() {
+    let zone = zone();
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: Some(30001) }, 1);
+    let (server, _cancel) = running(zone).await;
+
+    let reply = DnsProbe::ask(server, &PlayFixture::service_name(LABEL), RecordType::AXFR).await;
+
+    assert_eq!(reply.metadata.response_code, ResponseCode::Refused);
+}
+
+#[tokio::test]
 async fn a_withdrawn_name_is_nxdomain() {
     let zone = zone();
-    zone.publish(LABEL, v4(), 1);
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: None }, 1);
     zone.withdraw(LABEL, 2);
     let (server, _cancel) = running(zone).await;
 
@@ -137,7 +225,7 @@ async fn an_opcode_other_than_query_is_not_implemented() {
 #[tokio::test]
 async fn mixed_case_and_trailing_dot_answer_and_echo_the_question() {
     let zone = zone();
-    zone.publish(LABEL, v4(), 1);
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: None }, 1);
     let (server, _cancel) = running(zone).await;
     let request = DnsProbe::query("Brave-Otter-Mesa.PLAY.bedrockvc.stream.", RecordType::A)
         .to_vec()
@@ -169,7 +257,7 @@ async fn the_zone_apex_answers_soa_and_ns() {
 #[tokio::test]
 async fn tcp_answers_the_same_as_udp() {
     let zone = zone();
-    zone.publish(LABEL, v4(), 1);
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: None }, 1);
     let (server, _cancel) = running(zone).await;
     let request = DnsProbe::query(&name(LABEL), RecordType::A)
         .to_vec()
@@ -202,10 +290,10 @@ async fn a_taken_address_fails_bind_and_names_it() {
 #[tokio::test]
 async fn a_lower_serial_is_ignored() {
     let zone = zone();
-    zone.publish(LABEL, v4(), 10);
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: None }, 10);
     zone.withdraw(LABEL, 9);
 
-    assert_eq!(zone.lookup(LABEL), Some(v4()));
+    assert_eq!(zone.lookup(LABEL), Some(PlayZoneEntry { address: v4(), port: None }));
     assert_eq!(zone.serial(), 10);
 }
 
@@ -214,10 +302,44 @@ async fn the_zone_announces_a_serial_change_once_it_grows() {
     let zone = zone();
     let mut changes = zone.subscribe();
 
-    zone.publish(LABEL, v4(), 5);
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: None }, 5);
     changes.changed().await.expect("a change");
     assert_eq!(*changes.borrow_and_update(), 5);
 
-    zone.publish("other-name-here", v4(), 5);
+    zone.publish("other-name-here", PlayZoneEntry { address: v4(), port: None }, 5);
     assert!(!changes.has_changed().expect("open"));
+}
+
+#[tokio::test]
+async fn the_client_resolver_reads_the_published_port() {
+    let zone = zone();
+    zone.publish(LABEL, PlayZoneEntry { address: v4(), port: Some(30001) }, 1);
+    let (server, _cancel) = running(zone).await;
+    let resolver = SrvResolver::new(SrvResolverConfig {
+        nameservers: vec![server.to_string()],
+        fallback: SrvFallback::None,
+    });
+    let address = ServerAddress::parse(&format!("https://{LABEL}.{}", PlayFixture::ZONE))
+        .expect("a parseable address");
+
+    let resolution = resolver.resolve(&address).await;
+
+    assert_eq!(resolution.endpoint.port(), 30001);
+    assert_eq!(resolution.endpoint.source(), EndpointSource::Srv);
+}
+
+#[tokio::test]
+async fn the_client_resolver_falls_back_to_443_for_an_unpublished_label() {
+    let (server, _cancel) = running(zone()).await;
+    let resolver = SrvResolver::new(SrvResolverConfig {
+        nameservers: vec![server.to_string()],
+        fallback: SrvFallback::None,
+    });
+    let address = ServerAddress::parse(&format!("https://{LABEL}.{}", PlayFixture::ZONE))
+        .expect("a parseable address");
+
+    let resolution = resolver.resolve(&address).await;
+
+    assert_eq!(resolution.endpoint.port(), 443);
+    assert_eq!(resolution.endpoint.source(), EndpointSource::Default);
 }

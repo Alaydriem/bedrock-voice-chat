@@ -70,3 +70,4 @@ x509-parser = { version = "^0.18", features = ["verify"] }
 [dev-dependencies]
 tempfile = { version = "^3" }
 tower = { version = "^0.5" }
+common = { path = "../../common", features = ["srv"] }

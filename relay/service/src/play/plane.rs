@@ -13,6 +13,7 @@ use super::issuance_service::PlayIssuanceService;
 use super::name_service::PlayNameService;
 use super::preflight_service::PlayPreflightService;
 use super::zone::PlayZone;
+use super::zone_entry::PlayZoneEntry;
 
 // Everything the enrollment endpoint needs for play names: claims, certificates, and the
 // check-in that decides which address the zone serves.
@@ -83,10 +84,10 @@ impl PlayPlane {
         self.names.record_check_in(node_id, address, port).await
     }
 
-    // Probes the candidate address in the background and, on success, publishes it. A
-    // changed address that never proves itself is withdrawn: leaving the old record would
-    // point the name at an address nobody has checked since the server moved. A throttled
-    // check-in starts nothing.
+    // Probes the candidate address and port in the background and, on success, publishes
+    // them. A changed address or port that never proves itself is withdrawn: leaving the
+    // old record would point the name at an endpoint nobody has checked since the server
+    // moved. A throttled check-in starts nothing.
     pub fn verify_and_publish(
         self: &Arc<Self>,
         node_id: String,
@@ -112,8 +113,8 @@ impl PlayPlane {
             };
 
             let outcome = if proven {
-                plane.publish(&node_id, &check_in.name, address, &check_in.nonce).await
-            } else if check_in.address_changed {
+                plane.publish(&node_id, &check_in.name, address, port, &check_in.nonce).await
+            } else if check_in.endpoint_changed {
                 plane.withdraw(&node_id, &check_in.name, &check_in.nonce).await
             } else {
                 Ok(())
@@ -164,13 +165,15 @@ impl PlayPlane {
         node_id: &str,
         label: &str,
         address: IpAddr,
+        port: u16,
         nonce: &str,
     ) -> Result<(), PlayError> {
         let _guard = self.changes.lock().await;
 
         // `None`: a newer check-in replaced this one while it was probing.
-        if let Some(serial) = self.names.mark_published(node_id, address, nonce).await? {
-            self.zone.publish(label, address, serial);
+        if let Some(serial) = self.names.mark_published(node_id, address, port, nonce).await? {
+            let entry = PlayZoneEntry { address, port: Some(port) };
+            self.zone.publish(label, entry, serial);
         }
         Ok(())
     }

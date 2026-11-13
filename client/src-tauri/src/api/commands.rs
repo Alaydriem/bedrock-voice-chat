@@ -13,12 +13,17 @@ use tauri::{State, async_runtime::Mutex};
 #[tauri::command(async)]
 pub(crate) async fn api_initialize_client(
     app_state: State<'_, Mutex<AppState>>,
+    endpoints: State<'_, Arc<crate::network::ServerEndpointService>>,
     endpoint: String,
     cert: String,
     pem: String,
 ) -> Result<(), String> {
+    // Resolved before the state lock is taken: a lookup can run for seconds.
+    let resolved = endpoints.refresh(&endpoint).await?;
     let mut state = app_state.lock().await;
-    state.initialize_api_client(endpoint, cert, pem).await;
+    state
+        .initialize_api_client(endpoint, resolved, cert, pem)
+        .await;
     Ok(())
 }
 
@@ -29,12 +34,17 @@ pub(crate) async fn api_initialize_client(
 #[tauri::command(async)]
 pub(crate) async fn api_pool_client(
     app_state: State<'_, Mutex<AppState>>,
+    endpoints: State<'_, Arc<crate::network::ServerEndpointService>>,
     endpoint: String,
     cert: String,
     pem: String,
 ) -> Result<(), String> {
+    // Resolved before the state lock is taken: a lookup can run for seconds.
+    let resolved = endpoints.resolve(&endpoint).await?;
     let state = app_state.lock().await;
-    state.pool_api_client(endpoint, cert, pem).await;
+    state
+        .pool_api_client(endpoint, resolved, cert, pem)
+        .await;
     Ok(())
 }
 
@@ -265,7 +275,7 @@ pub(crate) async fn api_get_player_gamerpic(
             let mut state = app_state.lock().await;
             let mut kr = keyring.lock().await;
             let signed_out = SessionService::new(app_handle)
-                .sign_out_rejected(&mut state, &mut kr, &analytics, api.endpoint())
+                .sign_out_rejected(&mut state, &mut kr, &analytics, api.identity())
                 .await;
             Err(if signed_out {
                 "CERT_INVALID".to_string()

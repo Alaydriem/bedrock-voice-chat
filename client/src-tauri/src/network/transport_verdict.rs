@@ -1,3 +1,4 @@
+use common::structs::network::ServerAddress;
 use std::collections::HashSet;
 use std::sync::{Arc, RwLock};
 use tauri_plugin_curia::curia;
@@ -55,25 +56,10 @@ impl TransportVerdict {
     /// Selection holds the FQDN, the health monitor holds the URL. Normalizing here stops
     /// a demotion being written under one spelling and read under another.
     fn host_of(server: &str) -> String {
-        let without_scheme = server
-            .split_once("://")
-            .map(|(_, rest)| rest)
-            .unwrap_or(server);
-        let without_path = without_scheme
-            .split(['/', '?'])
-            .next()
-            .unwrap_or(without_scheme);
-
-        // The last colon separates a port only outside the brackets of an IPv6 literal.
-        let host = match without_path.rfind(']') {
-            Some(end) => &without_path[..=end],
-            None => without_path
-                .split_once(':')
-                .map(|(host, _)| host)
-                .unwrap_or(without_path),
-        };
-
-        host.to_ascii_lowercase()
+        match ServerAddress::parse(server) {
+            Ok(address) => address.host().to_ascii_lowercase(),
+            Err(_) => server.to_ascii_lowercase(),
+        }
     }
 }
 

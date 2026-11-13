@@ -70,6 +70,7 @@ describe("PositionFeed", () => {
         sockets.length = 0;
         mockInvoke({
             api_websocket_ticket: () => ({ ticket: "abc", expires_in: 60 }),
+            server_websocket_url: () => "wss://bvc.example.com:443/api/websocket/positions",
         });
         vi.mocked(warn).mockClear();
         vi.mocked(info).mockClear();

@@ -2,7 +2,7 @@ use common::net::NetTimeouts;
 use common::response::ApiConfigResponse;
 use common::rustls::BvcClientTls;
 
-use crate::auth::ServerEndpoint;
+use crate::auth::ServerUrlPath;
 
 /// Reads a server's `/api/config` without credentials.
 ///
@@ -14,13 +14,14 @@ pub(crate) struct PublicServerConfigReader;
 impl PublicServerConfigReader {
     const PATH: &'static str = "api/config";
 
-    pub(crate) async fn read(server: &str) -> Result<ApiConfigResponse, anyhow::Error> {
+    // `base_url` is a resolved `https://host:port`.
+    pub(crate) async fn read(base_url: &str) -> Result<ApiConfigResponse, anyhow::Error> {
         let client = BvcClientTls::http_client_builder(None, None)?
             .timeout(NetTimeouts::HTTPS)
             .build()?;
 
         let response = client
-            .get(ServerEndpoint::join(server, Self::PATH))
+            .get(ServerUrlPath::join(base_url, Self::PATH))
             .send()
             .await?;
         let status = response.status();

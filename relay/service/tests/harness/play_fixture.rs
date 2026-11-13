@@ -15,6 +15,11 @@ pub struct PlayFixture;
 
 impl PlayFixture {
     pub const ZONE: &'static str = "play.bedrockvc.stream";
+
+    // The SRV owner name for a label, as a query sends it.
+    pub fn service_name(label: &str) -> String {
+        format!("_bvc._tcp.{label}.{}.", Self::ZONE)
+    }
     pub const TSIG_NAME: &'static str = "xfr-key";
     // 32 bytes, base64.
     pub const TSIG_SECRET: &'static str = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";

@@ -34,7 +34,7 @@ impl Api {
         query: &AudioFileListQuery,
     ) -> Result<PaginatedResponse<AudioFileResponse>, String> {
         let client = self.get_client();
-        let url = format!("{}/api/audio/file", self.endpoint);
+        let url = format!("{}/api/audio/file", self.base_url);
 
         let mut query_params: Vec<(&str, String)> = Vec::new();
         if let Some(page) = query.page {
@@ -91,7 +91,7 @@ impl Api {
         game: Option<&str>,
     ) -> Result<AudioFileResponse, String> {
         let client = self.get_client();
-        let url = format!("{}/api/audio/file", self.endpoint);
+        let url = format!("{}/api/audio/file", self.base_url);
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
@@ -140,7 +140,7 @@ impl Api {
         game: Option<&str>,
     ) -> Result<bool, String> {
         let client = self.get_client();
-        let url = format!("{}/api/audio/file/{}", self.endpoint, file_id);
+        let url = format!("{}/api/audio/file/{}", self.base_url, file_id);
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
@@ -173,7 +173,7 @@ impl Api {
         use crate::api::CredentialVerdict;
 
         let client = self.get_client();
-        let url = format!("{}/api/auth/state", self.endpoint);
+        let url = format!("{}/api/auth/state", self.base_url);
 
         match self.send(client.get(url)).await {
             Ok(response) if response.status().is_success() => CredentialVerdict::Valid,
@@ -185,7 +185,7 @@ impl Api {
             }
             Ok(response) => {
                 curia::warn!("credential probe was inconclusive", {
-                    connected_server: self.endpoint.clone(),
+                    connected_server: self.identity.clone(),
                     status: response.status().as_u16(),
                 });
                 CredentialVerdict::Inconclusive
@@ -195,14 +195,14 @@ impl Api {
             }
             Err(SendError::Transport(e)) => {
                 curia::warn!("credential probe was inconclusive", {
-                    connected_server: self.endpoint.clone(),
+                    connected_server: self.identity.clone(),
                     error: e.to_string(),
                 });
                 CredentialVerdict::Inconclusive
             }
             Err(SendError::Open) => {
                 curia::warn!("credential probe was inconclusive: the endpoint breaker is open", {
-                    connected_server: self.endpoint.clone(),
+                    connected_server: self.identity.clone(),
                 });
                 CredentialVerdict::Inconclusive
             }
@@ -214,7 +214,7 @@ impl Api {
         game: Option<&str>,
     ) -> Result<common::response::auth::AuthStateResponse, String> {
         let client = self.get_client();
-        let url = format!("{}/api/auth/state", self.endpoint);
+        let url = format!("{}/api/auth/state", self.base_url);
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
@@ -250,7 +250,7 @@ impl Api {
         game: Option<&str>,
     ) -> Result<AudioStreamTokenResponse, String> {
         let client = self.get_client();
-        let url = format!("{}/api/audio/file/{}/token", self.endpoint, file_id);
+        let url = format!("{}/api/audio/file/{}/token", self.base_url, file_id);
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));

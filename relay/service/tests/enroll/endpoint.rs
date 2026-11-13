@@ -617,8 +617,8 @@ async fn a_play_node_check_in_publishes_its_name_after_the_probe() {
     assert!(matches!(reply, EnrollFrame::CheckedIn { .. }));
     assert!(harness.eventually(|| harness.play_zone().lookup(&label).is_some()).await);
     assert_eq!(
-        harness.play_zone().lookup(&label),
-        Some("198.51.100.4".parse().expect("an address"))
+        harness.play_zone().lookup(&label).map(|entry| (entry.address, entry.port)),
+        Some(("198.51.100.4".parse().expect("an address"), Some(19132)))
     );
     assert!(harness.recording.created_records().is_empty());
 }
@@ -642,7 +642,7 @@ async fn a_check_in_without_an_address_uses_the_observed_ip() {
         .await
         .declared_address
         .expect("the candidate was recorded");
-    assert_eq!(declared, published.to_string());
+    assert_eq!(declared, published.address.to_string());
 }
 
 #[tokio::test]

@@ -516,9 +516,9 @@ shell = "pwsh -NoLogo -Command"
 run = "cargo test -j4"
 
 [tasks.test-common]
-description = "Run tests for the shared crate, including the debug-only dev-trust tests"
+description = "Run tests for the shared crate, including the debug-only dev-trust tests and the SRV resolver types"
 shell = "pwsh -NoLogo -Command"
-run = "cargo test -p common --features dev-trust"
+run = "cargo test -p common --features dev-trust,srv"
 
 [tasks.test-relay]
 description = "Run tests for the relay registry service"

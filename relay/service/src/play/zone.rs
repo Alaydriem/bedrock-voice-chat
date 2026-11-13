@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
 
-use hickory_proto::rr::rdata::{A, AAAA, NS, SOA};
+use hickory_proto::rr::rdata::{A, AAAA, NS, SOA, SRV};
 use hickory_proto::rr::{Name, RData, Record};
 use tokio::sync::watch;
 
 use crate::config::PlayDnsConfig;
 
+use super::zone_entry::PlayZoneEntry;
 use super::zone_location::ZoneLocation;
 
 // The records the play zone serves, held in memory.
@@ -25,7 +26,7 @@ pub struct PlayZone {
     hostmaster: Name,
     nameservers: Vec<Name>,
     // Serial and records under one lock, so a transfer never mixes two versions.
-    state: RwLock<(u32, HashMap<String, IpAddr>)>,
+    state: RwLock<(u32, HashMap<String, PlayZoneEntry>)>,
     serial_tx: watch::Sender<u32>,
 }
 
@@ -36,6 +37,7 @@ impl PlayZone {
     // lifetime stops answering rather than serve addresses nobody has checked.
     const SOA_EXPIRE: i32 = 1_209_600;
     const NS_TTL: u32 = 300;
+    pub const SERVICE: &'static str = "_bvc._tcp";
 
     // Names in `dns` are validated when the configuration is parsed.
     pub fn new(zone: String, dns: PlayDnsConfig) -> Self {
@@ -63,18 +65,18 @@ impl PlayZone {
     }
 
     // Replaces every record. Ignored when `serial` is lower than the one held.
-    pub fn load(&self, records: Vec<(String, IpAddr)>, serial: u32) {
+    pub fn load(&self, records: Vec<(String, PlayZoneEntry)>, serial: u32) {
         self.apply(serial, |map| {
             map.clear();
-            for (label, address) in records {
-                map.insert(label.to_ascii_lowercase(), address);
+            for (label, entry) in records {
+                map.insert(label.to_ascii_lowercase(), entry);
             }
         });
     }
 
-    pub fn publish(&self, label: &str, address: IpAddr, serial: u32) {
+    pub fn publish(&self, label: &str, entry: PlayZoneEntry, serial: u32) {
         self.apply(serial, |map| {
-            map.insert(label.to_ascii_lowercase(), address);
+            map.insert(label.to_ascii_lowercase(), entry);
         });
     }
 
@@ -84,7 +86,7 @@ impl PlayZone {
         });
     }
 
-    pub fn lookup(&self, label: &str) -> Option<IpAddr> {
+    pub fn lookup(&self, label: &str) -> Option<PlayZoneEntry> {
         let state = self.state.read().expect("the zone lock is not poisoned");
         state.1.get(&label.to_ascii_lowercase()).copied()
     }
@@ -94,10 +96,10 @@ impl PlayZone {
     }
 
     // The serial and the records, read under one lock.
-    pub fn snapshot(&self) -> (u32, Vec<(String, IpAddr)>) {
+    pub fn snapshot(&self) -> (u32, Vec<(String, PlayZoneEntry)>) {
         let state = self.state.read().expect("the zone lock is not poisoned");
         let mut records: Vec<_> = state.1.iter().map(|(k, v)| (k.clone(), *v)).collect();
-        records.sort();
+        records.sort_by(|a, b| a.0.cmp(&b.0));
         (state.0, records)
     }
 
@@ -126,10 +128,27 @@ impl PlayZone {
             return ZoneLocation::Apex;
         }
 
-        match queried.strip_suffix(&format!(".{}", self.zone)) {
-            Some(host) if !host.is_empty() => ZoneLocation::Host(host.to_string()),
-            _ => ZoneLocation::Outside,
+        let Some(host) = queried.strip_suffix(&format!(".{}", self.zone)) else {
+            return ZoneLocation::Outside;
+        };
+        if host.is_empty() {
+            return ZoneLocation::Outside;
         }
+
+        let single_label = |rest: &str| !rest.is_empty() && !rest.contains('.');
+
+        if let Some(label) = host.strip_prefix(&format!("{}.", Self::SERVICE)) {
+            if single_label(label) {
+                return ZoneLocation::Service(label.to_string());
+            }
+        }
+        if let Some(label) = host.strip_prefix("_tcp.") {
+            if single_label(label) {
+                return ZoneLocation::EmptyNonTerminal(label.to_string());
+            }
+        }
+
+        ZoneLocation::Host(host.to_string())
     }
 
     pub fn soa_record(&self) -> Record {
@@ -169,8 +188,16 @@ impl PlayZone {
         Record::from_rdata(owner, self.dns.ttl, rdata)
     }
 
+    // The SRV record that names the port a label's server answers on.
+    pub fn service_record(&self, label: &str, port: u16) -> Record {
+        let owner = Self::name(&format!("{}.{label}.{}", Self::SERVICE, self.zone));
+        let target = Self::name(&format!("{label}.{}", self.zone));
+
+        Record::from_rdata(owner, self.dns.ttl, RData::SRV(SRV::new(0, 0, port, target)))
+    }
+
     // Applies a change at `serial`, or drops it when the serial is behind.
-    fn apply(&self, serial: u32, change: impl FnOnce(&mut HashMap<String, IpAddr>)) {
+    fn apply(&self, serial: u32, change: impl FnOnce(&mut HashMap<String, PlayZoneEntry>)) {
         let mut state = self.state.write().expect("the zone lock is not poisoned");
         if serial < state.0 {
             return;

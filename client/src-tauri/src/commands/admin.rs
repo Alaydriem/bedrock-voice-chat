@@ -177,7 +177,7 @@ pub(crate) async fn api_introspect(
         None => state.get_api_client()?.clone(),
     };
 
-    let endpoint = server.unwrap_or_else(|| api.endpoint().to_string());
+    let endpoint = server.unwrap_or_else(|| api.identity().to_string());
     let response = api.introspect().await?;
 
     let permissions = ServerPermissions {

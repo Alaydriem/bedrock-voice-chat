@@ -1,6 +1,7 @@
 use crate::analytics::AnalyticsService;
 use crate::auth::AuthClient;
 use crate::keyring::KeyringService;
+use crate::network::ServerEndpointService;
 use crate::structs::app_state::AppState;
 use common::response::LinkJavaIdentityResponse;
 use common::response::LoginResponse;
@@ -12,10 +13,11 @@ use tauri_plugin_curia::curia;
 use crate::auth::mc_oauth_window::McOauthWindow;
 
 #[tauri::command(async)]
-#[tracing::instrument(skip(app_state, keyring, code))]
+#[tracing::instrument(skip(app_state, keyring, endpoints, code))]
 pub(crate) async fn server_login(
     app_state: State<'_, Mutex<AppState>>,
     keyring: State<'_, Mutex<KeyringService>>,
+    endpoints: State<'_, Arc<ServerEndpointService>>,
     server: String,
     code: String,
     redirect: String,
@@ -26,14 +28,18 @@ pub(crate) async fn server_login(
         let state = app_state.lock().await;
         state.family_preference().get()
     };
+    // The one lookup of this login, made before its first request and kept for the client.
+    let endpoint = endpoints.refresh(&server).await?;
 
-    let login_result = AuthClient::server_login(server.clone(), code, redirect, preference).await;
+    let login_result =
+        AuthClient::server_login(endpoint.base_url(), code, redirect, preference).await;
 
     if let Ok(ref response) = login_result {
         let mut state = app_state.lock().await;
         state
             .initialize_api_client(
                 server.clone(),
+                endpoint,
                 response.certificate_ca.clone(),
                 response.certificate.clone() + &response.certificate_key.clone(),
             )
@@ -57,17 +63,19 @@ pub(crate) async fn server_login(
 /// Goes out over the login path's own client, so the check and the sign-in that follows it
 /// agree on TLS, address family and connect budget.
 #[tauri::command(async)]
-#[tracing::instrument(skip(app_state))]
+#[tracing::instrument(skip(app_state, endpoints))]
 pub(crate) async fn check_server(
     app_state: State<'_, Mutex<AppState>>,
+    endpoints: State<'_, Arc<ServerEndpointService>>,
     server: String,
 ) -> Result<common::structs::reachability::ServerCheckReport, String> {
     let preference = {
         let state = app_state.lock().await;
         state.family_preference().get()
     };
+    let base_url = endpoints.resolve_base_or_identity(&server).await;
 
-    Ok(AuthClient::fetch_public_config(server, preference).await)
+    Ok(AuthClient::fetch_public_config(base_url, preference).await)
 }
 
 #[tauri::command(async)]
@@ -86,10 +94,11 @@ pub(crate) async fn logout(
 }
 
 #[tauri::command(async)]
-#[tracing::instrument(skip(app_state, keyring, code))]
+#[tracing::instrument(skip(app_state, keyring, endpoints, code))]
 pub(crate) async fn code_login(
     app_state: State<'_, Mutex<AppState>>,
     keyring: State<'_, Mutex<KeyringService>>,
+    endpoints: State<'_, Arc<ServerEndpointService>>,
     server: String,
     code: String,
 ) -> Result<LoginResponse, String> {
@@ -97,8 +106,10 @@ pub(crate) async fn code_login(
         let state = app_state.lock().await;
         state.family_preference().get()
     };
+    // The one lookup of this login, made before its first request and kept for the client.
+    let endpoint = endpoints.refresh(&server).await?;
 
-    let login_result = AuthClient::code_login(server.clone(), code, preference)
+    let login_result = AuthClient::code_login(endpoint.base_url(), code, preference)
         .await
         .map_err(|_| "Code login failed".to_string())?;
 
@@ -106,6 +117,7 @@ pub(crate) async fn code_login(
     state
         .initialize_api_client(
             server.clone(),
+            endpoint,
             login_result.certificate_ca.clone(),
             login_result.certificate.clone() + &login_result.certificate_key.clone(),
         )
@@ -127,6 +139,7 @@ pub(crate) async fn code_login(
 pub(crate) async fn refresh_server_state(
     app_state: State<'_, Mutex<AppState>>,
     keyring: State<'_, Mutex<KeyringService>>,
+    endpoints: State<'_, Arc<ServerEndpointService>>,
     server: Option<String>,
     game: Option<String>,
 ) -> Result<common::response::auth::AuthStateResponse, String> {
@@ -168,9 +181,11 @@ pub(crate) async fn refresh_server_state(
             let pem = format!("{}{}", cert, cert_key);
             drop(kr);
 
+            // Resolved before the state lock is taken: a lookup can run for seconds.
+            let endpoint = endpoints.resolve(server_url).await?;
             let mut state = app_state.lock().await;
             state
-                .initialize_api_client(server_url.clone(), ca_cert, pem)
+                .initialize_api_client(server_url.clone(), endpoint, ca_cert, pem)
                 .await;
         }
     }

@@ -5,7 +5,7 @@ use bvc_relay_service::config::PlayConfig;
 use bvc_relay_service::db::Db;
 use bvc_relay_service::entity::play_name;
 use bvc_relay_service::naming::NameGenerator;
-use bvc_relay_service::play::{PlayError, PlayNameService};
+use bvc_relay_service::play::{PlayError, PlayNameService, PlayZoneEntry};
 use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait, PaginatorTrait};
 
 use crate::harness::PlayFixture;
@@ -33,7 +33,7 @@ async fn publish(service: &PlayNameService, node: &str, text: &str) -> u32 {
         .expect("checks in");
 
     service
-        .mark_published(node, address(text), &check_in.nonce)
+        .mark_published(node, address(text), 19132, &check_in.nonce)
         .await
         .expect("publishes")
         .expect("the check-in is current")
@@ -213,8 +213,8 @@ async fn a_check_in_reports_whether_the_address_differs_from_the_published_one()
         .await
         .expect("checks in");
 
-    assert!(!same.address_changed);
-    assert!(moved.address_changed);
+    assert!(!same.endpoint_changed);
+    assert!(moved.endpoint_changed);
 }
 
 #[tokio::test]
@@ -224,7 +224,13 @@ async fn a_withdrawn_name_leaves_the_published_set_and_advances_the_serial() {
     let published = publish(&service, "node-a", "198.51.100.4").await;
     assert_eq!(
         service.published().await.expect("reads"),
-        vec![(label, address("198.51.100.4"))]
+        vec![(
+            label,
+            PlayZoneEntry {
+                address: address("198.51.100.4"),
+                port: Some(19132),
+            }
+        )]
     );
 
     let moved = service
@@ -373,7 +379,7 @@ async fn a_superseded_check_in_changes_nothing() {
         .await
         .expect("checks in");
     service
-        .mark_published("node-a", address("198.51.100.9"), &second.nonce)
+        .mark_published("node-a", address("198.51.100.9"), 19132, &second.nonce)
         .await
         .expect("publishes")
         .expect("current");
@@ -383,7 +389,7 @@ async fn a_superseded_check_in_changes_nothing() {
         .await
         .expect("answers");
     let republished = service
-        .mark_published("node-a", address("198.51.100.9"), &first.nonce)
+        .mark_published("node-a", address("198.51.100.9"), 19132, &first.nonce)
         .await
         .expect("answers");
 
@@ -498,4 +504,169 @@ async fn fqdn_and_label_of_are_inverses_inside_the_zone() {
     assert_eq!(service.label_of(&fqdn), Some("brave-otter-mesa".to_string()));
     assert_eq!(service.label_of("brave-otter-mesa.bedrockvc.stream"), None);
     assert_eq!(service.label_of("a.b.play.bedrockvc.stream"), None);
+}
+
+struct PortFixture;
+
+impl PortFixture {
+    // A check-in at `port`, and the publication it proves.
+    async fn publish_at(service: &PlayNameService, node: &str, text: &str, port: u16) -> u32 {
+        let check_in = service
+            .record_check_in(node, address(text), port)
+            .await
+            .expect("checks in");
+
+        service
+            .mark_published(node, address(text), port, &check_in.nonce)
+            .await
+            .expect("publishes")
+            .expect("the check-in is current")
+    }
+}
+
+#[tokio::test]
+async fn publishing_records_the_proven_port() {
+    let (_conn, service) = service().await;
+    let label = service.claim("node-a", address("203.0.113.7")).await.expect("claims");
+
+    PortFixture::publish_at(&service, "node-a", "198.51.100.4", 30001).await;
+
+    assert_eq!(
+        service.published().await.expect("reads"),
+        vec![(
+            label,
+            PlayZoneEntry {
+                address: address("198.51.100.4"),
+                port: Some(30001),
+            }
+        )]
+    );
+}
+
+#[tokio::test]
+async fn a_port_change_alone_advances_the_serial() {
+    let (_conn, service) = service().await;
+    let label = service.claim("node-a", address("203.0.113.7")).await.expect("claims");
+    let first = PortFixture::publish_at(&service, "node-a", "198.51.100.4", 30001).await;
+
+    let second = PortFixture::publish_at(&service, "node-a", "198.51.100.4", 30002).await;
+
+    assert!(second > first);
+    assert_eq!(
+        service.published().await.expect("reads"),
+        vec![(
+            label,
+            PlayZoneEntry {
+                address: address("198.51.100.4"),
+                port: Some(30002),
+            }
+        )]
+    );
+}
+
+#[tokio::test]
+async fn republishing_the_same_endpoint_keeps_the_serial() {
+    let (_conn, service) = service().await;
+    service.claim("node-a", address("203.0.113.7")).await.expect("claims");
+    let first = PortFixture::publish_at(&service, "node-a", "198.51.100.4", 30001).await;
+
+    let second = PortFixture::publish_at(&service, "node-a", "198.51.100.4", 30001).await;
+
+    assert_eq!(first, second);
+}
+
+#[tokio::test]
+async fn a_probe_for_a_port_no_longer_declared_publishes_nothing() {
+    let (_conn, service) = service().await;
+    service.claim("node-a", address("203.0.113.7")).await.expect("claims");
+    let check_in = service
+        .record_check_in("node-a", address("198.51.100.4"), 30002)
+        .await
+        .expect("checks in");
+
+    let published = service
+        .mark_published("node-a", address("198.51.100.4"), 30001, &check_in.nonce)
+        .await
+        .expect("answers");
+
+    assert_eq!(published, None);
+    assert!(service.published().await.expect("reads").is_empty());
+}
+
+#[tokio::test]
+async fn a_port_change_counts_as_an_endpoint_change() {
+    let (_conn, service) = service().await;
+    service.claim("node-a", address("203.0.113.7")).await.expect("claims");
+    PortFixture::publish_at(&service, "node-a", "198.51.100.4", 30001).await;
+
+    let moved = service
+        .record_check_in("node-a", address("198.51.100.4"), 30002)
+        .await
+        .expect("checks in");
+
+    assert!(moved.endpoint_changed);
+}
+
+#[tokio::test]
+async fn withdrawing_clears_the_port() {
+    let (conn, service) = service().await;
+    service.claim("node-a", address("203.0.113.7")).await.expect("claims");
+    PortFixture::publish_at(&service, "node-a", "198.51.100.4", 30001).await;
+    let moved = service
+        .record_check_in("node-a", address("198.51.100.9"), 30001)
+        .await
+        .expect("checks in");
+
+    service
+        .mark_withdrawn("node-a", &moved.nonce)
+        .await
+        .expect("withdraws")
+        .expect("current");
+
+    assert!(service.published().await.expect("reads").is_empty());
+    let row = play_name::Entity::find_by_id("node-a")
+        .one(conn.as_ref())
+        .await
+        .expect("reads")
+        .expect("the row");
+    assert_eq!(row.published_port, None);
+}
+
+#[tokio::test]
+async fn releasing_a_stale_name_clears_the_port() {
+    let (conn, service) = service().await;
+    service.claim("node-a", address("203.0.113.7")).await.expect("claims");
+    PortFixture::publish_at(&service, "node-a", "198.51.100.4", 30001).await;
+    conn.execute_unprepared("UPDATE play_name SET checked_in_at = 1 WHERE node_id = 'node-a'")
+        .await
+        .expect("ages the check-in");
+
+    service.release_stale().await.expect("sweeps");
+
+    assert!(service.published().await.expect("reads").is_empty());
+    let row = play_name::Entity::find_by_id("node-a")
+        .one(conn.as_ref())
+        .await
+        .expect("reads")
+        .expect("the row");
+    assert_eq!(row.published_port, None);
+}
+
+// A row published before the port was stored must not look moved on its first check-in:
+// one failed probe would withdraw a name nobody has changed.
+#[tokio::test]
+async fn a_name_published_before_ports_were_stored_is_not_changed_by_its_port() {
+    let (conn, service) = service().await;
+    service.claim("node-a", address("203.0.113.7")).await.expect("claims");
+    PortFixture::publish_at(&service, "node-a", "198.51.100.4", 30001).await;
+    conn.execute_unprepared("UPDATE play_name SET published_port = NULL WHERE node_id = 'node-a'")
+        .await
+        .expect("clears the port");
+
+    let same = service
+        .record_check_in("node-a", address("198.51.100.4"), 30002)
+        .await
+        .expect("checks in");
+
+    assert!(!same.endpoint_changed);
 }

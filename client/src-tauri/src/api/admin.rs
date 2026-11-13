@@ -39,13 +39,13 @@ impl Api {
             params.push(("game", game.as_str().to_string()));
         }
 
-        self.admin_get(format!("{}/api/admin/user", self.endpoint()), &params)
+        self.admin_get(format!("{}/api/admin/user", self.base_url()), &params)
             .await
     }
 
     /// The calling identity's own permissions, straight from the server.
     pub(crate) async fn introspect(&self) -> Result<IntrospectResponse, String> {
-        self.admin_get(format!("{}/api/auth/introspect", self.endpoint()), &[])
+        self.admin_get(format!("{}/api/auth/introspect", self.base_url()), &[])
             .await
     }
 
@@ -137,7 +137,7 @@ impl Api {
     /// `url` so each segment is percent-encoded; a formatted string would truncate at the
     /// first character the server reads as a delimiter.
     fn permission_url(&self, game: &Game, gamertag: &str) -> Result<String, String> {
-        let mut url = url::Url::parse(self.endpoint())
+        let mut url = url::Url::parse(self.base_url())
             .map_err(|e| format!("Server address is not a URL: {}", e))?;
         {
             let mut segments = url
@@ -191,7 +191,7 @@ impl Api {
         body: &B,
     ) -> Result<AdminActionOutcome, String> {
         let client = self.get_reqwest_client();
-        let url = format!("{}{}", self.endpoint(), path);
+        let url = format!("{}{}", self.base_url(), path);
 
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));

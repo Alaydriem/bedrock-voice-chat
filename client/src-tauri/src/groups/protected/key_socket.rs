@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use common::structs::group_key::GroupKeyFrame;
+use common::structs::network::ServerEndpoint;
 use futures_util::{SinkExt, StreamExt};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc;
@@ -23,18 +24,14 @@ impl KeySocket {
     const QUEUE_DEPTH: usize = 256;
 
     pub async fn connect(
-        server_url: &str,
+        endpoint: &ServerEndpoint,
         ca_cert: &str,
         pem: &str,
         group_id: &str,
     ) -> anyhow::Result<(mpsc::Sender<GroupKeyFrame>, mpsc::Receiver<KeySocketEvent>)> {
-        let authority = server_url
-            .strip_prefix("https://")
-            .or_else(|| server_url.strip_prefix("http://"))
-            .unwrap_or(server_url)
-            .trim_end_matches('/');
-        let request =
-            format!("wss://{authority}/api/websocket/group/{group_id}").into_client_request()?;
+        let request = endpoint
+            .wss_url(&format!("/api/websocket/group/{group_id}"))
+            .into_client_request()?;
         // The player's PEM carries both the certificate chain and the key.
         let config = MtlsClientConfig::build(ca_cert, pem, pem, &[b"http/1.1"])?;
         let (socket, _) = tokio_tungstenite::connect_async_tls_with_config(

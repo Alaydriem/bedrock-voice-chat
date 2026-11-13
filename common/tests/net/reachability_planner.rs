@@ -1,44 +1,13 @@
 use common::net::ReachabilityPlanner;
-use common::structs::reachability::ReachabilityRequest;
+use common::structs::network::{EndpointSource, ServerAddress, ServerEndpoint};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-#[test]
-fn host_of_accepts_a_full_url() {
-    assert_eq!(
-        ReachabilityPlanner::host_of("https://bvc.example.com").unwrap(),
-        "bvc.example.com"
-    );
-}
+struct EndpointFixture;
 
-#[test]
-fn host_of_accepts_a_bare_host() {
-    assert_eq!(
-        ReachabilityPlanner::host_of("bvc.example.com").unwrap(),
-        "bvc.example.com"
-    );
-}
-
-#[test]
-fn host_of_drops_the_port_and_the_trailing_slash() {
-    assert_eq!(
-        ReachabilityPlanner::host_of("https://bvc.example.com:8443/").unwrap(),
-        "bvc.example.com"
-    );
-}
-
-// split(':') on an IPv6 literal yields "[", which is why this is parsed rather
-// than string-split. Dual-stack makes it a live case.
-#[test]
-fn host_of_keeps_an_ipv6_literal_intact() {
-    assert_eq!(
-        ReachabilityPlanner::host_of("https://[::1]:443").unwrap(),
-        "[::1]"
-    );
-}
-
-#[test]
-fn host_of_rejects_a_value_with_no_host() {
-    assert!(ReachabilityPlanner::host_of("https://").is_err());
+impl EndpointFixture {
+    fn at(identity: &str, port: u16, source: EndpointSource) -> ServerEndpoint {
+        ServerEndpoint::new(ServerAddress::parse(identity).unwrap(), port, source)
+    }
 }
 
 #[test]
@@ -55,40 +24,33 @@ fn ports_put_the_advertised_set_ahead_of_the_scalar() {
 }
 
 #[test]
-fn request_carries_the_measured_https_port_rather_than_assuming_443() {
+fn request_takes_the_https_port_from_the_endpoint() {
+    let endpoint = EndpointFixture::at("https://brave.example.com", 30001, EndpointSource::Srv);
     let request = ReachabilityPlanner::request(
-        "bvc.example.com".to_string(),
         vec![IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))],
         vec![443],
-        "https://bvc.example.com:8443",
+        &endpoint,
         false,
     );
 
-    assert_eq!(request.https_port, 8443);
+    assert_eq!(request.https_port, 30001);
+    assert_eq!(
+        request.https_url,
+        "https://brave.example.com:30001/api/config"
+    );
+    assert_eq!(request.host, "brave.example.com");
 }
 
 #[test]
-fn request_defaults_the_https_port_when_the_url_omits_it() {
+fn request_keeps_an_ipv6_host_bracketed() {
+    let endpoint = EndpointFixture::at("https://[::1]:8443", 8443, EndpointSource::Explicit);
     let request = ReachabilityPlanner::request(
-        "bvc.example.com".to_string(),
         vec![IpAddr::V6(Ipv6Addr::LOCALHOST)],
         vec![443],
-        "https://bvc.example.com",
+        &endpoint,
         false,
     );
 
-    assert_eq!(request.https_port, ReachabilityRequest::DEFAULT_HTTPS_PORT);
-}
-
-#[test]
-fn request_points_the_https_probe_at_the_config_endpoint() {
-    let request = ReachabilityPlanner::request(
-        "bvc.example.com".to_string(),
-        vec![IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))],
-        vec![443],
-        "https://bvc.example.com/",
-        false,
-    );
-
-    assert_eq!(request.https_url, "https://bvc.example.com/api/config");
+    assert_eq!(request.host, "[::1]");
+    assert_eq!(request.https_url, "https://[::1]:8443/api/config");
 }

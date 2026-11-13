@@ -130,11 +130,23 @@ export class PositionFeed {
             return;
         }
 
+        let url: string;
+        try {
+            url = await invoke<string>("server_websocket_url", {
+                server: this.server,
+                path: "/api/websocket/positions",
+            });
+        } catch (e) {
+            if (current()) {
+                this.report(`could not resolve the server address: ${e}`);
+                this.scheduleRetry();
+            }
+            return;
+        }
+
         // Spending a ticket that a newer attempt has already revoked would refuse that attempt
         // rather than this one, so the abandoned request is dropped here instead.
         if (!current()) return;
-
-        const url = `${this.server.replace(/^http/, "ws").replace(/\/$/, "")}/api/websocket/positions`;
 
         let socket: RustWebSocket;
         try {

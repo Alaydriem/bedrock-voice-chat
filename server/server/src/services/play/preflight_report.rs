@@ -13,9 +13,9 @@ impl PlayPreflightReport {
     // An address the operator declared is not public.
     pub const DECLARED_NOT_PUBLIC: &'static str = "Play preflight failed: the address is not a public IP address. Players on the internet cannot reach it. Remove server.tls.play.address, or set it to this server's public IP.";
 
-    pub const TIMED_OUT: &'static str = "Play preflight failed: the registry could not reach this server. On a home network, forward tcp_port and udp_port on the router to this machine, and allow both in the firewall. If the router's WAN address is in 100.64.0.0/10, the network uses CGNAT. If this server's public IP is not address, set server.tls.play.address to it.";
+    pub const TIMED_OUT: &'static str = "Play preflight failed: the registry could not reach this server at the address and ports below. On a home network, forward the TCP port and the UDP port below on the router to this machine, and allow both in the firewall. If the router's WAN address is in 100.64.0.0/10, the network uses CGNAT and port forwarding cannot work. If the address below is not this server's public IP, set server.tls.play.address to the correct one.";
 
-    pub const REFUSED: &'static str = "Play preflight failed: nothing accepted the connection on tcp_port. Check that the router forwards it to this machine and that no other program uses it. If the router's WAN address is in 100.64.0.0/10, the network uses CGNAT. If this server's public IP is not address, set server.tls.play.address to it.";
+    pub const REFUSED: &'static str = "Play preflight failed: nothing accepted the connection on the TCP port below. Check that the router forwards that port to this machine and that no other program uses it. If the router's WAN address is in 100.64.0.0/10, the network uses CGNAT and port forwarding cannot work. If the address below is not this server's public IP, set server.tls.play.address to the correct one.";
 
     /// The message for an address the registry refused, by whether the operator declared it.
     pub fn not_public_message(declared: bool) -> &'static str {
@@ -55,7 +55,7 @@ impl PlayPreflightReport {
             }
             PlayPreflightOutcome::WrongService { address, port } => {
                 curia::error!(
-                    "Play preflight failed: another service answered on tcp_port. The router forwards it to a different machine or program.",
+                    "Play preflight failed: another service answered on the TCP port below. The router forwards that port to a different machine or program.",
                     { "address": address.clone(), "tcp_port": *port }
                 );
             }

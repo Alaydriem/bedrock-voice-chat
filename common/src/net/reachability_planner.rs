@@ -1,39 +1,14 @@
 use std::net::IpAddr;
 
 use anyhow::anyhow;
-use url::Url;
 
-use crate::structs::network::QuicPortSelection;
+use crate::structs::network::{QuicPortSelection, ServerEndpoint};
 use crate::structs::reachability::ReachabilityRequest;
 
 pub struct ReachabilityPlanner;
 
 impl ReachabilityPlanner {
     const CONFIG_PATH: &'static str = "/api/config";
-
-    // A bare host is what the login field holds before it is sanitized, so both
-    // forms have to parse. Url::parse rather than a string split: an IPv6 literal
-    // is bracketed and colon-separated, and splitting on ':' returns "[".
-    pub fn host_of(server_url: &str) -> Result<String, anyhow::Error> {
-        let trimmed = server_url.trim();
-        let absolute = if trimmed.contains("://") {
-            trimmed.to_string()
-        } else {
-            format!("https://{}", trimmed)
-        };
-
-        let parsed = Url::parse(&absolute)
-            .map_err(|e| anyhow!("{} is not a usable address: {}", server_url, e))?;
-
-        match parsed.host() {
-            Some(url::Host::Ipv6(addr)) => Ok(format!("[{}]", addr)),
-            Some(_) => Ok(parsed
-                .host_str()
-                .expect("a parsed host always has a string form")
-                .to_string()),
-            None => Err(anyhow!("{} carries no host", server_url)),
-        }
-    }
 
     pub fn ports(
         advertised_ports: &[u32],
@@ -44,24 +19,17 @@ impl ReachabilityPlanner {
     }
 
     pub fn request(
-        host: String,
         addrs: Vec<IpAddr>,
         ports: Vec<u16>,
-        server_url: &str,
+        endpoint: &ServerEndpoint,
         voice_websocket: bool,
     ) -> ReachabilityRequest {
-        let trimmed = server_url.trim_end_matches('/');
-        let https_port = Url::parse(server_url)
-            .ok()
-            .and_then(|u| u.port())
-            .unwrap_or(ReachabilityRequest::DEFAULT_HTTPS_PORT);
-
         ReachabilityRequest::new(
-            host,
+            endpoint.address().url_host(),
             addrs,
             ports,
-            format!("{}{}", trimmed, Self::CONFIG_PATH),
-            https_port,
+            format!("{}{}", endpoint.base_url(), Self::CONFIG_PATH),
+            endpoint.port(),
             voice_websocket,
         )
     }
@@ -70,13 +38,13 @@ impl ReachabilityPlanner {
     // port varies. Both families are kept — collapsing to a single IPv4 address
     // is what left an IPv6-only host with nothing to dial.
     pub async fn plan(
-        server_url: &str,
+        endpoint: &ServerEndpoint,
         advertised_ports: &[u32],
         advertised_scalar: u32,
         cached_connect_string: Option<&str>,
         voice_websocket: bool,
     ) -> Result<ReachabilityRequest, anyhow::Error> {
-        let host = Self::host_of(server_url)?;
+        let host = endpoint.address().url_host();
         let ports = Self::ports(advertised_ports, advertised_scalar, cached_connect_string);
 
         let resolved = tokio::net::lookup_host(format!("{}:{}", host, ports[0]))
@@ -94,12 +62,6 @@ impl ReachabilityPlanner {
             return Err(anyhow!("DNS_FAIL: System DNS returned no results"));
         }
 
-        Ok(Self::request(
-            host,
-            addrs,
-            ports,
-            server_url,
-            voice_websocket,
-        ))
+        Ok(Self::request(addrs, ports, endpoint, voice_websocket))
     }
 }

@@ -20,7 +20,7 @@ impl Api {
         headers.insert("Content-Type", HeaderValue::from_static("application/json"));
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
-        let url = format!("{}/api/channel", self.endpoint);
+        let url = format!("{}/api/channel", self.base_url);
         let body = json!(name);
 
         match self
@@ -59,7 +59,7 @@ impl Api {
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
-        let url = format!("{}/api/channel/{}", self.endpoint, channel_id);
+        let url = format!("{}/api/channel/{}", self.base_url, channel_id);
 
         match self.send(client.delete(url).headers(headers)).await {
             Ok(response) => match response.status() {
@@ -101,7 +101,7 @@ impl Api {
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
-        let url = format!("{}/api/channel", self.endpoint);
+        let url = format!("{}/api/channel", self.base_url);
 
         match self.send(client.get(url).headers(headers)).await {
             Ok(response) => match response.status() {
@@ -144,7 +144,7 @@ impl Api {
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
-        let url = format!("{}/api/channel?id={}", self.endpoint, channel_id);
+        let url = format!("{}/api/channel?id={}", self.base_url, channel_id);
 
         match self.send(client.get(url).headers(headers)).await {
             Ok(response) => match response.status() {
@@ -198,7 +198,7 @@ impl Api {
         headers.insert("Content-Type", HeaderValue::from_static("application/json"));
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
-        let url = format!("{}/api/channel/{}", self.endpoint, channel_id);
+        let url = format!("{}/api/channel/{}", self.base_url, channel_id);
         let body = json!(name);
 
         match self
@@ -247,7 +247,7 @@ impl Api {
         headers.insert("Content-Type", HeaderValue::from_static("application/json"));
         headers.insert("Accept", HeaderValue::from_static("application/json"));
 
-        let url = format!("{}/api/channel/{}", self.endpoint, channel_id);
+        let url = format!("{}/api/channel/{}", self.base_url, channel_id);
 
         match self
             .send(client.put(url).headers(headers).json(&event))

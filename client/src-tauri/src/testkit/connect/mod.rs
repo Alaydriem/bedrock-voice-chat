@@ -63,9 +63,13 @@ impl Connector {
             let state = app_state.lock().await;
             state.family_preference().get()
         };
+        let endpoint = handle
+            .state::<Arc<crate::network::ServerEndpointService>>()
+            .refresh(&config.server)
+            .await?;
 
         let login = crate::auth::AuthClient::code_login(
-            config.server.clone(),
+            endpoint.base_url(),
             config.code.clone(),
             preference,
         )
@@ -77,6 +81,7 @@ impl Connector {
             state
                 .initialize_api_client(
                     config.server.clone(),
+                    endpoint,
                     login.certificate_ca.clone(),
                     login.certificate.clone() + &login.certificate_key.clone(),
                 )
@@ -115,6 +120,7 @@ impl Connector {
             handle.state::<Mutex<AppState>>(),
             handle.state::<Mutex<NetworkStreamManager>>(),
             handle.state::<Arc<AnalyticsService>>(),
+            handle.state::<Arc<crate::network::ServerEndpointService>>(),
         )
         .await?;
 

@@ -5,7 +5,7 @@ use std::time::Duration;
 use bvc_relay_service::db::Db;
 use bvc_relay_service::play::{
     LocalSigner, PlayAddressProbe, PlayIssuanceService, PlayNameService, PlayPlane, PlaySigner,
-    PlayZone,
+    PlayZone, PlayZoneEntry,
 };
 use bvc_relay_service::validation::AddressProbe;
 use sea_orm::{ConnectionTrait, DatabaseConnection};
@@ -91,11 +91,28 @@ async fn publish_earlier(setup: &Setup, label: &str, earlier: IpAddr) {
         .expect("checks in");
     let serial = setup
         .names
-        .mark_published(NODE, earlier, &record.nonce)
+        .mark_published(NODE, earlier, PORT, &record.nonce)
         .await
         .expect("publishes")
         .expect("current");
-    setup.zone.publish(label, earlier, serial);
+    setup.zone.publish(
+        label,
+        PlayZoneEntry {
+            address: earlier,
+            port: Some(PORT),
+        },
+        serial,
+    );
+}
+
+impl Setup {
+    // The entry a published address carries, with the port the probe proved.
+    fn proven(text: &str) -> Option<PlayZoneEntry> {
+        Some(PlayZoneEntry {
+            address: address(text),
+            port: Some(PORT),
+        })
+    }
 }
 
 #[tokio::test]
@@ -111,7 +128,7 @@ async fn a_check_in_publishes_only_after_the_probe_succeeds() {
     let label = passing.names.claim(NODE, address("203.0.113.7")).await.expect("claims");
     check_in(&passing, address("198.51.100.4")).await;
     assert!(eventually(|| passing.zone.lookup(&label).is_some()).await);
-    assert_eq!(passing.zone.lookup(&label), Some(address("198.51.100.4")));
+    assert_eq!(passing.zone.lookup(&label), Setup::proven("198.51.100.4"));
     assert_eq!(passing.names.published().await.expect("reads").len(), 1);
 }
 
@@ -139,7 +156,29 @@ async fn an_unchanged_address_whose_probe_fails_keeps_the_record() {
     check_in(&setup, address("198.51.100.4")).await;
     tokio::time::sleep(Duration::from_millis(400)).await;
 
-    assert_eq!(setup.zone.lookup(&label), Some(address("198.51.100.4")));
+    assert_eq!(setup.zone.lookup(&label), Setup::proven("198.51.100.4"));
+}
+
+// The address stays and the port moves, and the new port does not answer. The old SRV
+// record points at a port nobody has proved since the move.
+#[tokio::test]
+async fn a_port_change_that_fails_its_probe_withdraws_the_name() {
+    let setup = setup(false).await;
+    let label = setup.names.claim(NODE, address("203.0.113.7")).await.expect("claims");
+    publish_earlier(&setup, &label, address("198.51.100.4")).await;
+    assert!(setup.zone.lookup(&label).is_some());
+
+    let record = setup
+        .plane
+        .check_in(NODE, address("198.51.100.4"), PORT + 1)
+        .await
+        .expect("checks in");
+    setup
+        .plane
+        .verify_and_publish(NODE.to_string(), record, address("198.51.100.4"), PORT + 1);
+
+    assert!(eventually(|| setup.zone.lookup(&label).is_none()).await);
+    assert!(setup.names.published().await.expect("reads").is_empty());
 }
 
 // The server moved to B, then went back to A before B's probe finished. B's probe would
@@ -154,7 +193,7 @@ async fn a_newer_check_in_cancels_the_earlier_probe_and_keeps_the_record() {
     check_in(&setup, address("198.51.100.4")).await;
     tokio::time::sleep(Duration::from_millis(900)).await;
 
-    assert_eq!(setup.zone.lookup(&label), Some(address("198.51.100.4")));
+    assert_eq!(setup.zone.lookup(&label), Setup::proven("198.51.100.4"));
     assert_eq!(setup.names.published().await.expect("reads").len(), 1);
 }
 

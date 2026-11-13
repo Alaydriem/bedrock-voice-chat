@@ -127,6 +127,12 @@ fn main() {
             let store = app.store("store.json")?;
             StoreSeeder::seed(&store);
 
+            let endpoints = bvc_client_lib::network::ServerEndpointService::new_shared(
+                common::net::srv::SrvResolver::new(
+                    common::net::srv::SrvResolverConfig::production(),
+                ),
+            );
+            app.manage(endpoints);
             let app_state = bvc_client_lib::AppState::new(store.clone(), handle.clone());
             app.manage(tauri::async_runtime::Mutex::new(app_state));
 

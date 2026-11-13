@@ -15,6 +15,8 @@ pub struct Model {
     pub declared_port: Option<i32>,
     // Set only after a probe of the declared address succeeded.
     pub published_address: Option<String>,
+    // The TCP port that probe reached; set and cleared with `published_address`. NULL on a row published before ports were stored, which never counts as a port change.
+    pub published_port: Option<i32>,
     pub verified_at: Option<i64>,
     pub checkin_nonce: Option<String>,
     pub checked_in_at: Option<i64>,

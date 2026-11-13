@@ -21,6 +21,6 @@ fn an_observed_address_that_is_not_public_names_the_network_and_asks_for_the_set
 fn an_unreachable_server_is_told_about_cgnat_behind_a_router_and_a_different_outbound_address() {
     for message in [PlayPreflightReport::TIMED_OUT, PlayPreflightReport::REFUSED] {
         assert!(message.contains("100.64.0.0/10"), "{message}");
-        assert!(message.contains("set server.tls.play.address to it"), "{message}");
+        assert!(message.contains("set server.tls.play.address to the correct one"), "{message}");
     }
 }

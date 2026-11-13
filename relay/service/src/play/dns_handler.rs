@@ -10,6 +10,7 @@ use hickory_server::server::{Request, RequestHandler, ResponseHandler, ResponseI
 use crate::config::PlayDnsConfig;
 
 use super::zone::PlayZone;
+use super::zone_entry::PlayZoneEntry;
 use super::zone_location::ZoneLocation;
 use super::zone_transfer::PlayZoneTransfer;
 
@@ -68,11 +69,34 @@ impl PlayDnsHandler {
                 };
                 self.positive(request, &mut handle, mac, answers).await
             }
+            ZoneLocation::Service(_) | ZoneLocation::EmptyNonTerminal(_)
+                if matches!(kind, RecordType::AXFR | RecordType::IXFR) =>
+            {
+                self.reply(request, &mut handle, mac, true, ResponseCode::Refused, Vec::new(), Vec::new()).await
+            }
+            ZoneLocation::Service(label) => match self.zone.lookup(&label) {
+                Some(PlayZoneEntry { port: Some(port), .. })
+                    if matches!(kind, RecordType::SRV | RecordType::ANY) =>
+                {
+                    let answers = vec![self.zone.service_record(&label, port)];
+                    self.positive(request, &mut handle, mac, answers).await
+                }
+                Some(_) => self.positive(request, &mut handle, mac, Vec::new()).await,
+                None => {
+                    self.reply(request, &mut handle, mac, true, ResponseCode::NXDomain, Vec::new(), vec![self.zone.soa_record()]).await
+                }
+            },
+            ZoneLocation::EmptyNonTerminal(label) => match self.zone.lookup(&label) {
+                Some(_) => self.positive(request, &mut handle, mac, Vec::new()).await,
+                None => {
+                    self.reply(request, &mut handle, mac, true, ResponseCode::NXDomain, Vec::new(), vec![self.zone.soa_record()]).await
+                }
+            },
             ZoneLocation::Host(_) if matches!(kind, RecordType::AXFR | RecordType::IXFR) => {
                 self.reply(request, &mut handle, mac, true, ResponseCode::Refused, Vec::new(), Vec::new()).await
             }
             ZoneLocation::Host(label) => match self.zone.lookup(&label) {
-                Some(address) => {
+                Some(PlayZoneEntry { address, .. }) => {
                     let wanted = match (kind, address) {
                         (RecordType::A, IpAddr::V4(_)) => true,
                         (RecordType::AAAA, IpAddr::V6(_)) => true,
