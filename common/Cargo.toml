@@ -44,6 +44,11 @@ audio = ["dep:rodio", "dep:cpal"]
 browser = ["dep:webbrowser"]
 openapi = ["dep:schemars"]
 
+# Extra trust anchors for development servers, from `BVC_DEV_TRUST_ROOTS` (a PEM file read
+# at run time) and `BVC_DEV_TRUST_ROOTS_PEM` (PEM text baked in at compile time). Compiled
+# only when `debug_assertions` is also on, so a release build never carries them.
+dev-trust = []
+
 bedrock-protocol = ["dep:bedrock-protocol"]
 bedrock-server = ["dep:bedrock-server", "bedrock-protocol"]
 

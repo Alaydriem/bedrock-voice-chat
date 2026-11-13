@@ -7,10 +7,9 @@ use rustls::client::danger::ServerCertVerifier;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 
-#[cfg(debug_assertions)]
-use super::PermissiveVerifier;
-use super::{PlayRoots, PlayZoneVerifier, VerifierMode};
-use rustls::crypto::CryptoProvider;
+#[cfg(all(debug_assertions, feature = "dev-trust"))]
+use super::DevTrustRoots;
+use super::{PlayRoots, PlayZoneVerifier};
 use crate::errors::PlayZoneError;
 
 /// The TLS client configuration every BVC client socket that can reach a BVC server uses.
@@ -30,15 +29,8 @@ impl BvcClientTls {
         extra_roots_pem: Option<&str>,
         identity: Option<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)>,
         alpn: &[&[u8]],
-        mode: VerifierMode,
     ) -> Result<ClientConfig, PlayZoneError> {
-        Self::config_with_play_roots(
-            PlayRoots::builtin()?,
-            extra_roots_pem,
-            identity,
-            alpn,
-            mode,
-        )
+        Self::config_with_play_roots(PlayRoots::builtin()?, extra_roots_pem, identity, alpn)
     }
 
     /// As [`Self::config`], with the play roots supplied. Production passes the built-in
@@ -48,31 +40,9 @@ impl BvcClientTls {
         extra_roots_pem: Option<&str>,
         identity: Option<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)>,
         alpn: &[&[u8]],
-        mode: VerifierMode,
     ) -> Result<ClientConfig, PlayZoneError> {
         let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
-
-        let mut roots = RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-        if let Some(pem) = extra_roots_pem {
-            for certificate in PlayRoots::parse_pem(pem)? {
-                roots
-                    .add(certificate)
-                    .map_err(|source| PlayZoneError::ExtraRoot(source.to_string()))?;
-            }
-        }
-
-        // A release build has no permissive verifier at all: asking for Permissive there
-        // gets Strict.
-        #[cfg(debug_assertions)]
-        let verifier: Arc<dyn ServerCertVerifier> = match mode {
-            VerifierMode::Permissive => Arc::new(PermissiveVerifier::new(provider.clone())),
-            VerifierMode::Strict => Self::strict_verifier(roots, play_roots, provider.clone())?,
-        };
-        #[cfg(not(debug_assertions))]
-        let verifier: Arc<dyn ServerCertVerifier> = {
-            let _ = mode;
-            Self::strict_verifier(roots, play_roots, provider.clone())?
-        };
+        let verifier = Self::server_verifier(play_roots, Self::extra_roots(extra_roots_pem)?)?;
 
         let builder = ClientConfig::builder_with_provider(provider)
             .with_safe_default_protocol_versions()?
@@ -94,14 +64,8 @@ impl BvcClientTls {
     pub fn http_client_builder(
         extra_roots_pem: Option<&str>,
         identity: Option<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)>,
-        mode: VerifierMode,
     ) -> Result<reqwest::ClientBuilder, PlayZoneError> {
-        Self::http_client_builder_with_play_roots(
-            PlayRoots::builtin()?,
-            extra_roots_pem,
-            identity,
-            mode,
-        )
+        Self::http_client_builder_with_play_roots(PlayRoots::builtin()?, extra_roots_pem, identity)
     }
 
     /// As [`Self::http_client_builder`], with the play roots supplied.
@@ -110,28 +74,55 @@ impl BvcClientTls {
         play_roots: Vec<CertificateDer<'static>>,
         extra_roots_pem: Option<&str>,
         identity: Option<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)>,
-        mode: VerifierMode,
     ) -> Result<reqwest::ClientBuilder, PlayZoneError> {
-        let tls = Self::config_with_play_roots(
-            play_roots,
-            extra_roots_pem,
-            identity,
-            Self::HTTP_ALPN,
-            mode,
-        )?;
+        let tls =
+            Self::config_with_play_roots(play_roots, extra_roots_pem, identity, Self::HTTP_ALPN)?;
 
         Ok(reqwest::Client::builder().use_preconfigured_tls(tls))
     }
 
-    fn strict_verifier(
-        roots: RootCertStore,
+    /// The verifier behind every client configuration. `extra_roots` join the public roots
+    /// for names outside the play zone; a play name is checked against `play_roots` alone.
+    pub fn server_verifier(
         play_roots: Vec<CertificateDer<'static>>,
-        provider: Arc<CryptoProvider>,
+        extra_roots: Vec<CertificateDer<'static>>,
     ) -> Result<Arc<dyn ServerCertVerifier>, PlayZoneError> {
-        let fallback = WebPkiServerVerifier::builder_with_provider(Arc::new(roots), provider)
-            .build()?;
+        let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
+
+        let mut roots = RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        for certificate in extra_roots {
+            roots
+                .add(certificate)
+                .map_err(|source| PlayZoneError::ExtraRoot(source.to_string()))?;
+        }
+
+        let fallback =
+            WebPkiServerVerifier::builder_with_provider(Arc::new(roots), provider).build()?;
 
         Ok(PlayZoneVerifier::new_shared(play_roots, fallback)?)
+    }
+
+    #[cfg(all(debug_assertions, feature = "dev-trust"))]
+    fn extra_roots(
+        extra_roots_pem: Option<&str>,
+    ) -> Result<Vec<CertificateDer<'static>>, PlayZoneError> {
+        let mut roots = match extra_roots_pem {
+            Some(pem) => PlayRoots::parse_pem(pem)?,
+            None => Vec::new(),
+        };
+        roots.extend(DevTrustRoots::from_env()?);
+
+        Ok(roots)
+    }
+
+    #[cfg(not(all(debug_assertions, feature = "dev-trust")))]
+    fn extra_roots(
+        extra_roots_pem: Option<&str>,
+    ) -> Result<Vec<CertificateDer<'static>>, PlayZoneError> {
+        match extra_roots_pem {
+            Some(pem) => PlayRoots::parse_pem(pem),
+            None => Ok(Vec::new()),
+        }
     }
 
     /// A certificate chain and private key read from one PEM document, in any order.

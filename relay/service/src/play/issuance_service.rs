@@ -42,7 +42,7 @@ impl PlayIssuanceService {
 
         let chain = self.signer.sign(&Self::csr_pem(csr_der), &fqdn).await?;
 
-        curia::info!("issued a play certificate", { "name": label, "node": node_id.to_string(), "serial": Self::leaf_serial(&chain) });
+        curia::info!("Play certificate issued", { "name": label, "node": node_id.to_string(), "serial": Self::leaf_serial(&chain) });
 
         Ok(chain)
     }

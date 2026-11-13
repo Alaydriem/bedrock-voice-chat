@@ -1,12 +1,15 @@
+use std::sync::Arc;
+
 use common::curia;
 use reqwest::{Certificate, Client};
 
-use crate::config::{PlayCaConfig, PlayConfig};
+use crate::config::PlayCaConfig;
 
+use super::ca_resolver::PlayCaResolver;
 use super::error::PlayError;
 use super::one_time_token::OneTimeToken;
 
-// Signs through the loopback step-ca.
+// Signs through the private step-ca.
 //
 // The intermediate key never leaves step-ca. This holds only the provisioner key, which
 // can ask for a certificate for a name but cannot mint a chain.
@@ -31,7 +34,7 @@ impl StepCaSigner {
         let client = Client::builder()
             .tls_built_in_root_certs(false)
             .add_root_certificate(root)
-            .resolve(PlayConfig::CA_HOST, config.connect)
+            .dns_resolver(Arc::new(PlayCaResolver::new(config.connect.clone())))
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| PlayError::Signer(format!("building the CA client: {e}")))?;
@@ -59,7 +62,7 @@ impl StepCaSigner {
             {
                 Ok(response) => response,
                 Err(e) => {
-                    curia::warn!("the play CA was unreachable", { "error": e.to_string() });
+                    curia::warn!("Play CA unreachable", { "error": e.to_string() });
                     last = Some(PlayError::Signer(format!("reaching the play CA: {e}")));
                     continue;
                 }

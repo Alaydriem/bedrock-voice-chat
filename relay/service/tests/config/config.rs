@@ -388,6 +388,22 @@ fn a_ca_url_that_names_another_host_or_port_is_refused() {
     assert!(RelayConfig::from_hcl(&other_port).is_err());
 }
 
+// On a Docker bridge the CA is a compose service, reached by its service name. The port
+// must still equal the URL's, because the connection uses the URL's port.
+#[test]
+fn a_ca_connect_may_name_a_compose_service() {
+    let valid = play_with_dns(r#"bind = ["127.0.0.1:53"]"#);
+
+    let service = valid.replace(r#"connect = "127.0.0.1:9000""#, r#"connect = "play-ca:9000""#);
+    let other_port =
+        valid.replace(r#"connect = "127.0.0.1:9000""#, r#"connect = "play-ca:9443""#);
+
+    assert_ne!(service, valid);
+    let config = RelayConfig::from_hcl(&service).expect("a service name parses");
+    assert_eq!(config.play.expect("a play block").ca.connect.host(), "play-ca");
+    assert!(RelayConfig::from_hcl(&other_port).is_err());
+}
+
 // The play roots, the CA's name constraints and the CA host are fixed to one zone, so a
 // registry that hands out names elsewhere would fail every issuance with no clear cause.
 #[test]

@@ -11,6 +11,7 @@ use super::check_in::PlayCheckIn;
 use super::error::PlayError;
 use super::issuance_service::PlayIssuanceService;
 use super::name_service::PlayNameService;
+use super::preflight_service::PlayPreflightService;
 use super::zone::PlayZone;
 
 // Everything the enrollment endpoint needs for play names: claims, certificates, and the
@@ -20,6 +21,7 @@ pub struct PlayPlane {
     issuance: Arc<PlayIssuanceService>,
     zone: Arc<PlayZone>,
     probe: PlayAddressProbe,
+    preflight: Arc<PlayPreflightService>,
     // Held across a database change and the zone update that follows it, so the zone
     // sees changes in the order their serials were issued. The zone drops a change whose
     // serial is behind its own, and two changes applied out of order would lose one.
@@ -35,12 +37,14 @@ impl PlayPlane {
         issuance: Arc<PlayIssuanceService>,
         zone: Arc<PlayZone>,
         probe: PlayAddressProbe,
+        preflight: Arc<PlayPreflightService>,
     ) -> Self {
         Self {
             names,
             issuance,
             zone,
             probe,
+            preflight,
             changes: Mutex::new(()),
             probes: std::sync::Mutex::new(HashMap::new()),
         }
@@ -51,8 +55,13 @@ impl PlayPlane {
         issuance: Arc<PlayIssuanceService>,
         zone: Arc<PlayZone>,
         probe: PlayAddressProbe,
+        preflight: Arc<PlayPreflightService>,
     ) -> Arc<Self> {
-        Arc::new(Self::new(names, issuance, zone, probe))
+        Arc::new(Self::new(names, issuance, zone, probe, preflight))
+    }
+
+    pub fn preflight(&self) -> &Arc<PlayPreflightService> {
+        &self.preflight
     }
 
     // The node's fully qualified play name.
@@ -112,7 +121,7 @@ impl PlayPlane {
             plane.end_probe(&node_id, generation);
 
             if let Err(e) = outcome {
-                curia::warn!("updating a play record after a check-in failed", { "name": check_in.name.clone(), "error": e.to_string() });
+                curia::warn!("Play record update failed", { "name": check_in.name.clone(), "error": e.to_string() });
             }
         });
     }
@@ -127,7 +136,7 @@ impl PlayPlane {
         }
 
         if !released.is_empty() {
-            curia::info!("released stale play names", { "released": released.len().to_string() });
+            curia::info!("Stale play names released", { "released": released.len().to_string() });
         }
 
         Ok(())

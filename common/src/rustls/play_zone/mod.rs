@@ -7,15 +7,13 @@
 //! by a play root and nothing else.
 
 mod client_tls;
-#[cfg(debug_assertions)]
-mod permissive_verifier;
+#[cfg(all(debug_assertions, feature = "dev-trust"))]
+mod dev_trust_roots;
 mod roots;
 mod verifier;
-mod verifier_mode;
 
 pub use client_tls::BvcClientTls;
-#[cfg(debug_assertions)]
-pub use permissive_verifier::PermissiveVerifier;
+#[cfg(all(debug_assertions, feature = "dev-trust"))]
+pub use dev_trust_roots::DevTrustRoots;
 pub use roots::PlayRoots;
 pub use verifier::PlayZoneVerifier;
-pub use verifier_mode::VerifierMode;

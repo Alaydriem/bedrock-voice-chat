@@ -1,14 +1,13 @@
 use common::curia;
-use super::{BufferedHello, DemuxError, PeerClass, TlsAlert};
+use super::{BufferedHello, DemuxError, PeerClass, PublicListener, TlsAlert};
 use common::structs::network::VoiceProtocol;
 use rustls::server::Acceptor;
-use socket2::{Domain, Protocol, Socket, Type};
 use std::io::Cursor;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpStream;
 use tokio::time::timeout;
 
 /// Splits the public TLS port between the API and the WebSocket voice transport.
@@ -90,7 +89,7 @@ impl AlpnDemux {
         // still coming up.
         self.await_backends().await?;
 
-        let listener = Self::bind_listener(self.listen)?;
+        let listener = PublicListener::bind(self.listen)?;
 
         curia::info!("TLS demultiplexer listening", { "listen": self.listen.to_string(), "api": self.api.addr().to_string(), "websocket": format!("{:?}", self.websocket), "plain": format!("{:?}", self.plain.as_ref().map(|plain| plain.addr())) });
         self.listening.send_replace(true);
@@ -411,47 +410,4 @@ impl AlpnDemux {
         let _ = stream.shutdown().await;
     }
 
-    /// Binds the public socket, explicitly dual-stack on a wildcard IPv6 address.
-    ///
-    /// Windows enables `IPV6_V6ONLY` by default, so a wildcard v6 bind there serves no
-    /// IPv4 peer. Rocket 0.5 cannot be handed a pre-configured socket, which is why the
-    /// HTTP listener used to fall back to the IPv4 wildcard and IPv6-only clients could
-    /// not sign in at all. This socket is ours to configure, so the fallback is gone.
-    fn bind_listener(addr: SocketAddr) -> Result<TcpListener, DemuxError> {
-        let domain = if addr.is_ipv6() {
-            Domain::IPV6
-        } else {
-            Domain::IPV4
-        };
-
-        let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP))
-            .map_err(|source| DemuxError::Bind { addr, source })?;
-
-        if addr.is_ipv6() {
-            socket
-                .set_only_v6(false)
-                .map_err(|source| DemuxError::NotDualStack { addr, source })?;
-        }
-
-        // A connection this server closed holds the port in TIME_WAIT for about a minute, and
-        // without SO_REUSEADDR a restart in that window cannot bind it. tokio's
-        // `TcpListener::bind` sets this on Unix; a socket2 socket does not. Not on Windows,
-        // where SO_REUSEADDR lets another process bind a port that is in use.
-        #[cfg(unix)]
-        socket
-            .set_reuse_address(true)
-            .map_err(|source| DemuxError::Bind { addr, source })?;
-
-        socket
-            .bind(&addr.into())
-            .map_err(|source| DemuxError::Bind { addr, source })?;
-        socket
-            .listen(1024)
-            .map_err(|source| DemuxError::Bind { addr, source })?;
-        socket
-            .set_nonblocking(true)
-            .map_err(|source| DemuxError::Bind { addr, source })?;
-
-        TcpListener::from_std(socket.into()).map_err(|source| DemuxError::Bind { addr, source })
-    }
 }

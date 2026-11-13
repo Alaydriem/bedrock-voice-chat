@@ -1,5 +1,5 @@
 use super::VoiceLinkError;
-use common::rustls::{BvcClientTls, VerifierMode};
+use common::rustls::BvcClientTls;
 use rustls::ClientConfig;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 
@@ -26,7 +26,6 @@ impl MtlsClientConfig {
             Some(ca_cert),
             Some((Self::parse_certificates(cert)?, Self::parse_key(key)?)),
             alpn,
-            VerifierMode::for_build(),
         )
         .map_err(|source| VoiceLinkError::Tls { source })
     }

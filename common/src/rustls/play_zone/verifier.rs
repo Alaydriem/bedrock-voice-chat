@@ -104,15 +104,17 @@ impl PlayZoneVerifier {
         end_entity: &CertificateDer<'_>,
         intermediates: &[CertificateDer<'_>],
     ) -> Result<bool, RustlsError> {
-        // A build with no play roots has nothing to protect, so a chain certificate that
-        // x509-parser rejects must not fail a public server.
+        // A build with no play roots has nothing to protect.
         if self.play_roots.is_empty() {
             return Ok(false);
         }
 
         for der in std::iter::once(end_entity).chain(intermediates) {
-            let (_, cert) = x509_parser::parse_x509_certificate(der.as_ref())
-                .map_err(|_| Self::refuse("a chain certificate could not be parsed"))?;
+            // The fallback has already accepted this chain, and a certificate x509-parser
+            // cannot read cannot be matched against a play root, so it is skipped.
+            let Ok((_, cert)) = x509_parser::parse_x509_certificate(der.as_ref()) else {
+                continue;
+            };
 
             for (subject, root) in &self.play_roots {
                 if cert.issuer().as_raw() != subject.as_slice() {

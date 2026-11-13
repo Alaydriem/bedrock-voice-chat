@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::preflight_outcome::PlayPreflightOutcome;
 use super::refuse_reason::EnrollRefuseReason;
 use super::version::EnrollVersion;
 
@@ -38,4 +39,7 @@ pub enum EnrollFrame {
         csr_der: Vec<u8>,
     },
     PlayIssued { chain_pem: String },
+    PlayPreflight { address: Option<String>, port: u16 },
+    PlayPreflightNonce { nonce: String },
+    PlayPreflightResult { outcome: PlayPreflightOutcome },
 }

@@ -425,7 +425,6 @@ async fn a_check_in_naming_a_non_global_address_is_refused() {
         "10.0.0.5",
         "172.18.0.2",
         "192.168.1.1",
-        "100.64.0.1",
         "169.254.1.1",
         "0.0.0.0",
         "224.0.0.1",
@@ -450,6 +449,24 @@ async fn a_check_in_naming_a_non_global_address_is_refused() {
         .record_check_in("node-a", address("8.8.8.8"), 19132)
         .await
         .expect("a global address is accepted");
+}
+
+#[tokio::test]
+async fn a_check_in_naming_a_cgnat_address_is_refused_as_cgnat() {
+    let mut config = PlayFixture::config();
+    config.allow_private_probe_targets = false;
+    let (_conn, service) = service_with(config).await;
+    service.claim("node-a", address("203.0.113.7")).await.expect("claims");
+
+    for target in ["100.64.0.1", "100.127.255.254", "::ffff:100.64.1.1"] {
+        assert!(
+            matches!(
+                service.record_check_in("node-a", address(target), 19132).await,
+                Err(PlayError::AddressCgnat(_))
+            ),
+            "{target}"
+        );
+    }
 }
 
 #[tokio::test]

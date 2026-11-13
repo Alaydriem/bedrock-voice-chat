@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use reqwest::Client;
 
-use super::{BvcClientTls, VerifierMode};
+use super::BvcClientTls;
 
 pub struct MtlsHttpClient {
     client: Client,
@@ -22,11 +22,7 @@ impl MtlsHttpClient {
         let combined = format!("{}\n{}", cert_pem.trim(), key_pem.trim());
         let identity = BvcClientTls::identity_from_pem(&combined)?;
 
-        let client = BvcClientTls::http_client_builder(
-            Some(&ca_pem),
-            Some(identity),
-            VerifierMode::Strict,
-        )?
+        let client = BvcClientTls::http_client_builder(Some(&ca_pem), Some(identity))?
             .timeout(Duration::from_secs(10))
             .build()?;
 

@@ -174,4 +174,9 @@ bedrock-protocol = [
 # `dirs` is what `E2eAppData` reclaims through: Tauri resolves app-data from
 # `dirs`, not from `%APPDATA%`, so anything that wants to find those directories
 # has to ask the same way or it looks in a place Tauri never wrote to.
-e2e = ["dep:dirs"]
+#
+# `dev-trust` is on here because the harness servers sign their own certificates.
+e2e = ["dep:dirs", "dev-trust"]
+# Trust for a development server's certificate authority. Debug builds only; see
+# `common::rustls::DevTrustRoots`. `mise run dev-client` turns it on.
+dev-trust = ["common/dev-trust"]

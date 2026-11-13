@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use common::rustls::{BvcClientTls, VerifierMode};
+use common::rustls::BvcClientTls;
 use common::structs::websocket::PositionSocketEvent;
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::{mpsc, oneshot};
@@ -79,7 +79,7 @@ impl PositionSocket {
         tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
         anyhow::Error,
     > {
-        let tls = BvcClientTls::config(None, None, &[b"http/1.1"], VerifierMode::for_build())?;
+        let tls = BvcClientTls::config(None, None, &[b"http/1.1"])?;
         let mut request = url.into_client_request()?;
         request.headers_mut().insert(
             "Sec-WebSocket-Protocol",

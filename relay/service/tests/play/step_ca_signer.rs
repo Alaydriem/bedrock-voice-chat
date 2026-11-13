@@ -1,6 +1,4 @@
-use std::net::SocketAddr;
-
-use bvc_relay_service::config::PlayCaConfig;
+use bvc_relay_service::config::{PlayCaConfig, PlayCaEndpoint};
 use bvc_relay_service::play::StepCaSigner;
 
 use crate::harness::CsrFixture;
@@ -21,8 +19,8 @@ async fn step_ca_signs_a_registry_token() {
     let config = PlayCaConfig {
         url: var("BVC_TEST_STEP_CA_URL"),
         connect: var("BVC_TEST_STEP_CA_CONNECT")
-            .parse::<SocketAddr>()
-            .expect("an address"),
+            .parse::<PlayCaEndpoint>()
+            .expect("an endpoint"),
         provisioner: var("BVC_TEST_STEP_CA_PROVISIONER"),
         provisioner_kid: var("BVC_TEST_STEP_CA_KID"),
         provisioner_key: std::fs::read_to_string(var("BVC_TEST_STEP_CA_KEY_PATH"))

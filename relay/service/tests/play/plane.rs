@@ -40,7 +40,13 @@ async fn setup_with(probe_succeeds: bool, delay_millis: u64) -> Setup {
             Duration::from_millis(delay_millis),
         ],
     );
-    let plane = PlayPlane::new_shared(names.clone(), issuance, zone.clone(), probe);
+    let plane = PlayPlane::new_shared(
+        names.clone(),
+        issuance,
+        zone.clone(),
+        probe,
+        PlayFixture::preflight(true),
+    );
 
     Setup {
         conn,

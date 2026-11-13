@@ -1,10 +1,13 @@
 use std::net::IpAddr;
 use std::time::Duration;
 
+use common::curia;
+
 use crate::config::PlayCaConfig;
 use crate::validation::{AddressProbe, LiveAddressProbe};
 
 use super::error::PlayError;
+use super::root_pin::PlayRootPin;
 
 // Proves a play name's candidate address reaches the server that holds the name.
 //
@@ -33,6 +36,15 @@ impl PlayAddressProbe {
         let root = std::fs::read_to_string(&config.root).map_err(|e| {
             PlayError::Signer(format!("reading the play root {}: {e}", config.root))
         })?;
+        match PlayRootPin::is_pinned(&root) {
+            Ok(true) => {}
+            Ok(false) => {
+                curia::error!("The play root is not a root that clients pin. Release clients will refuse every play name this registry publishes.", { "root": config.root.clone() });
+            }
+            Err(e) => {
+                curia::error!("The play root could not be compared with the roots clients pin", { "root": config.root.clone(), "error": e.to_string() });
+            }
+        }
         let probe = LiveAddressProbe::with_roots(&root)
             .map_err(|e| PlayError::Signer(format!("the play root is unusable: {e}")))?;
 

@@ -16,4 +16,8 @@ pub enum EnrollRefuseReason {
     NoPlayName,
     CsrRejected,
     PlayUnavailable,
+    AddressNotPublic,
+    AddressCgnat,
+    PreflightRequired,
+    NoObservedAddress,
 }

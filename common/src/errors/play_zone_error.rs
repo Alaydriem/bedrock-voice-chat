@@ -5,6 +5,9 @@ pub enum PlayZoneError {
     PlayRoot(String),
     #[error("an additional root certificate could not be read: {0}")]
     ExtraRoot(String),
+    #[cfg(all(debug_assertions, feature = "dev-trust"))]
+    #[error("a development trust root could not be used: {0}")]
+    DevRoot(String),
     #[error("the client identity could not be used: {0}")]
     Identity(String),
     #[error("the TLS configuration could not be built: {0}")]

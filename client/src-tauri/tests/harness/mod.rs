@@ -1,4 +1,6 @@
 pub mod client_proc;
+#[cfg(debug_assertions)]
+pub mod dev_trust;
 pub mod drop_pattern;
 pub mod ffi;
 pub mod insecure_tls;

@@ -1,8 +1,12 @@
+mod ca_resolver;
 mod dns_server;
 mod issuance_service;
 mod name_service;
 mod one_time_token;
 mod plane;
+mod preflight_limiter;
+mod preflight_service;
+mod root_pin;
 mod step_ca_signer;
 mod zone_notifier;
 mod zone_transfer;

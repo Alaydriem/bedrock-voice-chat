@@ -1,6 +1,6 @@
 use common::net::NetTimeouts;
 use common::response::ApiConfigResponse;
-use common::rustls::{BvcClientTls, VerifierMode};
+use common::rustls::BvcClientTls;
 
 use crate::auth::ServerEndpoint;
 
@@ -15,7 +15,7 @@ impl PublicServerConfigReader {
     const PATH: &'static str = "api/config";
 
     pub(crate) async fn read(server: &str) -> Result<ApiConfigResponse, anyhow::Error> {
-        let client = BvcClientTls::http_client_builder(None, None, VerifierMode::for_build())?
+        let client = BvcClientTls::http_client_builder(None, None)?
             .timeout(NetTimeouts::HTTPS)
             .build()?;
 

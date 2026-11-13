@@ -30,6 +30,7 @@ bvc-relay = { path = "../lib" }
 common = { path = "../../common", default-features = false }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 getrandom = { version = "^0.3" }
+moka = { version = "^0.12", features = ["sync"] }
 hcl-rs = { version = "^0.19" }
 # 0.25 cannot verify TSIG; zone transfer needs 0.26.
 hickory-proto = { version = "0.26", features = ["dnssec-ring"] }
@@ -38,6 +39,7 @@ instant-acme = { version = "^0.8" }
 # aws_lc_rs matches the crypto provider rustls already uses here.
 jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 rcgen = { version = "^0.14", features = ["x509-parser"] }
+if-addrs = { workspace = true }
 iroh = { version = "1", default-features = false, features = ["tls-aws-lc-rs"] }
 rustls = { version = "^0.23", default-features = false, features = ["aws-lc-rs"] }
 reqwest = { version = "0.12", features = [

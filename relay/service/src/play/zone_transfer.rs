@@ -40,7 +40,7 @@ impl PlayZoneTransfer {
         let signer = dns.tsig.as_ref().and_then(|tsig| match tsig.signer() {
             Ok(signer) => Some(signer),
             Err(e) => {
-                curia::error!("the play TSIG key is unusable; transfers are refused", { "error": e.to_string() });
+                curia::error!("Play TSIG key is unusable. Zone transfers are refused.", { "error": e.to_string() });
                 None
             }
         });
@@ -164,7 +164,7 @@ impl PlayZoneTransfer {
                             handle.send_response(build(Some(signature))).await
                         }
                         Err(e) => {
-                            curia::error!("signing a play DNS response failed", { "error": e.to_string() });
+                            curia::error!("Play DNS response signing failed", { "error": e.to_string() });
                             return Self::failed(request);
                         }
                     }
@@ -174,7 +174,7 @@ impl PlayZoneTransfer {
             match result {
                 Ok(info) => last = Some(info),
                 Err(e) => {
-                    curia::warn!("sending a play DNS response failed", { "error": e.to_string() });
+                    curia::warn!("Play DNS response send failed", { "error": e.to_string() });
                     return Self::failed(request);
                 }
             }

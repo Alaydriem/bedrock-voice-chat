@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use common::structs::relay::enroll::PlayPreflightOutcome;
 
 use super::ScriptedPlayAuthority;
-use crate::services::RelayEnrollmentClient;
+use crate::services::{CurrentNonce, RelayEnrollmentClient};
 
 /// Where a play name and its certificates come from.
 ///
@@ -19,6 +20,22 @@ impl PlayAuthority {
         match self {
             Self::Relay(client) => Ok(client.claim_play_name().await?),
             Self::Scripted(scripted) => scripted.claim().await,
+        }
+    }
+
+    /// Asks the registry to prove the internet can reach this server. The registry's nonce is
+    /// set on `nonce` as soon as it arrives, so the responder can serve it to the probe.
+    pub async fn preflight(
+        &self,
+        address: Option<&str>,
+        port: u16,
+        nonce: &CurrentNonce,
+    ) -> Result<PlayPreflightOutcome> {
+        match self {
+            Self::Relay(client) => Ok(client
+                .play_preflight(address, port, |value| nonce.set(value))
+                .await?),
+            Self::Scripted(scripted) => scripted.preflight().await,
         }
     }
 
