@@ -10,59 +10,6 @@
     "version": "1.0.0-beta.27"
   },
   "paths": {
-    "/api/chat/worlds": {
-      "get": {
-        "tags": [
-          "Chat"
-        ],
-        "description": "Worlds this player has been seen in, newest first.\n\n`active` and `available` are independent, and the composer has to tell them apart: a world can be hosting players with its chat channel down, which reads very differently from a world nobody is in.",
-        "operationId": "worlds",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ChatWorld"
-                  }
-                }
-              }
-            }
-          },
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/config": {
-      "get": {
-        "tags": [
-          "Server"
-        ],
-        "description": "Return the configuration a client needs before connecting.\n\nUnauthenticated, and the usual way to confirm a server is reachable and its TLS is valid.",
-        "operationId": "get_config",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiConfigResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/telemetry/host-capability": {
       "post": {
         "tags": [
@@ -1418,6 +1365,59 @@
         ]
       }
     },
+    "/api/chat/worlds": {
+      "get": {
+        "tags": [
+          "Chat"
+        ],
+        "description": "Worlds this player has been seen in, newest first.\n\n`active` and `available` are independent, and the composer has to tell them apart: a world can be hosting players with its chat channel down, which reads very differently from a world nobody is in.",
+        "operationId": "worlds",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatWorld"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "description": "Return the configuration a client needs before connecting.\n\nUnauthenticated, and the usual way to confirm a server is reachable and its TLS is valid.",
+        "operationId": "get_config",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/channel/": {
       "get": {
         "tags": [
@@ -1726,358 +1726,6 @@
   },
   "components": {
     "schemas": {
-      "ChatWorld": {
-        "description": "A world this player has been seen in, and whether chat works there right now.",
-        "type": "object",
-        "required": [
-          "active",
-          "available",
-          "last_seen",
-          "mode",
-          "world_name",
-          "world_uuid"
-        ],
-        "properties": {
-          "world_uuid": {
-            "description": "Never rendered. A random UUID on the mod path and a derived hash on the proxy path, polymorphic in length, and meaningless to a person either way.",
-            "type": "string"
-          },
-          "world_name": {
-            "description": "The only user-facing label.",
-            "type": "string"
-          },
-          "last_seen": {
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "active": {
-            "description": "The world is being hosted: position ingress is recent.",
-            "type": "boolean"
-          },
-          "available": {
-            "description": "A mod chat channel is registered for it right now. A world can be active and unavailable — positions flowing while the chat socket is down.",
-            "type": "boolean"
-          },
-          "mode": {
-            "$ref": "#/components/schemas/ChatMode"
-          }
-        }
-      },
-      "ChatMode": {
-        "description": "Which chat implementation is live for a world.\n\nDistinct from availability: this says whether a mod or the local proxy is the source of chat, not whether chat works right now. A world can be `Server` mode with its chat channel down, and the composer has to tell those apart.",
-        "type": "string",
-        "enum": [
-          "Server",
-          "Local"
-        ]
-      },
-      "ApiConfigResponse": {
-        "type": "object",
-        "required": [
-          "client_id",
-          "protocol_version",
-          "quic_port",
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string"
-          },
-          "client_id": {
-            "type": "string"
-          },
-          "protocol_version": {
-            "type": "string"
-          },
-          "quic_port": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          },
-          "quic_ports": {
-            "default": [],
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
-            }
-          },
-          "voice_websocket": {
-            "default": false,
-            "type": "boolean"
-          },
-          "spatial_audio": {
-            "default": {
-              "broadcast_range": 48.0,
-              "close_threshold": 24.0,
-              "deafen_distance": 3.0,
-              "falloff_distance": 48.0,
-              "max_attenuation_db": 40.0,
-              "panning_start": 8.0,
-              "steepen_start": 38.0
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SpatialAudioConfig"
-              }
-            ]
-          },
-          "bedrock": {
-            "default": {
-              "enabled": false,
-              "servers": []
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigBedrock"
-              }
-            ]
-          },
-          "age": {
-            "default": {
-              "minimum": null
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigAge"
-              }
-            ]
-          },
-          "recording": {
-            "default": {
-              "enabled": true
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigRecording"
-              }
-            ]
-          },
-          "chat": {
-            "default": {
-              "enabled": true
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigChat"
-              }
-            ]
-          },
-          "capacity": {
-            "default": {
-              "in_use": 0,
-              "limit": 0
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigCapacity"
-              }
-            ]
-          },
-          "radar": {
-            "default": {
-              "enabled": true
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigRadar"
-              }
-            ]
-          },
-          "protected_groups": {
-            "default": {
-              "enabled": false
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigProtectedGroups"
-              }
-            ]
-          },
-          "peer_link": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "SpatialAudioConfig": {
-        "type": "object",
-        "properties": {
-          "broadcast_range": {
-            "default": 48.0,
-            "type": "number",
-            "format": "float"
-          },
-          "close_threshold": {
-            "default": 24.0,
-            "type": "number",
-            "format": "float"
-          },
-          "falloff_distance": {
-            "default": 48.0,
-            "type": "number",
-            "format": "float"
-          },
-          "steepen_start": {
-            "default": 38.0,
-            "type": "number",
-            "format": "float"
-          },
-          "deafen_distance": {
-            "default": 3.0,
-            "type": "number",
-            "format": "float"
-          },
-          "panning_start": {
-            "default": 8.0,
-            "type": "number",
-            "format": "float"
-          },
-          "max_attenuation_db": {
-            "default": 40.0,
-            "type": "number",
-            "format": "float"
-          }
-        }
-      },
-      "ApiConfigBedrock": {
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "default": false,
-            "type": "boolean"
-          },
-          "servers": {
-            "default": [],
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ApiConfigBedrockServer"
-            }
-          }
-        }
-      },
-      "ApiConfigBedrockServer": {
-        "type": "object",
-        "required": [
-          "addon_mode",
-          "host",
-          "name",
-          "port"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "host": {
-            "type": "string"
-          },
-          "port": {
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
-          },
-          "protocol_version": {
-            "default": null,
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0,
-            "nullable": true
-          },
-          "addon_mode": {
-            "$ref": "#/components/schemas/AddonMode"
-          }
-        }
-      },
-      "AddonMode": {
-        "type": "string",
-        "enum": [
-          "net",
-          "no_net"
-        ]
-      },
-      "ApiConfigAge": {
-        "type": "object",
-        "properties": {
-          "minimum": {
-            "default": null,
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0,
-            "nullable": true
-          }
-        }
-      },
-      "ApiConfigRecording": {
-        "description": "Whether the server permits clients to record voice sessions.\n\nA server that predates this field sends nothing and reads as permitted, so an older deployment never appears to have turned recording off.",
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ApiConfigChat": {
-        "description": "Whether the server relays in-game chat.\n\nA server that predates this field sends nothing and reads as enabled, so an older deployment never appears to have turned chat off.",
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ApiConfigCapacity": {
-        "description": "How many concurrent voice sessions this server admits, and how many it holds now.\n\nA server that predates this field sends nothing and reads as unlimited, so an older deployment never appears to be full.\n\n`in_use` is advisory. It can change between this probe and a connection attempt, and the server's own admission check remains the authority.",
-        "type": "object",
-        "required": [
-          "in_use",
-          "limit"
-        ],
-        "properties": {
-          "limit": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          },
-          "in_use": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          }
-        }
-      },
-      "ApiConfigRadar": {
-        "description": "Whether the app may point the idle ring at players beyond voice range.\n\nA server that predates this field sends nothing and reads as enabled, so an older deployment keeps the ring it always had.",
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ApiConfigProtectedGroups": {
-        "description": "Whether the server supports end-to-end encrypted groups.\n\nA server that predates this field sends nothing and reads as unsupported, so the app hides the option rather than offering a create that would 404.",
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          }
-        }
-      },
       "GamerpicResponse": {
         "type": "object",
         "required": [
@@ -3423,6 +3071,358 @@
           }
         }
       },
+      "ChatWorld": {
+        "description": "A world this player has been seen in, and whether chat works there right now.",
+        "type": "object",
+        "required": [
+          "active",
+          "available",
+          "last_seen",
+          "mode",
+          "world_name",
+          "world_uuid"
+        ],
+        "properties": {
+          "world_uuid": {
+            "description": "Never rendered. A random UUID on the mod path and a derived hash on the proxy path, polymorphic in length, and meaningless to a person either way.",
+            "type": "string"
+          },
+          "world_name": {
+            "description": "The only user-facing label.",
+            "type": "string"
+          },
+          "last_seen": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "active": {
+            "description": "The world is being hosted: position ingress is recent.",
+            "type": "boolean"
+          },
+          "available": {
+            "description": "A mod chat channel is registered for it right now. A world can be active and unavailable — positions flowing while the chat socket is down.",
+            "type": "boolean"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ChatMode"
+          }
+        }
+      },
+      "ChatMode": {
+        "description": "Which chat implementation is live for a world.\n\nDistinct from availability: this says whether a mod or the local proxy is the source of chat, not whether chat works right now. A world can be `Server` mode with its chat channel down, and the composer has to tell those apart.",
+        "type": "string",
+        "enum": [
+          "Server",
+          "Local"
+        ]
+      },
+      "ApiConfigResponse": {
+        "type": "object",
+        "required": [
+          "client_id",
+          "protocol_version",
+          "quic_port",
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "protocol_version": {
+            "type": "string"
+          },
+          "quic_port": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "quic_ports": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "voice_websocket": {
+            "default": false,
+            "type": "boolean"
+          },
+          "spatial_audio": {
+            "default": {
+              "broadcast_range": 48.0,
+              "close_threshold": 24.0,
+              "deafen_distance": 3.0,
+              "falloff_distance": 48.0,
+              "max_attenuation_db": 40.0,
+              "panning_start": 8.0,
+              "steepen_start": 38.0
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpatialAudioConfig"
+              }
+            ]
+          },
+          "bedrock": {
+            "default": {
+              "enabled": false,
+              "servers": []
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigBedrock"
+              }
+            ]
+          },
+          "age": {
+            "default": {
+              "minimum": null
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigAge"
+              }
+            ]
+          },
+          "recording": {
+            "default": {
+              "enabled": true
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigRecording"
+              }
+            ]
+          },
+          "chat": {
+            "default": {
+              "enabled": true
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigChat"
+              }
+            ]
+          },
+          "capacity": {
+            "default": {
+              "in_use": 0,
+              "limit": 0
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigCapacity"
+              }
+            ]
+          },
+          "radar": {
+            "default": {
+              "enabled": true
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigRadar"
+              }
+            ]
+          },
+          "protected_groups": {
+            "default": {
+              "enabled": false
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigProtectedGroups"
+              }
+            ]
+          },
+          "peer_link": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SpatialAudioConfig": {
+        "type": "object",
+        "properties": {
+          "broadcast_range": {
+            "default": 48.0,
+            "type": "number",
+            "format": "float"
+          },
+          "close_threshold": {
+            "default": 24.0,
+            "type": "number",
+            "format": "float"
+          },
+          "falloff_distance": {
+            "default": 48.0,
+            "type": "number",
+            "format": "float"
+          },
+          "steepen_start": {
+            "default": 38.0,
+            "type": "number",
+            "format": "float"
+          },
+          "deafen_distance": {
+            "default": 3.0,
+            "type": "number",
+            "format": "float"
+          },
+          "panning_start": {
+            "default": 8.0,
+            "type": "number",
+            "format": "float"
+          },
+          "max_attenuation_db": {
+            "default": 40.0,
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "ApiConfigBedrock": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "type": "boolean"
+          },
+          "servers": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiConfigBedrockServer"
+            }
+          }
+        }
+      },
+      "ApiConfigBedrockServer": {
+        "type": "object",
+        "required": [
+          "addon_mode",
+          "host",
+          "name",
+          "port"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
+          },
+          "protocol_version": {
+            "default": null,
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0,
+            "nullable": true
+          },
+          "addon_mode": {
+            "$ref": "#/components/schemas/AddonMode"
+          }
+        }
+      },
+      "AddonMode": {
+        "type": "string",
+        "enum": [
+          "net",
+          "no_net"
+        ]
+      },
+      "ApiConfigAge": {
+        "type": "object",
+        "properties": {
+          "minimum": {
+            "default": null,
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0,
+            "nullable": true
+          }
+        }
+      },
+      "ApiConfigRecording": {
+        "description": "Whether the server permits clients to record voice sessions.\n\nA server that predates this field sends nothing and reads as permitted, so an older deployment never appears to have turned recording off.",
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiConfigChat": {
+        "description": "Whether the server relays in-game chat.\n\nA server that predates this field sends nothing and reads as enabled, so an older deployment never appears to have turned chat off.",
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiConfigCapacity": {
+        "description": "How many concurrent voice sessions this server admits, and how many it holds now.\n\nA server that predates this field sends nothing and reads as unlimited, so an older deployment never appears to be full.\n\n`in_use` is advisory. It can change between this probe and a connection attempt, and the server's own admission check remains the authority.",
+        "type": "object",
+        "required": [
+          "in_use",
+          "limit"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "in_use": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "ApiConfigRadar": {
+        "description": "Whether the app may point the idle ring at players beyond voice range.\n\nA server that predates this field sends nothing and reads as enabled, so an older deployment keeps the ring it always had.",
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiConfigProtectedGroups": {
+        "description": "Whether the server supports end-to-end encrypted groups.\n\nA server that predates this field sends nothing and reads as unsupported, so the app hides the option rather than offering a create that would 404.",
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "ChannelEvent": {
         "type": "object",
         "required": [
@@ -3502,15 +3502,15 @@
       }
     },
     "securitySchemes": {
-      "PlayerGuard": {
-        "description": "Player mTLS client certificate.",
-        "type": "http",
-        "scheme": "mutual"
-      },
       "GameAccessToken": {
         "description": "Game server access token, as `Authorization: Bearer <token>`.",
         "type": "http",
         "scheme": "bearer"
+      },
+      "PlayerGuard": {
+        "description": "Player mTLS client certificate.",
+        "type": "http",
+        "scheme": "mutual"
       },
       "AdminGuard": {
         "description": "Operator mTLS client certificate. Caller must additionally hold the `admin` permission.",
@@ -3525,14 +3525,6 @@
     }
   },
   "tags": [
-    {
-      "name": "Chat",
-      "description": "In-game chat relay. Lists the worlds a player has been seen in and which of them currently have a chat channel."
-    },
-    {
-      "name": "Server",
-      "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
-    },
     {
       "name": "Telemetry",
       "description": "Facts a Java mod observes about its own host, which the mod has no channel of its own to report."
@@ -3576,6 +3568,14 @@
     {
       "name": "Clients",
       "description": "Which players currently hold a voice connection, for a mod that delivers audio of its own alongside this server's."
+    },
+    {
+      "name": "Chat",
+      "description": "In-game chat relay. Lists the worlds a player has been seen in and which of them currently have a chat channel."
+    },
+    {
+      "name": "Server",
+      "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
     },
     {
       "name": "Channels",
