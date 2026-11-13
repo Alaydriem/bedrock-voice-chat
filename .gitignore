@@ -9,6 +9,7 @@ server.key
 server.crt
 certificates/
 config.hcl
+*.bak
 *.sqlite3
 *.sqlite
 /target

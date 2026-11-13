@@ -120,6 +120,26 @@ impl MinecraftAuthProvider {
             .await
     }
 
+    // Xbox answers a refusal with an empty or non-JSON body, which a direct `.json()` reports
+    // only as "error decoding response body". A refusal is logged with its status and body,
+    // and the error names the step and the status.
+    async fn decode<T: serde::de::DeserializeOwned>(
+        step: &'static str,
+        response: reqwest::Response,
+    ) -> Result<T, AuthError> {
+        let status = response.status();
+        let body = response.text().await?;
+        if !status.is_success() {
+            curia::warn!("Xbox auth step refused", {
+                "step": step,
+                "status": status.as_u16().to_string(),
+                "body": body.clone(),
+            });
+        }
+        serde_json::from_str(&body)
+            .map_err(|e| AuthError::InvalidResponse(format!("{step} answered {status}: {e}")))
+    }
+
     async fn exchange_code_for_token(
         &self,
         client: &reqwest::Client,
@@ -147,10 +167,7 @@ impl MinecraftAuthProvider {
             )));
         }
 
-        let token: AccessTokenResponse = response
-            .json()
-            .await
-            .map_err(|e| AuthError::InvalidResponse(e.to_string()))?;
+        let token: AccessTokenResponse = Self::decode("token_exchange", response).await?;
 
         Ok(token.access_token)
     }
@@ -170,14 +187,12 @@ impl MinecraftAuthProvider {
             "TokenType": "JWT"
         });
 
-        let response: XboxAuthResponse = client
+        let response = client
             .post("https://user.auth.xboxlive.com/user/authenticate")
             .json(&json)
             .send()
-            .await?
-            .json()
-            .await
-            .map_err(|e| AuthError::InvalidResponse(e.to_string()))?;
+            .await?;
+        let response: XboxAuthResponse = Self::decode("xbox_user_authenticate", response).await?;
 
         let user_hash = response
             .display_claims
@@ -209,15 +224,13 @@ impl MinecraftAuthProvider {
         headers.insert("Content-Type", "application/json".parse().unwrap());
         headers.insert("x-xbl-contract-version", "1".parse().unwrap());
 
-        let response: XboxAuthResponse = client
+        let response = client
             .post("https://xsts.auth.xboxlive.com/xsts/authorize")
             .json(&json)
             .headers(headers)
             .send()
-            .await?
-            .json()
-            .await
-            .map_err(|e| AuthError::InvalidResponse(e.to_string()))?;
+            .await?;
+        let response: XboxAuthResponse = Self::decode("xsts_authorize", response).await?;
 
         Ok(response.token)
     }
@@ -237,17 +250,16 @@ impl MinecraftAuthProvider {
         );
         headers.insert("Accept", "application/json".parse().unwrap());
         headers.insert("Accept-Language", "en-US".parse().unwrap());
+        // No explicit Host header: over HTTP/2 it is sent beside `:authority`, and Xbox's
+        // front end refuses the request as badly formed (400, HTML body).
         headers.insert("x-xbl-contract-version", "3".parse().unwrap());
-        headers.insert("Host", "userpresence.xboxlive.com".parse().unwrap());
 
-        let presence: serde_json::Value = client
+        let response = client
             .get("https://userpresence.xboxlive.com/users/me")
             .headers(headers)
             .send()
-            .await?
-            .json()
-            .await
-            .map_err(|e| AuthError::InvalidResponse(e.to_string()))?;
+            .await?;
+        let presence: serde_json::Value = Self::decode("user_presence", response).await?;
 
         presence["xuid"]
             .as_str()
@@ -271,7 +283,7 @@ impl MinecraftAuthProvider {
         );
         headers.insert("x-xbl-contract-version", "3".parse().unwrap());
 
-        let profile: ProfileResponse = client
+        let response = client
             .post("https://profile.xboxlive.com/users/batch/profile/settings")
             .json(&serde_json::json!({
                 "userIds": vec![xuid],
@@ -282,10 +294,8 @@ impl MinecraftAuthProvider {
             }))
             .headers(headers)
             .send()
-            .await?
-            .json()
-            .await
-            .map_err(|e| AuthError::InvalidResponse(e.to_string()))?;
+            .await?;
+        let profile: ProfileResponse = Self::decode("profile_settings", response).await?;
 
         // Extract gamertag and gamerpic from profile
         let user = profile
