@@ -39,6 +39,12 @@ function entry(name: string, distance: number, presence = "voice", bearingDeg = 
     return { name, presence, bearing_deg: bearingDeg, distance, elevation: 0 };
 }
 
+// The Rust side resolves the server's endpoint and builds the URL; here the scheme swap stands
+// in for that, so a wrong server or path still shows up in the opened URL.
+function websocketUrl({ server, path }: { server: string; path: string }): string {
+    return `${server.replace(/^https:/, "wss:")}${path}`;
+}
+
 async function deliver(seq: number, positions: unknown[]): Promise<void> {
     await vi.waitFor(() => expect(onmessage).not.toBeNull());
     onmessage!({ data: JSON.stringify({ seq, positions }) });
@@ -51,6 +57,7 @@ describe("NearbyManager", () => {
         sockets.length = 0;
         mockInvoke({
             api_websocket_ticket: () => ({ ticket: "abc", expires_in: 60 }),
+            server_websocket_url: websocketUrl,
             player_settings_touch: () => null,
         });
     });
@@ -295,6 +302,7 @@ describe("NearbyManager", () => {
                 new Promise((resolve) => {
                     release = resolve;
                 }),
+            server_websocket_url: websocketUrl,
         });
 
         const nearby = new NearbyManager();
