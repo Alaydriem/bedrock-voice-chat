@@ -54,6 +54,7 @@ pub use meridian_service::MeridianService;
 pub use permission_service::{PermissionService, PermissionServiceError};
 pub use metrics_service::MetricsService;
 pub use metrics_service::host_capability::HostCapability;
+pub use metrics_service::host_kind::HostKind;
 pub use pairing_service::PairingService;
 pub use player_identity_service::PlayerIdentityService;
 pub use player_registrar_service::{PlayerRegistrarService, RegisteredPlayersCache};

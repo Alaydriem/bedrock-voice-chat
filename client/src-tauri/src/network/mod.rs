@@ -2,6 +2,7 @@ use common::structs::packet::QuicNetworkPacket;
 
 mod cached_endpoint;
 mod credential_fault;
+mod default_port_probe;
 mod position_socket;
 mod position_socket_registry;
 mod public_server_config_reader;
@@ -14,6 +15,7 @@ mod transport_verdict;
 use serde::{Deserialize, Serialize};
 
 pub use credential_fault::CredentialFault;
+pub use default_port_probe::DefaultPortProbe;
 pub(crate) use position_socket::PositionSocket;
 pub(crate) use position_socket_registry::PositionSocketRegistry;
 pub(crate) use public_server_config_reader::PublicServerConfigReader;

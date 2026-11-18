@@ -67,6 +67,22 @@ class PaperConfigProviderTest {
         assertEquals(45L, bedrock?.proxyEventFreshnessThresholdSecs)
     }
 
+    // Bukkit could drop an empty section, and a dropped play block turns play mode off.
+    @Test
+    fun `an empty play block survives a full load`() {
+        val yaml = """
+            use-embedded-server: true
+            embedded-config:
+              server:
+                tls:
+                  play: {}
+        """.trimIndent()
+
+        val config = PaperConfigProvider.fromJson(YamlSectionConverter.toJson(sectionOf(yaml)))
+
+        assertTrue(config.embeddedConfig?.server?.tls?.play != null)
+    }
+
     @Test
     fun `external mode keys still load`() {
         val yaml = """

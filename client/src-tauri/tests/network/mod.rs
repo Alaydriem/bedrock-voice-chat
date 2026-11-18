@@ -1,5 +1,6 @@
 mod connect_outcome;
 mod credential_fault;
+mod default_port_probe;
 mod dns_answer_builder;
 mod dns_responder;
 mod dns_script;

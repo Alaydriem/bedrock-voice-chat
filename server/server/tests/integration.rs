@@ -1,5 +1,6 @@
 mod config;
 mod demux;
+mod ffi;
 mod harness;
 mod logging;
 mod relay;

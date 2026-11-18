@@ -121,6 +121,76 @@ fn tls_paths_override() {
 }
 
 #[test]
+fn bvc_play_true_turns_play_mode_on_with_no_address() {
+    let config = apply(&[("BVC_PLAY", "true")], ApplicationConfig::default());
+
+    let play = config.server.tls.play.expect("BVC_PLAY=true must add a play block");
+    assert_eq!(play.address(), None);
+}
+
+#[test]
+fn bvc_play_address_sets_the_published_address() {
+    let config = apply(
+        &[("BVC_PLAY", "true"), ("BVC_PLAY_ADDRESS", " 203.0.113.10 ")],
+        ApplicationConfig::default(),
+    );
+
+    assert_eq!(config.server.tls.play.unwrap().address(), Some("203.0.113.10"));
+}
+
+// The variable wins over the file, in both directions.
+#[test]
+fn bvc_play_false_removes_a_play_block_from_the_file() {
+    let mut config = ApplicationConfig::default();
+    config.server.tls.play = Some(Default::default());
+
+    let config = apply(&[("BVC_PLAY", "false")], config);
+
+    assert!(config.server.tls.play.is_none());
+}
+
+#[test]
+fn bvc_play_address_fills_a_play_block_from_the_file() {
+    let mut config = ApplicationConfig::default();
+    config.server.tls.play = Some(Default::default());
+
+    let config = apply(&[("BVC_PLAY_ADDRESS", "203.0.113.10")], config);
+
+    assert_eq!(config.server.tls.play.unwrap().address(), Some("203.0.113.10"));
+}
+
+#[test]
+fn bvc_play_address_without_play_mode_is_refused() {
+    let err = EnvOverrides::from_vars(vars(&[("BVC_PLAY_ADDRESS", "203.0.113.10")]))
+        .apply(ApplicationConfig::default())
+        .expect_err("an address that would be dropped must stop startup");
+    assert!(format!("{err}").contains("BVC_PLAY_ADDRESS"));
+}
+
+#[test]
+fn bvc_play_rejects_a_non_bool() {
+    let err = EnvOverrides::from_vars(vars(&[("BVC_PLAY", "yes")]))
+        .apply(ApplicationConfig::default())
+        .expect_err("a non-bool BVC_PLAY must error");
+    assert!(format!("{err}").contains("BVC_PLAY"));
+}
+
+// A play block from the environment still meets the one-source rule.
+#[test]
+fn bvc_play_with_a_certificate_is_a_source_conflict() {
+    let config = apply(
+        &[
+            ("BVC_PLAY", "true"),
+            ("BVC_TLS_CERTIFICATE", "/certs/fullchain.pem"),
+            ("BVC_TLS_KEY", "/certs/privkey.pem"),
+        ],
+        ApplicationConfig::default(),
+    );
+
+    assert!(config.server.tls_source_conflict().is_some());
+}
+
+#[test]
 fn telemetry_parses_bool_or_errors() {
     let config = apply(&[("BVC_TELEMETRY", "false")], ApplicationConfig::default());
     assert!(!config.server.features.telemetry);

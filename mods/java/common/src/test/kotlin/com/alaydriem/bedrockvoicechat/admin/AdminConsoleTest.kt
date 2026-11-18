@@ -54,7 +54,7 @@ class AdminConsoleTest {
             override fun createDefaultIfMissing() {}
             override fun getConfigDir(): Path? = null
         }
-        val manager = BvcServerManager(ModConfig(), provider)
+        val manager = BvcServerManager(ModConfig(), provider, "paper")
         val console = AdminConsole(GameType.MINECRAFT) { manager }
 
         assertEquals(bootstrapHint, console.run(AdminAction.REVOKE, "Alice"))

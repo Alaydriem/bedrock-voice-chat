@@ -1,10 +1,11 @@
 # Bedrock Voice Chat — Java mods
 
-Fabric and Paper builds of the BVC mod. Both share `:common`, and both read the
-same configuration shape.
+Fabric, Paper and PowerNukkitX builds of the BVC mod. All three share `:common`, and
+all three read the same configuration shape.
 
 - Fabric: `config/bedrock-voice-chat.json`
 - Paper: `plugins/BedrockVoiceChat/config.yml`
+- PowerNukkitX: `plugins/BedrockVoiceChat/config.yml`
 
 ## External or embedded
 
@@ -31,10 +32,7 @@ embedded-config:
     port: 8444
     quic_port: 8443
     tls:
-      certificate: "/etc/bvc/fullchain.pem"
-      key: "/etc/bvc/privkey.pem"
-      names:
-        - "bvc.example.com"
+      play: {}
 ```
 
 ## The embedded configuration mirrors the server
@@ -58,9 +56,53 @@ bind failure stops startup. Set 8444 and 8443 unless you intend 443.
 
 ### TLS is required
 
-Supply `server.tls.certificate` and `server.tls.key`, **or** a
-`server.tls.acme` block to obtain a certificate over DNS-01. The mod refuses to
-start with neither. Setting both is refused by the server itself.
+Use exactly one certificate source, in the file or through its `BVC_*`
+variables (see below). The mod refuses to start with none, and the server
+refuses two.
+
+| Source | Key | Needs a domain |
+| --- | --- | --- |
+| Play name | `server.tls.play` | No |
+| Enrollment | `server.enrollment.token` | No |
+| ACME | `server.tls.acme` | Yes |
+| Your own certificate | `server.tls.certificate` and `server.tls.key` | Yes |
+
+**Play name.** The BVC registry assigns the server a `*.play.bedrockvc.stream`
+name and a 15-day certificate, and renews it. Nothing else is needed:
+
+```yaml
+embedded-config:
+  server:
+    tls:
+      play: {}
+```
+
+Write the empty braces. In YAML, `play:` with nothing after it is null, and a
+null block leaves play mode off. In Fabric's JSON, write `"play": {}`.
+
+`play.address` is optional. It is the public IP players reach, and the registry
+publishes it as the name's DNS record. Unset, the registry uses the address it
+sees the server connect from. It must be an IP address, not a hostname, and the
+registry refuses a private address.
+
+```yaml
+      play:
+        address: "203.0.113.10"
+```
+
+**Enrollment.** For entitled members. The registry assigns your reserved name
+and its certificate. The token is spent on the first start; after that, the
+server's node key authenticates it, so the token can stay or be removed.
+`address` and `port` are optional, with the same meaning as for play.
+
+```yaml
+embedded-config:
+  server:
+    enrollment:
+      token: "..."
+```
+
+**ACME.** Obtains a certificate for your own domain over DNS-01:
 
 ```yaml
 embedded-config:
@@ -87,7 +129,9 @@ and names the variable.
 `BVC_TLS_NAMES`, `BVC_TLS_IPS`, `BVC_ACME_EMAIL`, `BVC_ACME_PROVIDER`,
 `BVC_ACME_API_TOKEN`, `BVC_ACME_DIRECTORY`, `BVC_ACME_DOMAINS`,
 `BVC_ACME_DNS_URL`, `BVC_ACME_DNS_USERNAME`, `BVC_ACME_DNS_PASSWORD`,
-`BVC_ACME_DNS_SUBDOMAIN`,
+`BVC_ACME_DNS_SUBDOMAIN`, `BVC_ENROLLMENT_TOKEN`, `BVC_ENROLLMENT_ADDRESS`,
+`BVC_PLAY` (`true` adds a play block, `false` removes one), `BVC_PLAY_ADDRESS`
+(needs play mode on),
 `BVC_DATABASE_SCHEME`, `BVC_DATABASE_DATABASE`, `BVC_DATABASE_HOST`,
 `BVC_DATABASE_PORT`, `BVC_DATABASE_USERNAME`, `BVC_DATABASE_PASSWORD`,
 `BVC_DATABASE_SSL_MODE`, `BVC_DATABASE_SSL_ROOT_CERT`, `BVC_DATABASE_SSL_CERT`,

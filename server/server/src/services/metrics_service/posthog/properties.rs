@@ -7,6 +7,9 @@ use crate::services::metrics_service::host_capability::HostCapability;
 pub struct EventProperties {
     pub server_id: String,
     pub server_version: String,
+    // A plain field rather than a flattened struct, so no key can collide with
+    // those HeartbeatSnapshot flattens.
+    pub host: &'static str,
     // Blake3 of the server cert's CN. Not a migration bridge for server_id: before
     // this release it rode only on Server::Started, so no other event type ever
     // carried it and nothing historical can be joined on it.

@@ -30,7 +30,7 @@ impl EnvOverrides {
     pub fn apply(&self, mut config: ApplicationConfig) -> Result<ApplicationConfig, anyhow::Error> {
         self.apply_server(&mut config)?;
         self.apply_voice(&mut config)?;
-        self.apply_tls(&mut config);
+        self.apply_tls(&mut config)?;
         self.apply_database(&mut config)?;
         self.apply_meridian(&mut config)?;
         self.apply_acme(&mut config)?;
@@ -151,7 +151,7 @@ impl EnvOverrides {
         Ok(())
     }
 
-    fn apply_tls(&self, config: &mut ApplicationConfig) {
+    fn apply_tls(&self, config: &mut ApplicationConfig) -> Result<(), anyhow::Error> {
         if let Some(v) = self.get("BVC_TLS_CERTIFICATE") {
             config.server.tls.certificate = v.to_string();
         }
@@ -167,6 +167,31 @@ impl EnvOverrides {
         if let Some(ips) = self.get_list("BVC_TLS_IPS") {
             config.server.tls.ips = ips;
         }
+        self.apply_play(config)
+    }
+
+    // An embedded server never passes through the launcher that writes a play block from
+    // the environment, so a hosting panel that can only set variables needs these.
+    // `false` removes a play block the file declared; precedence is env over config.
+    fn apply_play(&self, config: &mut ApplicationConfig) -> Result<(), anyhow::Error> {
+        match self.get_bool("BVC_PLAY")? {
+            Some(true) => {
+                config.server.tls.play.get_or_insert_with(Default::default);
+            }
+            Some(false) => config.server.tls.play = None,
+            None => {}
+        }
+        if let Some(address) = self.get("BVC_PLAY_ADDRESS") {
+            // An address with play off would be dropped without a word, and the operator
+            // would wonder why the registry published the observed address instead.
+            let play = config.server.tls.play.as_mut().ok_or_else(|| {
+                anyhow!(
+                    "BVC_PLAY_ADDRESS is set but play mode is off; set BVC_PLAY=true or add server.tls.play"
+                )
+            })?;
+            play.address = Some(address.trim().to_string());
+        }
+        Ok(())
     }
 
     fn apply_database(&self, config: &mut ApplicationConfig) -> Result<(), anyhow::Error> {

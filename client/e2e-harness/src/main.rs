@@ -131,6 +131,7 @@ fn main() {
                 common::net::srv::SrvResolver::new(
                     common::net::srv::SrvResolverConfig::production(),
                 ),
+                bvc_client_lib::network::DefaultPortProbe::standard(),
             );
             app.manage(endpoints);
             let app_state = bvc_client_lib::AppState::new(store.clone(), handle.clone());

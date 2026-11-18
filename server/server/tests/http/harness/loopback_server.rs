@@ -94,6 +94,7 @@ impl LoopbackServer {
             false,
             config.voice.recording.enabled,
             None,
+            bvc_server_lib::services::HostKind::Standalone,
         );
         let access_token_service =
             AccessTokenService::new_shared(db.clone(), Some(LOOPBACK_TOKEN.to_string()), true);

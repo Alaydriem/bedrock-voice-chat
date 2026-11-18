@@ -9,6 +9,12 @@ const {
   buildAndDeployBds,
 } = require('./lib/bds');
 
+const { EmbeddedConfig } = require('./lib/embedded-config');
+const { Fabric } = require('./lib/fabric');
+const { JavaServer } = require('./lib/java-server');
+const { Paper } = require('./lib/paper');
+const { PowerNukkitX } = require('./lib/powernukkitx');
+
 const modsDir = __dirname;
 const javaDir = path.join(modsDir, 'java');
 const bdsDir = path.join(modsDir, 'bds');
@@ -25,7 +31,7 @@ function fail(msg) {
 
 function usage() {
   console.log(`
-Usage: yarn dev-server <--bds | --paper | --fabric> [options]
+Usage: yarn dev-server <--bds | --paper | --fabric | --powernukkitx> [options]
 
   Builds the selected mod, deploys it to your local test server (paths read
   from mods/.env), then starts that server attached to this terminal so you
@@ -33,13 +39,23 @@ Usage: yarn dev-server <--bds | --paper | --fabric> [options]
 
 Platforms (pick exactly one):
   --bds       Bedrock Dedicated Server
-  --paper     Paper server
-  --fabric    Fabric server
+  --paper     Paper server with Geyser, Floodgate and Simple Voice Chat
+  --fabric    Fabric server with Fabric API, Geyser, Floodgate and Simple
+              Voice Chat
+  --powernukkitx
+              PowerNukkitX server
+
+  Paper, Fabric and PowerNukkitX are downloaded and seeded on first run under
+  mods/.dev/<platform>; their *_SERVER_PATH variables are optional. Paper and
+  Fabric mirror the PowerNukkitX dev server's BVC config and certificates when
+  it has them.
 
 Options:
   --no-net    (BDS only) Deploy the no-net pack variant and point the world at it
   --release   Build the Rust native library / mods in release mode
   --no-build  Skip build + deploy; just (re)start the server
+  --update    (Paper, Fabric) Resolve the newest server and mod builds again
+              and replace any that changed
 
 Configure paths in mods/.env (copy mods/.env.example to get started).
 `);
@@ -88,14 +104,98 @@ function findServerJar(serverDir, regex, label) {
   return jars[0];
 }
 
+// JAVA_BIN is optional: the mise task runs under java@temurin-25, so `java` on PATH is right.
 function runJavaServer(env, serverDir, jarName) {
-  const javaBin = requireEnv(env, 'JAVA_BIN');
+  const javaBin = env.JAVA_BIN || 'java';
   const xms = env.JVM_XMS || '4G';
   const xmx = env.JVM_XMX || '4G';
   const jvmArgs = [`-Xms${xms}`, `-Xmx${xmx}`, '-jar', jarName, '--nogui'];
   console.log(`\n[dev-server] starting ${jarName} (Ctrl+C to stop)\n`);
   const res = spawnSync(javaBin, jvmArgs, { cwd: serverDir, stdio: 'inherit' });
   process.exit(res.status ?? 0);
+}
+
+function runPnxServer(env, serverDir) {
+  const javaBin = PowerNukkitX.javaBin(env);
+  console.log(`\n[dev-server] starting powernukkitx.jar (Ctrl+C to stop)\n`);
+  const res = spawnSync(javaBin, PowerNukkitX.launchArgs(), { cwd: serverDir, stdio: 'inherit' });
+  process.exit(res.status ?? 0);
+}
+
+async function runPowerNukkitX(env, release, skipBuild) {
+  const serverDir = PowerNukkitX.serverDir(env);
+  await PowerNukkitX.ensureJar(serverDir);
+
+  const pluginDir = PowerNukkitX.dataDir(serverDir);
+  EmbeddedConfig.seed(env, pluginDir, path.join(pluginDir, 'config.yml'), 'yaml');
+
+  if (!skipBuild) {
+    const props = parseKeyValueFile(path.join(javaDir, 'gradle.properties'));
+    const base = props.archivesBaseName;
+    const ver = props.modVersion;
+    runGradle(
+      javaDir,
+      ['buildRustLibrary', ':common:copyNativeWindows', ':powernukkitx:shadowJar'],
+      release
+    );
+    const jar = path.join(javaDir, 'powernukkitx', 'build', 'libs', `${base}-powernukkitx-${ver}.jar`);
+    deployJar(jar, path.join(serverDir, 'plugins'), `${base}-powernukkitx-`);
+  }
+  runPnxServer(env, serverDir);
+}
+
+// Paper and Fabric run the same embedded server as the PowerNukkitX dev server, so they take its
+// config and its issued certificates rather than obtaining their own. Without a PowerNukkitX
+// config, they are seeded from the dev server's ACME pair as PowerNukkitX is.
+function configureEmbedded(env, dataDir, configFile, format) {
+  const pnxData = PowerNukkitX.dataDir(PowerNukkitX.serverDir(env));
+  if (!EmbeddedConfig.mirror(pnxData, dataDir, configFile, format)) {
+    EmbeddedConfig.seed(env, dataDir, configFile, format);
+  }
+}
+
+async function runPaper(env, release, skipBuild, update) {
+  const serverDir = JavaServer.serverDir(env, 'PAPER_SERVER_PATH', 'paper');
+  await Paper.provision(serverDir, env, update);
+
+  const dataDir = path.join(serverDir, 'plugins', 'BedrockVoiceChat');
+  configureEmbedded(env, dataDir, path.join(dataDir, 'config.yml'), 'yaml');
+
+  if (!skipBuild) {
+    const props = parseKeyValueFile(path.join(javaDir, 'gradle.properties'));
+    const base = props.archivesBaseName;
+    const ver = props.modVersion;
+    runGradle(javaDir, ['buildRustLibrary', ':common:copyNativeWindows', ':paper:shadowJar'], release);
+    const jar = path.join(javaDir, 'paper', 'build', 'libs', `${base}-paper-${ver}.jar`);
+    deployJar(jar, path.join(serverDir, 'plugins'), `${base}-paper-`);
+  }
+  const jarName = findServerJar(serverDir, /^paper-.*\.jar$/i, 'Paper');
+  runJavaServer(env, serverDir, jarName);
+}
+
+async function runFabric(env, release, skipBuild, update) {
+  const serverDir = JavaServer.serverDir(env, 'FABRIC_SERVER_PATH', 'fabric');
+  await Fabric.provision(serverDir, env, update);
+
+  const configDir = path.join(serverDir, 'config');
+  configureEmbedded(
+    env,
+    path.join(configDir, 'bedrock-voice-chat'),
+    path.join(configDir, 'bedrock-voice-chat.json'),
+    'json'
+  );
+
+  if (!skipBuild) {
+    const props = parseKeyValueFile(path.join(javaDir, 'gradle.properties'));
+    const base = props.archivesBaseName;
+    const ver = props.modVersion;
+    runGradle(javaDir, ['buildRustLibrary', ':common:copyNativeWindows'], release);
+    runGradle(path.join(javaDir, 'fabric'), ['build'], release);
+    const jar = path.join(javaDir, 'fabric', 'build', 'libs', `${base}-${ver}.jar`);
+    deployJar(jar, path.join(serverDir, 'mods'), `${base}-`);
+  }
+  const jarName = findServerJar(serverDir, /^fabric-server-.*\.jar$/i, 'Fabric');
+  runJavaServer(env, serverDir, jarName);
 }
 
 function runBds(bdsRoot) {
@@ -106,8 +206,8 @@ function runBds(bdsRoot) {
   process.exit(res.status ?? 0);
 }
 
-function main() {
-  const platforms = ['bds', 'paper', 'fabric'].filter((p) => flags.has(p));
+async function main() {
+  const platforms = ['bds', 'paper', 'fabric', 'powernukkitx'].filter((p) => flags.has(p));
 
   if (flags.has('help') || flags.has('h')) {
     usage();
@@ -115,20 +215,47 @@ function main() {
   }
   if (platforms.length === 0) {
     usage();
-    fail('Specify exactly one platform: --bds, --paper, or --fabric');
+    fail('Specify exactly one platform: --bds, --paper, --fabric, or --powernukkitx');
   }
   if (platforms.length > 1) {
-    fail('Specify only one platform at a time (--bds | --paper | --fabric)');
+    fail('Specify only one platform at a time (--bds | --paper | --fabric | --powernukkitx)');
   }
 
   const platform = platforms[0];
-  const env = loadEnv();
+  // Only BDS needs mods/.env; every Paper, Fabric and PowerNukkitX variable is optional.
+  // A process environment variable wins over the file.
+  const env = {
+    ...loadEnv(platform !== 'bds'),
+    ...Object.fromEntries(
+      [
+        'JAVA_BIN',
+        'PAPER_SERVER_PATH',
+        'PAPER_MC_VERSION',
+        'FABRIC_SERVER_PATH',
+        'FABRIC_MC_VERSION',
+        'PNX_SERVER_PATH',
+        'PNX_JAVA_BIN',
+        'BVC_TLS_CERTS_PATH',
+      ]
+        .filter((k) => process.env[k])
+        .map((k) => [k, process.env[k]])
+    ),
+  };
   const release = flags.has('release');
   const skipBuild = flags.has('no-build');
   const noNet = flags.has('no-net');
+  const update = flags.has('update');
 
   if (noNet && platform !== 'bds') {
     console.warn('[dev-server] --no-net only applies to --bds; ignoring for this platform');
+  }
+  if (update && platform !== 'paper' && platform !== 'fabric') {
+    console.warn('[dev-server] --update only applies to --paper and --fabric; ignoring');
+  }
+
+  if (platform === 'powernukkitx') {
+    await runPowerNukkitX(env, release, skipBuild);
+    return;
   }
 
   if (platform === 'bds') {
@@ -138,40 +265,16 @@ function main() {
     return;
   }
 
-  const props = parseKeyValueFile(path.join(javaDir, 'gradle.properties'));
-  const base = props.archivesBaseName;
-  const ver = props.modVersion;
-
   if (platform === 'paper') {
-    const paperRoot = requireEnv(env, 'PAPER_SERVER_PATH');
-    if (!skipBuild) {
-      runGradle(javaDir, ['buildRustLibrary', ':common:copyNativeWindows', ':paper:shadowJar'], release);
-      const jar = path.join(javaDir, 'paper', 'build', 'libs', `${base}-paper-${ver}.jar`);
-      deployJar(jar, path.join(paperRoot, 'plugins'), `${base}-paper-`);
-    }
-    const jarName = findServerJar(paperRoot, /^paper-.*\.jar$/i, 'Paper');
-    runJavaServer(env, paperRoot, jarName);
+    await runPaper(env, release, skipBuild, update);
     return;
   }
 
   if (platform === 'fabric') {
-    const fabricRoot = requireEnv(env, 'FABRIC_SERVER_PATH');
-    if (!skipBuild) {
-      runGradle(javaDir, ['buildRustLibrary', ':common:copyNativeWindows'], release);
-      runGradle(path.join(javaDir, 'fabric'), ['build'], release);
-      const jar = path.join(javaDir, 'fabric', 'build', 'libs', `${base}-${ver}.jar`);
-      deployJar(jar, path.join(fabricRoot, 'mods'), `${base}-`);
-    }
-    const jarName = findServerJar(fabricRoot, /^fabric-server-.*\.jar$/i, 'Fabric');
-    runJavaServer(env, fabricRoot, jarName);
-    return;
+    await runFabric(env, release, skipBuild, update);
   }
 }
 
 // The shared BDS helpers throw rather than exit, so a missing path still prints one line here
 // instead of a stack trace.
-try {
-  main();
-} catch (e) {
-  fail(e.message ?? String(e));
-}
+main().catch((e) => fail(e.message ?? String(e)));

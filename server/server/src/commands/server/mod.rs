@@ -1,5 +1,6 @@
 use super::Cli;
 use bvc_server_lib::BvcServer;
+use bvc_server_lib::services::HostKind;
 
 use clap::Parser;
 use std::process::exit;
@@ -17,6 +18,8 @@ impl Config {
                 exit(1);
             }
         };
+
+        runtime.set_host_kind(HostKind::from_env());
 
         if let Err(e) = runtime.start().await {
             eprintln!("Server error: {}", e);

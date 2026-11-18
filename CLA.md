@@ -18,13 +18,12 @@ By submitting a contribution, you accept and agree to the following terms and co
 Subject to the terms of this Agreement, You grant to the Project Maintainer and to recipients of software distributed by the Project Maintainer a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to:
 
 Reproduce, prepare derivative works of, publicly display, publicly perform, and distribute Your Contributions and such derivative works
-Sublicense Your Contributions under the Clear Horizon Path License (CHPL) or any other license terms, including proprietary commercial licenses
+Sublicense Your Contributions under the license terms described in LICENSE.md or any other license terms, including proprietary commercial licenses
 
 This license allows the Project Maintainer to:
 
-- Offer commercial licenses for app store distribution
-- Offer commercial licenses for managed services and enterprise use
-- Relicense Contributions under BSD-3-Clause pursuant to CHPL's sunset clause
+- Offer commercial licenses for hosted or managed services and other competing uses
+- Relicense Contributions under the MIT license pursuant to the Grant of Future License in LICENSE.md
 - Include Contributions in future versions under any licensing terms
 
 3. Grant of Patent License
@@ -48,7 +47,7 @@ You retain ownership and copyright in Your Contributions. Nothing in this Agreem
 You acknowledge that:
 
 - You have read and understand the terms under which the project is licensed in LICENSE.md
-- You agree that Your Contributions will be licensed under the terms outlined in LICENSE.md, including its sunset clause (Section 3), which automatically relicenses stable major versions to BSD-3-Clause after three years, and future relicensing.
+- You agree that Your Contributions will be licensed under the terms outlined in LICENSE.md, including its Grant of Future License, which makes each version available under the MIT license two years after its release, and future relicensing.
 - You consent to the Project Maintainer's right to offer separate commercial licenses for the Software, including Your Contributions.
 
 6. Disclaimer and Warranty
@@ -61,7 +60,7 @@ You agree to notify the Project Maintainer if You become aware of any facts or c
 
 8. Governing Law
 
-This Agreement shall be governed by the laws of The United States of America, consistent with the governing law provision in CHPL.
+This Agreement shall be governed by the laws of The United States of America.
 
 9. Entire Agreement
 

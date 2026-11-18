@@ -7,6 +7,7 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 
 use crate::services::metrics_service::event::TelemetryEvent;
+use crate::services::metrics_service::host_kind::HostKind;
 use crate::services::metrics_service::posthog::properties::EventProperties;
 
 const FLUSH_INTERVAL_SECS: u64 = 10;
@@ -20,6 +21,7 @@ pub struct PosthogClient {
     distinct_id: String,
     version: String,
     hostname_sha: String,
+    host_kind: HostKind,
 }
 
 impl PosthogClient {
@@ -29,6 +31,7 @@ impl PosthogClient {
         distinct_id: String,
         version: String,
         hostname_sha: String,
+        host_kind: HostKind,
     ) -> Self {
         Self {
             client: reqwest::Client::builder()
@@ -40,6 +43,7 @@ impl PosthogClient {
             distinct_id,
             version,
             hostname_sha,
+            host_kind,
         }
     }
 
@@ -47,6 +51,7 @@ impl PosthogClient {
         let mut props = EventProperties {
             server_id: self.distinct_id.clone(),
             server_version: self.version.clone(),
+            host: self.host_kind.as_str(),
             hostname_sha: Some(self.hostname_sha.clone()).filter(|h| !h.is_empty()),
             session_duration_secs: None,
             time_since_disconnect_secs: None,

@@ -18,4 +18,6 @@ EXPOSE 443/udp
 WORKDIR /data
 VOLUME ["/data"]
 
+ENV BVC_HOST=docker
+
 ENTRYPOINT ["/usr/local/bin/bvc-server", "server", "-c", "/data/config.hcl"]

@@ -1,7 +1,9 @@
 <script lang="ts">
     import "../../css/app.css";
+    import { onMount } from "svelte";
     import { goto } from "$app/navigation";
     import { page } from "$app/state";
+    import BootOverlay from "../../js/app/shell/BootOverlay";
     import RadFrame from "../../components/shell/RadFrame.svelte";
     import SettingsScreen from "../../components/settings/SettingsScreen.svelte";
     import Notification from "../../components/events/Notification.svelte";
@@ -25,6 +27,13 @@
      * therefore leaves outright from either screen, which is what it already did.
      */
     let level = $state<"list" | "detail">("list");
+
+    // The error screen reaches this route with a full document load, which brings the boot
+    // overlay back. Nothing else on this route takes it down.
+    onMount(() => {
+        window.dispatchEvent(new CustomEvent("app:mounted"));
+        BootOverlay.dismiss();
+    });
 
     $effect(() => {
         const asked = page.url.hash.replace(/^#/, "");

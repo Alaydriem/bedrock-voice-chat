@@ -10,6 +10,11 @@ export class ServerAdminConfig {
   private token = '';
   private minPlayers = 1;
   private world = '';
+  private telemetryEnabled = true;
+
+  get telemetry(): boolean {
+    return this.telemetryEnabled;
+  }
 
   get bvcServer(): string {
     return this.serverUrl;
@@ -63,6 +68,11 @@ export class ServerAdminConfig {
           const worldName = variables.get('bvc_world_name');
           if (typeof worldName === 'string') {
             this.world = worldName;
+          }
+
+          const telemetry = variables.get('bvc_telemetry');
+          if (typeof telemetry === 'boolean') {
+            this.telemetryEnabled = telemetry;
           }
 
           const minimum = variables.get('bvc_minimum_players');

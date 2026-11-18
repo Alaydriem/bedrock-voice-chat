@@ -171,13 +171,25 @@ subprojects {
         }
     }
 
+    // Projects that must run on a Java 21 host. The toolchain stays 25; only the
+    // bytecode target and the JDK API surface are lowered.
+    val java21Projects = setOf("common", "relay-sdk", "powernukkitx")
+    val targetsJava21 = project.name in java21Projects
+
     tasks.withType<JavaCompile>().configureEach {
         options.encoding = "UTF-8"
+        options.release.set(if (targetsJava21) 21 else 25)
     }
 
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
+            jvmTarget.set(
+                if (targetsJava21) org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+                else org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25
+            )
+            if (targetsJava21) {
+                freeCompilerArgs.add("-Xjdk-release=21")
+            }
         }
     }
 

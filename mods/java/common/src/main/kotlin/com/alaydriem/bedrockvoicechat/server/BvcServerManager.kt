@@ -21,22 +21,27 @@ import java.util.UUID
  */
 class BvcServerManager(
     private val config: ModConfig,
-    private val configProvider: ConfigProvider
+    private val configProvider: ConfigProvider,
+    private val hostKind: String
 ) : ChatFfi, AdminTarget {
     companion object {
         private val logger = LoggerFactory.getLogger("BVC Server")
         private val GSON = Gson()
 
         /**
-         * Whether the embedded server has a route to a TLS certificate. Either
-         * the operator supplied one, or ACME will obtain one; the runtime
-         * refuses both at once, so this does not check for that.
+         * Whether the embedded server has a route to a TLS certificate: a certificate and
+         * key the operator supplied, an ACME block, a play block (the registry assigns a
+         * `*.play.bedrockvc.stream` name and certificate), or an enrollment token (the
+         * registry assigns an entitled member's name and certificate). The runtime refuses
+         * two sources at once, so this does not check for that.
          */
         @JvmStatic
         fun canStart(config: EmbeddedServerConfig?): Boolean {
-            val tls = config?.server?.tls ?: return false
+            val server = config?.server ?: return false
+            val enrollment = !server.enrollment?.token.isNullOrBlank()
+            val tls = server.tls ?: return enrollment
             val manual = !tls.certificate.isNullOrBlank() && !tls.key.isNullOrBlank()
-            return manual || tls.acme != null
+            return manual || tls.acme != null || tls.play != null || enrollment
         }
     }
 
@@ -103,12 +108,6 @@ class BvcServerManager(
         }
 
         val embedded = config.embeddedConfig
-        if (!canStart(embedded)) {
-            logger.error(
-                "Embedded server needs TLS. Set server.tls.certificate and server.tls.key, or configure server.tls.acme."
-            )
-            return false
-        }
 
         // Use absolute path to avoid issues with relative paths on Windows
         val configDirAbsolute = configDir.toAbsolutePath().toString()
@@ -153,8 +152,26 @@ class BvcServerManager(
         }
         handle = serverHandle
 
+        if (!BvcNative.setServerHost(serverHandle, hostKind)) {
+            logger.debug("Server host kind {} was not set: {}", hostKind, BvcNative.getLastError())
+        }
+
         effectiveConfig = BvcNative.configEffective(serverHandle)?.let { json ->
             GSON.fromJson(json, EmbeddedServerConfig::class.java)
+        }
+
+        // Checked on the resolved config, not the file: a certificate source can arrive
+        // through BVC_* variables alone, and only the server applies those.
+        if (!canStart(effectiveConfig)) {
+            logger.error(
+                "Embedded server needs TLS. Add server.tls.play {} for an automatic name and certificate, " +
+                    "or set server.enrollment.token, server.tls.acme, or server.tls.certificate and " +
+                    "server.tls.key, in the config file or through their BVC_* variables."
+            )
+            BvcNative.destroyServer(serverHandle)
+            handle = null
+            effectiveConfig = null
+            return false
         }
 
         // Start server in dedicated thread (Java owns the thread)
