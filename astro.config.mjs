@@ -120,6 +120,7 @@ export default defineConfig({
                 },
               ],
             },
+            'wiki/server/powernukkitx',
             'wiki/server/players-and-permissions',
             'wiki/server/privacy-and-telemetry',
             'wiki/server/monitoring',
