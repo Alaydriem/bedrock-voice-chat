@@ -2,6 +2,7 @@
 name = "common"
 version = "0.1.16"
 edition = "2024"
+license = "BSD-3-Clause"
 # Tests live in tests/ mirroring src/, wired through a single aggregator target
 # (tests/integration.rs). Disable auto-discovery so the mirrored files are
 # treated as that target's modules rather than each becoming its own binary.

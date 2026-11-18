@@ -2,6 +2,7 @@ package com.alaydriem.bedrockvoicechat.server
 
 import com.alaydriem.bedrockvoicechat.config.generated.EmbeddedServerConfig
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -23,6 +24,19 @@ class RuntimeConfigBuilderTest {
         assertEquals("$configDir/assets", built.server?.assetsPath)
         assertEquals("$configDir/assets/audio", built.audio?.filePath)
         assertEquals("$configDir/bvc.sqlite3", built.database?.database)
+    }
+
+    // The server turns play mode on when the block is present, even empty. A null address
+    // must not collapse the block out of the JSON the server reads.
+    @Test
+    fun `an empty play block reaches the server as an object`() {
+        val builder = RuntimeConfigBuilder(configDir)
+        val built = builder.build(parse("""{"server": {"tls": {"play": {}}}}"""), "token")
+
+        val tls = gson.fromJson(builder.toJson(built), JsonObject::class.java)
+            .getAsJsonObject("server").getAsJsonObject("tls")
+
+        assertTrue(tls.get("play").isJsonObject)
     }
 
     @Test

@@ -1,152 +1,161 @@
-# Clear Horizon Path License (CHPL)
+# Bedrock Voice Chat License
 
-**Version 1.1 – October 2025**
-
-Copyright (c) 2025 - Charles R. Portwood II - All rights reserved
+Copyright (c) 2025-Present Charles R. Portwood II
 
 ---
 
 **PRE-RELEASE NOTICE**
 
-This license (CHPL) will take effect upon the first stable major release (v1.0) of Bedrock Voice Chat.
+The license terms below will take effect upon the first stable major release (v1.0) of Bedrock Voice Chat.
 
 Until that release, Bedrock Voice Chat is **source-available for evaluation purposes only**. You may view, compile, and test the source code for personal evaluation, but may not use it in production, redistribute it, or create derivative works. All other rights are reserved.
 
----
-
-## 1. Grant of Rights
-
-Subject to the conditions below, permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to use, copy, modify, and distribute the Software, provided that the following conditions are met:
-
-    1. Redistributions of source code must retain the above copyright notice, this list of conditions, and the following disclaimer.
-
-    2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions, and the following disclaimer in the documentation and/or other materials provided with the distribution, and must comply with the Additional Use Restrictions in Section 2.
-
-    3. Neither the name "Bedrock Voice Chat", the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this Software without specific prior written permission.
-
-## 1.1 Third-Party Components and Sub-Projects
-
-Certain components, modules, or sub-projects within this Software may be licensed under different terms, including but not limited to the BSD-3-Clause License. Where a component includes its own license file or license header, the terms of that license apply to that specific component and supersede the terms of this License for that component only.
-
-## 2. Additional Use Restrictions
-
-Notwithstanding the rights granted above:
-
-### 2.1 Managed Services Restriction
-
-You may not, without a separate commercial license, use the Software to provide, in whole or in part, a hosted, managed, or cloud-based service, whether standalone or embedded within another product or service, where the Software's functionality is made available to third parties.
-
-### 2.2 Commercial Use Restriction
-
-Except as provided below, you may not, without a separate commercial license, (a) redistribute the Software, or (b) use the Software internally or externally as part of a product, service, or process that directly or indirectly generates revenue.
-
-### 2.3 Distribution Platform Restriction
-
-Redistribution of binaries through digital distribution platforms, app stores, or marketplaces (including but not limited to the Apple App Store, Google Play Store, Microsoft Store, etc.) are not permitted. Direct distribution of binary files remains permitted under this License.
-
-### 2.4 Small Creator Exception
-
-"Commercial Use" does not include use of the Software by:
-
-(a) an individual or sole proprietor, OR
-(b) an organization with fewer than three (3) full-time equivalents (including employees, contractors, and affiliates),
-
-AND, in either case, only where the total annual gross revenue of the individual, sole proprietor, organization, or any parent, subsidiary, or affiliated entity does not exceed USD $150,000,
-
-provided that the Software is not itself offered as a hosted or managed service.
-
-### 2.5 Creative and Educational Use Carve-Out
-
-Use of the Software as part of creative, expressive, or educational works — including but not limited to video content, tutorials, research, teaching, journalism, and artistic works — shall not be considered Commercial Use, regardless of whether such works generate incidental revenue (e.g., advertising or sponsorship).
-
-## 3. Sunset Clause
-
-On the third anniversary of the release date of any stable major version of the Software, that version will automatically and irrevocably be relicensed under the BSD-3-Clause License with the continued restriction that redistribution through digital distribution platforms, app stores, or marketplaces remains prohibited. All other Additional Use Restrictions in Section 2 (Managed Services, Commercial Use) shall no longer apply. This applies only to versions explicitly marked as stable releases (e.g., v1.0, v2.0), not to beta, alpha, release candidate, or patch versions.
-
-For clarity, a "major version" refers to stable releases designated as such by the copyright holder (e.g., v1.0, v2.0), not minor updates, patches, or pre-release builds.
-
-## 4. Patent Grant
-
-Each contributor to the Software hereby grants to all recipients of the Software a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable (except as stated here) patent license to make, have made, use, offer to sell, sell, import, and otherwise transfer the Software, where such license applies only to those patent claims licensable by such contributor that are necessarily infringed by their contribution(s) alone or by combination of their contribution(s) with the Software to which it was contributed.
-
-## 5. Governing Law
-
-This License shall be governed by and construed in accordance with the laws of The United States of America, without regard to its conflict of law principles.
-
-## 6. Disclaimer
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+This notice does not apply to the components listed below as BSD-3-Clause, which are available under their own license today.
 
 ---
 
-## Plain-Language Bullet Points
+## Which license applies
 
-- Free use for individuals, small creators, and small businesses (≤3 people, ≤$150k annual gross revenue, including affiliates).
-- Free use for creative, educational, and research projects (even if monetized via ads or sponsorship).
-- Commercial license required for enterprises, SaaS/managed services, or revenue-generating products above the cap.
-- Distribution through app stores (App Store, Play Store, etc.) is not permitted.
-- After 3 years, major stable version automatically flips to BSD-3-Clause (fully open) with
-- Patent protection: contributors can't later sue adopters for patent infringement based on their contributions.
-- Governing law: disputes are handled under The United States of America.
+| Path | License |
+| --- | --- |
+| `common/` (including `common/websocket-types/`) | BSD-3-Clause — see [`common/LICENSE`](common/LICENSE) |
+| `mods/bds/`, `mods/java/` | BSD-3-Clause — see the `LICENSE` file in each directory |
+| Third-party code that ships with its own license file (for example `client/src-tauri/ASIOSDK/`) | That component's own license |
+| Everything else in this repository (including `server/`, `client/`, `relay/`, and `tools/`) | Functional Source License 1.1, MIT Future License (FSL-1.1-MIT) — full text below |
 
----
+Where a directory contains its own license file, that license applies to the directory and supersedes this file for that directory only.
 
-## FAQ
-
-**Q: Is CHPL an OSI-approved open source license?**
-A: No. Because CHPL restricts certain commercial uses, it is "source-available," not OSI-approved open source.
-
-**Q: Why would I choose CHPL over MIT/BSD?**
-A: MIT/BSD allows anyone (including large companies) to use your work commercially without giving back. CHPL protects you in the early stages while still being permissive for small creators, educators, and researchers.
-
-**Q: Can I use CHPL software in my YouTube videos or tutorials?**
-A: Yes. Creative, expressive, and educational uses are explicitly allowed, even if monetized.
-
-**Q: I'm a freelancer making <$150k a year. Can I use it for client work?**
-A: Yes, as long as you remain under the revenue cap and are not offering the software as a managed service.
-
-**Q: I want to use CHPL software in my SaaS product. What do I do?**
-A: You must obtain a commercial license from the copyright holder.
-
-**Q: Can I distribute this through the App Store or Google Play?**
-A: No. App store distribution requires a separate commercial license. However, you can share binary files (APK, EXE, etc.) directly.
-
-**Q: What happens after 3 years?**
-A: That specific version automatically becomes BSD-3-Clause. Future versions may still be under CHPL until their own 3-year period elapses.
-
-**Q: What about patents?**
-A: Contributors grant users a license to any patents necessary to use their contributions. This prevents patent trolling and makes the software safer for adoption.
+The "Bedrock Voice Chat" name and logo are covered separately by [TRADEMARKS.md](TRADEMARKS.md). Neither license grants trademark rights.
 
 ---
 
-## Contributing
+## Plain-language summary
 
-# Contributing to [Project Name]
+This summary is here to help. It is not part of the license; if it ever disagrees with the license text below, the license text wins.
 
-We welcome contributions from the community! To make sure everyone is on the same page, please review the following before submitting a pull request (PR).
+**Free for almost everything.** Run it for your own server or community, modify it, fork it, share your changes, build it into your own projects, and make videos, tutorials, or research with it, monetized or not.
 
-## License
+**Running it on a game server you rent is fine.** If you rent a game server from a hosting provider, you can install and run Bedrock Voice Chat for it yourself, whether through the Java mod or as a separate server next to your Bedrock server.
 
-This project is licensed under the **Clear Horizon Path License (CHPL)**. By contributing, you agree that your contributions are licensed under CHPL, including the patent grant described in Section 4 of the license.
+**Hosting providers offering it to their customers need a commercial license.** This covers a provider that makes Bedrock Voice Chat available itself, through a one-click installer, a mod or plugin catalog, a preinstalled image, or a control-panel integration.
 
-## What This Means for You
+**Competing with it commercially needs a commercial license.** This means offering Bedrock Voice Chat, or something built from it, as a commercial product or service that substitutes for it or offers substantially similar functionality, such as running it as a hosted voice chat service.
 
-- You retain the copyright to your contributions.
-- By submitting a PR, you grant a license to use your contributions under CHPL, including its patent license.
-- This ensures that users of the project are legally protected and can use the software safely.
+**`common/` has no exception.** The protocol and shared types are BSD-3-Clause, so you can build anything on them, including commercial and competing products.
 
-## Developer Certificate of Origin (DCO)
+**Every release becomes MIT after two years.** Each version is automatically available under the MIT license on the second anniversary of its release.
 
-To avoid ambiguity, please include a `Signed-off-by:` line in your commits. This certifies that you have the rights to contribute the code and that you are licensing it under CHPL. You can add it automatically with:
-```bash
-git commit -s -m "Your commit message"
-```
+**Commercial licensing:** charlesportwoodii@erianna.com
 
-## Contribution Process
+---
 
-1. Fork the repository.
-2. Create a new branch for your feature or fix.
-3. Submit a pull request against the main branch.
-4. Ensure your PR passes all tests and checks.
+# Functional Source License, Version 1.1, MIT Future License
 
-By following these steps, you help us keep the project legally safe and open for the community.
+## Abbreviation
+
+FSL-1.1-MIT
+
+## Notice
+
+Copyright 2025-Present Charles R. Portwood II
+
+## Terms and Conditions
+
+### Licensor ("We")
+
+The party offering the Software under these Terms and Conditions.
+
+### The Software
+
+The "Software" is each version of the software that we make available under
+these Terms and Conditions, as indicated by our inclusion of these Terms and
+Conditions with the Software.
+
+### License Grant
+
+Subject to your compliance with this License Grant and the Patents,
+Redistribution and Trademark clauses below, we hereby grant you the right to
+use, copy, modify, create derivative works, publicly perform, publicly display
+and redistribute the Software for any Permitted Purpose identified below.
+
+### Permitted Purpose
+
+A Permitted Purpose is any purpose other than a Competing Use. A Competing Use
+means making the Software available to others in a commercial product or
+service that:
+
+1. substitutes for the Software;
+
+2. substitutes for any other product or service we offer using the Software
+   that exists as of the date we make the Software available; or
+
+3. offers the same or substantially similar functionality as the Software.
+
+Permitted Purposes specifically include using the Software:
+
+1. for your internal use and access;
+
+2. for non-commercial education;
+
+3. for non-commercial research; and
+
+4. in connection with professional services that you provide to a licensee
+   using the Software in accordance with these Terms and Conditions.
+
+### Patents
+
+To the extent your use for a Permitted Purpose would necessarily infringe our
+patents, the license grant above includes a license under our patents. If you
+make a claim against any party that the Software infringes or contributes to
+the infringement of any patent, then your patent license to the Software ends
+immediately.
+
+### Redistribution
+
+The Terms and Conditions apply to all copies, modifications and derivatives of
+the Software.
+
+If you redistribute any copies, modifications or derivatives of the Software,
+you must include a copy of or a link to these Terms and Conditions and not
+remove any copyright notices provided in or with the Software.
+
+### Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING WITHOUT LIMITATION WARRANTIES OF FITNESS FOR A PARTICULAR
+PURPOSE, MERCHANTABILITY, TITLE OR NON-INFRINGEMENT.
+
+IN NO EVENT WILL WE HAVE ANY LIABILITY TO YOU ARISING OUT OF OR RELATED TO THE
+SOFTWARE, INCLUDING INDIRECT, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES,
+EVEN IF WE HAVE BEEN INFORMED OF THEIR POSSIBILITY IN ADVANCE.
+
+### Trademarks
+
+Except for displaying the License Details and identifying us as the origin of
+the Software, you have no right under these Terms and Conditions to use our
+trademarks, trade names, service marks or product names.
+
+## Grant of Future License
+
+We hereby irrevocably grant you an additional license to use the Software under
+the MIT license that is effective on the second anniversary of the date we make
+the Software available. On or after that date, you may use the Software under
+the MIT license, in which case the following will apply:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

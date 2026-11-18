@@ -221,6 +221,21 @@ impl Server {
         }
     }
 
+    // A manual certificate needs the names it was issued for. Every other source supplies
+    // them: ACME refuses an empty domain list, and play and enrollment take the name the
+    // registry assigns.
+    pub fn tls_names_problem(&self) -> Option<String> {
+        let manual = !self.tls.certificate.trim().is_empty() || !self.tls.key.trim().is_empty();
+        let named = self.tls.names.iter().any(|name| !name.trim().is_empty());
+        if manual && !named {
+            return Some(
+                "tls.certificate/tls.key need tls.names: the DNS names the certificate is issued for"
+                    .to_string(),
+            );
+        }
+        None
+    }
+
     // What is wrong with the play block's own values, if anything.
     pub fn tls_play_address_problem(&self) -> Option<String> {
         self.tls.play.as_ref().and_then(|play| play.problem())

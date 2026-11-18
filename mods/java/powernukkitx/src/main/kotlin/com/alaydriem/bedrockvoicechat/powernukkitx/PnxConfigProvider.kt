@@ -5,6 +5,7 @@ import com.alaydriem.bedrockvoicechat.config.LegacyEmbeddedKeys
 import com.alaydriem.bedrockvoicechat.config.ModConfig
 import com.google.gson.Gson
 import org.powernukkitx.plugin.PluginBase
+import org.powernukkitx.utils.Config
 import java.nio.file.Path
 
 /**
@@ -18,14 +19,7 @@ class PnxConfigProvider(private val plugin: PluginBase) : ConfigProvider {
 
     override fun getConfigDir(): Path = plugin.getDataFolder().toPath()
 
-    override fun load(): ModConfig {
-        val json = GSON.toJsonTree(plugin.getConfig().getAll()).asJsonObject
-        val config = GSON.fromJson(json, ModConfig::class.java) ?: ModConfig()
-        val embedded = json.getAsJsonObject("embedded-config")
-            ?: json.getAsJsonObject("embeddedConfig")
-        config.legacyKeys = LegacyEmbeddedKeys.detect(embedded)
-        return config
-    }
+    override fun load(): ModConfig = fromConfig(plugin.getConfig())
 
     override fun createDefaultIfMissing() {
         plugin.saveDefaultConfig()
@@ -33,5 +27,15 @@ class PnxConfigProvider(private val plugin: PluginBase) : ConfigProvider {
 
     companion object {
         private val GSON = Gson()
+
+        @JvmStatic
+        fun fromConfig(source: Config): ModConfig {
+            val json = GSON.toJsonTree(source.getAll()).asJsonObject
+            val config = GSON.fromJson(json, ModConfig::class.java) ?: ModConfig()
+            val embedded = json.getAsJsonObject("embedded-config")
+                ?: json.getAsJsonObject("embeddedConfig")
+            config.legacyKeys = LegacyEmbeddedKeys.detect(embedded)
+            return config
+        }
     }
 }

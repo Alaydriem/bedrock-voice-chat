@@ -212,6 +212,9 @@ impl ServerRuntime {
         if let Some(problem) = self.config.server.tls_play_address_problem() {
             return Err(anyhow!(problem));
         }
+        if let Some(problem) = self.config.server.tls_names_problem() {
+            return Err(anyhow!(problem));
+        }
 
         // Resolved whether or not peering is configured. Deferring this to the peering
         // branch below would mean an operator who enables peering later has already lost the

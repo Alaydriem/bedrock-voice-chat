@@ -4,10 +4,6 @@ fn default_certs_path() -> String {
     "./certificates".to_string()
 }
 
-fn default_tls_names() -> Vec<String> {
-    vec!["localhost".to_string()]
-}
-
 fn default_tls_ips() -> Vec<String> {
     vec!["127.0.0.1".to_string()]
 }
@@ -20,7 +16,7 @@ pub struct Tls {
     pub key: String,
     #[serde(default = "default_certs_path")]
     pub certs_path: String,
-    #[serde(default = "default_tls_names")]
+    #[serde(default)]
     pub names: Vec<String>,
     #[serde(default = "default_tls_ips")]
     pub ips: Vec<String>,
@@ -37,7 +33,7 @@ impl Default for Tls {
             certificate: String::new(),
             key: String::new(),
             certs_path: default_certs_path(),
-            names: default_tls_names(),
+            names: Vec::new(),
             ips: default_tls_ips(),
             acme: None,
             play: None,

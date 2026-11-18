@@ -17,8 +17,20 @@ use-embedded-server: false
 # true. The keys mirror the BVC server's own configuration exactly; anything
 # left out takes the server's default.
 #
-# TLS is required. Supply a certificate and key, or an acme block to obtain one
-# over DNS-01.
+# TLS is required. Use exactly one certificate source:
+#
+#   tls.play: {}            The BVC registry assigns a *.play.bedrockvc.stream
+#                           name and a certificate, and renews both. Needs no
+#                           domain. Write the empty braces: "play:" alone is
+#                           no block and leaves play mode off.
+#   tls.play.address        Optional. The public IP players reach, published as
+#                           the name's DNS record. Unset uses the address the
+#                           registry sees. An IP address only, never a hostname.
+#   enrollment.token        For entitled members: the registry assigns your
+#                           reserved name and its certificate. Paste the token
+#                           once; it is spent on first start.
+#   tls.acme                Obtains a certificate for your own domain over DNS-01.
+#   tls.certificate + key   A certificate you already have.
 #
 # server.port and server.quic_port are worth setting explicitly. Both default to
 # 443, which needs root on Linux.
@@ -28,10 +40,12 @@ use-embedded-server: false
 #     port: 8444
 #     quic_port: 8443
 #     tls:
-#       certificate: "/path/to/fullchain.pem"
-#       key: "/path/to/privkey.pem"
-#       names:
-#         - "bvc.example.com"
+#       play: {}
+#       # Or, for your own certificate, replace the play line with:
+#       # certificate: "/path/to/fullchain.pem"
+#       # key: "/path/to/privkey.pem"
+#       # names:
+#       #   - "bvc.example.com"
 #   voice:
 #     spatial_audio:
 #       broadcast_range: 32.0
