@@ -35,6 +35,7 @@ jobs:
       linux: ${{ steps.changes.outputs.linux }}
       fabric-mod: ${{ steps.changes.outputs.fabric-mod }}
       paper-mod: ${{ steps.changes.outputs.paper-mod }}
+      powernukkitx: ${{ steps.changes.outputs.powernukkitx }}
       bds-pack: ${{ steps.changes.outputs.bds-pack }}
       launcher: ${{ steps.changes.outputs.launcher }}
       build_mode: ${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}
@@ -111,6 +112,20 @@ jobs:
               - '.github/workflows/build-mod-paper.yml'
               - '.github/workflows/build-relay-sdk-natives.yml'
               - '.github/workflows/build-all.yml'
+            # The PNX jar shades :relay-sdk, so its sources are listed as well.
+            powernukkitx:
+              - 'mods/java/common/**'
+              - 'mods/java/powernukkitx/**'
+              - 'mods/java/relay-sdk/**'
+              - 'mods/java/buildSrc/**'
+              - 'mods/java/build.gradle.kts'
+              - 'mods/java/gradle.properties'
+              - 'mods/java/settings.gradle.kts'
+              - 'relay/sdk/**'
+              - 'relay/lib/**'
+              - '.github/workflows/build-mod-powernukkitx.yml'
+              - '.github/workflows/build-relay-sdk-natives.yml'
+              - '.github/workflows/build-all.yml'
             bds-pack:
               - 'mods/bds/**'
               - '.github/workflows/build-mod-bds.yml'
@@ -138,6 +153,7 @@ jobs:
           echo "Linux: ${{ steps.changes.outputs.linux }}"
           echo "Fabric Mod: ${{ steps.changes.outputs.fabric-mod }}"
           echo "Paper Mod: ${{ steps.changes.outputs.paper-mod }}"
+          echo "PowerNukkitX: ${{ steps.changes.outputs.powernukkitx }}"
           echo "BDS Pack: ${{ steps.changes.outputs.bds-pack }}"
           echo "Launcher: ${{ steps.changes.outputs.launcher }}"
           echo "Common: ${{ steps.changes.outputs.common }}"
@@ -289,12 +305,12 @@ jobs:
   # them into native-manifest.json, and a manifest generated without them describes
   # a library the jar is still required to load.
   #
-  # Gated identically to the two mod jobs, so a run that builds a mod always has
+  # Gated identically to the mod jobs, so a run that builds a mod always has
   # these and a run that does not never pays for them.
   build-relay-sdk-natives:
     name: Build Relay SDK Natives
     needs: changes
-    if: needs.changes.outputs.fabric-mod == 'true' || needs.changes.outputs.paper-mod == 'true'
+    if: needs.changes.outputs.fabric-mod == 'true' || needs.changes.outputs.paper-mod == 'true' || needs.changes.outputs.powernukkitx == 'true'
     uses: ./.github/workflows/build-relay-sdk-natives.yml
     with:
       build_mode: ${{ needs.changes.outputs.build_mode }}
@@ -317,6 +333,17 @@ jobs:
     needs: [changes, build-server, build-relay-sdk-natives]
     if: needs.build-server.result == 'success' && needs.build-relay-sdk-natives.result == 'success' && needs.changes.outputs.paper-mod == 'true'
     uses: ./.github/workflows/build-mod-paper.yml
+    with:
+      version: ${{ needs.changes.outputs.version }}
+      artifact_run_id: ${{ github.run_id }}
+    secrets: inherit
+
+  # Build PowerNukkitX Plugin
+  build-powernukkitx-mod:
+    name: Build PowerNukkitX Plugin
+    needs: [changes, build-server, build-relay-sdk-natives]
+    if: needs.build-server.result == 'success' && needs.build-relay-sdk-natives.result == 'success' && needs.changes.outputs.powernukkitx == 'true'
+    uses: ./.github/workflows/build-mod-powernukkitx.yml
     with:
       version: ${{ needs.changes.outputs.version }}
       artifact_run_id: ${{ github.run_id }}
@@ -451,12 +478,12 @@ jobs:
   collect-artifacts:
     name: Collect All Artifacts
     runs-on: ubuntu-latest
-    needs: [tests, build-server, build-android, build-ios, build-client, build-macos-client, build-linux-client, build-fabric-mod, build-paper-mod, build-bds-pack]
+    needs: [tests, build-server, build-android, build-ios, build-client, build-macos-client, build-linux-client, build-fabric-mod, build-paper-mod, build-powernukkitx-mod, build-bds-pack]
     if: |
       always() &&
       !cancelled() &&
       needs.tests.result == 'success' &&
-      (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success' || needs.build-linux-client.result == 'success' || needs.build-fabric-mod.result == 'success' || needs.build-paper-mod.result == 'success' || needs.build-bds-pack.result == 'success')
+      (needs.build-server.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success' || needs.build-client.result == 'success' || needs.build-macos-client.result == 'success' || needs.build-linux-client.result == 'success' || needs.build-fabric-mod.result == 'success' || needs.build-paper-mod.result == 'success' || needs.build-powernukkitx-mod.result == 'success' || needs.build-bds-pack.result == 'success')
     steps:
       - name: Create build summary
         id: build-summary
@@ -477,6 +504,7 @@ jobs:
           echo "- **Linux Status:** ${{ needs.build-linux-client.result || 'skipped' }}" >> build-summary.md
           echo "- **Fabric Mod Status:** ${{ needs.build-fabric-mod.result || 'skipped' }}" >> build-summary.md
           echo "- **Paper Plugin Status:** ${{ needs.build-paper-mod.result || 'skipped' }}" >> build-summary.md
+          echo "- **PowerNukkitX Plugin Status:** ${{ needs.build-powernukkitx-mod.result || 'skipped' }}" >> build-summary.md
           echo "- **BDS Pack Status:** ${{ needs.build-bds-pack.result || 'skipped' }}" >> build-summary.md
           echo "" >> build-summary.md
 
@@ -535,6 +563,12 @@ jobs:
             echo "" >> build-summary.md
           fi
 
+          if [ "${{ needs.build-powernukkitx-mod.result }}" = "success" ]; then
+            echo "### ☕ PowerNukkitX Plugin" >> build-summary.md
+            echo "- [bedrock-voice-chat-powernukkitx](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - PowerNukkitX Plugin JAR" >> build-summary.md
+            echo "" >> build-summary.md
+          fi
+
           if [ "${{ needs.build-bds-pack.result }}" = "success" ]; then
             echo "### 📦 BDS Pack (Bedrock)" >> build-summary.md
             echo "- [bedrock-voice-chat-bds](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) - Bedrock Dedicated Server Pack" >> build-summary.md
@@ -570,6 +604,7 @@ jobs:
           echo "   - Linux: ${{ needs.build-linux-client.result || 'skipped' }}"
           echo "   - Fabric Mod: ${{ needs.build-fabric-mod.result || 'skipped' }}"
           echo "   - Paper Plugin: ${{ needs.build-paper-mod.result || 'skipped' }}"
+          echo "   - PowerNukkitX Plugin: ${{ needs.build-powernukkitx-mod.result || 'skipped' }}"
           echo "   - BDS Pack: ${{ needs.build-bds-pack.result || 'skipped' }}"
           echo ""
           echo "Individual Artifact Downloads:"
@@ -598,6 +633,9 @@ jobs:
           fi
           if [ "${{ needs.build-paper-mod.result }}" = "success" ]; then
             echo "   Paper Plugin: bedrock-voice-chat-paper (contains .jar file)"
+          fi
+          if [ "${{ needs.build-powernukkitx-mod.result }}" = "success" ]; then
+            echo "   PowerNukkitX Plugin: bedrock-voice-chat-powernukkitx (contains .jar files)"
           fi
           if [ "${{ needs.build-bds-pack.result }}" = "success" ]; then
             echo "   BDS Pack: bedrock-voice-chat-bds (contains .mcaddon file)"

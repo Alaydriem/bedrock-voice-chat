@@ -12,7 +12,7 @@ use crate::config::ApplicationConfig;
 use crate::http::manager::{RocketListener, RocketManager};
 use crate::services::{
     AdminPermissionService, AudioPlaybackService, BedrockEventService, CertificateService, ChannelReaperService,
-    EjectScheduler, MeridianService, PlayerIdentityService, PlayerRegistrarService,
+    EjectScheduler, HostKind, MeridianService, PlayerIdentityService, PlayerRegistrarService,
 };
 use crate::stream::quic::{QuicServerManager, WebhookReceiver};
 use common::traits::StreamTrait;
@@ -59,6 +59,8 @@ pub struct ServerRuntime {
     db_conn: Arc<RwLock<Option<Arc<sea_orm::DatabaseConnection>>>>,
     /// The relay enrollment client, once built; it opens one connection per exchange.
     relay_enrollment: Arc<RwLock<Option<Arc<crate::services::RelayEnrollmentClient>>>>,
+    /// What process hosts this server, stamped on every telemetry event.
+    host_kind: HostKind,
 }
 
 impl ServerRuntime {
@@ -79,7 +81,13 @@ impl ServerRuntime {
             audio_playback_service: Arc::new(RwLock::new(None)),
             db_conn: Arc::new(RwLock::new(None)),
             relay_enrollment: Arc::new(RwLock::new(None)),
+            host_kind: HostKind::Standalone,
         })
+    }
+
+    /// Set what process hosts this server. Must be called before `start`.
+    pub fn set_host_kind(&mut self, kind: HostKind) {
+        self.host_kind = kind;
     }
 
     /// Create a new runtime from JSON config string
@@ -543,6 +551,7 @@ impl ServerRuntime {
             ca_minted,
             self.config.voice.recording.enabled,
             Some(cache_manager.player_state().clone()),
+            self.host_kind,
         );
         connection_registry.set_metrics(metrics.clone());
 

@@ -36,8 +36,9 @@ import com.alaydriem.bedrockvoicechat.svc.SvcBridgeHost
 import de.maxhenkel.voicechat.api.BukkitVoicechatService
 import java.io.File
 import com.alaydriem.bedrockvoicechat.network.HttpRequestHandler
+import com.alaydriem.bedrockvoicechat.audio.JukeboxPlaybackService
+import com.alaydriem.bedrockvoicechat.paper.audio.BukkitMainThreadScheduler
 import com.alaydriem.bedrockvoicechat.paper.audio.JukeboxListener
-import com.alaydriem.bedrockvoicechat.paper.audio.PaperAudioPlayerManager
 import com.alaydriem.bedrockvoicechat.paper.commands.ControlCommands
 import com.alaydriem.bedrockvoicechat.paper.commands.DiscCommand
 import com.alaydriem.bedrockvoicechat.server.BvcServerManager
@@ -76,7 +77,7 @@ class PaperPlugin : JavaPlugin(), Listener {
     private var controlSender: ControlSender? = null
     private var chatChannel: ChatTransport? = null
     private var chatSocket: ChatChannel? = null
-    private var audioPlayerManager: PaperAudioPlayerManager? = null
+    private var audioPlayerManager: JukeboxPlaybackService? = null
     private var tickTask: BukkitTask? = null
     private var minimumPlayers = 1
 
@@ -105,7 +106,8 @@ class PaperPlugin : JavaPlugin(), Listener {
                     fetcher = HttpLibraryFetcher()
                 )
                 val report = HostCapabilityCheck(
-                    provider, manifest, HttpLibraryFetcher(), manifest.release, true
+                    provider, manifest, HttpLibraryFetcher(), manifest.release, true,
+                    loader = "paper", mode = if (embedded != null) "embedded" else "external"
                 ).run()
                 report?.let { HostCapabilitySender(httpHandler, embedded).send(it) }
             } catch (e: Exception) {
@@ -271,7 +273,7 @@ class PaperPlugin : JavaPlugin(), Listener {
                 }
             }
 
-            embeddedServer = BvcServerManager(config, configProvider)
+            embeddedServer = BvcServerManager(config, configProvider, "paper")
             if (!embeddedServer!!.start()) {
                 logger.severe("Failed to start embedded server - falling back to disabled state")
                 embeddedServer = null
@@ -301,7 +303,7 @@ class PaperPlugin : JavaPlugin(), Listener {
 
         // Set up audio player manager
         val sender = audioEventSender!!
-        audioPlayerManager = PaperAudioPlayerManager(sender, this, relayWorld)
+        audioPlayerManager = JukeboxPlaybackService(sender, BukkitMainThreadScheduler(this)) { relayWorld?.id() }
 
         // Set server reference on data provider for player lookups
         playerDataProvider.server = server

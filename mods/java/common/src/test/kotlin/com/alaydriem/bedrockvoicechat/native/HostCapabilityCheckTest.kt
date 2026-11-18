@@ -4,8 +4,10 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import com.google.gson.Gson
 import java.io.File
 
 class HostCapabilityCheckTest {
@@ -38,7 +40,8 @@ class HostCapabilityCheckTest {
         val fetcher = StubFetcher(null)
 
         val report = HostCapabilityCheck(
-            provider(cache, fetcher), manifest, fetcher, "1.2.3", telemetryEnabled = true
+            provider(cache, fetcher), manifest, fetcher, "1.2.3", telemetryEnabled = true,
+            loader = "paper", mode = "embedded"
         ).run()
 
         assertNotNull(report)
@@ -57,7 +60,8 @@ class HostCapabilityCheckTest {
         File(cache, "natives").writeBytes(ByteArray(0))
 
         val report = HostCapabilityCheck(
-            provider(cache, fetcher), manifest, fetcher, "1.2.3", telemetryEnabled = true
+            provider(cache, fetcher), manifest, fetcher, "1.2.3", telemetryEnabled = true,
+            loader = "paper", mode = "embedded"
         ).run()
 
         assertEquals("ok", report!!.fetch)
@@ -69,11 +73,28 @@ class HostCapabilityCheckTest {
         val fetcher = StubFetcher(NativeLibraryError.Fetch("timeout", "timed out"))
 
         val report = HostCapabilityCheck(
-            provider(cache, fetcher), manifest, fetcher, "1.2.3", telemetryEnabled = true
+            provider(cache, fetcher), manifest, fetcher, "1.2.3", telemetryEnabled = true,
+            loader = "paper", mode = "embedded"
         ).run()
 
         assertEquals("timeout", report!!.fetch)
         assertEquals("skipped", report.write)
+    }
+
+    // The wire contract with the server's host capability parser, which refuses
+    // loader without mode and the reverse.
+    @Test
+    fun `serialized report uses the server field names`(@TempDir cache: File) {
+        val fetcher = StubFetcher(null)
+
+        val report = HostCapabilityCheck(
+            provider(cache, fetcher), manifest, fetcher, "1.2.3", telemetryEnabled = true,
+            loader = "powernukkitx", mode = "external"
+        ).run()
+
+        val json = Gson().toJson(report)
+        assertTrue(json.contains("\"loader\":\"powernukkitx\""), json)
+        assertTrue(json.contains("\"mode\":\"external\""), json)
     }
 
     // Telemetry off means no request and no file, not a result that is discarded.
@@ -83,7 +104,8 @@ class HostCapabilityCheckTest {
         val fetcher = StubFetcher(null)
 
         val report = HostCapabilityCheck(
-            provider(cache, fetcher), manifest, fetcher, "1.2.3", telemetryEnabled = false
+            provider(cache, fetcher), manifest, fetcher, "1.2.3", telemetryEnabled = false,
+            loader = "paper", mode = "embedded"
         ).run()
 
         assertNull(report)

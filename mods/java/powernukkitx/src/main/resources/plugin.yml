@@ -1,0 +1,14 @@
+name: BedrockVoiceChat
+version: ${version}
+main: com.alaydriem.bedrockvoicechat.powernukkitx.PnxPlugin
+api: ["3.0.0"]
+description: Server-side player position tracking for proximity voice chat
+authors:
+  - Charles R. Portwood II (Alaydriem)
+permissions:
+  bvc.disc:
+    description: Allow getting a BVC audio disc via /bvc disc
+    default: true
+  bvc.disc.give:
+    description: Allow giving BVC audio discs to other players via /bvc give
+    default: op

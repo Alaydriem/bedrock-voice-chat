@@ -11,7 +11,8 @@ import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
 import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
-import com.alaydriem.bedrockvoicechat.fabric.audio.FabricAudioPlayerManager
+import com.alaydriem.bedrockvoicechat.audio.JukeboxPlaybackService
+import com.alaydriem.bedrockvoicechat.fabric.audio.FabricMainThreadScheduler
 import com.alaydriem.bedrockvoicechat.fabric.audio.JukeboxListener
 import com.alaydriem.bedrockvoicechat.admin.AdminConsole
 import com.alaydriem.bedrockvoicechat.fabric.commands.AdminCommand
@@ -92,7 +93,8 @@ class FabricMod : ModInitializer {
     private var chatChannel: ChatTransport? = null
     private var chatSocket: ChatChannel? = null
     private var positionSender: PositionSender? = null
-    private var audioPlayerManager: FabricAudioPlayerManager? = null
+    private var audioPlayerManager: JukeboxPlaybackService? = null
+    private val mainThreadScheduler = FabricMainThreadScheduler()
     private var tickCounter = 0
     private var minimumPlayers = 1
 
@@ -120,7 +122,8 @@ class FabricMod : ModInitializer {
                     fetcher = HttpLibraryFetcher()
                 )
                 val report = HostCapabilityCheck(
-                    provider, manifest, HttpLibraryFetcher(), manifest.release, true
+                    provider, manifest, HttpLibraryFetcher(), manifest.release, true,
+                    loader = "fabric", mode = if (embedded != null) "embedded" else "external"
                 ).run()
                 report?.let { HostCapabilitySender(httpHandler, embedded).send(it) }
             } catch (e: Exception) {
@@ -269,7 +272,7 @@ class FabricMod : ModInitializer {
                 }
             }
 
-            embeddedServer = BvcServerManager(config, configProvider)
+            embeddedServer = BvcServerManager(config, configProvider, "fabric")
             if (!embeddedServer!!.start()) {
                 logger.error("Failed to start embedded server - falling back to disabled state")
                 embeddedServer = null
@@ -278,7 +281,7 @@ class FabricMod : ModInitializer {
 
             positionSender = PositionSender(null, embeddedServer)
             val audioEventSender = AudioEventSender(null, embeddedServer)
-            audioPlayerManager = FabricAudioPlayerManager(audioEventSender, relayWorld)
+            audioPlayerManager = JukeboxPlaybackService(audioEventSender, mainThreadScheduler) { relayWorld?.id() }
             controlSender = ControlSender(null, embeddedServer)
 
             val quicPort = embeddedServer?.effectiveConfig()?.server?.quicPort
@@ -288,7 +291,7 @@ class FabricMod : ModInitializer {
             pairingEligibility = PeeringEligibility(httpHandler!!::serverPeerLink)
             positionSender = PositionSender(httpHandler, null)
             val audioEventSender = AudioEventSender(httpHandler, null)
-            audioPlayerManager = FabricAudioPlayerManager(audioEventSender, relayWorld)
+            audioPlayerManager = JukeboxPlaybackService(audioEventSender, mainThreadScheduler) { relayWorld?.id() }
             controlSender = ControlSender(httpHandler, null)
 
             logger.info("Bedrock Voice Chat will connect to: {}", config.bvcServer)
@@ -296,7 +299,7 @@ class FabricMod : ModInitializer {
 
         reportHostCapability(config, httpHandler)
 
-        JukeboxListener(audioPlayerManager!!, playerDataProvider::getWorldUuid).register()
+        JukeboxListener(audioPlayerManager!!, mainThreadScheduler, playerDataProvider::getWorldUuid).register()
         DiscCommand.register()
         ControlCommands.register(controlSender, playerDataProvider::resolveCanonicalName)
         PeerCommand.register(::svcPairingRequest)

@@ -1,6 +1,7 @@
 pub mod event;
 pub mod heartbeat_snapshot;
 pub mod host_capability;
+pub mod host_kind;
 pub mod interaction;
 pub mod metric;
 pub mod posthog;
@@ -26,6 +27,7 @@ use tokio_util::sync::CancellationToken;
 use crate::services::metrics_service::event::TelemetryEvent;
 use crate::services::metrics_service::heartbeat_snapshot::HeartbeatSnapshot;
 use crate::services::metrics_service::host_capability::HostCapability;
+use crate::services::metrics_service::host_kind::HostKind;
 use crate::services::metrics_service::interaction::InteractionRoute;
 use crate::services::metrics_service::interaction::InteractionTracker;
 use crate::services::metrics_service::interaction::RouteRejection;
@@ -83,6 +85,7 @@ impl MetricsService {
         ca_minted: bool,
         recording_enabled: bool,
         player_state: Option<crate::stream::quic::PlayerStateCache>,
+        host_kind: HostKind,
     ) -> (Arc<Self>, Option<JoinHandle<()>>) {
         let version = env!("CARGO_PKG_VERSION");
         let prometheus = Self::global_prometheus_handle();
@@ -102,6 +105,7 @@ impl MetricsService {
                     server_id.clone(),
                     version.to_string(),
                     hostname_sha.clone(),
+                    host_kind,
                 );
                 let drain = CancellationToken::new();
                 let drain_child = drain.clone();

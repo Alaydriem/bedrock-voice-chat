@@ -369,6 +369,18 @@ jobs:
       artifact_run_id: ${{ github.run_id }}
     secrets: inherit
 
+  # Job 10: Build PowerNukkitX Plugin
+  build-mod-powernukkitx:
+    name: Build PowerNukkitX Plugin
+    needs: [prepare-release, prepare-mods-release, build-relay-sdk-natives]
+    if: needs.prepare-mods-release.outputs.new_release_published == 'true' && needs.build-relay-sdk-natives.result == 'success'
+    uses: ./.github/workflows/build-mod-powernukkitx.yml
+    with:
+      version: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+      ref: ${{ inputs.dry_run && github.ref || needs.prepare-release.outputs.new_tag }}
+      artifact_run_id: ${{ github.run_id }}
+    secrets: inherit
+
   # Job 11: Build BDS Pack
   build-mod-bds:
     name: Build BDS Pack
@@ -674,6 +686,54 @@ jobs:
             26.3
           channel: ${{ github.ref_name == 'beta' && 'beta' || 'release' }}
 
+  # Job 15: Publish the bundled PowerNukkitX jar to the release-only mirror
+  # repository that the PowerNukkitX plugin listing reads. Each mirror release
+  # holds exactly one asset. Never marked pre-release: every version is a beta
+  # today, and a listing that skips pre-releases would show nothing.
+  publish-powernukkitx-mirror:
+    name: Publish PowerNukkitX to the mirror repository
+    needs: [prepare-mods-release, build-mod-powernukkitx, approve-publish]
+    if: needs.approve-publish.result == 'success' && needs.prepare-mods-release.outputs.new_release_published == 'true' && needs.build-mod-powernukkitx.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: bedrock-voice-chat-powernukkitx-${{ needs.prepare-mods-release.outputs.new_release_version }}
+          path: ./artifacts
+
+      - name: List artifacts
+        run: ls -la ./artifacts
+
+      # A re-run after a partial failure finds the release already there, so the
+      # jar is replaced in place instead of failing on the existing tag.
+      - name: Publish to the mirror repository
+        env:
+          GH_TOKEN: ${{ secrets.PNX_MIRROR_TOKEN }}
+          VERSION: ${{ needs.prepare-mods-release.outputs.new_release_version }}
+          NOTES: ${{ needs.prepare-mods-release.outputs.new_release_notes }}
+        run: |
+          set -euo pipefail
+          REPO="Alaydriem/bedrock-voice-chat-powernukkitx"
+          TAG="v${VERSION}"
+          JAR="./artifacts/bedrock-voice-chat-powernukkitx-${VERSION}-bundled.jar"
+
+          if [ ! -f "${JAR}" ]; then
+            echo "Bundled jar not found: ${JAR}"
+            exit 1
+          fi
+
+          if gh release view "${TAG}" --repo "${REPO}" > /dev/null 2>&1; then
+            gh release upload "${TAG}" "${JAR}" --repo "${REPO}" --clobber
+          else
+            gh release create "${TAG}" "${JAR}" --repo "${REPO}" \
+              --title "Bedrock Voice Chat ${VERSION}" \
+              --notes "${NOTES}"
+          fi
+
   # Job 16: Publish BDS to CurseForge
   publish-curseforge-bds:
     name: Publish BDS to CurseForge
@@ -741,8 +801,8 @@ jobs:
   # Job 18: Upload mod artifacts to mods GitHub Release
   upload-mod-release-assets:
     name: Upload Mod Release Assets
-    needs: [prepare-mods-release, build-mod-fabric, build-mod-paper, build-mod-bds]
-    if: always() && needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && (needs.build-mod-fabric.result == 'success' || needs.build-mod-paper.result == 'success' || needs.build-mod-bds.result == 'success')
+    needs: [prepare-mods-release, build-mod-fabric, build-mod-paper, build-mod-powernukkitx, build-mod-bds]
+    if: always() && needs.prepare-mods-release.outputs.new_release_published == 'true' && inputs.dry_run == false && (needs.build-mod-fabric.result == 'success' || needs.build-mod-paper.result == 'success' || needs.build-mod-powernukkitx.result == 'success' || needs.build-mod-bds.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -759,6 +819,13 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: bedrock-voice-chat-paper-${{ needs.prepare-mods-release.outputs.new_release_version }}
+          path: ./release-files
+
+      - name: Download PowerNukkitX artifact
+        if: needs.build-mod-powernukkitx.result == 'success'
+        uses: actions/download-artifact@v5
+        with:
+          name: bedrock-voice-chat-powernukkitx-${{ needs.prepare-mods-release.outputs.new_release_version }}
           path: ./release-files
 
       - name: Download BDS artifact (default)
@@ -787,6 +854,10 @@ jobs:
 
           if [ -f "bedrock-voice-chat-paper-${VERSION}.jar" ]; then
             mv "bedrock-voice-chat-paper-${VERSION}.jar" "bvc-paper-plugin-${VERSION}.jar"
+          fi
+
+          if [ -f "bedrock-voice-chat-powernukkitx-${VERSION}.jar" ]; then
+            mv "bedrock-voice-chat-powernukkitx-${VERSION}.jar" "bvc-powernukkitx-plugin-${VERSION}.jar"
           fi
 
           if [ -f "bedrock-voice-chat-${VERSION}.mcaddon" ]; then

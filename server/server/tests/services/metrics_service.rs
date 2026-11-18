@@ -1,5 +1,6 @@
 use common::structs::metrics::TransportKind;
 use bvc_server_lib::runtime::ca_cert::CaCertManager;
+use bvc_server_lib::services::HostKind;
 use bvc_server_lib::services::MetricsService;
 use bvc_server_lib::services::metrics_service::event::TelemetryEvent;
 use bvc_server_lib::services::metrics_service::heartbeat_snapshot::HeartbeatSnapshot;
@@ -55,6 +56,7 @@ fn build_batch_maps_events_without_player_identity() {
         "server-abc".to_string(),
         "1.2.3".to_string(),
         "abc123".to_string(),
+        HostKind::Standalone,
     );
     let t1 = chrono::Utc.with_ymd_and_hms(2026, 7, 6, 10, 0, 0).unwrap();
     let t2 = chrono::Utc.with_ymd_and_hms(2026, 7, 6, 10, 5, 0).unwrap();
@@ -87,12 +89,34 @@ fn build_batch_maps_events_without_player_identity() {
     assert!(!json.to_lowercase().contains("gamertag"));
 }
 
+#[test]
+fn build_batch_carries_the_host_on_every_event() {
+    let client = PosthogClient::new(
+        "https://us.i.posthog.com".to_string(),
+        "phc_x".to_string(),
+        "server-abc".to_string(),
+        "1.2.3".to_string(),
+        "abc123".to_string(),
+        HostKind::Paper,
+    );
+    let at = chrono::Utc.with_ymd_and_hms(2026, 7, 6, 10, 0, 0).unwrap();
+
+    let batch = client.build_batch(&[
+        TelemetryEvent::ServerStarted { at },
+        TelemetryEvent::PlayerConnected { at },
+        TelemetryEvent::ChannelJoined { at },
+    ]);
+
+    let json = serde_json::to_string(&batch).unwrap();
+    assert_eq!(json.matches("\"host\":\"paper\"").count(), 3, "batch:\n{json}");
+}
+
 // End-to-end render: emit through the metrics-rs fanout and assert the real
 // PrometheusHandle exposition contains every family, with no player identity.
 #[tokio::test]
 async fn render_exposes_all_metric_families_without_identity() {
     let path = ca_dir("bvc-metrics-render-ca");
-    let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
+    let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None, HostKind::Standalone);
 
     svc.record_connect("alice", TransportKind::Quic);
     svc.record_disconnect("alice", std::time::Duration::from_secs(5), TransportKind::Quic);
@@ -133,7 +157,7 @@ async fn render_exposes_all_metric_families_without_identity() {
 #[tokio::test]
 async fn disabled_telemetry_spawns_no_posthog_task() {
     let path = ca_dir("bvc-metrics-disabled-ca");
-    let (_svc, handle) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
+    let (_svc, handle) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None, HostKind::Standalone);
     assert!(handle.is_none());
 }
 
@@ -162,6 +186,7 @@ async fn posthog_client_flushes_events_over_http() {
         "server-abc".to_string(),
         "1.2.3".to_string(),
         "abc123".to_string(),
+        HostKind::Standalone,
     );
     let (tx, rx) = tokio::sync::mpsc::channel(8);
     let run = tokio::spawn(async move {
@@ -220,7 +245,7 @@ async fn posthog_client_flushes_events_over_http() {
 #[tokio::test]
 async fn peak_players_holds_the_high_water_mark() {
     let path = ca_dir("bvc-metrics-peak-ca");
-    let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
+    let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None, HostKind::Standalone);
 
     svc.set_active_players(3);
     svc.set_active_players(9);
@@ -235,7 +260,7 @@ async fn peak_players_holds_the_high_water_mark() {
 #[tokio::test]
 async fn resetting_peak_players_drops_to_the_current_count() {
     let path = ca_dir("bvc-metrics-peak-reset-ca");
-    let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
+    let (svc, _posthog) = MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None, HostKind::Standalone);
 
     svc.set_active_players(9);
     svc.set_active_players(4);
@@ -261,6 +286,7 @@ async fn heartbeat_closes_the_window_and_publishes_interaction_gauges() {
         false,
         true,
         None,
+        HostKind::Standalone,
     );
 
     svc.set_active_players(5);
@@ -297,7 +323,7 @@ async fn heartbeat_closes_the_window_and_publishes_interaction_gauges() {
 async fn heartbeat_resets_peak_on_a_new_utc_day() {
     let path = ca_dir("bvc-metrics-heartbeat-day-ca");
     let (svc, _posthog) =
-        MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
+        MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None, HostKind::Standalone);
 
     svc.set_active_players(9);
     svc.set_active_players(2);
@@ -316,7 +342,7 @@ async fn heartbeat_resets_peak_on_a_new_utc_day() {
 async fn a_reconnect_within_the_window_is_reported_as_a_reconnect() {
     let path = ca_dir("bvc-metrics-reconnect-ca");
     let (svc, _posthog) =
-        MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
+        MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None, HostKind::Standalone);
 
     assert!(!svc.saw_recent_disconnect("alice"));
 
@@ -332,7 +358,7 @@ async fn a_reconnect_within_the_window_is_reported_as_a_reconnect() {
 async fn an_unrelated_player_connecting_is_not_a_reconnect() {
     let path = ca_dir("bvc-metrics-reconnect-other-ca");
     let (svc, _posthog) =
-        MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None);
+        MetricsService::new_shared(false, &path, "/nonexistent-cert.pem", Vec::new(), false, true, None, HostKind::Standalone);
 
     svc.record_disconnect("alice", std::time::Duration::from_secs(30), TransportKind::Quic);
     svc.record_connect("bob", TransportKind::Quic);
@@ -370,6 +396,7 @@ async fn cancelling_the_drain_does_not_discard_queued_events() {
         "server-abc".to_string(),
         "1.2.3".to_string(),
         "abc123".to_string(),
+        HostKind::Standalone,
     );
     let (tx, rx) = tokio::sync::mpsc::channel(64);
     let shutdown = tokio_util::sync::CancellationToken::new();
@@ -428,6 +455,7 @@ async fn heartbeat_reports_the_recording_capability_and_no_live_recording() {
         false,
         true,
         Some(states.clone()),
+        HostKind::Standalone,
     );
 
     assert!(svc.recording_enabled());
@@ -465,6 +493,7 @@ async fn heartbeat_reports_a_live_recording() {
         false,
         false,
         Some(states.clone()),
+        HostKind::Standalone,
     );
 
     assert!(
@@ -485,6 +514,7 @@ async fn recording_active_is_false_without_a_state_cache() {
         false,
         true,
         None,
+        HostKind::Standalone,
     );
 
     assert!(!svc.recording_active());

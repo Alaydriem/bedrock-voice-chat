@@ -1,5 +1,6 @@
 package com.alaydriem.bedrockvoicechat.paper.audio
 
+import com.alaydriem.bedrockvoicechat.audio.JukeboxPlaybackService
 import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.text.Component
 import org.bukkit.Material
@@ -22,7 +23,7 @@ import org.bukkit.plugin.java.JavaPlugin
 
 @Suppress("UnstableApiUsage")
 class JukeboxListener(
-    private val audioPlayerManager: PaperAudioPlayerManager,
+    private val audioPlayerManager: JukeboxPlaybackService,
     private val plugin: JavaPlugin
 ) : Listener {
 

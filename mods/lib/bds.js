@@ -41,9 +41,10 @@ function parseKeyValueFile(file) {
   return out;
 }
 
-function loadEnv() {
+function loadEnv(optional = false) {
   const envPath = path.join(modsDir, '.env');
   if (!existsSync(envPath)) {
+    if (optional) return {};
     throw new Error(
       'Missing mods/.env. Copy mods/.env.example to mods/.env and set your paths.'
     );

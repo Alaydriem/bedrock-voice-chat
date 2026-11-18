@@ -11,7 +11,7 @@ use crate::services::{HostCapability, MetricsService};
 inventory::submit! {
     TagDefinition {
         name: "Telemetry",
-        description: "Facts a Java mod observes about its own host, which the mod has \
+        description: "Facts a mod or add-on observes about its own host, which it has \
                       no channel of its own to report.",
     }
 }
@@ -33,8 +33,9 @@ inventory::submit! {
 /// resolves its native library at runtime instead of carrying every platform. Both
 /// jars report it, so the two populations are comparable.
 ///
-/// The body carries no hostname, address, path, or player data — only the jar
-/// variant, the platform, the mod version and the two outcomes. Anything outside
+/// The body carries no hostname, address, path, or player data — only the mod
+/// version, the loader and mode, and for a Java mod the jar variant, the platform and
+/// the two outcomes. A BDS add-on has no jar and omits those four. Anything outside
 /// the known vocabulary is refused rather than forwarded, because this arrives from
 /// a third-party jar and would otherwise put unbounded strings into the metrics
 /// pipeline.
