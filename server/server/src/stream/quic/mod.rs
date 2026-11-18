@@ -295,10 +295,15 @@ impl StreamTrait for QuicServerManager {
                                 connection_registry
                                     .forward_local_to_peers(&packet, speaker.as_ref());
                             }
+                            let group = match &origin {
+                                PacketOrigin::Peer(group) => group.as_ref(),
+                                PacketOrigin::Local => None,
+                            };
                             connection_registry
                                 .route_audio_frame(
                                     &packet,
                                     speaker.as_ref(),
+                                    group,
                                     &player_cache,
                                     broadcast_range,
                                     whisper_distance,

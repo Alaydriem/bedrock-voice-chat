@@ -11,7 +11,8 @@ import uniffi.bvc_relay_sdk.SdkFrame
  */
 class InboundTranslator(
     private val channels: SvcChannels,
-    private val guard: SampleRateGuard
+    private val guard: SampleRateGuard,
+    private val groupAudio: SvcGroupAudio? = null
 ) {
     fun inject(frame: SdkFrame) {
         val rate = frame.sampleRate.toInt()
@@ -24,6 +25,11 @@ class InboundTranslator(
                     rate
                 )
             }
+            return
+        }
+
+        // A members-only group's speech reaches its members and stops there.
+        if (groupAudio?.deliver(frame) == false) {
             return
         }
 

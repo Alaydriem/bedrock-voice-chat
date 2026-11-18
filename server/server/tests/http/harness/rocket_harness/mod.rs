@@ -110,6 +110,9 @@ impl RocketHarness {
             routes::api::state::get_state,
             routes::api::state::get_preferences,
             routes::api::clients::live_clients,
+            routes::api::group_link::group_link_action,
+            routes::api::group_link::group_link_events,
+            routes::api::group_link::group_link_channels,
         ];
 
         // Player-authenticated routes. These are what exercise `PlayerGuard`, and the channel

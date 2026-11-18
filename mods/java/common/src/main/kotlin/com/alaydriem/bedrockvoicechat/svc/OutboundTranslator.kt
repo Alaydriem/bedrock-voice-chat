@@ -1,6 +1,7 @@
 package com.alaydriem.bedrockvoicechat.svc
 
 import uniffi.bvc_relay_sdk.SdkFrame
+import uniffi.bvc_relay_sdk.SdkGroupScope
 import java.util.UUID
 
 /**
@@ -22,7 +23,7 @@ class OutboundTranslator(
     private val relayWorld: RelayWorld,
     private val speakers: (UUID) -> SpeakerSnapshot?
 ) {
-    fun translate(speaker: UUID, opus: ByteArray, timestampMs: Long): SdkFrame? {
+    fun translate(speaker: UUID, opus: ByteArray, timestampMs: Long, group: SdkGroupScope? = null): SdkFrame? {
         val snapshot = speakers(speaker) ?: return null
 
         return SdkFrame(
@@ -36,7 +37,8 @@ class OutboundTranslator(
             sampleRate = SVC_SAMPLE_RATE,
             timestampMs = timestampMs,
             spatial = true,
-            jukebox = null
+            jukebox = null,
+            group = group
         )
     }
 

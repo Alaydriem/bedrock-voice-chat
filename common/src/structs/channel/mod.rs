@@ -29,6 +29,10 @@ pub struct Channel {
     /// A server that predates this field sends nothing, which reads as unprotected.
     #[serde(default)]
     pub protected: bool,
+    /// Set only by the Simple Voice Chat bridge, for a channel linked to a NORMAL or ISOLATED
+    /// SVC group. Speech in it reaches channel members only, never nearby players.
+    #[serde(default)]
+    members_only: bool,
 }
 
 impl Channel {
@@ -51,6 +55,17 @@ impl Channel {
         self.protected
     }
 
+    pub fn into_members_only(self) -> Self {
+        Self {
+            members_only: true,
+            ..self
+        }
+    }
+
+    pub fn is_members_only(&self) -> bool {
+        self.members_only
+    }
+
     /// A channel carrying a caller-supplied code, for the create path that has to
     /// check the code is free before it commits to one.
     pub fn with_id(id: String, name: String, creator: crate::PlayerIdentity) -> Self {
@@ -60,6 +75,7 @@ impl Channel {
             players: Vec::new(),
             creator,
             protected: false,
+            members_only: false,
         }
     }
 

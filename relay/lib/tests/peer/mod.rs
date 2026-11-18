@@ -8,3 +8,4 @@ mod loopback;
 mod no_relay;
 mod observe;
 mod session;
+mod voice_encoding;

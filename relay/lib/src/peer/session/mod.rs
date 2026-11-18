@@ -9,7 +9,7 @@ pub use inbox::Inbox;
 use std::sync::{Arc, Mutex};
 
 use common::curia;
-use common::structs::relay::wire::datagram::VoiceFrame;
+use common::structs::relay::wire::datagram::{GroupScope, VoiceFrame};
 use iroh::EndpointAddr;
 use tokio_util::sync::CancellationToken;
 
@@ -19,6 +19,7 @@ use super::endpoint::PeerEndpoint;
 use super::error::PeerError;
 use super::handshake::Handshake;
 use super::link::PeerLink;
+use super::peer_voice::PeerVoice;
 
 // A peer link a consumer can hold, rather than a connection it has to manage.
 //
@@ -28,7 +29,7 @@ use super::link::PeerLink;
 // the operator cannot act on.
 pub struct PeerSession {
     endpoint: PeerEndpoint,
-    inbox: Arc<Inbox>,
+    inbox: Arc<Inbox<PeerVoice>>,
     link: Mutex<Option<PeerLink>>,
     cancel: CancellationToken,
     worlds: Vec<String>,
@@ -65,7 +66,7 @@ impl PeerSession {
         Ok(session)
     }
 
-    pub async fn next(&self) -> Option<VoiceFrame> {
+    pub async fn next(&self) -> Option<PeerVoice> {
         self.inbox.next().await
     }
 
@@ -74,11 +75,13 @@ impl PeerSession {
     // Voice held through an outage arrives describing a moment that has passed.
     // The caller is told rather than silently succeeding, so it can stop encoding
     // instead of feeding a link that is not there.
-    pub fn send(&self, frame: VoiceFrame) -> Result<(), PeerError> {
+    //
+    // `Ok(false)` when the link's version cannot carry the frame, as `PeerLink::send`.
+    pub fn send(&self, frame: VoiceFrame, group: Option<GroupScope>) -> Result<bool, PeerError> {
         let link = self.link.lock().expect("link lock").clone();
 
         match link {
-            Some(link) => link.send(frame),
+            Some(link) => link.send(frame, group),
             None => Err(PeerError::Transport("not connected".to_string())),
         }
     }
@@ -168,7 +171,7 @@ impl PeerSession {
         .map_err(|e| PeerError::Transport(e.to_string()))?;
 
         let accepted = Handshake::dial(&conn, self.worlds.clone()).await?;
-        let link = PeerLink::establish(conn, accepted.worlds)?;
+        let link = PeerLink::establish(conn, accepted.worlds, accepted.version)?;
 
         *self.link.lock().expect("link lock") = Some(link.clone());
         Ok(link)

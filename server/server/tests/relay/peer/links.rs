@@ -4,7 +4,8 @@ use bvc_relay::node::NodeIdentity;
 use bvc_relay::peer::{PeerEndpoint, PeerLink};
 use bvc_server_lib::relay::PeerLinks;
 use common::game_data::Dimension;
-use common::structs::relay::wire::datagram::VoiceFrame;
+use common::structs::relay::wire::WireVersion;
+use common::structs::relay::wire::datagram::{GroupScope, VoiceFrame};
 use common::{Coordinate, MinecraftPlayer, Orientation, PlayerEnum};
 use iroh::EndpointAddr;
 use tempfile::TempDir;
@@ -62,11 +63,19 @@ async fn accept_link(
     acceptor: &PeerEndpoint,
     worlds: Vec<String>,
 ) -> tokio::task::JoinHandle<PeerLink> {
+    accept_link_at(acceptor, worlds, WireVersion(1)).await
+}
+
+async fn accept_link_at(
+    acceptor: &PeerEndpoint,
+    worlds: Vec<String>,
+    version: WireVersion,
+) -> tokio::task::JoinHandle<PeerLink> {
     let listening = acceptor.endpoint().clone();
     tokio::spawn(async move {
         let incoming = listening.accept().await.expect("incoming");
         let conn = incoming.await.expect("connection");
-        PeerLink::establish(conn, worlds).expect("establish")
+        PeerLink::establish(conn, worlds, version).expect("establish")
     })
 }
 
@@ -75,12 +84,57 @@ async fn dial_link(
     acceptor: &PeerEndpoint,
     worlds: Vec<String>,
 ) -> PeerLink {
+    dial_link_at(dialer, acceptor, worlds, WireVersion(1)).await
+}
+
+async fn dial_link_at(
+    dialer: &PeerEndpoint,
+    acceptor: &PeerEndpoint,
+    worlds: Vec<String>,
+    version: WireVersion,
+) -> PeerLink {
     let conn = dialer
         .endpoint()
         .connect(loopback_addr(acceptor), PeerEndpoint::ALPN)
         .await
         .expect("dial");
-    PeerLink::establish(conn, worlds).expect("establish")
+    PeerLink::establish(conn, worlds, version).expect("establish")
+}
+
+// A version 1 peer cannot read the marker and would route members-only speech by proximity,
+// so it is not sent the frame at all. A version 2 peer is.
+#[tokio::test]
+async fn broadcast_skips_members_only_on_v1_links() {
+    let a_dir = TempDir::new().expect("tempdir");
+    let b_dir = TempDir::new().expect("tempdir");
+    let d_dir = TempDir::new().expect("tempdir");
+    let old_peer = endpoint(&a_dir).await;
+    let new_peer = endpoint(&b_dir).await;
+    let dialer = endpoint(&d_dir).await;
+
+    let old_task = accept_link_at(&old_peer, vec!["W1".to_string()], WireVersion(1)).await;
+    let to_old = dial_link_at(&dialer, &old_peer, vec!["W1".to_string()], WireVersion(1)).await;
+    let new_task =
+        accept_link_at(&new_peer, vec!["W1".to_string()], WireVersion::GROUP_SCOPE).await;
+    let to_new = dial_link_at(
+        &dialer,
+        &new_peer,
+        vec!["W1".to_string()],
+        WireVersion::GROUP_SCOPE,
+    )
+    .await;
+    let _old_link = old_task.await.expect("join old");
+    let _new_link = new_task.await.expect("join new");
+
+    let links = PeerLinks::new();
+    links.insert(to_old);
+    links.insert(to_new);
+    let group = GroupScope {
+        channel: "ABCD-1234".to_string(),
+        members_only: true,
+    };
+
+    assert_eq!(links.broadcast_world("W1", &frame(), Some(&group)), 1);
 }
 
 #[tokio::test]
@@ -104,13 +158,13 @@ async fn a_broadcast_reaches_only_the_links_carrying_that_world() {
     links.insert(to_a);
     links.insert(to_b);
 
-    assert_eq!(links.broadcast_world("W1", &frame()), 1);
+    assert_eq!(links.broadcast_world("W1", &frame(), None),1);
 
     let received = tokio::time::timeout(Duration::from_secs(5), a_link.recv())
         .await
         .expect("W1 peer must receive within the timeout")
         .expect("receive");
-    assert_eq!(received.opus, vec![9]);
+    assert_eq!(received.frame.opus, vec![9]);
 
     // The W2 peer must not have been sent anything at all.
     assert!(
@@ -135,7 +189,7 @@ async fn a_broadcast_for_an_uncarried_world_reaches_nobody() {
     let links = PeerLinks::new();
     links.insert(to_a);
 
-    assert_eq!(links.broadcast_world("W-other", &frame()), 0);
+    assert_eq!(links.broadcast_world("W-other", &frame(), None),0);
 }
 
 #[tokio::test]
@@ -152,12 +206,12 @@ async fn a_removed_link_stops_receiving() {
     let node = to_a.node();
     let links = PeerLinks::new();
     links.insert(to_a);
-    assert_eq!(links.broadcast_world("W1", &frame()), 1);
+    assert_eq!(links.broadcast_world("W1", &frame(), None),1);
 
     links.remove(&node);
 
     assert!(links.is_empty());
-    assert_eq!(links.broadcast_world("W1", &frame()), 0);
+    assert_eq!(links.broadcast_world("W1", &frame(), None),0);
 }
 
 // Two bridges fronting one world is legitimate, so this reports rather than

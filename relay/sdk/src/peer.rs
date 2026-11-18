@@ -54,9 +54,13 @@ impl BvcPeer {
         self.session.next().await.map(SdkFrame::from)
     }
 
+    // A members-only frame the link's version cannot carry is not sent, and that is not an
+    // error: the server it would reach routes it by proximity.
     pub fn send(&self, frame: SdkFrame) -> Result<(), SdkError> {
+        let (frame, group) = frame.into_wire();
         self.session
-            .send(frame.into())
+            .send(frame, group)
+            .map(|_| ())
             .map_err(|_| SdkError::NotConnected)
     }
 

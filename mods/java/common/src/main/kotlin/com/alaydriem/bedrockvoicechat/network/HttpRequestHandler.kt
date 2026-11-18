@@ -2,6 +2,7 @@ package com.alaydriem.bedrockvoicechat.network
 
 import com.alaydriem.bedrockvoicechat.control.ControlOutcome
 import com.alaydriem.bedrockvoicechat.control.ControlSendResult
+import com.alaydriem.bedrockvoicechat.control.GroupLinkClient
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -165,6 +166,61 @@ class HttpRequestHandler(
     }
 
     /**
+     * POSTs a group link action and waits for the answer. groupCode carries the new channel id
+     * after a CreateLinked. Called from the bridge's link thread, never the server thread.
+     */
+    fun groupLinkAction(actionJson: String): ControlSendResult {
+        val request = jsonRequestBuilder("$serverUrl/api/group-link")
+            .POST(HttpRequest.BodyPublishers.ofString(actionJson))
+            .build()
+
+        return try {
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() !in 200..299) {
+                LOGGER.warn("BVC server refused a group link action: {}", response.statusCode())
+                return ControlSendResult(false)
+            }
+            ControlSendResult(true, GroupLinkClient.parseCreatedId(response.body()))
+        } catch (e: InterruptedException) {
+            // Kept for the link thread, which reads it to stop.
+            Thread.currentThread().interrupt()
+            ControlSendResult(false)
+        } catch (e: Exception) {
+            LOGGER.warn("Failed to send a group link action: {}", e.toString())
+            ControlSendResult(false)
+        }
+    }
+
+    /** The JSON `GroupLinkDrain` after [after], or null when the server cannot be read. */
+    fun groupLinkEvents(after: Long): String? = getBody("$serverUrl/api/group-link/events?after=$after")
+
+    /** The JSON array of non-protected channels, or null when the server cannot be read. */
+    fun groupLinkChannels(): String? = getBody("$serverUrl/api/group-link/channels")
+
+    private fun getBody(url: String): String? {
+        val request = requestBuilder(url)
+            .header("Accept", "application/json")
+            .GET()
+            .build()
+
+        return try {
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() !in 200..299) {
+                LOGGER.debug("BVC server returned {} for {}", response.statusCode(), url)
+                return null
+            }
+            response.body()
+        } catch (e: InterruptedException) {
+            // Kept for the link thread, which reads it to stop.
+            Thread.currentThread().interrupt()
+            null
+        } catch (e: Exception) {
+            LOGGER.debug("Failed to read {}: {}", url, e.toString())
+            null
+        }
+    }
+
+    /**
      * POSTs a ClientAction; [onResult] (optional) receives the outcome and — for a
      * successful CreateGroup — the new group's share code, invoked from the HTTP
      * client's executor thread.
@@ -194,6 +250,37 @@ class HttpRequestHandler(
                 onResult?.invoke(ControlSendResult(false))
                 null
             }
+    }
+
+    /**
+     * POSTs a ClientAction and waits for the answer. For a caller that needs its actions applied
+     * in the order it sent them, which [controlAsync] does not promise. Never the server thread.
+     */
+    fun controlBlocking(clientActionJson: String): ControlSendResult {
+        val request = jsonRequestBuilder("$serverUrl/api/control")
+            .POST(HttpRequest.BodyPublishers.ofString(clientActionJson))
+            .build()
+
+        return try {
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            val status = response.statusCode()
+            val outcome = ControlOutcome.fromHttpStatus(status)
+            if (outcome != null) {
+                return ControlSendResult(outcome == ControlOutcome.FORWARDED, outcome = outcome)
+            }
+            val ok = status in 200..299
+            if (!ok) {
+                LOGGER.warn("BVC server returned error on control: {} - {}", status, response.body())
+            }
+            ControlSendResult(ok, if (ok) parseGroupCode(response.body()) else null)
+        } catch (e: InterruptedException) {
+            // Kept for the link thread, which reads it to stop.
+            Thread.currentThread().interrupt()
+            ControlSendResult(false)
+        } catch (e: Exception) {
+            LOGGER.warn("Failed to send control action: {}", e.toString())
+            ControlSendResult(false)
+        }
     }
 
     // The control route replies with the new group's share code (a bare JSON

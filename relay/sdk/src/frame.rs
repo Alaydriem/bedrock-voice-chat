@@ -1,7 +1,10 @@
 use common::game_data::Dimension;
-use common::structs::relay::wire::datagram::VoiceFrame;
+use bvc_relay::peer::PeerVoice;
+use common::structs::relay::wire::datagram::{GroupScope, VoiceFrame};
 use common::traits::player_data::PlayerData;
 use common::{Coordinate, MinecraftPlayer, Orientation, PlayerEnum};
+
+use crate::group::SdkGroupScope;
 
 // One speaker's audio, flattened for FFI.
 //
@@ -44,6 +47,27 @@ pub struct SdkFrame {
     // Concurrent playbacks carry distinct ids, which is what lets a consumer keep
     // them on separate outputs.
     pub jukebox: Option<String>,
+
+    // The linked group the speaker is in. Set on frames from a speaker in a linked channel, and
+    // by the bridge on a Java speaker's frames in a linked SVC group.
+    pub group: Option<SdkGroupScope>,
+}
+
+impl SdkFrame {
+    // The wire frame and the group marker that travels beside it.
+    pub fn into_wire(mut self) -> (VoiceFrame, Option<GroupScope>) {
+        let group = self.group.take().map(GroupScope::from);
+        (VoiceFrame::from(self), group)
+    }
+}
+
+impl From<PeerVoice> for SdkFrame {
+    fn from(voice: PeerVoice) -> Self {
+        Self {
+            group: voice.group.map(SdkGroupScope::from),
+            ..Self::from(voice.frame)
+        }
+    }
 }
 
 impl From<VoiceFrame> for SdkFrame {
@@ -78,6 +102,7 @@ impl From<VoiceFrame> for SdkFrame {
             timestamp_ms: frame.timestamp_ms,
             spatial: frame.spatial,
             jukebox: frame.jukebox,
+            group: None,
         }
     }
 }
