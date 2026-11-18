@@ -1,6 +1,6 @@
 ---
 title: Java commands
-description: The /bvc commands on Fabric and PaperMC servers.
+description: The /bvc commands on Fabric, PaperMC and PowerNukkitX servers.
 sidebar:
   label: Java
   order: 3
@@ -8,7 +8,7 @@ sidebar:
 
 On Java, all BVC commands start with `/bvc` and a space. Type `/bvc ` and press Tab to complete the rest.
 
-These commands need the [Java mod](/wiki/server/java-mod/) on a Fabric or PaperMC server. The BVC app must be open and signed in. The commands are the same on Fabric and PaperMC.
+These commands need the [Java mod](/wiki/server/java-mod/) on a Fabric or PaperMC server, or the [PowerNukkitX plugin](/wiki/server/powernukkitx/). The BVC app must be open and signed in. The commands are the same on all three. On PowerNukkitX, players type them in the Bedrock chat.
 
 ## Your own audio
 
