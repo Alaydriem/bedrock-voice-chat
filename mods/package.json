@@ -11,7 +11,8 @@
     "jukebox-test": "node --no-warnings=ExperimentalWarning jukebox-test.js"
   },
   "devDependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "yaml": "2.8.1"
   },
   "engines": {
     "node": ">=18.0.0"

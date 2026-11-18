@@ -10,6 +10,7 @@ import net.minecraft.core.component.DataComponents
 import net.minecraft.network.chat.Component
 import net.minecraft.server.permissions.Permission
 import net.minecraft.server.permissions.PermissionLevel
+import net.minecraft.util.Prediction
 
 object DiscCommand {
     fun register() {
@@ -36,7 +37,7 @@ object DiscCommand {
                                         disc.set(DataComponents.CUSTOM_NAME, Component.literal("BVC: $audioId"))
 
                                         if (!player.inventory.add(disc)) {
-                                            player.drop(disc, false)
+                                            player.drop(disc, false, Prediction.SERVER_ONLY)
                                         }
 
                                         ctx.source.sendSuccess(
@@ -70,7 +71,7 @@ object DiscCommand {
                                                         Component.literal("BVC: $audioId")
                                                     )
                                                     if (!target.inventory.add(disc)) {
-                                                        target.drop(disc, false)
+                                                        target.drop(disc, false, Prediction.SERVER_ONLY)
                                                     }
                                                 }
 
