@@ -160,10 +160,8 @@ class FabricMod : ModInitializer {
             liveClients = liveClients(config),
             // The membership keys the connection registry indexes, `game:gamertag`.
             // The prefix is what makes each one a key the server can answer; without
-            // it every lookup returns no rather than erroring. Plural because a
-            // linked Bedrock player is known by both their Java account name and
-            // their Xbox gamertag, and registers under whichever their BVC login
-            // carried.
+            // it every lookup returns no rather than erroring. The list holds one
+            // key: the BVC client always signs in with the Xbox gamertag.
             identitiesOf = { id ->
                 server.playerList.getPlayer(id)
                     ?.let(provider::resolveMembershipKeys)

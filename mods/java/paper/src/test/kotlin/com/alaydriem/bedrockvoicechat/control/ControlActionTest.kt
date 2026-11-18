@@ -14,12 +14,30 @@ import org.junit.jupiter.api.Test
 class ControlActionTest {
 
     private fun assertJson(expected: String, action: ControlAction) {
-        val actual = action.toClientActionJson("Alice")
+        val actual = action.toClientActionJson("Alice", null)
         assertEquals(
             JsonParser.parseString(expected),
             JsonParser.parseString(actual),
             "toClientActionJson mismatch for $action -> $actual",
         )
+    }
+
+    // The server reads `player_uuid` to decide whether an alias on the actor's name is theirs.
+    @Test
+    fun the_json_names_the_actor_uuid_when_one_is_given() {
+        val uuid = java.util.UUID.fromString("3c9a1b77-2d44-4e18-8b6c-000000000002")
+
+        val json = JsonParser.parseString(ControlAction.Mute(true).toClientActionJson("Alice", uuid)).asJsonObject
+
+        assertEquals("3c9a1b77-2d44-4e18-8b6c-000000000002", json.get("player_uuid").asString)
+    }
+
+    // An absent key, not a null: a server that predates the field must see the body it always saw.
+    @Test
+    fun the_json_has_no_player_uuid_key_when_none_is_given() {
+        val json = JsonParser.parseString(ControlAction.Mute(true).toClientActionJson("Alice", null)).asJsonObject
+
+        assertEquals(false, json.has("player_uuid"))
     }
 
     @Test

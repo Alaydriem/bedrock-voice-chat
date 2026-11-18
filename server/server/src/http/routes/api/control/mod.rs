@@ -6,7 +6,7 @@ use crate::services::client_action_service::GroupOutcome;
 use crate::services::{ClientActionService, PlayerIdentityService};
 use crate::stream::quic::{CacheManager, WebhookReceiver};
 use common::Game;
-use common::structs::control::ClientAction;
+use common::request::ClientActionRequest;
 use rocket::{State, http::Status, serde::json::Json};
 use rocket_okapi::openapi;
 
@@ -38,22 +38,25 @@ inventory::submit! {
 ///
 /// Returns the new nanoid for CreateGroup.
 #[openapi(tag = "Control")]
-#[post("/control", data = "<action>")]
+#[post("/control", data = "<request>")]
 pub async fn control(
     _access_token: GameAccessToken,
     cache_manager: &State<CacheManager>,
     webhook_receiver: &State<WebhookReceiver>,
     identity_service: &State<PlayerIdentityService>,
     voice: &State<Voice>,
-    action: Json<ClientAction>,
+    request: Json<ClientActionRequest>,
 ) -> CustomJsonResponse<Option<String>> {
-    let mut action = action.0;
-    // Resolve the in-game name to its canonical gamertag (Floodgate/Java aliases)
-    // before routing, matching the position ingress so control actions key on the
-    // same identity the voice plane uses. The alias table is per-game, so this uses
-    // the game the request declared rather than assuming one.
+    let request = request.0;
+    let mut action = request.action;
+    // The rule the position ingress applies decides the actor's gamertag, so a control
+    // action keys on the identity the voice plane uses and never on a stranger who shares
+    // an alias name. The alias table is per-game, so this uses the game the request
+    // declared rather than assuming one.
     let game = action.game.clone().unwrap_or(Game::Minecraft);
-    action.id = identity_service.resolve_name(&action.id, &game).await;
+    action.id = identity_service
+        .canonical_name(&action.id, request.player_uuid.as_deref(), &game)
+        .await;
 
     let svc = ClientActionService::new(voice.recording.enabled);
 

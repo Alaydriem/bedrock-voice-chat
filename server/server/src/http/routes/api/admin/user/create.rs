@@ -1,5 +1,4 @@
 use common::curia;
-use std::sync::Arc;
 
 use common::request::admin::CreateUserRequest;
 use common::response::admin::CreatedUserResponse;
@@ -10,7 +9,7 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::http::guards::AdminGuard;
 use crate::http::pool::Db;
-use crate::services::{CertificateService, PlayerRegistrarService};
+use crate::services::PlayerRegistrarService;
 
 /// Create a player record with a certificate and keypair.
 ///
@@ -21,7 +20,7 @@ pub async fn create_user(
     _admin: AdminGuard,
     db: Db<'_>,
     payload: Json<CreateUserRequest>,
-    cert_service: &State<Arc<CertificateService>>,
+    registrar: &State<PlayerRegistrarService>,
 ) -> Result<(Status, Json<CreatedUserResponse>), Status> {
     let conn = db.into_inner();
     let req = payload.0;
@@ -42,8 +41,8 @@ pub async fn create_user(
         return Err(Status::Conflict);
     }
 
-    let registrar =
-        PlayerRegistrarService::new(Arc::new(conn.clone()), cert_service.inner().clone());
+    // The server's one registrar, so this create and a position report for the same new
+    // gamertag take turns and insert one record.
     registrar
         .create(&req.gamertag, &req.game, None)
         .await

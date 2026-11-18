@@ -52,5 +52,5 @@ filter = 'test(/scenarios::downlink_loss::/) + test(/scenarios::link_stall::/) +
 test-group = 'relayed-e2e'
 
 [[profile.default.overrides]]
-filter = 'test(/scenarios::audio_flow::/) + test(/scenarios::audio_routing::/) + test(/scenarios::channel_without_position::/) + test(/scenarios::same_channel::/) + test(/scenarios::websocket_transport::/)'
+filter = 'test(/scenarios::audio_flow::/) + test(/scenarios::audio_routing::/) + test(/scenarios::channel_without_position::/) + test(/scenarios::floodgate_gamertags::/) + test(/scenarios::same_channel::/) + test(/scenarios::websocket_transport::/)'
 test-group = 'exact-delivery-e2e'
