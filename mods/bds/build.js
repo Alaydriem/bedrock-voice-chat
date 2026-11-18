@@ -16,6 +16,9 @@ async function build() {
         '@minecraft/server-admin',
         '@minecraft/server-ui'
       ],
+      define: {
+        __BVC_VERSION__: JSON.stringify(require('./package.json').version),
+      },
       minify: false,
       sourcemap: false,
       logLevel: 'info',

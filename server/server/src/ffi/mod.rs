@@ -17,6 +17,11 @@
 //! ```
 
 mod error;
+mod host_kind_sealed;
+mod host_kind_slot;
+
+pub use host_kind_sealed::HostKindSealed;
+pub use host_kind_slot::HostKindSlot;
 
 use common::curia;
 use error::FfiError;
@@ -81,6 +86,8 @@ pub struct RuntimeHandle {
     /// started with. Held as a flag rather than re-parsed out of `resolved_config`,
     /// which is a JSON document read only by the embedder.
     recording_enabled: AtomicBool,
+    /// Host kind reported by the embedding mod, accessible without locking runtime mutex
+    host_kind: HostKindSlot,
 }
 
 
@@ -221,6 +228,7 @@ pub unsafe extern "C" fn bvc_server_create(config_json: *const c_char) -> *mut R
         chat_socket_id: AtomicU64::new(0),
         resolved_config,
         recording_enabled: AtomicBool::new(recording_enabled),
+        host_kind: HostKindSlot::new(),
     });
 
     Box::into_raw(handle)
@@ -277,6 +285,9 @@ pub unsafe extern "C" fn bvc_server_start(handle: *mut RuntimeHandle) -> c_int {
             return -1;
         }
     };
+
+    // Seal before start so a late bvc_server_set_host is refused
+    runtime.set_host_kind(handle_ref.host_kind.seal());
 
     // Run the server on the tokio runtime (blocks until shutdown)
     let result = tokio_rt.block_on(async { runtime.start_async().await });
@@ -1454,10 +1465,55 @@ pub unsafe extern "C" fn bvc_has_live_client(
     })
 }
 
+/// Report what kind of process hosts this server.
+///
+/// `kind` is one of `paper`, `fabric`, `powernukkitx`, `docker` or `standalone`.
+/// Anything outside that vocabulary is recorded as `unknown` rather than refused.
+/// The last call before `bvc_server_start` wins; a host that never calls this
+/// reports `unknown`.
+///
+/// This never takes the runtime lock, which `bvc_server_start` holds for the life
+/// of the server.
+///
+/// # Returns
+/// 0 on success, -1 on a null pointer, invalid UTF-8, or a call after
+/// `bvc_server_start`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bvc_server_set_host(
+    handle: *mut RuntimeHandle,
+    kind: *const c_char,
+) -> c_int {
+    ffi_guard!("bvc_server_set_host", -1, {
+        if handle.is_null() || kind.is_null() {
+            FfiError::set_last_error("handle or kind is null");
+            return -1;
+        }
+
+        let raw = match unsafe { CStr::from_ptr(kind) }.to_str() {
+            Ok(s) => s,
+            Err(e) => {
+                FfiError::set_last_error(&format!("Invalid UTF-8 in kind: {}", e));
+                return -1;
+            }
+        };
+
+        let handle_ref = unsafe { &*handle };
+
+        match handle_ref.host_kind.set(raw) {
+            Ok(_) => 0,
+            Err(_) => {
+                FfiError::set_last_error("bvc_server_set_host called after bvc_server_start");
+                -1
+            }
+        }
+    })
+}
+
 /// Report whether this host could fetch and write a native library.
 ///
-/// `report_json` is a HostCapability: variant, platform, mod_version, fetch, write.
-/// Anything outside the known vocabulary is refused rather than forwarded.
+/// `report_json` is a HostCapability: mod_version, loader and mode, plus variant,
+/// platform, fetch and write for a Java report. A `bds` report omits the four jar
+/// fields. Anything outside the known vocabulary is refused rather than forwarded.
 ///
 /// The external mod reports the same fact over HTTP. Embedded has no socket to the
 /// server it is running in-process, so without this the embedded population — the

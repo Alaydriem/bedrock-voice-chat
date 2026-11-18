@@ -765,6 +765,13 @@ Write-Host "ok    staged $lib ($mb MB) -> native/$platform"
 # runs, and java stays at the ambient version. The version here duplicates
 # mods/java/mise.toml; change both together.
 
+[tasks.test-bds]
+description = "Run the BDS add-on unit tests (node test runner over esbuild bundles)"
+dir = "mods/bds"
+depends = ["mods-deps"]
+shell = "pwsh -NoLogo -Command"
+run = "yarn test"
+
 [tasks.dev-bds]
 description = "Build the BDS packs, deploy them and start Bedrock Dedicated Server. Requires BDS_SERVER_PATH in mods/.env."
 dir = "mods"
@@ -790,6 +797,13 @@ dir = "mods"
 depends = ["mods-deps", "svc-native"]
 shell = "pwsh -NoLogo -Command"
 run = "mise x java@temurin-25 -- yarn dev-server --fabric"
+
+[tasks.dev-powernukkitx]
+description = "Build the PowerNukkitX plugin, download and seed a local PowerNukkitX server on first run, deploy the plugin and start it. PNX_SERVER_PATH in mods/.env is optional."
+dir = "mods"
+depends = ["mods-deps"]
+shell = "pwsh -NoLogo -Command"
+run = "mise x java@temurin-25 -- yarn dev-server --powernukkitx"
 
 [tasks.svc-verify]
 description = "What to look for when testing the Simple Voice Chat bridge by hand. Prints only; runs nothing."
@@ -854,6 +868,15 @@ dir = "client"
 depends = ["deps"]
 shell = "pwsh -NoLogo -Command"
 run = "yarn test"
+
+[tasks.test-mods-java]
+description = "Kotlin tests for common, paper, powernukkitx and fabric"
+dir = "mods/java"
+shell = "pwsh -NoLogo -Command"
+run = [
+  "mise x java@temurin-25 -- ./gradlew :common:test :paper:test :powernukkitx:test",
+  "mise x java@temurin-25 -- ./gradlew -p fabric test",
+]
 
 [tasks.android-network-config]
 description = "Write the Android network security config that permits cleartext to loopback only. Mandatory: without it the webview cannot reach the app's own push channel in a release build."

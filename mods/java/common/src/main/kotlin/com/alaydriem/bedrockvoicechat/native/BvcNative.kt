@@ -21,6 +21,7 @@ object BvcNative {
     interface BvcLibrary : Library {
         fun bvc_init(): Int
         fun bvc_server_create(configJson: String): Pointer?
+        fun bvc_server_set_host(handle: Pointer, kind: String): Int
         fun bvc_server_start(handle: Pointer): Int
         fun bvc_server_stop(handle: Pointer): Int
         fun bvc_server_destroy(handle: Pointer): Int
@@ -103,6 +104,22 @@ object BvcNative {
             logger.error("Failed to create server: {}", getLastError())
         }
         return handle
+    }
+
+    /**
+     * Names the host this server runs inside (`paper`, `fabric`, `powernukkitx`).
+     * Call after [createServer] and before [startServer].
+     *
+     * @return false when the library predates the export or refuses the kind
+     */
+    fun setServerHost(handle: Pointer, kind: String): Boolean =
+        setServerHost(getLib(), handle, kind)
+
+    internal fun setServerHost(lib: BvcLibrary, handle: Pointer, kind: String): Boolean = try {
+        lib.bvc_server_set_host(handle, kind) == 0
+    } catch (e: UnsatisfiedLinkError) {
+        logger.debug("Native library has no bvc_server_set_host: {}", e.message)
+        false
     }
 
     /**

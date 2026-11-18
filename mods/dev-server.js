@@ -9,6 +9,8 @@ const {
   buildAndDeployBds,
 } = require('./lib/bds');
 
+const { PowerNukkitX } = require('./lib/powernukkitx');
+
 const modsDir = __dirname;
 const javaDir = path.join(modsDir, 'java');
 const bdsDir = path.join(modsDir, 'bds');
@@ -25,7 +27,7 @@ function fail(msg) {
 
 function usage() {
   console.log(`
-Usage: yarn dev-server <--bds | --paper | --fabric> [options]
+Usage: yarn dev-server <--bds | --paper | --fabric | --powernukkitx> [options]
 
   Builds the selected mod, deploys it to your local test server (paths read
   from mods/.env), then starts that server attached to this terminal so you
@@ -35,6 +37,9 @@ Platforms (pick exactly one):
   --bds       Bedrock Dedicated Server
   --paper     Paper server
   --fabric    Fabric server
+  --powernukkitx
+              PowerNukkitX server (downloaded and seeded on first run;
+              PNX_SERVER_PATH is optional)
 
 Options:
   --no-net    (BDS only) Deploy the no-net pack variant and point the world at it
@@ -98,6 +103,37 @@ function runJavaServer(env, serverDir, jarName) {
   process.exit(res.status ?? 0);
 }
 
+function runPnxServer(env, serverDir) {
+  const javaBin = PowerNukkitX.javaBin(env);
+  console.log(`\n[dev-server] starting powernukkitx.jar (Ctrl+C to stop)\n`);
+  const res = spawnSync(javaBin, PowerNukkitX.launchArgs(), { cwd: serverDir, stdio: 'inherit' });
+  process.exit(res.status ?? 0);
+}
+
+async function runPowerNukkitX(env, release, skipBuild) {
+  const serverDir = PowerNukkitX.serverDir(env);
+  await PowerNukkitX.ensureJar(serverDir);
+
+  const pluginDir = path.join(serverDir, 'plugins', 'BedrockVoiceChat');
+  mkdirSync(pluginDir, { recursive: true });
+  const certs = PowerNukkitX.copyCertificates(env, pluginDir);
+  PowerNukkitX.seedConfig(pluginDir, certs);
+
+  if (!skipBuild) {
+    const props = parseKeyValueFile(path.join(javaDir, 'gradle.properties'));
+    const base = props.archivesBaseName;
+    const ver = props.modVersion;
+    runGradle(
+      javaDir,
+      ['buildRustLibrary', ':common:copyNativeWindows', ':powernukkitx:shadowJar'],
+      release
+    );
+    const jar = path.join(javaDir, 'powernukkitx', 'build', 'libs', `${base}-powernukkitx-${ver}.jar`);
+    deployJar(jar, path.join(serverDir, 'plugins'), `${base}-powernukkitx-`);
+  }
+  runPnxServer(env, serverDir);
+}
+
 function runBds(bdsRoot) {
   const exe = path.join(bdsRoot, 'bedrock_server.exe');
   if (!existsSync(exe)) fail(`bedrock_server.exe not found in ${bdsRoot}`);
@@ -106,8 +142,8 @@ function runBds(bdsRoot) {
   process.exit(res.status ?? 0);
 }
 
-function main() {
-  const platforms = ['bds', 'paper', 'fabric'].filter((p) => flags.has(p));
+async function main() {
+  const platforms = ['bds', 'paper', 'fabric', 'powernukkitx'].filter((p) => flags.has(p));
 
   if (flags.has('help') || flags.has('h')) {
     usage();
@@ -115,20 +151,34 @@ function main() {
   }
   if (platforms.length === 0) {
     usage();
-    fail('Specify exactly one platform: --bds, --paper, or --fabric');
+    fail('Specify exactly one platform: --bds, --paper, --fabric, or --powernukkitx');
   }
   if (platforms.length > 1) {
-    fail('Specify only one platform at a time (--bds | --paper | --fabric)');
+    fail('Specify only one platform at a time (--bds | --paper | --fabric | --powernukkitx)');
   }
 
   const platform = platforms[0];
-  const env = loadEnv();
+  // Every PowerNukkitX variable is optional, so a missing mods/.env is not an error there.
+  // A process environment variable wins over the file.
+  const env =
+    platform === 'powernukkitx'
+      ? { ...loadEnv(true), ...Object.fromEntries(
+          ['PNX_SERVER_PATH', 'PNX_JAVA_BIN', 'BVC_TLS_CERTS_PATH']
+            .filter((k) => process.env[k])
+            .map((k) => [k, process.env[k]])
+        ) }
+      : loadEnv();
   const release = flags.has('release');
   const skipBuild = flags.has('no-build');
   const noNet = flags.has('no-net');
 
   if (noNet && platform !== 'bds') {
     console.warn('[dev-server] --no-net only applies to --bds; ignoring for this platform');
+  }
+
+  if (platform === 'powernukkitx') {
+    await runPowerNukkitX(env, release, skipBuild);
+    return;
   }
 
   if (platform === 'bds') {
@@ -170,8 +220,4 @@ function main() {
 
 // The shared BDS helpers throw rather than exit, so a missing path still prints one line here
 // instead of a stack trace.
-try {
-  main();
-} catch (e) {
-  fail(e.message ?? String(e));
-}
+main().catch((e) => fail(e.message ?? String(e)));

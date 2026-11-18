@@ -1,0 +1,249 @@
+name: Build PowerNukkitX Plugin
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version to build (overrides gradle.properties)'
+        required: false
+        type: string
+      ref:
+        description: 'Git ref to checkout (tag, branch, or SHA)'
+        required: false
+        type: string
+      artifact_run_id:
+        description: 'Workflow run ID to download artifacts from (for cross-workflow artifact sharing)'
+        required: false
+        type: string
+    outputs:
+      version:
+        description: 'The version that was built'
+        value: ${{ jobs.build.outputs.version }}
+      artifact-name:
+        description: 'Name of the uploaded artifact'
+        value: ${{ jobs.build.outputs.artifact-name }}
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (leave empty to use gradle.properties)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
+jobs:
+  build:
+    name: Build PowerNukkitX Plugin
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.mod-version.outputs.version }}
+      artifact-name: ${{ steps.mod-version.outputs.artifact-name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Setup private cargo deps auth
+        uses: ./.github/actions/setup-private-cargo-deps
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      # None of these tolerate a failure. generateNativeManifest hashes whatever is
+      # in this tree, so a download that quietly does nothing produces a manifest
+      # describing a library the jar is still required to load.
+      - name: Download Windows x64 native library
+        uses: actions/download-artifact@v5
+        with:
+          name: bvc-native-lib-x86_64-pc-windows-msvc
+          path: mods/java/common/src/main/resources/native/windows-x64/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
+
+      - name: Download Linux x64 native library
+        uses: actions/download-artifact@v5
+        with:
+          name: bvc-native-lib-x86_64-unknown-linux-gnu
+          path: mods/java/common/src/main/resources/native/linux-x64/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
+
+      - name: Download Linux ARM64 native library
+        uses: actions/download-artifact@v5
+        with:
+          name: bvc-native-lib-aarch64-unknown-linux-gnu
+          path: mods/java/common/src/main/resources/native/linux-arm64/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
+
+      - name: Download Darwin ARM64 native library
+        uses: actions/download-artifact@v5
+        with:
+          name: bvc-native-lib-aarch64-apple-darwin
+          path: mods/java/common/src/main/resources/native/darwin-arm64/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
+
+      # Each artifact unpacks as <platform>/<lib>, so the destination is the native
+      # root rather than one platform directory.
+      - name: Download the relay SDK natives
+        uses: actions/download-artifact@v5
+        with:
+          pattern: relay-sdk-modnative-*
+          path: mods/java/common/src/main/resources/native/
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
+
+      - name: List native libraries
+        run: find mods/java/common/src/main/resources/native -type f -ls
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Get mod version
+        id: mod-version
+        working-directory: ./mods/java
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            echo "Using provided version: $VERSION"
+          else
+            VERSION=$(grep "modVersion" gradle.properties | cut -d'=' -f2)
+            echo "Using gradle.properties version: $VERSION"
+          fi
+
+          # Encode version for Gradle build (e.g., 1.0.0-beta.7 -> 1.0.507)
+          BUILD_VERSION="$VERSION"
+          if echo "$VERSION" | grep -q '-'; then
+            BUILD_VERSION=$(node ../../.github/scripts/encode-version.js "$VERSION")
+            echo "Encoded build version: $BUILD_VERSION"
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build-version=$BUILD_VERSION" >> $GITHUB_OUTPUT
+          echo "artifact-name=bedrock-voice-chat-powernukkitx-$VERSION" >> $GITHUB_OUTPUT
+
+      # The skinny jar is built first and packages no native library, but the
+      # libraries downloaded above must still be present: the manifest pins their
+      # digests, and a manifest generated without them would describe nothing the
+      # jar could ever resolve.
+      - name: Build PowerNukkitX module (skinny)
+        working-directory: ./mods/java
+        run: |
+          chmod +x gradlew
+          ./gradlew :powernukkitx:build --no-daemon \
+            -PmodVersion=${{ steps.mod-version.outputs.build-version }} \
+            -PnativeRelease=mods-v${{ steps.mod-version.outputs.version }} \
+            -PnativeRepo=${{ github.repository }}
+
+      - name: Stage the skinny jar
+        shell: bash
+        run: |
+          cd mods/java/powernukkitx/build/libs
+          JAR_FILE=$(find . -name "*.jar" ! -name "*-sources.jar" -type f | head -n 1)
+          if [ -z "$JAR_FILE" ]; then
+            echo "No JAR file found!"
+            exit 1
+          fi
+          ls -lh "$JAR_FILE"
+          cp "$JAR_FILE" ../../../../../bedrock-voice-chat-powernukkitx-${{ steps.mod-version.outputs.version }}.jar
+
+      - name: Build PowerNukkitX module (fat)
+        working-directory: ./mods/java
+        run: |
+          ./gradlew :powernukkitx:shadowJar --no-daemon -Pbundled \
+            -PmodVersion=${{ steps.mod-version.outputs.build-version }} \
+            -PnativeRelease=mods-v${{ steps.mod-version.outputs.version }} \
+            -PnativeRepo=${{ github.repository }}
+
+      - name: Stage the fat jar
+        shell: bash
+        run: |
+          cd mods/java/powernukkitx/build/libs
+          JAR_FILE=$(find . -name "*.jar" ! -name "*-sources.jar" -type f | head -n 1)
+          if [ -z "$JAR_FILE" ]; then
+            echo "No JAR file found!"
+            exit 1
+          fi
+          ls -lh "$JAR_FILE"
+          cp "$JAR_FILE" ../../../../../bedrock-voice-chat-powernukkitx-${{ steps.mod-version.outputs.version }}-bundled.jar
+
+      # The Gradle guard proves every staged platform carries every library; this
+      # proves a release carries all four platforms.
+      - name: Verify the generated manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - mods/java/common/build/generated/nativeManifest/native-manifest.json <<'PY'
+          import json, sys
+
+          EXPECTED_LIBRARIES = ("bvc_relay_sdk", "bvc_server_lib")
+          EXPECTED_PLATFORMS = ("darwin-arm64", "linux-arm64", "linux-x64", "windows-x64")
+
+          manifest = json.load(open(sys.argv[1]))
+          libraries = manifest["libraries"]
+
+          missing = [
+              f"{library}/{platform}"
+              for library in EXPECTED_LIBRARIES
+              for platform in EXPECTED_PLATFORMS
+              if platform not in libraries.get(library, {})
+          ]
+          if missing:
+              sys.exit("manifest is missing: " + ", ".join(missing))
+
+          print(f"manifest pins {manifest['release']}")
+          for library in EXPECTED_LIBRARIES:
+              for platform in EXPECTED_PLATFORMS:
+                  entry = libraries[library][platform]
+                  print(f"  {library:15} {platform:13} {entry['asset']}")
+          PY
+
+      # No native-release-assets upload here. build-mod-paper.yml is its only
+      # producer: both workflows run in one build-all and one release run, and a
+      # second upload under the same artifact name fails the job.
+      - name: Upload JAR artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: bedrock-voice-chat-powernukkitx-${{ steps.mod-version.outputs.version }}
+          path: |
+            bedrock-voice-chat-powernukkitx-${{ steps.mod-version.outputs.version }}.jar
+            bedrock-voice-chat-powernukkitx-${{ steps.mod-version.outputs.version }}-bundled.jar
+          if-no-files-found: error
+
+      - name: Output artifact information
+        shell: bash
+        run: |
+          {
+            echo "## PowerNukkitX Plugin Build Complete"
+            echo ""
+            echo "| Name | Value |"
+            echo "| ---- | ----- |"
+            echo "| Version | ${{ steps.mod-version.outputs.version }} |"
+            echo "| Trigger | ${{ github.event_name }} |"
+            echo "| Artifact | bedrock-voice-chat-powernukkitx-${{ steps.mod-version.outputs.version }}.jar |"
+            echo "| Artifact URL | [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
+            echo "| Retention | 30 days |"
+          } >> $GITHUB_STEP_SUMMARY

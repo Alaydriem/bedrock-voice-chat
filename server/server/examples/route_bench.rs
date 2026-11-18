@@ -149,6 +149,7 @@ impl RouteBench {
                 false,
                 false,
                 None,
+                bvc_server_lib::services::HostKind::Standalone,
             );
             // The heartbeat task is also the route telemetry flusher. Without it the queue
             // fills and every frame after that measures the full-queue path.

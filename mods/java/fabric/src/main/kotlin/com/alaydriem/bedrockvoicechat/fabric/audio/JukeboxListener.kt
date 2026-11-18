@@ -1,5 +1,6 @@
 package com.alaydriem.bedrockvoicechat.fabric.audio
 
+import com.alaydriem.bedrockvoicechat.audio.JukeboxPlaybackService
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents
 import net.fabricmc.fabric.api.event.player.UseBlockCallback
@@ -23,10 +24,11 @@ import net.minecraft.world.level.block.entity.JukeboxBlockEntity
 import net.minecraft.world.phys.AABB
 
 class JukeboxListener(
-    private val audioPlayerManager: FabricAudioPlayerManager,
+    private val audioPlayerManager: JukeboxPlaybackService,
+    private val scheduler: FabricMainThreadScheduler,
     private val worldUuidResolver: (ServerLevel) -> String
 ) {
-    private data class ActiveJukebox(val pos: BlockPos, val ejectTick: Long)
+    private data class ActiveJukebox(val world: ServerLevel, val pos: BlockPos)
 
     private data class PendingEjectCheck(
         val world: ServerLevel,
@@ -41,6 +43,7 @@ class JukeboxListener(
 
     init {
         instance = this
+        audioPlayerManager.onEnded { key -> releaseDisc(key) }
     }
 
     fun register() {
@@ -89,20 +92,7 @@ class JukeboxListener(
                 world.setBlock(pos, state.setValue(JukeboxBlock.HAS_RECORD, true), 3)
 
                 val audioId = getAudioId(disc) ?: return@register InteractionResult.SUCCESS
-                val dimensionId = getDimensionId(world)
-
-                audioPlayerManager.startPlayback(
-                    audioId, dimensionId,
-                    pos.x.toDouble(), pos.y.toDouble(), pos.z.toDouble(),
-                    worldUuid
-                ) { durationMs ->
-                    if (durationMs > 0) {
-                        val ejectTick = world.server?.let { it.tickCount + (durationMs / 50L) } ?: Long.MAX_VALUE
-                        activeJukeboxes[key] = ActiveJukebox(pos.immutable(), ejectTick)
-                    } else {
-                        activeJukeboxes[key] = ActiveJukebox(pos.immutable(), Long.MAX_VALUE)
-                    }
-                }
+                startTrackedPlayback(serverWorld, pos, worldUuid, key, audioId)
 
                 (player as? ServerPlayer)?.sendOverlayMessage(Component.empty())
 
@@ -133,34 +123,14 @@ class JukeboxListener(
         ServerTickEvents.END_SERVER_TICK.register { server ->
             val currentTick = server.tickCount.toLong()
 
+            // Runs playback responses and track-end ejects queued for the main thread.
+            scheduler.tick()
+
             if (pendingEjectChecks.isNotEmpty()) {
                 val due = pendingEjectChecks.filter { it.tickAt <= currentTick }
                 pendingEjectChecks.removeAll(due)
                 for (check in due) {
                     processEjectCheck(check)
-                }
-            }
-
-            val toEject = mutableListOf<String>()
-            for ((key, active) in activeJukeboxes) {
-                if (currentTick >= active.ejectTick) {
-                    toEject.add(key)
-                }
-            }
-            for (key in toEject) {
-                val active = activeJukeboxes.remove(key) ?: continue
-                audioPlayerManager.stopPlayback(key)
-                for (world in server.allLevels) {
-                    if (world.getBlockState(active.pos).block == Blocks.JUKEBOX) {
-                        val jukebox = world.getBlockEntity(active.pos) as? JukeboxBlockEntity ?: continue
-                        // Leave the disc in the jukebox (now unlocked) so a hopper below collects it,
-                        // matching vanilla where a finished disc stays until pulled
-                        if (!jukebox.theItem.isEmpty && isBvcDisc(jukebox.theItem)) {
-                            restoreJukeboxPlayable(jukebox.theItem)
-                            jukebox.setChanged()
-                        }
-                        break
-                    }
                 }
             }
 
@@ -170,17 +140,46 @@ class JukeboxListener(
 
             for ((key, active) in activeJukeboxes) {
                 if (!audioPlayerManager.hasActivePlayback(key)) continue
-                for (world in server.allLevels) {
-                    if (world.getBlockState(active.pos).block == Blocks.JUKEBOX) {
-                        world.sendParticles(
-                            ParticleTypes.NOTE,
-                            active.pos.x + 0.5, active.pos.y + 1.2, active.pos.z + 0.5,
-                            1, 0.3, 0.0, 0.3, 0.0
-                        )
-                        break
-                    }
-                }
+                if (active.world.getBlockState(active.pos).block != Blocks.JUKEBOX) continue
+                active.world.sendParticles(
+                    ParticleTypes.NOTE,
+                    active.pos.x + 0.5, active.pos.y + 1.2, active.pos.z + 0.5,
+                    1, 0.3, 0.0, 0.3, 0.0
+                )
             }
+        }
+    }
+
+    private fun startTrackedPlayback(
+        world: ServerLevel,
+        pos: BlockPos,
+        worldUuid: String,
+        key: String,
+        audioId: String
+    ) {
+        activeJukeboxes[key] = ActiveJukebox(world, pos.immutable())
+        audioPlayerManager.startPlayback(
+            audioId, getDimensionId(world),
+            pos.x.toDouble(), pos.y.toDouble(), pos.z.toDouble(),
+            worldUuid
+        ) { _ ->
+            // The server refused the track or answered with nothing usable: the location
+            // is already free, so return the disc to its idle state.
+            if (!audioPlayerManager.hasActivePlayback(key)) {
+                releaseDisc(key)
+            }
+        }
+    }
+
+    // Leaves the disc in the jukebox, now unlocked, so a hopper below collects it, matching
+    // vanilla where a finished disc stays until pulled.
+    private fun releaseDisc(key: String) {
+        val active = activeJukeboxes.remove(key) ?: return
+        if (active.world.getBlockState(active.pos).block != Blocks.JUKEBOX) return
+        val jukebox = active.world.getBlockEntity(active.pos) as? JukeboxBlockEntity ?: return
+        if (!jukebox.theItem.isEmpty && isBvcDisc(jukebox.theItem)) {
+            restoreJukeboxPlayable(jukebox.theItem)
+            jukebox.setChanged()
         }
     }
 
@@ -239,7 +238,6 @@ class JukeboxListener(
             stack.remove(DataComponents.JUKEBOX_PLAYABLE)
 
             val audioId = getAudioId(stack) ?: return
-            val dimensionId = getDimensionId(world)
             val worldUuid = listener.worldUuidResolver(world)
             val key = listener.audioPlayerManager.locationKey(worldUuid, pos.x, pos.y, pos.z)
 
@@ -247,16 +245,7 @@ class JukeboxListener(
 
             world.setBlock(pos, world.getBlockState(pos).setValue(JukeboxBlock.HAS_RECORD, true), 3)
 
-            listener.audioPlayerManager.startPlayback(
-                audioId, dimensionId,
-                pos.x.toDouble(), pos.y.toDouble(), pos.z.toDouble(),
-                worldUuid
-            ) { durationMs ->
-                val ejectTick = if (durationMs > 0) {
-                    world.server?.let { it.tickCount + (durationMs / 50L) } ?: Long.MAX_VALUE
-                } else Long.MAX_VALUE
-                listener.activeJukeboxes[key] = ActiveJukebox(pos.immutable(), ejectTick)
-            }
+            listener.startTrackedPlayback(world, pos, worldUuid, key, audioId)
         }
 
         @JvmStatic

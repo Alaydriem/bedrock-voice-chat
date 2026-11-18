@@ -20,6 +20,7 @@ import type { ControlSender } from './control/sender';
 import { httpClient } from './net';
 import { serverAdminConfig } from './config';
 import { ChatChannel, ChatListener } from './chat';
+import { HostCapabilityReporter } from './telemetry';
 
 const POLL_INTERVAL = 5;
 const REQUEST_TIMEOUT = 1;
@@ -136,6 +137,30 @@ serverAdminConfig
     }
 
     controlSender = new NetControlSender(serverAdminConfig);
+
+    // Deferred to a fresh tick: native calls are refused during early execution, and
+    // HttpClient.request would swallow the refusal.
+    system.run(() => {
+      const reporter = new HostCapabilityReporter(
+        async (path, body) => {
+          await httpClient.request(
+            `${serverAdminConfig.bvcServer}${path}`,
+            'Post',
+            body,
+            [
+              ['Content-Type', 'application/json'],
+              ['Authorization', `Bearer ${serverAdminConfig.accessToken}`],
+              ['Accept', 'application/json'],
+            ],
+            REQUEST_TIMEOUT,
+          );
+        },
+        () => serverAdminConfig.telemetry,
+        __BVC_VERSION__,
+      );
+      void reporter.report();
+    });
+
     panelFeed = new NetStateSource(serverAdminConfig);
     groupSource = new NetGroupSource(serverAdminConfig, groupCache);
 

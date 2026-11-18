@@ -21,7 +21,8 @@ import java.util.UUID
  */
 class BvcServerManager(
     private val config: ModConfig,
-    private val configProvider: ConfigProvider
+    private val configProvider: ConfigProvider,
+    private val hostKind: String
 ) : ChatFfi, AdminTarget {
     companion object {
         private val logger = LoggerFactory.getLogger("BVC Server")
@@ -152,6 +153,10 @@ class BvcServerManager(
             return false
         }
         handle = serverHandle
+
+        if (!BvcNative.setServerHost(serverHandle, hostKind)) {
+            logger.debug("Server host kind {} was not set: {}", hostKind, BvcNative.getLastError())
+        }
 
         effectiveConfig = BvcNative.configEffective(serverHandle)?.let { json ->
             GSON.fromJson(json, EmbeddedServerConfig::class.java)

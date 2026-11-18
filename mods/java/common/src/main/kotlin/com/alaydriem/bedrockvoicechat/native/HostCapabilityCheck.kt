@@ -21,7 +21,9 @@ class HostCapabilityCheck(
     private val manifest: NativeManifest,
     private val fetcher: LibraryFetcher,
     private val modVersion: String,
-    private val telemetryEnabled: Boolean
+    private val telemetryEnabled: Boolean,
+    private val loader: String,
+    private val mode: String
 ) {
     /**
      * Returns the report, or null when telemetry is off — in which case no request
@@ -38,10 +40,12 @@ class HostCapabilityCheck(
             fetcher.fetch(manifest.manifestUrl())
         } catch (e: NativeLibraryError.Fetch) {
             logger.debug("Host capability check could not fetch: {}", e.outcome)
-            return HostCapabilityReport(variant, provider.platformId(), modVersion, e.outcome, "skipped")
+            return HostCapabilityReport(variant, provider.platformId(), modVersion, e.outcome, "skipped", loader, mode)
         }
 
-        return HostCapabilityReport(variant, provider.platformId(), modVersion, "ok", writeOutcome(body))
+        return HostCapabilityReport(
+            variant, provider.platformId(), modVersion, "ok", writeOutcome(body), loader, mode
+        )
     }
 
     /**

@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory
 class AudioEventSender(
     private val httpHandler: HttpRequestHandler?,
     private val embeddedServer: BvcServerManager?
-) {
+) : AudioEventPort {
     companion object {
         private val logger = LoggerFactory.getLogger("BVC Audio")
     }
@@ -23,14 +23,14 @@ class AudioEventSender(
      * - Embedded mode: Direct FFI call, callback is called synchronously with result
      * - External mode: HTTP POST to remote server, callback is called from CompletableFuture thread
      *
-     * @param playJson JSON string matching AudioPlayRequest structure
-     * @param callback Receives event ID on success, null on failure
+     * @param json JSON string matching AudioPlayRequest structure
+     * @param callback Receives the AudioEventResponse JSON on success, null on failure
      */
-    fun play(playJson: String, callback: (String?) -> Unit) {
+    override fun play(json: String, callback: (String?) -> Unit) {
         when {
             // Embedded mode: send directly via FFI
             embeddedServer != null && embeddedServer.isRunning -> {
-                val result = embeddedServer.audioPlay(playJson)
+                val result = embeddedServer.audioPlay(json)
                 if (result != null) {
                     callback(result)
                 } else {
@@ -40,7 +40,7 @@ class AudioEventSender(
             }
             // External server mode: use HTTP
             httpHandler != null -> {
-                httpHandler.audioPlayAsync(playJson, callback)
+                httpHandler.audioPlayAsync(json, callback)
             }
             else -> {
                 logger.warn("No audio event sender available (neither embedded nor HTTP configured)")
@@ -56,7 +56,7 @@ class AudioEventSender(
      *
      * @param eventId Event ID to stop
      */
-    fun stop(eventId: String) {
+    override fun stop(eventId: String) {
         when {
             // Embedded mode: send directly via FFI
             embeddedServer != null && embeddedServer.isRunning -> {

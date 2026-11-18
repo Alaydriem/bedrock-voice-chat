@@ -85,6 +85,7 @@ impl RocketHarness {
             false,
             config.voice.recording.enabled,
             None,
+            bvc_server_lib::services::HostKind::Standalone,
         );
 
         let cache = cached::TimedCache::with_lifespan_and_refresh(

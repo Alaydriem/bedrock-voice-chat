@@ -36,6 +36,9 @@ async function run() {
     platform: 'node',
     format: 'esm',
     target: 'node18',
+    define: {
+      __BVC_VERSION__: JSON.stringify(require('./package.json').version),
+    },
     logLevel: 'warning',
   });
   const outputs = findTests(testsDir).map((file) =>

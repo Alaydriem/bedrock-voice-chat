@@ -250,6 +250,7 @@ fn metrics_for(dir_name: &str) -> std::sync::Arc<bvc_server_lib::services::Metri
         false,
         true,
         None,
+        bvc_server_lib::services::HostKind::Standalone,
     );
     svc
 }
