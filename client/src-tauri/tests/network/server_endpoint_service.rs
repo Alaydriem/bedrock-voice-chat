@@ -1,6 +1,9 @@
+use std::net::TcpListener;
 use std::time::{Duration, Instant};
 
-use bvc_client_lib::network::{CachedEndpoint, ServerEndpointExpiry, ServerEndpointService};
+use bvc_client_lib::network::{
+    CachedEndpoint, DefaultPortProbe, ServerEndpointExpiry, ServerEndpointService,
+};
 use moka::Expiry;
 use common::net::srv::{SrvFallback, SrvResolution, SrvResolver, SrvResolverConfig};
 use common::structs::network::{EndpointSource, ServerAddress, ServerEndpoint};
@@ -20,12 +23,123 @@ impl Fixture {
         })
     }
 
+    // Probes no ports, so a `Default` result stays at 443 without touching the network.
     fn service(responder: &DnsResponder) -> ServerEndpointService {
-        ServerEndpointService::new(SrvResolver::new(SrvResolverConfig {
-            nameservers: vec![responder.nameserver()],
-            fallback: SrvFallback::None,
-        }))
+        Self::probing(responder, Vec::new())
     }
+
+    fn probing(responder: &DnsResponder, ports: Vec<u16>) -> ServerEndpointService {
+        ServerEndpointService::new(
+            SrvResolver::new(SrvResolverConfig {
+                nameservers: vec![responder.nameserver()],
+                fallback: SrvFallback::None,
+            }),
+            DefaultPortProbe::new(ports, Duration::from_millis(1500)),
+        )
+    }
+
+    fn open_port() -> (TcpListener, u16) {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("a loopback listener");
+        let port = listener.local_addr().expect("a bound address").port();
+        (listener, port)
+    }
+
+    fn closed_port() -> u16 {
+        let (listener, port) = Self::open_port();
+        drop(listener);
+        port
+    }
+}
+
+#[tokio::test]
+async fn a_bare_host_uses_the_first_default_port_that_accepts() {
+    let responder = DnsResponder::start(DnsScript::NxDomain).await;
+    let (_listener, open) = Fixture::open_port();
+    let service = Fixture::probing(&responder, vec![Fixture::closed_port(), open]);
+
+    let endpoint = service.refresh("https://127.0.0.1").await.expect("an endpoint");
+
+    assert_eq!(endpoint.port(), open);
+    assert_eq!(endpoint.source(), EndpointSource::Default);
+    assert_eq!(
+        service.resolve_base_or_identity("https://127.0.0.1").await,
+        format!("https://127.0.0.1:{open}")
+    );
+}
+
+#[tokio::test]
+async fn a_bare_host_stays_on_443_when_no_default_port_accepts() {
+    let responder = DnsResponder::start(DnsScript::NxDomain).await;
+    let service = Fixture::probing(
+        &responder,
+        vec![Fixture::closed_port(), Fixture::closed_port()],
+    );
+
+    let endpoint = service.refresh("https://127.0.0.1").await.expect("an endpoint");
+
+    assert_eq!(endpoint.port(), 443);
+    assert_eq!(endpoint.source(), EndpointSource::Default);
+}
+
+// Closing the port after the first probe shows the second refresh did not probe again: a
+// fresh probe would find nothing and fall back to 443.
+#[tokio::test]
+async fn a_port_the_probe_found_is_not_probed_again() {
+    let responder = DnsResponder::start(DnsScript::NxDomain).await;
+    let (listener, open) = Fixture::open_port();
+    let service = Fixture::probing(&responder, vec![open]);
+
+    let first = service.refresh("https://127.0.0.1").await.expect("an endpoint");
+    drop(listener);
+    let second = service.refresh("https://127.0.0.1").await.expect("an endpoint");
+
+    assert_eq!(first.port(), open);
+    assert_eq!(second.port(), open);
+}
+
+#[tokio::test]
+async fn a_probe_that_found_nothing_is_tried_again() {
+    let responder = DnsResponder::start(DnsScript::NxDomain).await;
+    let port = Fixture::closed_port();
+    let service = Fixture::probing(&responder, vec![port]);
+
+    let first = service.refresh("https://127.0.0.1").await.expect("an endpoint");
+    let _listener = TcpListener::bind(("127.0.0.1", port)).expect("the same port, now open");
+    let second = service.refresh("https://127.0.0.1").await.expect("an endpoint");
+
+    assert_eq!(first.port(), 443);
+    assert_eq!(second.port(), port);
+}
+
+#[tokio::test]
+async fn a_typed_port_is_not_replaced_by_the_probe() {
+    let responder = DnsResponder::start(DnsScript::NxDomain).await;
+    let (_listener, open) = Fixture::open_port();
+    let service = Fixture::probing(&responder, vec![open]);
+
+    let endpoint = service
+        .refresh("https://127.0.0.1:8443")
+        .await
+        .expect("an endpoint");
+
+    assert_eq!(endpoint.port(), 8443);
+    assert_eq!(endpoint.source(), EndpointSource::Explicit);
+}
+
+#[tokio::test]
+async fn an_srv_port_is_not_replaced_by_the_probe() {
+    let responder = DnsResponder::start(DnsScript::Answer {
+        port: 30001,
+        ttl: 60,
+    })
+    .await;
+    let (_listener, open) = Fixture::open_port();
+    let service = Fixture::probing(&responder, vec![open]);
+
+    let endpoint = service.refresh(PLAY_SERVER).await.expect("an endpoint");
+
+    assert_eq!(endpoint.port(), 30001);
+    assert_eq!(endpoint.source(), EndpointSource::Srv);
 }
 
 #[tokio::test]

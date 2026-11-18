@@ -887,6 +887,7 @@ pub fn run() {
                 common::net::srv::SrvResolver::new(
                     common::net::srv::SrvResolverConfig::production(),
                 ),
+                network::DefaultPortProbe::standard(),
             );
             app.manage(endpoints);
             let app_state = AppState::new(store.clone(), handle.clone());

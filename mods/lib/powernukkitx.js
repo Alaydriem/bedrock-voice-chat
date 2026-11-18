@@ -3,6 +3,7 @@
 // Errors throw rather than exit, as in `bds.js`.
 
 const { execFileSync } = require('child_process');
+const { X509Certificate } = require('crypto');
 const {
   existsSync,
   mkdirSync,
@@ -71,7 +72,25 @@ class PowerNukkitX {
     copyFileSync(cert, path.join(tlsDir, 'cert.pem'));
     copyFileSync(key, path.join(tlsDir, 'key.pem'));
     console.log(`[dev-server] copied ACME certificate from ${src}`);
-    return { certificate: path.join(tlsDir, 'cert.pem'), key: path.join(tlsDir, 'key.pem') };
+    return {
+      certificate: path.join(tlsDir, 'cert.pem'),
+      key: path.join(tlsDir, 'key.pem'),
+      names: PowerNukkitX.certificateNames(cert),
+    };
+  }
+
+  // The DNS names a certificate is issued for, which the server requires as tls.names.
+  static certificateNames(certFile) {
+    const san = new X509Certificate(readFileSync(certFile)).subjectAltName || '';
+    const names = san
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.startsWith('DNS:'))
+      .map((entry) => entry.slice('DNS:'.length));
+    if (names.length === 0) {
+      throw new Error(`${certFile} carries no DNS subject alternative names`);
+    }
+    return names;
   }
 
   // The `port` of the top-level `server` block in the local dev server's config.hcl.
@@ -117,6 +136,8 @@ class PowerNukkitX {
       '    tls:',
       `      certificate: ${yamlPath(certs.certificate)}`,
       `      key: ${yamlPath(certs.key)}`,
+      '      names:',
+      ...certs.names.map((name) => `        - ${JSON.stringify(name)}`),
       '',
     ].join('\n');
     writeFileSync(file, body);

@@ -2,6 +2,7 @@
 name = "websocket-types"
 version = "0.1.0"
 edition = "2024"
+license = "BSD-3-Clause"
 # One explicit target: `autotests = false` alone silently drops test binaries.
 autotests = false
 

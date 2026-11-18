@@ -4,8 +4,9 @@ use std::time::Duration;
 use common::net::srv::{SrvResolution, SrvResolver};
 use common::structs::network::{EndpointSource, ServerAddress, ServerEndpoint};
 use moka::future::Cache;
+use tauri_plugin_curia::curia;
 
-use super::{CachedEndpoint, ServerEndpointExpiry};
+use super::{CachedEndpoint, DefaultPortProbe, ServerEndpointExpiry};
 
 /// Finds the port a saved server listens on, and remembers it for a short while.
 ///
@@ -13,24 +14,35 @@ use super::{CachedEndpoint, ServerEndpointExpiry};
 /// endpoint a request is sent to.
 pub struct ServerEndpointService {
     resolver: SrvResolver,
+    probe: DefaultPortProbe,
     cache: Cache<String, CachedEndpoint>,
+    // Host to the default port that accepted. Outlives `cache`: a probe can cost the whole
+    // budget (Windows retries a refused connect for about 2 s), and a server does not move
+    // its API between connects.
+    probed: Cache<String, u16>,
 }
 
 impl ServerEndpointService {
     const CAPACITY: u64 = 64;
+    const PROBED_LIFETIME: Duration = Duration::from_secs(24 * 60 * 60);
 
-    pub fn new(resolver: SrvResolver) -> Self {
+    pub fn new(resolver: SrvResolver, probe: DefaultPortProbe) -> Self {
         Self {
             resolver,
+            probe,
             cache: Cache::builder()
                 .max_capacity(Self::CAPACITY)
                 .expire_after(ServerEndpointExpiry)
                 .build(),
+            probed: Cache::builder()
+                .max_capacity(Self::CAPACITY)
+                .time_to_live(Self::PROBED_LIFETIME)
+                .build(),
         }
     }
 
-    pub fn new_shared(resolver: SrvResolver) -> Arc<Self> {
-        Arc::new(Self::new(resolver))
+    pub fn new_shared(resolver: SrvResolver, probe: DefaultPortProbe) -> Arc<Self> {
+        Arc::new(Self::new(resolver, probe))
     }
 
     /// The endpoint for a saved server, from the cache while the entry lives.
@@ -57,7 +69,7 @@ impl ServerEndpointService {
         let address = ServerAddress::parse(identity).map_err(|e| e.to_string())?;
         let resolution = self.resolver.resolve(&address).await;
         let lifetime = Self::lifetime(&resolution);
-        let endpoint = resolution.endpoint;
+        let endpoint = self.probe_default(resolution.endpoint).await;
         self.cache
             .insert(
                 identity.to_string(),
@@ -68,6 +80,36 @@ impl ServerEndpointService {
             )
             .await;
         Ok(endpoint)
+    }
+
+    // A `Default` endpoint is only a guess at 443. The port the probe finds replaces it; when
+    // no default port accepts, 443 stays, so the failure a player sees is unchanged. Only a
+    // port that accepted is remembered, so a server that was down is probed again.
+    async fn probe_default(&self, endpoint: ServerEndpoint) -> ServerEndpoint {
+        if endpoint.source() != EndpointSource::Default {
+            return endpoint;
+        }
+        let host = endpoint.address().host().to_string();
+        let port = match self.probed.get(&host).await {
+            Some(port) => Some(port),
+            None => {
+                let picked = self.probe.pick(&host).await;
+                if let Some(port) = picked {
+                    self.probed.insert(host.clone(), port).await;
+                    curia::info!("no port given; using the default port that accepted", {
+                        host: host,
+                        port: port,
+                    });
+                }
+                picked
+            }
+        };
+        match port {
+            Some(port) if port != endpoint.port() => {
+                ServerEndpoint::new(endpoint.address().clone(), port, EndpointSource::Default)
+            }
+            _ => endpoint,
+        }
     }
 
     /// How long a resolution may be reused: a record's TTL clamped to 30-300 s, 30 s for the
