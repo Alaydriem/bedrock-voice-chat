@@ -15,8 +15,9 @@ On Nodecraft, a custom launcher runs the Bedrock Voice Chat server next to your 
 You need:
 
 - A Nodecraft Pro server. See [Nodecraft](/wiki/platforms/nodecraft/).
-- A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/).
-- A Cloudflare API token for that zone, with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
+- One of these:
+  - Nothing more. BVC gives the server a [play name](/wiki/server/tls/#play-name).
+  - A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/), and a Cloudflare API token for that zone with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
 
 :::caution
 You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voice Chat then stops too.
@@ -38,7 +39,26 @@ You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voic
 
    <div class="shot"><span>Nodecraft File Manager with bedrock_server and bedrock_server_vanilla</span></div>
 
-4. Create `config/bvc.hcl` with this base configuration:
+4. In the Pro Panel, select **Overview**. Copy the **Dedicated IP**.
+5. Create `config/bvc.hcl`.
+
+   Without a domain:
+
+   ```hcl
+   server {
+       port = 28280
+       quic_port = 28280
+       mod_loopback = true
+
+       tls {
+           play {
+               address = "203.0.113.10"
+           }
+       }
+   }
+   ```
+
+   With a domain:
 
    ```hcl
    server {
@@ -57,19 +77,20 @@ You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voic
    }
    ```
 
-5. Replace `bvc.example.com`, the email, and the API token with your values.
+6. Replace `203.0.113.10` with your Dedicated IP. With a domain, replace `bvc.example.com`, the email, and the API token with your values.
 
 :::caution
-1. Use Cloudflare or another supported DNS provider. BVC then gets and renews the TLS certificate automatically.
+1. Keep both ports at 28280. Do not change them.
 2. Do not use your Nodecraft hostname. At this time, BVC cannot get a TLS certificate for the hostname that Nodecraft gives a Pro server.
-3. Keep both ports at 28280. Do not change them.
+3. With a domain, use Cloudflare or another supported DNS provider. BVC then gets and renews the TLS certificate automatically.
 :::
 
 ## Point your domain at the server
 
-1. In the Pro Panel, select **Overview**. Copy the **Dedicated IP**.
-2. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
-3. In Cloudflare, set the record's proxy status to **DNS only**.
+Skip this section if you use a play name.
+
+1. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
+2. In Cloudflare, set the record's proxy status to **DNS only**.
 
 BVC gets the TLS certificate the first time it starts. This can take one minute. Wait, then sign in for the first time.
 
@@ -83,7 +104,7 @@ Players in `allowlist.json` can sign in to Bedrock Voice Chat before they join t
 
 ## Connect
 
-Your players sign in with `https://bvc.example.com:28280`. Use your domain. See [signing in](/wiki/player/signing-in/).
+Your players sign in with `https://bvc.example.com:28280`. Use your play name or your domain. To find the play name, look in the server console for `Play name assigned`. See [signing in](/wiki/player/signing-in/).
 
 <div class="window"><img src="/assets/wiki/nodecraft-login.jpg" alt="BVC login window with bvc.example.com:28280 in the server address field" /></div>
 

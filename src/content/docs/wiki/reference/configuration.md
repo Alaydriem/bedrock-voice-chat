@@ -33,6 +33,11 @@ If a referenced variable is not set, the server does not start.
 | `quic_port` | `28280` | UDP port for QUIC voice. |
 | `advertised_quic_ports` | `[28280]` | Public UDP ports that clients try, in order of preference. Clients get only the ports in this list. `quic_port` is not added. The default stays `[28280]` when you change `quic_port`. Set this list when you change `quic_port`, or when a proxy receives traffic on a different port. An empty list publishes only `quic_port`. |
 | `assets_path` | `./assets` | Directory of static files that the API serves. |
+| `mod_loopback` | `false` | Accepts plain HTTP on `port` from the same machine, for a Bedrock Addon that runs on the same host. The Addon then needs no certificate and no second port. Plain HTTP from any other address is closed with no response. |
+
+:::danger[`mod_loopback` and port forwarders]
+`mod_loopback` trusts the address that a connection comes from. A TCP forwarder on the same machine that relays the public port without TLS makes every remote client look like `127.0.0.1`. Examples are socat, `ssh -L`, an nginx `stream` block without PROXY protocol, Windows `netsh interface portproxy`, and WSL2 localhost forwarding. Behind one of these, `mod_loopback` accepts plain HTTP from the internet, and the Addon's access token crosses the network unencrypted. Leave `mod_loopback` off on such a host.
+:::
 
 With the default `::`, QUIC uses one socket for IPv4 and IPv6. On Linux, this depends on `net.ipv6.bindv6only`, which is `0` by default.
 
@@ -40,12 +45,23 @@ With the default `::`, QUIC uses one socket for IPv4 and IPv6. On Linux, this de
 
 | Key | Default | Description |
 |---|---|---|
-| `certificate` | None | Path to a full-chain PEM file. Required unless `acme` is set. |
-| `key` | None | Path to the private key PEM file. Required unless `acme` is set. |
+| `certificate` | None | Path to a full-chain PEM file. Required unless another certificate source is set. |
+| `key` | None | Path to the private key PEM file. Required unless another certificate source is set. |
 | `names` | `["localhost"]` | Hostnames that clients use to reach the server. The server puts them in the certificate. |
 | `ips` | `["127.0.0.1"]` | IP addresses that clients use to reach the server. The server puts them in the certificate. |
 | `certs_path` | `./certificates` | Directory for the mTLS CA (`ca.crt`) that authenticates clients. The server manages this directory. |
 | `acme` | None | Automatic certificates. Do not use with `certificate` and `key`. |
+| `play` | None | A play name and its certificate from the BVC registry. See [`server.tls.play`](#servertlsplay). |
+
+## `server.tls.play`
+
+Gets a `*.play.bedrockvc.stream` name and a 15-day certificate from the BVC registry, and renews the certificate. The block turns on play mode even when it is empty: `play {}`. See [play name](/wiki/server/tls/#play-name).
+
+| Key | Default | Description |
+|---|---|---|
+| `address` | None | The public IP address that the registry publishes as the name's DNS record. If you do not set it, the registry uses the address that it sees the server connect from. Use an IP address, not a hostname. The registry refuses a private address. |
+
+If you set `play` with `certificate`, `key`, `acme`, or `server.enrollment.token`, the server does not start. If `address` is not an IP address, the server does not start, and the error names the value.
 
 ## `server.tls.acme`
 
@@ -159,7 +175,7 @@ Peers do not fetch audio files. The server that plays Jukebox audio decodes it a
 | `token` | None | The single-use enrollment token. The server uses it at first start. |
 | `address` | None | The address to publish as the A record of the assigned name. |
 
-Use only one certificate source: `enrollment.token`, `tls.acme`, or `tls.certificate` with `tls.key`. If you set more than one, the server does not start.
+Use only one certificate source: `tls.play`, `enrollment.token`, `tls.acme`, or `tls.certificate` with `tls.key`. If you set more than one, the server does not start.
 
 `address` is optional. If you do not set it, BVC publishes no DNS record. BVC clients can reach the server without the record. Only a Bedrock Addon with `addon_mode = "net"` on a different host needs the name to resolve. BVC publishes a private address but does not check it. BVC checks a public address every day.
 

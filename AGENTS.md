@@ -39,7 +39,22 @@ cd ../bedrock-protocol-rs/bedrock-protocol
 cargo run --example version-matrix > ../../bvc-pages-src/src/data/version-matrix.json
 ```
 
-**Adding a page** means creating the file. The sidebar autogenerates from the directory tree; order comes from `sidebar.order` in frontmatter.
+**Adding a page** depends on its sidebar group in `astro.config.mjs`.
+
+| Group | Directory | Adding a page |
+|---|---|---|
+| Start here | `wiki/start/` | Create the file. Set `sidebar.order`. |
+| Streaming & recording | `wiki/creator/` | Create the file. Set `sidebar.order`. |
+| Nodecraft | `wiki/platforms/nodecraft/` | Create the file. Set `sidebar.order`. |
+| For players | `wiki/player/` | Create the file, then add its path to the group's `items` list. |
+| Running a server | `wiki/server/` | Create the file, then add its path to the group's `items` list. |
+| Upgrading | `wiki/upgrading/` | Create the file, then add its path directly under the overview. |
+| Where BVC works | `wiki/platforms/` | Create the file, then add its path to the group's `items` list. |
+| Reference | `wiki/reference/` | Create the file, then add its path to the group's `items` list. |
+
+A page in an explicit group that is not in its `items` list builds and passes `check:links`, but has no sidebar entry. After adding a page, open the built sidebar and confirm the entry.
+
+**New pages need `git add -f`.** `.gitignore` ignores `docs/`, which also matches `src/content/docs/`. Existing pages are tracked, so their edits show in `git status`. A new page does not.
 
 **Renaming or removing a page** means adding a redirect in `astro.config.mjs`. Old URLs are linked from Discord and indexed.
 
