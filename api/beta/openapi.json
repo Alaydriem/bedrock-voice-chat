@@ -10,6 +10,38 @@
     "version": "1.0.0-beta.27"
   },
   "paths": {
+    "/api/chat/worlds": {
+      "get": {
+        "tags": [
+          "Chat"
+        ],
+        "description": "Worlds this player has been seen in, newest first.\n\n`active` and `available` are independent, and the composer has to tell them apart: a world can be hosting players with its chat channel down, which reads very differently from a world nobody is in.",
+        "operationId": "worlds",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatWorld"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
     "/api/clients/live": {
       "get": {
         "tags": [
@@ -93,6 +125,650 @@
             "GameAccessToken": []
           }
         ]
+      }
+    },
+    "/api/audio/event": {
+      "post": {
+        "tags": [
+          "Audio"
+        ],
+        "description": "Start playback of an audio clip as a positioned in-world event.",
+        "operationId": "event_audio_event_play",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AudioPlayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioEventResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/audio/event/{event_id}": {
+      "delete": {
+        "tags": [
+          "Audio"
+        ],
+        "description": "Stop a playing audio event.",
+        "operationId": "event_audio_event_stop",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/audio/file": {
+      "get": {
+        "tags": [
+          "Audio"
+        ],
+        "description": "List clips in the server's audio library.\n\nPaginated, sortable, and searchable.",
+        "operationId": "file_audio_file_list",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0,
+              "nullable": true
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0,
+              "nullable": true
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_for_AudioFileResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/audio/file/{file_id}": {
+      "delete": {
+        "tags": [
+          "Audio"
+        ],
+        "description": "Delete a clip from the audio library. Requires the `audio_delete` permission.",
+        "operationId": "file_audio_file_delete",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/audio/file/{file_id}/token": {
+      "post": {
+        "tags": [
+          "Audio"
+        ],
+        "description": "Mint a short-lived playback token for a clip.\n\nThe token is what `/api/audio/stream` accepts, so a clip can be fetched without presenting a client certificate on the stream request itself.",
+        "operationId": "file_audio_file_token",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioStreamTokenResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/websocket/ticket": {
+      "post": {
+        "tags": [
+          "WebSocket"
+        ],
+        "description": "Exchanges the caller's mTLS identity for a single-use WebSocket ticket.\n\nA browser cannot present a client certificate or set headers when opening a socket, so identity is established here -- over the same mTLS every other route uses -- and spent once at upgrade time.",
+        "operationId": "ticket_ticket",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebsocketTicketResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/telemetry/host-capability": {
+      "post": {
+        "tags": [
+          "Telemetry"
+        ],
+        "description": "Report whether this Minecraft host could fetch and write a native library.\n\nAnswers one question: what share of hosts could run the skinny mod jar, which resolves its native library at runtime instead of carrying every platform. Both jars report it, so the two populations are comparable.\n\nThe body carries no hostname, address, path, or player data — only the mod version, the loader and mode, and for a Java mod the jar variant, the platform and the two outcomes. A BDS add-on has no jar and omits those four. Anything outside the known vocabulary is refused rather than forwarded, because this arrives from a third-party jar and would otherwise put unbounded strings into the metrics pipeline.",
+        "operationId": "host_capability",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/channel/": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "List channels on the server.\n\nReadable by a player certificate or a game server access token: the in-game panel's group page is a game server asking on a player's behalf.",
+        "operationId": "channel_list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Channel"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ChannelReader": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Create a channel and return its id.\n\nSurfaced in the client as a group.",
+        "operationId": "create_channel_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/channel/{id}": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Update a channel's membership.",
+        "operationId": "event_channel_event",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelEvent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Delete a channel, removing every member.",
+        "operationId": "delete_channel_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Rename a channel.",
+        "operationId": "rename_channel_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/channel/protected": {
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Create an end-to-end encrypted channel and return its id.\n\nThe creator is not added: the app joins through `PUT /<id>/protected` once it holds the group's keys. The server never receives any of the group's secrets.",
+        "operationId": "protected_channel_create_protected",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProtectedChannelCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/channel/{id}/protected": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Join an end-to-end encrypted channel.\n\nMembership here only makes the server route the group's ciphertext to this client. Being admitted to the group's keys happens between members, over the group key socket.",
+        "operationId": "protected_channel_join_protected",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/channel/{id}/protect": {
+      "put": {
+        "tags": [
+          "Channels"
+        ],
+        "description": "Turn the caller's open channel into an end-to-end encrypted one.\n\nOnly the creator may, and only while nobody else is in it. The body names the refusal: `not_found` (404), `not_creator` (403), `already_protected` or `not_alone` (409). A creator whose app never opens the group's key socket loses the group after the creator deadline.",
+        "operationId": "protected_channel_protect",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/ping": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "description": "Cheap reachability probe.",
+        "operationId": "ping_pong",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/health/enrollment-nonce": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "description": "Echoes the nonce most recently returned by the relay registry's check-in reply.\n\nUnauthenticated by necessity: the relay fetches this from the address the operator declared, before it holds any credential for this server, and the value is a single-use random string that reveals nothing. Answering it is what binds the published address record to this server's node key.\n\n404 when no challenge has arrived. An empty 200 would read to the relay as a server answering with the wrong value rather than one that has not been asked.",
+        "operationId": "enrollment_nonce_enrollment_nonce",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/health/liveness": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "description": "Liveness probe. Reports that the process is running.\n\nUnauthenticated, for use as a container restart check.",
+        "operationId": "liveness_liveness",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/health/readiness": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "description": "Readiness probe. Reports that the server can accept traffic.\n\nUnauthenticated. Gate a load balancer on this rather than on liveness.",
+        "operationId": "readiness_readiness",
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/admin/user": {
@@ -926,79 +1602,6 @@
         ]
       }
     },
-    "/api/ping": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "description": "Cheap reachability probe.",
-        "operationId": "ping_pong",
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/health/enrollment-nonce": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "description": "Echoes the nonce most recently returned by the relay registry's check-in reply.\n\nUnauthenticated by necessity: the relay fetches this from the address the operator declared, before it holds any credential for this server, and the value is a single-use random string that reveals nothing. Answering it is what binds the published address record to this server's node key.\n\n404 when no challenge has arrived. An empty 200 would read to the relay as a server answering with the wrong value rather than one that has not been asked.",
-        "operationId": "enrollment_nonce_enrollment_nonce",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/health/liveness": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "description": "Liveness probe. Reports that the process is running.\n\nUnauthenticated, for use as a container restart check.",
-        "operationId": "liveness_liveness",
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/health/readiness": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "description": "Readiness probe. Reports that the server can accept traffic.\n\nUnauthenticated. Gate a load balancer on this rather than on liveness.",
-        "operationId": "readiness_readiness",
-        "responses": {
-          "default": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/state": {
       "get": {
         "tags": [
@@ -1099,67 +1702,6 @@
         ]
       }
     },
-    "/api/chat/worlds": {
-      "get": {
-        "tags": [
-          "Chat"
-        ],
-        "description": "Worlds this player has been seen in, newest first.\n\n`active` and `available` are independent, and the composer has to tell them apart: a world can be hosting players with its chat channel down, which reads very differently from a world nobody is in.",
-        "operationId": "worlds",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ChatWorld"
-                  }
-                }
-              }
-            }
-          },
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/websocket/ticket": {
-      "post": {
-        "tags": [
-          "WebSocket"
-        ],
-        "description": "Exchanges the caller's mTLS identity for a single-use WebSocket ticket.\n\nA browser cannot present a client certificate or set headers when opening a socket, so identity is established here -- over the same mTLS every other route uses -- and spent once at upgrade time.",
-        "operationId": "ticket_ticket",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WebsocketTicketResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
     "/api/config": {
       "get": {
         "tags": [
@@ -1180,552 +1722,56 @@
           }
         }
       }
-    },
-    "/api/telemetry/host-capability": {
-      "post": {
-        "tags": [
-          "Telemetry"
-        ],
-        "description": "Report whether this Minecraft host could fetch and write a native library.\n\nAnswers one question: what share of hosts could run the skinny mod jar, which resolves its native library at runtime instead of carrying every platform. Both jars report it, so the two populations are comparable.\n\nThe body carries no hostname, address, path, or player data — only the jar variant, the platform, the mod version and the two outcomes. Anything outside the known vocabulary is refused rather than forwarded, because this arrives from a third-party jar and would otherwise put unbounded strings into the metrics pipeline.",
-        "operationId": "host_capability",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "nullable": true
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "GameAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/channel/": {
-      "get": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "List channels on the server.\n\nReadable by a player certificate or a game server access token: the in-game panel's group page is a game server asking on a player's behalf.",
-        "operationId": "channel_list",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Channel"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "ChannelReader": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Create a channel and return its id.\n\nSurfaced in the client as a group.",
-        "operationId": "create_channel_create",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/channel/{id}": {
-      "put": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Update a channel's membership.",
-        "operationId": "event_channel_event",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChannelEvent"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      },
-      "delete": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Delete a channel, removing every member.",
-        "operationId": "delete_channel_delete",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      },
-      "patch": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Rename a channel.",
-        "operationId": "rename_channel_rename",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/channel/protected": {
-      "post": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Create an end-to-end encrypted channel and return its id.\n\nThe creator is not added: the app joins through `PUT /<id>/protected` once it holds the group's keys. The server never receives any of the group's secrets.",
-        "operationId": "protected_channel_create_protected",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProtectedChannelCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/channel/{id}/protected": {
-      "put": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Join an end-to-end encrypted channel.\n\nMembership here only makes the server route the group's ciphertext to this client. Being admitted to the group's keys happens between members, over the group key socket.",
-        "operationId": "protected_channel_join_protected",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/channel/{id}/protect": {
-      "put": {
-        "tags": [
-          "Channels"
-        ],
-        "description": "Turn the caller's open channel into an end-to-end encrypted one.\n\nOnly the creator may, and only while nobody else is in it. The body names the refusal: `not_found` (404), `not_creator` (403), `already_protected` or `not_alone` (409). A creator whose app never opens the group's key socket loses the group after the creator deadline.",
-        "operationId": "protected_channel_protect",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/audio/event": {
-      "post": {
-        "tags": [
-          "Audio"
-        ],
-        "description": "Start playback of an audio clip as a positioned in-world event.",
-        "operationId": "event_audio_event_play",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AudioPlayRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AudioEventResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "GameAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/audio/event/{event_id}": {
-      "delete": {
-        "tags": [
-          "Audio"
-        ],
-        "description": "Stop a playing audio event.",
-        "operationId": "event_audio_event_stop",
-        "parameters": [
-          {
-            "name": "event_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "GameAccessToken": []
-          }
-        ]
-      }
-    },
-    "/api/audio/file": {
-      "get": {
-        "tags": [
-          "Audio"
-        ],
-        "description": "List clips in the server's audio library.\n\nPaginated, sortable, and searchable.",
-        "operationId": "file_audio_file_list",
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0,
-              "nullable": true
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0,
-              "nullable": true
-            }
-          },
-          {
-            "name": "sort_by",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          },
-          {
-            "name": "sort_order",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaginatedResponse_for_AudioFileResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/audio/file/{file_id}": {
-      "delete": {
-        "tags": [
-          "Audio"
-        ],
-        "description": "Delete a clip from the audio library. Requires the `audio_delete` permission.",
-        "operationId": "file_audio_file_delete",
-        "parameters": [
-          {
-            "name": "file_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/audio/file/{file_id}/token": {
-      "post": {
-        "tags": [
-          "Audio"
-        ],
-        "description": "Mint a short-lived playback token for a clip.\n\nThe token is what `/api/audio/stream` accepts, so a clip can be fetched without presenting a client certificate on the stream request itself.",
-        "operationId": "file_audio_file_token",
-        "parameters": [
-          {
-            "name": "file_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AudioStreamTokenResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
     }
   },
   "components": {
     "schemas": {
+      "ChatWorld": {
+        "description": "A world this player has been seen in, and whether chat works there right now.",
+        "type": "object",
+        "required": [
+          "active",
+          "available",
+          "last_seen",
+          "mode",
+          "world_name",
+          "world_uuid"
+        ],
+        "properties": {
+          "world_uuid": {
+            "description": "Never rendered. A random UUID on the mod path and a derived hash on the proxy path, polymorphic in length, and meaningless to a person either way.",
+            "type": "string"
+          },
+          "world_name": {
+            "description": "The only user-facing label.",
+            "type": "string"
+          },
+          "last_seen": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "active": {
+            "description": "The world is being hosted: position ingress is recent.",
+            "type": "boolean"
+          },
+          "available": {
+            "description": "A mod chat channel is registered for it right now. A world can be active and unavailable — positions flowing while the chat socket is down.",
+            "type": "boolean"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ChatMode"
+          }
+        }
+      },
+      "ChatMode": {
+        "description": "Which chat implementation is live for a world.\n\nDistinct from availability: this says whether a mod or the local proxy is the source of chat, not whether chat works right now. A world can be `Server` mode with its chat channel down, and the composer has to tell those apart.",
+        "type": "string",
+        "enum": [
+          "Server",
+          "Local"
+        ]
+      },
       "GameDataCollection": {
         "type": "object",
         "required": [
@@ -1914,6 +1960,291 @@
           },
           "game": {
             "$ref": "#/components/schemas/Game"
+          }
+        }
+      },
+      "AudioEventResponse": {
+        "type": "object",
+        "required": [
+          "duration_ms",
+          "event_id"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "AudioPlayRequest": {
+        "type": "object",
+        "required": [
+          "audio_file_id",
+          "game"
+        ],
+        "properties": {
+          "audio_file_id": {
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/GameAudioContext"
+          }
+        }
+      },
+      "GameAudioContext": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "coordinates",
+              "dimension",
+              "game",
+              "world_uuid"
+            ],
+            "properties": {
+              "game": {
+                "type": "string",
+                "enum": [
+                  "minecraft"
+                ]
+              },
+              "coordinates": {
+                "$ref": "#/components/schemas/Coordinate"
+              },
+              "dimension": {
+                "$ref": "#/components/schemas/Dimension"
+              },
+              "world_uuid": {
+                "type": "string"
+              },
+              "relay_world_uuid": {
+                "default": null,
+                "type": "string",
+                "nullable": true
+              }
+            }
+          }
+        ]
+      },
+      "PaginatedResponse_for_AudioFileResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioFileResponse"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "page": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "AudioFileResponse": {
+        "type": "object",
+        "required": [
+          "created_at",
+          "duration_ms",
+          "file_size_bytes",
+          "game",
+          "id",
+          "original_filename",
+          "uploader"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "uploader": {
+            "$ref": "#/components/schemas/UploaderIdentity"
+          },
+          "original_filename": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "file_size_bytes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "game": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "UploaderIdentity": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "game",
+              "gamertag"
+            ],
+            "properties": {
+              "game": {
+                "type": "string",
+                "enum": [
+                  "minecraft"
+                ]
+              },
+              "gamertag": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "AudioStreamTokenResponse": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "WebsocketTicketResponse": {
+        "type": "object",
+        "required": [
+          "expires_in",
+          "ticket"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "string"
+          },
+          "expires_in": {
+            "description": "Seconds until expiry, so the caller can decide whether to reuse a held ticket or fetch a fresh one before reconnecting.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
+      },
+      "ChannelEvent": {
+        "type": "object",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ChannelEvents"
+          },
+          "game": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvents": {
+        "type": "string",
+        "enum": [
+          "Join",
+          "Leave",
+          "Create",
+          "Delete",
+          "Rename"
+        ]
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "creator",
+          "id",
+          "name",
+          "players"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerIdentity"
+            }
+          },
+          "creator": {
+            "$ref": "#/components/schemas/PlayerIdentity"
+          },
+          "protected": {
+            "description": "End-to-end encrypted. The server only routes and lists it; it never holds the password. A server that predates this field sends nothing, which reads as unprotected.",
+            "default": false,
+            "type": "boolean"
+          }
+        }
+      },
+      "PlayerIdentity": {
+        "type": "string"
+      },
+      "ProtectedChannelCreateRequest": {
+        "description": "Body of `POST /api/channel/protected`. Carries no password: the server never receives one.",
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "description": "Empty asks the server to generate a name.",
+            "type": "string"
+          }
+        }
+      },
+      "ReadinessResponse": {
+        "description": "Per-component readiness snapshot returned by /health/readiness. Each component is \"ok\" or \"down\".",
+        "type": "object",
+        "required": [
+          "certificate",
+          "database",
+          "quic"
+        ],
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "quic": {
+            "type": "string"
+          },
+          "certificate": {
+            "type": "string"
           }
         }
       },
@@ -2812,26 +3143,6 @@
           }
         ]
       },
-      "ReadinessResponse": {
-        "description": "Per-component readiness snapshot returned by /health/readiness. Each component is \"ok\" or \"down\".",
-        "type": "object",
-        "required": [
-          "certificate",
-          "database",
-          "quic"
-        ],
-        "properties": {
-          "database": {
-            "type": "string"
-          },
-          "quic": {
-            "type": "string"
-          },
-          "certificate": {
-            "type": "string"
-          }
-        }
-      },
       "QueryState": {
         "type": "object",
         "required": [
@@ -2880,70 +3191,6 @@
           },
           "muted": {
             "type": "boolean"
-          }
-        }
-      },
-      "ChatWorld": {
-        "description": "A world this player has been seen in, and whether chat works there right now.",
-        "type": "object",
-        "required": [
-          "active",
-          "available",
-          "last_seen",
-          "mode",
-          "world_name",
-          "world_uuid"
-        ],
-        "properties": {
-          "world_uuid": {
-            "description": "Never rendered. A random UUID on the mod path and a derived hash on the proxy path, polymorphic in length, and meaningless to a person either way.",
-            "type": "string"
-          },
-          "world_name": {
-            "description": "The only user-facing label.",
-            "type": "string"
-          },
-          "last_seen": {
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "active": {
-            "description": "The world is being hosted: position ingress is recent.",
-            "type": "boolean"
-          },
-          "available": {
-            "description": "A mod chat channel is registered for it right now. A world can be active and unavailable — positions flowing while the chat socket is down.",
-            "type": "boolean"
-          },
-          "mode": {
-            "$ref": "#/components/schemas/ChatMode"
-          }
-        }
-      },
-      "ChatMode": {
-        "description": "Which chat implementation is live for a world.\n\nDistinct from availability: this says whether a mod or the local proxy is the source of chat, not whether chat works right now. A world can be `Server` mode with its chat channel down, and the composer has to tell those apart.",
-        "type": "string",
-        "enum": [
-          "Server",
-          "Local"
-        ]
-      },
-      "WebsocketTicketResponse": {
-        "type": "object",
-        "required": [
-          "expires_in",
-          "ticket"
-        ],
-        "properties": {
-          "ticket": {
-            "type": "string"
-          },
-          "expires_in": {
-            "description": "Seconds until expiry, so the caller can decide whether to reuse a held ticket or fetch a fresh one before reconnecting.",
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
           }
         }
       },
@@ -3252,258 +3499,21 @@
             "type": "boolean"
           }
         }
-      },
-      "ChannelEvent": {
-        "type": "object",
-        "required": [
-          "event"
-        ],
-        "properties": {
-          "event": {
-            "$ref": "#/components/schemas/ChannelEvents"
-          },
-          "game": {
-            "default": null,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Game"
-              }
-            ],
-            "nullable": true
-          }
-        }
-      },
-      "ChannelEvents": {
-        "type": "string",
-        "enum": [
-          "Join",
-          "Leave",
-          "Create",
-          "Delete",
-          "Rename"
-        ]
-      },
-      "Channel": {
-        "type": "object",
-        "required": [
-          "creator",
-          "id",
-          "name",
-          "players"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "players": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PlayerIdentity"
-            }
-          },
-          "creator": {
-            "$ref": "#/components/schemas/PlayerIdentity"
-          },
-          "protected": {
-            "description": "End-to-end encrypted. The server only routes and lists it; it never holds the password. A server that predates this field sends nothing, which reads as unprotected.",
-            "default": false,
-            "type": "boolean"
-          }
-        }
-      },
-      "PlayerIdentity": {
-        "type": "string"
-      },
-      "ProtectedChannelCreateRequest": {
-        "description": "Body of `POST /api/channel/protected`. Carries no password: the server never receives one.",
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "name": {
-            "description": "Empty asks the server to generate a name.",
-            "type": "string"
-          }
-        }
-      },
-      "AudioEventResponse": {
-        "type": "object",
-        "required": [
-          "duration_ms",
-          "event_id"
-        ],
-        "properties": {
-          "event_id": {
-            "type": "string"
-          },
-          "duration_ms": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          }
-        }
-      },
-      "AudioPlayRequest": {
-        "type": "object",
-        "required": [
-          "audio_file_id",
-          "game"
-        ],
-        "properties": {
-          "audio_file_id": {
-            "type": "string"
-          },
-          "game": {
-            "$ref": "#/components/schemas/GameAudioContext"
-          }
-        }
-      },
-      "GameAudioContext": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "coordinates",
-              "dimension",
-              "game",
-              "world_uuid"
-            ],
-            "properties": {
-              "game": {
-                "type": "string",
-                "enum": [
-                  "minecraft"
-                ]
-              },
-              "coordinates": {
-                "$ref": "#/components/schemas/Coordinate"
-              },
-              "dimension": {
-                "$ref": "#/components/schemas/Dimension"
-              },
-              "world_uuid": {
-                "type": "string"
-              },
-              "relay_world_uuid": {
-                "default": null,
-                "type": "string",
-                "nullable": true
-              }
-            }
-          }
-        ]
-      },
-      "PaginatedResponse_for_AudioFileResponse": {
-        "type": "object",
-        "required": [
-          "items",
-          "page",
-          "page_size",
-          "total"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AudioFileResponse"
-            }
-          },
-          "total": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          },
-          "page": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          },
-          "page_size": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          }
-        }
-      },
-      "AudioFileResponse": {
-        "type": "object",
-        "required": [
-          "created_at",
-          "duration_ms",
-          "file_size_bytes",
-          "game",
-          "id",
-          "original_filename",
-          "uploader"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "uploader": {
-            "$ref": "#/components/schemas/UploaderIdentity"
-          },
-          "original_filename": {
-            "type": "string"
-          },
-          "duration_ms": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "file_size_bytes": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "game": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "UploaderIdentity": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "game",
-              "gamertag"
-            ],
-            "properties": {
-              "game": {
-                "type": "string",
-                "enum": [
-                  "minecraft"
-                ]
-              },
-              "gamertag": {
-                "type": "string"
-              }
-            }
-          }
-        ]
-      },
-      "AudioStreamTokenResponse": {
-        "type": "object",
-        "required": [
-          "token"
-        ],
-        "properties": {
-          "token": {
-            "type": "string"
-          }
-        }
       }
     },
     "securitySchemes": {
+      "PlayerGuard": {
+        "description": "Player mTLS client certificate.",
+        "type": "http",
+        "scheme": "mutual"
+      },
       "GameAccessToken": {
         "description": "Game server access token, as `Authorization: Bearer <token>`.",
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "ChannelReader": {
+        "description": "A player mTLS client certificate, or a game server access token as `Authorization: Bearer <token>`.",
         "type": "http",
         "scheme": "bearer"
       },
@@ -3511,20 +3521,14 @@
         "description": "Operator mTLS client certificate. Caller must additionally hold the `admin` permission.",
         "type": "http",
         "scheme": "mutual"
-      },
-      "PlayerGuard": {
-        "description": "Player mTLS client certificate.",
-        "type": "http",
-        "scheme": "mutual"
-      },
-      "ChannelReader": {
-        "description": "A player mTLS client certificate, or a game server access token as `Authorization: Bearer <token>`.",
-        "type": "http",
-        "scheme": "bearer"
       }
     }
   },
   "tags": [
+    {
+      "name": "Chat",
+      "description": "In-game chat relay. Lists the worlds a player has been seen in and which of them currently have a chat channel."
+    },
     {
       "name": "Clients",
       "description": "Which players currently hold a voice connection, for a mod that delivers audio of its own alongside this server's."
@@ -3532,6 +3536,26 @@
     {
       "name": "Positions",
       "description": "Player position updates from game mods. Used by the Minecraft server plugin to push player coordinates for spatial audio calculations."
+    },
+    {
+      "name": "Audio",
+      "description": "Audio file library and spatial playback events. Upload Ogg/Opus files, trigger positional audio playback in-game, and manage the audio library."
+    },
+    {
+      "name": "WebSocket",
+      "description": "Ticket exchange and streaming feeds for client UI surfaces. A browser cannot present a client certificate when opening a socket, so identity is established over mTLS here and spent once at upgrade time."
+    },
+    {
+      "name": "Telemetry",
+      "description": "Facts a mod or add-on observes about its own host, which it has no channel of its own to report."
+    },
+    {
+      "name": "Channels",
+      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
+    },
+    {
+      "name": "Health",
+      "description": "Health and readiness probes. Liveness and readiness are unauthenticated for use with Kubernetes."
     },
     {
       "name": "Admin",
@@ -3554,32 +3578,8 @@
       "description": "In-game audio control plane. The mod submits ClientActions on behalf of the authenticated in-game player (Authorization: Bearer)."
     },
     {
-      "name": "Health",
-      "description": "Health and readiness probes. Liveness and readiness are unauthenticated for use with Kubernetes."
-    },
-    {
-      "name": "Chat",
-      "description": "In-game chat relay. Lists the worlds a player has been seen in and which of them currently have a chat channel."
-    },
-    {
-      "name": "WebSocket",
-      "description": "Ticket exchange and streaming feeds for client UI surfaces. A browser cannot present a client certificate when opening a socket, so identity is established over mTLS here and spent once at upgrade time."
-    },
-    {
       "name": "Server",
       "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
-    },
-    {
-      "name": "Telemetry",
-      "description": "Facts a Java mod observes about its own host, which the mod has no channel of its own to report."
-    },
-    {
-      "name": "Channels",
-      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
-    },
-    {
-      "name": "Audio",
-      "description": "Audio file library and spatial playback events. Upload Ogg/Opus files, trigger positional audio playback in-game, and manage the audio library."
     }
   ]
 }
