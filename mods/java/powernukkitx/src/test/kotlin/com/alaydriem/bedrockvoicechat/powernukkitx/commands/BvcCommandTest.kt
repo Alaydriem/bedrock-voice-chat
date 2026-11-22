@@ -25,6 +25,7 @@ import org.powernukkitx.command.ConsoleCommandSender
 import org.powernukkitx.command.utils.CommandLogger
 import org.powernukkitx.inventory.HumanInventory
 import org.powernukkitx.item.Item
+import java.util.UUID
 
 class BvcCommandTest {
 
@@ -34,8 +35,10 @@ class BvcCommandTest {
     private val inventory = mock<HumanInventory> {
         on { addItem(any()) } doReturn emptyArray()
     }
+    private val steveId = UUID.fromString("00000000-0000-0000-0009-01f2a3b4c5d6")
     private val steve = mock<Player> {
         on { getName() } doReturn "Steve"
+        on { getUniqueId() } doReturn steveId
         on { hasPermission(any<String>()) } doReturn true
         on { getInventory() } doReturn inventory
     }
@@ -56,9 +59,9 @@ class BvcCommandTest {
         run(steve, "deafen", "false")
         run(steve, "record", "true")
 
-        verify(control).send(eq(ControlAction.Mute(true)), eq("Steve"), anyOrNull())
-        verify(control).send(eq(ControlAction.Deafen(false)), eq("Steve"), anyOrNull())
-        verify(control).send(eq(ControlAction.Record(true)), eq("Steve"), anyOrNull())
+        verify(control).send(eq(ControlAction.Mute(true)), eq("Steve"), eq(steveId), anyOrNull())
+        verify(control).send(eq(ControlAction.Deafen(false)), eq("Steve"), eq(steveId), anyOrNull())
+        verify(control).send(eq(ControlAction.Record(true)), eq("Steve"), eq(steveId), anyOrNull())
     }
 
     @Test
@@ -66,15 +69,15 @@ class BvcCommandTest {
         run(steve, "volume", "steve", "80")
         run(steve, "hear", "STEVE", "false")
 
-        verify(control).send(eq(ControlAction.Volume("Steve", 80)), eq("Steve"), anyOrNull())
-        verify(control).send(eq(ControlAction.Hear("Steve", false)), eq("Steve"), anyOrNull())
+        verify(control).send(eq(ControlAction.Volume("Steve", 80)), eq("Steve"), anyOrNull(), anyOrNull())
+        verify(control).send(eq(ControlAction.Hear("Steve", false)), eq("Steve"), anyOrNull(), anyOrNull())
     }
 
     @Test
     fun an_unknown_target_is_refused_without_sending() {
         run(steve, "volume", "Alex", "80")
 
-        verify(control, never()).send(any(), any(), anyOrNull())
+        verify(control, never()).send(any(), any(), anyOrNull(), anyOrNull())
         verify(steve).sendMessage("[BVC] Unknown player: Alex")
     }
 
@@ -82,7 +85,7 @@ class BvcCommandTest {
     fun a_volume_above_the_maximum_is_refused() {
         run(steve, "volume", "Steve", (ControlAction.MAX_LEVEL + 1).toString())
 
-        verify(control, never()).send(any(), any(), anyOrNull())
+        verify(control, never()).send(any(), any(), anyOrNull(), anyOrNull())
     }
 
     @Test
@@ -90,8 +93,8 @@ class BvcCommandTest {
         run(steve, "jukebox", "mute", "true")
         run(steve, "jukebox", "volume", "50")
 
-        verify(control).send(eq(ControlAction.Hear(ControlAction.JUKEBOX_TARGET, false)), eq("Steve"), anyOrNull())
-        verify(control).send(eq(ControlAction.Volume(ControlAction.JUKEBOX_TARGET, 50)), eq("Steve"), anyOrNull())
+        verify(control).send(eq(ControlAction.Hear(ControlAction.JUKEBOX_TARGET, false)), eq("Steve"), anyOrNull(), anyOrNull())
+        verify(control).send(eq(ControlAction.Volume(ControlAction.JUKEBOX_TARGET, 50)), eq("Steve"), anyOrNull(), anyOrNull())
     }
 
     @Test
@@ -99,15 +102,15 @@ class BvcCommandTest {
         run(steve, "group", "join", "abc123")
         run(steve, "group", "leave")
 
-        verify(control).send(eq(ControlAction.JoinGroup("abc123")), eq("Steve"), anyOrNull())
-        verify(control).send(eq(ControlAction.LeaveGroup), eq("Steve"), anyOrNull())
+        verify(control).send(eq(ControlAction.JoinGroup("abc123")), eq("Steve"), anyOrNull(), anyOrNull())
+        verify(control).send(eq(ControlAction.LeaveGroup), eq("Steve"), anyOrNull(), anyOrNull())
     }
 
     @Test
     fun group_create_replies_with_the_share_code() {
         doAnswer { invocation ->
-            invocation.getArgument<(ControlSendResult) -> Unit>(2)(ControlSendResult(true, "XK4-92Q"))
-        }.whenever(control).send(eq(ControlAction.CreateGroup), eq("Steve"), anyOrNull())
+            invocation.getArgument<(ControlSendResult) -> Unit>(3)(ControlSendResult(true, "XK4-92Q"))
+        }.whenever(control).send(eq(ControlAction.CreateGroup), eq("Steve"), anyOrNull(), anyOrNull())
 
         run(steve, "group", "create")
 
@@ -120,7 +123,7 @@ class BvcCommandTest {
 
         run(console, "mute", "true")
 
-        verify(control, never()).send(any(), any(), anyOrNull())
+        verify(control, never()).send(any(), any(), anyOrNull(), anyOrNull())
         verify(console).sendMessage("This command must be run by a player")
     }
 
