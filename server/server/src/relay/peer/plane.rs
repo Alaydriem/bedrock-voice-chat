@@ -9,6 +9,7 @@ use bvc_relay::peer::{AdmissionControl, Handshake, PeerEndpoint, PeerError, Peer
 
 use crate::relay::grant::GrantTable;
 use crate::relay::peer::{AdvertisedAddress, PeerTicketCache};
+use crate::stream::quic::log_throttle::LogThrottle;
 
 use super::egress::PeerEgress;
 use super::ingest::PeerIngest;
@@ -48,6 +49,8 @@ impl PeerPlane {
     // short enough that a server whose public address moved is not advertising a dead one
     // for the rest of its uptime.
     const TICKET_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+
+    const REJECTION_LOG_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
 
     pub async fn bind(
         identity: &NodeIdentity,
@@ -299,6 +302,10 @@ impl PeerPlane {
         tokio::spawn(async move {
             let node = link.node();
 
+            // A refused speaker is refused again on every frame they send, about fifty a
+            // second while they talk, so one line per interval per link is enough.
+            let rejections = LogThrottle::new(Self::REJECTION_LOG_INTERVAL);
+
             loop {
                 let frame = match link.recv().await {
                     Ok(frame) => frame,
@@ -318,7 +325,9 @@ impl PeerPlane {
                         plane.sink.publish(packet);
                     }
                     Err(rejection) => {
-                        curia::warn!(format!("dropping a peer frame: {rejection}"), { "node": node.to_string() })
+                        if let Some(suppressed) = rejections.should_log() {
+                            curia::warn!(format!("dropping a peer frame: {rejection}"), { "node": node.to_string(), "suppressed": suppressed })
+                        }
                     }
                 }
             }
