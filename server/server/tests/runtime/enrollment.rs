@@ -22,11 +22,12 @@ fn applying_an_assignment_adds_the_name_to_tls_names() {
     );
 }
 
-// The default entries stay: the local CA presents itself as the QUIC leaf and must
+// Names already configured stay: the local CA presents itself as the QUIC leaf and must
 // still carry them for a loopback client.
 #[test]
-fn applying_an_assignment_keeps_the_default_names() {
+fn applying_an_assignment_keeps_the_configured_names() {
     let mut config = ApplicationConfig::default();
+    config.server.tls.names = vec!["localhost".to_string()];
 
     EnrollmentStep::apply(&mut config, "assigned.bedrockvc.stream".to_string());
 
@@ -34,11 +35,12 @@ fn applying_an_assignment_keeps_the_default_names() {
 }
 
 // The certificate order carries the assigned name alone. Left to the fallback it
-// would carry `localhost` too, which is not an IP, survives the filter, and fails the
-// whole order.
+// would carry a configured `localhost` too, which is not an IP, survives the filter,
+// and fails the whole order.
 #[test]
 fn applying_an_assignment_scopes_the_certificate_order_to_the_assigned_name() {
     let mut config = ApplicationConfig::default();
+    config.server.tls.names = vec!["localhost".to_string()];
 
     EnrollmentStep::apply(&mut config, "assigned.bedrockvc.stream".to_string());
 
