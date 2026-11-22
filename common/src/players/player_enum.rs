@@ -200,6 +200,14 @@ impl PlayerEnum {
         }
     }
 
+    /// Drop the alternative identity once the server has acted on it, so it is not
+    /// broadcast to clients.
+    pub fn clear_alternative_identity(&mut self) {
+        if let PlayerEnum::Minecraft(mc) = self {
+            mc.alternative_identity = None;
+        }
+    }
+
     /// Get the platform UUID if one exists (e.g., Minecraft Java UUID)
     pub fn get_player_uuid(&self) -> Option<&str> {
         match self {

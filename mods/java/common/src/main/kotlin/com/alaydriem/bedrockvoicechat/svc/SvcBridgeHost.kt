@@ -64,7 +64,8 @@ class SvcBridgeHost(
         return SvcBridge(
             outbound = outbound,
             onFrame = { frame -> send(frame) },
-            onServerApi = { api -> onServerApi(api, serverPeerlink) }
+            onServerApi = { api -> onServerApi(api, serverPeerlink) },
+            hasLiveBvcClient = ::hasLiveBvcClient
         )
     }
 

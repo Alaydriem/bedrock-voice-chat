@@ -14,7 +14,7 @@ mod cache_manager;
 mod certificate_common_name;
 pub mod connection;
 mod connection_identity;
-mod log_throttle;
+pub(crate) mod log_throttle;
 mod packet_identity_stamp;
 pub mod path;
 pub mod peer;

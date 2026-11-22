@@ -53,4 +53,9 @@ impl CertificateFixture {
             _dir: dir,
         })
     }
+
+    // The directory holding `ca.crt`, which a login response embeds.
+    pub fn certs_path(&self) -> String {
+        self._dir.path().join("certs").to_string_lossy().into_owned()
+    }
 }

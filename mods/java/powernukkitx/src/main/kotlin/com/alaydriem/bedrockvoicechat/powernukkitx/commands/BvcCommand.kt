@@ -183,7 +183,7 @@ class BvcCommand(
 
     private fun dispatch(sender: CommandSender, action: ControlAction): Int {
         val player = requirePlayer(sender) ?: return 0
-        controlSender.send(action, canonicalName(player)) { result ->
+        controlSender.send(action, canonicalName(player), player.getUniqueId()) { result ->
             // A protected group continues in the player's BVC app; say where.
             val reply = (action as? ControlAction.JoinGroup)?.let { JoinReply.forResult(result, it.channel) }
             val message = reply ?: if (!result.ok) "[BVC] Action failed; try again" else null
@@ -198,7 +198,7 @@ class BvcCommand(
     // The share code is the whole point of group create, so it is the reply.
     private fun createGroup(sender: CommandSender): Int {
         val player = requirePlayer(sender) ?: return 0
-        controlSender.send(ControlAction.CreateGroup, canonicalName(player)) { result ->
+        controlSender.send(ControlAction.CreateGroup, canonicalName(player), player.getUniqueId()) { result ->
             val code = result.groupCode
             val message = if (result.ok && code != null) {
                 "[BVC] Group created — share code: $code"

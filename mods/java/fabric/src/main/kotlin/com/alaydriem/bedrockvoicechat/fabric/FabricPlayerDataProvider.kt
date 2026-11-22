@@ -5,11 +5,12 @@ import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.GameType
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.integration.FloodgateIntegration
+import com.alaydriem.bedrockvoicechat.integration.PlayerIdentity
+import com.alaydriem.bedrockvoicechat.integration.PlayerIdentityResolver
 import com.alaydriem.bedrockvoicechat.svc.RelayWorld
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.server.level.ServerLevel
-import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -34,8 +35,7 @@ class FabricPlayerDataProvider(
     // them is told they cannot hear you.
     private val bridgedVoice: (UUID) -> Boolean = { false }
 ) : PlayerDataProvider {
-    private val log = LoggerFactory.getLogger("BedrockVoiceChat.Identity")
-    private val loggedIdentities: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val resolver = PlayerIdentityResolver(xboxGamertagOf)
     var server: MinecraftServer? = null
 
     private val onlinePlayers: MutableSet<UUID> = ConcurrentHashMap.newKeySet()
@@ -73,7 +73,7 @@ class FabricPlayerDataProvider(
                 // Check if player is dead - override to death dimension at origin
                 if (deadPlayers.contains(player.getUUID())) {
                     PlayerData(
-                        name = identity.name,
+                        identity = identity,
                         x = 0.0,
                         y = 0.0,
                         z = 0.0,
@@ -83,7 +83,6 @@ class FabricPlayerDataProvider(
                         whispering = false,
                         spectator = false,
                         worldUuid = worldUuid,
-                        alternativeIdentity = identity.alternative,
                         playerUuid = playerUuid,
                         relayWorldUuid = relayWorld?.id()
                     )
@@ -91,7 +90,7 @@ class FabricPlayerDataProvider(
                     // Normal player data
                     val dimension = getDimensionFromPlayer(player)
                     PlayerData(
-                        name = identity.name,
+                        identity = identity,
                         x = player.x,
                         y = player.y,
                         z = player.z,
@@ -101,7 +100,6 @@ class FabricPlayerDataProvider(
                         whispering = player.isShiftKeyDown,
                         spectator = player.isSpectator,
                         worldUuid = worldUuid,
-                        alternativeIdentity = identity.alternative,
                         playerUuid = playerUuid,
                         relayWorldUuid = relayWorld?.id(),
                         bridgedVoice = bridgedVoice(player.getUUID())
@@ -113,72 +111,32 @@ class FabricPlayerDataProvider(
     fun resolveCanonicalName(player: ServerPlayer): String = resolveIdentity(player).name
 
     /**
-     * Every form the BVC server might index this player under, as `game:gamertag`.
-     *
-     * Anything asking the server about a player wants these; anything naming a player
-     * to another player wants [resolveCanonicalName]. Passing a bare name to a lookup
-     * answers no rather than failing, which is how a wrong answer survives.
-     *
-     * More than one, because a linked Bedrock player carries two names: the Java
-     * account they log in with and the Xbox gamertag they are known by. The mod sends
-     * the first as their name and the second as their alias, while their BVC client
-     * authenticates against Xbox Live and so registers under the second. Asking for
-     * only one of them misses that player whichever one is chosen.
-     */
-    /**
      * The online player a canonical name belongs to, or null when nobody here answers
      * to it.
      *
-     * The inverse of [resolveCanonicalName], and it has to be: a name that went out
-     * through that method is the only kind that comes back. Matching the raw profile
-     * name instead misses every Floodgate player, whose profile carries a prefix the
-     * canonical form does not — and the miss is silent, because a speaker with no body
-     * here is a normal thing that falls back to a fixed position.
-     *
-     * The alias is accepted too, for a linked player known to the far side by their
-     * Xbox gamertag while this server calls them by their Java account.
+     * The inverse of [resolveCanonicalName]: a name that went out through that method is
+     * the only kind that comes back. A Java name is accepted too, because other mods
+     * name a Floodgate player by it. An exact gamertag wins over a Java name, so a linked
+     * player whose Java name is someone else's gamertag never takes that player's audio.
      */
     fun findByIdentity(name: String): ServerPlayer? {
         val srv = server ?: return null
 
-        return srv.playerList.players.firstOrNull { player ->
-            val identity = resolveIdentity(player)
-            identity.name.equals(name, ignoreCase = true) ||
-                identity.alternative?.equals(name, ignoreCase = true) == true
-        }
+        return resolver.bestMatch(name, srv.playerList.players.map { it to resolveIdentity(it) })
     }
 
-    fun resolveMembershipKeys(player: ServerPlayer): List<String> {
-        val identity = resolveIdentity(player)
-        val game = getGameType()
+    /**
+     * The key the BVC server indexes this player under, as `game:gamertag`.
+     *
+     * Anything asking the server about a player wants this; anything naming a player to
+     * another player wants [resolveCanonicalName]. One key: the BVC client always signs in
+     * with the Xbox gamertag, so the server holds a Floodgate player under it alone.
+     */
+    fun resolveMembershipKeys(player: ServerPlayer): List<String> =
+        listOf(getGameType().membershipKey(resolveIdentity(player).name))
 
-        return listOfNotNull(identity.name, identity.alternative)
-            .distinct()
-            .map(game::membershipKey)
-    }
-
-    private data class Identity(val name: String, val alternative: String?)
-
-    private fun resolveIdentity(player: ServerPlayer): Identity {
-        val javaName = player.name.string
-        val canonical = xboxGamertagOf(player.getUUID())
-        val identity = when {
-            canonical == null -> Identity(javaName, null)
-            javaName == canonical -> Identity(javaName, null)
-            // Floodgate prefix is applied to this player — strip it so they register under their canonical Xbox gamertag
-            javaName.endsWith(canonical) -> Identity(canonical, null)
-            // Linked Bedrock player with a different Java account name — keep the Java identity, expose canonical as alias
-            else -> Identity(javaName, canonical)
-        }
-        val logKey = "${player.getUUID()}|$javaName|$canonical"
-        if (loggedIdentities.add(logKey)) {
-            log.info(
-                "Identity resolution: uuid={}, javaName='{}', canonical='{}' -> name='{}', alt='{}'",
-                player.getUUID(), javaName, canonical, identity.name, identity.alternative
-            )
-        }
-        return identity
-    }
+    private fun resolveIdentity(player: ServerPlayer): PlayerIdentity =
+        resolver.resolve(player.getUUID(), player.name.string)
 
     override fun getGameType(): GameType = GameType.MINECRAFT
 
