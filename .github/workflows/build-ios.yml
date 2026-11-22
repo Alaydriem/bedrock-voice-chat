@@ -48,13 +48,31 @@ on:
 jobs:
   build-ios:
     name: Build iOS (${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }})
-    runs-on: macos-26
+    # App Store submissions require the iOS 27 SDK. GitHub ships Xcode 27 only on its own
+    # image (macOS 27, arm64), labelled by Xcode major version: macos-26 tops out at Xcode 26.x.
+    runs-on: xcode-27
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
+
+      # Fails before the build rather than after an App Store rejection, if the runner image
+      # ever selects an older Xcode by default.
+      - name: Verify iOS SDK
+        id: sdk
+        run: |
+          xcodebuild -version
+          SDK_VERSION=$(xcrun --sdk iphoneos --show-sdk-version)
+          XCODE_VERSION=$(xcodebuild -version | head -n1 | awk '{print $2}')
+          echo "iOS SDK: $SDK_VERSION"
+          echo "sdk_version=$SDK_VERSION" >> "$GITHUB_OUTPUT"
+          echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
+          if [ "${SDK_VERSION%%.*}" -lt 27 ]; then
+            echo "::error::iOS SDK $SDK_VERSION is older than the required iOS 27 SDK"
+            exit 1
+          fi
 
       - name: Patch version files
         if: inputs.version != ''
@@ -352,6 +370,8 @@ jobs:
             echo "| Build Mode | $BUILD_MODE |"
             echo "| Trigger | ${{ github.event_name }} |"
             echo "| Target | aarch64-apple-ios |"
+            echo "| Xcode | ${{ steps.sdk.outputs.xcode_version }} |"
+            echo "| iOS SDK | ${{ steps.sdk.outputs.sdk_version }} |"
             echo "| Signed | ${{ inputs.build_mode == 'release' && github.event_name != 'pull_request' }} |"
             echo "| TestFlight Upload | ${{ inputs.testflight_upload || false }} |"
           } >> $GITHUB_STEP_SUMMARY

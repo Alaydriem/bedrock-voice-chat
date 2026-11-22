@@ -7,8 +7,8 @@ use crate::config::{Acme, AcmeProviderKind, ApplicationConfig};
 // own leaf, and `AcmeService`, which orders the public certificate.
 //
 // The certificate order list is set explicitly rather than left to the fallback.
-// `effective_domains` falls back to the DNS entries of `tls.names`, which carries
-// `localhost` by default — not parseable as an IP, so it survives the filter, enters
+// `effective_domains` falls back to the DNS entries of `tls.names`, which may carry an
+// operator's `localhost` — not parseable as an IP, so it survives the filter, enters
 // the order, and fails the whole issuance.
 pub struct EnrollmentStep;
 
