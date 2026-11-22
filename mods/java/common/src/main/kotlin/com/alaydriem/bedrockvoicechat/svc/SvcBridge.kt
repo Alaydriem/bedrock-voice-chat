@@ -7,6 +7,7 @@ import de.maxhenkel.voicechat.api.events.EventRegistration
 import de.maxhenkel.voicechat.api.events.MicrophonePacketEvent
 import de.maxhenkel.voicechat.api.events.VoicechatServerStartedEvent
 import org.slf4j.LoggerFactory
+import java.util.UUID
 
 /**
  * The bridge, as Simple Voice Chat sees it.
@@ -21,7 +22,8 @@ import org.slf4j.LoggerFactory
 class SvcBridge(
     private val outbound: OutboundTranslator,
     private val onFrame: (uniffi.bvc_relay_sdk.SdkFrame) -> Unit,
-    private val onServerApi: (VoicechatServerApi) -> Unit
+    private val onServerApi: (VoicechatServerApi) -> Unit,
+    private val hasLiveBvcClient: (UUID) -> Boolean
 ) : VoicechatPlugin {
 
     override fun getPluginId(): String = PLUGIN_ID
@@ -58,6 +60,12 @@ class SvcBridge(
         val speaker = sender.player?.uuid ?: return
 
         if (!SvcGroupGate.bridges(sender.group)) {
+            return
+        }
+
+        // Their BVC client already carries this voice, and the BVC server refuses a
+        // peer frame that names one of its own connected players.
+        if (hasLiveBvcClient(speaker)) {
             return
         }
 
