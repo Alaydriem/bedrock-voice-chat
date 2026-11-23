@@ -3,6 +3,7 @@ package com.alaydriem.bedrockvoicechat.svc.link
 import com.alaydriem.bedrockvoicechat.control.GroupLinkApi
 import com.alaydriem.bedrockvoicechat.control.GroupLinkDrainJson
 import com.alaydriem.bedrockvoicechat.control.LinkedChannelJson
+import java.util.UUID
 
 /** BVC's channel state in memory. Calls change state only; events are driven by the test. */
 class FakeGroupLinkApi : GroupLinkApi {
@@ -37,7 +38,7 @@ class FakeGroupLinkApi : GroupLinkApi {
         return true
     }
 
-    override fun join(player: String, channel: String): Boolean {
+    override fun join(player: String, uuid: UUID?, channel: String): Boolean {
         calls.add("join:$player:$channel")
         if (failJoins) return false
         channels.replaceAll { id, c ->
@@ -49,7 +50,7 @@ class FakeGroupLinkApi : GroupLinkApi {
         return true
     }
 
-    override fun leave(player: String): Boolean {
+    override fun leave(player: String, uuid: UUID?): Boolean {
         calls.add("leave:$player")
         channels.replaceAll { _, c -> c.copy(players = c.players - player) }
         return true

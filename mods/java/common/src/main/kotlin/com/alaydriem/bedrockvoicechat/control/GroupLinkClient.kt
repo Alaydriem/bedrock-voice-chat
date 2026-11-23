@@ -5,6 +5,7 @@ import com.alaydriem.bedrockvoicechat.server.BvcServerManager
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import org.slf4j.LoggerFactory
+import java.util.UUID
 
 /**
  * Routes group link calls to the embedded server over FFI or to an external one over HTTP, the
@@ -72,10 +73,11 @@ class GroupLinkClient(
 
     override fun lease(channels: List<String>): Boolean = action(leaseJson(channels))?.ok == true
 
-    override fun join(player: String, channel: String): Boolean =
-        control(ControlAction.JoinGroup(channel).toClientActionJson(player))
+    override fun join(player: String, uuid: UUID?, channel: String): Boolean =
+        control(ControlAction.JoinGroup(channel).toClientActionJson(player, uuid))
 
-    override fun leave(player: String): Boolean = control(ControlAction.LeaveGroup.toClientActionJson(player))
+    override fun leave(player: String, uuid: UUID?): Boolean =
+        control(ControlAction.LeaveGroup.toClientActionJson(player, uuid))
 
     // Blocking on both transports, so a leave and the join after it reach BVC in that order. An
     // outcome means the action was handed on or refused for a protected group, not applied.

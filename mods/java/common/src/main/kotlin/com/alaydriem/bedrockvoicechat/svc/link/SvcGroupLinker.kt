@@ -441,7 +441,7 @@ class SvcGroupLinker(
     // BVC's events, so the event cannot be seen before it; and a call that failed fires no event,
     // so an expectation for it would wait to absorb a real one.
     private fun joinBvc(name: String, channel: String) {
-        if (bvc.join(name, channel)) {
+        if (bvc.join(name, playerOf(name), channel)) {
             joinedHere.add(name)
             echo.expect("bvc:join:$name:$channel")
         } else {
@@ -450,7 +450,7 @@ class SvcGroupLinker(
     }
 
     private fun leaveBvc(name: String) {
-        if (bvc.leave(name)) {
+        if (bvc.leave(name, playerOf(name))) {
             joinedHere.remove(name)
             echo.expect("bvc:leave:$name")
         } else {

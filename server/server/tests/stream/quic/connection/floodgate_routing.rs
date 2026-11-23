@@ -54,7 +54,7 @@ impl RoutingGate {
         };
         let position = (*position).clone();
         let packet = RoutingFixture::audio_packet(position.clone(), speaker);
-        reg.route_audio_frame(&packet, Some(&position), cache, RANGE, WHISPER)
+        reg.route_audio_frame(&packet, Some(&position), None, cache, RANGE, WHISPER)
             .await;
 
         let mut delivered = Vec::new();
