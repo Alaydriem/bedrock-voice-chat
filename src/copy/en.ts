@@ -30,7 +30,7 @@ export const en = {
   meta: {
     title: 'Bedrock Voice Chat · proximity voice for Minecraft Bedrock',
     description:
-      'Positional, encrypted, self-hosted voice chat for Minecraft Bedrock and Java. Windows, macOS, Linux, Android and iOS. Console players join from the mobile app.',
+      'Positional, encrypted, self-hosted voice chat for Minecraft Bedrock and Java. Windows, macOS, Linux, Android and iOS; Xbox, Nintendo Switch, PS5, and Mobile',
   },
 
   common: {
@@ -58,7 +58,7 @@ export const en = {
     tracks: {
       player: {
         heading: { lead: 'Walk up to someone.', strong: "You're already talking." },
-        lead: "There's no call to join and no key to hold. You talk, and whoever is close enough hears you. Walk off mid-sentence and your voice fades out, the same way it would anywhere else.",
+        lead: "Full proximity voice chat for Minecraft Bedrock and Java edition. Simply walk up to a player and hear them talking with full proximity audio.",
         cta: { label: 'Download for Windows', href: '#download' },
       },
       operator: {
@@ -67,14 +67,14 @@ export const en = {
         cta: { label: 'Read the install guide', href: '/wiki/server/installation/' },
       },
       creator: {
-        heading: { lead: 'Every voice lands on', strong: 'its own track.' },
-        lead: 'Record a session and you get one timecoded track per player. Sort the levels out afterwards instead of hoping they were right at the time. A Discord call with Craig gives you a single mixed track and no way back.',
+        heading: { lead: 'Powerful', strong: 'creator tools.' },
+        lead: 'Route audio to specific output devices, and record every player to their own recorded track with timecode support so you can edit and stitch footage and voice chat data together in your editor later.',
         cta: { label: 'See the creator tools', href: '#creators' },
       },
     },
     demoCta: { label: 'Try the demo server', href: '#ladder' },
     creatorAside:
-      "Multitrack recording is in every build, including the free self-hosted one. There's no creator tier to buy.",
+      "",
   },
 
   switcher: {
@@ -88,7 +88,7 @@ export const en = {
   },
 
   consoleClaim: {
-    eyebrow: 'The part no Java mod can do',
+    eyebrow: 'Talk with everyone. Everywhere',
     heading: { before: 'Your friend on', after: 'is in the conversation.' },
     body: "Bedrock Voice Chat supports every platform that runs Minecraft Bedrock via the companion app that runs on PC, Mac, Linux, iOS, and Android. Console players use the mobile app, and everyone can manage their audio settings from within Minecraft. No tabbing between windows or apps, and no one is left out.",
   },
@@ -102,6 +102,7 @@ export const en = {
         'Bedrock Dedicated Server, Aternos, and any host you control',
         'Realms works through the client.',
         'Java: Fabric and Paper, from Modrinth',
+        'PowerNukkitX',
         'Self-hosted and source available.',
       ],
       captionKey: '',
@@ -112,25 +113,27 @@ export const en = {
     proximity: {
       eyebrow: 'Proximity',
       heading: { lead: 'You get louder by ', strong: 'walking closer.' },
-      body: 'Volume drops off along a curve you configure, so nobody snaps in and out at a hard edge. Whisper to the person beside you, shout across a build site, or watch a whole base as a spectator without anyone hearing you.',
+      body: 'Whisper to the person beside you, shout across a build site, or watch a whole base as a spectator without anyone hearing you.',
       facts: [
         'Configurable range and falloff curve, per server',
         'Crouch to enter whisper mode for close range only',
         'Spectator mode hears everything nearby, is heard by nobody'
       ],
       captionKey: 'Your range',
-      captionValue: '24 M · 3 IN RANGE',
+      captionValue: '48 M · 3 IN RANGE',
       vizLabel:
         'A radial showing three speakers at different distances, each returning a coloured ping',
     },
     channels: {
       eyebrow: 'Channels',
       heading: { lead: 'Split off into', strong: 'your own channel.' },
-      body: "Taking on a trial chamber or the deep dark? Coordinating a build? Create a channel for you and your team to talk in, and nobody else can hear you, but you can still hear the world around you. Channels are persistent, so you can leave and come back without losing your place.",
+      body: "Taking on a trial chamber? Sneaking through the deep dark? Coordinating a build? Create a channel for you and your team to talk in to extend your range beyond proximity and keep your group together.",
       facts: [
         'Persistent groups that survive relogs',
         'Per-player volume from 0 to 150%',
         'Mute and deafen without leaving',
+        'Compatible with Simple Voice Chat',
+        'Fully encrypted and private groups'
       ],
       captionKey: 'Channel',
       captionValue: 'FULL VOLUME · ANY DISTANCE',
@@ -153,7 +156,7 @@ export const en = {
   },
 
   proximityStats: [
-    { value: '24 Blocks', label: 'Default range, configurable per server' },
+    { value: '48 Blocks', label: 'Default range, configurable per server' },
     { value: '0–150%', label: 'Per-player volume, set by each listener' },
     { value: 'Whisper', label: 'Short-range mode for close conversation' },
     { value: 'Spectator', label: 'Hears everything, is heard by nobody' },
@@ -180,17 +183,17 @@ export const en = {
   comparison: {
     eyebrow: '',
     heading: { lead: 'Why not', strong: 'use Discord?' },
-    lead: "Bedrock Voice Chat is designed for Minecraft, and does things no other call app can do.",
+    lead: "",
     capabilityColumn: 'Capability',
     columns: ['BVC', 'Discord call', 'Simple Voice Chat'],
     rows: [
       {
         capability: 'Voice positioned in the world',
-        note: 'Volume follows how far apart the two of you are standing.',
+        note: 'Volume follows how far apart you and your friends are standing.',
       },
       {
         capability: 'Works on Bedrock',
-        note: 'Simple Voice Chat is Java only. Discord works, but it sits alongside the game.',
+        note: 'Simple Voice Chat is Java only',
       },
       {
         capability: 'Console players included',
@@ -208,7 +211,7 @@ export const en = {
   },
 
   ladder: {
-    eyebrow: 'Three ways in',
+    eyebrow: 'Try it out',
     heading: { lead: 'Three ways', strong: 'to start.' },
     rungs: [
       {
@@ -221,20 +224,20 @@ export const en = {
       {
         label: 'Run it yourself',
         title: 'Your own server',
-        body: "One addon on the world, one server binary, one config file. It's free and it's yours. No seat count, no per-player billing, and no account system to sign anyone up for.",
+        body: "Run your own BVC instance alongside your server",
         meta: 'Free · self-hosted',
         cta: { label: 'Install guide', href: '/wiki/' },
       },
       {
-        label: 'Become a Member',
-        title: 'Patreon and Youtube Members Server',
-        body: "Become a member and link your current world to a members server, included with your membership.",
-        meta: 'Coming Soon',
-        cta: { label: 'See tiers', href: 'https://www.patreon.com/c/Alaydriem', external: true },
+        label: 'Need a Server?',
+        title: 'Create a Nodecraft Server',
+        body: "Need a Minecraft Server? Don't know where to start? Run BVC on Nodecraft, and get 30% off your first month of hosting.",
+        meta: '30% First Month of Bedrock Server Hosting',
+        cta: { label: 'Get the Deal', href: 'https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/', external: true },
       },
       {
         label: 'Your Own Hosted Instance',
-        title: 'Private Servers',
+        title: 'Patreon / Private Servers',
         body: "Need your own dedicated server for a large group or event? This tier will give you a private instance of the server with dedicated resources and support.",
         meta: 'Coming Soon',
         cta: { label: 'See tiers', href: '#' },
@@ -248,7 +251,6 @@ export const en = {
     getLabel: 'Get it',
     specs: [
       'Encrypted with QUIC and mutual TLS',
-      '41 ms typical end-to-end latency',
       'Opus codec, tuned for voice at low bitrate',
     ],
     note: 'On Xbox, PlayStation or Switch? Install the mobile app on your phone and sign in with the same account.',
@@ -276,7 +278,6 @@ export const en = {
         os: 'macOS',
         note: 'TestFlight',
         channel: 'testflight',
-        // One TestFlight build covers both macOS and iOS.
         href: 'https://testflight.apple.com/join/JSG7bVqC',
       },
       {
@@ -301,8 +302,6 @@ export const en = {
         href: 'https://testflight.apple.com/join/JSG7bVqC',
       },
     ],
-    // One card per download, not one per platform. Fabric and Paper were two
-    // cards pointing at the same Modrinth page, which reads as two downloads.
     server: [
       {
         id: 'bds',
@@ -313,10 +312,9 @@ export const en = {
       },
       {
         id: 'realms',
-        os: 'Realms & Aternos',
+        os: 'Realms',
         note: 'CurseForge',
         channel: 'stable',
-        // The no-net variant, for any host without @minecraft/server-net.
         href: 'https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat-for-realms',
       },
       {
@@ -353,11 +351,9 @@ export const en = {
         time: '~1 min',
       },
     ],
-    note: "Not the person who runs your server? Send them this section. That's the whole job.",
+    note: "Not the person who runs your server? Send them this section",
     actions: {
       guide: { label: 'Read the install guide', href: '/wiki/server/installation/' },
-      // Every CurseForge project on one page, because this one button stands
-      // for both the Bedrock addon and the Realms/no-net variant.
       bedrock: {
         label: 'Bedrock addon',
         href: 'https://www.curseforge.com/members/alaydriem/projects',
@@ -411,51 +407,39 @@ export const en = {
 
   faq: {
     eyebrow: 'Questions',
-    heading: { lead: 'The things', strong: 'people ask first.' },
+    heading: { lead: 'Frequently Asked', strong: 'Questions' },
     entries: [
       {
-        q: 'Do I need to run a server?',
-        a: "Someone does, but it doesn't have to be you. If your server already runs BVC you only need the client. If nobody runs it, the install is one addon plus one docker command and takes about five minutes.",
-        link: { label: 'Install guide', href: '/wiki/server/installation/' },
-      },
-      {
         q: 'Is it free?',
-        a: 'Yes. Self-hosting is free, with no seat count and no per-player billing. Nothing is held back behind a paid tier either, so multitrack recording is in every build. The Patreon tier is only there if you would sooner not host anything and want a seat on a server that is already up.',
+        a: 'Bedrock Voice Chat is free. The desktop and mobile apps, and server can all be freely installed for your communities for free, and the server can run alongside your existing BDS instance. If you\'re using realms, you\'ll need to run BVC server somewhere.',
       },
       {
-        q: 'My friend plays on Xbox / PlayStation / Switch. Can they use it?',
-        a: 'Yes, and this is the part no Java-only mod can do. They run the mobile app next to the console and sign in with the same account, then join their server.',
-        link: { label: 'Console and mobile', href: '/wiki/' },
+        q: 'Does it run on Aternos?',
+        a: 'Yes, when paired with BVC server',
+        link: { label: 'Aternos Install Guide', href: 'https://www.bedrockvoicechat.com/wiki/platforms/aternos/' },
       },
       {
         q: 'Does it work on Realms?',
         a: "Yes. Realms is supported by the no-net addon. Run BVC Server, and connect to your Realm from the app.",
       },
       {
-        q: 'Does it work on Aternos and other hosts?',
-        a: 'Yes. Aternos is supported by the no-net addon. Run BVC Server, and connect to your server from the app.',
+        q: 'Does it work with crossplay (Geyser, Floodgate, SVC)?',
+        a: 'Yes. Geyser and Floodgate configurations are supported. Bedrock Voice Chat also pairs seamlessly with Simple Voice Chat allowing SVC users to talk with crossplay bedrock users with no change for Java players',
+        link: { label: 'Java Integrations', href: '/wiki/server/java-mod/integrations/' },
+      },
+      {
+        q: 'Do I need to run a server?',
+        a: "Yes. Bedrock Voice Chat server is an essential component of BVC that enables voice chat to work. Setup takes less than 5 minutes.",
+        link: { label: 'Install guide', href: '/wiki/server/installation/' },
+      },
+      {
+        q: 'My friend plays on Xbox / PlayStation / Switch. Can they use it?',
+        a: 'Yes, mobile and console users experience voice chat through the mobile app. Login to the mobile app using your Microsoft account, start Bedrock Voice Chat Connect, then join your server through the LAN world that appears on the Worlds tab.',
+        link: { label: 'Console and mobile', href: '/wiki/' },
       },
       {
         q: 'Do you record or store my voice?',
         a: 'No. The server never captures audio on its own, and there is no moderation feature listening for you. Recording is something a person starts, and it stays visible while it runs. On a self-hosted install the audio never reaches us at all.',
-      },
-      {
-        q: 'Does it work with Java?',
-        a: 'Yes, on Fabric and Paper, from Modrinth.',
-        link: {
-          label: 'Get the Java plugin',
-          href: 'https://modrinth.com/mod/bedrock-voice-chat',
-          external: true,
-        },
-      },
-      {
-        q: 'Is Geyser / Floodgate supported?',
-        a: 'Yes, on Fabric and Paper, from Modrinth. Bedrock Voice Chat runs on both Bedrock and Java servers. And everyone can talk to each other.',
-        link: {
-          label: 'Get the Java plugin',
-          href: 'https://modrinth.com/mod/bedrock-voice-chat',
-          external: true,
-        },
       },
       {
         q: 'Do my players need to create an account?',
