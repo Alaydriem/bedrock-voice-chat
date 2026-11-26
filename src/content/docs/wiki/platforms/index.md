@@ -21,9 +21,10 @@ Worlds that the Minecraft game client hosts are **not** supported. These are LAN
 | **Geyser / Floodgate** | Yes | The Java mod. The mod detects Floodgate automatically. No BVC settings for Geyser. [Details](/wiki/server/java-mod/integrations/geyser-and-floodgate/). |
 | **Realms** | Yes | The [no-net Addon](/wiki/server/nonet-addon/) and Bedrock Voice Chat Connect in the app. [Details](/wiki/platforms/realms/). |
 | **Nodecraft** | Yes | A Pro server. [Details](/wiki/platforms/nodecraft/). |
-| **Aternos and other no-net hosts** | Yes | The no-net Addon and Bedrock Voice Chat Connect. [Details](/wiki/platforms/aternos/). |
+| **Aternos** | Yes | The [Addon](/wiki/server/bedrock-addon/). [Details](/wiki/platforms/aternos/). |
+| **Other hosts without `@minecraft/server-net`** | Yes | The no-net Addon and Bedrock Voice Chat Connect. [Details](/wiki/platforms/no-net-hosts/). |
 | **Consoles** | Yes | The mobile app on a phone or tablet. [Details](/wiki/platforms/console-and-mobile/). |
 | **LAN worlds** | No | There is no server to install the Addon on. See [LAN and local worlds](/wiki/platforms/lan-and-local-worlds/). |
 | **Locally hosted / single-player worlds** | No | There is no server to install the Addon on. See [LAN and local worlds](/wiki/platforms/lan-and-local-worlds/). |
 
-See [version support](/wiki/platforms/version-support/) for the Bedrock versions that BVC supports on Realms and Aternos.
+See [version support](/wiki/platforms/version-support/) for the Bedrock versions that BVC supports on Realms and other hosts that use the no-net Addon.

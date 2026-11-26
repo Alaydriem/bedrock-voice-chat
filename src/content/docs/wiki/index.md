@@ -15,7 +15,7 @@ All three components are **mandatory**. If one component is missing, Bedrock Voi
 
 | Component | Installed by | Purpose |
 |---|---|---|
-| **Addon or mod** | Server operator | The Bedrock Addon (Bedrock Dedicated Server), the no-net Addon (Realms, Aternos and other hosts that do not allow Addons to use the network), or the Fabric or Paper mod (Java). It sends player positions to the BVC server. |
+| **Addon or mod** | Server operator | The Bedrock Addon (Bedrock Dedicated Server and Aternos), the no-net Addon (Realms and other hosts that do not allow Addons to use the network), or the Fabric or Paper mod (Java). It sends player positions to the BVC server. |
 | **BVC server** | Server operator | A separate program that sends voice between players. It runs separately from your Minecraft server. |
 | **Client app** | Every player | The BVC app for Windows, macOS, Linux, iOS and Android. Players use it to join a BVC server and talk to other players. |
 

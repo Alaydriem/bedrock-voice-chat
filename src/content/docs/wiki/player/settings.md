@@ -106,6 +106,6 @@ Under **Minecraft Bedrock**:
 
 | Page | Contents |
 |---|---|
-| Voice Chat Connect | Connect to a Realm, or to Aternos and other hosts that use the no-net Addon. Select the world from the list. See [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/). |
+| Voice Chat Connect | Connect to a Realm, or to another host that uses the no-net Addon. Select the world from the list. See [Realms](/wiki/platforms/realms/) and [hosts without server-net](/wiki/platforms/no-net-hosts/). |
 
 Recordings and Keybinds are available only on desktop.

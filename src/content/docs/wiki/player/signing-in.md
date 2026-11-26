@@ -17,7 +17,7 @@ The servers that you connect to store your gamertag and profile picture. Bedrock
 Join your Minecraft server in game before you sign in to Bedrock Voice Chat. BVC lets you sign in after the Minecraft server sends you to BVC.
 
 :::caution
-If you play on a Realm, or on Aternos with the no-net Addon, your server operator **MUST** add you on the BVC server **FIRST**. Then you can sign in.
+If you play on a Realm, or on another host with the no-net Addon, your server operator **MUST** add you on the BVC server **FIRST**. Then you can sign in.
 :::
 
 ## Your server URL

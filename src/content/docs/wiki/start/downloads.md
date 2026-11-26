@@ -37,8 +37,8 @@ See [Installing the BVC server](/wiki/server/installation/).
 
 | Type | Where |
 |---|---|
-| Bedrock Addon | For Bedrock Dedicated Server. [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) (releases with a tag that starts with `mods-`) or [CurseForge](https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat). |
-| Realms / no-net Addon | For Realms, Aternos and other hosts that do not allow the `@minecraft/server-net` module. [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) (releases with a tag that starts with `mods-`) or [CurseForge](https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat-for-realms). |
+| Bedrock Addon | For Bedrock Dedicated Server and Aternos. [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) (releases with a tag that starts with `mods-`) or [CurseForge](https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat). |
+| Realms / no-net Addon | For Realms and other hosts that do not allow the `@minecraft/server-net` module. [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) (releases with a tag that starts with `mods-`) or [CurseForge](https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat-for-realms). |
 | Fabric and PaperMC | [Modrinth](https://modrinth.com/mod/bedrock-voice-chat). |
 
 :::tip

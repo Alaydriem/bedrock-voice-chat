@@ -149,10 +149,11 @@ export default defineConfig({
             'wiki/platforms',
             'wiki/platforms/version-support',
             'wiki/platforms/realms',
-            'wiki/platforms/aternos',
+            'wiki/platforms/no-net-hosts',
             {
               label: 'Hosting providers',
               items: [
+                'wiki/platforms/aternos',
                 { label: 'Nodecraft', items: [{ autogenerate: { directory: 'wiki/platforms/nodecraft' } }] },
               ],
             },
