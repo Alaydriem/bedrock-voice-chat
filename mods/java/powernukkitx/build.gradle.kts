@@ -13,6 +13,8 @@ repositories {
     maven {
         name = "PowerNukkitX"
         url = uri("https://repo.powernukkitx.org/releases")
+        // Asked for PowerNukkitX alone, so an outage there stalls nothing else.
+        content { includeGroupByRegex("org\\.powernukkitx(\\..*)?") }
     }
     // PowerNukkitX's own dependencies (netty-transport-nethernet,
     // netty-external-signaling, libdatachannel) are published only here.
@@ -24,15 +26,44 @@ repositories {
 
 val pnxVersion = "3.0.6-SNAPSHOT"
 
+// The PowerNukkitX GitHub release jar, for when repo.powernukkitx.org is unreachable.
+// It bundles every library PowerNukkitX uses, so only the tests run against it.
+val pnxReleaseJar: String? = providers.gradleProperty("pnxReleaseJar").orNull
+
+// What compile sees of the release jar: PowerNukkitX's own classes and its protocol fork
+// (`org.cloudburstmc.protocol`, published only on that repository), and none of the
+// libraries bundled beside them.
+val pnxThinJar = tasks.register<Jar>("pnxThinJar") {
+    onlyIf { pnxReleaseJar != null }
+    pnxReleaseJar?.let { release ->
+        from(zipTree(release)) {
+            include("org/powernukkitx/**", "org/cloudburstmc/protocol/**")
+        }
+    }
+    destinationDirectory.set(layout.buildDirectory.dir("pnx"))
+    archiveFileName.set("powernukkitx-thin.jar")
+}
+
 dependencies {
     // PowerNukkitX supplies its API, gson, slf4j, snakeyaml and JNA at runtime.
-    compileOnly("org.powernukkitx:server:$pnxVersion")
+    if (pnxReleaseJar == null) {
+        compileOnly("org.powernukkitx:server:$pnxVersion")
+    } else {
+        compileOnly(files(pnxThinJar))
+        // The release jar carries no POM to bring slf4j onto the compile classpath.
+        compileOnly("org.slf4j:slf4j-api:2.0.9")
+    }
 
     implementation(project(":common"))
 
     // The tests mock PowerNukkitX types, so the server has to be on the test
     // runtime classpath as well; compileOnly is not.
-    testImplementation("org.powernukkitx:server:$pnxVersion")
+    if (pnxReleaseJar == null) {
+        testImplementation("org.powernukkitx:server:$pnxVersion")
+    } else {
+        testCompileOnly(files(pnxThinJar))
+        testRuntimeOnly(files(pnxReleaseJar))
+    }
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.0")
     testImplementation("org.mockito:mockito-core:5.24.0")

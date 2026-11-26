@@ -145,6 +145,21 @@ jobs:
           echo "build-version=$BUILD_VERSION" >> $GITHUB_OUTPUT
           echo "artifact-name=bedrock-voice-chat-powernukkitx-$VERSION" >> $GITHUB_OUTPUT
 
+      # The server jar comes from the PowerNukkitX GitHub release rather than
+      # repo.powernukkitx.org, whose outages failed this build. Gradle compiles
+      # against the PowerNukkitX classes cut from it and runs the tests on the whole
+      # jar; the plugin bundles none of it. The digest pins the exact release asset.
+      - name: Download the PowerNukkitX server jar
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PNX_TAG: '3.0.6'
+          PNX_SHA256: '10822d818c1f2c7d423092a235f3f04bd0eb915b2298b204ed1697d7a0dd9539'
+        run: |
+          mkdir -p "$RUNNER_TEMP/pnx"
+          gh release download "$PNX_TAG" -R PowerNukkitX/PowerNukkitX -p powernukkitx.jar -D "$RUNNER_TEMP/pnx"
+          echo "$PNX_SHA256  $RUNNER_TEMP/pnx/powernukkitx.jar" | sha256sum -c -
+          echo "PNX_RELEASE_JAR=$RUNNER_TEMP/pnx/powernukkitx.jar" >> "$GITHUB_ENV"
+
       # The skinny jar is built first and packages no native library, but the
       # libraries downloaded above must still be present: the manifest pins their
       # digests, and a manifest generated without them would describe nothing the
@@ -154,6 +169,7 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew :powernukkitx:build --no-daemon \
+            -PpnxReleaseJar="$PNX_RELEASE_JAR" \
             -PmodVersion=${{ steps.mod-version.outputs.build-version }} \
             -PnativeRelease=mods-v${{ steps.mod-version.outputs.version }} \
             -PnativeRepo=${{ github.repository }}
@@ -174,6 +190,7 @@ jobs:
         working-directory: ./mods/java
         run: |
           ./gradlew :powernukkitx:shadowJar --no-daemon -Pbundled \
+            -PpnxReleaseJar="$PNX_RELEASE_JAR" \
             -PmodVersion=${{ steps.mod-version.outputs.build-version }} \
             -PnativeRelease=mods-v${{ steps.mod-version.outputs.version }} \
             -PnativeRepo=${{ github.repository }}
