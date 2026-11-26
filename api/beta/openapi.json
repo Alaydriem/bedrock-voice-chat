@@ -10,70 +10,6 @@
     "version": "1.0.0-beta.27"
   },
   "paths": {
-    "/api/websocket/ticket": {
-      "post": {
-        "tags": [
-          "WebSocket"
-        ],
-        "description": "Exchanges the caller's mTLS identity for a single-use WebSocket ticket.\n\nA browser cannot present a client certificate or set headers when opening a socket, so identity is established here -- over the same mTLS every other route uses -- and spent once at upgrade time.",
-        "operationId": "ticket_ticket",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WebsocketTicketResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
-    },
-    "/api/telemetry/host-capability": {
-      "post": {
-        "tags": [
-          "Telemetry"
-        ],
-        "description": "Report whether this Minecraft host could fetch and write a native library.\n\nAnswers one question: what share of hosts could run the skinny mod jar, which resolves its native library at runtime instead of carrying every platform. Both jars report it, so the two populations are comparable.\n\nThe body carries no hostname, address, path, or player data — only the mod version, the loader and mode, and for a Java mod the jar variant, the platform and the two outcomes. A BDS add-on has no jar and omits those four. Anything outside the known vocabulary is refused rather than forwarded, because this arrives from a third-party jar and would otherwise put unbounded strings into the metrics pipeline.",
-        "operationId": "host_capability",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {}
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "nullable": true
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "GameAccessToken": []
-          }
-        ]
-      }
-    },
     "/api/position": {
       "get": {
         "tags": [
@@ -170,6 +106,152 @@
         "security": [
           {
             "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "description": "Return the configuration a client needs before connecting.\n\nUnauthenticated, and the usual way to confirm a server is reachable and its TLS is valid.",
+        "operationId": "get_config",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/worlds": {
+      "get": {
+        "tags": [
+          "Chat"
+        ],
+        "description": "Worlds this player has been seen in, newest first.\n\n`active` and `available` are independent, and the composer has to tell them apart: a world can be hosting players with its chat channel down, which reads very differently from a world nobody is in.",
+        "operationId": "worlds",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatWorld"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/websocket/ticket": {
+      "post": {
+        "tags": [
+          "WebSocket"
+        ],
+        "description": "Exchanges the caller's mTLS identity for a single-use WebSocket ticket.\n\nA browser cannot present a client certificate or set headers when opening a socket, so identity is established here -- over the same mTLS every other route uses -- and spent once at upgrade time.",
+        "operationId": "ticket_ticket",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebsocketTicketResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "PlayerGuard": []
+          }
+        ]
+      }
+    },
+    "/api/telemetry/host-capability": {
+      "post": {
+        "tags": [
+          "Telemetry"
+        ],
+        "description": "Report whether this Minecraft host could fetch and write a native library.\n\nAnswers one question: what share of hosts could run the skinny mod jar, which resolves its native library at runtime instead of carrying every platform. Both jars report it, so the two populations are comparable.\n\nThe body carries no hostname, address, path, or player data — only the mod version, the loader and mode, and for a Java mod the jar variant, the platform and the two outcomes. A BDS add-on has no jar and omits those four. Anything outside the known vocabulary is refused rather than forwarded, because this arrives from a third-party jar and would otherwise put unbounded strings into the metrics pipeline.",
+        "operationId": "host_capability",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/clients/live": {
+      "get": {
+        "tags": [
+          "Clients"
+        ],
+        "description": "The identities with a live voice connection to this server.\n\nAsked for by a mod that also delivers audio — the Simple Voice Chat bridge — so it can leave those players out of its own injection. A Java player running both SVC and the BVC desktop client would otherwise hear every remote speaker twice.\n\nEmpty is a real answer, not a failure: a server whose players have not opened a voice client suppresses nobody.",
+        "operationId": "live_clients",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
           }
         ]
       }
@@ -1199,13 +1281,88 @@
         ]
       }
     },
-    "/api/clients/live": {
+    "/api/group-link": {
+      "post": {
+        "tags": [
+          "GroupLink"
+        ],
+        "description": "Apply a group link change for the Simple Voice Chat bridge.\n\nReturns the new channel id for `CreateLinked`. A `Close` of a protected channel is refused.",
+        "operationId": "group_link_action",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupLinkAction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/group-link/events": {
       "get": {
         "tags": [
-          "Clients"
+          "GroupLink"
         ],
-        "description": "The identities with a live voice connection to this server.\n\nAsked for by a mod that also delivers audio — the Simple Voice Chat bridge — so it can leave those players out of its own injection. A Java player running both SVC and the BVC desktop client would otherwise hear every remote speaker twice.\n\nEmpty is a real answer, not a failure: a server whose players have not opened a voice client suppresses nobody.",
-        "operationId": "live_clients",
+        "description": "BVC channel changes after sequence number `after`.",
+        "operationId": "group_link_events",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupLinkDrain"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/group-link/channels": {
+      "get": {
+        "tags": [
+          "GroupLink"
+        ],
+        "description": "Every non-protected BVC channel, for the bridge's resync.",
+        "operationId": "group_link_channels",
         "responses": {
           "200": {
             "description": "",
@@ -1214,8 +1371,45 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "string"
+                    "$ref": "#/components/schemas/LinkedChannelView"
                   }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GameAccessToken": []
+          }
+        ]
+      }
+    },
+    "/api/control": {
+      "post": {
+        "tags": [
+          "Control"
+        ],
+        "description": "Submit a client action on behalf of an in-game player.\n\nSelf and preference actions are delivered ClientBound to the actor's own connection; group actions mutate the channel collection. The actor is the body `id`, which the mod attributes from the in-game player, and the access token gates the route so players cannot call it directly.\n\nReturns the new nanoid for CreateGroup.",
+        "operationId": "control",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true
                 }
               }
             }
@@ -1533,43 +1727,6 @@
         ]
       }
     },
-    "/api/control": {
-      "post": {
-        "tags": [
-          "Control"
-        ],
-        "description": "Submit a client action on behalf of an in-game player.\n\nSelf and preference actions are delivered ClientBound to the actor's own connection; group actions mutate the channel collection. The actor is the body `id`, which the mod attributes from the in-game player, and the access token gates the route so players cannot call it directly.\n\nReturns the new nanoid for CreateGroup.",
-        "operationId": "control",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ClientActionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "nullable": true
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "GameAccessToken": []
-          }
-        ]
-      }
-    },
     "/api/state": {
       "get": {
         "tags": [
@@ -1669,81 +1826,10 @@
           }
         ]
       }
-    },
-    "/api/config": {
-      "get": {
-        "tags": [
-          "Server"
-        ],
-        "description": "Return the configuration a client needs before connecting.\n\nUnauthenticated, and the usual way to confirm a server is reachable and its TLS is valid.",
-        "operationId": "get_config",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiConfigResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/chat/worlds": {
-      "get": {
-        "tags": [
-          "Chat"
-        ],
-        "description": "Worlds this player has been seen in, newest first.\n\n`active` and `available` are independent, and the composer has to tell them apart: a world can be hosting players with its chat channel down, which reads very differently from a world nobody is in.",
-        "operationId": "worlds",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ChatWorld"
-                  }
-                }
-              }
-            }
-          },
-          "default": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "PlayerGuard": []
-          }
-        ]
-      }
     }
   },
   "components": {
     "schemas": {
-      "WebsocketTicketResponse": {
-        "type": "object",
-        "required": [
-          "expires_in",
-          "ticket"
-        ],
-        "properties": {
-          "ticket": {
-            "type": "string"
-          },
-          "expires_in": {
-            "description": "Seconds until expiry, so the caller can decide whether to reuse a held ticket or fetch a fresh one before reconnecting.",
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          }
-        }
-      },
       "GameDataCollection": {
         "type": "object",
         "required": [
@@ -1951,6 +2037,376 @@
           "gamerpic": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "ApiConfigResponse": {
+        "type": "object",
+        "required": [
+          "client_id",
+          "protocol_version",
+          "quic_port",
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "protocol_version": {
+            "type": "string"
+          },
+          "quic_port": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "quic_ports": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "voice_websocket": {
+            "default": false,
+            "type": "boolean"
+          },
+          "spatial_audio": {
+            "default": {
+              "broadcast_range": 48.0,
+              "close_threshold": 24.0,
+              "deafen_distance": 3.0,
+              "falloff_distance": 48.0,
+              "max_attenuation_db": 40.0,
+              "panning_start": 8.0,
+              "steepen_start": 38.0
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpatialAudioConfig"
+              }
+            ]
+          },
+          "bedrock": {
+            "default": {
+              "enabled": false,
+              "servers": []
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigBedrock"
+              }
+            ]
+          },
+          "age": {
+            "default": {
+              "minimum": null
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigAge"
+              }
+            ]
+          },
+          "recording": {
+            "default": {
+              "enabled": true
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigRecording"
+              }
+            ]
+          },
+          "chat": {
+            "default": {
+              "enabled": true
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigChat"
+              }
+            ]
+          },
+          "capacity": {
+            "default": {
+              "in_use": 0,
+              "limit": 0
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigCapacity"
+              }
+            ]
+          },
+          "radar": {
+            "default": {
+              "enabled": true
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigRadar"
+              }
+            ]
+          },
+          "protected_groups": {
+            "default": {
+              "enabled": false
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApiConfigProtectedGroups"
+              }
+            ]
+          },
+          "peer_link": {
+            "default": null,
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SpatialAudioConfig": {
+        "type": "object",
+        "properties": {
+          "broadcast_range": {
+            "default": 48.0,
+            "type": "number",
+            "format": "float"
+          },
+          "close_threshold": {
+            "default": 24.0,
+            "type": "number",
+            "format": "float"
+          },
+          "falloff_distance": {
+            "default": 48.0,
+            "type": "number",
+            "format": "float"
+          },
+          "steepen_start": {
+            "default": 38.0,
+            "type": "number",
+            "format": "float"
+          },
+          "deafen_distance": {
+            "default": 3.0,
+            "type": "number",
+            "format": "float"
+          },
+          "panning_start": {
+            "default": 8.0,
+            "type": "number",
+            "format": "float"
+          },
+          "max_attenuation_db": {
+            "default": 40.0,
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "ApiConfigBedrock": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "type": "boolean"
+          },
+          "servers": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiConfigBedrockServer"
+            }
+          }
+        }
+      },
+      "ApiConfigBedrockServer": {
+        "type": "object",
+        "required": [
+          "addon_mode",
+          "host",
+          "name",
+          "port"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0.0
+          },
+          "protocol_version": {
+            "default": null,
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0,
+            "nullable": true
+          },
+          "addon_mode": {
+            "$ref": "#/components/schemas/AddonMode"
+          }
+        }
+      },
+      "AddonMode": {
+        "type": "string",
+        "enum": [
+          "net",
+          "no_net"
+        ]
+      },
+      "ApiConfigAge": {
+        "type": "object",
+        "properties": {
+          "minimum": {
+            "default": null,
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0,
+            "nullable": true
+          }
+        }
+      },
+      "ApiConfigRecording": {
+        "description": "Whether the server permits clients to record voice sessions.\n\nA server that predates this field sends nothing and reads as permitted, so an older deployment never appears to have turned recording off.",
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiConfigChat": {
+        "description": "Whether the server relays in-game chat.\n\nA server that predates this field sends nothing and reads as enabled, so an older deployment never appears to have turned chat off.",
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiConfigCapacity": {
+        "description": "How many concurrent voice sessions this server admits, and how many it holds now.\n\nA server that predates this field sends nothing and reads as unlimited, so an older deployment never appears to be full.\n\n`in_use` is advisory. It can change between this probe and a connection attempt, and the server's own admission check remains the authority.",
+        "type": "object",
+        "required": [
+          "in_use",
+          "limit"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "in_use": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "ApiConfigRadar": {
+        "description": "Whether the app may point the idle ring at players beyond voice range.\n\nA server that predates this field sends nothing and reads as enabled, so an older deployment keeps the ring it always had.",
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiConfigProtectedGroups": {
+        "description": "Whether the server supports end-to-end encrypted groups.\n\nA server that predates this field sends nothing and reads as unsupported, so the app hides the option rather than offering a create that would 404.",
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChatWorld": {
+        "description": "A world this player has been seen in, and whether chat works there right now.",
+        "type": "object",
+        "required": [
+          "active",
+          "available",
+          "last_seen",
+          "mode",
+          "world_name",
+          "world_uuid"
+        ],
+        "properties": {
+          "world_uuid": {
+            "description": "Never rendered. A random UUID on the mod path and a derived hash on the proxy path, polymorphic in length, and meaningless to a person either way.",
+            "type": "string"
+          },
+          "world_name": {
+            "description": "The only user-facing label.",
+            "type": "string"
+          },
+          "last_seen": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "active": {
+            "description": "The world is being hosted: position ingress is recent.",
+            "type": "boolean"
+          },
+          "available": {
+            "description": "A mod chat channel is registered for it right now. A world can be active and unavailable — positions flowing while the chat socket is down.",
+            "type": "boolean"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ChatMode"
+          }
+        }
+      },
+      "ChatMode": {
+        "description": "Which chat implementation is live for a world.\n\nDistinct from availability: this says whether a mod or the local proxy is the source of chat, not whether chat works right now. A world can be `Server` mode with its chat channel down, and the composer has to tell those apart.",
+        "type": "string",
+        "enum": [
+          "Server",
+          "Local"
+        ]
+      },
+      "WebsocketTicketResponse": {
+        "type": "object",
+        "required": [
+          "expires_in",
+          "ticket"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "string"
+          },
+          "expires_in": {
+            "description": "Seconds until expiry, so the caller can decide whether to reuse a held ticket or fetch a fresh one before reconnecting.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
         }
       },
@@ -2857,41 +3313,169 @@
           }
         }
       },
-      "ChannelEvent": {
+      "GroupLinkAction": {
+        "description": "A change the Simple Voice Chat bridge asks for on the BVC side of a linked group.\n\nJoins and leaves are not here: the bridge sends those as `ClientAction`s, as any in-game actor does.",
+        "oneOf": [
+          {
+            "description": "The BVC side of a group created in SVC. `creator` is the in-game name, resolved like a `ClientAction` actor. Returns the new channel id.",
+            "type": "object",
+            "required": [
+              "CreateLinked"
+            ],
+            "properties": {
+              "CreateLinked": {
+                "type": "object",
+                "required": [
+                  "creator",
+                  "members_only",
+                  "name"
+                ],
+                "properties": {
+                  "creator": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "members_only": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "The SVC side ended. Refused for a protected channel.",
+            "type": "object",
+            "required": [
+              "Close"
+            ],
+            "properties": {
+              "Close": {
+                "type": "object",
+                "required": [
+                  "channel"
+                ],
+                "properties": {
+                  "channel": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "The channels the bridge still links. Keeps Java-only groups from the reaper.",
+            "type": "object",
+            "required": [
+              "Lease"
+            ],
+            "properties": {
+              "Lease": {
+                "type": "object",
+                "required": [
+                  "channels"
+                ],
+                "properties": {
+                  "channels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "GroupLinkDrain": {
+        "description": "The events after the sequence number the bridge last saw.\n\n`reset` means events the bridge never saw were dropped, or the server restarted. The bridge then resyncs from both sides instead of trusting the events alone.",
         "type": "object",
         "required": [
-          "event"
+          "epoch",
+          "events",
+          "reset"
         ],
         "properties": {
-          "event": {
-            "$ref": "#/components/schemas/ChannelEvents"
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupLinkEvent"
+            }
           },
-          "game": {
-            "default": null,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Game"
-              }
-            ],
-            "nullable": true
+          "reset": {
+            "type": "boolean"
+          },
+          "epoch": {
+            "description": "Random per server start, and below 2^53 so every JSON reader keeps it exact. A bridge that sees it change knows the sequence numbers started over, and resyncs.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "latest": {
+            "description": "The highest sequence number the feed has given out, 0 before its first event. A bridge that resyncs moves its cursor here, which `events` alone cannot tell it when it is empty.",
+            "default": 0,
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
         }
       },
-      "ChannelEvents": {
-        "type": "string",
-        "enum": [
-          "Join",
-          "Leave",
-          "Create",
-          "Delete",
-          "Rename"
-        ]
-      },
-      "Channel": {
+      "GroupLinkEvent": {
+        "description": "One BVC channel change, in the order the server applied it.\n\n`player` is the gamertag for `Join` and `Leave`, and the creator for `Create`.",
         "type": "object",
         "required": [
-          "creator",
+          "channel",
+          "kind",
+          "members_only",
+          "seq"
+        ],
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "kind": {
+            "$ref": "#/components/schemas/GroupLinkEventKind"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "channel_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "player": {
+            "type": "string",
+            "nullable": true
+          },
+          "members_only": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GroupLinkEventKind": {
+        "description": "What happened to a non-protected BVC channel.\n\n`Protected` is the last event a channel ever produces: the bridge unlinks it, and nothing about a protected channel reaches the bridge after.",
+        "type": "string",
+        "enum": [
+          "Create",
+          "Join",
+          "Leave",
+          "Delete",
+          "Protected"
+        ]
+      },
+      "LinkedChannelView": {
+        "description": "A non-protected BVC channel as the bridge sees it at resync. `players` are gamertags.\n\n`clientless` names the members that hold no live BVC client. Only the bridge puts such a member in a channel, so only the bridge can tell when one of them has gone.",
+        "type": "object",
+        "required": [
           "id",
+          "members_only",
           "name",
           "players"
         ],
@@ -2905,32 +3489,18 @@
           "players": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PlayerIdentity"
+              "type": "string"
             }
           },
-          "creator": {
-            "$ref": "#/components/schemas/PlayerIdentity"
-          },
-          "protected": {
-            "description": "End-to-end encrypted. The server only routes and lists it; it never holds the password. A server that predates this field sends nothing, which reads as unprotected.",
-            "default": false,
+          "members_only": {
             "type": "boolean"
-          }
-        }
-      },
-      "PlayerIdentity": {
-        "type": "string"
-      },
-      "ProtectedChannelCreateRequest": {
-        "description": "Body of `POST /api/channel/protected`. Carries no password: the server never receives one.",
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "name": {
-            "description": "Empty asks the server to generate a name.",
-            "type": "string"
+          },
+          "clientless": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -3104,6 +3674,88 @@
           }
         ]
       },
+      "ChannelEvent": {
+        "type": "object",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ChannelEvents"
+          },
+          "game": {
+            "default": null,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Game"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "ChannelEvents": {
+        "type": "string",
+        "enum": [
+          "Join",
+          "Leave",
+          "Create",
+          "Delete",
+          "Rename"
+        ]
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "creator",
+          "id",
+          "name",
+          "players"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerIdentity"
+            }
+          },
+          "creator": {
+            "$ref": "#/components/schemas/PlayerIdentity"
+          },
+          "protected": {
+            "description": "End-to-end encrypted. The server only routes and lists it; it never holds the password. A server that predates this field sends nothing, which reads as unprotected.",
+            "default": false,
+            "type": "boolean"
+          },
+          "members_only": {
+            "description": "Set only by the Simple Voice Chat bridge, for a channel linked to a NORMAL or ISOLATED SVC group. Speech in it reaches channel members only, never nearby players.",
+            "default": false,
+            "type": "boolean"
+          }
+        }
+      },
+      "PlayerIdentity": {
+        "type": "string"
+      },
+      "ProtectedChannelCreateRequest": {
+        "description": "Body of `POST /api/channel/protected`. Carries no password: the server never receives one.",
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "description": "Empty asks the server to generate a name.",
+            "type": "string"
+          }
+        }
+      },
       "QueryState": {
         "type": "object",
         "required": [
@@ -3154,370 +3806,18 @@
             "type": "boolean"
           }
         }
-      },
-      "ApiConfigResponse": {
-        "type": "object",
-        "required": [
-          "client_id",
-          "protocol_version",
-          "quic_port",
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string"
-          },
-          "client_id": {
-            "type": "string"
-          },
-          "protocol_version": {
-            "type": "string"
-          },
-          "quic_port": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          },
-          "quic_ports": {
-            "default": [],
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
-            }
-          },
-          "voice_websocket": {
-            "default": false,
-            "type": "boolean"
-          },
-          "spatial_audio": {
-            "default": {
-              "broadcast_range": 48.0,
-              "close_threshold": 24.0,
-              "deafen_distance": 3.0,
-              "falloff_distance": 48.0,
-              "max_attenuation_db": 40.0,
-              "panning_start": 8.0,
-              "steepen_start": 38.0
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SpatialAudioConfig"
-              }
-            ]
-          },
-          "bedrock": {
-            "default": {
-              "enabled": false,
-              "servers": []
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigBedrock"
-              }
-            ]
-          },
-          "age": {
-            "default": {
-              "minimum": null
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigAge"
-              }
-            ]
-          },
-          "recording": {
-            "default": {
-              "enabled": true
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigRecording"
-              }
-            ]
-          },
-          "chat": {
-            "default": {
-              "enabled": true
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigChat"
-              }
-            ]
-          },
-          "capacity": {
-            "default": {
-              "in_use": 0,
-              "limit": 0
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigCapacity"
-              }
-            ]
-          },
-          "radar": {
-            "default": {
-              "enabled": true
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigRadar"
-              }
-            ]
-          },
-          "protected_groups": {
-            "default": {
-              "enabled": false
-            },
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ApiConfigProtectedGroups"
-              }
-            ]
-          },
-          "peer_link": {
-            "default": null,
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "SpatialAudioConfig": {
-        "type": "object",
-        "properties": {
-          "broadcast_range": {
-            "default": 48.0,
-            "type": "number",
-            "format": "float"
-          },
-          "close_threshold": {
-            "default": 24.0,
-            "type": "number",
-            "format": "float"
-          },
-          "falloff_distance": {
-            "default": 48.0,
-            "type": "number",
-            "format": "float"
-          },
-          "steepen_start": {
-            "default": 38.0,
-            "type": "number",
-            "format": "float"
-          },
-          "deafen_distance": {
-            "default": 3.0,
-            "type": "number",
-            "format": "float"
-          },
-          "panning_start": {
-            "default": 8.0,
-            "type": "number",
-            "format": "float"
-          },
-          "max_attenuation_db": {
-            "default": 40.0,
-            "type": "number",
-            "format": "float"
-          }
-        }
-      },
-      "ApiConfigBedrock": {
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "default": false,
-            "type": "boolean"
-          },
-          "servers": {
-            "default": [],
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ApiConfigBedrockServer"
-            }
-          }
-        }
-      },
-      "ApiConfigBedrockServer": {
-        "type": "object",
-        "required": [
-          "addon_mode",
-          "host",
-          "name",
-          "port"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "host": {
-            "type": "string"
-          },
-          "port": {
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
-          },
-          "protocol_version": {
-            "default": null,
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0,
-            "nullable": true
-          },
-          "addon_mode": {
-            "$ref": "#/components/schemas/AddonMode"
-          }
-        }
-      },
-      "AddonMode": {
-        "type": "string",
-        "enum": [
-          "net",
-          "no_net"
-        ]
-      },
-      "ApiConfigAge": {
-        "type": "object",
-        "properties": {
-          "minimum": {
-            "default": null,
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0,
-            "nullable": true
-          }
-        }
-      },
-      "ApiConfigRecording": {
-        "description": "Whether the server permits clients to record voice sessions.\n\nA server that predates this field sends nothing and reads as permitted, so an older deployment never appears to have turned recording off.",
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ApiConfigChat": {
-        "description": "Whether the server relays in-game chat.\n\nA server that predates this field sends nothing and reads as enabled, so an older deployment never appears to have turned chat off.",
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ApiConfigCapacity": {
-        "description": "How many concurrent voice sessions this server admits, and how many it holds now.\n\nA server that predates this field sends nothing and reads as unlimited, so an older deployment never appears to be full.\n\n`in_use` is advisory. It can change between this probe and a connection attempt, and the server's own admission check remains the authority.",
-        "type": "object",
-        "required": [
-          "in_use",
-          "limit"
-        ],
-        "properties": {
-          "limit": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          },
-          "in_use": {
-            "type": "integer",
-            "format": "uint32",
-            "minimum": 0.0
-          }
-        }
-      },
-      "ApiConfigRadar": {
-        "description": "Whether the app may point the idle ring at players beyond voice range.\n\nA server that predates this field sends nothing and reads as enabled, so an older deployment keeps the ring it always had.",
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ApiConfigProtectedGroups": {
-        "description": "Whether the server supports end-to-end encrypted groups.\n\nA server that predates this field sends nothing and reads as unsupported, so the app hides the option rather than offering a create that would 404.",
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ChatWorld": {
-        "description": "A world this player has been seen in, and whether chat works there right now.",
-        "type": "object",
-        "required": [
-          "active",
-          "available",
-          "last_seen",
-          "mode",
-          "world_name",
-          "world_uuid"
-        ],
-        "properties": {
-          "world_uuid": {
-            "description": "Never rendered. A random UUID on the mod path and a derived hash on the proxy path, polymorphic in length, and meaningless to a person either way.",
-            "type": "string"
-          },
-          "world_name": {
-            "description": "The only user-facing label.",
-            "type": "string"
-          },
-          "last_seen": {
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "active": {
-            "description": "The world is being hosted: position ingress is recent.",
-            "type": "boolean"
-          },
-          "available": {
-            "description": "A mod chat channel is registered for it right now. A world can be active and unavailable — positions flowing while the chat socket is down.",
-            "type": "boolean"
-          },
-          "mode": {
-            "$ref": "#/components/schemas/ChatMode"
-          }
-        }
-      },
-      "ChatMode": {
-        "description": "Which chat implementation is live for a world.\n\nDistinct from availability: this says whether a mod or the local proxy is the source of chat, not whether chat works right now. A world can be `Server` mode with its chat channel down, and the composer has to tell those apart.",
-        "type": "string",
-        "enum": [
-          "Server",
-          "Local"
-        ]
       }
     },
     "securitySchemes": {
-      "PlayerGuard": {
-        "description": "Player mTLS client certificate.",
-        "type": "http",
-        "scheme": "mutual"
-      },
       "GameAccessToken": {
         "description": "Game server access token, as `Authorization: Bearer <token>`.",
         "type": "http",
         "scheme": "bearer"
+      },
+      "PlayerGuard": {
+        "description": "Player mTLS client certificate.",
+        "type": "http",
+        "scheme": "mutual"
       },
       "AdminGuard": {
         "description": "Operator mTLS client certificate. Caller must additionally hold the `admin` permission.",
@@ -3533,6 +3833,22 @@
   },
   "tags": [
     {
+      "name": "Positions",
+      "description": "Player position updates from game mods. Used by the Minecraft server plugin to push player coordinates for spatial audio calculations."
+    },
+    {
+      "name": "Gamerpic",
+      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
+    },
+    {
+      "name": "Server",
+      "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
+    },
+    {
+      "name": "Chat",
+      "description": "In-game chat relay. Lists the worlds a player has been seen in and which of them currently have a chat channel."
+    },
+    {
       "name": "WebSocket",
       "description": "Ticket exchange and streaming feeds for client UI surfaces. A browser cannot present a client certificate when opening a socket, so identity is established over mTLS here and spent once at upgrade time."
     },
@@ -3541,12 +3857,8 @@
       "description": "Facts a mod or add-on observes about its own host, which it has no channel of its own to report."
     },
     {
-      "name": "Positions",
-      "description": "Player position updates from game mods. Used by the Minecraft server plugin to push player coordinates for spatial audio calculations."
-    },
-    {
-      "name": "Gamerpic",
-      "description": "Player avatar/gamerpic retrieval by gamertag and game type."
+      "name": "Clients",
+      "description": "Which players currently hold a voice connection, for a mod that delivers audio of its own alongside this server's."
     },
     {
       "name": "Health",
@@ -3569,24 +3881,16 @@
       "description": "OAuth2 authentication via Microsoft (Minecraft). Returns mTLS certificates and ncryptf keys for subsequent API calls. Interacting with these endpoints REQUIRES ncryptf. non-ncryptf request/response bodies are provided here as sample references."
     },
     {
-      "name": "Clients",
-      "description": "Which players currently hold a voice connection, for a mod that delivers audio of its own alongside this server's."
-    },
-    {
-      "name": "Channels",
-      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
+      "name": "GroupLink",
+      "description": "Simple Voice Chat bridge group links. The bridge mirrors BVC groups into SVC and back (Authorization: Bearer, the mod token)."
     },
     {
       "name": "Control",
       "description": "In-game audio control plane. The mod submits ClientActions on behalf of the authenticated in-game player (Authorization: Bearer)."
     },
     {
-      "name": "Server",
-      "description": "Server configuration and metadata. Returns connection details, protocol version, and spatial audio settings."
-    },
-    {
-      "name": "Chat",
-      "description": "In-game chat relay. Lists the worlds a player has been seen in and which of them currently have a chat channel."
+      "name": "Channels",
+      "description": "Voice channel management. Create, delete, rename, join, and leave channels. Channel membership is broadcast to connected QUIC clients."
     }
   ]
 }
