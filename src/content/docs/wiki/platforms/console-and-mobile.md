@@ -27,9 +27,9 @@ Sign in with the Xbox account that you play on.
 
 No extra steps. Join the server in Minecraft and sign in to the app.
 
-## On Realms or Aternos
+## On Realms or a no-net host
 
-Realms and Aternos use Bedrock Voice Chat Connect. The BVC app shows the session on your local network, and Minecraft lists it under **Worlds**.
+Realms and [hosts without server-net](/wiki/platforms/no-net-hosts/) use Bedrock Voice Chat Connect. The BVC app shows the session on your local network, and Minecraft lists it under **Worlds**.
 
 ### Operator
 
@@ -48,12 +48,12 @@ Operators do not need to change any settings.
 If two people on the network run BVC in the same world, two entries show. Use the gamertag on the second line to find your entry.
 
 :::danger
-Do **not** enter your Realm or Aternos address directly. If you do, Minecraft works but voice chat does not.
+Do **not** enter your Realm or server address directly. If you do, Minecraft works but voice chat does not.
 :::
 
 ## Playing on mobile
 
-If you play Minecraft on a phone or tablet, follow the steps on the [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/) pages. They are the same as on desktop.
+If you play Minecraft on a phone or tablet, follow the steps on the [Realms](/wiki/platforms/realms/) and [hosts without server-net](/wiki/platforms/no-net-hosts/) pages. They are the same as on desktop.
 
 ## Recording
 

@@ -257,7 +257,7 @@ You must set `addon_mode`. The server cannot detect it. The server identifies a 
 
 `addon_mode` has no default. Each entry must set it. If one entry does not set it, the server cannot read the `servers` list.
 
-Use `no_net` for Realms and Aternos worlds that run the no-net Addon. Use `net` for a world that runs the standard Addon or the Java mod.
+Use `no_net` for Realms and other worlds that run the no-net Addon. Use `net` for a world that runs the standard Addon or the Java mod.
 
 ## `database`
 

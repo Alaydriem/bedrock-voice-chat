@@ -29,11 +29,11 @@ Do these steps in order. If you do them out of order, a new installation can app
 
 | Page | Contents |
 |---|---|
-| [BDS Addon](/wiki/server/bedrock-addon/) | The pack for Bedrock Dedicated Servers. |
-| [No-net Addon](/wiki/server/nonet-addon/) | The pack for Realms, Aternos, and hosts without `@minecraft/server-net`. |
+| [BDS Addon](/wiki/server/bedrock-addon/) | The pack for Bedrock Dedicated Servers and Aternos. |
+| [No-net Addon](/wiki/server/nonet-addon/) | The pack for Realms and hosts without `@minecraft/server-net`. |
 | [PowerNukkitX](/wiki/server/powernukkitx/) | The plugin for PowerNukkitX servers. |
 | [Docker](/wiki/server/docker/) | Compose, volumes, health checks, configuration from environment variables. |
 | [Monitoring](/wiki/server/monitoring/) | Prometheus metrics, health endpoints, logs. |
 | [Troubleshooting](/wiki/server/troubleshooting/) | Problems seen from the operator side. |
 
-Realms, Aternos and consoles need more setup. Start at [Where BVC works](/wiki/platforms/).
+Realms, hosts without `@minecraft/server-net` and consoles need more setup. Start at [Where BVC works](/wiki/platforms/).

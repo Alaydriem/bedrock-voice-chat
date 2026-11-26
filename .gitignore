@@ -5,4 +5,7 @@ slides/out/
 # Built from screenshots/wiki/ by scripts/images.mjs.
 public/assets/wiki/
 src/data/wiki-images.json
-docs/
+# Anchored: unanchored `docs/` also matched src/content/docs/ and hid new wiki pages.
+/docs/
+# Overrides an unanchored `docs/` in a contributor's global excludes file.
+!/src/content/docs/

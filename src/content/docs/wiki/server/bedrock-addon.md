@@ -12,7 +12,7 @@ The Bedrock Addon sends player positions from your Bedrock Dedicated Server (BDS
 The Addon is **mandatory**. Without it, Bedrock Voice Chat does not receive player positions, and players cannot hear each other.
 :::
 
-This page is for Bedrock Dedicated Server. For Realms, Aternos, and other hosts that do not allow `@minecraft/server-net`, use the [no-net Addon](/wiki/server/nonet-addon/).
+This page is for Bedrock Dedicated Server and for hosts that allow `@minecraft/server-net`, such as [Aternos](/wiki/platforms/aternos/). For Realms and other hosts that do not allow `@minecraft/server-net`, use the [no-net Addon](/wiki/server/nonet-addon/).
 
 Install the [BVC server](/wiki/server/installation/) first. You need its URL and access token for these steps.
 

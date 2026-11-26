@@ -12,7 +12,7 @@ Yes. The BVC app connects to the Realm for you, with a feature called Bedrock Vo
 
 ## Does it work on Aternos?
 
-Yes. The BVC app connects to the Aternos server for you, with Bedrock Voice Chat Connect. After each Minecraft update, BVC can stop working on Aternos until a matching BVC version is available. See [Aternos](/wiki/platforms/aternos/).
+Yes. Aternos allows `@minecraft/server-net`, so you install the standard Bedrock Addon. See [Aternos](/wiki/platforms/aternos/).
 
 ## Does it work on a LAN or single-player world?
 
@@ -64,6 +64,6 @@ Yes. [Supporting the project](/wiki/start/supporting-bvc/) funds development. Su
 
 ## I updated Minecraft and Bedrock Voice Chat stopped working
 
-On Realms and Aternos, Bedrock Voice Chat can stop working after a Minecraft update. Each update can change the Bedrock network protocol, and BVC must be updated to match. Mojang does not document this protocol. The BVC developers can start this work only after Mojang releases the update. See [Version support](/wiki/platforms/version-support/).
+On Realms and other hosts that use the no-net Addon, Bedrock Voice Chat can stop working after a Minecraft update. Each update can change the Bedrock network protocol, and BVC must be updated to match. Mojang does not document this protocol. The BVC developers can start this work only after Mojang releases the update. See [Version support](/wiki/platforms/version-support/).
 
 A Bedrock Dedicated Server is not affected. Use one to keep voice chat working on the day of an update.

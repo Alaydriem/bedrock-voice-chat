@@ -6,25 +6,13 @@ sidebar:
   order: 7
 ---
 
-Bedrock Voice Chat does not work on LAN worlds, locally hosted worlds or single-player worlds. These are worlds that one player hosts on their own device. Friends can join only while the host is online.
-
-:::note[Two different things called LAN]
-A **LAN world** is a world that a game client hosts. BVC does not support it.
-
-Minecraft's **Worlds** tab also lists sessions that it finds on your network. Bedrock Voice Chat Connect sessions show in this list. These sessions work with BVC. See [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/).
-:::
-
-## Reason
-
-Bedrock Voice Chat needs an Addon on the server to send player positions. Proximity chat cannot work without positions, and only the Addon sends them.
-
-A world that the Minecraft game client hosts cannot load server Addons. On all platforms, there is no place to install one.
+Bedrock Voice Chat does not work locally hosted worlds.
 
 ### Bedrock Voice Chat Connect
 
-Realms and Aternos use Bedrock Voice Chat Connect. Connect does not work with LAN worlds.
+Realms and hosts without `@minecraft/server-net` use Bedrock Voice Chat Connect. Connect does not work with LAN worlds.
 
-You can upload a world with the Addon to a Realm or an Aternos server. Connect then sends the data from that Addon to BVC. You cannot upload a world to a LAN host. No Addon runs on a LAN world.
+You can upload a world with the Addon to a Realm or a no-net host. Connect then sends the data from that Addon to BVC. You cannot upload a world to a LAN host. No Addon runs on a LAN world.
 
 ## Use Bedrock Dedicated Server
 
