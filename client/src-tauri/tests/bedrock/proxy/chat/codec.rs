@@ -85,6 +85,7 @@ fn translated(key: &str, params: &[&str]) -> TextPacket {
             message_type: TextPacketType::Translate,
             message: key.to_string(),
             parameter_list: params.iter().map(|s| s.to_string()).collect(),
+            queue: false,
         }),
         sender_s_xuid: String::new(),
         platform_id: String::new(),
