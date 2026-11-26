@@ -259,7 +259,7 @@ Each entry in `server.bedrock.servers` must set `addon_mode`. It selects how pos
 | Value | Use for |
 |---|---|
 | `net` | A world that runs the standard Bedrock Addon or the Java mod. The Addon or the mod sends events to the BVC server over HTTP. |
-| `no_net` | A Realms or Aternos world that runs the [no-net Addon](/wiki/server/nonet-addon/). The BVC client reads the events from the game traffic and sends them. |
+| `no_net` | A Realms or other hosted world that runs the [no-net Addon](/wiki/server/nonet-addon/). The BVC client reads the events from the game traffic and sends them. |
 
 The `BVC_BEDROCK_SERVERS` environment variable accepts an optional last token, `@net` or `@no_net`:
 

@@ -1,6 +1,6 @@
 ---
 title: "Nodecraft"
-description: "Run Bedrock Voice Chat on a Nodecraft game server, for Fabric, PaperMC, and Bedrock."
+description: "Run Bedrock Voice Chat on a Nodecraft game server, for Fabric, PaperMC, PowerNukkitX, and Bedrock."
 source: https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/
 ---
 [Nodecraft](https://nodecraft.com/r/alaydriem) hosts Minecraft servers. Bedrock Voice Chat works on Nodecraft Java and Bedrock servers.
@@ -12,8 +12,9 @@ Sign up through [nodecraft.com/r/alaydriem](https://nodecraft.com/r/alaydriem) t
 ## Requirements
 
 - A Nodecraft server.
-- A domain name. Bedrock Voice Chat does not work with an IP address or with the Nodecraft host name. See [TLS certificates](/wiki/server/tls/).
-- A DNS provider that BVC can use to get a certificate. The guides use Cloudflare. See [TLS certificates](/wiki/server/tls/).
+- A name for the BVC server, with a TLS certificate. Bedrock Voice Chat does not work with an IP address or with the Nodecraft host name. Choose one:
+  - A [play name](/wiki/server/tls/#play-name). BVC gives the server a name and its certificate. You need no domain.
+  - Your own domain, with a DNS provider that BVC can use to get a certificate. The guides use Cloudflare. See [TLS certificates](/wiki/server/tls/).
 
 ## Server type
 
@@ -21,6 +22,7 @@ Sign up through [nodecraft.com/r/alaydriem](https://nodecraft.com/r/alaydriem) t
 |---|---|---|
 | **Fabric** | Embedded in the mod | [Fabric on Nodecraft](/wiki/platforms/nodecraft/fabric/) |
 | **PaperMC** | Embedded in the plugin | [PaperMC on Nodecraft](/wiki/platforms/nodecraft/papermc/) |
+| **PowerNukkitX** | Embedded in the plugin | [PowerNukkitX on Nodecraft](/wiki/platforms/nodecraft/powernukkitx/) |
 | **Bedrock** | Started by the BVC launcher | [Bedrock on Nodecraft](/wiki/platforms/nodecraft/bedrock/) |
 
 The Java guides use the [embedded mode](/wiki/server/java-mod/#external-or-embedded-server) of the mod. The BVC server runs inside the Minecraft server and uses the ports of the Nodecraft server.

@@ -5,7 +5,7 @@ source: https://www.bedrockvoicechat.com/wiki/platforms/version-support/
 ---
 Bedrock Voice Chat Connect uses the Bedrock network protocol. Connect works only with the protocol versions in the table below.
 
-This applies to Realms, Aternos and other hosts that use the no-net Addon.
+This applies to Realms and other hosts that use the no-net Addon.
 
 :::note
 This does not apply to a Bedrock Dedicated Server or a Java server. On these servers, the Addon or the mod sends positions over HTTP, and the Bedrock protocol version has no effect.

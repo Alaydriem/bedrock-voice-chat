@@ -20,6 +20,7 @@ A variable that is not set, or that is empty, does not change a value. `FOO=` in
 | `BVC_TELEMETRY` | `server.features.telemetry`. `true` or `false`. |
 | `BVC_CHAT` | `server.features.chat`. `true` or `false`. |
 | `BVC_RADAR` | `server.features.radar`. `true` or `false`. |
+| `BVC_HOST` | The host type sent with each telemetry event: `standalone`, `docker`, `paper`, `fabric` or `powernukkitx`. If it is not set or empty, the type is `standalone`. Any other value is sent as `unknown`. The Docker image sets `docker`. A Java mod's embedded server ignores this variable and sends its own platform. |
 
 ## Voice
 
@@ -48,6 +49,22 @@ Only the Java mod's embedded server reads these variables. A standalone server i
 | `BVC_TLS_NAMES` | `server.tls.names`. Comma-separated. |
 | `BVC_TLS_IPS` | `server.tls.ips`. Comma-separated. |
 
+## Play name
+
+With these variables, you can turn on [play mode](/wiki/server/tls/#play-name) without a config file. Use them on a hosting panel, in a container, or for a Java mod's embedded server.
+
+| Variable | Sets |
+|---|---|
+| `BVC_PLAY` | `server.tls.play`. `true` or `false`. `true` adds an empty play block. `false` removes a play block that the config file has. |
+| `BVC_PLAY_ADDRESS` | `server.tls.play.address`. The public IP address that the registry publishes for the name. Use an IP address, not a hostname. |
+
+`BVC_PLAY_ADDRESS` needs play mode. Set `BVC_PLAY=true`, or add a `play` block to the config file. If you set `BVC_PLAY_ADDRESS` with play mode off, the server does not start, and the error names the variable.
+
+```
+BVC_PLAY=true
+BVC_PLAY_ADDRESS=203.0.113.10
+```
+
 ## Enrollment
 
 In a container, set the enrollment token with these variables. See [assigned hostnames](/wiki/server/enrollment/).
@@ -57,7 +74,22 @@ In a container, set the enrollment token with these variables. See [assigned hos
 | `BVC_ENROLLMENT_TOKEN` | `server.enrollment.token` |
 | `BVC_ENROLLMENT_ADDRESS` | `server.enrollment.address` |
 
-Use only one certificate source: an enrollment token, ACME, or a TLS certificate and key. If you set more than one, the server does not start.
+Use only one certificate source: a play name, an enrollment token, ACME, or a TLS certificate and key. If you set more than one, the server does not start.
+
+## Java mod embedded server
+
+A Java mod's embedded server reads the same `BVC_*` variables as a standalone server. A certificate source set only with variables is valid. Example: `BVC_PLAY=true`, with no `tls` block in the mod's config file. If the server has no certificate source from the file or the variables, the mod does not start it, and the log names the four sources.
+
+## Launcher
+
+The BVC launcher reads these variables only when `config/bvc.hcl` does not exist. It then writes a play-mode `config/bvc.hcl` with `mod_loopback = true`. It never changes a config file that exists.
+
+| Variable | Used for |
+|---|---|
+| `BVC_PORT` | `server.port` in the new file. If it is not set, empty, or not a valid port, the launcher uses `443`. An invalid value also writes a warning. |
+| `BVC_PUBLIC_ADDRESS` | `server.tls.play.address` in the new file. If it is not set or empty, the file has no address. |
+
+If `BVC_ENROLLMENT_TOKEN` is set and `config/bvc.hcl` does not exist, the launcher does not write a file. It stops and tells you to create `config/bvc.hcl`. Play mode and enrollment cannot be used together.
 
 `BVC_REGISTRY_PEERLINK` has no effect on a running server. It is read only when the binary is compiled.
 

@@ -102,7 +102,7 @@ Docker is the recommended method. You can also run the native server binary from
 2. Let your players in. A player can sign in after they join your game server once, or after you [add them](/wiki/server/players-and-permissions/).
 3. Send your players to [Downloads](/wiki/start/downloads/).
 
-Realms, Aternos and consoles need more setup. See [Where BVC works](/wiki/platforms/).
+Realms, hosts without `@minecraft/server-net` and consoles need more setup. See [Where BVC works](/wiki/platforms/).
 
 ## Embedded server in the Java mod
 

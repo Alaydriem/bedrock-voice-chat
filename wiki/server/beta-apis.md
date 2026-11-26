@@ -26,7 +26,7 @@ Enable the experiment in the Minecraft client, then move the world to the server
    - **BDS**: rename the file to `.zip`. Extract it into `worlds/<your world name>/`. Set `level-name` in `server.properties` to the same name.
    - **A host with a control panel**: upload the `.mcworld` or `.zip` file with the host's world upload feature.
 
-The [no-net Addon](/wiki/server/nonet-addon/) guide uses the same steps. Realms and Aternos worlds also need Beta APIs.
+The [no-net Addon](/wiki/server/nonet-addon/) guide uses the same steps. Realms and other hosted worlds also need Beta APIs.
 
 ## Existing worlds
 

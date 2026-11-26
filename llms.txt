@@ -22,7 +22,7 @@ URL. `/llms-full.txt` contains the entire wiki in one document.
 - [Groups](https://www.bedrockvoicechat.com/wiki/player/groups.md): Talk to your party at full volume regardless of distance, and keep a group private.
 - [In-game commands](https://www.bedrockvoicechat.com/wiki/player/in-game-commands.md): Control BVC from inside Minecraft without alt-tabbing.
 - [Bedrock commands](https://www.bedrockvoicechat.com/wiki/player/in-game-commands/bedrock.md): The /bvc: commands and the in-game control panel on Bedrock.
-- [Java commands](https://www.bedrockvoicechat.com/wiki/player/in-game-commands/java.md): The /bvc commands on Fabric and PaperMC servers.
+- [Java commands](https://www.bedrockvoicechat.com/wiki/player/in-game-commands/java.md): The /bvc commands on Fabric, PaperMC and PowerNukkitX servers.
 - [Parents and age settings](https://www.bedrockvoicechat.com/wiki/player/parents-and-age.md): How Age Signals on Android and Declared Age Ranges on iOS work, and how to change them.
 - [Settings](https://www.bedrockvoicechat.com/wiki/player/settings.md): Audio devices, noise gate, keybinds, and the rest of the settings panes.
 - [Signing in](https://www.bedrockvoicechat.com/wiki/player/signing-in.md): Connect the BVC app to a server with your Xbox account.
@@ -45,22 +45,25 @@ URL. `/llms-full.txt` contains the entire wiki in one document.
 - [Simple Voice Chat](https://www.bedrockvoicechat.com/wiki/server/java-mod/integrations/simple-voice-chat.md): Bridge Simple Voice Chat and Bedrock Voice Chat on one Minecraft server.
 - [PaperMC](https://www.bedrockvoicechat.com/wiki/server/java-mod/papermc.md): Install and configure the BVC plugin on a PaperMC server.
 - [Monitoring](https://www.bedrockvoicechat.com/wiki/server/monitoring.md): Prometheus metrics, health endpoints, and logging.
-- [No-net Addon](https://www.bedrockvoicechat.com/wiki/server/nonet-addon.md): Build and install the Addon for Realms, Aternos, and hosts without @minecraft/server-net.
+- [No-net Addon](https://www.bedrockvoicechat.com/wiki/server/nonet-addon.md): Build and install the Addon for Realms and hosts without @minecraft/server-net.
 - [Players and permissions](https://www.bedrockvoicechat.com/wiki/server/players-and-permissions.md): Whitelisting, the three permissions, and bootstrapping your first admin.
+- [PowerNukkitX](https://www.bedrockvoicechat.com/wiki/server/powernukkitx.md): Install and configure the BVC plugin on a PowerNukkitX server.
 - [Privacy and telemetry](https://www.bedrockvoicechat.com/wiki/server/privacy-and-telemetry.md): What BVC collects, how to turn it off, and setting a minimum age for your community.
-- [TLS certificates](https://www.bedrockvoicechat.com/wiki/server/tls.md): An assigned hostname, automatic certificates over ACME DNS-01, or bring your own.
+- [TLS certificates](https://www.bedrockvoicechat.com/wiki/server/tls.md): A play name, an assigned hostname, automatic certificates over ACME DNS-01, or bring your own.
 - [Troubleshooting](https://www.bedrockvoicechat.com/wiki/server/troubleshooting.md): Diagnosing a BVC deployment from the operator side.
 
 ## Where BVC works
 
 - [Where BVC works](https://www.bedrockvoicechat.com/wiki/platforms.md): Compatibility across Bedrock Dedicated Server, Java, Realms, Aternos, Geyser, consoles, and LAN.
-- [Aternos and no-net hosts](https://www.bedrockvoicechat.com/wiki/platforms/aternos.md): Run BVC on Aternos and other hosts that cannot enable @minecraft/server-net.
+- [Aternos](https://www.bedrockvoicechat.com/wiki/platforms/aternos.md): Run BVC on Aternos with the standard Bedrock Addon.
 - [Console and mobile](https://www.bedrockvoicechat.com/wiki/platforms/console-and-mobile.md): Using BVC on Xbox, PlayStation, Switch, and mobile devices.
 - [LAN and local worlds](https://www.bedrockvoicechat.com/wiki/platforms/lan-and-local-worlds.md): Why BVC does not work on LAN, locally hosted, or single-player worlds.
-- [Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft.md): Run Bedrock Voice Chat on a Nodecraft game server, for Fabric, PaperMC, and Bedrock.
+- [Hosts without server-net](https://www.bedrockvoicechat.com/wiki/platforms/no-net-hosts.md): Run BVC on hosts that do not allow @minecraft/server-net, with the no-net Addon and Bedrock Voice Chat Connect.
+- [Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft.md): Run Bedrock Voice Chat on a Nodecraft game server, for Fabric, PaperMC, PowerNukkitX, and Bedrock.
 - [Bedrock on Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/bedrock.md): Run Bedrock Voice Chat and Bedrock Dedicated Server together on Nodecraft with the BVC launcher.
 - [Fabric on Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/fabric.md): Run Bedrock Voice Chat on a Nodecraft Fabric server with the embedded BVC server.
 - [PaperMC on Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/papermc.md): Run Bedrock Voice Chat on a Nodecraft PaperMC server with the embedded BVC server.
+- [PowerNukkitX on Nodecraft](https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/powernukkitx.md): Run Bedrock Voice Chat on a Nodecraft PowerNukkitX server with the embedded BVC server.
 - [Realms](https://www.bedrockvoicechat.com/wiki/platforms/realms.md): Run BVC on a Minecraft Realm using the no-net Addon and Bedrock Voice Chat Connect.
 - [Bedrock version support](https://www.bedrockvoicechat.com/wiki/platforms/version-support.md): The Bedrock versions that Bedrock Voice Chat Connect supports, and why support comes after each release.
 

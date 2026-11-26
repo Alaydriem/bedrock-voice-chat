@@ -19,7 +19,7 @@ Do these checks in order.
 2. **Are you near other players?** By default, you hear players at full volume up to 24 blocks away. At 48 blocks, you hear nothing. Stand next to a player.
 3. **Are you deafened?** Check the deafen button at the bottom left. Also check the mute button on each player in the player list.
 4. **Is your output device correct?** Open **Settings → Audio settings** and select **Test playback**. If you do not hear a chime, select a different output device.
-5. **Do you play on Realms or Aternos?** Connect with **Voice Chat Connect** in the app. If you connect to the server address directly, BVC does not work.
+5. **Do you play on Realms or on a host with the no-net Addon?** Connect with **Voice Chat Connect** in the app. If you connect to the server address directly, BVC does not work.
 
 ## Nobody can hear me
 
@@ -51,7 +51,7 @@ Export the recordings that you want to keep before you update. See [recording](/
 
 ## It worked yesterday
 
-**Did Minecraft update?** On Realms or Aternos, a Minecraft update stops voice chat until a BVC version for that Minecraft version is available. See [version support](/wiki/platforms/version-support/).
+**Did Minecraft update?** On Realms or on a host with the no-net Addon, a Minecraft update stops voice chat until a BVC version for that Minecraft version is available. See [version support](/wiki/platforms/version-support/).
 
 **Did you update BVC?** `VER01` means that your app is older than the server. `VER02` means that the server is older than your app. You can see the versions in **Settings → About**.
 

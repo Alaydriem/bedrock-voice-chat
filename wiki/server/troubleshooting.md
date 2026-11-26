@@ -57,7 +57,7 @@ A player can sign in only after they join your game server once, or after an adm
 
 **Audio works for some players and not for others.** The networks of those players probably block UDP. Make sure that TCP/443 is open for the WebSocket fallback.
 
-**Everything worked, then stopped after a Minecraft update.** This affects only Realms and Aternos. See [version support](/wiki/platforms/version-support/).
+**Everything worked, then stopped after a Minecraft update.** This affects only Realms and other hosts that use the no-net Addon. See [version support](/wiki/platforms/version-support/).
 
 **Console players cannot connect.** The console and the device that runs BVC must be on the same network. In Minecraft, the session shows on the Worlds tab, not the Servers tab. See [console and mobile](/wiki/platforms/console-and-mobile/).
 

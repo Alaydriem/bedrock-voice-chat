@@ -44,8 +44,8 @@ See [Installing the BVC server](/wiki/server/installation/).
 
 | Type | Where |
 |---|---|
-| Bedrock Addon | For Bedrock Dedicated Server. [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) (releases with a tag that starts with `mods-`) or [CurseForge](https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat). |
-| Realms / no-net Addon | For Realms, Aternos and other hosts that do not allow the `@minecraft/server-net` module. [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) (releases with a tag that starts with `mods-`) or [CurseForge](https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat-for-realms). |
+| Bedrock Addon | For Bedrock Dedicated Server and Aternos. [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) (releases with a tag that starts with `mods-`) or [CurseForge](https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat). |
+| Realms / no-net Addon | For Realms and other hosts that do not allow the `@minecraft/server-net` module. [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases) (releases with a tag that starts with `mods-`) or [CurseForge](https://www.curseforge.com/minecraft-bedrock/addons/bedrock-voice-chat-for-realms). |
 | Fabric and PaperMC | [Modrinth](https://modrinth.com/mod/bedrock-voice-chat). |
 
 :::tip
@@ -72,7 +72,7 @@ Yes. The BVC app connects to the Realm for you, with a feature called Bedrock Vo
 
 ## Does it work on Aternos?
 
-Yes. The BVC app connects to the Aternos server for you, with Bedrock Voice Chat Connect. After each Minecraft update, BVC can stop working on Aternos until a matching BVC version is available. See [Aternos](/wiki/platforms/aternos/).
+Yes. Aternos allows `@minecraft/server-net`, so you install the standard Bedrock Addon. See [Aternos](/wiki/platforms/aternos/).
 
 ## Does it work on a LAN or single-player world?
 
@@ -124,7 +124,7 @@ Yes. [Supporting the project](/wiki/start/supporting-bvc/) funds development. Su
 
 ## I updated Minecraft and Bedrock Voice Chat stopped working
 
-On Realms and Aternos, Bedrock Voice Chat can stop working after a Minecraft update. Each update can change the Bedrock network protocol, and BVC must be updated to match. Mojang does not document this protocol. The BVC developers can start this work only after Mojang releases the update. See [Version support](/wiki/platforms/version-support/).
+On Realms and other hosts that use the no-net Addon, Bedrock Voice Chat can stop working after a Minecraft update. Each update can change the Bedrock network protocol, and BVC must be updated to match. Mojang does not document this protocol. The BVC developers can start this work only after Mojang releases the update. See [Version support](/wiki/platforms/version-support/).
 
 A Bedrock Dedicated Server is not affected. Use one to keep voice chat working on the day of an update.
 
@@ -201,7 +201,7 @@ Bedrock Voice Chat is free. If you want to support Bedrock Voice Chat, you can h
 
 **[YouTube](https://youtube.com/@alaydriem)** and **[Twitch](https://twitch.tv/alaydriem)** members get exclusive updates and previews of new features, and can follow development live.
 
-Supporters get **early access to builds and packs**. On Realms and Aternos, supporters usually get a working build before the general release. To see how long support usually takes after a Minecraft update, see [version support](/wiki/platforms/version-support/).
+Supporters get **early access to builds and packs**. On Realms and other hosts that use the no-net Addon, supporters usually get a working build before the general release. To see how long support usually takes after a Minecraft update, see [version support](/wiki/platforms/version-support/).
 
 Sign up with **[Nodecraft](https://nodecraft.com/r/alaydriem)** to get the best Nodecraft discount for Minecraft servers that run Bedrock Voice Chat.
 
@@ -217,7 +217,7 @@ Sign up with **[Nodecraft](https://nodecraft.com/r/alaydriem)** to get the best 
 
 ## How we use the money
 
-Your support pays for server costs, app improvements and new platform releases. It also pays for the reverse-engineering work that updates BVC for each Minecraft release. This work keeps BVC working on Realms and Aternos.
+Your support pays for server costs, app improvements and new platform releases. It also pays for the reverse-engineering work that updates BVC for each Minecraft release. This work keeps BVC working on Realms and other hosts that use the no-net Addon.
 
 ---
 
@@ -613,13 +613,13 @@ This command gives you a disc that plays a clip from the [audio library](/wiki/p
 
 # Java commands
 
-> The /bvc commands on Fabric and PaperMC servers.
+> The /bvc commands on Fabric, PaperMC and PowerNukkitX servers.
 
 Source: https://www.bedrockvoicechat.com/wiki/player/in-game-commands/java
 
 On Java, all BVC commands start with `/bvc` and a space. Type `/bvc ` and press Tab to complete the rest.
 
-These commands need the [Java mod](/wiki/server/java-mod/) on a Fabric or PaperMC server. The BVC app must be open and signed in. The commands are the same on Fabric and PaperMC.
+These commands need the [Java mod](/wiki/server/java-mod/) on a Fabric or PaperMC server, or the [PowerNukkitX plugin](/wiki/server/powernukkitx/). The BVC app must be open and signed in. The commands are the same on all three. On PowerNukkitX, players type them in the Bedrock chat.
 
 ## Your own audio
 
@@ -900,7 +900,7 @@ Under **Minecraft Bedrock**:
 
 | Page | Contents |
 |---|---|
-| Voice Chat Connect | Connect to a Realm, or to Aternos and other hosts that use the no-net Addon. Select the world from the list. See [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/). |
+| Voice Chat Connect | Connect to a Realm, or to another host that uses the no-net Addon. Select the world from the list. See [Realms](/wiki/platforms/realms/) and [hosts without server-net](/wiki/platforms/no-net-hosts/). |
 
 Recordings and Keybinds are available only on desktop.
 
@@ -923,7 +923,7 @@ The servers that you connect to store your gamertag and profile picture. Bedrock
 Join your Minecraft server in game before you sign in to Bedrock Voice Chat. BVC lets you sign in after the Minecraft server sends you to BVC.
 
 :::caution
-If you play on a Realm, or on Aternos with the no-net Addon, your server operator **MUST** add you on the BVC server **FIRST**. Then you can sign in.
+If you play on a Realm, or on another host with the no-net Addon, your server operator **MUST** add you on the BVC server **FIRST**. Then you can sign in.
 :::
 
 ## Your server URL
@@ -974,7 +974,7 @@ Do these checks in order.
 2. **Are you near other players?** By default, you hear players at full volume up to 24 blocks away. At 48 blocks, you hear nothing. Stand next to a player.
 3. **Are you deafened?** Check the deafen button at the bottom left. Also check the mute button on each player in the player list.
 4. **Is your output device correct?** Open **Settings → Audio settings** and select **Test playback**. If you do not hear a chime, select a different output device.
-5. **Do you play on Realms or Aternos?** Connect with **Voice Chat Connect** in the app. If you connect to the server address directly, BVC does not work.
+5. **Do you play on Realms or on a host with the no-net Addon?** Connect with **Voice Chat Connect** in the app. If you connect to the server address directly, BVC does not work.
 
 ## Nobody can hear me
 
@@ -1006,7 +1006,7 @@ Export the recordings that you want to keep before you update. See [recording](/
 
 ## It worked yesterday
 
-**Did Minecraft update?** On Realms or Aternos, a Minecraft update stops voice chat until a BVC version for that Minecraft version is available. See [version support](/wiki/platforms/version-support/).
+**Did Minecraft update?** On Realms or on a host with the no-net Addon, a Minecraft update stops voice chat until a BVC version for that Minecraft version is available. See [version support](/wiki/platforms/version-support/).
 
 **Did you update BVC?** `VER01` means that your app is older than the server. `VER02` means that the server is older than your app. You can see the versions in **Settings → About**.
 
@@ -1207,16 +1207,16 @@ To add Bedrock Voice Chat to your Minecraft server, run the BVC server and insta
 
 The BVC server is a standalone Rust program. Run it in Docker, or run the native binary. It is not a Minecraft plugin and does not run inside your game server. Most commercial Minecraft hosts do not let you run it next to the game server. Run it on a VPS, a dedicated server, or a cluster.
 
-On Bedrock, the game server side is an Addon. On Java, it is a Fabric or Paper mod. The Addon or the mod sends player positions to the BVC server over HTTP.
+On Bedrock Dedicated Server, the game server side is an Addon. On Java, it is a Fabric or Paper mod. On PowerNukkitX, it is a plugin. The Addon, the mod or the plugin sends player positions to the BVC server over HTTP.
 
-The Java mod can also run BVC inside the game server's JVM. You then do not need a separate BVC service. Use this for small servers that run all the time. Do not use it on low-end hosts or on hosts that suspend idle servers.
+The Java mod and the PowerNukkitX plugin can also run BVC inside the game server's JVM. You then do not need a separate BVC service. Use this for small servers that run all the time. Do not use it on low-end hosts or on hosts that suspend idle servers.
 
 ## Installation order
 
 Do these steps in order. If you do them out of order, a new installation can appear to do nothing.
 
 1. [Install the BVC server](/wiki/server/installation/). You need a host that clients can reach, and a TLS certificate. BVC can get and renew the certificate itself. See [TLS](/wiki/server/tls/).
-2. Install the [Bedrock Addon](/wiki/server/bedrock-addon/) or the [Java mod](/wiki/server/java-mod/). Set it to the address of the BVC server.
+2. Install the [Bedrock Addon](/wiki/server/bedrock-addon/), the [Java mod](/wiki/server/java-mod/), or the [PowerNukkitX plugin](/wiki/server/powernukkitx/). Set it to the address of the BVC server.
 3. Let your players in. A player can sign in after they join your game server once, or after you [add them](/wiki/server/players-and-permissions/).
 4. Send your players to [Downloads](/wiki/start/downloads/).
 
@@ -1224,13 +1224,14 @@ Do these steps in order. If you do them out of order, a new installation can app
 
 | Page | Contents |
 |---|---|
-| [BDS Addon](/wiki/server/bedrock-addon/) | The pack for Bedrock Dedicated Servers. |
-| [No-net Addon](/wiki/server/nonet-addon/) | The pack for Realms, Aternos, and hosts without `@minecraft/server-net`. |
+| [BDS Addon](/wiki/server/bedrock-addon/) | The pack for Bedrock Dedicated Servers and Aternos. |
+| [No-net Addon](/wiki/server/nonet-addon/) | The pack for Realms and hosts without `@minecraft/server-net`. |
+| [PowerNukkitX](/wiki/server/powernukkitx/) | The plugin for PowerNukkitX servers. |
 | [Docker](/wiki/server/docker/) | Compose, volumes, health checks, configuration from environment variables. |
 | [Monitoring](/wiki/server/monitoring/) | Prometheus metrics, health endpoints, logs. |
 | [Troubleshooting](/wiki/server/troubleshooting/) | Problems seen from the operator side. |
 
-Realms, Aternos and consoles need more setup. Start at [Where BVC works](/wiki/platforms/).
+Realms, hosts without `@minecraft/server-net` and consoles need more setup. Start at [Where BVC works](/wiki/platforms/).
 
 ---
 
@@ -1246,7 +1247,7 @@ The Bedrock Addon sends player positions from your Bedrock Dedicated Server (BDS
 The Addon is **mandatory**. Without it, Bedrock Voice Chat does not receive player positions, and players cannot hear each other.
 :::
 
-This page is for Bedrock Dedicated Server. For Realms, Aternos, and other hosts that do not allow `@minecraft/server-net`, use the [no-net Addon](/wiki/server/nonet-addon/).
+This page is for Bedrock Dedicated Server and for hosts that allow `@minecraft/server-net`, such as [Aternos](/wiki/platforms/aternos/). For Realms and other hosts that do not allow `@minecraft/server-net`, use the [no-net Addon](/wiki/server/nonet-addon/).
 
 Install the [BVC server](/wiki/server/installation/) first. You need its URL and access token for these steps.
 
@@ -1371,7 +1372,7 @@ Enable the experiment in the Minecraft client, then move the world to the server
    - **BDS**: rename the file to `.zip`. Extract it into `worlds/<your world name>/`. Set `level-name` in `server.properties` to the same name.
    - **A host with a control panel**: upload the `.mcworld` or `.zip` file with the host's world upload feature.
 
-The [no-net Addon](/wiki/server/nonet-addon/) guide uses the same steps. Realms and Aternos worlds also need Beta APIs.
+The [no-net Addon](/wiki/server/nonet-addon/) guide uses the same steps. Realms and other hosted worlds also need Beta APIs.
 
 ## Existing worlds
 
@@ -1714,7 +1715,7 @@ Docker is the recommended method. You can also run the native server binary from
 2. Let your players in. A player can sign in after they join your game server once, or after you [add them](/wiki/server/players-and-permissions/).
 3. Send your players to [Downloads](/wiki/start/downloads/).
 
-Realms, Aternos and consoles need more setup. See [Where BVC works](/wiki/platforms/).
+Realms, hosts without `@minecraft/server-net` and consoles need more setup. See [Where BVC works](/wiki/platforms/).
 
 ## Embedded server in the Java mod
 
@@ -1787,9 +1788,44 @@ The mod sends player positions to a standalone [BVC server](/wiki/server/install
 
 Both keys are required. `access-token` must be the same as `server.minecraft.access_token` in the BVC server's `config.hcl`. If the values are different, the BVC server rejects each position update.
 
+:::caution
+External mode cannot connect to a BVC server that uses a [play name](/wiki/server/tls/#play-name). Give that server a domain, or use embedded mode.
+:::
+
 ## Embedded mode
 
-The mod runs the BVC server inside the Minecraft server's JVM.
+The mod runs the BVC server inside the Minecraft server's JVM. The embedded server needs a TLS certificate. Choose one [certificate source](/wiki/server/tls/).
+
+`embedded-config` uses the same keys and the same nesting as the BVC server's `config.hcl`. A key that is not set uses the server default. See the [configuration reference](/wiki/reference/configuration/) for all keys.
+
+The mod keeps its certificate authority (the key that signs player certificates) in `config/bedrock-voice-chat/`. Back up this directory. If you delete it, all client certificates that the server issued become invalid.
+
+:::note
+Releases before 1.0.0-beta.21 used flat keys in `embedded-config`. [Upgrading to beta.21](/wiki/upgrading/beta-21/#java-mod) has the table of old keys and new keys.
+:::
+
+### Without a domain
+
+BVC gives the server a [play name](/wiki/server/tls/#play-name) and its certificate:
+
+```json
+{
+  "use-embedded-server": true,
+  "embedded-config": {
+    "server": {
+      "port": 8444,
+      "quic_port": 8443,
+      "tls": {
+        "play": {}
+      }
+    }
+  }
+}
+```
+
+Look in the server log for `Play name assigned` to get the name that your players use.
+
+### With a domain
 
 ```json
 {
@@ -1813,13 +1849,9 @@ The mod runs the BVC server inside the Minecraft server's JVM.
 
 Replace `bvc.example.com` with your domain. Set `api_token` to a Cloudflare API token with DNS edit permission on that zone. BVC gets and renews the TLS certificate automatically. See [TLS](/wiki/server/tls/) to make the token, or to use acme-dns or your own certificate files.
 
-`embedded-config` uses the same keys and the same nesting as the BVC server's `config.hcl`. A key that is not set uses the server default. See the [configuration reference](/wiki/reference/configuration/) for all keys.
+### Environment variables
 
-The mod keeps its certificate authority (the key that signs player certificates) in `config/bedrock-voice-chat/`. Back up this directory. If you delete it, all client certificates that the server issued become invalid.
-
-:::note
-Releases before 1.0.0-beta.21 used flat keys in `embedded-config`. [Upgrading to beta.21](/wiki/upgrading/beta-21/#java-mod) has the table of old keys and new keys.
-:::
+The embedded server reads the `BVC_*` [environment variables](/wiki/reference/environment-variables/). They take precedence over `embedded-config`. You can set the certificate source with variables only, for example `BVC_PLAY=true`, and leave `tls` out of the JSON file.
 
 ## Chat sync
 
@@ -2001,9 +2033,45 @@ access-token: "<server.minecraft.access_token from config.hcl>"
 
 Both keys are required. `access-token` must be the same as `server.minecraft.access_token` in the BVC server's `config.hcl`. If the values are different, the BVC server rejects each position update.
 
+:::caution
+External mode cannot connect to a BVC server that uses a [play name](/wiki/server/tls/#play-name). Give that server a domain, or use embedded mode.
+:::
+
 ## Embedded mode
 
-The plugin runs the BVC server inside the Minecraft server's JVM.
+The plugin runs the BVC server inside the Minecraft server's JVM. The embedded server needs a TLS certificate. Choose one [certificate source](/wiki/server/tls/).
+
+`embedded-config` uses the same keys and the same nesting as the BVC server's `config.hcl`. A key that is not set uses the server default. See the [configuration reference](/wiki/reference/configuration/) for all keys.
+
+The plugin keeps its certificate authority (the key that signs player certificates) in `plugins/BedrockVoiceChat/`. Back up this directory. If you delete it, all client certificates that the server issued become invalid.
+
+:::caution
+Earlier Paper releases used `embedded:` for this block. The plugin ignores `embedded:`. Rename it to `embedded-config:`.
+
+Releases before 1.0.0-beta.21 used flat keys in this block. [Upgrading to beta.21](/wiki/upgrading/beta-21/#java-mod) has the table of old keys and new keys.
+:::
+
+### Without a domain
+
+BVC gives the server a [play name](/wiki/server/tls/#play-name) and its certificate:
+
+```yaml
+use-embedded-server: true
+embedded-config:
+  server:
+    port: 8444
+    quic_port: 8443
+    tls:
+      play: {}
+```
+
+Look in the server log for `Play name assigned` to get the name that your players use.
+
+:::caution
+Write `play: {}` with the braces. `play:` alone leaves play mode off.
+:::
+
+### With a domain
 
 ```yaml
 use-embedded-server: true
@@ -2022,15 +2090,9 @@ embedded-config:
 
 Replace `bvc.example.com` with your domain. Set `api_token` to a Cloudflare API token with DNS edit permission on that zone. BVC gets and renews the TLS certificate automatically. See [TLS](/wiki/server/tls/) to make the token, or to use acme-dns or your own certificate files.
 
-`embedded-config` uses the same keys and the same nesting as the BVC server's `config.hcl`. A key that is not set uses the server default. See the [configuration reference](/wiki/reference/configuration/) for all keys.
+### Environment variables
 
-The plugin keeps its certificate authority (the key that signs player certificates) in `plugins/BedrockVoiceChat/`. Back up this directory. If you delete it, all client certificates that the server issued become invalid.
-
-:::caution
-Earlier Paper releases used `embedded:` for this block. The plugin ignores `embedded:`. Rename it to `embedded-config:`.
-
-Releases before 1.0.0-beta.21 used flat keys in this block. [Upgrading to beta.21](/wiki/upgrading/beta-21/#java-mod) has the table of old keys and new keys.
-:::
+The embedded server reads the `BVC_*` [environment variables](/wiki/reference/environment-variables/). They take precedence over `embedded-config`. You can set the certificate source with variables only, for example `BVC_PLAY=true`, and leave `tls` out of `config.yml`.
 
 ## Chat sync
 
@@ -2133,15 +2195,17 @@ A JSON response shows that HTTP, TLS and TCP/443 work. It does not show that voi
 
 # No-net Addon
 
-> Build and install the Addon for Realms, Aternos, and hosts without @minecraft/server-net.
+> Build and install the Addon for Realms and hosts without @minecraft/server-net.
 
 Source: https://www.bedrockvoicechat.com/wiki/server/nonet-addon
 
-The no-net Addon lets Bedrock Voice Chat run on hosts that do not allow `@minecraft/server-net`, such as Realms and Aternos. Without that module, the standard Addon cannot send HTTP requests. It cannot send positions to the BVC server.
+The no-net Addon lets Bedrock Voice Chat run on hosts that do not allow `@minecraft/server-net`, such as Realms. Without that module, the standard Addon cannot send HTTP requests. It cannot send positions to the BVC server.
 
 With the no-net Addon, the BVC app runs a local Bedrock server. Minecraft connects to this local server. The app sends all game traffic to the real host, and reads player positions from that traffic.
 
-For host-specific steps, see [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/).
+For host-specific steps, see [Realms](/wiki/platforms/realms/) and [hosts without server-net](/wiki/platforms/no-net-hosts/).
+
+Aternos allows `@minecraft/server-net`. On Aternos, use the standard [Bedrock Addon](/wiki/server/bedrock-addon/). See [Aternos](/wiki/platforms/aternos/).
 
 ## Before you start
 
@@ -2187,7 +2251,7 @@ These limits do not apply to your own Bedrock Dedicated Server with the [full Ad
 Upload the world to your host. Then connect the BVC app to the host with Bedrock Voice Chat Connect. The upload step is different for each host:
 
 - **[Realms](/wiki/platforms/realms/)**: upload the world to the Realm.
-- **[Aternos and other no-net hosts](/wiki/platforms/aternos/)**: rename the file to `.zip`, then upload it.
+- **[Other no-net hosts](/wiki/platforms/no-net-hosts/)**: upload the file with the host's control panel. Some hosts accept only `.zip` files.
 
 ## Console players
 
@@ -2335,6 +2399,111 @@ On a private server, keep the defaults.
 
 ---
 
+# PowerNukkitX
+
+> Install and configure the BVC plugin on a PowerNukkitX server.
+
+Source: https://www.bedrockvoicechat.com/wiki/server/powernukkitx
+
+The Bedrock Voice Chat PowerNukkitX plugin reads its configuration from `plugins/BedrockVoiceChat/config.yml`. Bedrock players join a PowerNukkitX server directly, without Geyser or Floodgate.
+
+## Install
+
+1. Download `bedrock-voice-chat-powernukkitx-<version>-bundled.jar` from [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases).
+2. Put the plugin JAR in the server's `plugins` directory.
+3. Add `--add-opens java.base/java.lang=ALL-UNNAMED` to the server's Java options.
+4. Start the server once. The plugin writes `plugins/BedrockVoiceChat/config.yml`, with comments.
+5. Stop the server, edit the file, and start the server again.
+
+```
+java --add-opens java.base/java.lang=ALL-UNNAMED -jar powernukkitx.jar
+```
+
+:::caution
+Without `--add-opens java.base/java.lang=ALL-UNNAMED`, the plugin does not enable. The error does not name Bedrock Voice Chat. The PowerNukkitX Docker image already sets this option.
+:::
+
+## External mode
+
+The plugin sends player positions to a standalone [BVC server](/wiki/server/installation/).
+
+```yaml
+bvc-server: "https://bvc.example.com"
+access-token: "<server.minecraft.access_token from config.hcl>"
+```
+
+Both keys are required. `access-token` must be the same as `server.minecraft.access_token` in the BVC server's `config.hcl`. If the values are different, the BVC server rejects each position update.
+
+:::caution
+External mode cannot connect to a BVC server that uses a [play name](/wiki/server/tls/#play-name). Give that server a domain, or use embedded mode.
+:::
+
+## Embedded mode
+
+The plugin runs the BVC server inside the PowerNukkitX JVM. The embedded server needs a TLS certificate. Choose one [certificate source](/wiki/server/tls/).
+
+`embedded-config` uses the same keys and the same nesting as the BVC server's `config.hcl`. A key that is not set uses the server default. See the [configuration reference](/wiki/reference/configuration/) for all keys.
+
+The plugin keeps its certificate authority (the key that signs player certificates) in `plugins/BedrockVoiceChat/`. Back up this directory. If you delete it, all client certificates that the server issued become invalid.
+
+:::caution
+Do not set `quic_port` to `19132`. PowerNukkitX uses that port for the game.
+:::
+
+### Without a domain
+
+BVC gives the server a [play name](/wiki/server/tls/#play-name) and its certificate:
+
+```yaml
+use-embedded-server: true
+embedded-config:
+  server:
+    port: 8444
+    quic_port: 8443
+    tls:
+      play: {}
+```
+
+Look in the server log for `Play name assigned` to get the name that your players use.
+
+:::caution
+Write `play: {}` with the braces. `play:` alone leaves play mode off.
+:::
+
+### With a domain
+
+```yaml
+use-embedded-server: true
+embedded-config:
+  server:
+    port: 8444
+    quic_port: 8443
+    tls:
+      names:
+        - "bvc.example.com"
+      acme:
+        email: "you@example.com"
+        provider: "cloudflare"
+        api_token: "<Cloudflare API token>"
+```
+
+Replace `bvc.example.com` with your domain. Set `api_token` to a Cloudflare API token with DNS edit permission on that zone. BVC gets and renews the TLS certificate automatically. See [TLS](/wiki/server/tls/) to make the token, or to use acme-dns or your own certificate files.
+
+### Environment variables
+
+The embedded server reads the `BVC_*` [environment variables](/wiki/reference/environment-variables/). They take precedence over `embedded-config`. You can set the certificate source with variables only, for example `BVC_PLAY=true`, and leave `tls` out of `config.yml`.
+
+## Chat sync
+
+The plugin sends in-game [chat](/wiki/player/chat/) to the BVC app, and messages from the app to the game. No server setting is needed.
+
+## Next steps
+
+1. Let your players in. A player can sign in after they join your game server once, or after you [add them](/wiki/server/players-and-permissions/).
+2. Send your players to [Downloads](/wiki/start/downloads/).
+
+---
+
 # Privacy and telemetry
 
 > What BVC collects, how to turn it off, and setting a minimum age for your community.
@@ -2410,7 +2579,7 @@ Group members can hear everything in the group. Any member can record the group 
 
 # TLS certificates
 
-> An assigned hostname, automatic certificates over ACME DNS-01, or bring your own.
+> A play name, an assigned hostname, automatic certificates over ACME DNS-01, or bring your own.
 
 Source: https://www.bedrockvoicechat.com/wiki/server/tls
 
@@ -2420,13 +2589,81 @@ Bedrock Voice Chat requires a valid TLS certificate. The client apps check it th
 Self-signed certificates **will not work**. The app refuses the connection, and you cannot turn this check off.
 :::
 
-There are three options. Use only one. If you configure more than one, the server does not start.
+There are four options. Use only one. If you configure more than one, the server does not start.
 
 | Option | When to use |
 |---|---|
+| **A play name** | You have no domain. BVC gives the server a `*.play.bedrockvc.stream` name and renews its certificate. Nothing to set up. See [play name](#play-name). |
 | **An assigned hostname** | You have no domain. BVC gives you a name and renews its certificate. In development, and available only to some Patreon and YouTube members. See [assigned hostnames](/wiki/server/enrollment/). |
 | **ACME** | You have a domain and a supported DNS provider. BVC gets and renews the certificate. |
 | **Your own PEM files** | You already have a certificate, or your DNS provider is not supported. |
+
+## Play name
+
+Bedrock Voice Chat play names give a server a name and a TLS certificate with no domain. The BVC registry assigns a name in the form `adjective-noun-place-NNNN.play.bedrockvc.stream` and a certificate for that name. The certificate is valid for 15 days. The server renews it automatically, without a restart. You do not need a domain, a DNS provider, or an open port 80.
+
+```hcl
+server {
+    tls {
+        play {}
+    }
+}
+```
+
+The empty block is a complete configuration.
+
+:::caution
+In a YAML config, write `play: {}` with the braces. `play:` with nothing after it is empty, and play mode stays off.
+:::
+
+To find the server's name, look in the server log for `Play name assigned`. The server keeps the same name after a restart. Players sign in with `https://<name>:<port>`, for example `https://quiet-otter-harbor-0420.play.bedrockvc.stream:28280`. If `server.port` is `443`, leave out the port.
+
+### Address
+
+The registry publishes the server's IP address as the name's DNS record. By default, it uses the address that it sees the server connect from. If players reach the server at a different address, set it:
+
+```hcl
+server {
+    tls {
+        play {
+            address = "203.0.113.10"
+        }
+    }
+}
+```
+
+- Use an IP address. Do not use a hostname. If the value is not an IP address, the server does not start.
+- Use a public address. The registry refuses a private address, such as `192.168.x.x` or `10.x.x.x`.
+
+### Registry check-in
+
+- The server checks in with the registry every hour.
+- If the registry is not available, the server continues to run with the certificate that it has.
+- If the registry releases the name, the server claims a new name. The log says so. Give your players the new name.
+
+### Limits
+
+- Use only one certificate source. Do not use `play` with `certificate` and `key`, with `acme`, or with `server.enrollment.token`.
+- A Java mod in external mode cannot connect to a server that uses a play name. Use embedded mode, or give the external server a domain.
+- You cannot change the name. To use a name that you choose, use [ACME](#acme) with your own domain.
+
+### Environment variables
+
+`BVC_PLAY=true` turns on play mode. `BVC_PLAY_ADDRESS` sets the address. See [environment variables](/wiki/reference/environment-variables/#play-name).
+
+### Bedrock Addon on the same host
+
+When the Bedrock Addon runs on the same host as the server, set `server.mod_loopback = true`. The Addon then connects to `http://127.0.0.1:<port>` and needs no certificate. See [`mod_loopback`](/wiki/reference/configuration/#server).
+
+```hcl
+server {
+    mod_loopback = true
+
+    tls {
+        play {}
+    }
+}
+```
 
 ## ACME
 
@@ -2559,7 +2796,7 @@ A player can sign in only after they join your game server once, or after an adm
 
 **Audio works for some players and not for others.** The networks of those players probably block UDP. Make sure that TCP/443 is open for the WebSocket fallback.
 
-**Everything worked, then stopped after a Minecraft update.** This affects only Realms and Aternos. See [version support](/wiki/platforms/version-support/).
+**Everything worked, then stopped after a Minecraft update.** This affects only Realms and other hosts that use the no-net Addon. See [version support](/wiki/platforms/version-support/).
 
 **Console players cannot connect.** The console and the device that runs BVC must be on the same network. In Minecraft, the session shows on the Worlds tab, not the Servers tab. See [console and mobile](/wiki/platforms/console-and-mobile/).
 
@@ -2616,75 +2853,25 @@ Worlds that the Minecraft game client hosts are **not** supported. These are LAN
 | **Geyser / Floodgate** | Yes | The Java mod. The mod detects Floodgate automatically. No BVC settings for Geyser. [Details](/wiki/server/java-mod/integrations/geyser-and-floodgate/). |
 | **Realms** | Yes | The [no-net Addon](/wiki/server/nonet-addon/) and Bedrock Voice Chat Connect in the app. [Details](/wiki/platforms/realms/). |
 | **Nodecraft** | Yes | A Pro server. [Details](/wiki/platforms/nodecraft/). |
-| **Aternos and other no-net hosts** | Yes | The no-net Addon and Bedrock Voice Chat Connect. [Details](/wiki/platforms/aternos/). |
+| **Aternos** | Yes | The [Addon](/wiki/server/bedrock-addon/). [Details](/wiki/platforms/aternos/). |
+| **Other hosts without `@minecraft/server-net`** | Yes | The no-net Addon and Bedrock Voice Chat Connect. [Details](/wiki/platforms/no-net-hosts/). |
 | **Consoles** | Yes | The mobile app on a phone or tablet. [Details](/wiki/platforms/console-and-mobile/). |
 | **LAN worlds** | No | There is no server to install the Addon on. See [LAN and local worlds](/wiki/platforms/lan-and-local-worlds/). |
 | **Locally hosted / single-player worlds** | No | There is no server to install the Addon on. See [LAN and local worlds](/wiki/platforms/lan-and-local-worlds/). |
 
-See [version support](/wiki/platforms/version-support/) for the Bedrock versions that BVC supports on Realms and Aternos.
+See [version support](/wiki/platforms/version-support/) for the Bedrock versions that BVC supports on Realms and other hosts that use the no-net Addon.
 
 ---
 
-# Aternos and no-net hosts
+# Aternos
 
-> Run BVC on Aternos and other hosts that cannot enable @minecraft/server-net.
+> Run BVC on Aternos with the standard Bedrock Addon.
 
 Source: https://www.bedrockvoicechat.com/wiki/platforms/aternos
 
-Bedrock Voice Chat supports Aternos and other free hosts that do not allow `@minecraft/server-net`. Use the no-net Addon and Bedrock Voice Chat Connect. Supported since 1.0.0-beta.15.
+Bedrock Voice Chat works on Aternos as a normal mcaddon. Install the standard [Bedrock Addon](/wiki/server/bedrock-addon/) on your Aternos server. You do not need the no-net Addon or Bedrock Voice Chat Connect.
 
-The BVC app runs a local Bedrock server. Minecraft connects to the app, and the app connects to Aternos.
-
-:::caution
-Support for each Minecraft release comes after the release. If your host updates Minecraft automatically, voice chat **stops** on the day of the update. Check [version support](/wiki/platforms/version-support/) before you move your server to Aternos.
-:::
-
-## Before you start
-
-1. Install and configure the [BVC server](/wiki/server/installation/).
-2. Install the [BVC app](/wiki/start/downloads/).
-3. Build the no-net world with the [no-net Addon](/wiki/server/nonet-addon/) guide.
-
-## Upload the world
-
-1. Find the `.mcworld` file that you exported, and change the extension to `.zip`.
-2. Upload it to Aternos.
-
-   <div class="window"><img src="/assets/wiki/aternos-worlds.jpg" alt="Aternos world upload page" /></div>
-
-3. Set the Aternos server version to the Minecraft version that the Addon supports. Each Addon works with one Minecraft version only. If the versions do not match, voice chat does not work.
-
-Check [version support](/wiki/platforms/version-support/) for the version to select.
-
-## Connect
-
-1. Sign in to the BVC app with the BVC server from [Before you start](#before-you-start).
-2. Select the Settings cog at the bottom left. Then select **Voice Chat Connect** in the sidebar. The first time, the app asks you to sign in again.
-3. Select the add button at the top. Enter your Aternos domain and port.
-
-   <div class="window"><img src="/assets/wiki/settings-connect-aternos-edit.jpg" alt="Bedrock Voice Chat Connect add-server dialog with an Aternos address" /></div>
-
-4. Select **Connect**. The app shows the connection details.
-
-   <div class="window"><img src="/assets/wiki/settings-connect-aternos-connected.jpg" alt="Bedrock Voice Chat Connect showing connection information for a connected server" /></div>
-
-## Open Minecraft
-
-The BVC app shows the session on your local network. Minecraft lists it under **Worlds**.
-
-1. Open Minecraft on the same network as the device that runs BVC.
-2. Go to **Worlds**.
-3. Select the entry with the name of your server. The second line shows your gamertag and **Bedrock Voice Chat**.
-
-Desktop, mobile and console all connect this way. Consoles need no extra setup. See [console and mobile](/wiki/platforms/console-and-mobile/).
-
-:::danger
-Join the world from the **Worlds** tab. If you connect to your Aternos server directly, Minecraft works but voice chat does not.
-:::
-
-:::note
-On desktop and mobile, if the session is not in **Worlds**, open the **Servers** tab and add `127.0.0.1` with port `28282`.
-:::
+Enable [Beta APIs](/wiki/server/beta-apis/) with the experiment switches in the Aternos control panel.
 
 ---
 
@@ -2715,9 +2902,9 @@ Sign in with the Xbox account that you play on.
 
 No extra steps. Join the server in Minecraft and sign in to the app.
 
-## On Realms or Aternos
+## On Realms or a no-net host
 
-Realms and Aternos use Bedrock Voice Chat Connect. The BVC app shows the session on your local network, and Minecraft lists it under **Worlds**.
+Realms and [hosts without server-net](/wiki/platforms/no-net-hosts/) use Bedrock Voice Chat Connect. The BVC app shows the session on your local network, and Minecraft lists it under **Worlds**.
 
 ### Operator
 
@@ -2736,12 +2923,12 @@ Operators do not need to change any settings.
 If two people on the network run BVC in the same world, two entries show. Use the gamertag on the second line to find your entry.
 
 :::danger
-Do **not** enter your Realm or Aternos address directly. If you do, Minecraft works but voice chat does not.
+Do **not** enter your Realm or server address directly. If you do, Minecraft works but voice chat does not.
 :::
 
 ## Playing on mobile
 
-If you play Minecraft on a phone or tablet, follow the steps on the [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/) pages. They are the same as on desktop.
+If you play Minecraft on a phone or tablet, follow the steps on the [Realms](/wiki/platforms/realms/) and [hosts without server-net](/wiki/platforms/no-net-hosts/) pages. They are the same as on desktop.
 
 ## Recording
 
@@ -2757,25 +2944,13 @@ Recording is not available on mobile. Record on a desktop computer. See [Recordi
 
 Source: https://www.bedrockvoicechat.com/wiki/platforms/lan-and-local-worlds
 
-Bedrock Voice Chat does not work on LAN worlds, locally hosted worlds or single-player worlds. These are worlds that one player hosts on their own device. Friends can join only while the host is online.
-
-:::note[Two different things called LAN]
-A **LAN world** is a world that a game client hosts. BVC does not support it.
-
-Minecraft's **Worlds** tab also lists sessions that it finds on your network. Bedrock Voice Chat Connect sessions show in this list. These sessions work with BVC. See [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/).
-:::
-
-## Reason
-
-Bedrock Voice Chat needs an Addon on the server to send player positions. Proximity chat cannot work without positions, and only the Addon sends them.
-
-A world that the Minecraft game client hosts cannot load server Addons. On all platforms, there is no place to install one.
+Bedrock Voice Chat does not work locally hosted worlds.
 
 ### Bedrock Voice Chat Connect
 
-Realms and Aternos use Bedrock Voice Chat Connect. Connect does not work with LAN worlds.
+Realms and hosts without `@minecraft/server-net` use Bedrock Voice Chat Connect. Connect does not work with LAN worlds.
 
-You can upload a world with the Addon to a Realm or an Aternos server. Connect then sends the data from that Addon to BVC. You cannot upload a world to a LAN host. No Addon runs on a LAN world.
+You can upload a world with the Addon to a Realm or a no-net host. Connect then sends the data from that Addon to BVC. You cannot upload a world to a LAN host. No Addon runs on a LAN world.
 
 ## Use Bedrock Dedicated Server
 
@@ -2797,9 +2972,71 @@ To fund work on this problem, [support the project](/wiki/start/supporting-bvc/)
 
 ---
 
+# Hosts without server-net
+
+> Run BVC on hosts that do not allow @minecraft/server-net, with the no-net Addon and Bedrock Voice Chat Connect.
+
+Source: https://www.bedrockvoicechat.com/wiki/platforms/no-net-hosts
+
+Some hosts do not allow the `@minecraft/server-net` module. On these hosts, the standard Addon cannot send player positions to the BVC server. Use the no-net Addon and Bedrock Voice Chat Connect. Supported since 1.0.0-beta.15.
+
+The BVC app runs a local Bedrock server. Minecraft connects to the app, and the app connects to your host.
+
+If your host allows `@minecraft/server-net`, use the standard [Bedrock Addon](/wiki/server/bedrock-addon/) and skip this page. [Aternos](/wiki/platforms/aternos/) allows it. For a Realm, see [Realms](/wiki/platforms/realms/).
+
+:::caution
+Support for each Minecraft release comes after the release. If your host updates Minecraft automatically, voice chat **stops** on the day of the update. Check [version support](/wiki/platforms/version-support/) before you move your server to a no-net host.
+:::
+
+## Before you start
+
+1. Install and configure the [BVC server](/wiki/server/installation/).
+2. Install the [BVC app](/wiki/start/downloads/).
+3. Build the no-net world with the [no-net Addon](/wiki/server/nonet-addon/) guide.
+
+## Upload the world
+
+1. Find the `.mcworld` file that you exported. If your host accepts only `.zip` files, change the extension to `.zip`.
+2. Upload the world with your host's control panel.
+3. Set the server version to the Minecraft version that the Addon supports. Each Addon works with one Minecraft version only. If the versions do not match, voice chat does not work.
+
+Check [version support](/wiki/platforms/version-support/) for the version to select.
+
+## Connect
+
+1. Sign in to the BVC app with the BVC server from [Before you start](#before-you-start).
+2. Select the Settings cog at the bottom left. Then select **Voice Chat Connect** in the sidebar. The first time, the app asks you to sign in again.
+3. Select the add button at the top. Enter your server's domain and port.
+
+   <div class="window"><img src="/assets/wiki/settings-connect-aternos-edit.jpg" alt="Bedrock Voice Chat Connect add-server dialog with a server address" /></div>
+
+4. Select **Connect**. The app shows the connection details.
+
+   <div class="window"><img src="/assets/wiki/settings-connect-aternos-connected.jpg" alt="Bedrock Voice Chat Connect showing connection information for a connected server" /></div>
+
+## Open Minecraft
+
+The BVC app shows the session on your local network. Minecraft lists it under **Worlds**.
+
+1. Open Minecraft on the same network as the device that runs BVC.
+2. Go to **Worlds**.
+3. Select the entry with the name of your server. The second line shows your gamertag and **Bedrock Voice Chat**.
+
+Desktop, mobile and console all connect this way. Consoles need no extra setup. See [console and mobile](/wiki/platforms/console-and-mobile/).
+
+:::danger
+Join the world from the **Worlds** tab. If you connect to your server directly, Minecraft works but voice chat does not.
+:::
+
+:::note
+On desktop and mobile, if the session is not in **Worlds**, open the **Servers** tab and add `127.0.0.1` with port `28282`.
+:::
+
+---
+
 # Nodecraft
 
-> Run Bedrock Voice Chat on a Nodecraft game server, for Fabric, PaperMC, and Bedrock.
+> Run Bedrock Voice Chat on a Nodecraft game server, for Fabric, PaperMC, PowerNukkitX, and Bedrock.
 
 Source: https://www.bedrockvoicechat.com/wiki/platforms/nodecraft
 
@@ -2812,8 +3049,9 @@ Sign up through [nodecraft.com/r/alaydriem](https://nodecraft.com/r/alaydriem) t
 ## Requirements
 
 - A Nodecraft server.
-- A domain name. Bedrock Voice Chat does not work with an IP address or with the Nodecraft host name. See [TLS certificates](/wiki/server/tls/).
-- A DNS provider that BVC can use to get a certificate. The guides use Cloudflare. See [TLS certificates](/wiki/server/tls/).
+- A name for the BVC server, with a TLS certificate. Bedrock Voice Chat does not work with an IP address or with the Nodecraft host name. Choose one:
+  - A [play name](/wiki/server/tls/#play-name). BVC gives the server a name and its certificate. You need no domain.
+  - Your own domain, with a DNS provider that BVC can use to get a certificate. The guides use Cloudflare. See [TLS certificates](/wiki/server/tls/).
 
 ## Server type
 
@@ -2821,6 +3059,7 @@ Sign up through [nodecraft.com/r/alaydriem](https://nodecraft.com/r/alaydriem) t
 |---|---|---|
 | **Fabric** | Embedded in the mod | [Fabric on Nodecraft](/wiki/platforms/nodecraft/fabric/) |
 | **PaperMC** | Embedded in the plugin | [PaperMC on Nodecraft](/wiki/platforms/nodecraft/papermc/) |
+| **PowerNukkitX** | Embedded in the plugin | [PowerNukkitX on Nodecraft](/wiki/platforms/nodecraft/powernukkitx/) |
 | **Bedrock** | Started by the BVC launcher | [Bedrock on Nodecraft](/wiki/platforms/nodecraft/bedrock/) |
 
 The Java guides use the [embedded mode](/wiki/server/java-mod/#external-or-embedded-server) of the mod. The BVC server runs inside the Minecraft server and uses the ports of the Nodecraft server.
@@ -2846,8 +3085,9 @@ On Nodecraft, a custom launcher runs the Bedrock Voice Chat server next to your 
 You need:
 
 - A Nodecraft Pro server. See [Nodecraft](/wiki/platforms/nodecraft/).
-- A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/).
-- A Cloudflare API token for that zone, with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
+- One of these:
+  - Nothing more. BVC gives the server a [play name](/wiki/server/tls/#play-name).
+  - A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/), and a Cloudflare API token for that zone with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
 
 :::caution
 You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voice Chat then stops too.
@@ -2869,7 +3109,26 @@ You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voic
 
    <div class="shot"><span>Nodecraft File Manager with bedrock_server and bedrock_server_vanilla</span></div>
 
-4. Create `config/bvc.hcl` with this base configuration:
+4. In the Pro Panel, select **Overview**. Copy the **Dedicated IP**.
+5. Create `config/bvc.hcl`.
+
+   Without a domain:
+
+   ```hcl
+   server {
+       port = 28280
+       quic_port = 28280
+       mod_loopback = true
+
+       tls {
+           play {
+               address = "203.0.113.10"
+           }
+       }
+   }
+   ```
+
+   With a domain:
 
    ```hcl
    server {
@@ -2888,19 +3147,20 @@ You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voic
    }
    ```
 
-5. Replace `bvc.example.com`, the email, and the API token with your values.
+6. Replace `203.0.113.10` with your Dedicated IP. With a domain, replace `bvc.example.com`, the email, and the API token with your values.
 
 :::caution
-1. Use Cloudflare or another supported DNS provider. BVC then gets and renews the TLS certificate automatically.
+1. Keep both ports at 28280. Do not change them.
 2. Do not use your Nodecraft hostname. At this time, BVC cannot get a TLS certificate for the hostname that Nodecraft gives a Pro server.
-3. Keep both ports at 28280. Do not change them.
+3. With a domain, use Cloudflare or another supported DNS provider. BVC then gets and renews the TLS certificate automatically.
 :::
 
 ## Point your domain at the server
 
-1. In the Pro Panel, select **Overview**. Copy the **Dedicated IP**.
-2. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
-3. In Cloudflare, set the record's proxy status to **DNS only**.
+Skip this section if you use a play name.
+
+1. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
+2. In Cloudflare, set the record's proxy status to **DNS only**.
 
 BVC gets the TLS certificate the first time it starts. This can take one minute. Wait, then sign in for the first time.
 
@@ -2914,7 +3174,7 @@ Players in `allowlist.json` can sign in to Bedrock Voice Chat before they join t
 
 ## Connect
 
-Your players sign in with `https://bvc.example.com:28280`. Use your domain. See [signing in](/wiki/player/signing-in/).
+Your players sign in with `https://bvc.example.com:28280`. Use your play name or your domain. To find the play name, look in the server console for `Play name assigned`. See [signing in](/wiki/player/signing-in/).
 
 <div class="window"><img src="/assets/wiki/nodecraft-login.jpg" alt="BVC login window with bvc.example.com:28280 in the server address field" /></div>
 
@@ -2945,8 +3205,9 @@ Install Bedrock Voice Chat on a Nodecraft Pro server that runs Fabric. The BVC s
 You need:
 
 - A Nodecraft Pro server. See [Nodecraft](/wiki/platforms/nodecraft/).
-- A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/).
-- A Cloudflare API token for that zone, with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
+- One of these:
+  - Nothing more. BVC gives the server a [play name](/wiki/server/tls/#play-name).
+  - A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/), and a Cloudflare API token for that zone with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
 
 :::caution
 You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voice Chat then stops too.
@@ -2968,7 +3229,30 @@ You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voic
 
    <div class="shot"><span>Nodecraft File Manager, mods directory with the BVC jar</span></div>
 
-4. Create `config/bedrock-voice-chat.json` with this base configuration:
+4. In the Pro Panel, select **Overview**. Copy the **Dedicated IP**.
+5. Create `config/bedrock-voice-chat.json`.
+
+   Without a domain:
+
+   ```json
+   {
+     "minimum-players": 1,
+     "use-embedded-server": true,
+     "embedded-config": {
+       "server": {
+         "port": 28280,
+         "quic_port": 28280,
+         "tls": {
+           "play": {
+             "address": "203.0.113.10"
+           }
+         }
+       }
+     }
+   }
+   ```
+
+   With a domain:
 
    ```json
    {
@@ -2992,19 +3276,20 @@ You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voic
    }
    ```
 
-5. Replace `bvc.example.com`, the email, and the API token with your values.
+6. Replace `203.0.113.10` with your Dedicated IP. With a domain, replace `bvc.example.com`, the email, and the API token with your values.
 
 :::caution
-1. Use Cloudflare or another supported DNS provider. BVC then gets and renews the TLS certificate automatically.
+1. Keep both ports at 28280. Do not change them.
 2. Do not use your Nodecraft hostname. At this time, BVC cannot get a TLS certificate for the hostname that Nodecraft gives a Pro server.
-3. Keep both ports at 28280. Do not change them.
+3. With a domain, use Cloudflare or another supported DNS provider. BVC then gets and renews the TLS certificate automatically.
 :::
 
 ## Point your domain at the server
 
-1. In the Pro Panel, select **Overview**. Copy the **Dedicated IP**.
-2. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
-3. In Cloudflare, set the record's proxy status to **DNS only**.
+Skip this section if you use a play name.
+
+1. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
+2. In Cloudflare, set the record's proxy status to **DNS only**.
 
 BVC gets the TLS certificate the first time it starts. This can take one minute. Wait, then sign in for the first time. If players cannot sign in after BVC gets its first certificate, restart the Java server.
 
@@ -3024,7 +3309,7 @@ Edit `server.properties` in **Server Files**, then restart the server. See [chat
 
 ## Connect
 
-Your players sign in with `https://bvc.example.com:28280`. Use your domain. See [signing in](/wiki/player/signing-in/).
+Your players sign in with `https://bvc.example.com:28280`. Use your play name or your domain. To find the play name, look in the server console for `Play name assigned`. See [signing in](/wiki/player/signing-in/).
 
 <div class="window"><img src="/assets/wiki/nodecraft-login.jpg" alt="BVC login window with bvc.example.com:28280 in the server address field" /></div>
 
@@ -3055,8 +3340,9 @@ Install Bedrock Voice Chat on a Nodecraft Pro server that runs PaperMC. The BVC 
 You need:
 
 - A Nodecraft Pro server. See [Nodecraft](/wiki/platforms/nodecraft/).
-- A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/).
-- A Cloudflare API token for that zone, with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
+- One of these:
+  - Nothing more. BVC gives the server a [play name](/wiki/server/tls/#play-name).
+  - A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/), and a Cloudflare API token for that zone with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
 
 :::caution
 You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voice Chat then stops too.
@@ -3078,7 +3364,24 @@ You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voic
 
    <div class="window"><img src="/assets/wiki/nodecraft-paper-plugins.jpg" alt="Nodecraft File Manager showing the plugins directory with the Bedrock Voice Chat, Geyser, Floodgate, and Simple Voice Chat jars" /></div>
 
-4. Create `plugins/BedrockVoiceChat/config.yml` with this base configuration:
+4. In the Pro Panel, select **Overview**. Copy the **Dedicated IP**.
+5. Create `plugins/BedrockVoiceChat/config.yml`.
+
+   Without a domain:
+
+   ```yaml
+   minimum-players: 1
+   use-embedded-server: true
+   embedded-config:
+     server:
+       port: 28280
+       quic_port: 28280
+       tls:
+         play:
+           address: "203.0.113.10"
+   ```
+
+   With a domain:
 
    ```yaml
    minimum-players: 1
@@ -3097,19 +3400,20 @@ You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voic
            api_token: "cfut_api-token"
    ```
 
-5. Replace `bvc.example.com`, the email, and the API token with your values.
+6. Replace `203.0.113.10` with your Dedicated IP. With a domain, replace `bvc.example.com`, the email, and the API token with your values.
 
 :::caution
-1. Use Cloudflare or another supported DNS provider. BVC then gets and renews the TLS certificate automatically.
+1. Keep both ports at 28280. Do not change them.
 2. Do not use your Nodecraft hostname. At this time, BVC cannot get a TLS certificate for the hostname that Nodecraft gives a Pro server.
-3. Keep both ports at 28280. Do not change them.
+3. With a domain, use Cloudflare or another supported DNS provider. BVC then gets and renews the TLS certificate automatically.
 :::
 
 ## Point your domain at the server
 
-1. In the Pro Panel, select **Overview**. Copy the **Dedicated IP**.
-2. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
-3. In Cloudflare, set the record's proxy status to **DNS only**.
+Skip this section if you use a play name.
+
+1. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
+2. In Cloudflare, set the record's proxy status to **DNS only**.
 
 BVC gets the TLS certificate the first time it starts. This can take one minute. Wait, then sign in for the first time. If players cannot sign in after BVC gets its first certificate, restart the Java server.
 
@@ -3129,7 +3433,7 @@ Edit `server.properties` in **Server Files**, then restart the server. See [chat
 
 ## Connect
 
-Your players sign in with `https://bvc.example.com:28280`. Use your domain. See [signing in](/wiki/player/signing-in/).
+Your players sign in with `https://bvc.example.com:28280`. Use your play name or your domain. To find the play name, look in the server console for `Play name assigned`. See [signing in](/wiki/player/signing-in/).
 
 <div class="window"><img src="/assets/wiki/nodecraft-login.jpg" alt="BVC login window with bvc.example.com:28280 in the server address field" /></div>
 
@@ -3142,6 +3446,131 @@ Your players sign in with `https://bvc.example.com:28280`. Use your domain. See 
    ```
 
    Use your Xbox gamertag. Put it in quotes if it contains a space. See [Java commands](/wiki/player/in-game-commands/java/#admin).
+
+2. Send your players to [Downloads](/wiki/start/downloads/). They can then sign in.
+
+---
+
+# PowerNukkitX on Nodecraft
+
+> Run Bedrock Voice Chat on a Nodecraft PowerNukkitX server with the embedded BVC server.
+
+Source: https://www.bedrockvoicechat.com/wiki/platforms/nodecraft/powernukkitx
+
+Install Bedrock Voice Chat on a Nodecraft Pro server that runs PowerNukkitX. The BVC server runs inside the Minecraft server (embedded mode). For the full list of plugin settings, see [PowerNukkitX](/wiki/server/powernukkitx/).
+
+## Before you start
+
+You need:
+
+- A Nodecraft Pro server. See [Nodecraft](/wiki/platforms/nodecraft/).
+- One of these:
+  - Nothing more. BVC gives the server a [play name](/wiki/server/tls/#play-name).
+  - A domain name, with DNS at Cloudflare or another [supported provider](/wiki/server/tls/), and a Cloudflare API token for that zone with DNS edit permission. See [TLS certificates](/wiki/server/tls/).
+
+:::caution
+You **MUST** use a Pro server. Lite servers stop when nobody plays. Bedrock Voice Chat then stops too.
+:::
+
+## Install PowerNukkitX
+
+<!-- TODO: confirm the Nodecraft panel steps and labels for a PowerNukkitX server. -->
+
+1. Create a new **Pro** game server.
+2. During server setup, select **PowerNukkitX**.
+3. Select **Create and Deploy**. Wait for the installation to complete.
+4. Add `--add-opens java.base/java.lang=ALL-UNNAMED` to the server's Java startup options.
+
+   <div class="shot"><span>Nodecraft server setup with PowerNukkitX selected</span></div>
+
+:::caution
+Without `--add-opens java.base/java.lang=ALL-UNNAMED`, the plugin does not enable.
+:::
+
+## Upload the plugin
+
+1. Download `bedrock-voice-chat-powernukkitx-<version>-bundled.jar` from [GitHub Releases](https://github.com/Alaydriem/bedrock-voice-chat/releases).
+2. In **Server Files** > **File Manager**, open the `plugins` directory.
+3. Select **Upload**, and upload the `.jar` file that you downloaded.
+
+   <div class="shot"><span>Nodecraft File Manager showing the plugins directory with the Bedrock Voice Chat jar</span></div>
+
+4. In the Pro Panel, select **Overview**. Copy the **Dedicated IP**.
+5. Create `plugins/BedrockVoiceChat/config.yml`.
+
+   Without a domain:
+
+   ```yaml
+   minimum-players: 1
+   use-embedded-server: true
+   embedded-config:
+     server:
+       port: 28280
+       quic_port: 28280
+       tls:
+         play:
+           address: "203.0.113.10"
+   ```
+
+   With a domain:
+
+   ```yaml
+   minimum-players: 1
+   use-embedded-server: true
+   embedded-config:
+     server:
+       port: 28280
+       quic_port: 28280
+       tls:
+         names:
+           - "bvc.example.com"
+         ips: []
+         acme:
+           email: "your-cloudflare-email@example.com"
+           provider: "cloudflare"
+           api_token: "cfut_api-token"
+   ```
+
+6. Replace `203.0.113.10` with your Dedicated IP. With a domain, replace `bvc.example.com`, the email, and the API token with your values.
+
+:::caution
+1. Keep both ports at 28280. Do not change them.
+2. Do not use your Nodecraft hostname. At this time, BVC cannot get a TLS certificate for the hostname that Nodecraft gives a Pro server.
+3. With a domain, use Cloudflare or another supported DNS provider. BVC then gets and renews the TLS certificate automatically.
+:::
+
+## Point your domain at the server
+
+Skip this section if you use a play name.
+
+1. At your DNS provider, add an `A` record for your BVC name, for example `bvc.example.com`, with the Dedicated IP as its value.
+2. In Cloudflare, set the record's proxy status to **DNS only**.
+
+BVC gets the TLS certificate the first time it starts. This can take one minute. Wait, then sign in for the first time. If players cannot sign in after BVC gets its first certificate, restart the server.
+
+:::caution
+The plugin stores its certificate authority (the key that signs player certificates) in `plugins/BedrockVoiceChat/`. Download a copy of this directory from **Server Files** and keep it. If you delete it, all client certificates that the server issued become invalid, and all players must sign in again.
+:::
+
+## Chat sync
+
+The plugin sends in-game chat to the BVC app, and messages from the app to the game. No server setting is needed. See [chat](/wiki/player/chat/).
+
+## Connect
+
+Your players sign in with `https://bvc.example.com:28280`. Use your play name or your domain. To find the play name, look in the server console for `Play name assigned`. See [signing in](/wiki/player/signing-in/).
+
+<div class="window"><img src="/assets/wiki/nodecraft-login.jpg" alt="BVC login window with bvc.example.com:28280 in the server address field" /></div>
+
+## Next steps
+
+1. Make yourself an admin from the server console:
+
+   ```
+   bvc admin grant <Gamertag>
+   ```
+
+   Use your Xbox gamertag. See [Java commands](/wiki/player/in-game-commands/java/#admin).
 
 2. Send your players to [Downloads](/wiki/start/downloads/). They can then sign in.
 
@@ -3212,7 +3641,7 @@ Source: https://www.bedrockvoicechat.com/wiki/platforms/version-support
 
 Bedrock Voice Chat Connect uses the Bedrock network protocol. Connect works only with the protocol versions in the table below.
 
-This applies to Realms, Aternos and other hosts that use the no-net Addon.
+This applies to Realms and other hosts that use the no-net Addon.
 
 :::note
 This does not apply to a Bedrock Dedicated Server or a Java server. On these servers, the Addon or the mod sends positions over HTTP, and the Bedrock protocol version has no effect.
@@ -3871,6 +4300,11 @@ If a referenced variable is not set, the server does not start.
 | `quic_port` | `28280` | UDP port for QUIC voice. |
 | `advertised_quic_ports` | `[28280]` | Public UDP ports that clients try, in order of preference. Clients get only the ports in this list. `quic_port` is not added. The default stays `[28280]` when you change `quic_port`. Set this list when you change `quic_port`, or when a proxy receives traffic on a different port. An empty list publishes only `quic_port`. |
 | `assets_path` | `./assets` | Directory of static files that the API serves. |
+| `mod_loopback` | `false` | Accepts plain HTTP on `port` from the same machine, for a Bedrock Addon that runs on the same host. The Addon then needs no certificate and no second port. Plain HTTP from any other address is closed with no response. |
+
+:::danger[`mod_loopback` and port forwarders]
+`mod_loopback` trusts the address that a connection comes from. A TCP forwarder on the same machine that relays the public port without TLS makes every remote client look like `127.0.0.1`. Examples are socat, `ssh -L`, an nginx `stream` block without PROXY protocol, Windows `netsh interface portproxy`, and WSL2 localhost forwarding. Behind one of these, `mod_loopback` accepts plain HTTP from the internet, and the Addon's access token crosses the network unencrypted. Leave `mod_loopback` off on such a host.
+:::
 
 With the default `::`, QUIC uses one socket for IPv4 and IPv6. On Linux, this depends on `net.ipv6.bindv6only`, which is `0` by default.
 
@@ -3878,12 +4312,23 @@ With the default `::`, QUIC uses one socket for IPv4 and IPv6. On Linux, this de
 
 | Key | Default | Description |
 |---|---|---|
-| `certificate` | None | Path to a full-chain PEM file. Required unless `acme` is set. |
-| `key` | None | Path to the private key PEM file. Required unless `acme` is set. |
+| `certificate` | None | Path to a full-chain PEM file. Required unless another certificate source is set. |
+| `key` | None | Path to the private key PEM file. Required unless another certificate source is set. |
 | `names` | `["localhost"]` | Hostnames that clients use to reach the server. The server puts them in the certificate. |
 | `ips` | `["127.0.0.1"]` | IP addresses that clients use to reach the server. The server puts them in the certificate. |
 | `certs_path` | `./certificates` | Directory for the mTLS CA (`ca.crt`) that authenticates clients. The server manages this directory. |
 | `acme` | None | Automatic certificates. Do not use with `certificate` and `key`. |
+| `play` | None | A play name and its certificate from the BVC registry. See [`server.tls.play`](#servertlsplay). |
+
+## `server.tls.play`
+
+Gets a `*.play.bedrockvc.stream` name and a 15-day certificate from the BVC registry, and renews the certificate. The block turns on play mode even when it is empty: `play {}`. See [play name](/wiki/server/tls/#play-name).
+
+| Key | Default | Description |
+|---|---|---|
+| `address` | None | The public IP address that the registry publishes as the name's DNS record. If you do not set it, the registry uses the address that it sees the server connect from. Use an IP address, not a hostname. The registry refuses a private address. |
+
+If you set `play` with `certificate`, `key`, `acme`, or `server.enrollment.token`, the server does not start. If `address` is not an IP address, the server does not start, and the error names the value.
 
 ## `server.tls.acme`
 
@@ -3997,7 +4442,7 @@ Peers do not fetch audio files. The server that plays Jukebox audio decodes it a
 | `token` | None | The single-use enrollment token. The server uses it at first start. |
 | `address` | None | The address to publish as the A record of the assigned name. |
 
-Use only one certificate source: `enrollment.token`, `tls.acme`, or `tls.certificate` with `tls.key`. If you set more than one, the server does not start.
+Use only one certificate source: `tls.play`, `enrollment.token`, `tls.acme`, or `tls.certificate` with `tls.key`. If you set more than one, the server does not start.
 
 `address` is optional. If you do not set it, BVC publishes no DNS record. BVC clients can reach the server without the record. Only a Bedrock Addon with `addon_mode = "net"` on a different host needs the name to resolve. BVC publishes a private address but does not check it. BVC checks a public address every day.
 
@@ -4079,7 +4524,7 @@ You must set `addon_mode`. The server cannot detect it. The server identifies a 
 
 `addon_mode` has no default. Each entry must set it. If one entry does not set it, the server cannot read the `servers` list.
 
-Use `no_net` for Realms and Aternos worlds that run the no-net Addon. Use `net` for a world that runs the standard Addon or the Java mod.
+Use `no_net` for Realms and other worlds that run the no-net Addon. Use `net` for a world that runs the standard Addon or the Java mod.
 
 ## `database`
 
@@ -4221,6 +4666,7 @@ A variable that is not set, or that is empty, does not change a value. `FOO=` in
 | `BVC_TELEMETRY` | `server.features.telemetry`. `true` or `false`. |
 | `BVC_CHAT` | `server.features.chat`. `true` or `false`. |
 | `BVC_RADAR` | `server.features.radar`. `true` or `false`. |
+| `BVC_HOST` | The host type sent with each telemetry event: `standalone`, `docker`, `paper`, `fabric` or `powernukkitx`. If it is not set or empty, the type is `standalone`. Any other value is sent as `unknown`. The Docker image sets `docker`. A Java mod's embedded server ignores this variable and sends its own platform. |
 
 ## Voice
 
@@ -4249,6 +4695,22 @@ Only the Java mod's embedded server reads these variables. A standalone server i
 | `BVC_TLS_NAMES` | `server.tls.names`. Comma-separated. |
 | `BVC_TLS_IPS` | `server.tls.ips`. Comma-separated. |
 
+## Play name
+
+With these variables, you can turn on [play mode](/wiki/server/tls/#play-name) without a config file. Use them on a hosting panel, in a container, or for a Java mod's embedded server.
+
+| Variable | Sets |
+|---|---|
+| `BVC_PLAY` | `server.tls.play`. `true` or `false`. `true` adds an empty play block. `false` removes a play block that the config file has. |
+| `BVC_PLAY_ADDRESS` | `server.tls.play.address`. The public IP address that the registry publishes for the name. Use an IP address, not a hostname. |
+
+`BVC_PLAY_ADDRESS` needs play mode. Set `BVC_PLAY=true`, or add a `play` block to the config file. If you set `BVC_PLAY_ADDRESS` with play mode off, the server does not start, and the error names the variable.
+
+```
+BVC_PLAY=true
+BVC_PLAY_ADDRESS=203.0.113.10
+```
+
 ## Enrollment
 
 In a container, set the enrollment token with these variables. See [assigned hostnames](/wiki/server/enrollment/).
@@ -4258,7 +4720,22 @@ In a container, set the enrollment token with these variables. See [assigned hos
 | `BVC_ENROLLMENT_TOKEN` | `server.enrollment.token` |
 | `BVC_ENROLLMENT_ADDRESS` | `server.enrollment.address` |
 
-Use only one certificate source: an enrollment token, ACME, or a TLS certificate and key. If you set more than one, the server does not start.
+Use only one certificate source: a play name, an enrollment token, ACME, or a TLS certificate and key. If you set more than one, the server does not start.
+
+## Java mod embedded server
+
+A Java mod's embedded server reads the same `BVC_*` variables as a standalone server. A certificate source set only with variables is valid. Example: `BVC_PLAY=true`, with no `tls` block in the mod's config file. If the server has no certificate source from the file or the variables, the mod does not start it, and the log names the four sources.
+
+## Launcher
+
+The BVC launcher reads these variables only when `config/bvc.hcl` does not exist. It then writes a play-mode `config/bvc.hcl` with `mod_loopback = true`. It never changes a config file that exists.
+
+| Variable | Used for |
+|---|---|
+| `BVC_PORT` | `server.port` in the new file. If it is not set, empty, or not a valid port, the launcher uses `443`. An invalid value also writes a warning. |
+| `BVC_PUBLIC_ADDRESS` | `server.tls.play.address` in the new file. If it is not set or empty, the file has no address. |
+
+If `BVC_ENROLLMENT_TOKEN` is set and `config/bvc.hcl` does not exist, the launcher does not write a file. It stops and tells you to create `config/bvc.hcl`. Play mode and enrollment cannot be used together.
 
 `BVC_REGISTRY_PEERLINK` has no effect on a running server. It is read only when the binary is compiled.
 
@@ -4758,7 +5235,7 @@ Each entry in `server.bedrock.servers` must set `addon_mode`. It selects how pos
 | Value | Use for |
 |---|---|
 | `net` | A world that runs the standard Bedrock Addon or the Java mod. The Addon or the mod sends events to the BVC server over HTTP. |
-| `no_net` | A Realms or Aternos world that runs the [no-net Addon](/wiki/server/nonet-addon/). The BVC client reads the events from the game traffic and sends them. |
+| `no_net` | A Realms or other hosted world that runs the [no-net Addon](/wiki/server/nonet-addon/). The BVC client reads the events from the game traffic and sends them. |
 
 The `BVC_BEDROCK_SERVERS` environment variable accepts an optional last token, `@net` or `@no_net`:
 

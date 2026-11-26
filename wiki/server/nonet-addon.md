@@ -1,13 +1,15 @@
 ---
 title: "No-net Addon"
-description: "Build and install the Addon for Realms, Aternos, and hosts without @minecraft/server-net."
+description: "Build and install the Addon for Realms and hosts without @minecraft/server-net."
 source: https://www.bedrockvoicechat.com/wiki/server/nonet-addon/
 ---
-The no-net Addon lets Bedrock Voice Chat run on hosts that do not allow `@minecraft/server-net`, such as Realms and Aternos. Without that module, the standard Addon cannot send HTTP requests. It cannot send positions to the BVC server.
+The no-net Addon lets Bedrock Voice Chat run on hosts that do not allow `@minecraft/server-net`, such as Realms. Without that module, the standard Addon cannot send HTTP requests. It cannot send positions to the BVC server.
 
 With the no-net Addon, the BVC app runs a local Bedrock server. Minecraft connects to this local server. The app sends all game traffic to the real host, and reads player positions from that traffic.
 
-For host-specific steps, see [Realms](/wiki/platforms/realms/) and [Aternos](/wiki/platforms/aternos/).
+For host-specific steps, see [Realms](/wiki/platforms/realms/) and [hosts without server-net](/wiki/platforms/no-net-hosts/).
+
+Aternos allows `@minecraft/server-net`. On Aternos, use the standard [Bedrock Addon](/wiki/server/bedrock-addon/). See [Aternos](/wiki/platforms/aternos/).
 
 ## Before you start
 
@@ -53,7 +55,7 @@ These limits do not apply to your own Bedrock Dedicated Server with the [full Ad
 Upload the world to your host. Then connect the BVC app to the host with Bedrock Voice Chat Connect. The upload step is different for each host:
 
 - **[Realms](/wiki/platforms/realms/)**: upload the world to the Realm.
-- **[Aternos and other no-net hosts](/wiki/platforms/aternos/)**: rename the file to `.zip`, then upload it.
+- **[Other no-net hosts](/wiki/platforms/no-net-hosts/)**: upload the file with the host's control panel. Some hosts accept only `.zip` files.
 
 ## Console players
 
