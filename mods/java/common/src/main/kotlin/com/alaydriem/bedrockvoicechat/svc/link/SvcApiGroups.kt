@@ -28,7 +28,8 @@ class SvcApiGroups(
     private val api: VoicechatServerApi,
     private val onlinePlayers: () -> List<UUID>,
     private val onServerThread: (Runnable) -> Unit,
-    private val nameOf: (UUID) -> String?,
+    // Not `nameOf`: a call by that name resolves to the member below, which reads this snapshot.
+    private val platformNameOf: (UUID) -> String?,
 ) : SvcGroupsPort {
     private class Snapshot(
         val members: Map<UUID, List<UUID>>,
@@ -83,7 +84,7 @@ class SvcApiGroups(
                 val online = HashSet<UUID>()
                 for (player in onlinePlayers()) {
                     online.add(player)
-                    nameOf(player)?.let { names[player] = it }
+                    platformNameOf(player)?.let { names[player] = it }
                     val connection = api.getConnectionOf(player) ?: continue
                     if (connection.isInstalled) installed.add(player)
                     val group = connection.group ?: continue
