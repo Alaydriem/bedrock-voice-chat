@@ -294,6 +294,48 @@ jobs:
           echo "Building iOS release..."
           yarn tauri ios build --export-method app-store-connect
 
+      # TEMPORARY: inspects the swift-rs archives to explain the Xcode 27 release link failure
+      # (every @_cdecl symbol undefined). Remove once resolved.
+      - name: Diagnose Swift archives
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          CFG="${{ (github.event_name != 'pull_request' && inputs.build_mode == 'release') && 'release' || 'debug' }}"
+          echo "Profile: $CFG"
+          swift --version
+          xcrun --find ld
+          ld -version_details | head -n 5
+          for d in target/aarch64-apple-ios/$CFG/build/*/out/swift-rs/*; do
+            name=$(basename "$d")
+            echo "::group::$name"
+            echo "== build dir"
+            ls -la "$d"
+            echo "== $CFG dir (resolved: $(readlink "$d/$CFG"))"
+            ls -la "$d/$CFG/"
+            for a in "$d/$CFG"/*.a; do
+              echo "== archive $a ($(stat -f%z "$a") bytes)"
+              echo "-- members"
+              ar t "$a" | head -n 20
+              echo "-- member file types"
+              tmp=$(mktemp -d)
+              (cd "$tmp" && ar x "$a" && file * | head -n 10)
+              rm -rf "$tmp"
+              echo "-- exported cdecl entry points"
+              nm -gU "$a" 2>&1 | grep -E '_init_plugin_|_register_plugin|_log_stdout|_run_plugin_command|_on_webview_created'
+            done
+            echo "::endgroup::"
+          done
+          echo "::group::native archives bundled into the tauri rlib"
+          for r in target/aarch64-apple-ios/$CFG/deps/libtauri-*.rlib; do
+            echo "== $r"
+            ar t "$r" | grep -v '\.rcgu\.o$'
+          done
+          echo "::endgroup::"
+          echo "::group::symbols in the staticlib"
+          nm -gU target/aarch64-apple-ios/$CFG/deps/libbvc_client_lib.a 2>&1 | grep -E '_init_plugin_|_register_plugin|_log_stdout'
+          echo "::endgroup::"
+
       - name: Prepare iOS artifacts
         working-directory: ./client
         run: |
