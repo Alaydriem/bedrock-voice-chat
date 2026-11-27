@@ -99,6 +99,7 @@ class SdkSmokeTest {
         sampleRate = 48000u,
         timestampMs = 1234L,
         spatial = true,
+        spectator = false,
         jukebox = jukebox,
         group = null,
     )

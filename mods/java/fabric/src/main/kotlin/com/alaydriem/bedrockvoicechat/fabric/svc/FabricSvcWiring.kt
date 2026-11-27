@@ -33,7 +33,8 @@ class FabricSvcWiring(
             x = player.x.toFloat(),
             y = player.y.toFloat(),
             z = player.z.toFloat(),
-            dimension = dimensionOf(player.level().dimension().identifier().toString())
+            dimension = dimensionOf(player.level().dimension().identifier().toString()),
+            spectator = players.isSpectator(player)
         )
     }
 

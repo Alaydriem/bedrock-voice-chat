@@ -62,7 +62,7 @@ impl From<&str> for Dimension {
             "overworld" => Self::Overworld,
             "nether" | "the_nether" => Self::TheNether,
             "the_end" => Self::TheEnd,
-            'the_sift' => Self::TheSift,
+            "the_sift" => Self::TheSift,
             "unrouted" => Self::Unrouted,
             _ => Self::Other(DimensionHash::of(canonical)),
         }

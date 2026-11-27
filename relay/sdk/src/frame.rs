@@ -39,6 +39,11 @@ pub struct SdkFrame {
     pub timestamp_ms: i64,
     pub spatial: bool,
 
+    // Set for a dead player or a spectator. The receiving side publishes the speaker into its
+    // position cache under the identity the mod's position posts use, so an unset flag here
+    // replaces the mod's spectator record and makes a dead player audible to the living.
+    pub spectator: bool,
+
     // Set when this frame is a jukebox playback rather than speech, carrying the
     // playback it belongs to.
     //
@@ -103,6 +108,10 @@ impl From<VoiceFrame> for SdkFrame {
             sample_rate: frame.sample_rate,
             timestamp_ms: frame.timestamp_ms,
             spatial: frame.spatial,
+            spectator: frame
+                .speaker
+                .as_minecraft()
+                .is_some_and(|player| player.spectator),
             jukebox: frame.jukebox,
             group: None,
         }
@@ -128,7 +137,7 @@ impl From<SdkFrame> for VoiceFrame {
                 // merged into Overworld, where it would be audible a world away.
                 dimension: Dimension::from(frame.dimension.as_str()),
                 whispering: false,
-                spectator: false,
+                spectator: frame.spectator,
                 world_uuid: None,
                 alternative_identity: None,
                 player_uuid: None,

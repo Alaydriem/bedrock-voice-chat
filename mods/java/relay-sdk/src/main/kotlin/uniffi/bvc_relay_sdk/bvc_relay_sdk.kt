@@ -2249,6 +2249,8 @@ data class SdkFrame (
     , 
     var `spatial`: kotlin.Boolean
     , 
+    var `spectator`: kotlin.Boolean
+    , 
     var `jukebox`: kotlin.String?
     , 
     var `group`: SdkGroupScope?
@@ -2278,6 +2280,7 @@ public object FfiConverterTypeSdkFrame: FfiConverterRustBuffer<SdkFrame> {
             FfiConverterUInt.read(buf),
             FfiConverterLong.read(buf),
             FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
             FfiConverterOptionalString.read(buf),
             FfiConverterOptionalTypeSdkGroupScope.read(buf),
         )
@@ -2294,6 +2297,7 @@ public object FfiConverterTypeSdkFrame: FfiConverterRustBuffer<SdkFrame> {
             FfiConverterUInt.allocationSize(value.`sampleRate`) +
             FfiConverterLong.allocationSize(value.`timestampMs`) +
             FfiConverterBoolean.allocationSize(value.`spatial`) +
+            FfiConverterBoolean.allocationSize(value.`spectator`) +
             FfiConverterOptionalString.allocationSize(value.`jukebox`) +
             FfiConverterOptionalTypeSdkGroupScope.allocationSize(value.`group`)
     )
@@ -2309,6 +2313,7 @@ public object FfiConverterTypeSdkFrame: FfiConverterRustBuffer<SdkFrame> {
             FfiConverterUInt.write(value.`sampleRate`, buf)
             FfiConverterLong.write(value.`timestampMs`, buf)
             FfiConverterBoolean.write(value.`spatial`, buf)
+            FfiConverterBoolean.write(value.`spectator`, buf)
             FfiConverterOptionalString.write(value.`jukebox`, buf)
             FfiConverterOptionalTypeSdkGroupScope.write(value.`group`, buf)
     }

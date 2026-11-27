@@ -155,6 +155,7 @@ fn outbound(world: &str) -> SdkFrame {
         sample_rate: 48000,
         timestamp_ms: 1234,
         spatial: true,
+        spectator: false,
         jukebox: None,
         group: None,
     }
@@ -303,5 +304,45 @@ async fn a_relayed_speaker_is_published_as_holding_a_bridged_voice_connection() 
     assert!(
         speaker.has_bridged_voice(),
         "a relayed speaker must not read as being in the world without voice"
+    );
+}
+
+// A dead SVC player is a spectator in the mod's position post. The relayed record replaces
+// that post on every frame, so it has to stay a spectator, or the living hear the dead.
+#[tokio::test]
+async fn a_dead_bridged_speaker_is_inaudible_to_the_living_and_audible_to_the_dead() {
+    let mut bridged = bridged(&[WORLD]).await;
+
+    let mut frame = outbound(WORLD);
+    frame.spectator = true;
+    bridged.peer.send(frame).expect("send");
+
+    tokio::time::timeout(Duration::from_secs(10), bridged.server_rx.recv())
+        .await
+        .expect("the server must publish within the timeout")
+        .expect("a packet");
+
+    let speaker = bridged
+        .speakers
+        .get("minecraft:BridgeSpeaker")
+        .await
+        .expect("the plane publishes the speaker where routing resolves it");
+    let common::PlayerEnum::Minecraft(speaker) = speaker.as_ref() else {
+        panic!("a bridge speaks for Minecraft players");
+    };
+
+    let mut living = speaker.clone();
+    living.name = "Living".to_string();
+    living.spectator = false;
+    let mut dead = speaker.clone();
+    dead.name = "Dead".to_string();
+
+    assert!(
+        speaker.can_communicate_with(&living, 32.0).is_err(),
+        "the living must not hear a dead bridged speaker"
+    );
+    assert!(
+        speaker.can_communicate_with(&dead, 32.0).is_ok(),
+        "the dead hear a dead bridged speaker beside them"
     );
 }

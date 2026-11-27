@@ -2,7 +2,9 @@ package com.alaydriem.bedrockvoicechat.svc
 
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import uniffi.bvc_relay_sdk.SdkGroupScope
@@ -18,7 +20,7 @@ class OutboundTranslatorTest {
     fun `a packet becomes a frame carrying the live position and dimension`(@TempDir dir: File) {
         val relayWorld = RelayWorld(dir)
         val translator = OutboundTranslator(relayWorld) {
-            SpeakerSnapshot("Steve", 10.0f, 64.0f, -3.0f, "nether")
+            SpeakerSnapshot("Steve", 10.0f, 64.0f, -3.0f, "nether", false)
         }
 
         val frame = translator.translate(speaker, opus, 1234L)!!
@@ -42,7 +44,7 @@ class OutboundTranslatorTest {
     fun `each packet reads the position again`(@TempDir dir: File) {
         var x = 1.0f
         val translator = OutboundTranslator(RelayWorld(dir)) {
-            SpeakerSnapshot("Steve", x, 64.0f, 0.0f, "overworld")
+            SpeakerSnapshot("Steve", x, 64.0f, 0.0f, "overworld", false)
         }
 
         val first = translator.translate(speaker, opus, 1L)!!
@@ -68,7 +70,7 @@ class OutboundTranslatorTest {
     fun `every frame carries the relay world`(@TempDir dir: File) {
         val relayWorld = RelayWorld(dir)
         val translator = OutboundTranslator(relayWorld) {
-            SpeakerSnapshot("Steve", 0.0f, 0.0f, 0.0f, "overworld")
+            SpeakerSnapshot("Steve", 0.0f, 0.0f, 0.0f, "overworld", false)
         }
 
         assertEquals(relayWorld.id(), translator.translate(speaker, opus, 1L)!!.world)
@@ -79,11 +81,25 @@ class OutboundTranslatorTest {
     @Test
     fun `group_scope_reaches_the_frame`(@TempDir dir: File) {
         val translator = OutboundTranslator(RelayWorld(dir)) {
-            SpeakerSnapshot("Steve", 0.0f, 64.0f, 0.0f, "overworld")
+            SpeakerSnapshot("Steve", 0.0f, 64.0f, 0.0f, "overworld", false)
         }
         val scope = SdkGroupScope("ABCD", true)
 
         assertEquals(scope, translator.translate(speaker, opus, 1L, scope)!!.group)
         assertNull(translator.translate(speaker, opus, 1L)!!.group)
+    }
+
+    // The receiving server publishes the frame's speaker over the mod's position post, so a
+    // dead SVC player whose frame drops the flag becomes audible to the living.
+    @Test
+    fun `a dead speaker's frame is marked spectator`(@TempDir dir: File) {
+        var dead = true
+        val translator = OutboundTranslator(RelayWorld(dir)) {
+            SpeakerSnapshot("Steve", 0.0f, 64.0f, 0.0f, "overworld", dead)
+        }
+
+        assertTrue(translator.translate(speaker, opus, 1L)!!.spectator)
+        dead = false
+        assertFalse(translator.translate(speaker, opus, 2L)!!.spectator)
     }
 }

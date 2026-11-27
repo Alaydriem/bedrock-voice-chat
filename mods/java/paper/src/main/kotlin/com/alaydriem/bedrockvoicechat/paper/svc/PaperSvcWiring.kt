@@ -37,7 +37,8 @@ class PaperSvcWiring(
             x = location.x.toFloat(),
             y = location.y.toFloat(),
             z = location.z.toFloat(),
-            dimension = dimensionOf(location.world)
+            dimension = dimensionOf(location.world),
+            spectator = players.isSpectator(player)
         )
     }
 

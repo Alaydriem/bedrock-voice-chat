@@ -59,6 +59,13 @@ class FabricPlayerDataProvider(
         deadPlayers.remove(player.getUUID())
     }
 
+    /**
+     * Dead or in spectator mode. The position post and the SVC bridge frame both read this, so
+     * a dead SVC player is a spectator on both paths.
+     */
+    fun isSpectator(player: ServerPlayer): Boolean =
+        deadPlayers.contains(player.getUUID()) || player.isSpectator
+
     override fun collectPlayers(): List<PlayerData> {
         val srv = server ?: return emptyList()
 
@@ -81,7 +88,7 @@ class FabricPlayerDataProvider(
                     pitch = player.xRot,
                     dimension = dimension,
                     whispering = !dead && player.isShiftKeyDown,
-                    spectator = dead || player.isSpectator,
+                    spectator = isSpectator(player),
                     worldUuid = worldUuid,
                     playerUuid = playerUuid,
                     relayWorldUuid = relayWorld?.id(),
