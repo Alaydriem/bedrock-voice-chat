@@ -7,11 +7,15 @@ package com.alaydriem.bedrockvoicechat.svc
  * and reading them separately would let a player move between the two.
  *
  * `dimension` is the api form: "overworld", "nether", "the_end".
+ *
+ * `spectator` is true for a dead player or one in spectator mode, with the same value the
+ * position post carries.
  */
 data class SpeakerSnapshot(
     val name: String,
     val x: Float,
     val y: Float,
     val z: Float,
-    val dimension: String
+    val dimension: String,
+    val spectator: Boolean
 )

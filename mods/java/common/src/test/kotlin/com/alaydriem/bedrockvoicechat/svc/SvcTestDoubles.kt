@@ -116,6 +116,7 @@ object TestFrames {
         sampleRate = sampleRate,
         timestampMs = 1L,
         spatial = true,
+        spectator = false,
         jukebox = null,
         group = group
     )

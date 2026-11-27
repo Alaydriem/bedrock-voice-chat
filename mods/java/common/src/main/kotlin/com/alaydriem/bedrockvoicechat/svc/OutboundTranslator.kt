@@ -37,6 +37,7 @@ class OutboundTranslator(
             sampleRate = SVC_SAMPLE_RATE,
             timestampMs = timestampMs,
             spatial = true,
+            spectator = snapshot.spectator,
             jukebox = null,
             group = group
         )

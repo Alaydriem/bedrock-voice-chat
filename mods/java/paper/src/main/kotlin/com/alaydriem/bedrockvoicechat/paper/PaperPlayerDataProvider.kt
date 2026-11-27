@@ -56,6 +56,13 @@ class PaperPlayerDataProvider(
         deadPlayers.remove(player.uniqueId)
     }
 
+    /**
+     * Dead or in spectator mode. The position post and the SVC bridge frame both read this, so
+     * a dead SVC player is a spectator on both paths.
+     */
+    fun isSpectator(player: Player): Boolean =
+        deadPlayers.contains(player.uniqueId) || player.gameMode == org.bukkit.GameMode.SPECTATOR
+
     override fun collectPlayers(): List<PlayerData> {
         val srv = server ?: return emptyList()
 
@@ -78,7 +85,7 @@ class PaperPlayerDataProvider(
                     pitch = location.pitch,
                     dimension = dimension,
                     whispering = !dead && player.isSneaking,
-                    spectator = dead || player.gameMode == org.bukkit.GameMode.SPECTATOR,
+                    spectator = isSpectator(player),
                     worldUuid = location.world?.uid?.toString(),
                     playerUuid = playerUuid,
                     relayWorldUuid = relayWorld?.id(),
