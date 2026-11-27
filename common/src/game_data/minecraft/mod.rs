@@ -21,10 +21,7 @@ pub enum Dimension {
     Overworld,
     TheEnd,
     TheNether,
-    // A routing marker for a player the game no longer has. Never heard, and hears nobody.
     Unrouted,
-    // Reserved for the vanilla dimension due in 2027. Nothing parses to it until its id is
-    // published; until then that id arrives as `Other` and is still gated on its own.
     TheSift,
     // Any dimension without a variant: modded, add-on, or a renamed Paper world.
     Other(DimensionHash),
@@ -39,10 +36,10 @@ impl Dimension {
     /// back to the same value.
     pub fn as_api_str(&self) -> Cow<'static, str> {
         match self {
+            Self::Unrouted => Cow::Borrowed("unrouted"),
             Self::Overworld => Cow::Borrowed("overworld"),
             Self::TheNether => Cow::Borrowed("nether"),
             Self::TheEnd => Cow::Borrowed("the_end"),
-            Self::Unrouted => Cow::Borrowed("unrouted"),
             Self::TheSift => Cow::Borrowed("the_sift"),
             Self::Other(hash) => Cow::Owned(format!("{}{}", Self::CUSTOM_PREFIX, hash.to_hex())),
         }
@@ -65,6 +62,7 @@ impl From<&str> for Dimension {
             "overworld" => Self::Overworld,
             "nether" | "the_nether" => Self::TheNether,
             "the_end" => Self::TheEnd,
+            'the_sift' => Self::TheSift,
             "unrouted" => Self::Unrouted,
             _ => Self::Other(DimensionHash::of(canonical)),
         }

@@ -20,7 +20,6 @@ pub struct BedrockSessionState {
     sneaking: bool,
     crawling: bool,
     spectator: bool,
-    // True from the health packet that kills the player until health returns above zero.
     dead: bool,
     // Set once this session has decoded a bvc:ctl:sync — proof the BDS world
     // runs the BVC addon (only its panel emits sync). !bvcs: rides are injected
@@ -187,6 +186,8 @@ impl BedrockSessionState {
             0 => Dimension::Overworld,
             1 => Dimension::TheNether,
             2 => Dimension::TheEnd,
+            // Placeholder ID
+            3 => Dimension::TheSift,
             // An add-on dimension. Isolated under its own id rather than merged into
             // Overworld, where it would hear players at the same coordinates.
             other => Dimension::Other(DimensionHash::of(&format!("bedrock:{other}"))),
