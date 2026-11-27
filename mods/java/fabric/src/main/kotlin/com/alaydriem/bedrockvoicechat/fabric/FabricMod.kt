@@ -10,7 +10,6 @@ import com.alaydriem.bedrockvoicechat.control.GroupLinkApi
 import com.alaydriem.bedrockvoicechat.control.GroupLinkClient
 import com.alaydriem.bedrockvoicechat.fabric.chat.FabricChatListener
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
-import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.audio.JukeboxPlaybackService
@@ -332,7 +331,6 @@ class FabricMod : ModInitializer {
                 val worldUuid = playerDataProvider.getWorldUuid(player.level() as ServerLevel)
                 PlayerData.disconnected(
                     name = canonicalName,
-                    dimension = Dimension.Minecraft.DEATH,
                     worldUuid = worldUuid,
                     playerUuid = player.getUUID().toString()
                 )

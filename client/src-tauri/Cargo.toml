@@ -59,8 +59,8 @@ tauri-plugin-http = { version = "^2", default-features = false, features = [
   "cookies",
   "http2",
 ] }
-tauri-plugin-audio-permissions = { git = "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions" }
-tauri-plugin-keyring = { git = "https://github.com/charlesportwoodii/tauri-plugin-keyring" }
+tauri-plugin-audio-permissions = { git = "https://github.com/charlesportwoodii/tauri-plugin-audio-permissions", tag = "1.0.0" }
+tauri-plugin-keyring = { git = "https://github.com/charlesportwoodii/tauri-plugin-keyring", tag = "1.0.0" }
 tauri-plugin-store = { version = "^2" }
 tauri-plugin-dialog = { version = "^2" }
 tauri-plugin-notification = { version = "^2" }
@@ -100,8 +100,8 @@ rustc-hash = { version = "^2" }
 open-feature = { version = "0.3", features = ["serde_json"] }
 shiguredo_mp4 = { version = "2026.1.0" }
 if-addrs = { workspace = true, optional = true }
-tauri-plugin-iap = { version = "=0.10.0-rc.1" }
-tauri-plugin-age-signals = { git = "https://github.com/charlesportwoodii/tauri-plugin_age-signals" }
+tauri-plugin-iap = { version = "=0.10.0-rc.1", optional = true }
+tauri-plugin-age-signals = { git = "https://github.com/charlesportwoodii/tauri-plugin_age-signals", tag = "1.0.0" }
 # Protected groups. Client only: `mise run check-server-crypto-free` fails if any of these reach
 # the server or common. The PQ feature is what enables the X-Wing suite.
 openmls = { version = "0.9.1", features = ["draft-ietf-mls-pq-ciphersuites"] }
@@ -181,3 +181,8 @@ e2e = ["dep:dirs", "dev-trust"]
 # Trust for a development server's certificate authority. Debug builds only; see
 # `common::rustls::DevTrustRoots`. `mise run dev-client` turns it on.
 dev-trust = ["common/dev-trust"]
+# Store-backed in-app purchases through tauri-plugin-iap. Off by default: without it the
+# entitlement service runs with no store provider, so no build sells or unlocks anything
+# through a platform store. 0.10.0-rc.1 neither links in an iOS release build on Xcode 27
+# nor compiles on Windows against Tauri 2.12, so turning this on needs a fixed iap release.
+iap = ["dep:tauri-plugin-iap"]

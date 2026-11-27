@@ -4,6 +4,7 @@ use enum_dispatch::enum_dispatch;
 use common::structs::iap::IapOffer;
 
 use crate::iap::mock::MockProvider;
+#[cfg(feature = "iap")]
 use crate::iap::store::StoreProvider;
 
 // Platform entitlement interface; `EntitlementService` aggregates one or more.
@@ -25,6 +26,7 @@ pub trait EntitlementProvider {
 
 #[enum_dispatch(EntitlementProvider)]
 pub enum EntitlementProviderType {
+    #[cfg(feature = "iap")]
     Store(StoreProvider),
     Mock(MockProvider),
 }

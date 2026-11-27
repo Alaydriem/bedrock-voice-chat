@@ -31,6 +31,11 @@ impl PeerEgress {
             return None;
         }
 
+        // A bridge or peer has no spectator rule, so a spectator's speech would reach the living there.
+        if speaker.as_minecraft().is_some_and(|player| player.spectator) {
+            return None;
+        }
+
         let world = speaker.world_identifier()?.to_string();
 
         // The playback id, when this is jukebox audio. Read from the metadata the

@@ -11,7 +11,6 @@ import com.alaydriem.bedrockvoicechat.control.ControlSender
 import com.alaydriem.bedrockvoicechat.control.GroupLinkApi
 import com.alaydriem.bedrockvoicechat.control.GroupLinkClient
 import com.alaydriem.bedrockvoicechat.paper.chat.PaperChatListener
-import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.native.BvcNative
@@ -453,7 +452,6 @@ class PaperPlugin : JavaPlugin(), Listener {
         val phantom = if (sender != null) {
             PlayerData.disconnected(
                 name = canonicalName,
-                dimension = Dimension.Minecraft.DEATH,
                 worldUuid = player.location.world?.uid?.toString(),
                 playerUuid = player.uniqueId.toString()
             )

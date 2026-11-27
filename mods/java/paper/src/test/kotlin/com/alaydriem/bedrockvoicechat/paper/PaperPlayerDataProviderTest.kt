@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import java.util.UUID
@@ -309,6 +310,39 @@ class PaperPlayerDataProviderTest {
             "overworld",
             PaperPlayerDataProvider.dimensionOf(world("lobby", World.Environment.NORMAL)).toApiString()
         )
+    }
+
+    @Test
+    fun `a dead player keeps their place as a spectator`() {
+        val nether = world("world_nether", World.Environment.NETHER)
+        val player = server.addPlayer("TestPlayer")
+        player.teleport(org.bukkit.Location(nether, 12.5, 64.0, -30.25))
+        player.isSneaking = true
+        provider.addPlayer(player)
+        provider.markDead(player)
+
+        val reported = provider.collectPlayers().single()
+
+        assertEquals("nether", reported.dimension)
+        assertEquals(12.5, reported.coordinates.x)
+        assertEquals(64.0, reported.coordinates.y)
+        assertEquals(-30.25, reported.coordinates.z)
+        assertTrue(reported.spectator)
+        assertFalse(reported.whispering)
+    }
+
+    @Test
+    fun `a dead bridged player stays bridged`() {
+        val bridged = PaperPlayerDataProvider(bridgedVoice = { true })
+        bridged.server = server
+        val player = server.addPlayer("TestPlayer")
+        bridged.addPlayer(player)
+        bridged.markDead(player)
+
+        val reported = bridged.collectPlayers().single()
+
+        assertTrue(reported.spectator)
+        assertTrue(reported.bridgedVoice)
     }
 
     @Test

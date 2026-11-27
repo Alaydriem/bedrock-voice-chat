@@ -1,4 +1,4 @@
-use common::MinecraftPlayer;
+use common::{Coordinate, MinecraftPlayer};
 use common::errors::{CommunicationError, GameError, MinecraftCommunicationError};
 use common::game_data::Dimension;
 
@@ -108,6 +108,93 @@ fn a_custom_dimension_cannot_hear_overworld() {
     let a = in_dimension(Dimension::from("mypack:aether"));
     let b = in_dimension(Dimension::Overworld);
     let err = a.can_communicate_with(&b, 100.0).unwrap_err();
+    assert!(is_dimension_mismatch(&err), "{err:?}");
+}
+
+fn is_unrouted(err: &CommunicationError) -> bool {
+    matches!(
+        err,
+        CommunicationError::Game(GameError::Minecraft(MinecraftCommunicationError::Unrouted))
+    )
+}
+
+fn spectating(dimension: Dimension) -> MinecraftPlayer {
+    MinecraftPlayer {
+        spectator: true,
+        coordinates: Coordinate {
+            x: 1.0,
+            ..PlayerFixture::make(None).coordinates
+        },
+        ..in_dimension(dimension)
+    }
+}
+
+#[test]
+fn an_unrouted_sender_is_refused() {
+    let a = in_dimension(Dimension::Unrouted);
+    let b = in_dimension(Dimension::Overworld);
+    let err = a.can_communicate_with(&b, 100.0).unwrap_err();
+    assert!(is_unrouted(&err), "{err:?}");
+}
+
+#[test]
+fn an_unrouted_recipient_is_refused() {
+    let a = in_dimension(Dimension::Overworld);
+    let b = in_dimension(Dimension::Unrouted);
+    let err = a.can_communicate_with(&b, 100.0).unwrap_err();
+    assert!(is_unrouted(&err), "{err:?}");
+}
+
+#[test]
+fn two_unrouted_players_together_are_refused() {
+    let a = in_dimension(Dimension::Unrouted);
+    let b = in_dimension(Dimension::Unrouted);
+    let err = a.can_communicate_with(&b, 100.0).unwrap_err();
+    assert!(is_unrouted(&err), "{err:?}");
+}
+
+#[test]
+fn a_spectator_hears_a_living_player_beside_them() {
+    let living = in_dimension(Dimension::Overworld);
+    let spectator = spectating(Dimension::Overworld);
+    assert!(living.can_communicate_with(&spectator, 100.0).is_ok());
+}
+
+#[test]
+fn a_living_player_does_not_hear_a_spectator() {
+    let living = in_dimension(Dimension::Overworld);
+    let spectator = spectating(Dimension::Overworld);
+    let err = spectator.can_communicate_with(&living, 100.0).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CommunicationError::Game(GameError::Minecraft(
+                MinecraftCommunicationError::SpectatorInaudible
+            ))
+        ),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn two_spectators_beside_each_other_hear_each_other() {
+    let a = spectating(Dimension::Overworld);
+    let b = MinecraftPlayer {
+        coordinates: Coordinate {
+            x: 2.0,
+            ..a.coordinates.clone()
+        },
+        ..spectating(Dimension::Overworld)
+    };
+    assert!(a.can_communicate_with(&b, 100.0).is_ok());
+    assert!(b.can_communicate_with(&a, 100.0).is_ok());
+}
+
+#[test]
+fn a_spectator_in_another_dimension_hears_nobody() {
+    let living = in_dimension(Dimension::Overworld);
+    let spectator = spectating(Dimension::TheNether);
+    let err = living.can_communicate_with(&spectator, 100.0).unwrap_err();
     assert!(is_dimension_mismatch(&err), "{err:?}");
 }
 

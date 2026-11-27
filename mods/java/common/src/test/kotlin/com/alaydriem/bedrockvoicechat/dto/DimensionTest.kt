@@ -14,6 +14,17 @@ class DimensionTest {
         assertEquals(Dimension.Minecraft.THE_END, of("minecraft:the_end"))
     }
 
+    @Test
+    fun `unrouted parses to the unrouted dimension`() {
+        assertEquals(Dimension.Minecraft.UNROUTED, of("unrouted"))
+        assertEquals("unrouted", Dimension.Minecraft.UNROUTED.toApiString())
+    }
+
+    @Test
+    fun `death is an ordinary custom dimension`() {
+        assertEquals(Dimension.Custom("death"), of("death"))
+    }
+
     // The jukebox once sent only the identifier's path, so a disc in a modded dimension
     // matched no player standing next to it.
     @Test

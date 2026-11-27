@@ -6,6 +6,7 @@ mod audio_file_service;
 mod auth_service;
 mod certificate_service;
 mod audio_playback_service;
+mod bedrock_event_service;
 mod certificate_revocation_service;
 mod channel_membership_service;
 mod channel_reaper_service;

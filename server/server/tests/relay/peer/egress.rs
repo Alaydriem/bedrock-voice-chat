@@ -90,6 +90,17 @@ fn peer_egress_skips_sealed_frames() {
     assert!(PeerEgress::frame_from(&packet, &sp).is_none());
 }
 
+// A peer has no spectator rule, so a spectator's speech would reach the living there.
+#[test]
+fn a_spectator_speaker_is_not_forwarded() {
+    let mut sp = speaker(Some("W1"));
+    if let PlayerEnum::Minecraft(player) = &mut sp {
+        player.spectator = true;
+    }
+
+    assert!(PeerEgress::frame_from(&audio(Some(sp.clone())), &sp).is_none());
+}
+
 #[test]
 fn a_non_audio_packet_is_not_forwardable() {
     let packet = QuicNetworkPacket {

@@ -54,9 +54,9 @@ class PnxPlayerDataProviderTest {
         assertFalse(data.spectator)
     }
 
-    // A dead player is moved to the death dimension at the origin, so nobody hears them.
+    // A dead player keeps their dimension and position and is flagged a spectator.
     @Test
-    fun a_dead_player_is_reported_in_the_death_dimension_at_the_origin(@TempDir dataFolder: File) {
+    fun a_dead_player_keeps_their_place_as_a_spectator(@TempDir dataFolder: File) {
         val playerId = UUID.randomUUID()
         val level = mock<Level> {
             on { getDimension() } doReturn Level.DIMENSION_OVERWORLD
@@ -66,6 +66,7 @@ class PnxPlayerDataProviderTest {
             on { getName() } doReturn "SomeGamertag"
             on { getUniqueId() } doReturn playerId
             on { isOnline() } doReturn true
+            on { isSneaking() } doReturn true
             on { getLevel() } doReturn level
             on { getX() } doReturn 12.5
             on { getY() } doReturn 64.0
@@ -77,12 +78,14 @@ class PnxPlayerDataProviderTest {
         provider.markDead(player)
         val data = provider.collectPlayers().single()
 
-        assertEquals(Dimension.Minecraft.DEATH.toApiString(), data.dimension)
-        assertEquals(0.0, data.coordinates.x)
-        assertEquals(0.0, data.coordinates.y)
-        assertEquals(0.0, data.coordinates.z)
+        assertEquals(Dimension.Minecraft.OVERWORLD.toApiString(), data.dimension)
+        assertEquals(12.5, data.coordinates.x)
+        assertEquals(64.0, data.coordinates.y)
+        assertEquals(-30.25, data.coordinates.z)
+        assertTrue(data.spectator)
+        assertFalse(data.whispering)
 
         provider.markAlive(player)
-        assertEquals(12.5, provider.collectPlayers().single().coordinates.x)
+        assertFalse(provider.collectPlayers().single().spectator)
     }
 }

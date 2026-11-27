@@ -17,7 +17,7 @@ sealed interface Dimension {
         OVERWORLD("overworld"),
         NETHER("nether"),
         THE_END("the_end"),
-        DEATH("death");
+        UNROUTED("unrouted");
 
         override fun toApiString(): String = value
     }
@@ -45,7 +45,7 @@ sealed interface Dimension {
                     "minecraft:overworld", "overworld", "world" -> Minecraft.OVERWORLD
                     "minecraft:the_nether", "the_nether", "nether", "world_nether" -> Minecraft.NETHER
                     "minecraft:the_end", "the_end", "world_the_end" -> Minecraft.THE_END
-                    "death" -> Minecraft.DEATH
+                    "unrouted" -> Minecraft.UNROUTED
                     else -> Custom(raw)
                 }
             }

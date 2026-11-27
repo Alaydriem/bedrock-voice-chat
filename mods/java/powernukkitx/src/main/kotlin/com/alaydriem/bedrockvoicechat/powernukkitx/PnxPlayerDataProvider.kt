@@ -1,7 +1,6 @@
 package com.alaydriem.bedrockvoicechat.powernukkitx
 
 import com.alaydriem.bedrockvoicechat.api.PlayerDataProvider
-import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.GameType
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.svc.RelayWorld
@@ -64,24 +63,7 @@ class PnxPlayerDataProvider(
         val playerUuid = player.getUniqueId()
         val worldUuid = worldUuidOf(player)
 
-        // A dead player is moved to the death dimension at the origin, so nobody
-        // hears them until they respawn.
-        if (deadPlayers.contains(playerUuid)) {
-            return PlayerData(
-                name = player.getName(),
-                x = 0.0,
-                y = 0.0,
-                z = 0.0,
-                yaw = 0f,
-                pitch = 0f,
-                dimension = Dimension.Minecraft.DEATH,
-                whispering = false,
-                spectator = false,
-                worldUuid = worldUuid,
-                playerUuid = playerUuid.toString(),
-                relayWorldUuid = relayWorld?.id()
-            )
-        }
+        val dead = deadPlayers.contains(playerUuid)
 
         return PlayerData(
             name = player.getName(),
@@ -91,8 +73,8 @@ class PnxPlayerDataProvider(
             yaw = player.getYaw().toFloat(),
             pitch = player.getPitch().toFloat(),
             dimension = PnxDimension.of(player.getLevel()),
-            whispering = player.isSneaking(),
-            spectator = player.isSpectator(),
+            whispering = !dead && player.isSneaking(),
+            spectator = dead || player.isSpectator(),
             worldUuid = worldUuid,
             playerUuid = playerUuid.toString(),
             relayWorldUuid = relayWorld?.id()

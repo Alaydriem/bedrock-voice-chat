@@ -166,7 +166,7 @@ fn a_rejected_post_is_retried_on_the_next_tick() {
 }
 
 #[test]
-fn players_are_sent_as_death_dimension_spectators_with_the_token() {
+fn players_are_sent_as_unrouted_dimension_spectators_with_the_token() {
     let roster = Roster::new(&["Alaydriem"]);
     roster.ready();
 
@@ -177,7 +177,7 @@ fn players_are_sent_as_death_dimension_spectators_with_the_token() {
     let body: Value = serde_json::from_slice(&post.body).unwrap();
     assert_eq!(body["game"], "minecraft");
     let player = &body["players"][0];
-    assert_eq!(player["dimension"], "death");
+    assert_eq!(player["dimension"], "unrouted");
     assert_eq!(player["spectator"], true);
     assert_eq!(player["deafen"], false);
     assert!(player.get("world_uuid").is_none());

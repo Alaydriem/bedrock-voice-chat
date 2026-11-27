@@ -25,9 +25,14 @@ impl<'a> BedrockPacketHandler for SetHealthHandler<'a> {
         let previously_alive = matches!(self.last_known_health, Some(h) if *h > 0);
         *self.last_known_health = Some(new_health);
 
-        if new_health > 0 || !previously_alive {
+        if new_health > 0 {
+            state.set_dead(false);
             return;
         }
+        if !previously_alive {
+            return;
+        }
+        state.set_dead(true);
 
         let emitter = match emitter {
             Some(e) => e,
