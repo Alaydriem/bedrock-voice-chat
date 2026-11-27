@@ -43,6 +43,10 @@ Install the [BVC server](/wiki/server/installation/) first. You need its URL and
 
 4. Allow the modules that the Addon uses in `config/default/permissions.json`:
 
+:::caution
+On Aternos, these modules are already set and enabled, and you may skip this step.
+:::
+
    ```json
    {
        "allowed_modules": [
