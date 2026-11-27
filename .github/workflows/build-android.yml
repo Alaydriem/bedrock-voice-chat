@@ -29,6 +29,11 @@ on:
         required: false
         default: ''
         type: string
+      iap:
+        description: 'Build with the client iap feature (Google Play billing)'
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       build_mode:
@@ -66,6 +71,11 @@ on:
           - beta
           - production
           - none
+      iap:
+        description: 'Build with the client iap feature (Google Play billing)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build-android:
@@ -465,17 +475,24 @@ jobs:
         run: |
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           yarn tauri info
+          # tauri-plugin-iap is an optional cargo feature. Its Android library is what declares
+          # com.android.vending.BILLING, so the permission is in the APK only when this is set.
+          FEATURES=""
+          if [ "${{ inputs.iap && 'true' || 'false' }}" = "true" ]; then
+            echo "Building with the iap feature"
+            FEATURES="--features iap"
+          fi
           # Force debug mode for PR builds, otherwise use input parameter
           # CI profile overrides applied via CARGO_PROFILE_* env vars above
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "PR detected - building in debug mode"
-            yarn tauri android build --debug --target aarch64 armv7
+            yarn tauri android build --debug --target aarch64 armv7 $FEATURES
           elif [ "${{ inputs.build_mode || 'debug' }}" = "release" ]; then
             echo "Building in release mode"
-            yarn tauri android build --target aarch64 armv7
+            yarn tauri android build --target aarch64 armv7 $FEATURES
           else
             echo "Building in debug mode"
-            yarn tauri android build --debug --target aarch64 armv7
+            yarn tauri android build --debug --target aarch64 armv7 $FEATURES
           fi
 
       - name: Prepare Android artifacts
@@ -581,7 +598,10 @@ jobs:
           fi
           echo "OK: $CHECKED 64-bit native libraries are 16 KB aligned"
 
+      # Only an iap build declares the permission. Without the feature no build sells anything
+      # through a store, so its absence there is correct, not a defect.
       - name: Verify Google Play billing permission present
+        if: ${{ inputs.iap }}
         working-directory: ./client
         run: |
           BUILD_MODE="${{ github.event_name == 'pull_request' && 'debug' || inputs.build_mode || 'debug' }}"
