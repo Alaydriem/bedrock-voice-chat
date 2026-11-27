@@ -3,3 +3,5 @@
 // e2e configuration.
 #[cfg(feature = "e2e")]
 mod play_sound;
+
+mod set_health;

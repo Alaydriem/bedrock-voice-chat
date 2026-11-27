@@ -17,6 +17,7 @@ pub enum RouteRejection {
     WorldMismatch,
     DimensionMismatch,
     SpectatorInaudible,
+    Unrouted,
     NonSpatialOutsideChannel,
     SerializeFailed,
     SequenceExhausted,
@@ -34,7 +35,7 @@ pub enum RouteRejection {
 }
 
 impl RouteRejection {
-    pub const ALL: [RouteRejection; 18] = [
+    pub const ALL: [RouteRejection; 19] = [
         Self::SenderUnknown,
         Self::NotAudio,
         Self::SpeakerUnresolved,
@@ -44,6 +45,7 @@ impl RouteRejection {
         Self::WorldMismatch,
         Self::DimensionMismatch,
         Self::SpectatorInaudible,
+        Self::Unrouted,
         Self::NonSpatialOutsideChannel,
         Self::SerializeFailed,
         Self::SequenceExhausted,
@@ -66,6 +68,7 @@ impl RouteRejection {
             Self::WorldMismatch => "world_mismatch",
             Self::DimensionMismatch => "dimension_mismatch",
             Self::SpectatorInaudible => "spectator_inaudible",
+            Self::Unrouted => "unrouted",
             Self::NonSpatialOutsideChannel => "non_spatial_outside_channel",
             Self::SerializeFailed => "serialize_failed",
             Self::SequenceExhausted => "sequence_exhausted",
@@ -85,7 +88,7 @@ impl RouteRejection {
         *self as usize
     }
 
-    /// The proximity gate folds four distinct refusals into one error; this splits them back.
+    /// The proximity gate folds five distinct refusals into one error; this splits them back.
     pub fn from_communication_error(error: &CommunicationError) -> Self {
         match error {
             CommunicationError::OutOfRange { .. } => Self::OutOfRange,
@@ -94,6 +97,7 @@ impl RouteRejection {
                 MinecraftCommunicationError::WorldMismatch { .. } => Self::WorldMismatch,
                 MinecraftCommunicationError::DimensionMismatch { .. } => Self::DimensionMismatch,
                 MinecraftCommunicationError::SpectatorInaudible => Self::SpectatorInaudible,
+                MinecraftCommunicationError::Unrouted => Self::Unrouted,
             },
             CommunicationError::Game(GameError::Generic(_)) => Self::GameMismatch,
         }

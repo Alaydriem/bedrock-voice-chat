@@ -30,8 +30,8 @@ export class Player {
   }
 
   /**
-   * Create a player DTO with death dimension override.
-   * Dead players are placed at origin (0,0,0) in the "death" dimension.
+   * Create a player DTO for a dead player.
+   * The player keeps their dimension and position and is marked as a spectator.
    */
   static fromMinecraftPlayerDead(
     player: MinecraftPlayer,
@@ -39,24 +39,24 @@ export class Player {
   ): Player {
     return new Player(
       player.name,
-      Dimension.DEATH,
-      new Coordinates(0, 0, 0),
-      player.isSneaking,
-      Orientation.fromMinecraftRotation(player.getRotation()),
+      player.dimension.id.replace('minecraft:', ''),
+      Coordinates.fromMinecraftLocation(player.location),
       false,
+      Orientation.fromMinecraftRotation(player.getRotation()),
+      true,
       worldUuid,
     );
   }
 
   /**
    * Create a phantom player DTO for a player who has disconnected.
-   * Uses death dimension, extreme coordinates, and spectator=true to guarantee
+   * Uses the unrouted dimension, extreme coordinates, and spectator=true to guarantee
    * the server's proximity checks reject all audio routing for this player.
    */
   static fromDisconnectedPlayer(name: string, worldUuid?: string): Player {
     return new Player(
       name,
-      Dimension.DEATH,
+      Dimension.UNROUTED,
       new Coordinates(-10000, -10000, -10000),
       false,
       new Orientation(0, 0),

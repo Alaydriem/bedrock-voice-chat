@@ -10,7 +10,7 @@ fn known_names_map_with_and_without_the_minecraft_prefix() {
         ("minecraft:the_nether", Dimension::TheNether),
         ("the_end", Dimension::TheEnd),
         ("minecraft:the_end", Dimension::TheEnd),
-        ("death", Dimension::Death),
+        ("unrouted", Dimension::Unrouted),
     ] {
         assert_eq!(Dimension::from(raw), want, "{raw}");
     }
@@ -23,6 +23,11 @@ fn an_unknown_name_is_other_never_overworld() {
         Dimension::Other(_)
     ));
     assert!(matches!(Dimension::from("aether"), Dimension::Other(_)));
+}
+
+#[test]
+fn the_retired_death_name_is_an_ordinary_custom_dimension() {
+    assert!(matches!(Dimension::from("death"), Dimension::Other(_)));
 }
 
 #[test]

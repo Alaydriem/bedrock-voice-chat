@@ -66,42 +66,24 @@ class PaperPlayerDataProvider(
                 val identity = resolveIdentity(player)
                 val playerUuid = player.uniqueId.toString()
 
-                // Check if player is dead - override to death dimension at origin
-                if (deadPlayers.contains(player.uniqueId)) {
-                    PlayerData(
-                        identity = identity,
-                        x = 0.0,
-                        y = 0.0,
-                        z = 0.0,
-                        yaw = 0f,
-                        pitch = 0f,
-                        dimension = Dimension.Minecraft.DEATH,
-                        whispering = false,
-                        spectator = false,
-                        worldUuid = player.location.world?.uid?.toString(),
-                        playerUuid = playerUuid,
-                        relayWorldUuid = relayWorld?.id()
-                    )
-                } else {
-                    // Normal player data
-                    val location = player.location
-                    val dimension = getDimension(location.world)
-                    PlayerData(
-                        identity = identity,
-                        x = location.x,
-                        y = location.y,
-                        z = location.z,
-                        yaw = location.yaw,
-                        pitch = location.pitch,
-                        dimension = dimension,
-                        whispering = player.isSneaking,
-                        spectator = player.gameMode == org.bukkit.GameMode.SPECTATOR,
-                        worldUuid = location.world?.uid?.toString(),
-                        playerUuid = playerUuid,
-                        relayWorldUuid = relayWorld?.id(),
-                        bridgedVoice = bridgedVoice(player.uniqueId)
-                    )
-                }
+                val dead = deadPlayers.contains(player.uniqueId)
+                val location = player.location
+                val dimension = getDimension(location.world)
+                PlayerData(
+                    identity = identity,
+                    x = location.x,
+                    y = location.y,
+                    z = location.z,
+                    yaw = location.yaw,
+                    pitch = location.pitch,
+                    dimension = dimension,
+                    whispering = !dead && player.isSneaking,
+                    spectator = dead || player.gameMode == org.bukkit.GameMode.SPECTATOR,
+                    worldUuid = location.world?.uid?.toString(),
+                    playerUuid = playerUuid,
+                    relayWorldUuid = relayWorld?.id(),
+                    bridgedVoice = bridgedVoice(player.uniqueId)
+                )
             }
     }
 

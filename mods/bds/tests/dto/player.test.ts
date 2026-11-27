@@ -37,14 +37,17 @@ test('a custom id in the minecraft namespace posts without the prefix', () => {
   assert.equal(json.dimension, 'sky_islands');
 });
 
-// Death overrides the dimension the player died in, custom or not.
-test('a dead player in a custom dimension is parked in death', () => {
+// A dead player stays where they died and is heard only by other spectators.
+test('a dead player keeps their dimension and position as a spectator', () => {
   const json = Player.fromMinecraftPlayerDead(inDimension('mypack:aether')).toJSON();
 
-  assert.equal(json.dimension, 'death');
+  assert.equal(json.dimension, 'mypack:aether');
+  assert.deepEqual(json.coordinates, { x: 1, y: 64, z: -3 });
+  assert.equal(json.spectator, true);
+  assert.equal(json.deafen, false);
 });
 
-// A disconnected player is parked in "death" so no proximity check can route their audio.
-test('a disconnected player is parked in death', () => {
-  assert.equal(Player.fromDisconnectedPlayer('Alex').toJSON().dimension, 'death');
+// A disconnected player is placed in the unrouted dimension so no proximity check can route their audio.
+test('a disconnected player is unrouted', () => {
+  assert.equal(Player.fromDisconnectedPlayer('Alex').toJSON().dimension, 'unrouted');
 });

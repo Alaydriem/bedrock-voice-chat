@@ -134,12 +134,12 @@ data class PlayerData(
 
         /**
          * Create a phantom PlayerData for a player who has disconnected.
-         * Uses death dimension, extreme coordinates, and spectator=true to guarantee
-         * the server's proximity checks reject all audio routing for this player.
+         * The player is placed in [Dimension.Minecraft.UNROUTED]. Together with extreme coordinates and
+         * spectator=true, it guarantees the server's proximity checks reject all audio
+         * routing for this player.
          */
         fun disconnected(
             name: String,
-            dimension: Dimension,
             worldUuid: String?,
             alternativeIdentity: String? = null,
             playerUuid: String? = null,
@@ -148,7 +148,7 @@ data class PlayerData(
             name = name,
             coordinates = Coordinates(PHANTOM_COORD, PHANTOM_COORD, PHANTOM_COORD),
             orientation = Orientation(0f, 0f),
-            dimension = dimension.toApiString(),
+            dimension = Dimension.Minecraft.UNROUTED.toApiString(),
             worldUuid = worldUuid,
             whispering = false,
             spectator = true,

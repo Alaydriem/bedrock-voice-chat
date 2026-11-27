@@ -20,6 +20,8 @@ pub struct BedrockSessionState {
     sneaking: bool,
     crawling: bool,
     spectator: bool,
+    // True from the health packet that kills the player until health returns above zero.
+    dead: bool,
     // Set once this session has decoded a bvc:ctl:sync — proof the BDS world
     // runs the BVC addon (only its panel emits sync). !bvcs: rides are injected
     // only into armed sessions; on a modless server nothing cancels the chat,
@@ -39,8 +41,13 @@ impl BedrockSessionState {
             sneaking: false,
             crawling: false,
             spectator: false,
+            dead: false,
             bvcs_armed: false,
         }
+    }
+
+    pub fn set_dead(&mut self, dead: bool) {
+        self.dead = dead;
     }
 
     pub fn arm_bvcs(&mut self) {
@@ -116,8 +123,8 @@ impl BedrockSessionState {
             coordinates: self.coordinates.clone(),
             orientation: self.orientation.clone(),
             dimension: self.dimension.clone(),
-            whispering: self.sneaking,
-            spectator: self.spectator,
+            whispering: self.sneaking && !self.dead,
+            spectator: self.spectator || self.dead,
             world_uuid: None,
             alternative_identity: None,
             player_uuid: self.player_uuid.clone(),
@@ -131,7 +138,7 @@ impl BedrockSessionState {
             name: self.name.clone(),
             coordinates: self.coordinates.clone(),
             orientation: self.orientation.clone(),
-            dimension: Dimension::Death,
+            dimension: Dimension::Unrouted,
             whispering: self.sneaking,
             spectator: true,
             world_uuid: None,

@@ -74,7 +74,7 @@ class PaperSvcChannelFactoryTest {
 
     @Test
     fun `a dimension this server does not have opens nothing`() {
-        assertNull(open("death"))
+        assertNull(open("unrouted"))
         assertNull(open("custom:missing"))
     }
 

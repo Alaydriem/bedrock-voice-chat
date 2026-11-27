@@ -115,10 +115,10 @@ impl BedrockEventService {
             BedrockEvent::JukeboxEject { event_id, .. } => self.on_jukebox_eject(event_id).await,
             BedrockEvent::PlayerDeath {
                 dimension,
-                last_pos: _,
+                last_pos,
                 ..
             } => {
-                self.on_player_death(authenticated_player, dimension, packet.world_uuid)
+                self.on_player_death(authenticated_player, dimension, last_pos, packet.world_uuid)
                     .await
             }
             BedrockEvent::PlayerLeave { .. } => {
@@ -166,18 +166,15 @@ impl BedrockEventService {
     async fn on_player_death(
         &self,
         player_name: String,
-        _dimension: Dimension,
+        dimension: Dimension,
+        last_pos: Coordinate,
         world_uuid: String,
     ) -> Result<(), BedrockEventRejection> {
         let player = MinecraftPlayer {
             name: player_name,
-            coordinates: Coordinate {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
+            coordinates: last_pos,
             orientation: Orientation { x: 0.0, y: 0.0 },
-            dimension: Dimension::Death,
+            dimension,
             whispering: false,
             spectator: true,
             world_uuid: if world_uuid.is_empty() {
@@ -212,7 +209,7 @@ impl BedrockEventService {
                 z: PHANTOM_LEAVE_COORD,
             },
             orientation: Orientation { x: 0.0, y: 0.0 },
-            dimension: Dimension::Death,
+            dimension: Dimension::Unrouted,
             whispering: false,
             spectator: true,
             world_uuid: if world_uuid.is_empty() {

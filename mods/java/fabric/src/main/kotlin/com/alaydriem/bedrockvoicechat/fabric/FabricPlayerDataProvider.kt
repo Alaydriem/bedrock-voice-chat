@@ -70,41 +70,23 @@ class FabricPlayerDataProvider(
                 val identity = resolveIdentity(player)
                 val playerUuid = player.getUUID().toString()
 
-                // Check if player is dead - override to death dimension at origin
-                if (deadPlayers.contains(player.getUUID())) {
-                    PlayerData(
-                        identity = identity,
-                        x = 0.0,
-                        y = 0.0,
-                        z = 0.0,
-                        yaw = 0f,
-                        pitch = 0f,
-                        dimension = Dimension.Minecraft.DEATH,
-                        whispering = false,
-                        spectator = false,
-                        worldUuid = worldUuid,
-                        playerUuid = playerUuid,
-                        relayWorldUuid = relayWorld?.id()
-                    )
-                } else {
-                    // Normal player data
-                    val dimension = getDimensionFromPlayer(player)
-                    PlayerData(
-                        identity = identity,
-                        x = player.x,
-                        y = player.y,
-                        z = player.z,
-                        yaw = player.yRot,
-                        pitch = player.xRot,
-                        dimension = dimension,
-                        whispering = player.isShiftKeyDown,
-                        spectator = player.isSpectator,
-                        worldUuid = worldUuid,
-                        playerUuid = playerUuid,
-                        relayWorldUuid = relayWorld?.id(),
-                        bridgedVoice = bridgedVoice(player.getUUID())
-                    )
-                }
+                val dead = deadPlayers.contains(player.getUUID())
+                val dimension = getDimensionFromPlayer(player)
+                PlayerData(
+                    identity = identity,
+                    x = player.x,
+                    y = player.y,
+                    z = player.z,
+                    yaw = player.yRot,
+                    pitch = player.xRot,
+                    dimension = dimension,
+                    whispering = !dead && player.isShiftKeyDown,
+                    spectator = dead || player.isSpectator,
+                    worldUuid = worldUuid,
+                    playerUuid = playerUuid,
+                    relayWorldUuid = relayWorld?.id(),
+                    bridgedVoice = bridgedVoice(player.getUUID())
+                )
             }
     }
 

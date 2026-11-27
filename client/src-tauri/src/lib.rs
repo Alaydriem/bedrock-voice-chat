@@ -63,7 +63,7 @@ pub mod i18n;
 mod iap;
 // Re-exported for the integration test crate (a separate crate root that can
 // only reach `pub` items) to cover the store price-selection fallback.
-#[cfg(feature = "e2e")]
+#[cfg(all(feature = "e2e", feature = "iap"))]
 pub use crate::iap::store::StoreProvider;
 pub mod keybinds;
 mod keyring;
@@ -222,9 +222,13 @@ pub fn run() {
     #[cfg(feature = "bedrock-protocol")]
     let bedrock_chat_injector = crate::bedrock::ChatInjector::new_shared();
 
+    #[cfg(feature = "iap")]
+    {
+        builder = builder.plugin(tauri_plugin_iap::init());
+    }
+
     builder
         .plugin(tauri_plugin_curia::init())
-        .plugin(tauri_plugin_iap::init())
         .plugin(tauri_plugin_audio_permissions::init())
         .plugin(tauri_plugin_age_signals::init())
         .plugin(tauri_plugin_keyring::init())
@@ -894,9 +898,12 @@ pub fn run() {
             app.manage(telemetry);
             app.manage(Mutex::new(app_state));
 
-            let mut entitlement_providers = vec![crate::iap::EntitlementProviderType::Store(
+            #[allow(unused_mut)]
+            let mut entitlement_providers: Vec<crate::iap::EntitlementProviderType> = Vec::new();
+            #[cfg(feature = "iap")]
+            entitlement_providers.push(crate::iap::EntitlementProviderType::Store(
                 crate::iap::store::StoreProvider::new(app.handle().clone()),
-            )];
+            ));
             let mock_iap = option_env!("BVC_MOCK_IAP")
                 .map(|v| {
                     matches!(

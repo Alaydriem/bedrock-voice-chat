@@ -16,4 +16,6 @@ pub enum MinecraftCommunicationError {
     },
     #[error("spectator cannot be heard by non-spectator")]
     SpectatorInaudible,
+    #[error("unrouted player")]
+    Unrouted,
 }

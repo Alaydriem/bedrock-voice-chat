@@ -9,7 +9,6 @@ import com.alaydriem.bedrockvoicechat.chat.ChatTransport
 import com.alaydriem.bedrockvoicechat.chat.FfiChatTransport
 import com.alaydriem.bedrockvoicechat.config.ModConfig
 import com.alaydriem.bedrockvoicechat.control.ControlSender
-import com.alaydriem.bedrockvoicechat.dto.Dimension
 import com.alaydriem.bedrockvoicechat.dto.Payload
 import com.alaydriem.bedrockvoicechat.dto.PlayerData
 import com.alaydriem.bedrockvoicechat.native.BvcNative
@@ -308,7 +307,6 @@ class PnxPlugin : PluginBase(), Listener {
         val phantom = if (sender != null) {
             PlayerData.disconnected(
                 name = name,
-                dimension = Dimension.Minecraft.DEATH,
                 worldUuid = playerDataProvider.worldUuidOf(player),
                 playerUuid = player.getUniqueId().toString()
             )

@@ -90,6 +90,12 @@ impl MinecraftPlayer {
             ));
         }
 
+        if self.dimension == Dimension::Unrouted || other.dimension == Dimension::Unrouted {
+            return Err(CommunicationError::minecraft(
+                MinecraftCommunicationError::Unrouted,
+            ));
+        }
+
         if !self.dimension.eq(&other.dimension) {
             return Err(CommunicationError::minecraft(
                 MinecraftCommunicationError::DimensionMismatch {
